@@ -5,18 +5,17 @@ import type {
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "./os-types";
-import type { RouteWriteId } from "./routing-write-echoes";
 import type { FocusWindowOptions } from "./window-manager-types";
 
 /**
- * The coordinator's history writes. Each carries the write id the new entry's history state must
- * hold under `ROUTE_WRITE_STATE_KEY`, so the entry's later report names the write that created it.
+ * The coordinator's history writes. They add no state to the entry; the router bridge reports the
+ * entry each write created to the coordinator's `RoutingEntryLedger`.
  */
 export interface OsRouterPort {
   /** Pushes one history entry reflecting the location. */
-  navigate(route: OsWindowRoute, writeId: RouteWriteId): void;
+  navigate(route: OsWindowRoute): void;
   /** Truths up hydration or remote authority without manufacturing history. */
-  replace(route: OsWindowRoute, writeId: RouteWriteId): void;
+  replace(route: OsWindowRoute): void;
 }
 
 export type RoutingManager = {

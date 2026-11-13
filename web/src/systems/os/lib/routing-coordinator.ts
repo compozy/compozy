@@ -16,7 +16,7 @@ import {
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
 import { decideRouteReconciliation } from "./routing-route-decision";
-import { RoutingWriteEchoes, type RouteWriteId } from "./routing-write-echoes";
+import { RoutingEntryLedger } from "./routing-entry-ledger";
 import { WindowActivations } from "./routing-window-activation";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
@@ -60,26 +60,27 @@ export class RoutingCoordinator {
   private readonly activations = new WindowActivations();
   private pendingNavigateMode: "push" | "pop" | null = null;
   private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
-  private readonly echoes = new RoutingWriteEchoes();
+  private readonly entries: RoutingEntryLedger;
 
-  constructor(manager: RoutingManager, router: OsRouterPort) {
+  /** `entries` is fed by the router bridge with every history change (`RouterEntryBridge`). */
+  constructor(manager: RoutingManager, router: OsRouterPort, entries = new RoutingEntryLedger()) {
     this.manager = manager;
     this.router = router;
+    this.entries = entries;
   }
 
   /**
    * Sync-controllers report every matched location here (cause: route-pop).
    * During hydration the location is held as the final focus intent — on a
    * workspace switch this is exactly the cross-workspace deep link that must
-   * win over the target workspace's restored focus (US-016.EC-2). `writeId` is the coordinator
-   * write the reported history entry carries (`routeWriteIdOf`), `null` for any other entry.
+   * win over the target workspace's restored focus (US-016.EC-2). `entryKey` is the reported
+   * history entry's own key (`__TSR_key`).
    */
-  reportRouteMatch(route: OsWindowRoute, writeId: RouteWriteId | null = null): void {
-    // The router echoing the coordinator's own write is never intent: authoritative focus
+  reportRouteMatch(route: OsWindowRoute, entryKey: string | null = null): void {
+    // The router echoing the coordinator's own navigation is never intent: authoritative focus
     // may have moved on since, and the URL follows it instead. During hydration every
     // location stays the held initial intent.
-    if (this.phase !== "ready") this.echoes.reset();
-    else if (this.echoes.isEcho(writeId)) {
+    if (this.phase === "ready" && this.entries.isEcho(entryKey)) {
       this.reportAuthoritativeState();
       return;
     }
@@ -179,7 +180,6 @@ export class RoutingCoordinator {
     this.invalidateRouteReconciliation();
     this.heldRoute = route;
     this.currentRoute = route;
-    this.echoes.reset();
     this.initialIntent = null;
   }
 
@@ -397,12 +397,12 @@ export class RoutingCoordinator {
   private pushRoute(route: OsWindowRoute): void {
     this.desktopDefaultViewIntentPending = false;
     this.currentRoute = route;
-    this.router.navigate(route, this.echoes.wrote("push"));
+    this.router.navigate(route);
   }
 
   private replaceRoute(route: OsWindowRoute): void {
     this.currentRoute = route;
-    this.router.replace(route, this.echoes.wrote("replace"));
+    this.router.replace(route);
   }
 
   /**

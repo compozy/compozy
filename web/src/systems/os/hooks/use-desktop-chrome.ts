@@ -24,8 +24,9 @@ import {
   windowManagerKeys,
   windowManagerSnapshotOptions,
 } from "../lib/window-manager-query";
-import { RoutingCoordinator, type OsRouterPort } from "../lib/routing-coordinator";
-import { ROUTE_WRITE_STATE_KEY, type RouteWriteId } from "../lib/routing-write-echoes";
+import { RoutingCoordinator } from "../lib/routing-coordinator";
+import { connectRouterEntries, RouterEntryBridge } from "../lib/router-entry-bridge";
+import { RoutingEntryLedger } from "../lib/routing-entry-ledger";
 import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier";
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { selectFocusedSessionId } from "./use-focused-session-id";
@@ -46,19 +47,6 @@ export interface DesktopChromeModel {
   clientCommandChannel: ClientCommandChannel;
   /** The profile whose desk this render presents; the runtime catches up in effects. */
   profileId: string;
-}
-
-function navigateTo(
-  router: ReturnType<typeof useRouter>,
-  route: { pathname: string; search: Record<string, unknown> },
-  writeId: RouteWriteId,
-  replace: boolean
-): void {
-  const href = `${route.pathname}${router.options.stringifySearch(route.search)}`;
-  // The entry keeps its own state, so its report names this write even after Back or Forward.
-  const state = { [ROUTE_WRITE_STATE_KEY]: writeId };
-  if (replace) router.history.replace(href, state);
-  else router.history.push(href, state);
 }
 
 function streamError(error: Error | WindowManagerErrorPayload): Error {
@@ -114,17 +102,21 @@ export function useDesktopChrome(
   // The seam is built deeper in the tree (it needs the shell's own handlers), so
   // the stream reaches it through a ref rather than the shell reaching upward.
   const [clientCommandChannel] = useState(() => new ClientCommandChannel());
-  const [shell] = useState<OsShellHandle>(() => {
-    const port: OsRouterPort = {
-      navigate: (route, writeId) => navigateTo(router, route, writeId, false),
-      replace: (route, writeId) => navigateTo(router, route, writeId, true),
-    };
-    return {
-      projection: manager.projectionAtom,
-      manager,
-      coordinator: new RoutingCoordinator(manager, port),
-    };
-  });
+  const [entries] = useState(() => new RoutingEntryLedger());
+  const [bridge] = useState(
+    () =>
+      new RouterEntryBridge(
+        router.history,
+        route => `${route.pathname}${router.options.stringifySearch(route.search)}`
+      )
+  );
+  const [shell] = useState<OsShellHandle>(() => ({
+    projection: manager.projectionAtom,
+    manager,
+    coordinator: new RoutingCoordinator(manager, bridge.port, entries),
+  }));
+  // Every history change reaches the ledger as it happens, before the router reports its route.
+  useEffect(() => connectRouterEntries(router, bridge, entries), [router, bridge, entries]);
   const focusedSessionId = useAtom(manager.projectionAtom, selectFocusedSessionId);
   const destinationRoute = useAtom(manager.projectionAtom, state =>
     selectPaletteDestinationRoute(state, paletteIntent?.windowId)

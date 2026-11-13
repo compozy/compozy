@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { OsHydration, OsOpenTarget, OsWindow, OsWindowRoute } from "../os-types";
 import { RoutingCoordinator, type OsRouterPort } from "../routing-coordinator";
-import type { RouteWriteId } from "../routing-write-echoes";
+import { RoutingEntryLedger, type RouterEntryEvent } from "../routing-entry-ledger";
 import type { WindowManagerClientView } from "../window-manager-types";
 
 function route(pathname: string, search: Record<string, unknown> = {}): OsWindowRoute {
@@ -216,31 +216,61 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
   };
 }
 
+/** Entry keys are unique across every history in the suite, as the router's random keys are. */
+let entryKeySeq = 0;
+
 /**
- * The write id the coordinator's latest history write handed the router: the id that entry's
- * history state carries, and so the id the router's report of that entry names.
+ * The router's history as the bridge reports it to the ledger: every push and replace gets a fresh
+ * key, Back restores the key of the entry it lands on.
  */
-function lastWriteId(router: OsRouterPort): RouteWriteId | null {
-  const writes = [vi.mocked(router.navigate).mock, vi.mocked(router.replace).mock].flatMap(mock =>
-    mock.calls.map(([, writeId], index) => ({
-      writeId,
-      order: mock.invocationCallOrder[index] ?? 0,
-    }))
-  );
-  const latest = writes.sort((left, right) => right.order - left.order)[0];
-  return latest?.writeId ?? null;
+function createHistory(entries: RoutingEntryLedger) {
+  const stack: string[] = [];
+  let index = -1;
+  const commit = (mode: "push" | "replace", kind: "write" | "push" | "replace") => {
+    entryKeySeq += 1;
+    const key = `entry-${entryKeySeq}`;
+    if (mode === "push" || index < 0) {
+      stack.splice(index + 1, stack.length, key);
+      index += 1;
+    } else {
+      stack[index] = key;
+    }
+    entries.observe({ kind, key } as RouterEntryEvent);
+    return key;
+  };
+  return {
+    write: (mode: "push" | "replace") => commit(mode, "write"),
+    /** An operator link: a push the coordinator did not write. */
+    link: () => commit("push", "push"),
+    /** The router's redirect or normalization of the current entry. */
+    redirect: () => commit("replace", "replace"),
+    back: () => {
+      index -= 1;
+      const key = stack[index];
+      if (key === undefined) throw new Error("history has no earlier entry");
+      entries.observe({ kind: "traverse", key });
+      return key;
+    },
+    resolve: (key: string) => entries.observe({ kind: "resolved", key }),
+    /** The key of the entry history now shows; `null` before any entry was written. */
+    current: (): string | null => stack[index] ?? null,
+  };
 }
 
 function createCoordinator(initialWindows: readonly OsWindow[] = []) {
   const store = createStore(initialWindows);
+  const entries = new RoutingEntryLedger();
+  const history = createHistory(entries);
+  // The history reports each write synchronously, inside the router's push or replace.
   const router: OsRouterPort = {
-    navigate: vi.fn(),
-    replace: vi.fn(),
+    navigate: vi.fn((_route: OsWindowRoute) => void history.write("push")),
+    replace: vi.fn((_route: OsWindowRoute) => void history.write("replace")),
   };
   return {
-    coordinator: new RoutingCoordinator(store, router),
+    coordinator: new RoutingCoordinator(store, router, entries),
     router,
     store,
+    history,
   };
 }
 
@@ -304,7 +334,7 @@ describe("RoutingCoordinator", () => {
 
     expect(store.spies.openOrFocus).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(route("/"), expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(route("/"));
   });
 
   it("Should reconcile an existing route and focus through one semantic transition", () => {
@@ -493,7 +523,7 @@ describe("RoutingCoordinator", () => {
     coordinator.completeHydration();
 
     expect(router.replace).toHaveBeenCalledTimes(2);
-    expect(router.replace).toHaveBeenLastCalledWith(route("/"), expect.any(String));
+    expect(router.replace).toHaveBeenLastCalledWith(route("/"));
     expect(store.spies.openOrFocus).not.toHaveBeenCalled();
 
     store.setHydration("live");
@@ -537,20 +567,20 @@ describe("RoutingCoordinator", () => {
 
     expect(id).toBe("w-settings");
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(route("/settings/layouts"), expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(route("/settings/layouts"));
   });
 
   it("Should hold user route intent until window commands become available", () => {
-    const { coordinator, router, store } = createCoordinator();
+    const { coordinator, router, store, history } = createCoordinator();
     coordinator.completeHydration();
     store.setClientConnected(false);
     const settingsRoute = route("/settings/general");
 
     coordinator.userNavigate(settingsRoute);
-    coordinator.reportRouteMatch(settingsRoute, lastWriteId(router));
+    coordinator.reportRouteMatch(settingsRoute, history.current());
 
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(settingsRoute, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(settingsRoute);
     expect(store.spies.openOrFocus).not.toHaveBeenCalled();
 
     store.setClientConnected(true);
@@ -575,7 +605,7 @@ describe("RoutingCoordinator", () => {
     coordinator.userNavigate(profiles);
 
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(profiles, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(profiles);
     expect(store.spies.openOrFocus).toHaveBeenCalledOnce();
     expect(store.spies.openOrFocus).toHaveBeenCalledWith({
       app: "settings",
@@ -601,7 +631,7 @@ describe("RoutingCoordinator", () => {
     await expect(pending).resolves.toBe(settings.id);
 
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(consumed, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(consumed);
   });
 
   it("Should let a newer user navigation supersede a pending open's history write", async () => {
@@ -621,7 +651,7 @@ describe("RoutingCoordinator", () => {
     // The operator picks Profiles while the daemon still holds the open.
     coordinator.userNavigate(profiles);
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(profiles, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(profiles);
 
     store.settleLifecycle(true);
     await expect(pending).resolves.toBe(settings.id);
@@ -695,7 +725,7 @@ describe("RoutingCoordinator", () => {
     expect(store.spies.focusWindow).toHaveBeenCalledOnce();
     expect(store.spies.focusWindow).toHaveBeenCalledWith(tasks.id, { replaceable: true });
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(tasks.route, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(tasks.route);
   });
 
   it("Should replace once when authoritative focus moves to a different route", () => {
@@ -725,7 +755,7 @@ describe("RoutingCoordinator", () => {
     coordinator.reportAuthoritativeState();
 
     expect(router.replace).toHaveBeenCalledOnce();
-    expect(router.replace).toHaveBeenCalledWith(authoritativeRoute, expect.any(String));
+    expect(router.replace).toHaveBeenCalledWith(authoritativeRoute);
     expect(router.navigate).not.toHaveBeenCalled();
 
     store.setAuthoritativeFocus(
@@ -758,7 +788,7 @@ describe("RoutingCoordinator", () => {
     coordinator.reportAuthoritativeState();
 
     expect(router.replace).toHaveBeenCalledOnce();
-    expect(router.replace).toHaveBeenCalledWith(tasks.route, expect.any(String));
+    expect(router.replace).toHaveBeenCalledWith(tasks.route);
   });
 
   it.each([
@@ -781,7 +811,7 @@ describe("RoutingCoordinator", () => {
     await pending;
 
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(tasks.route, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(tasks.route);
   });
 
   it("Should keep history unchanged when a close command is rejected", async () => {
@@ -825,7 +855,7 @@ describe("RoutingCoordinator", () => {
     store.settleLifecycle(true);
     await expect(pending).resolves.toBe(true);
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(tasks.route, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(tasks.route);
   });
 
   /** Activations whose focus completes only when the test settles it, in dispatch order. */
@@ -872,7 +902,7 @@ describe("RoutingCoordinator", () => {
       await Promise.all(activations);
 
       expect(router.navigate).toHaveBeenCalledOnce();
-      expect(router.navigate).toHaveBeenCalledWith(tasks.route, expect.any(String));
+      expect(router.navigate).toHaveBeenCalledWith(tasks.route);
       expect(router.replace).not.toHaveBeenCalled();
       await expect(activations.at(-1)!).resolves.toBe(true);
     }
@@ -934,7 +964,7 @@ describe("RoutingCoordinator", () => {
     coordinator.completeHydration();
 
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(agents.route, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(agents.route);
     expect(router.replace).not.toHaveBeenCalled();
   });
 
@@ -956,7 +986,7 @@ describe("RoutingCoordinator", () => {
 
     await expect(activation).resolves.toBe(false);
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(settings.route, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(settings.route);
     expect(router.replace).not.toHaveBeenCalled();
   });
 
@@ -978,7 +1008,7 @@ describe("RoutingCoordinator", () => {
     expect(store.spies.retargetWindow).toHaveBeenCalledWith(current.id, "sess-b", target);
     expect(store.spies.openOrFocus).not.toHaveBeenCalled();
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(target, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(target);
     expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-b");
   });
 
@@ -1017,7 +1047,7 @@ describe("RoutingCoordinator", () => {
     await expect(first).resolves.toBe(true);
 
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(latestRoute, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(latestRoute);
   });
 
   it("Should focus the target session's existing window instead of duplicating it", async () => {
@@ -1038,7 +1068,7 @@ describe("RoutingCoordinator", () => {
     expect(store.spies.retargetWindow).not.toHaveBeenCalled();
     expect(store.spies.focusWindow).toHaveBeenCalledWith(other.id, { replaceable: true });
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(other.route, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(other.route);
     expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-a");
   });
 
@@ -1062,7 +1092,7 @@ describe("RoutingCoordinator", () => {
     expect(store.getState().windows[other.id]?.route).toEqual(target);
     expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-a");
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(target, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(target);
   });
 
   it("Should retire a background session without changing the focused route", async () => {
@@ -1134,7 +1164,7 @@ describe("RoutingCoordinator", () => {
     finishRetarget(true);
     await retargeting;
 
-    expect(router.navigate).toHaveBeenCalledWith(next, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(next);
   });
 
   it("Should retire a session tab onto the empty route without closing the window", async () => {
@@ -1150,7 +1180,7 @@ describe("RoutingCoordinator", () => {
     expect(store.spies.closeWindow).not.toHaveBeenCalled();
     expect(store.spies.openOrFocus).not.toHaveBeenCalled();
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(empty, expect.any(String));
+    expect(router.navigate).toHaveBeenCalledWith(empty);
     expect(store.getState().windows[current.id]?.instanceKey).toBe("");
   });
 
@@ -1185,7 +1215,7 @@ describe("RoutingCoordinator", () => {
       expect(store.spies.focusWindow).not.toHaveBeenCalled();
       expect(store.getState().focusedId).toBe(focused.id);
       expect(router.navigate).toHaveBeenCalledOnce();
-      expect(router.navigate).toHaveBeenCalledWith(created.route, expect.any(String));
+      expect(router.navigate).toHaveBeenCalledWith(created.route);
     });
 
     it.each([
@@ -1208,7 +1238,7 @@ describe("RoutingCoordinator", () => {
         expect(landed?.instanceKey).toBe(created.instanceKey);
         expect(store.getState().focusedId).toBe(session.id);
         expect(router.navigate).toHaveBeenCalledOnce();
-        expect(router.navigate).toHaveBeenCalledWith(created.route, expect.any(String));
+        expect(router.navigate).toHaveBeenCalledWith(created.route);
       }
     );
 
@@ -1346,7 +1376,7 @@ describe("RoutingCoordinator", () => {
       expect(store.spies.openOrFocus).toHaveBeenCalledExactlyOnceWith(created);
       expect(landed).toBe(testWindowId("session", created.instanceKey));
       expect(store.getState().windows[landed ?? ""]?.instanceKey).toBe(created.instanceKey);
-      expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route, expect.any(String));
+      expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route);
     });
 
     it("Should open the session the ordinary way when a surviving host refuses the landing", async () => {
@@ -1365,7 +1395,7 @@ describe("RoutingCoordinator", () => {
       expect(store.getState().windows[session.id]).toBeDefined();
       expect(store.spies.openOrFocus).toHaveBeenCalledExactlyOnceWith(created);
       expect(landed).toBe(testWindowId("session", created.instanceKey));
-      expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route, expect.any(String));
+      expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route);
     });
 
     it("Should focus the window that already owns the new session", async () => {
@@ -1468,12 +1498,12 @@ describe("RoutingCoordinator", () => {
       const harness = createCoordinator([b, a]);
       const { coordinator, store } = harness;
       coordinator.completeHydration();
-      coordinator.reportRouteMatch(a.route, lastWriteId(harness.router));
+      coordinator.reportRouteMatch(a.route, harness.history.current());
       store.setAuthoritativeFocus(b.id);
       coordinator.reportAuthoritativeState();
-      expect(harness.router.replace).toHaveBeenLastCalledWith(b.route, expect.any(String));
-      // The id B's history entry carries; the router's report of that entry names it.
-      const writeOfB = lastWriteId(harness.router);
+      expect(harness.router.replace).toHaveBeenLastCalledWith(b.route);
+      // The key of the entry B's write created; the router's report of that entry names it.
+      const writeOfB = harness.history.current();
       vi.mocked(harness.router.replace).mockClear();
       vi.mocked(harness.router.navigate).mockClear();
       store.spies.openOrFocus.mockClear();
@@ -1507,7 +1537,7 @@ describe("RoutingCoordinator", () => {
         expect(store.spies.openOrFocus).not.toHaveBeenCalled();
         expect(store.spies.focusWindow).not.toHaveBeenCalled();
         expect(router.navigate).not.toHaveBeenCalled();
-        expect(router.replace).toHaveBeenLastCalledWith(a.route, expect.any(String));
+        expect(router.replace).toHaveBeenLastCalledWith(a.route);
       }
     );
 
@@ -1515,17 +1545,22 @@ describe("RoutingCoordinator", () => {
       const tasks = windowFixture("tasks", "/tasks");
       const settings = windowFixture("settings", "/settings/general");
       const marketplace = windowFixture("marketplace", "/marketplace/skills");
-      const { coordinator, router, store } = createCoordinator([tasks, settings, marketplace]);
+      const { coordinator, router, store, history } = createCoordinator([
+        tasks,
+        settings,
+        marketplace,
+      ]);
       coordinator.completeHydration();
-      coordinator.reportRouteMatch(marketplace.route, lastWriteId(router));
+      coordinator.reportRouteMatch(marketplace.route, history.current());
       await coordinator.userFocus(tasks.id);
-      const tasksEntry = lastWriteId(router);
+      const tasksEntry = history.current();
       coordinator.reportRouteMatch(tasks.route, tasksEntry);
       await coordinator.userFocus(settings.id);
-      coordinator.reportRouteMatch(settings.route, lastWriteId(router));
+      coordinator.reportRouteMatch(settings.route, history.current());
       store.spies.openOrFocus.mockClear();
 
-      // Back pops to the pushed Tasks entry, whose state still carries its own write.
+      // Back pops to the Tasks entry the coordinator pushed; the traversal is the operator's.
+      expect(history.back()).toBe(tasksEntry);
       coordinator.reportRouteMatch(tasks.route, tasksEntry);
       await vi.waitFor(() => expect(store.getState().focusedId).toBe(tasks.id));
 
@@ -1535,12 +1570,13 @@ describe("RoutingCoordinator", () => {
       expect(router.navigate).toHaveBeenCalledTimes(2);
     });
 
-    it("Should treat an entry written by another coordinator as intent, even at a pending ordinal", async () => {
+    it("Should treat an entry a previous page load wrote as intent", async () => {
       const { coordinator, router, store, a, b, writeOfB } = afterWriteOfB();
-      // A previous page load or another coordinator in this tab wrote B's URL at the same ordinal.
+      // Before a reload, the coordinator wrote B's URL into another entry of the same history;
+      // this page's ledger starts empty and never saw that entry's key.
       const previousLoad = afterWriteOfB();
+      expect(previousLoad.writeOfB).not.toBeNull();
       expect(previousLoad.writeOfB).not.toBe(writeOfB);
-      expect(previousLoad.writeOfB?.split(":").at(-1)).toBe(writeOfB?.split(":").at(-1));
 
       store.setAuthoritativeFocus(a.id);
       coordinator.reportRouteMatch(b.route, previousLoad.writeOfB);
@@ -1577,14 +1613,14 @@ describe("RoutingCoordinator", () => {
       const sessions = sessionA();
       const settings = windowFixture("settings", "/settings/general");
       const harness = createCoordinator([tasks, sessions, settings]);
-      const { coordinator, router, store } = harness;
+      const { coordinator, router, store, history } = harness;
       coordinator.completeHydration();
-      coordinator.reportRouteMatch(settings.route, lastWriteId(router));
+      coordinator.reportRouteMatch(settings.route, history.current());
       await coordinator.userFocus(tasks.id);
-      const earlierTasks = lastWriteId(router);
+      const earlierTasks = history.current();
       coordinator.reportRouteMatch(tasks.route, earlierTasks);
       await coordinator.userFocus(settings.id);
-      coordinator.reportRouteMatch(settings.route, lastWriteId(router));
+      coordinator.reportRouteMatch(settings.route, history.current());
       store.setAuthoritativeFocus(tasks.id);
       coordinator.reportAuthoritativeState();
       store.setAuthoritativeFocus(sessions.id);
@@ -1602,9 +1638,11 @@ describe("RoutingCoordinator", () => {
     }
 
     it("Should treat Back to an earlier entry with a pending write's URL as intent [AS-F-17]", async () => {
-      const { coordinator, router, store, tasks, earlierTasks } = await afterUnreportedReplaces();
+      const { coordinator, router, store, history, tasks, earlierTasks } =
+        await afterUnreportedReplaces();
 
       // Back lands on the earlier Tasks entry before the router reports either replace.
+      expect(history.back()).toBe(earlierTasks);
       coordinator.reportRouteMatch(tasks.route, earlierTasks);
       await vi.waitFor(() => expect(store.getState().focusedId).toBe(tasks.id));
       coordinator.reportAuthoritativeState();
@@ -1617,10 +1655,111 @@ describe("RoutingCoordinator", () => {
     });
 
     it("Should treat a link to a replaced pending write's URL as intent [AS-F-17]", async () => {
-      const { coordinator, router, store, tasks } = await afterUnreportedReplaces();
+      const { coordinator, router, store, history, tasks } = await afterUnreportedReplaces();
 
-      // A link creates its own entry, which carries no coordinator write.
-      coordinator.reportRouteMatch(tasks.route);
+      // A link creates its own entry, which the coordinator did not write.
+      coordinator.reportRouteMatch(tasks.route, history.link());
+      await vi.waitFor(() => expect(store.getState().focusedId).toBe(tasks.id));
+      coordinator.reportAuthoritativeState();
+
+      expect(store.spies.openOrFocus).toHaveBeenCalledWith(
+        expect.objectContaining({ app: "tasks", route: tasks.route })
+      );
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it("Should read both reports of a write the router redirects as echoes [AS-F-17, R10-05]", async () => {
+      const { coordinator, router, store, history, a, b, writeOfB } = afterWriteOfB();
+      // B's loader canonicalizes its URL with a replace while B's entry is still loading.
+      const canonicalB = route(b.route.pathname, { workspace: "workspace:b" });
+      const redirected = history.redirect();
+
+      store.setAuthoritativeFocus(a.id);
+      coordinator.reportRouteMatch(b.route, writeOfB);
+      coordinator.reportRouteMatch(canonicalB, redirected);
+      await Promise.resolve();
+
+      expect(store.getState().focusedId).toBe(a.id);
+      expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+      expect(store.spies.focusWindow).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).toHaveBeenLastCalledWith(a.route);
+    });
+
+    it("Should read a replace after the written entry finished loading as intent", async () => {
+      const { coordinator, store, history, a, b, writeOfB } = afterWriteOfB();
+      if (writeOfB === null) throw new Error("B's write must have created an entry");
+      history.resolve(writeOfB);
+      // Not the router finishing B's navigation: a later replace is someone else's.
+      const replaced = history.redirect();
+
+      store.setAuthoritativeFocus(a.id);
+      coordinator.reportRouteMatch(b.route, replaced);
+      await vi.waitFor(() => expect(store.getState().focusedId).toBe(b.id));
+
+      expect(store.spies.openOrFocus).toHaveBeenCalledWith(
+        expect.objectContaining({ route: b.route })
+      );
+    });
+
+    it("Should end on B when A's redirect reports after B was activated [AS-F-17]", async () => {
+      const a = sessionA();
+      const b = sessionB();
+      const tasks = windowFixture("tasks", "/tasks");
+      const { coordinator, router, store, history } = createCoordinator([a, b, tasks]);
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(tasks.route, history.current());
+
+      // All projects: A's loader redirects to add the workspace binding before B is activated.
+      await coordinator.userActivateWindow(a.id);
+      const writeOfA = history.current();
+      const redirectOfA = history.redirect();
+      await coordinator.userActivateWindow(b.id);
+      const writeOfB = history.current();
+      store.spies.openOrFocus.mockClear();
+      store.spies.focusWindow.mockClear();
+      vi.mocked(router.navigate).mockClear();
+      vi.mocked(router.replace).mockClear();
+
+      coordinator.reportRouteMatch(a.route, writeOfA);
+      coordinator.reportRouteMatch(route(a.route.pathname, { workspace: "ws-a" }), redirectOfA);
+      coordinator.reportRouteMatch(b.route, writeOfB);
+      coordinator.reportAuthoritativeState();
+      await Promise.resolve();
+
+      expect(store.getState().focusedId).toBe(b.id);
+      expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+      expect(store.spies.focusWindow).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it("Should treat Back to a written entry as intent after a link and a replace followed it", async () => {
+      const tasks = windowFixture("tasks", "/tasks");
+      const settings = windowFixture("settings", "/settings/general");
+      const sessions = sessionA();
+      const { coordinator, router, store, history } = createCoordinator([
+        tasks,
+        settings,
+        sessions,
+      ]);
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(sessions.route, history.current());
+      // Push A (Tasks), an operator link pushes B (Settings), then authority replaces B with C.
+      await coordinator.userFocus(tasks.id);
+      const entryOfA = history.current();
+      history.link();
+      store.setAuthoritativeFocus(sessions.id);
+      coordinator.reportAuthoritativeState();
+      expect(router.replace).toHaveBeenLastCalledWith(sessions.route);
+      store.spies.openOrFocus.mockClear();
+      vi.mocked(router.navigate).mockClear();
+      vi.mocked(router.replace).mockClear();
+
+      // Back to A before any of those entries reports.
+      expect(history.back()).toBe(entryOfA);
+      coordinator.reportRouteMatch(tasks.route, entryOfA);
       await vi.waitFor(() => expect(store.getState().focusedId).toBe(tasks.id));
       coordinator.reportAuthoritativeState();
 

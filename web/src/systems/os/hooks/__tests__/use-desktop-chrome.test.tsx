@@ -37,7 +37,8 @@ const unreadableSessions = vi.hoisted(() => new Set<string>());
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
     options: { stringifySearch: () => "" },
-    history: { replace: vi.fn(), push: vi.fn() },
+    history: { replace: vi.fn(), push: vi.fn(), subscribe: () => () => undefined },
+    subscribe: () => () => undefined,
   }),
 }));
 
