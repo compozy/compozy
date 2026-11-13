@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import type { SessionPayload } from "@/systems/session";
 
 import type { OsTabBarModel, OsTabModel } from "../hooks/use-os-tab-bar";
-import { useWindowMoveTargets } from "../hooks/use-window-move-targets";
+import { useWindowMoveTargets, type WindowMoveTarget } from "../hooks/use-window-move-targets";
 import { openContextMenuFromKeyboard } from "../lib/context-menu-keyboard";
 import type { OsArrangePreset, OsWindow } from "../lib/os-types";
 import { adjacentTabIndex } from "../lib/window-manager-command-builders";
@@ -61,6 +61,154 @@ function SplitWithItem({
         <span className="shrink-0 text-meta text-subtle tabular-nums">{model.members.length}</span>
       ) : null}
     </ContextMenuItem>
+  );
+}
+
+/** Split with ▸: every other tab of the bar, named like its tab. */
+function OsTabSplitWithSub({
+  bar,
+  tabId,
+  others,
+  sessionOf,
+}: {
+  bar: OsTabBarModel;
+  tabId: string;
+  others: readonly OsTabModel[];
+  sessionOf: SessionOf;
+}) {
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger data-testid={`os-tab-split-with-menu-${tabId}`}>
+        Split with
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent>
+        {others.map(other => (
+          <SplitWithItem
+            key={other.tab.id}
+            model={other}
+            sessionOf={sessionOf}
+            onSelect={() => bar.splitWith(tabId, other.tab.id)}
+          />
+        ))}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
+
+/** Arrange ▸: the presets, then Balance sizes for a split tab. */
+function OsTabArrangeSub({
+  bar,
+  tabId,
+  memberCount,
+}: {
+  bar: OsTabBarModel;
+  tabId: string;
+  memberCount: number;
+}) {
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger data-testid={`os-tab-arrange-menu-${tabId}`}>
+        Arrange
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent>
+        {ARRANGE_ITEMS.map(item => (
+          <ContextMenuItem key={item.preset} onClick={() => bar.arrange(tabId, item.preset)}>
+            {item.label}
+          </ContextMenuItem>
+        ))}
+        {memberCount > 1 ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => bar.balance(tabId)}>Balance sizes</ContextMenuItem>
+          </>
+        ) : null}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
+
+/** Move to desktop ▸: every other desktop by name. */
+function OsTabMoveToDesktopSub({
+  bar,
+  tabId,
+  moveTargets,
+}: {
+  bar: OsTabBarModel;
+  tabId: string;
+  moveTargets: readonly WindowMoveTarget[];
+}) {
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>Move to desktop</ContextMenuSubTrigger>
+      <ContextMenuSubContent>
+        {moveTargets.map(target => (
+          <ContextMenuItem
+            key={target.desktopId}
+            onClick={() => bar.moveToDesktop(tabId, target.desktopId)}
+          >
+            {target.name}
+          </ContextMenuItem>
+        ))}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
+
+/** The close set: Close tab, the bulk closes that reach a tab, then Reopen closed tab. */
+function OsTabCloseItems({
+  bar,
+  tabId,
+  closable,
+  reach,
+}: {
+  bar: OsTabBarModel;
+  tabId: string;
+  closable: boolean;
+  reach: ReturnType<typeof closeReach>;
+}) {
+  return (
+    <>
+      {closable ? (
+        <ContextMenuItem onClick={() => bar.close(tabId)}>
+          Close tab
+          {bar.shortcutLabels.close ? (
+            <ContextMenuShortcut>{bar.shortcutLabels.close}</ContextMenuShortcut>
+          ) : null}
+        </ContextMenuItem>
+      ) : null}
+      {/* A bulk close that would close nothing is absent, not disabled (US-006.EC-4, S7). */}
+      {reach.others > 0 ? (
+        <ContextMenuItem onClick={() => bar.closeScoped(tabId, "others")}>
+          Close other tabs
+        </ContextMenuItem>
+      ) : null}
+      {reach.right > 0 ? (
+        <ContextMenuItem onClick={() => bar.closeScoped(tabId, "right")}>
+          Close tabs to the right
+        </ContextMenuItem>
+      ) : null}
+      {reach.left > 0 ? (
+        <ContextMenuItem onClick={() => bar.closeScoped(tabId, "left")}>
+          Close tabs to the left
+        </ContextMenuItem>
+      ) : null}
+      {reach.all > 0 ? (
+        <ContextMenuItem onClick={() => bar.closeScoped(tabId, "all")}>
+          Close all tabs
+        </ContextMenuItem>
+      ) : null}
+      {bar.canReopen ? (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={bar.reopen}>
+            Reopen closed tab
+            {bar.shortcutLabels.reopen ? (
+              <ContextMenuShortcut>{bar.shortcutLabels.reopen}</ContextMenuShortcut>
+            ) : null}
+          </ContextMenuItem>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -119,100 +267,16 @@ export function OsTabMenu({
           <ContextMenuItem onClick={() => bar.moveTab(tabId, "right")}>Move right</ContextMenuItem>
         ) : null}
         {others.length > 0 ? (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger data-testid={`os-tab-split-with-menu-${tabId}`}>
-              Split with
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              {others.map(other => (
-                <SplitWithItem
-                  key={other.tab.id}
-                  model={other}
-                  sessionOf={sessionOf}
-                  onSelect={() => bar.splitWith(tabId, other.tab.id)}
-                />
-              ))}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
+          <OsTabSplitWithSub bar={bar} tabId={tabId} others={others} sessionOf={sessionOf} />
         ) : null}
         {windowCount > 1 ? (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger data-testid={`os-tab-arrange-menu-${tabId}`}>
-              Arrange
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              {ARRANGE_ITEMS.map(item => (
-                <ContextMenuItem key={item.preset} onClick={() => bar.arrange(tabId, item.preset)}>
-                  {item.label}
-                </ContextMenuItem>
-              ))}
-              {model.members.length > 1 ? (
-                <>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem onClick={() => bar.balance(tabId)}>
-                    Balance sizes
-                  </ContextMenuItem>
-                </>
-              ) : null}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
+          <OsTabArrangeSub bar={bar} tabId={tabId} memberCount={model.members.length} />
         ) : null}
         {moveTargets.length > 0 ? (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>Move to desktop</ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              {moveTargets.map(target => (
-                <ContextMenuItem
-                  key={target.desktopId}
-                  onClick={() => bar.moveToDesktop(tabId, target.desktopId)}
-                >
-                  {target.name}
-                </ContextMenuItem>
-              ))}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
+          <OsTabMoveToDesktopSub bar={bar} tabId={tabId} moveTargets={moveTargets} />
         ) : null}
         <ContextMenuSeparator />
-        {closable ? (
-          <ContextMenuItem onClick={() => bar.close(tabId)}>
-            Close tab
-            {bar.shortcutLabels.close ? (
-              <ContextMenuShortcut>{bar.shortcutLabels.close}</ContextMenuShortcut>
-            ) : null}
-          </ContextMenuItem>
-        ) : null}
-        {/* A bulk close that would close nothing is absent, not disabled (US-006.EC-4, S7). */}
-        {reach.others > 0 ? (
-          <ContextMenuItem onClick={() => bar.closeScoped(tabId, "others")}>
-            Close other tabs
-          </ContextMenuItem>
-        ) : null}
-        {reach.right > 0 ? (
-          <ContextMenuItem onClick={() => bar.closeScoped(tabId, "right")}>
-            Close tabs to the right
-          </ContextMenuItem>
-        ) : null}
-        {reach.left > 0 ? (
-          <ContextMenuItem onClick={() => bar.closeScoped(tabId, "left")}>
-            Close tabs to the left
-          </ContextMenuItem>
-        ) : null}
-        {reach.all > 0 ? (
-          <ContextMenuItem onClick={() => bar.closeScoped(tabId, "all")}>
-            Close all tabs
-          </ContextMenuItem>
-        ) : null}
-        {bar.canReopen ? (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={bar.reopen}>
-              Reopen closed tab
-              {bar.shortcutLabels.reopen ? (
-                <ContextMenuShortcut>{bar.shortcutLabels.reopen}</ContextMenuShortcut>
-              ) : null}
-            </ContextMenuItem>
-          </>
-        ) : null}
+        <OsTabCloseItems bar={bar} tabId={tabId} closable={closable} reach={reach} />
       </ContextMenuContent>
     </ContextMenu>
   );

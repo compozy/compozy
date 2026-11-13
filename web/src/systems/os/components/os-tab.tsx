@@ -9,31 +9,18 @@ import {
   providerKindIconRegistry,
 } from "@compozy/ui";
 import { X } from "@compozy/ui/icons";
-import {
-  Fragment,
-  type CSSProperties,
-  type MouseEvent,
-  type PointerEvent,
-  type ReactNode,
-} from "react";
+import { Fragment, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 
 import { cn } from "@/lib/utils";
-import { pendingInteractions, type SessionPayload } from "@/systems/session";
+import type { SessionPayload } from "@/systems/session";
 
-import {
-  pinnedTabWidth,
-  TAB_TILE_PEEK,
-  TAB_TILE_STACK_MAX,
-  TAB_TILE_WIDTH,
-} from "../hooks/use-os-tab-bar";
-import { useOsWindowTitle } from "../hooks/use-os-window-title";
+import { TAB_TILE_PEEK, TAB_TILE_STACK_MAX, TAB_TILE_WIDTH } from "../hooks/use-os-tab-bar";
+import { useOsTabPlate } from "../hooks/use-os-tab-plate";
 import type { TabRovingProps } from "../hooks/use-tab-bar-roving";
-import { useWindowMemberSlot } from "../hooks/use-window-member-slot";
 import { getOsAppDescriptor } from "../lib/app-catalog";
 import type { OsWindow } from "../lib/os-types";
-import { sessionSignal, tabSignal } from "../lib/tab-signal";
-import { TAB_MAX_WIDTH, tabPresentation } from "../lib/tab-width";
-import { ensureWindowSlotStore } from "../lib/window-slot-registry";
+import type { TabSignal } from "../lib/tab-signal";
+import type { TabPresentation } from "../lib/tab-width";
 
 const TILE_HEIGHT = 20;
 const TILE_SHRINK = 2;
@@ -123,6 +110,125 @@ function OsTabTrail({
   );
 }
 
+/** The tab's loudest signal as a glyph, inline or in the tile's corner. */
+function OsTabSignalGlyph({ signal }: { signal: TabSignal }) {
+  return <StateGlyph label={signal.label} size="sm" state={signal.state} />;
+}
+
+/** The tiles, with the signal in their corner once the tab is too narrow to show it inline. */
+function OsTabLeadTiles({
+  members,
+  sessionOf,
+  signal,
+  cornerSignal,
+}: {
+  members: readonly OsWindow[];
+  sessionOf: (win: OsWindow) => SessionPayload | undefined;
+  signal: TabSignal | null;
+  cornerSignal: boolean;
+}) {
+  return (
+    <span className="relative shrink-0">
+      <OsTabTiles members={members} sessionOf={sessionOf} />
+      {cornerSignal && signal ? (
+        <span className="absolute -top-1 -right-1 z-10 grid place-items-center rounded-pill bg-rail p-px">
+          <OsTabSignalGlyph signal={signal} />
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/** An unpinned tab's title, member count, inline signal and waiting count, as its width keeps. */
+function OsTabDetails({
+  title,
+  memberCount,
+  signal,
+  pending,
+  show,
+}: {
+  title: string;
+  memberCount: number;
+  signal: TabSignal | null;
+  pending: number;
+  show: TabPresentation;
+}) {
+  return (
+    <>
+      {show.title ? <span className="min-w-0 flex-1 truncate">{title}</span> : null}
+      {memberCount > 1 && show.memberCount ? (
+        <span className="shrink-0 text-meta text-subtle tabular-nums">{memberCount}</span>
+      ) : null}
+      {signal && show.signal ? (
+        <span className="grid shrink-0 place-items-center">
+          <OsTabSignalGlyph signal={signal} />
+        </span>
+      ) : null}
+      {show.waitingCount ? <Pill.Count count={pending} /> : null}
+    </>
+  );
+}
+
+/** The plate's close button; outside the bar's one tab stop when the bar roves focus. */
+function OsTabCloseButton({
+  active,
+  roving,
+  onClose,
+}: {
+  active: boolean;
+  roving: TabRovingProps | undefined;
+  onClose: (() => void) | undefined;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label="Close tab"
+      // The bar keeps one tab stop; the keyboard closes through the menu or shortcut.
+      tabIndex={roving ? -1 : undefined}
+      className={cn(
+        "ml-1 grid size-4.5 shrink-0 place-items-center rounded-xs text-subtle opacity-0 transition-opacity duration-fast",
+        "hover:bg-fg/10 hover:text-fg focus-visible:opacity-100 focus-visible:shadow-focus-ring focus-visible:outline-none",
+        "group-hover/tab:opacity-100",
+        active && "opacity-100"
+      )}
+      data-slot="os-tab-close"
+      onClick={onClose}
+      onPointerDown={event => event.stopPropagation()}
+    >
+      <X aria-hidden="true" className="size-3" />
+    </button>
+  );
+}
+
+/** A present-or-absent data attribute: `""` when set, omitted otherwise. */
+function dataFlag(on: boolean): "" | undefined {
+  return on ? "" : undefined;
+}
+
+function plateClassName(pinned: boolean, active: boolean, dwelling: boolean, dragging: boolean) {
+  return cn(
+    "group/tab relative flex h-6.75 shrink-0 items-center rounded-sm pl-[3.5px] text-body font-medium transition-colors duration-fast select-none",
+    // A pinned tab hugs its tile: the same 3.5px on every side.
+    pinned ? "pr-[3.5px]" : "pr-1",
+    active ? "bg-fg/7 text-fg" : "bg-fg/4 text-fg-2 hover:bg-fg/6 hover:text-fg",
+    "has-[:focus-visible]:shadow-focus-ring",
+    dwelling && "bg-brand-tint-strong text-fg ring-1 ring-brand",
+    dragging && "opacity-40"
+  );
+}
+
+/**
+ * Middle-click closes like "Close tab" (US-002.AC-4): a pinned split tab closes whole; only the
+ * last window of a pinned tab is refused (EC-3).
+ */
+function middleClickClose(pinned: boolean, memberCount: number, onClose: (() => void) | undefined) {
+  return (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.button !== 1 || (pinned && memberCount === 1)) return;
+    event.preventDefault();
+    onClose?.();
+  };
+}
+
 export interface OsTabProps {
   tabId: string;
   members: readonly OsWindow[];
@@ -162,118 +268,64 @@ export function OsTab({
   onPointerDown,
   roving,
 }: OsTabProps) {
-  const lead = members[0]!;
-  const title = useOsWindowTitle(lead, sessionOf(lead));
-  const crumbs = useWindowMemberSlot(ensureWindowSlotStore(lead.id))?.crumbs;
-  const signal = tabSignal(members.map(member => sessionSignal(sessionOf(member))));
-  const pending = members.reduce((sum, member) => {
-    const session = sessionOf(member);
-    return sum + (member.app === "session" && session ? pendingInteractions(session).length : 0);
-  }, 0);
-  const label = members.length > 1 ? `${title} and ${members.length - 1} more` : title;
-  const plateWidth = pinned ? pinnedTabWidth(members.length) : (width ?? TAB_MAX_WIDTH);
-  const show = tabPresentation(plateWidth, active);
-  const iconOnly = !pinned && !show.title;
-
-  let signalMark: ReactNode = null;
-  if (signal) signalMark = <StateGlyph label={signal.label} size="sm" state={signal.state} />;
-  // The inline signal moves to the tile's corner once the tab is too narrow to show it.
-  const cornerSignal = signalMark !== null && (pinned || !show.signal);
-
-  // Middle-click closes like "Close tab" (US-002.AC-4): a pinned split tab closes whole; only the
-  // last window of a pinned tab is refused (EC-3).
-  const closeOnMiddleClick = (event: MouseEvent<HTMLButtonElement>) => {
-    if (event.button !== 1 || (pinned && members.length === 1)) return;
-    event.preventDefault();
-    onClose?.();
-  };
+  const plate = useOsTabPlate({ members, pinned, active, sessionOf, width });
+  const closeOnMiddleClick = middleClickClose(pinned, members.length, onClose);
 
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <div
-            className={cn(
-              "group/tab relative flex h-6.75 shrink-0 items-center rounded-sm pl-[3.5px] text-body font-medium transition-colors duration-fast select-none",
-              // A pinned tab hugs its tile: the same 3.5px on every side.
-              pinned ? "pr-[3.5px]" : "pr-1",
-              active ? "bg-fg/7 text-fg" : "bg-fg/4 text-fg-2 hover:bg-fg/6 hover:text-fg",
-              "has-[:focus-visible]:shadow-focus-ring",
-              dwelling && "bg-brand-tint-strong text-fg ring-1 ring-brand",
-              dragging && "opacity-40"
-            )}
-            data-dragging={dragging ? "" : undefined}
-            data-active={active ? "" : undefined}
-            data-pinned={pinned ? "" : undefined}
+            className={plateClassName(pinned, active, dwelling, dragging)}
+            data-dragging={dataFlag(dragging)}
+            data-active={dataFlag(active)}
+            data-pinned={dataFlag(pinned)}
             data-slot="os-tab"
             data-tab-id={tabId}
-            style={{ width: plateWidth }}
+            style={{ width: plate.plateWidth }}
           >
             <button
               type="button"
               role="tab"
-              aria-label={label}
+              aria-label={plate.label}
               aria-selected={active}
               data-testid={`os-tab-${tabId}`}
-              data-active={active ? "" : undefined}
-              data-pinned={pinned ? "" : undefined}
-              data-lead-window-id={lead.id}
+              data-active={dataFlag(active)}
+              data-pinned={dataFlag(pinned)}
+              data-lead-window-id={plate.lead.id}
               {...roving}
               className={cn(
                 "flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[inherit] text-left outline-none",
-                iconOnly && "justify-center"
+                plate.iconOnly && "justify-center"
               )}
               onClick={onActivate}
               onAuxClick={closeOnMiddleClick}
               onPointerDown={onPointerDown}
             >
-              <span className="relative shrink-0">
-                <OsTabTiles members={members} sessionOf={sessionOf} />
-                {cornerSignal ? (
-                  <span className="absolute -top-1 -right-1 z-10 grid place-items-center rounded-pill bg-rail p-px">
-                    {signalMark}
-                  </span>
-                ) : null}
-              </span>
+              <OsTabLeadTiles
+                members={members}
+                sessionOf={sessionOf}
+                signal={plate.signal}
+                cornerSignal={plate.cornerSignal}
+              />
               {pinned ? null : (
-                <>
-                  {show.title ? <span className="min-w-0 flex-1 truncate">{title}</span> : null}
-                  {members.length > 1 && show.memberCount ? (
-                    <span className="shrink-0 text-meta text-subtle tabular-nums">
-                      {members.length}
-                    </span>
-                  ) : null}
-                  {signalMark && show.signal ? (
-                    <span className="grid shrink-0 place-items-center">{signalMark}</span>
-                  ) : null}
-                  {show.waitingCount ? <Pill.Count count={pending} /> : null}
-                </>
+                <OsTabDetails
+                  title={plate.title}
+                  memberCount={members.length}
+                  signal={plate.signal}
+                  pending={plate.pending}
+                  show={plate.show}
+                />
               )}
             </button>
-            {pinned || !show.close ? null : (
-              <button
-                type="button"
-                aria-label="Close tab"
-                // The bar keeps one tab stop; the keyboard closes through the menu or shortcut.
-                tabIndex={roving ? -1 : undefined}
-                className={cn(
-                  "ml-1 grid size-4.5 shrink-0 place-items-center rounded-xs text-subtle opacity-0 transition-opacity duration-fast",
-                  "hover:bg-fg/10 hover:text-fg focus-visible:opacity-100 focus-visible:shadow-focus-ring focus-visible:outline-none",
-                  "group-hover/tab:opacity-100",
-                  active && "opacity-100"
-                )}
-                data-slot="os-tab-close"
-                onClick={onClose}
-                onPointerDown={event => event.stopPropagation()}
-              >
-                <X aria-hidden="true" className="size-3" />
-              </button>
+            {pinned || !plate.show.close ? null : (
+              <OsTabCloseButton active={active} roving={roving} onClose={onClose} />
             )}
           </div>
         }
       />
       <TooltipContent side="bottom">
-        <OsTabTrail crumbs={crumbs} title={label} />
+        <OsTabTrail crumbs={plate.crumbs} title={plate.label} />
       </TooltipContent>
     </Tooltip>
   );
