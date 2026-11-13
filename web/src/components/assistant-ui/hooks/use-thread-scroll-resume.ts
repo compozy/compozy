@@ -30,9 +30,12 @@ function textLayoutOf(viewport: HTMLElement): string {
   return layout;
 }
 
-/** The element under the viewport's top edge and how far into it that edge is, as a share. */
+/** The element under the viewport's top edge and how far into it that edge is. */
 interface TextAnchor {
   element: Element;
+  /** In pixels: kept while the text layout is unchanged (the element only grew below). */
+  depth: number;
+  /** As a share of its height: kept after a reflow. */
   share: number;
 }
 
@@ -49,16 +52,21 @@ function textAnchorAt(viewport: HTMLElement): TextAnchor | null {
   if (hit === null || hit === viewport || !viewport.contains(hit)) return null;
   const rect = hit.getBoundingClientRect();
   if (rect.height <= 0) return null;
-  return { element: hit, share: Math.min(1, Math.max(0, (box.top - rect.top) / rect.height)) };
+  const depth = Math.max(0, box.top - rect.top);
+  return { element: hit, depth, share: Math.min(1, depth / rect.height) };
 }
 
-/** Where the text anchor puts the viewport now; `null` once its element left or lost its box. */
-function textTargetOf(viewport: HTMLElement, text: TextAnchor): number | null {
+/**
+ * Where the text anchor puts the viewport now; `null` once its element left or lost its box.
+ * `reflowed`: the text layout changed since it was read, so the depth is kept as a share.
+ */
+function textTargetOf(viewport: HTMLElement, text: TextAnchor, reflowed: boolean): number | null {
   if (!text.element.isConnected || !viewport.contains(text.element)) return null;
   const rect = text.element.getBoundingClientRect();
   if (rect.height <= 0) return null;
   const box = viewport.getBoundingClientRect();
-  return viewport.scrollTop + rect.top - box.top + text.share * rect.height;
+  const depth = reflowed ? text.share * rect.height : Math.min(text.depth, rect.height);
+  return viewport.scrollTop + rect.top - box.top + depth;
 }
 
 /** The row at the viewport's top edge, how far into it the reader is, and the raw offset. */
@@ -154,12 +162,13 @@ export function useThreadScrollResume(
     };
     /** Where the anchored row puts the viewport now, by its current measurement. */
     const targetOf = (reading: ReadingAnchor): number => {
-      const text = reading.text === null ? null : textTargetOf(viewport, reading.text);
+      // Same text layout: the text above the reader did not move, whatever was appended below.
+      const reflowed = textLayoutOf(viewport) !== reading.layout;
+      const text = reading.text === null ? null : textTargetOf(viewport, reading.text, reflowed);
       if (text !== null) return text;
       const item = virtualizer.measurementsCache.find(entry => entry.key === reading.key);
       if (item === undefined) return reading.top;
-      // Same text layout: the text above the reader did not move, whatever was appended below.
-      if (textLayoutOf(viewport) === reading.layout) {
+      if (!reflowed) {
         return item.start + Math.min(reading.depth, item.size);
       }
       return item.start + reading.fraction * item.size;

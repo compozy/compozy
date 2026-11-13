@@ -9131,6 +9131,35 @@ describe("useThreadScrollResume", () => {
     expect(viewport.scrollTop).toBe(850);
   });
 
+  it("Should keep the depth into a paragraph that grew while hidden at the same layout", () => {
+    const { viewport, store, hideAndShow } = setupResume();
+    const paragraph = document.createElement("p");
+    viewport.append(paragraph);
+    const text = { offset: 400, height: 400 };
+    vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 800, 500));
+    vi.spyOn(paragraph, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, text.offset - viewport.scrollTop, 800, text.height)
+    );
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => paragraph,
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    });
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // The streaming paragraph doubles: its text was appended below the reader.
+    hideAndShow(() => {
+      text.height = 800;
+    });
+
+    // Still 200px into the paragraph, not halfway into the longer one.
+    expect(viewport.scrollTop).toBe(600);
+  });
+
   it("Should hold the resumed row while rows re-measure, and yield to any other move", async () => {
     const { rows, viewport, store, hideAndShow } = setupResume();
     const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
