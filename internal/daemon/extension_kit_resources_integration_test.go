@@ -555,14 +555,7 @@ func extensionKitIntegrationLayout(id string) windowmanager.LayoutResource {
 	return windowmanager.LayoutResource{
 		Version: windowmanager.LayoutResourceVersion, ID: id, DisplayName: "Focus",
 		AspectVariant: windowmanager.LayoutAspectAny, OverflowPolicy: windowmanager.LayoutOverflowStack,
-		Document: windowmanager.LayoutDocument{
-			Version: windowmanager.SnapshotVersion,
-			Desktops: []windowmanager.Desktop{{
-				ID: "desktop-main", Name: "Main",
-				Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
-			}},
-			Windows: map[windowmanager.WindowID]windowmanager.Window{},
-		},
+		Document: daemonTestLayoutDocument("Main"),
 	}
 }
 

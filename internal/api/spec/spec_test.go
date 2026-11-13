@@ -3565,7 +3565,25 @@ func addAttentionTerminalApprovalSchema(t *testing.T, baseline map[string]any) {
 
 func readSchemaBaseline(t *testing.T) map[string]any {
 	t.Helper()
-	compressed, err := os.ReadFile("testdata/openapi-pre-components.json.gz")
+	baseline := readSchemaBaselineFile(t, "testdata/openapi-pre-components.json.gz")
+	// window-tabs-split ADR-004 approves the v6 output break. Requests remain
+	// decodable, while this versioned fixture freezes the replacement contract.
+	v6 := readSchemaBaselineFile(t, "testdata/window-manager-v6.json.gz")
+	paths := baseline["paths"].(map[string]any)
+	maps.Copy(paths, v6["paths"].(map[string]any))
+	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	for name := range schemas {
+		if strings.HasPrefix(name, "WindowManager") {
+			delete(schemas, name)
+		}
+	}
+	maps.Copy(schemas, v6["components"].(map[string]any)["schemas"].(map[string]any))
+	return baseline
+}
+
+func readSchemaBaselineFile(t *testing.T, path string) map[string]any {
+	t.Helper()
+	compressed, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read schema baseline: %v", err)
 	}

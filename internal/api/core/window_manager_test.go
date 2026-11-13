@@ -143,7 +143,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		window := result.Snapshot.Windows["window-a"]
 		if window.Route.Pathname != "/tasks" ||
 			string(window.Route.Search["status"]) != `"open"` ||
-			window.Placement != windowmanager.WindowPlacementFloating {
+			window.TabID == "" {
 			t.Fatalf("opened window = %+v", window)
 		}
 
@@ -253,7 +253,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 			if !result.Applied || result.Snapshot.Version != windowmanager.SnapshotVersion {
 				t.Fatalf("%s result = %+v", command.id, result)
 			}
-			if command.id == "window.stack.group" && len(result.Snapshot.Desktops[0].FloatingStacks) != 1 {
+			if command.id == "window.stack.group" && len(result.Snapshot.Desktops[0].Tabs) != 3 {
 				t.Fatalf("group result = %+v, want one floating stack", result.Snapshot.Desktops[0])
 			}
 			revision = uint64(result.Snapshot.Revision)
@@ -269,7 +269,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		)
 		requireWindowManagerStatus(t, response, http.StatusOK)
 		decodeWindowManagerTestBody(t, response, &snapshot)
-		if snapshot.ClosedEntryCount != 0 || len(snapshot.Windows) != 2 {
+		if snapshot.ClosedEntryCount != 0 || len(snapshot.Windows) != 3 {
 			t.Fatalf("final v3 snapshot = %+v", snapshot)
 		}
 	})
@@ -335,8 +335,8 @@ func TestWindowManagerHandlers(t *testing.T) {
 				payload: `{"window_id":"window-a","mode":"pop",` +
 					`"route":{"pathname":"/not-allowed","search":{}}}`,
 			},
-			"minimize with group scope": {
-				id: "window.close", payload: `{"window_id":"window-a","minimize":true,"scope":"group"}`,
+			"unknown close scope": {
+				id: "window.close", payload: `{"window_id":"window-a","scope":"invalid"}`,
 			},
 		} {
 			t.Run("Should reject "+name, func(t *testing.T) {
@@ -403,19 +403,19 @@ func TestWindowManagerHandlers(t *testing.T) {
 			if commandID == "window.stack.reorder" {
 				payload = `{"window_id":"window-a","index":0}`
 			}
-			notStacked := performWindowManagerTestRequest(
+			aliased := performWindowManagerTestRequest(
 				t,
 				fixture.router,
 				http.MethodPost,
-				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestPath("workspace-a")+"/preview",
 				windowManagerTestCommandBody("workspace-a", 1, commandID, payload),
 			)
-			requireWindowManagerError(
-				t,
-				notStacked,
-				http.StatusUnprocessableEntity,
-				contract.WindowManagerErrorNotStacked,
-			)
+			requireWindowManagerStatus(t, aliased, http.StatusOK)
+			var preview contract.WindowManagerPreview
+			decodeWindowManagerTestBody(t, aliased, &preview)
+			if len(preview.Deprecations) != 1 {
+				t.Fatalf("alias deprecations = %+v", preview.Deprecations)
+			}
 
 			missingPayload := strings.Replace(payload, "window-a", "window-missing", 1)
 			missing := performWindowManagerTestRequest(
@@ -651,20 +651,20 @@ func TestWindowManagerHandlers(t *testing.T) {
 		requireWindowManagerStatus(t, snapshotResponse, http.StatusOK)
 		var snapshot struct {
 			Desktops []struct {
-				Floating json.RawMessage `json:"floating"`
+				Tabs json.RawMessage `json:"tabs"`
 			} `json:"desktops"`
 		}
 		decodeWindowManagerTestBody(t, snapshotResponse, &snapshot)
 		if len(snapshot.Desktops) != 1 {
 			t.Fatalf("snapshot desktops = %+v, want one", snapshot.Desktops)
 		}
-		if string(snapshot.Desktops[0].Floating) != "[]" {
-			t.Fatalf("desktop floating JSON = %s, want []", snapshot.Desktops[0].Floating)
+		if !strings.HasPrefix(string(snapshot.Desktops[0].Tabs), "[{") {
+			t.Fatalf("desktop floating JSON = %s, want []", snapshot.Desktops[0].Tabs)
 		}
 		convertedSnapshot, err := contract.WindowManagerSnapshotFromDomain(windowmanager.Snapshot{
 			WorkspaceID: "workspace-a",
 			Desktops: []windowmanager.Desktop{{
-				ID: "desktop-empty", Floating: nil,
+				ID: "desktop-empty", Tabs: nil,
 			}},
 		})
 		if err != nil {
@@ -676,7 +676,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		}
 		var converted struct {
 			Desktops []struct {
-				Floating json.RawMessage `json:"floating"`
+				Tabs json.RawMessage `json:"tabs"`
 			} `json:"desktops"`
 		}
 		if err := json.Unmarshal(convertedJSON, &converted); err != nil {
@@ -685,8 +685,8 @@ func TestWindowManagerHandlers(t *testing.T) {
 		if len(converted.Desktops) != 1 {
 			t.Fatalf("converted snapshot desktops = %+v, want one", converted.Desktops)
 		}
-		if string(converted.Desktops[0].Floating) != "[]" {
-			t.Fatalf("converted desktop floating JSON = %s, want []", converted.Desktops[0].Floating)
+		if string(converted.Desktops[0].Tabs) != "[]" {
+			t.Fatalf("converted desktop floating JSON = %s, want []", converted.Desktops[0].Tabs)
 		}
 
 		clientResponse := performWindowManagerTestRequest(
@@ -902,6 +902,12 @@ func TestWindowManagerHandlers(t *testing.T) {
 			payload.Code != contract.WindowManagerErrorUnavailable {
 			t.Fatalf("presentation-revision error = status %d payload %+v", status, payload)
 		}
+		status, payload = windowManagerErrorPayload("workspace-a", &windowmanager.SnapshotVersionError{Version: 7})
+		if status != http.StatusServiceUnavailable || payload.Code != contract.WindowManagerErrorUnavailable ||
+			len(payload.Diagnostics) != 1 || payload.Diagnostics[0].Path != "version" {
+			t.Fatalf("future snapshot error = status %d payload %+v", status, payload)
+		}
+
 		if !isExpectedWindowManagerSocketError(net.ErrClosed) {
 			t.Fatal("net.ErrClosed was classified as an unexpected socket failure")
 		}
@@ -959,6 +965,8 @@ func newWindowManagerHandlerFixture(t *testing.T) windowManagerHandlerFixture {
 func registerWindowManagerTestRoutes(router gin.IRouter, handlers *BaseHandlers) {
 	manager := router.Group("/api/workspaces/:workspace_id/window-manager")
 	manager.GET("", handlers.GetWindowManagerSnapshot)
+	manager.GET("/migration", handlers.GetWindowManagerMigration)
+	manager.POST("/migration", handlers.UpdateWindowManagerMigration)
 	manager.POST("/preview", handlers.PreviewWindowManagerCommand)
 	manager.POST("/commands", handlers.ExecuteWindowManagerCommand)
 	manager.GET("/clients", handlers.ListWindowManagerClients)
@@ -1175,4 +1183,161 @@ func (windowManagerProfileServiceStub) Resolve(
 		},
 		Source: profilepkg.ResolutionSourceDefault,
 	}, nil
+}
+
+func TestWindowManagerTabsCompatibility(t *testing.T) {
+	t.Run("Should expose migration status and validate acknowledgement actions", func(t *testing.T) {
+		t.Parallel()
+		f := newWindowManagerHandlerFixture(t)
+		path := windowManagerTestPath("workspace-a") + "/migration"
+		for _, request := range []struct{ method, body string }{{http.MethodGet, ""}, {http.MethodPost, `{"action":"ack"}`}} {
+			response := performWindowManagerTestRequest(t, f.router, request.method, path, request.body)
+			requireWindowManagerStatus(t, response, http.StatusOK)
+			var status windowmanager.MigrationStatus
+			decodeWindowManagerTestBody(t, response, &status)
+			if status.State != "none" {
+				t.Fatalf("migration status = %+v", status)
+			}
+		}
+		response := performWindowManagerTestRequest(t, f.router, http.MethodPost, path, `{"action":"discard"}`)
+		requireWindowManagerError(
+			t,
+			response,
+			http.StatusUnprocessableEntity,
+			contract.WindowManagerErrorInvalidCommand,
+		)
+	})
+
+	t.Run("Should split at member and root edges and unsplit over HTTP (IT-008)", func(t *testing.T) {
+		t.Parallel()
+		f := newWindowManagerHandlerFixture(t)
+		revision := uint64(0)
+		execute := func(id, payload string) contract.WindowManagerResult {
+			t.Helper()
+			r := performWindowManagerTestRequest(
+				t,
+				f.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", revision, id, payload),
+			)
+			requireWindowManagerStatus(t, r, http.StatusOK)
+			var result contract.WindowManagerResult
+			decodeWindowManagerTestBody(t, r, &result)
+			revision = uint64(result.Snapshot.Revision)
+			return result
+		}
+		for _, id := range []string{"a", "b", "c"} {
+			execute(
+				"window.open",
+				fmt.Sprintf(
+					`{"window":{"id":%q,"app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default"}}`,
+					id,
+				),
+			)
+		}
+		r := execute(
+			"window.move",
+			`{"window_id":"b","destination_desktop_id":"desktop-default","target_window_id":"a","placement":"right"}`,
+		)
+		tab := r.Snapshot.Windows["a"].TabID
+		if len(r.Changes.TabSplit) != 1 || r.Changes.TabSplit[0] != tab || r.Snapshot.Windows["b"].TabID != tab {
+			t.Fatalf("member split=%+v", r)
+		}
+		r = execute(
+			"window.move",
+			fmt.Sprintf(
+				`{"window_id":"c","destination_desktop_id":"desktop-default","target_tab_id":%q,"placement":"top"}`,
+				tab,
+			),
+		)
+		if r.Snapshot.Windows["c"].TabID != tab || len(r.Changes.TabIDs) != 2 {
+			t.Fatalf("root split=%+v", r)
+		}
+		r = execute("window.move", `{"window_id":"c","destination_desktop_id":"desktop-default","placement":"tab"}`)
+		if r.Snapshot.Windows["c"].TabID == tab {
+			t.Fatalf("unsplit=%+v", r)
+		}
+		r = execute("window.move", `{"window_id":"b","destination_desktop_id":"desktop-default","placement":"tab"}`)
+		if len(r.Changes.TabUnsplit) != 1 || r.Changes.TabUnsplit[0] != tab {
+			t.Fatalf("unsplit changes=%+v", r.Changes)
+		}
+		response := performWindowManagerTestRequest(
+			t,
+			f.router,
+			http.MethodPost,
+			windowManagerTestPath("workspace-a")+"/commands",
+			windowManagerTestCommandBody(
+				"workspace-a",
+				revision,
+				"window.move",
+				`{"window_id":"b","destination_desktop_id":"desktop-default","placement":"left"}`,
+			),
+		)
+		requireWindowManagerError(
+			t,
+			response,
+			http.StatusUnprocessableEntity,
+			contract.WindowManagerErrorInvalidCommand,
+		)
+	})
+	t.Run("Should decode actual v06 default and nonzero retired fields (IT-009)", func(t *testing.T) {
+		t.Parallel()
+		f := newWindowManagerHandlerFixture(t)
+		revision := uint64(0)
+		execute := func(id, payload string, want ...string) contract.WindowManagerResult {
+			t.Helper()
+			response := performWindowManagerTestRequest(
+				t,
+				f.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", revision, id, payload),
+			)
+			requireWindowManagerStatus(t, response, http.StatusOK)
+			var r contract.WindowManagerResult
+			decodeWindowManagerTestBody(t, response, &r)
+			revision = uint64(r.Snapshot.Revision)
+			if r.Deprecations == nil || len(r.Deprecations) != len(want) {
+				t.Fatalf("deprecations=%+v want=%v", r.Deprecations, want)
+			}
+			for i, surface := range want {
+				if r.Deprecations[i].Surface != surface {
+					t.Fatalf("deprecations=%+v want=%v", r.Deprecations, want)
+				}
+			}
+			return r
+		}
+		execute(
+			"window.open",
+			`{"window":{"id":"a","app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default","floating_rect":{"x":0,"y":0,"width":0,"height":0},"insert_tiled":false}}`,
+		)
+		execute(
+			"window.open",
+			`{"window":{"id":"b","app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default","floating_rect":{"x":0,"y":0,"width":0,"height":0},"insert_tiled":false}}`,
+		)
+		execute(
+			"layout.arrange",
+			`{"desktop_id":"desktop-default","window_ids":["a","b"],"arrangement":"horizontal","frame":{"x":0,"y":0,"width":0,"height":0},"group_id":"","keep_frames":false}`,
+		)
+		r := execute(
+			"window.move",
+			`{"window_id":"b","destination_desktop_id":"desktop-default","placement":"floating","move_group":false}`,
+			"window.move.placement=floating",
+		)
+		if r.Snapshot.Windows["a"].TabID == r.Snapshot.Windows["b"].TabID {
+			t.Fatal("legacy move did not unsplit")
+		}
+		r = execute("window.close", `{"window_id":"a","minimize":true,"scope":"tab"}`, "window.close.minimize")
+		if r.Applied || r.Snapshot.Windows["a"].ID != "a" {
+			t.Fatal("minimize closed window")
+		}
+		execute("window.close", `{"window_id":"b","minimize":false,"scope":"tab"}`)
+		execute(
+			"window.open",
+			`{"window":{"id":"c","app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default","floating":true,"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5},"insert_tiled":false}}`,
+			"window.open.window.floating",
+			"window.open.window.floating_rect",
+		)
+	})
 }

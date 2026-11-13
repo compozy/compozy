@@ -1277,6 +1277,9 @@ export type ChangeSet = {
   node_ids?: Array<string>;
   stack_grouped?: Array<string>;
   stack_ungrouped?: Array<string>;
+  tab_ids?: Array<string>;
+  tab_split?: Array<string>;
+  tab_unsplit?: Array<string>;
   window_ids?: Array<string>;
 };
 
@@ -1635,6 +1638,9 @@ export type ContractWindowManagerClientRegistration = {
 
 export type ContractWindowManagerClientView = {
   active_desktop_id: string;
+  active_tab: {
+    [key: string]: string;
+  };
   attachment_token?: string;
   client_id: string;
   connected_at: string;
@@ -1679,6 +1685,8 @@ export type ContractWindowManagerCommandRequest = {
     | "window.stack.set_active"
     | "window.pin"
     | "window.reopen"
+    | "window.tab.reorder"
+    | "window.tab.activate"
     | "layout.arrange"
     | "layout.resize"
     | "layout.frame_resize"
@@ -1694,12 +1702,11 @@ export type ContractWindowManagerCommandRequest = {
 };
 
 export type ContractWindowManagerDesktop = {
-  floating: Array<string>;
-  floating_stacks: Array<WindowManagerFloatingStack>;
-  groups: Array<ContractWindowManagerLayoutGroup>;
+  active_tab_id: string;
   id: string;
   name: string;
   order: number;
+  tabs: Array<ContractWindowManagerTab>;
 };
 
 export type ContractWindowManagerErrorPayload = {
@@ -1737,12 +1744,6 @@ export type ContractWindowManagerLayoutDocument = {
   workspace_id: string;
 };
 
-export type ContractWindowManagerLayoutGroup = {
-  frame: NormalizedRect;
-  id: string;
-  root: WindowManagerLayoutNode;
-};
-
 export type ContractWindowManagerLayoutReplaceRequest = {
   actor: WindowManagerActor;
   client_id?: string | null;
@@ -1767,6 +1768,7 @@ export type ContractWindowManagerPreview = {
   changed: boolean;
   changes: ChangeSet;
   client?: ContractWindowManagerClientView | null;
+  deprecations: Array<Deprecation>;
   diagnostics?: Array<Diagnostic>;
   snapshot: ContractWindowManagerSnapshot;
 };
@@ -1775,6 +1777,7 @@ export type ContractWindowManagerResult = {
   applied: boolean;
   changes: ChangeSet;
   client?: ContractWindowManagerClientView | null;
+  deprecations: Array<Deprecation>;
   diagnostics?: Array<Diagnostic>;
   rebased_from?: number;
   snapshot: ContractWindowManagerSnapshot;
@@ -1783,6 +1786,7 @@ export type ContractWindowManagerResult = {
 export type ContractWindowManagerSnapshot = {
   closed_entry_count: number;
   desktops: Array<ContractWindowManagerDesktop>;
+  migration?: MigrationStatus | null;
   overrides: WorkspaceConfig;
   revision: number;
   updated_at: string;
@@ -1791,6 +1795,12 @@ export type ContractWindowManagerSnapshot = {
     [key: string]: WindowManagerWindow;
   };
   workspace_id: string;
+};
+
+export type ContractWindowManagerTab = {
+  id: string;
+  pinned: boolean;
+  root: WindowManagerLayoutNode;
 };
 
 export type CoordinatorConfigPayload = {
@@ -2076,6 +2086,14 @@ export type DeleteProfileResponse = {
 
 export type DeleteResourceRequest = {
   expected_version: number;
+};
+
+export type Deprecation = {
+  code: string;
+  message: string;
+  removal_release: string;
+  replacement?: string;
+  surface: string;
 };
 
 export type DetailBody = {
@@ -5389,6 +5407,27 @@ export type MetricSpec = {
   min_delta?: number | null;
 };
 
+export type MigrationStatus = {
+  acknowledged: boolean;
+  at?: string;
+  error?: Diagnostic | null;
+  failure_revision?: number;
+  from_version?: number;
+  state: string;
+  summary?: MigrationSummary | null;
+};
+
+export type MigrationSummary = {
+  desktops: number;
+  floating_to_tabs: number;
+  islands_merged: number;
+  minimized_to_tabs: number;
+  pins_dropped: number;
+  tabs: number;
+  windows: number;
+  zoom_desktops_merged: number;
+};
+
 export type ModelCatalogCostPayload = {
   cache_read_per_million?: number | null;
   cache_write_per_million?: number | null;
@@ -5472,13 +5511,6 @@ export type NodeCancellation = {
 
 export type NodeUsage = {
   tokens: number;
-};
-
-export type NormalizedRect = {
-  height: number;
-  width: number;
-  x: number;
-  y: number;
 };
 
 export type ObserveFailureHealthPayload = {
@@ -13007,23 +13039,18 @@ export type WindowManagerClientContextInput = {
   workspace_trusted: boolean;
 };
 
-export type WindowManagerFloatingStack = {
-  active_id?: string | null;
-  id: string;
-  minimized: boolean;
-  rect: NormalizedRect;
-  window_ids: Array<string>;
-};
-
 export type WindowManagerLayoutNode = {
-  active_id?: string | null;
   axis?: "horizontal" | "vertical";
   children?: Array<WindowManagerLayoutNode>;
   id: string;
-  kind: "leaf" | "split" | "stack";
+  kind: "leaf" | "split";
   weights?: Array<number>;
   window_id?: string | null;
-  window_ids?: Array<string>;
+};
+
+export type WindowManagerMigrationRequest = {
+  action: string;
+  replace: boolean;
 };
 
 export type WindowManagerPaletteContext = {
@@ -13034,6 +13061,7 @@ export type WindowManagerPaletteContext = {
   shell_desktop: boolean;
   window_floating: boolean;
   window_focused: boolean;
+  window_in_split: boolean;
   window_stacked: boolean;
   workspace_trusted: boolean;
 };
@@ -13042,35 +13070,19 @@ export type WindowManagerRebaseGuard = {
   boundary_index?: number | null;
   source_node_id?: string | null;
   split_id?: string | null;
+  tab_id?: string | null;
   target_node_id?: string | null;
   window_id?: string | null;
-};
-
-export type WindowManagerReturnAnchor = {
-  child_index?: number | null;
-  desktop_id: string;
-  group_id?: string | null;
-  neighbor_ids?: Array<string>;
-  parent_split_id?: string | null;
-  source_group?: ContractWindowManagerLayoutGroup | null;
-  source_revision: number;
-  weight?: number | null;
-  zoomed?: boolean;
 };
 
 export type WindowManagerWindow = {
   app: string;
   desktop_id: string;
-  floating_rect: NormalizedRect;
   id: string;
   instance_key?: string | null;
-  minimized: boolean;
   nav_stack: Array<RouteIntent>;
-  pinned: boolean;
-  placement: "tiled" | "stacked" | "floating";
-  return_anchor?: WindowManagerReturnAnchor | null;
   route: RouteIntent;
-  zoomed: boolean;
+  tab_id: string;
 };
 
 export type WorkCandidate = {
@@ -44353,6 +44365,115 @@ export type ValidateWindowManagerLayoutResponses = {
 
 export type ValidateWindowManagerLayoutResponse =
   ValidateWindowManagerLayoutResponses[keyof ValidateWindowManagerLayoutResponses];
+
+export type GetWindowManagerMigrationData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/window-manager/migration";
+};
+
+export type GetWindowManagerMigrationErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
+   * Workspace or referenced entity not found
+   */
+  404: ContractWindowManagerErrorPayload;
+  /**
+   * Revision or state conflict
+   */
+  409: ContractWindowManagerErrorPayload;
+  /**
+   * Invalid window-manager request
+   */
+  422: ContractWindowManagerErrorPayload;
+  /**
+   * Window manager unavailable
+   */
+  503: ContractWindowManagerErrorPayload;
+};
+
+export type GetWindowManagerMigrationError =
+  GetWindowManagerMigrationErrors[keyof GetWindowManagerMigrationErrors];
+
+export type GetWindowManagerMigrationResponses = {
+  /**
+   * OK
+   */
+  200: MigrationStatus;
+};
+
+export type GetWindowManagerMigrationResponse =
+  GetWindowManagerMigrationResponses[keyof GetWindowManagerMigrationResponses];
+
+export type UpdateWindowManagerMigrationData = {
+  /**
+   * JSON request body
+   */
+  body: WindowManagerMigrationRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/window-manager/migration";
+};
+
+export type UpdateWindowManagerMigrationErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
+   * Workspace or referenced entity not found
+   */
+  404: ContractWindowManagerErrorPayload;
+  /**
+   * Revision or state conflict
+   */
+  409: ContractWindowManagerErrorPayload;
+  /**
+   * Invalid window-manager request
+   */
+  422: ContractWindowManagerErrorPayload;
+  /**
+   * Window manager unavailable
+   */
+  503: ContractWindowManagerErrorPayload;
+};
+
+export type UpdateWindowManagerMigrationError =
+  UpdateWindowManagerMigrationErrors[keyof UpdateWindowManagerMigrationErrors];
+
+export type UpdateWindowManagerMigrationResponses = {
+  /**
+   * OK
+   */
+  200: MigrationStatus;
+};
+
+export type UpdateWindowManagerMigrationResponse =
+  UpdateWindowManagerMigrationResponses[keyof UpdateWindowManagerMigrationResponses];
 
 export type PreviewWindowManagerCommandData = {
   /**

@@ -1,11 +1,8 @@
 package windowmanager
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"maps"
 	"strings"
 )
@@ -51,31 +48,15 @@ func RewriteRetiredAppRoute(app string, route RouteIntent) RouteIntent {
 	return route
 }
 
-func MigrateSnapshotV4(encoded []byte) (Snapshot, error) {
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.DisallowUnknownFields()
-	var snapshot Snapshot
-	if err := decoder.Decode(&snapshot); err != nil {
-		return Snapshot{}, fmt.Errorf("decode v4 window-manager snapshot: %w", err)
+func MigrateSnapshotV4(encoded []byte) (SnapshotV5, error) {
+	var snapshot SnapshotV5
+	if err := decodeSnapshotJSON(encoded, &snapshot); err != nil {
+		return SnapshotV5{}, fmt.Errorf("decode v4 snapshot: %w", err)
 	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return Snapshot{}, errors.New("decode v4 window-manager snapshot: trailing data")
+	if snapshot.Version != 4 {
+		return SnapshotV5{}, fmt.Errorf("snapshot version %d is not 4", snapshot.Version)
 	}
-	if snapshot.Version != PreviousSnapshotVersion {
-		return Snapshot{}, fmt.Errorf(
-			"window-manager snapshot version %d is not %d", snapshot.Version, PreviousSnapshotVersion,
-		)
-	}
-	revision, err := NextTopologyRevision(snapshot.Revision)
-	if err != nil {
-		return Snapshot{}, fmt.Errorf("v4 window-manager snapshot revision: %w", err)
-	}
-	snapshot.Version = SnapshotVersion
-	snapshot.Revision = revision
-	rewriteSnapshotRetiredApps(&snapshot)
-	if err := ValidateSnapshot(snapshot); err != nil {
-		return Snapshot{}, fmt.Errorf("migrated window-manager snapshot: %w", err)
-	}
+	snapshot.Version = 5
 	return snapshot, nil
 }
 

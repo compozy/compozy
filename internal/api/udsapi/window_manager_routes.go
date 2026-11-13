@@ -10,6 +10,8 @@ func registerWindowManagerRoutes(api gin.IRouter, handlers *Handlers) {
 	manager.GET("/clients", handlers.ListWindowManagerClients)
 	manager.POST("/clients", handlers.RegisterWindowManagerClient)
 	manager.DELETE("/clients/:client_id", handlers.UnregisterWindowManagerClient)
+	manager.GET("/migration", handlers.GetWindowManagerMigration)
+	manager.POST("/migration", handlers.UpdateWindowManagerMigration)
 	manager.GET("/layout", handlers.ExportWindowManagerLayout)
 	manager.POST("/layout/validate", handlers.ValidateWindowManagerLayout)
 	manager.PUT("/layout", handlers.ReplaceWindowManagerLayout)

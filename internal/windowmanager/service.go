@@ -139,6 +139,8 @@ func (m *Manager) Execute(ctx context.Context, request CommandRequest) (Result, 
 	if err != nil {
 		return Result{}, err
 	}
+	request, deprecations := canonicalCommandSurfaces(request)
+	commandID = request.Payload.CommandID()
 	lock, err := m.lockFor(request.WorkspaceID)
 	if err != nil {
 		return Result{}, err
@@ -147,12 +149,12 @@ func (m *Manager) Execute(ctx context.Context, request CommandRequest) (Result, 
 	result, executeErr := func() (Result, error) {
 		hadPending := commandID != CommandDesktopSwitch && commandID != CommandWindowFocus &&
 			m.coalescer.hasPending(request.WorkspaceID)
-		flush := stackActiveFlushResult{}
+		flush := tabActiveFlushResult{}
 		if hadPending {
 			var flushErr error
-			flush, flushErr = m.flushStackActiveLocked(ctx, request.WorkspaceID)
+			flush, flushErr = m.flushTabActiveLocked(ctx, request.WorkspaceID)
 			if flushErr != nil {
-				return Result{}, fmt.Errorf("flush stack activation before %q: %w", commandID, flushErr)
+				return Result{}, fmt.Errorf("flush tab activation before %q: %w", commandID, flushErr)
 			}
 		}
 		snapshot, loadErr := m.loadSnapshot(ctx, request.WorkspaceID)
@@ -181,6 +183,7 @@ func (m *Manager) Execute(ctx context.Context, request CommandRequest) (Result, 
 			newCommandEvent(result.Snapshot, request, commandID, result.Changes),
 		)
 	}
+	result.Deprecations = deprecations
 	return result, nil
 }
 
@@ -194,13 +197,17 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 	if err != nil {
 		return Preview{}, err
 	}
+	request, deprecations := canonicalCommandSurfaces(request)
+	commandID = request.Payload.CommandID()
 	lock, err := m.lockFor(request.WorkspaceID)
 	if err != nil {
 		return Preview{}, err
 	}
 	lock.Lock()
 	defer m.releaseWorkspaceLock(request.WorkspaceID, lock)
-	return m.previewLocked(ctx, request, commandID)
+	preview, err := m.previewLocked(ctx, request, commandID)
+	preview.Deprecations = deprecations
+	return preview, err
 }
 
 func (m *Manager) previewLocked(
@@ -251,7 +258,8 @@ func (m *Manager) previewLocked(
 		return Preview{}, err
 	}
 	reduced, err := (&reducer{
-		generate: previewGenerate, config: config, focusedWindow: focused, activeDesktop: activeDesktop, now: m.now,
+		generate: previewGenerate, config: config, focusedWindow: focused,
+		activeDesktop: activeDesktop, activeTabs: clientActiveTabs(client), now: m.now,
 	}).reduce(
 		&working,
 		payload,
@@ -273,7 +281,7 @@ func (m *Manager) previewLocked(
 			return Preview{}, err
 		}
 		working.Revision = nextRevision
-		projectedClient, err = m.previewDurableClient(working, request)
+		projectedClient, err = m.previewDurableClient(working, resolvedProjectionRequest(snapshot, working, request))
 		if err != nil {
 			return Preview{}, err
 		}
@@ -301,19 +309,4 @@ func (m *Manager) loadSnapshot(ctx context.Context, workspaceID WorkspaceID) (Sn
 	return cloneSnapshot(snapshot), nil
 }
 
-func initialSnapshot(workspaceID WorkspaceID) Snapshot {
-	return Snapshot{
-		Version:     SnapshotVersion,
-		WorkspaceID: workspaceID,
-		Desktops: []Desktop{
-			{
-				ID:       DesktopID("desktop-default"),
-				Name:     defaultDesktopName,
-				Groups:   []LayoutGroup{},
-				Floating: []WindowID{},
-			},
-		},
-		Windows: map[WindowID]Window{},
-		History: History{Undo: []HistoryEntry{}, Redo: []HistoryEntry{}},
-	}
-}
+func initialSnapshot(workspaceID WorkspaceID) Snapshot { return DefaultSnapshot(workspaceID) }

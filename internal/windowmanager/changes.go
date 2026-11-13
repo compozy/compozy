@@ -3,6 +3,9 @@ package windowmanager
 import "slices"
 
 func sortChangeSet(changes *ChangeSet) {
+	slices.Sort(changes.TabIDs)
+	slices.Sort(changes.TabSplit)
+	slices.Sort(changes.TabUnsplit)
 	slices.Sort(changes.DesktopIDs)
 	slices.Sort(changes.WindowIDs)
 	slices.Sort(changes.GroupIDs)

@@ -35,6 +35,9 @@ func windowManagerErrorPayload(
 	if topology, ok := errors.AsType[*windowmanager.TopologyError](err); ok {
 		payload.Diagnostics = append([]windowmanager.Diagnostic(nil), topology.Diagnostics...)
 	}
+	if ahead, ok := errors.AsType[*windowmanager.SnapshotVersionError](err); ok {
+		payload.Diagnostics = []windowmanager.Diagnostic{ahead.Diagnostic()}
+	}
 	return status, payload
 }
 

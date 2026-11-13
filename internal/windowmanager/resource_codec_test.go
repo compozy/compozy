@@ -28,7 +28,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			t.Fatal(err)
 		}
 		resource := testLayoutResource("legacy")
-		resource.Document.Version = PreviousSnapshotVersion
+		resource.Document.Version = SnapshotVersion
 		for id, window := range resource.Document.Windows {
 			window.App = "jobs"
 			window.Route = testRoute("/jobs/morning-digest")
@@ -145,13 +145,6 @@ func TestLayoutResourceCodec(t *testing.T) {
 func testLayoutResource(id string) LayoutResource {
 	return LayoutResource{
 		Version: LayoutResourceVersion, ID: id, DisplayName: "Two up",
-		Document: LayoutDocument{
-			Version: SnapshotVersion,
-			Desktops: []Desktop{{
-				ID: "desktop-default", Name: "Desktop 1",
-				Groups: []LayoutGroup{}, Floating: []WindowID{},
-			}},
-			Windows: map[WindowID]Window{},
-		},
+		Document: defaultTestDocument(""),
 	}
 }

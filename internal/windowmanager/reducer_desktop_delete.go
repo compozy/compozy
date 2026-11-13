@@ -28,41 +28,20 @@ func (r *reducer) deleteDesktop(snapshot *Snapshot, command DeleteDesktopCommand
 	return true, nil
 }
 
-// transferDesktopContents moves every island, floating frame, and floating
-// window of the source onto the destination; arriving windows drop their zoom
-// so the destination keeps whatever it was already showing.
 func (r *reducer) transferDesktopContents(snapshot *Snapshot, source Desktop, destinationID DesktopID) error {
-	destinationIndex, found := desktopIndexByID(snapshot, destinationID)
-	if !found {
-		return fmt.Errorf("desktop %q: %w", destinationID, ErrDesktopNotFound)
+	index, ok := desktopIndexByID(snapshot, destinationID)
+	if !ok {
+		return ErrDesktopNotFound
 	}
-	destination := &snapshot.Desktops[destinationIndex]
-	transferred := cloneDesktop(source)
-	destination.Groups = append(destination.Groups, transferred.Groups...)
-	for _, group := range transferred.Groups {
-		r.changes.group(group.ID)
-	}
-	if layoutGroupsOverlap(destination.Groups) {
-		reflowLayoutGroupFrames(destination.Groups)
-		for _, group := range destination.Groups {
-			r.changes.group(group.ID)
+	d := &snapshot.Desktops[index]
+	for _, tab := range source.Tabs {
+		insertTab(d, tab, len(d.Tabs))
+		assignTabWindows(snapshot, d, tab)
+		r.changes.tab(tab.ID)
+		for _, id := range nodeWindowIDs(tab.Root) {
+			r.changes.window(id)
 		}
 	}
-	destination.Floating = append(destination.Floating, transferred.Floating...)
-	destination.FloatingStacks = append(destination.FloatingStacks, transferred.FloatingStacks...)
-	for _, stack := range transferred.FloatingStacks {
-		r.changes.node(stack.ID)
-	}
-	for windowID, window := range snapshot.Windows {
-		if window.DesktopID != source.ID {
-			continue
-		}
-		window.DesktopID = destination.ID
-		window.Zoomed = false
-		window.ReturnAnchor = nil
-		snapshot.Windows[windowID] = window
-		r.changes.window(windowID)
-	}
-	r.changes.desktop(destination.ID)
+	r.changes.desktop(d.ID)
 	return nil
 }

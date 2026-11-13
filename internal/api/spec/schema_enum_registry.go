@@ -176,7 +176,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[windowmanager.NodeKind](): {
 			string(windowmanager.NodeKindLeaf),
 			string(windowmanager.NodeKindSplit),
-			string(windowmanager.NodeKindStack),
 		},
 		reflect.TypeFor[windowmanager.Axis](): {
 			string(windowmanager.AxisHorizontal),
@@ -197,6 +196,8 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(windowmanager.CloseScopeGroup),
 			string(windowmanager.CloseScopeOthers),
 			string(windowmanager.CloseScopeRight),
+			string(windowmanager.CloseScopeLeft),
+			string(windowmanager.CloseScopeAll),
 		},
 		reflect.TypeFor[windowmanager.FocusDirection](): {
 			string(windowmanager.FocusLeft),
@@ -205,6 +206,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(windowmanager.FocusDown),
 		},
 		reflect.TypeFor[windowmanager.DropPlacement](): {
+			string(windowmanager.DropTab),
 			string(windowmanager.DropFloating),
 			string(windowmanager.DropBefore),
 			string(windowmanager.DropAfter),

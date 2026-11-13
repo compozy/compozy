@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	ErrUnavailable                   = errors.New("window manager unavailable")
 	ErrWindowBindingInvalid          = errors.New("window_binding_invalid")
 	ErrWorkspaceNotFound             = errors.New("window manager workspace not found")
 	ErrSnapshotNotFound              = errors.New("window manager snapshot not found")
@@ -49,6 +50,21 @@ func (e *TopologyError) Error() string {
 
 func (e *TopologyError) Unwrap() error {
 	return ErrInvalidTopology
+}
+
+// SnapshotVersionError refuses newer user state without changing its bytes.
+type SnapshotVersionError struct {
+	Version uint32
+}
+
+func (e *SnapshotVersionError) Error() string {
+	return fmt.Sprintf("snapshot version %d exceeds supported version %d", e.Version, SnapshotVersion)
+}
+
+func (e *SnapshotVersionError) Unwrap() error { return ErrUnavailable }
+
+func (e *SnapshotVersionError) Diagnostic() Diagnostic {
+	return Diagnostic{Code: topologyUnsupportedVersionCode, Path: "version", Message: e.Error()}
 }
 
 // Conflict identifies one stale reference that prevented a safe rebase.

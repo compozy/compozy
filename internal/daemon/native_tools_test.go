@@ -2760,7 +2760,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := json.Unmarshal(groupedResult.Structured, &grouped); err != nil {
 			t.Fatalf("json.Unmarshal(window_group) error = %v", err)
 		}
-		if !grouped.Applied || grouped.Revision != 5 || len(grouped.Changes.StackGrouped) != 1 {
+		if !grouped.Applied || grouped.Revision != 5 || len(grouped.Changes.TabIDs) != 2 ||
+			len(grouped.Changes.StackGrouped) != 0 {
 			t.Fatalf("window_group result = %#v", grouped)
 		}
 
@@ -2770,11 +2771,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			command windowmanager.CommandID
 		}{
 			{
-				id: toolspkg.ToolIDWindowActivate, command: windowmanager.CommandWindowStackSetActive,
+				id: toolspkg.ToolIDWindowActivate, command: windowmanager.CommandWindowTabActivate,
 				input: `{"expected_revision":5,"window_id":"window-tasks"}`,
 			},
 			{
-				id: toolspkg.ToolIDWindowReorder, command: windowmanager.CommandWindowStackReorder,
+				id: toolspkg.ToolIDWindowReorder, command: windowmanager.CommandWindowTabReorder,
 				input: `{"expected_revision":6,"window_id":"window-second","index":0}`,
 			},
 			{
@@ -2813,7 +2814,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Manager.Snapshot() after tab tools error = %v", err)
 		}
-		if persisted.Revision != 10 || len(persisted.Windows) != 2 || !persisted.Windows["window-tasks"].Pinned {
+		if persisted.Revision != 10 || len(persisted.Windows) != 4 || !persisted.Desktops[1].Tabs[0].Pinned {
 			t.Fatalf("snapshot after tab tools = %#v", persisted)
 		}
 
@@ -2954,45 +2955,43 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
-	t.Run("Should reject conflicting native window group move fields", func(t *testing.T) {
+	t.Run("Should decode compatible native moves and reject conflicting targets", func(t *testing.T) {
 		t.Parallel()
-		native := &daemonNativeTools{}
 		cases := []struct {
-			name    string
-			input   string
-			message string
+			name, raw string
+			invalid   bool
 		}{
 			{
-				name: "Should require placement outside group mode",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b"}`,
-				message: "placement is required unless move_group is true",
+				name: "Should accept omitted placement",
+				raw:  `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b"}`,
 			},
 			{
-				name: "Should reject structural group placement without a target",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
-				message: "move_group without target_window_id supports only floating placement",
+				name: "Should decode structural moves for reducer target validation",
+				raw:  `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
 			},
 			{
-				name: "Should reject a floating rectangle on a structural group move",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b","move_group":true,` +
-					`"target_window_id":"window-b",` +
-					`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
-				message: "structural move_group cannot be combined with floating_rect",
+				name: "Should accept retired rectangles",
+				raw:  `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b","move_group":true,"target_window_id":"window-b","floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
+			},
+			{
+				name:    "Should reject two target selectors",
+				raw:     `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b","target_window_id":"window-b","target_tab_id":"tab-b"}`,
+				invalid: true,
 			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				_, err := native.windowMove(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDWindowMove,
-					Input:  json.RawMessage(tc.input),
-				})
-				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-				if !strings.Contains(err.Error(), tc.message) {
-					t.Fatalf("windowMove() error = %v, want message containing %q", err, tc.message)
+				var input windowManagerWindowMoveInput
+				if err := decodeWindowManagerJSON(
+					toolspkg.ToolIDWindowMove,
+					json.RawMessage(tc.raw),
+					&input,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if err := input.validate(); (err != nil) != tc.invalid {
+					t.Fatalf("validate() = %v, invalid=%t", err, tc.invalid)
 				}
 			})
 		}

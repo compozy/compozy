@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -19,8 +20,8 @@ func WindowManagerSnapshotFromDomain(snapshot windowmanager.Snapshot) (WindowMan
 	return WindowManagerSnapshot{
 		Version: snapshot.Version, WorkspaceID: snapshot.WorkspaceID, Revision: revision,
 		Desktops: windowManagerDesktopsFromDomain(snapshot.Desktops), Windows: windows,
-		ClosedEntryCount: len(snapshot.ClosedEntries),
-		Overrides:        cloneWindowManagerWorkspaceConfig(snapshot.Overrides), UpdatedAt: snapshot.UpdatedAt,
+		ClosedEntryCount: len(snapshot.ClosedEntries), Migration: snapshot.Migration,
+		Overrides: cloneWindowManagerWorkspaceConfig(snapshot.Overrides), UpdatedAt: snapshot.UpdatedAt,
 	}, nil
 }
 
@@ -63,11 +64,11 @@ func WindowManagerClientFromDomain(client windowmanager.ClientView) (WindowManag
 		ContextRevision: contextRevision,
 		FocusedWindowID: cloneWindowManagerPointer(client.FocusedWindowID),
 		FocusOrder:      append([]windowmanager.WindowID{}, client.FocusOrder...),
-		StackActive:     windowManagerStackActiveFromDomain(client.StackActive),
+		StackActive:     map[string]string{}, ActiveTab: windowManagerActiveTabFromDomain(client.ActiveTab),
 		PaletteContext: WindowManagerPaletteContext{
-			WindowFocused:       client.PaletteContext.WindowFocused,
-			WindowFloating:      client.PaletteContext.WindowFloating,
-			WindowStacked:       client.PaletteContext.WindowStacked,
+			WindowFocused:  client.PaletteContext.WindowFocused,
+			WindowFloating: client.PaletteContext.WindowFloating,
+			WindowStacked:  client.PaletteContext.WindowStacked, WindowInSplit: client.PaletteContext.WindowInSplit,
 			DesktopWindowCount:  client.PaletteContext.DesktopWindowCount,
 			ScopeGlobal:         client.PaletteContext.ScopeGlobal,
 			ShellDesktop:        client.PaletteContext.ShellDesktop,
@@ -91,10 +92,10 @@ func cloneWindowManagerRoutePointer(route *windowmanager.RouteIntent) *windowman
 	return new(cloneWindowManagerRoute(*route))
 }
 
-func windowManagerStackActiveFromDomain(values map[windowmanager.NodeID]windowmanager.WindowID) map[string]string {
-	result := make(map[string]string, len(values))
-	for stackID, windowID := range values {
-		result[string(stackID)] = string(windowID)
+func windowManagerActiveTabFromDomain(values map[windowmanager.DesktopID]windowmanager.TabID) map[string]string {
+	result := map[string]string{}
+	for d, t := range values {
+		result[string(d)] = string(t)
 	}
 	return result
 }
@@ -118,8 +119,15 @@ func WindowManagerResultFromDomain(result *windowmanager.Result) (WindowManagerR
 		client = &converted
 	}
 	return WindowManagerResult{
-		Snapshot: snapshot, Applied: result.Applied, Changes: result.Changes,
-		Diagnostics: result.Diagnostics, Client: client, RebasedFrom: rebased,
+		Snapshot: snapshot,
+		Applied:  result.Applied,
+		Changes:  result.Changes,
+		Deprecations: append(
+			[]windowmanager.Deprecation{},
+			result.Deprecations...),
+		Diagnostics: result.Diagnostics,
+		Client:      client,
+		RebasedFrom: rebased,
 	}, nil
 }
 
@@ -138,8 +146,14 @@ func WindowManagerPreviewFromDomain(preview windowmanager.Preview) (WindowManage
 		client = &converted
 	}
 	return WindowManagerPreview{
-		Snapshot: snapshot, Changed: preview.Changed, Changes: preview.Changes,
-		Diagnostics: preview.Diagnostics, Client: client,
+		Snapshot: snapshot,
+		Changed:  preview.Changed,
+		Changes:  preview.Changes,
+		Deprecations: append(
+			[]windowmanager.Deprecation{},
+			preview.Deprecations...),
+		Diagnostics: preview.Diagnostics,
+		Client:      client,
 	}, nil
 }
 
@@ -147,33 +161,16 @@ func windowManagerWindowsFromDomain(
 	windows map[windowmanager.WindowID]windowmanager.Window,
 ) (map[string]WindowManagerWindow, error) {
 	result := make(map[string]WindowManagerWindow, len(windows))
-	for id, window := range windows {
-		converted := WindowManagerWindow{
-			ID: window.ID, App: window.App,
-			InstanceKey: cloneWindowManagerPointer(window.InstanceKey),
-			Route:       cloneWindowManagerRoute(window.Route), NavStack: cloneWindowManagerRoutes(window.NavStack),
-			Pinned: window.Pinned, Placement: window.Placement,
-			DesktopID: window.DesktopID, FloatingRect: window.FloatingRect, Minimized: window.Minimized,
-			Zoomed: window.Zoomed,
+	for id, w := range windows {
+		result[string(id)] = WindowManagerWindow{
+			ID:          w.ID,
+			App:         w.App,
+			InstanceKey: cloneWindowManagerPointer(w.InstanceKey),
+			Route:       cloneWindowManagerRoute(w.Route),
+			NavStack:    cloneWindowManagerRoutes(w.NavStack),
+			DesktopID:   w.DesktopID,
+			TabID:       w.TabID,
 		}
-		if window.ReturnAnchor != nil {
-			revision, err := windowManagerRevision(window.ReturnAnchor.SourceRevision)
-			if err != nil {
-				return nil, fmt.Errorf("convert return anchor for window %q: %w", id, err)
-			}
-			converted.ReturnAnchor = &WindowManagerReturnAnchor{
-				DesktopID:      window.ReturnAnchor.DesktopID,
-				GroupID:        cloneWindowManagerPointer(window.ReturnAnchor.GroupID),
-				ParentSplitID:  cloneWindowManagerPointer(window.ReturnAnchor.ParentSplitID),
-				ChildIndex:     cloneWindowManagerPointer(window.ReturnAnchor.ChildIndex),
-				Weight:         cloneWindowManagerPointer(window.ReturnAnchor.Weight),
-				NeighborIDs:    append([]windowmanager.WindowID(nil), window.ReturnAnchor.NeighborIDs...),
-				SourceRevision: revision,
-				SourceGroup:    optionalWindowManagerLayoutGroupFromDomain(window.ReturnAnchor.SourceGroup),
-				Zoomed:         window.ReturnAnchor.Zoomed,
-			}
-		}
-		result[string(id)] = converted
 	}
 	return result, nil
 }
@@ -182,29 +179,16 @@ func windowManagerWindowsToDomain(
 	windows map[string]WindowManagerWindow,
 ) map[windowmanager.WindowID]windowmanager.Window {
 	result := make(map[windowmanager.WindowID]windowmanager.Window, len(windows))
-	for key, window := range windows {
-		converted := windowmanager.Window{
-			ID: window.ID, App: window.App,
-			InstanceKey: cloneWindowManagerPointer(window.InstanceKey),
-			Route:       cloneWindowManagerRoute(window.Route), NavStack: cloneWindowManagerRoutes(window.NavStack),
-			Pinned: window.Pinned, Placement: window.Placement,
-			DesktopID: window.DesktopID, FloatingRect: window.FloatingRect, Minimized: window.Minimized,
-			Zoomed: window.Zoomed,
+	for id, w := range windows {
+		result[windowmanager.WindowID(id)] = windowmanager.Window{
+			ID:          w.ID,
+			App:         w.App,
+			InstanceKey: cloneWindowManagerPointer(w.InstanceKey),
+			Route:       cloneWindowManagerRoute(w.Route),
+			NavStack:    cloneWindowManagerRoutes(w.NavStack),
+			DesktopID:   w.DesktopID,
+			TabID:       w.TabID,
 		}
-		if window.ReturnAnchor != nil {
-			converted.ReturnAnchor = &windowmanager.ReturnAnchor{
-				DesktopID:      window.ReturnAnchor.DesktopID,
-				GroupID:        cloneWindowManagerPointer(window.ReturnAnchor.GroupID),
-				ParentSplitID:  cloneWindowManagerPointer(window.ReturnAnchor.ParentSplitID),
-				ChildIndex:     cloneWindowManagerPointer(window.ReturnAnchor.ChildIndex),
-				Weight:         cloneWindowManagerPointer(window.ReturnAnchor.Weight),
-				NeighborIDs:    append([]windowmanager.WindowID(nil), window.ReturnAnchor.NeighborIDs...),
-				SourceRevision: windowmanager.Revision(window.ReturnAnchor.SourceRevision),
-				SourceGroup:    optionalWindowManagerLayoutGroupToDomain(window.ReturnAnchor.SourceGroup),
-				Zoomed:         window.ReturnAnchor.Zoomed,
-			}
-		}
-		result[windowmanager.WindowID(key)] = converted
 	}
 	return result
 }
@@ -269,4 +253,17 @@ func optionalWindowManagerRevision(revision *windowmanager.Revision) (*WindowMan
 		return nil, err
 	}
 	return &converted, nil
+}
+
+func (document *WindowManagerLayoutDocument) UnmarshalJSON(raw []byte) error {
+	var domain windowmanager.LayoutDocument
+	if err := json.Unmarshal(raw, &domain); err != nil {
+		return err
+	}
+	converted, err := WindowManagerLayoutFromDomain(domain)
+	if err != nil {
+		return err
+	}
+	*document = converted
+	return nil
 }

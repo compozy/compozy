@@ -99,8 +99,8 @@ func migrateUserScopeLayouts(
 		if !errors.Is(err, clientstate.ErrNotFound) {
 			return err
 		}
-		var snapshot windowmanager.Snapshot
-		if err := json.Unmarshal(entry.Value, &snapshot); err != nil {
+		snapshot, err := decodeWindowManagerSnapshot(entry.Value, windowmanager.WorkspaceID(sourceID))
+		if err != nil {
 			return err
 		}
 		if snapshot.WorkspaceID != windowmanager.WorkspaceID(sourceID) {

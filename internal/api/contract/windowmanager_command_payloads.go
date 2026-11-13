@@ -89,6 +89,7 @@ type WindowManagerFocusWindowPayload struct {
 }
 
 type WindowManagerMoveWindowPayload struct {
+	TargetTabID          *windowmanager.TabID          `json:"target_tab_id,omitzero"`
 	WindowID             windowmanager.WindowID        `json:"window_id"`
 	DestinationDesktopID windowmanager.DesktopID       `json:"destination_desktop_id"`
 	TargetWindowID       *windowmanager.WindowID       `json:"target_window_id,omitzero"`
@@ -123,9 +124,7 @@ type WindowManagerArrangeLayoutPayload struct {
 	Frame       windowmanager.NormalizedRect `json:"frame"`
 	GroupID     windowmanager.GroupID        `json:"group_id"`
 	ResourceID  string                       `json:"resource_id,omitempty"`
-	// KeepFrames arranges each named window's whole tab frame as one
-	// participant (deck members, active tab and identity kept); later names in
-	// an already-named frame are absorbed. Omitted, each window stands alone.
+	// KeepFrames is accepted through v0.7 and ignored by the compatibility boundary.
 	KeepFrames bool `json:"keep_frames,omitzero"`
 }
 
@@ -146,6 +145,7 @@ type WindowManagerFrameResizeLayoutPayload struct {
 }
 
 type WindowManagerBalanceLayoutPayload struct {
+	TabID   *windowmanager.TabID   `json:"tab_id,omitzero"`
 	GroupID *windowmanager.GroupID `json:"group_id,omitzero"`
 	SplitID *windowmanager.NodeID  `json:"split_id,omitzero"`
 }
@@ -300,10 +300,10 @@ func decodeMoveWindowPayload(raw json.RawMessage) (windowmanager.Command, error)
 	return windowmanager.MoveWindowCommand{
 		WindowID:             payload.WindowID,
 		DestinationDesktopID: payload.DestinationDesktopID,
-		TargetWindowID:       payload.TargetWindowID,
-		Placement:            payload.Placement,
-		FloatingRect:         payload.FloatingRect,
-		MoveGroup:            payload.MoveGroup,
+		TargetWindowID:       payload.TargetWindowID, TargetTabID: payload.TargetTabID,
+		Placement:    payload.Placement,
+		FloatingRect: payload.FloatingRect,
+		MoveGroup:    payload.MoveGroup,
 	}, nil
 }
 
@@ -387,7 +387,11 @@ func decodeBalanceLayoutPayload(raw json.RawMessage) (windowmanager.Command, err
 	if err := decodeStrictContractJSON(raw, &payload); err != nil {
 		return nil, err
 	}
-	return windowmanager.BalanceLayoutCommand{GroupID: payload.GroupID, SplitID: payload.SplitID}, nil
+	return windowmanager.BalanceLayoutCommand{
+		TabID:   payload.TabID,
+		GroupID: payload.GroupID,
+		SplitID: payload.SplitID,
+	}, nil
 }
 
 func decodeUndoLayoutPayload(raw json.RawMessage) (windowmanager.Command, error) {

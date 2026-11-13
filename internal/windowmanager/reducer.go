@@ -10,6 +10,7 @@ type reducer struct {
 	config        Config
 	focusedWindow *WindowID
 	activeDesktop *DesktopID
+	activeTabs    map[DesktopID]TabID
 	now           func() time.Time
 	changes       changeBuilder
 }
@@ -20,182 +21,118 @@ type reduction struct {
 	changes ChangeSet
 }
 
-func (r *reducer) reduce(snapshot *Snapshot, command Command) (reduction, error) {
-	lifted := liftedZoomDesktops(snapshot)
-	if payload, ok := command.(terminalRetirementCommand); ok {
-		changed := r.retireTerminalWindows(snapshot, payload.ids)
-		if changed {
-			r.releaseVacatedZoomDesktops(snapshot, lifted)
+func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
+	var changed bool
+	var err error
+	switch c := command.(type) {
+	case reuseWindowCommand:
+		if _, ok := s.Windows[c.id]; !ok {
+			return reduction{}, ErrWindowNotFound
 		}
-		return r.completeReduction(changed, changed), nil
-	}
-	changed, reportsApplied, handled, err := r.reduceTopologyCommand(snapshot, command)
-	if handled && err == nil && changed {
-		r.releaseVacatedZoomDesktops(snapshot, lifted)
-	}
-	if !handled {
-		changed, handled, err = r.reduceLayoutCommand(snapshot, command)
-		reportsApplied = true
+		return reduction{}, nil
+	case noTopologyCommand:
+		return reduction{}, nil
+	case CreateDesktopCommand:
+		changed, err = r.createDesktop(s, c)
+	case UpdateDesktopCommand:
+		changed, err = r.updateDesktop(s, c)
+	case ReorderDesktopCommand:
+		changed, err = r.reorderDesktop(s, c)
+	case DeleteDesktopCommand:
+		changed, err = r.deleteDesktop(s, c)
+	case OpenWindowCommand:
+		changed, err = r.openWindow(s, c)
+	case NavigateWindowCommand:
+		changed, err = r.navigateWindow(s, c)
+	case CloseWindowCommand:
+		changed, err = r.closeWindow(s, c)
+	case MoveWindowCommand:
+		changed, err = r.moveWindow(s, c)
+	case SwapWindowsCommand:
+		changed, err = r.swapWindows(s, c)
+	case ReorderTabCommand:
+		changed, err = r.reorderTab(s, c)
+	case ActivateTabCommand:
+		changed, err = r.activateTab(s, c)
+	case PinWindowCommand:
+		changed, err = r.pinWindow(s, c)
+	case ReopenCommand:
+		changed, err = r.reopenWindow(s)
+	case adjacentTabsCommand:
+		changed, err = r.placeAdjacentTabs(s, c)
+	case ArrangeLayoutCommand:
+		changed, err = r.arrange(s, c)
+	case ResizeLayoutCommand:
+		changed, err = r.resize(s, c)
+	case BalanceLayoutCommand:
+		changed, err = r.balance(s, c)
+	case UndoLayoutCommand:
+		changed, err = r.undo(s)
+	case RedoLayoutCommand:
+		changed, err = r.redo(s)
+	case ReplaceLayoutCommand:
+		changed, err = r.replace(s, c)
+	case terminalRetirementCommand:
+		changed = r.retireTerminalWindows(s, c.ids)
+	case workspaceUnregisteredCommand:
+		changed, err = r.retireUnregisteredWorkspaceWindows(s, c.binding)
+	case sessionDeletionCommand:
+		changed, err = r.retireDeletedSessionWindows(s, c.sessionID)
+	default:
+		return reduction{}, fmt.Errorf("unsupported durable command %T: %w", command, ErrInvalidCommand)
 	}
 	if err != nil {
 		return reduction{}, err
 	}
-	if !handled {
-		switch command.(type) {
-		case SwitchDesktopCommand, FocusWindowCommand:
-			return reduction{}, fmt.Errorf("presentation command reached durable reducer: %w", ErrInvalidCommand)
-		default:
-			return reduction{}, fmt.Errorf("unsupported command %T: %w", command, ErrInvalidCommand)
+	if changed {
+		if err := r.ensureDesktopTabs(s); err != nil {
+			return reduction{}, err
 		}
 	}
-	return r.completeReduction(changed, changed && reportsApplied), nil
-}
-
-func (r *reducer) reduceTopologyCommand(
-	snapshot *Snapshot,
-	command Command,
-) (changed bool, reportsApplied bool, handled bool, err error) {
-	reportsApplied = true
-	switch payload := command.(type) {
-	case CreateDesktopCommand:
-		changed, err = r.createDesktop(snapshot, payload)
-	case UpdateDesktopCommand:
-		changed, err = r.updateDesktop(snapshot, payload)
-	case ReorderDesktopCommand:
-		changed, err = r.reorderDesktop(snapshot, payload)
-	case DeleteDesktopCommand:
-		changed, err = r.deleteDesktop(snapshot, payload)
-	case OpenWindowCommand:
-		changed, err = r.openWindow(snapshot, payload)
-	case NavigateWindowCommand:
-		changed, err = r.navigateWindow(snapshot, payload)
-	case CloseWindowCommand:
-		changed, err = r.closeWindow(snapshot, payload)
-	case workspaceUnregisteredCommand:
-		changed, err = r.retireUnregisteredWorkspaceWindows(snapshot, payload.binding)
-	case sessionDeletionCommand:
-		changed, err = r.retireDeletedSessionWindows(snapshot, payload.sessionID)
-	case MoveWindowCommand:
-		changed, err = r.moveWindow(snapshot, payload)
-	case ResizeWindowCommand:
-		changed, err = r.resizeWindow(snapshot, payload)
-	case SwapWindowsCommand:
-		changed, err = r.swapWindows(snapshot, payload)
-	case ToggleFloatingCommand:
-		changed, err = r.toggleFloating(snapshot, payload)
-	case GroupWindowsCommand:
-		changed, err = r.groupWindows(snapshot, payload)
-	case ReorderStackCommand:
-		changed, err = r.reorderStack(snapshot, payload)
-	case SetStackActiveCommand:
-		changed, err = r.setStackActive(snapshot, payload)
-	case PinWindowCommand:
-		changed, err = r.pinWindow(snapshot, payload)
-	case ReopenCommand:
-		changed = r.reopenWindow(snapshot)
-		reportsApplied = len(r.changes.windows) > 0
-	case ZoomWindowCommand:
-		changed, err = r.zoomWindow(snapshot, payload)
-	default:
-		return false, true, false, nil
-	}
-	return changed, reportsApplied, true, err
-}
-
-func (r *reducer) reduceLayoutCommand(
-	snapshot *Snapshot,
-	command Command,
-) (changed bool, handled bool, err error) {
-	switch payload := command.(type) {
-	case ArrangeLayoutCommand:
-		changed, err = r.arrange(snapshot, payload)
-	case ResizeLayoutCommand:
-		changed, err = r.resize(snapshot, payload)
-	case FrameResizeLayoutCommand:
-		changed, err = r.frameResize(snapshot, payload)
-	case BalanceLayoutCommand:
-		changed, err = r.balance(snapshot, payload)
-	case UndoLayoutCommand:
-		changed, err = r.undo(snapshot)
-	case RedoLayoutCommand:
-		changed, err = r.redo(snapshot)
-	case ReplaceLayoutCommand:
-		changed, err = r.replace(snapshot, payload)
-	default:
-		return false, false, nil
-	}
-	return changed, true, err
-}
-
-func (r *reducer) completeReduction(changed bool, applied bool) reduction {
-	return reduction{changed: changed, applied: applied, changes: r.changes.result()}
+	return reduction{changed: changed, applied: changed, changes: r.changes.result()}, nil
 }
 
 type changeBuilder struct {
-	desktops        map[DesktopID]struct{}
-	windows         map[WindowID]struct{}
-	groups          map[GroupID]struct{}
-	nodes           map[NodeID]struct{}
-	groupedStacks   map[NodeID]struct{}
-	ungroupedStacks map[NodeID]struct{}
+	desktops map[DesktopID]struct{}
+	windows  map[WindowID]struct{}
+	tabs     map[TabID]struct{}
+	nodes    map[NodeID]struct{}
+	split    map[TabID]struct{}
+	unsplit  map[TabID]struct{}
 }
 
-func (b *changeBuilder) desktop(id DesktopID) {
-	if b.desktops == nil {
-		b.desktops = make(map[DesktopID]struct{})
+func addChange[T comparable](values *map[T]struct{}, id T) {
+	if *values == nil {
+		*values = make(map[T]struct{})
 	}
-	b.desktops[id] = struct{}{}
+	(*values)[id] = struct{}{}
 }
-func (b *changeBuilder) window(id WindowID) {
-	if b.windows == nil {
-		b.windows = make(map[WindowID]struct{})
-	}
-	b.windows[id] = struct{}{}
-}
-func (b *changeBuilder) group(id GroupID) {
-	if b.groups == nil {
-		b.groups = make(map[GroupID]struct{})
-	}
-	b.groups[id] = struct{}{}
-}
-func (b *changeBuilder) node(id NodeID) {
-	if b.nodes == nil {
-		b.nodes = make(map[NodeID]struct{})
-	}
-	b.nodes[id] = struct{}{}
-}
-func (b *changeBuilder) stackGrouped(id NodeID) {
-	if b.groupedStacks == nil {
-		b.groupedStacks = make(map[NodeID]struct{})
-	}
-	b.groupedStacks[id] = struct{}{}
-}
-func (b *changeBuilder) stackUngrouped(id NodeID) {
-	if b.ungroupedStacks == nil {
-		b.ungroupedStacks = make(map[NodeID]struct{})
-	}
-	b.ungroupedStacks[id] = struct{}{}
-}
+func (b *changeBuilder) desktop(id DesktopID) { addChange(&b.desktops, id) }
+func (b *changeBuilder) window(id WindowID)   { addChange(&b.windows, id) }
+func (b *changeBuilder) tab(id TabID)         { addChange(&b.tabs, id) }
+func (b *changeBuilder) node(id NodeID)       { addChange(&b.nodes, id) }
+func (b *changeBuilder) tabSplit(id TabID)    { addChange(&b.split, id) }
+func (b *changeBuilder) tabUnsplit(id TabID)  { addChange(&b.unsplit, id) }
 func (b *changeBuilder) result() ChangeSet {
-	result := ChangeSet{}
+	c := ChangeSet{}
 	for id := range b.desktops {
-		result.DesktopIDs = append(result.DesktopIDs, id)
+		c.DesktopIDs = append(c.DesktopIDs, id)
 	}
 	for id := range b.windows {
-		result.WindowIDs = append(result.WindowIDs, id)
+		c.WindowIDs = append(c.WindowIDs, id)
 	}
-	for id := range b.groups {
-		result.GroupIDs = append(result.GroupIDs, id)
+	for id := range b.tabs {
+		c.TabIDs = append(c.TabIDs, id)
 	}
 	for id := range b.nodes {
-		result.NodeIDs = append(result.NodeIDs, id)
+		c.NodeIDs = append(c.NodeIDs, id)
 	}
-	for id := range b.groupedStacks {
-		result.StackGrouped = append(result.StackGrouped, id)
+	for id := range b.split {
+		c.TabSplit = append(c.TabSplit, id)
 	}
-	for id := range b.ungroupedStacks {
-		result.StackUngrouped = append(result.StackUngrouped, id)
+	for id := range b.unsplit {
+		c.TabUnsplit = append(c.TabUnsplit, id)
 	}
-	sortChangeSet(&result)
-	return result
+	sortChangeSet(&c)
+	return c
 }

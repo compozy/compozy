@@ -25,6 +25,8 @@ var windowManagerTitles = map[windowmanager.CommandID]string{
 	windowmanager.CommandWindowStackGroup:     "Group windows",
 	windowmanager.CommandWindowStackReorder:   "Reorder window stack",
 	windowmanager.CommandWindowStackSetActive: "Activate stacked window",
+	windowmanager.CommandWindowTabActivate:    "Activate tab",
+	windowmanager.CommandWindowTabReorder:     "Reorder tab",
 	windowmanager.CommandWindowPin:            "Pin window",
 	windowmanager.CommandWindowReopen:         "Reopen window",
 	windowmanager.CommandLayoutArrange:        "Arrange layout",

@@ -821,3 +821,68 @@ func seedAheadStore(t *testing.T, path string) {
 		t.Fatalf("Close(ahead store) error = %v", err)
 	}
 }
+
+func TestEngineCopy(t *testing.T) {
+	t.Run("Should copy original bytes with revision fencing and transactional rollback", func(t *testing.T) {
+		t.Parallel()
+		engine, _, _ := newTestEngine(t, testLimits())
+		original := applyPut(t, engine, "w1", "window_manager", "snapshot", objectValue("valid"), 0, ApplyOptions{})
+		raw := []byte("{unparseable\noriginal\x00")
+		err := engine.store.db.Update(func(tx *bolt.Tx) error {
+			bucket := tx.Bucket(workspaceBucketName("w1")).Bucket([]byte("window_manager"))
+			entry := original
+			entry.Value = raw
+			encoded, err := encodeEntry(entry)
+			if err != nil {
+				return err
+			}
+			return bucket.Put([]byte("snapshot"), encoded)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = engine.Apply(
+			t.Context(),
+			"w1",
+			"window_manager",
+			[]Op{{Kind: OpCopy, Key: "legacy", SourceKey: "snapshot", SourceRev: original.Rev + 1}},
+			ApplyOptions{},
+		)
+		if !errors.Is(err, ErrRevConflict) {
+			t.Fatalf("copy fence=%v", err)
+		}
+		_, err = engine.Apply(
+			t.Context(),
+			"w1",
+			"window_manager",
+			[]Op{
+				{Kind: OpCopy, Key: "legacy", SourceKey: "snapshot", SourceRev: original.Rev},
+				{Kind: OpDelete, Key: "missing"},
+			},
+			ApplyOptions{},
+		)
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("rollback=%v", err)
+		}
+		if _, err := engine.Get(t.Context(), "w1", "window_manager", "legacy"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("copy leaked from rollback: %v", err)
+		}
+		entries, err := engine.Apply(
+			t.Context(),
+			"w1",
+			"window_manager",
+			[]Op{
+				{Kind: OpCopy, Key: "legacy", SourceKey: "snapshot", SourceRev: original.Rev},
+				{Kind: OpPut, Key: "snapshot", Value: objectValue("replacement"), IfRev: original.Rev},
+			},
+			ApplyOptions{},
+		)
+		if err != nil || len(entries) != 2 {
+			t.Fatalf("copy=%+v error=%v", entries, err)
+		}
+		backup, err := engine.Get(t.Context(), "w1", "window_manager", "legacy")
+		if err != nil || !bytes.Equal(backup.Value, raw) {
+			t.Fatalf("backup=%q error=%v", backup.Value, err)
+		}
+	})
+}

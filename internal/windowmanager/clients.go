@@ -198,8 +198,8 @@ func (m *Manager) UnregisterClient(ctx context.Context, workspaceID WorkspaceID,
 	}
 	lock.Lock()
 	defer m.releaseWorkspaceLock(workspaceID, lock)
-	if _, err := m.flushStackActiveLocked(ctx, workspaceID); err != nil {
-		return fmt.Errorf("flush stack activation before unregister client %q: %w", clientID, err)
+	if _, err := m.flushTabActiveLocked(ctx, workspaceID); err != nil {
+		return fmt.Errorf("flush tab activation before unregister client %q: %w", clientID, err)
 	}
 	m.mu.Lock()
 	workspaceClients := m.clients[workspaceID]
@@ -375,15 +375,15 @@ func (m *Manager) applyPresentationCommand(
 			}
 			view.FocusedWindowID = &focused
 			view.FocusOrder = prependFocus(view.FocusOrder, focused)
-			if location, stacked := findStackByWindow(&snapshot, focused); stacked {
-				if view.StackActive == nil {
-					view.StackActive = make(map[NodeID]WindowID)
-				}
-				view.StackActive[location.id()] = focused
-				if persist {
-					m.noteStackActive(request.WorkspaceID, location.id(), focused)
-				}
+			window := snapshot.Windows[focused]
+			if view.ActiveTab == nil {
+				view.ActiveTab = map[DesktopID]TabID{}
 			}
+			view.ActiveTab[window.DesktopID] = window.TabID
+			if persist {
+				m.noteTabActive(request.WorkspaceID, window.DesktopID, window.TabID)
+			}
+
 			view = repairClientView(view, snapshot)
 		}
 	default:
@@ -398,17 +398,11 @@ func (m *Manager) applyPresentationCommand(
 
 func resolveFocusTarget(view ClientView, snapshot Snapshot, command FocusWindowCommand) (WindowID, error) {
 	if command.WindowID != nil {
-		window, exists := snapshot.Windows[*command.WindowID]
+		_, exists := snapshot.Windows[*command.WindowID]
 		if !exists {
 			return "", fmt.Errorf("window %q: %w", *command.WindowID, ErrWindowNotFound)
 		}
-		if window.Minimized {
-			return "", fmt.Errorf(
-				"window %q is not focusable while minimized: %w",
-				*command.WindowID,
-				ErrInvalidCommand,
-			)
-		}
+
 		return *command.WindowID, nil
 	}
 	if command.Direction == "" {

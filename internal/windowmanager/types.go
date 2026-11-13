@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const SnapshotVersion uint32 = 5
+const SnapshotVersion uint32 = 6
 
 const PreviousSnapshotVersion uint32 = 4
 
@@ -33,6 +33,7 @@ type DesktopID string
 type WindowID string
 type NodeID string
 type GroupID string
+type TabID string
 type ClientID string
 type Revision uint64
 
@@ -48,7 +49,6 @@ type NodeKind string
 const (
 	NodeKindLeaf  NodeKind = "leaf"
 	NodeKindSplit NodeKind = "split"
-	NodeKindStack NodeKind = "stack"
 )
 
 type Axis string
@@ -93,87 +93,68 @@ type Snapshot struct {
 	ClosedEntries []ClosedEntry       `json:"closed_entries,omitempty"`
 	History       History             `json:"history"`
 	Overrides     WorkspaceConfig     `json:"overrides"`
+	Migration     *MigrationStatus    `json:"migration,omitzero"`
 	UpdatedAt     time.Time           `json:"updated_at"`
 }
 
-// Desktop owns tiled groups and floating order.
+// Desktop owns an ordered tab bar.
 type Desktop struct {
-	ID             DesktopID       `json:"id"`
-	Name           string          `json:"name"`
-	Order          int             `json:"order"`
-	Groups         []LayoutGroup   `json:"groups"`
-	Floating       []WindowID      `json:"floating"`
-	FloatingStacks []FloatingStack `json:"floating_stacks"`
+	ID          DesktopID `json:"id"`
+	Name        string    `json:"name"`
+	Order       int       `json:"order"`
+	Tabs        []Tab     `json:"tabs"`
+	ActiveTabID TabID     `json:"active_tab_id"`
 }
 
-// FloatingStack is one floating frame containing an ordered tab deck.
-type FloatingStack struct {
-	ID        NodeID         `json:"id"`
-	WindowIDs []WindowID     `json:"window_ids"`
-	ActiveID  *WindowID      `json:"active_id,omitzero"`
-	Rect      NormalizedRect `json:"rect"`
-	Minimized bool           `json:"minimized"`
+type Tab struct {
+	ID     TabID      `json:"id"`
+	Pinned bool       `json:"pinned"`
+	Root   LayoutNode `json:"root"`
 }
 
-// LayoutGroup is one independent tiled island.
-type LayoutGroup struct {
-	ID    GroupID        `json:"id"`
-	Frame NormalizedRect `json:"frame"`
-	Root  LayoutNode     `json:"root"`
-}
-
-// LayoutNode is a leaf, weighted split, or tabbed stack.
 type LayoutNode struct {
-	ID        NodeID       `json:"id"`
-	Kind      NodeKind     `json:"kind"`
-	WindowID  *WindowID    `json:"window_id,omitzero"`
-	Axis      *Axis        `json:"axis,omitzero"`
-	Children  []LayoutNode `json:"children,omitempty"`
-	Weights   []float64    `json:"weights,omitempty"`
-	WindowIDs []WindowID   `json:"window_ids,omitempty"`
-	ActiveID  *WindowID    `json:"active_id,omitzero"`
+	ID       NodeID       `json:"id"`
+	Kind     NodeKind     `json:"kind"`
+	WindowID *WindowID    `json:"window_id,omitzero"`
+	Axis     *Axis        `json:"axis,omitzero"`
+	Children []LayoutNode `json:"children,omitempty"`
+	Weights  []float64    `json:"weights,omitempty"`
 }
 
-// Window is one durable application instance.
 type Window struct {
-	ID           WindowID        `json:"id"`
-	App          string          `json:"app"`
-	InstanceKey  *string         `json:"instance_key,omitzero"`
-	Route        RouteIntent     `json:"route"`
-	NavStack     []RouteIntent   `json:"nav_stack"`
-	Pinned       bool            `json:"pinned"`
-	Placement    WindowPlacement `json:"placement"`
-	DesktopID    DesktopID       `json:"desktop_id"`
-	FloatingRect NormalizedRect  `json:"floating_rect"`
-	Minimized    bool            `json:"minimized"`
-	// Zoomed fills the desktop work area with the unit holding this window.
-	Zoomed       bool          `json:"zoomed"`
-	ReturnAnchor *ReturnAnchor `json:"return_anchor,omitzero"`
+	ID          WindowID      `json:"id"`
+	App         string        `json:"app"`
+	InstanceKey *string       `json:"instance_key,omitzero"`
+	Route       RouteIntent   `json:"route"`
+	NavStack    []RouteIntent `json:"nav_stack"`
+	DesktopID   DesktopID     `json:"desktop_id"`
+	TabID       TabID         `json:"tab_id"`
 }
 
-// ClosedEntry is one reopenable close operation, newest last in Snapshot.ClosedEntries.
 type ClosedEntry struct {
-	Windows   []Window       `json:"windows"`
-	ActiveID  *WindowID      `json:"active_id,omitzero"`
-	StackID   *NodeID        `json:"stack_id,omitzero"`
-	DesktopID DesktopID      `json:"desktop_id"`
-	Rect      NormalizedRect `json:"rect"`
-	ClosedAt  time.Time      `json:"closed_at"`
+	Windows   []Window      `json:"windows"`
+	Tabs      []ClosedTab   `json:"tabs,omitempty"`
+	Member    *ClosedMember `json:"member,omitzero"`
+	DesktopID DesktopID     `json:"desktop_id"`
+	ClosedAt  time.Time     `json:"closed_at"`
 }
 
-// ReturnAnchor describes a window's prior structural slot.
-type ReturnAnchor struct {
-	DesktopID      DesktopID      `json:"desktop_id"`
-	GroupID        *GroupID       `json:"group_id,omitzero"`
-	ParentSplitID  *NodeID        `json:"parent_split_id,omitzero"`
-	ChildIndex     *int           `json:"child_index,omitzero"`
-	Weight         *float64       `json:"weight,omitzero"`
-	NeighborIDs    []WindowID     `json:"neighbor_ids,omitempty"`
-	SourceRevision Revision       `json:"source_revision"`
-	SourceGroup    *LayoutGroup   `json:"source_group,omitzero"`
-	SourceStack    *FloatingStack `json:"source_stack,omitzero"`
-	// Zoomed restores the zoom a minimized window held when it left.
-	Zoomed bool `json:"zoomed,omitzero"`
+type ClosedTab struct {
+	ID     TabID      `json:"id"`
+	Pinned bool       `json:"pinned"`
+	Root   LayoutNode `json:"root"`
+	Index  int        `json:"index"`
+}
+
+type Edge string
+
+type ClosedMember struct {
+	TabID         TabID    `json:"tab_id"`
+	ParentSplitID NodeID   `json:"parent_split_id"`
+	ChildIndex    int      `json:"child_index"`
+	Weight        float64  `json:"weight"`
+	NeighborID    WindowID `json:"neighbor_id"`
+	NeighborEdge  Edge     `json:"neighbor_edge"`
 }
 
 // ClientView is transient presentation state for one connected client.
@@ -186,6 +167,7 @@ type ClientView struct {
 	ActiveDesktopID      DesktopID                    `json:"active_desktop_id"`
 	FocusedWindowID      *WindowID                    `json:"focused_window_id,omitzero"`
 	FocusOrder           []WindowID                   `json:"focus_order"`
+	ActiveTab            map[DesktopID]TabID          `json:"active_tab"`
 	StackActive          map[NodeID]WindowID          `json:"stack_active"`
 	PaletteContext       PaletteContext               `json:"palette_context"`
 	GlobalShortcuts      []GlobalShortcutRegistration `json:"global_shortcuts"`
@@ -197,6 +179,7 @@ type ClientView struct {
 type PaletteContext struct {
 	WindowFocused       bool         `json:"window_focused"`
 	WindowFloating      bool         `json:"window_floating"`
+	WindowInSplit       bool         `json:"window_in_split"`
 	WindowStacked       bool         `json:"window_stacked"`
 	DesktopWindowCount  int          `json:"desktop_window_count"`
 	ScopeGlobal         bool         `json:"scope_global"`
@@ -337,6 +320,7 @@ type Subscription interface {
 
 // Service is the window-manager runtime contract.
 type Service interface {
+	Migration(context.Context, WorkspaceID, string, bool) (MigrationStatus, error)
 	Snapshot(context.Context, WorkspaceID) (Snapshot, error)
 	Preview(context.Context, CommandRequest) (Preview, error)
 	Execute(context.Context, CommandRequest) (Result, error)

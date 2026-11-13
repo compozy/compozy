@@ -15,9 +15,7 @@ func reservedWindowID(snapshot *Snapshot, windowID WindowID) bool {
 }
 
 func pushClosedEntry(snapshot *Snapshot, entry ClosedEntry, limit int) {
-	entry.Windows = cloneClosedEntries([]ClosedEntry{entry})[0].Windows
-	entry.ActiveID = clonePointer(entry.ActiveID)
-	entry.StackID = clonePointer(entry.StackID)
+	entry = cloneClosedEntries([]ClosedEntry{entry})[0]
 	snapshot.ClosedEntries = append(snapshot.ClosedEntries, entry)
 	if len(snapshot.ClosedEntries) > limit {
 		snapshot.ClosedEntries = append(

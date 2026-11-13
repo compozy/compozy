@@ -135,35 +135,43 @@ func windowManagerDesktopListBundle(desktops []contract.WindowManagerDesktop) ou
 }
 
 func windowManagerWindowListBundle(snapshot contract.WindowManagerSnapshot) outputBundle {
-	memberships := windowManagerStackMemberships(snapshot.Desktops)
 	windows := make([]windowManagerWindowListItem, 0, len(snapshot.Windows))
-	for _, window := range snapshot.Windows {
-		item := windowManagerWindowListItem{
-			WindowManagerWindow: window,
-			NavDepth:            len(window.NavStack),
+	for _, desktop := range snapshot.Desktops {
+		for index, tab := range desktop.Tabs {
+			ids := windowManagerTabWindowIDs(tab.Root)
+			for _, id := range ids {
+				window, ok := snapshot.Windows[string(id)]
+				if !ok {
+					continue
+				}
+				windows = append(windows, windowManagerWindowListItem{
+					WindowManagerWindow: window, TabIndex: index, Members: len(ids),
+					Active: desktop.ActiveTabID == tab.ID, Pinned: tab.Pinned, NavDepth: len(window.NavStack),
+				})
+			}
 		}
-		if membership, ok := memberships[window.ID]; ok {
-			stackID := membership.stackID
-			memberOrder := membership.memberOrder
-			item.StackID = &stackID
-			item.MemberOrder = &memberOrder
-			item.Active = membership.active
-		}
-		windows = append(windows, item)
 	}
-	slices.SortFunc(windows, func(left, right windowManagerWindowListItem) int {
-		return cmp.Compare(left.ID, right.ID)
-	})
+	slices.SortFunc(
+		windows,
+		func(left, right windowManagerWindowListItem) int { return cmp.Compare(left.ID, right.ID) },
+	)
 	return listBundle(
-		windows, windows, "Windows",
-		[]string{
-			"ID", "APP", "DESKTOP", "PLACEMENT", "PATHNAME", "STACK", "MEMBER ORDER", "ACTIVE", "PINNED", "ZOOMED",
-			"NAV DEPTH",
-		},
+		windows,
+		windows,
+		"Windows",
+		[]string{"ID", "APP", "DESKTOP", "TAB", "TAB INDEX", "ACTIVE", "PINNED", "MEMBERS", "PATHNAME", "NAV DEPTH"},
 		"windows",
 		[]string{
-			"id", appCommandKey, windowManagerDesktopID, "placement", "pathname", "stack_id", "member_order",
-			windowManagerActiveField, "pinned", "zoomed", "nav_depth",
+			"id",
+			appCommandKey,
+			windowManagerDesktopID,
+			"tab_id",
+			"tab_index",
+			windowManagerActiveField,
+			"pinned",
+			"members",
+			"pathname",
+			"nav_depth",
 		},
 		windowManagerWindowRow,
 		windowManagerWindowRow,
@@ -172,79 +180,37 @@ func windowManagerWindowListBundle(snapshot contract.WindowManagerSnapshot) outp
 
 type windowManagerWindowListItem struct {
 	contract.WindowManagerWindow
-	StackID     *windowmanager.NodeID `json:"stack_id,omitzero"`
-	MemberOrder *int                  `json:"member_order,omitzero"`
-	Active      bool                  `json:"active"`
-	NavDepth    int                   `json:"nav_depth"`
+	TabIndex int  `json:"tab_index"`
+	Active   bool `json:"active"`
+	Pinned   bool `json:"pinned"`
+	Members  int  `json:"members"`
+	NavDepth int  `json:"nav_depth"`
 }
 
-type windowManagerStackMembership struct {
-	stackID     windowmanager.NodeID
-	memberOrder int
-	active      bool
-}
-
-func windowManagerStackMemberships(
-	desktops []contract.WindowManagerDesktop,
-) map[windowmanager.WindowID]windowManagerStackMembership {
-	memberships := make(map[windowmanager.WindowID]windowManagerStackMembership)
-	for _, desktop := range desktops {
-		for _, stack := range desktop.FloatingStacks {
-			addWindowManagerStackMemberships(memberships, stack.ID, stack.WindowIDs, stack.ActiveID)
-		}
-		for _, group := range desktop.Groups {
-			addWindowManagerNodeStackMemberships(memberships, group.Root)
-		}
+func windowManagerTabWindowIDs(node contract.WindowManagerLayoutNode) []windowmanager.WindowID {
+	if node.WindowID != nil {
+		return []windowmanager.WindowID{*node.WindowID}
 	}
-	return memberships
-}
-
-func addWindowManagerNodeStackMemberships(
-	memberships map[windowmanager.WindowID]windowManagerStackMembership,
-	node contract.WindowManagerLayoutNode,
-) {
-	if node.Kind == windowmanager.NodeKindStack {
-		addWindowManagerStackMemberships(memberships, node.ID, node.WindowIDs, node.ActiveID)
-	}
+	var ids []windowmanager.WindowID
 	for _, child := range node.Children {
-		addWindowManagerNodeStackMemberships(memberships, child)
+		ids = append(ids, windowManagerTabWindowIDs(child)...)
 	}
-}
-
-func addWindowManagerStackMemberships(
-	memberships map[windowmanager.WindowID]windowManagerStackMembership,
-	stackID windowmanager.NodeID,
-	windowIDs []windowmanager.WindowID,
-	activeID *windowmanager.WindowID,
-) {
-	for index, windowID := range windowIDs {
-		memberships[windowID] = windowManagerStackMembership{
-			stackID: stackID, memberOrder: index, active: activeID != nil && *activeID == windowID,
-		}
-	}
+	return ids
 }
 
 func windowManagerWindowRow(item windowManagerWindowListItem) []string {
-	window := item.WindowManagerWindow
-	stackID := ""
-	if item.StackID != nil {
-		stackID = string(*item.StackID)
-	}
-	memberOrder := ""
-	if item.MemberOrder != nil {
-		memberOrder = strconv.Itoa(*item.MemberOrder)
-	}
 	return []string{
-		string(window.ID),
-		window.App,
-		string(window.DesktopID),
-		string(window.Placement),
-		window.Route.Pathname,
-		stackID,
-		memberOrder,
-		strconv.FormatBool(item.Active),
-		strconv.FormatBool(window.Pinned),
-		strconv.FormatBool(window.Zoomed),
+		string(item.ID),
+		item.App,
+		string(item.DesktopID),
+		string(item.TabID),
+		strconv.Itoa(item.TabIndex),
+		strconv.FormatBool(
+			item.Active,
+		),
+		strconv.FormatBool(item.Pinned),
+		strconv.Itoa(item.Members),
+		item.Route.Pathname,
 		strconv.Itoa(item.NavDepth),
 	}
 }

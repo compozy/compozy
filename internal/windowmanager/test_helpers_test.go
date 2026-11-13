@@ -59,10 +59,16 @@ func newTestEnvironment(t *testing.T, config Config, workspaces ...WorkspaceID) 
 
 func newTestManagerWithRegistry(t *testing.T, registry LayoutResourceRegistry) *Manager {
 	t.Helper()
+	var sequence atomic.Int64
 	manager, err := NewService(
-		NewMemoryRepository(), NewMemoryWorkspaceResolver("workspace-a"), registry, DefaultConfig(),
+		NewMemoryRepository(),
+		NewMemoryWorkspaceResolver("workspace-a"),
+		registry,
+		DefaultConfig(),
 		WithClock(func() time.Time { return time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC) }),
-		WithIDGenerator(func(kind string) (string, error) { return kind + "-generated", nil }),
+		WithIDGenerator(
+			func(kind string) (string, error) { return fmt.Sprintf("%s-generated-%d", kind, sequence.Add(1)), nil },
+		),
 	)
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -192,12 +198,13 @@ func validThreeWindowSnapshot() Snapshot {
 		WorkspaceID: "workspace-a",
 		Desktops: []Desktop{
 			{
-				ID:   "desktop-default",
-				Name: defaultDesktopName,
-				Groups: []LayoutGroup{
+				ID:          "desktop-default",
+				Name:        defaultDesktopName,
+				ActiveTabID: "group-1",
+				Tabs: []Tab{
 					{
-						ID:    "group-1",
-						Frame: fullRect(),
+						ID: "group-1",
+
 						Root: LayoutNode{
 							ID:      "root",
 							Kind:    NodeKindSplit,
@@ -219,33 +226,29 @@ func validThreeWindowSnapshot() Snapshot {
 						},
 					},
 				},
-				Floating: []WindowID{},
 			},
 		},
 		Windows: map[WindowID]Window{
 			w1: {
-				ID:           w1,
-				App:          "One",
-				DesktopID:    "desktop-default",
-				Route:        testRoute("/one"),
-				Placement:    WindowPlacementTiled,
-				FloatingRect: NormalizedRect{Width: 0.5, Height: 0.5},
+				ID:        w1,
+				App:       "One",
+				DesktopID: "desktop-default",
+				Route:     testRoute("/one"),
+				TabID:     "group-1",
 			},
 			w2: {
-				ID:           w2,
-				App:          "Two",
-				DesktopID:    "desktop-default",
-				Route:        testRoute("/two"),
-				Placement:    WindowPlacementTiled,
-				FloatingRect: NormalizedRect{Width: 0.5, Height: 0.5},
+				ID:        w2,
+				App:       "Two",
+				DesktopID: "desktop-default",
+				Route:     testRoute("/two"),
+				TabID:     "group-1",
 			},
 			w3: {
-				ID:           w3,
-				App:          "Three",
-				DesktopID:    "desktop-default",
-				Route:        testRoute("/three"),
-				Placement:    WindowPlacementTiled,
-				FloatingRect: NormalizedRect{Width: 0.5, Height: 0.5},
+				ID:        w3,
+				App:       "Three",
+				DesktopID: "desktop-default",
+				Route:     testRoute("/three"),
+				TabID:     "group-1",
 			},
 		},
 		History: History{Undo: []HistoryEntry{}, Redo: []HistoryEntry{}},
@@ -254,4 +257,15 @@ func validThreeWindowSnapshot() Snapshot {
 
 func testRoute(pathname string) RouteIntent {
 	return RouteIntent{Pathname: pathname, Search: RouteSearch{}}
+}
+
+func defaultTestDocument(workspace WorkspaceID) LayoutDocument {
+	s := DefaultSnapshot(workspace)
+	return LayoutDocument{
+		Version:     s.Version,
+		WorkspaceID: s.WorkspaceID,
+		Desktops:    s.Desktops,
+		Windows:     s.Windows,
+		Overrides:   s.Overrides,
+	}
 }

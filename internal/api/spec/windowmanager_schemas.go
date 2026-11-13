@@ -23,7 +23,7 @@ type windowManagerComponentSchema struct {
 
 var windowManagerBaseComponentSchemas = []windowManagerComponentSchema{
 	{name: "WindowManagerLayoutNode", value: contract.WindowManagerLayoutNode{}},
-	{name: "WindowManagerLayoutGroup", value: contract.WindowManagerLayoutGroup{}},
+	{name: "WindowManagerTab", value: contract.WindowManagerTab{}},
 	{name: "WindowManagerDesktop", value: contract.WindowManagerDesktop{}},
 	{name: "WindowManagerSnapshot", value: contract.WindowManagerSnapshot{}},
 	{name: "WindowManagerLayoutDocument", value: contract.WindowManagerLayoutDocument{}},

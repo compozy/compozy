@@ -1,7 +1,5 @@
 package windowmanager
 
-import "slices"
-
 // ReconcileRegisteredApps removes retired apps and repairs their durable topology without mutating its input.
 func ReconcileRegisteredApps(snapshot Snapshot, registered func(app string) bool) (Snapshot, bool) {
 	return reconcileWindows(snapshot, func(window Window) bool { return registered(window.App) })
@@ -13,10 +11,19 @@ func reconcileWindows(snapshot Snapshot, keep func(Window) bool) (Snapshot, bool
 	for _, entries := range [][]HistoryEntry{reconciled.History.Undo, reconciled.History.Redo} {
 		for index := range entries {
 			for _, state := range []*State{&entries[index].Before, &entries[index].After} {
-				if reconcileAppWindows(state.Windows, keep) {
+				candidate, stateChanged := reconcileWindows(
+					Snapshot{
+						Version:       SnapshotVersion,
+						WorkspaceID:   reconciled.WorkspaceID,
+						Desktops:      state.Desktops,
+						Windows:       state.Windows,
+						ClosedEntries: state.ClosedEntries,
+					},
+					keep,
+				)
+				if stateChanged {
 					changed = true
-					normalized := NormalizeSnapshot(Snapshot{Desktops: state.Desktops, Windows: state.Windows})
-					state.Desktops, state.Windows = normalized.Desktops, normalized.Windows
+					state.Desktops, state.Windows, state.ClosedEntries = candidate.Desktops, candidate.Windows, candidate.ClosedEntries
 				}
 			}
 		}
@@ -38,17 +45,16 @@ func reconcileWindows(snapshot Snapshot, keep func(Window) bool) (Snapshot, bool
 		if len(windows) == 0 {
 			continue
 		}
-		if entry.ActiveID != nil &&
-			!slices.ContainsFunc(windows, func(window Window) bool { return window.ID == *entry.ActiveID }) {
-			entry.ActiveID = new(windows[0].ID)
-		}
-		closed = append(closed, entry)
+
+		closed = append(closed, pruneClosedEntry(entry))
 	}
 	reconciled.ClosedEntries = closed
 	if !changed {
 		return snapshot, false
 	}
-	return NormalizeSnapshot(reconciled), true
+	reconciled = NormalizeSnapshot(reconciled)
+	repairEmptyDesktops(&reconciled)
+	return reconciled, true
 }
 
 func reconcileAppWindows(windows map[WindowID]Window, keep func(Window) bool) bool {

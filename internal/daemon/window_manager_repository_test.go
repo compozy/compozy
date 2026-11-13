@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
+
+	bolt "go.etcd.io/bbolt"
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/testutil"
@@ -20,7 +21,6 @@ import (
 func TestWindowManagerRepository(t *testing.T) {
 	t.Parallel()
 
-	// Invariant: v4 migration preserves windows, writes once, and fences stale writers; repository suite owns persistence.
 	t.Run("Should persist deprecated command apps and warn once per id [IT-014]", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
@@ -84,103 +84,8 @@ func TestWindowManagerRepository(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(loaded.Windows) != 4 {
+		if len(loaded.Windows) != 5 {
 			t.Fatalf("persisted windows=%d", len(loaded.Windows))
-		}
-	})
-
-	t.Run("Should migrate v4 once and reject a stale commit [IT-010 IT-011 UT-125]", func(t *testing.T) {
-		t.Parallel()
-		for _, invalid := range []bool{false, true} {
-			fixture := newDaemonWindowManagerFixture(t)
-			var logs bytes.Buffer
-			fixture.repository.logger = slog.New(slog.NewJSONHandler(&logs, nil))
-			ctx := t.Context()
-			workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
-			snapshot := daemonWindowManagerSnapshot(workspaceID, 5, "Primary")
-			snapshot.Version = windowmanager.PreviousSnapshotVersion
-			for _, app := range []string{"jobs", "triggers"} {
-				id := windowmanager.WindowID(app)
-				snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, id)
-				snapshot.Windows[id] = windowmanager.Window{
-					ID:        id,
-					App:       app,
-					DesktopID: "desktop-default",
-					Placement: windowmanager.WindowPlacementFloating,
-					Route: windowmanager.RouteIntent{
-						Pathname: "/" + app,
-						Search:   windowmanager.RouteSearch{},
-					},
-					FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5},
-				}
-			}
-			if invalid {
-				snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, "missing")
-			}
-			raw, err := json.Marshal(snapshot)
-			if err != nil {
-				t.Fatal(err)
-			}
-			entries, err := fixture.engine.Apply(
-				ctx,
-				clientstate.WorkspaceID(workspaceID),
-				windowManagerStateDomain,
-				[]clientstate.Op{
-					{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(testWindowManagerProfileID), Value: raw},
-				},
-				clientstate.ApplyOptions{},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			loaded, err := fixture.repository.Load(ctx, workspaceID)
-			if invalid {
-				if err == nil {
-					t.Fatal("invalid migration accepted")
-				}
-			} else {
-				if err != nil {
-					t.Fatal(err)
-				}
-				if loaded.Version != 5 || loaded.Revision != 6 || len(loaded.Windows) != 2 ||
-					loaded.Windows["jobs"].App != "automations" ||
-					loaded.Windows["triggers"].App != "automations" {
-					t.Fatalf("migration = %+v", loaded)
-				}
-				if _, err := fixture.repository.Load(ctx, workspaceID); err != nil {
-					t.Fatal(err)
-				}
-				stale := loaded
-				err = fixture.repository.Commit(ctx, daemonWindowManagerCommit(stale, 5))
-				conflict, ok := errors.AsType[*windowmanager.RevisionConflictError](err)
-				if !ok || conflict.Current != 6 {
-					t.Fatalf("stale commit = %v", err)
-				}
-			}
-			stored, err := fixture.engine.Get(
-				ctx,
-				clientstate.WorkspaceID(workspaceID),
-				windowManagerStateDomain,
-				windowManagerSnapshotKey(testWindowManagerProfileID),
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if invalid {
-				if stored.Rev != entries[0].Rev || !bytes.Equal(stored.Value, raw) {
-					t.Fatal("invalid snapshot changed")
-				}
-			} else {
-				if stored.Rev != entries[0].Rev+1 {
-					t.Fatalf("migration wrote more than once: %d -> %d", entries[0].Rev, stored.Rev)
-				}
-				if strings.Count(logs.String(), `"event":"windowmanager.snapshot_migrated"`) != 1 ||
-					!strings.Contains(logs.String(), `"from_version":4`) ||
-					!strings.Contains(logs.String(), `"to_version":5`) ||
-					!strings.Contains(logs.String(), `"windows_rewritten":2`) {
-					t.Fatalf("migration logs = %s", logs.String())
-				}
-			}
 		}
 	})
 
@@ -193,7 +98,7 @@ func TestWindowManagerRepository(t *testing.T) {
 		}
 	})
 
-	t.Run("Should persist one full v3 snapshot exactly across store reopen [IT-001]", func(t *testing.T) {
+	t.Run("Should persist one full v6 snapshot exactly across store reopen [IT-001]", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
 		ctx := testutil.Context(t)
@@ -388,282 +293,6 @@ func TestWindowManagerRepository(t *testing.T) {
 		}
 	})
 
-	t.Run("Should discard legacy unknown and malformed snapshot documents", func(t *testing.T) {
-		t.Parallel()
-		cases := []struct {
-			name  string
-			value string
-		}{
-			{
-				name: "legacy v1",
-				value: `{"version":1,"workspace_id":"WORKSPACE_ID","revision":1,` +
-					`"desktops":[{"id":"desktop-default","name":"One","order":0,"purpose":"standard","groups":[],"floating":[]}],` +
-					`"windows":{},"history":{"undo":[],"redo":[]},"overrides":{},"updated_at":"2026-07-22T12:00:00Z"}`,
-			},
-			{
-				name: "unknown field",
-				value: `{"version":2,"workspace_id":"WORKSPACE_ID","revision":1,` +
-					`"desktops":[{"id":"desktop-default","name":"One","order":0,"purpose":"standard","groups":[],"floating":[]}],` +
-					`"windows":{},"history":{"undo":[],"redo":[]},"overrides":{},"updated_at":"2026-07-22T12:00:00Z","legacy":true}`,
-			},
-			{
-				name: "malformed topology",
-				value: `{"version":2,"workspace_id":"WORKSPACE_ID","revision":1,"desktops":[],` +
-					`"windows":{},"history":{"undo":[],"redo":[]},"overrides":{},"updated_at":"2026-07-22T12:00:00Z"}`,
-			},
-		}
-		for _, testCase := range cases {
-			t.Run("Should discard "+testCase.name, func(t *testing.T) {
-				t.Parallel()
-				fixture := newDaemonWindowManagerFixture(t)
-				ctx := testutil.Context(t)
-				workspaceID := clientstate.WorkspaceID(fixture.workspace.ID)
-				value := []byte(strings.ReplaceAll(
-					testCase.value,
-					"WORKSPACE_ID",
-					fixture.workspace.ID,
-				))
-				if _, err := fixture.engine.Apply(
-					ctx,
-					workspaceID,
-					windowManagerStateDomain,
-					[]clientstate.Op{
-						{
-							Kind:  clientstate.OpPut,
-							Key:   windowManagerSnapshotKey(testWindowManagerProfileID),
-							Value: value,
-						},
-					},
-					clientstate.ApplyOptions{},
-				); err != nil {
-					t.Fatalf("Apply(raw document) error = %v", err)
-				}
-				if _, err := fixture.repository.Load(
-					ctx,
-					windowmanager.WorkspaceID(workspaceID),
-				); !errors.Is(err, windowmanager.ErrSnapshotNotFound) {
-					t.Fatalf("Load() error = %v, want ErrSnapshotNotFound", err)
-				}
-				if _, err := fixture.engine.Get(
-					ctx,
-					workspaceID,
-					windowManagerStateDomain,
-					windowManagerSnapshotKey(testWindowManagerProfileID),
-				); !errors.Is(err, clientstate.ErrNotFound) {
-					t.Fatalf("Get(after discard) error = %v, want ErrNotFound", err)
-				}
-			})
-		}
-	})
-
-	t.Run(
-		"Should reinitialize after a discard and commit the next command at revision one [UT-062]",
-		func(t *testing.T) {
-			t.Parallel()
-			fixture := newDaemonWindowManagerFixture(t)
-			ctx := testutil.Context(t)
-			workspaceID := clientstate.WorkspaceID(fixture.workspace.ID)
-			legacy := []byte(strings.ReplaceAll(
-				`{"version":2,"workspace_id":"WORKSPACE_ID","revision":7,"desktops":[],"windows":{},"history":{"undo":[],"redo":[]},"overrides":{},"updated_at":"2026-07-22T12:00:00Z"}`,
-				"WORKSPACE_ID",
-				fixture.workspace.ID,
-			))
-			if _, err := fixture.engine.Apply(
-				ctx,
-				workspaceID,
-				windowManagerStateDomain,
-				[]clientstate.Op{
-					{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(testWindowManagerProfileID), Value: legacy},
-				},
-				clientstate.ApplyOptions{},
-			); err != nil {
-				t.Fatalf("Apply(v2 snapshot) error = %v", err)
-			}
-			result, err := fixture.manager.Execute(ctx, windowmanager.CommandRequest{
-				WorkspaceID: windowmanager.WorkspaceID(workspaceID), ExpectedRevision: 0,
-				Payload: windowmanager.CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
-			})
-			if err != nil || result.Snapshot.Revision != 1 || result.Snapshot.Version != windowmanager.SnapshotVersion {
-				t.Fatalf("Execute(after discard) = %+v, error = %v", result, err)
-			}
-		},
-	)
-
-	t.Run("Should migrate a version 3 arrangement and keep its focus owner zoomed on its desktop", func(t *testing.T) {
-		t.Parallel()
-		fixture := newDaemonWindowManagerFixture(t)
-		ctx := testutil.Context(t)
-		workspaceID := clientstate.WorkspaceID(fixture.workspace.ID)
-		legacy := []byte(strings.ReplaceAll(`{"version":3,"workspace_id":"WORKSPACE_ID","revision":5,
-			"desktops":[
-				{"id":"desktop-default","name":"Desktop 1","order":0,"purpose":"standard",
-					"groups":[],"floating":["settings"],"floating_stacks":[]},
-				{"id":"desktop-focus","name":"Focus — Tasks","order":1,"purpose":"focus","focus_owner":"tasks",
-					"groups":[{"id":"group-focus","frame":{"x":0,"y":0,"width":1,"height":1},
-						"root":{"id":"leaf-focus","kind":"leaf","window_id":"tasks"}}],
-					"floating":[],"floating_stacks":[]}],
-			"windows":{
-				"tasks":{"id":"tasks","app":"tasks","route":{"pathname":"/tasks","search":{}},"nav_stack":[],
-					"pinned":false,"placement":"tiled","desktop_id":"desktop-focus",
-					"floating_rect":{"x":0.1,"y":0.1,"width":0.5,"height":0.5},"minimized":false,
-					"return_anchor":{"desktop_id":"desktop-default","source_revision":4}},
-				"settings":{"id":"settings","app":"settings","route":{"pathname":"/settings","search":{}},"nav_stack":[],
-					"pinned":false,"placement":"floating","desktop_id":"desktop-default",
-					"floating_rect":{"x":0.2,"y":0.2,"width":0.5,"height":0.5},"minimized":false}},
-			"history":{"undo":[],"redo":[]},"overrides":{},"updated_at":"2026-08-30T10:00:00Z"}`,
-			"WORKSPACE_ID", fixture.workspace.ID))
-		if _, err := fixture.engine.Apply(
-			ctx,
-			workspaceID,
-			windowManagerStateDomain,
-			[]clientstate.Op{
-				{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(testWindowManagerProfileID), Value: legacy},
-			},
-			clientstate.ApplyOptions{},
-		); err != nil {
-			t.Fatalf("Apply(v3 snapshot) error = %v", err)
-		}
-		loaded, err := fixture.repository.Load(ctx, windowmanager.WorkspaceID(workspaceID))
-		if err != nil {
-			t.Fatalf("Load(v3 snapshot) error = %v", err)
-		}
-		if loaded.Version != windowmanager.SnapshotVersion || loaded.Revision != 6 || len(loaded.Desktops) != 2 {
-			t.Fatalf("migrated snapshot = %+v", loaded)
-		}
-		stored, err := fixture.engine.Get(
-			ctx, workspaceID, windowManagerStateDomain, windowManagerSnapshotKey(testWindowManagerProfileID),
-		)
-		if err != nil {
-			t.Fatalf("Get(after migration) error = %v", err)
-		}
-		var persisted windowmanager.Snapshot
-		if err := json.Unmarshal(stored.Value, &persisted); err != nil {
-			t.Fatalf("json.Unmarshal(persisted migration) error = %v", err)
-		}
-		if persisted.Version != windowmanager.SnapshotVersion || persisted.Revision != 6 {
-			t.Fatalf(
-				"load did not persist the migrated snapshot: version %d revision %d",
-				persisted.Version,
-				persisted.Revision,
-			)
-		}
-		tasks := loaded.Windows["tasks"]
-		if !tasks.Zoomed || tasks.DesktopID != "desktop-focus" ||
-			tasks.Placement != windowmanager.WindowPlacementTiled || tasks.ReturnAnchor == nil ||
-			tasks.ReturnAnchor.DesktopID != "desktop-default" {
-			t.Fatalf("migrated focus owner = %+v", tasks)
-		}
-		result, err := fixture.manager.Execute(ctx, windowmanager.CommandRequest{
-			WorkspaceID: windowmanager.WorkspaceID(workspaceID), ExpectedRevision: 6,
-			Payload: windowmanager.CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
-		})
-		if err != nil || result.Snapshot.Revision != 7 || result.Snapshot.Version != windowmanager.SnapshotVersion {
-			t.Fatalf("Execute(after migration) = %+v, error = %v", result, err)
-		}
-		reloaded, err := fixture.repository.Load(ctx, windowmanager.WorkspaceID(workspaceID))
-		if err != nil || reloaded.Version != windowmanager.SnapshotVersion || !reloaded.Windows["tasks"].Zoomed {
-			t.Fatalf("Load(after migration commit) = %+v, error = %v", reloaded, err)
-		}
-	})
-
-	t.Run(
-		"Should discard only decode and version classes while preserving forensic blobs [IT-002]",
-		func(t *testing.T) {
-			t.Parallel()
-			cases := []struct {
-				name        string
-				value       func(t *testing.T, workspaceID string) []byte
-				wantError   error
-				wantDeleted bool
-			}{
-				{
-					name: "Should preserve a workspace mismatch for forensics",
-					value: func(t *testing.T, _ string) []byte {
-						t.Helper()
-						snapshot := daemonWindowManagerSnapshot("another-workspace", 1, "Mismatch")
-						encoded, err := json.Marshal(snapshot)
-						if err != nil {
-							t.Fatalf("json.Marshal(mismatch) error = %v", err)
-						}
-						return encoded
-					},
-					wantError: windowmanager.ErrInvalidTopology,
-				},
-				{
-					name: "Should preserve an invalid current topology for forensics",
-					value: func(t *testing.T, workspaceID string) []byte {
-						t.Helper()
-						snapshot := daemonWindowManagerSnapshot(windowmanager.WorkspaceID(workspaceID), 1, "Invalid")
-						snapshot.Desktops = nil
-						encoded, err := json.Marshal(snapshot)
-						if err != nil {
-							t.Fatalf("json.Marshal(invalid v3) error = %v", err)
-						}
-						return encoded
-					},
-					wantError: windowmanager.ErrInvalidTopology,
-				},
-				{
-					name: "Should delete an unsupported snapshot version",
-					value: func(_ *testing.T, workspaceID string) []byte {
-						return fmt.Appendf(nil, `{"version":2,"workspace_id":%q}`, workspaceID)
-					},
-					wantError:   windowmanager.ErrSnapshotNotFound,
-					wantDeleted: true,
-				},
-				{
-					name: "Should delete a snapshot with an unknown field",
-					value: func(_ *testing.T, workspaceID string) []byte {
-						return fmt.Appendf(nil, `{"version":3,"workspace_id":%q,"unknown":true}`, workspaceID)
-					},
-					wantError:   windowmanager.ErrSnapshotNotFound,
-					wantDeleted: true,
-				},
-			}
-			for _, testCase := range cases {
-				t.Run(testCase.name, func(t *testing.T) {
-					t.Parallel()
-					fixture := newDaemonWindowManagerFixture(t)
-					ctx := testutil.Context(t)
-					workspaceID := clientstate.WorkspaceID(fixture.workspace.ID)
-					value := testCase.value(t, fixture.workspace.ID)
-					if _, err := fixture.engine.Apply(
-						ctx,
-						workspaceID,
-						windowManagerStateDomain,
-						[]clientstate.Op{
-							{
-								Kind:  clientstate.OpPut,
-								Key:   windowManagerSnapshotKey(testWindowManagerProfileID),
-								Value: value,
-							},
-						},
-						clientstate.ApplyOptions{},
-					); err != nil {
-						t.Fatalf("Apply(raw snapshot) error = %v", err)
-					}
-					_, loadErr := fixture.repository.Load(ctx, windowmanager.WorkspaceID(workspaceID))
-					if !errors.Is(loadErr, testCase.wantError) {
-						t.Fatalf("Load() error = %v, want %v", loadErr, testCase.wantError)
-					}
-					entry, getErr := fixture.engine.Get(
-						ctx,
-						workspaceID,
-						windowManagerStateDomain,
-						windowManagerSnapshotKey(testWindowManagerProfileID),
-					)
-					if testCase.wantDeleted {
-						if !errors.Is(getErr, clientstate.ErrNotFound) {
-							t.Fatalf("Get(after discard) error = %v", getErr)
-						}
-					} else if getErr != nil || !reflect.DeepEqual(entry.Value, value) {
-						t.Fatalf("preserved entry = %+v, error = %v, want bytes %s", entry, getErr, value)
-					}
-				})
-			}
-		},
-	)
-
 	t.Run("Should allow exactly one concurrent compare-and-swap writer", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
@@ -704,49 +333,30 @@ func TestWindowManagerRepository(t *testing.T) {
 }
 
 func decorateDaemonV3Snapshot(snapshot *windowmanager.Snapshot) {
-	w1, w2, w3 := windowmanager.WindowID("w1"), windowmanager.WindowID("w2"), windowmanager.WindowID("w3")
-	active := w2
-	route := func(path string) windowmanager.RouteIntent {
-		return windowmanager.RouteIntent{Pathname: path, Search: windowmanager.RouteSearch{}}
-	}
-	snapshot.Windows = map[windowmanager.WindowID]windowmanager.Window{
-		w1: {
-			ID:           w1,
-			App:          "session",
-			Route:        route("/sessions"),
-			NavStack:     []windowmanager.RouteIntent{route("/root")},
-			Pinned:       true,
-			Placement:    windowmanager.WindowPlacementStacked,
-			DesktopID:    "desktop-default",
-			FloatingRect: windowmanager.NormalizedRect{Width: 1, Height: 1},
-		},
-		w2: {
-			ID:           w2,
-			App:          "settings",
-			Route:        route("/settings"),
-			Placement:    windowmanager.WindowPlacementStacked,
-			DesktopID:    "desktop-default",
-			FloatingRect: windowmanager.NormalizedRect{Width: 1, Height: 1},
-		},
-	}
-	snapshot.Desktops[0].FloatingStacks = []windowmanager.FloatingStack{{
-		ID: "stack", WindowIDs: []windowmanager.WindowID{w1, w2}, ActiveID: &active,
-		Rect: windowmanager.NormalizedRect{X: 0.1, Y: 0.1, Width: 0.7, Height: 0.7},
-	}}
-	snapshot.ClosedEntries = []windowmanager.ClosedEntry{
-		{
-			Windows: []windowmanager.Window{
-				{
-					ID:           w3,
-					App:          "tasks",
-					Route:        route("/tasks"),
-					DesktopID:    "desktop-default",
-					Placement:    windowmanager.WindowPlacementFloating,
-					FloatingRect: windowmanager.NormalizedRect{Width: 1, Height: 1},
-				},
-			},
+	snapshot.Windows = map[windowmanager.WindowID]windowmanager.Window{}
+	snapshot.Desktops[0].Tabs = nil
+	for _, id := range []windowmanager.WindowID{"w1", "w2"} {
+		tab := daemonTestTab(id)
+		snapshot.Desktops[0].Tabs = append(snapshot.Desktops[0].Tabs, tab)
+		snapshot.Windows[id] = windowmanager.Window{
+			ID:        id,
+			App:       "settings",
+			Route:     windowmanager.RouteIntent{Pathname: "/settings", Search: windowmanager.RouteSearch{}},
+			NavStack:  []windowmanager.RouteIntent{},
 			DesktopID: "desktop-default",
-			Rect:      windowmanager.NormalizedRect{Width: 1, Height: 1},
+			TabID:     tab.ID,
+		}
+	}
+	snapshot.Desktops[0].ActiveTabID = snapshot.Desktops[0].Tabs[1].ID
+}
+
+func daemonTestTab(id windowmanager.WindowID) windowmanager.Tab {
+	return windowmanager.Tab{
+		ID: windowmanager.TabID("tab-" + string(id)),
+		Root: windowmanager.LayoutNode{
+			ID:       windowmanager.NodeID("leaf-" + string(id)),
+			Kind:     windowmanager.NodeKindLeaf,
+			WindowID: new(id),
 		},
 	}
 }
@@ -764,28 +374,32 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 		for _, app := range []string{"knowledge", "session"} {
 			id := windowmanager.WindowID(app)
 			snapshot.Windows[id] = windowmanager.Window{
-				ID:           id,
-				App:          app,
-				DesktopID:    "desktop-default",
-				Placement:    windowmanager.WindowPlacementFloating,
-				Route:        windowmanager.RouteIntent{Pathname: "/" + app, Search: windowmanager.RouteSearch{}},
-				FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5},
+				ID:        id,
+				App:       app,
+				DesktopID: "desktop-default",
+				Route:     windowmanager.RouteIntent{Pathname: "/" + app, Search: windowmanager.RouteSearch{}},
 			}
-			snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, id)
+			tab := daemonTestTab(id)
+			snapshot.Desktops[0].Tabs = append(snapshot.Desktops[0].Tabs, tab)
+			w := snapshot.Windows[id]
+			w.TabID = tab.ID
+			snapshot.Windows[id] = w
 		}
 		settingsID := windowmanager.WindowID("settings")
 		snapshot.Windows[settingsID] = windowmanager.Window{
 			ID:        settingsID,
 			App:       "settings",
 			DesktopID: "desktop-default",
-			Placement: windowmanager.WindowPlacementFloating,
 			Route:     windowmanager.RouteIntent{Pathname: "/settings/memory", Search: windowmanager.RouteSearch{}},
 			NavStack: []windowmanager.RouteIntent{
 				{Pathname: "/settings/memory", Search: windowmanager.RouteSearch{}},
 			},
-			FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5},
 		}
-		snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, settingsID)
+		tab := daemonTestTab(settingsID)
+		snapshot.Desktops[0].Tabs = append(snapshot.Desktops[0].Tabs, tab)
+		w := snapshot.Windows[settingsID]
+		w.TabID = tab.ID
+		snapshot.Windows[settingsID] = w
 		if err := fixture.repository.Commit(ctx, daemonWindowManagerCommit(snapshot, 0)); err != nil {
 			t.Fatalf("Commit() = %v", err)
 		}
@@ -804,14 +418,9 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() = %v", err)
 		}
-		if len(got.Windows) != 2 || got.Windows["session"].App != "session" || got.Revision != 2 ||
-			len(
-				got.Desktops[0].Floating,
-			) != 2 || !slices.Contains(got.Desktops[0].Floating, windowmanager.WindowID("session")) ||
-			!slices.Contains(
-				got.Desktops[0].Floating,
-				settingsID,
-			) || got.Windows[settingsID].Route.Pathname != "/settings" ||
+		if len(got.Windows) != 3 || got.Windows["session"].App != "session" || got.Revision != 2 ||
+			len(got.Desktops[0].Tabs) != 3 ||
+			got.Windows[settingsID].Route.Pathname != "/settings" ||
 			got.Windows[settingsID].NavStack[0].Pathname != "/settings" {
 			t.Fatalf("reconciled snapshot = %+v", got)
 		}
@@ -855,4 +464,350 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 			t.Fatalf("second load revision = %d, logs = %s", last.Rev, logs.String())
 		}
 	})
+}
+
+// Migration invariants belong to the repository suite over the real client-state store.
+func TestWindowManagerSnapshotMigration(t *testing.T) {
+	t.Run("Should expire only successful migration backups starting with v0.8.0", func(t *testing.T) {
+		t.Parallel()
+		for _, failed := range []bool{false, true} {
+			f := newDaemonWindowManagerFixture(t)
+			ws := windowmanager.WorkspaceID(f.workspace.ID)
+			raw := daemonLegacySnapshot(t, ws, failed)
+			putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), raw)
+			if _, err := f.repository.Load(t.Context(), ws); err != nil {
+				t.Fatal(err)
+			}
+			for _, release := range []string{"dev", "v0.7.0", "v0.8.0-rc.1"} {
+				if err := f.registry.expireMigrationBackups(t.Context(), release); err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(getDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID)).Value, raw) {
+					t.Fatal("backup expired before v0.8.0")
+				}
+			}
+			if err := f.registry.expireMigrationBackups(t.Context(), "v0.8.0"); err != nil {
+				t.Fatal(err)
+			}
+			_, err := f.engine.Get(
+				t.Context(),
+				clientstate.WorkspaceID(ws),
+				windowManagerStateDomain,
+				windowManagerLegacyKey(testWindowManagerProfileID),
+			)
+			if failed && err != nil || !failed && !errors.Is(err, clientstate.ErrNotFound) {
+				t.Fatalf("failed=%t backup retention error=%v", failed, err)
+			}
+		}
+	})
+
+	t.Run("Should preserve and atomically migrate v5 exactly once (IT-001)", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		ws := windowmanager.WorkspaceID(f.workspace.ID)
+		raw := daemonLegacySnapshot(t, ws, false)
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), raw)
+		var logs bytes.Buffer
+		f.repository.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		got, err := f.repository.Load(t.Context(), ws)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := windowmanager.ValidateSnapshot(got); err != nil {
+			t.Fatal(err)
+		}
+		original := getDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID))
+		if !bytes.Equal(original.Value, raw) || got.Migration == nil || got.Migration.State != "migrated" ||
+			got.Migration.Summary.Windows != 1 {
+			t.Fatalf("migration=%+v legacy=%s", got.Migration, original.Value)
+		}
+		stored := getDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID))
+		again, err := f.repository.Load(t.Context(), ws)
+		if err != nil {
+			t.Fatal(err)
+		}
+		last := getDaemonState(t, &f, stored.Key)
+		if !reflect.DeepEqual(got, again) || stored.Rev != last.Rev ||
+			strings.Count(logs.String(), "window_manager.snapshot_migrated") != 1 {
+			t.Fatalf("second load changed state: logs=%s", logs.String())
+		}
+	})
+	t.Run("Should retain failed input and normal commits across restart (IT-002)", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		ws := windowmanager.WorkspaceID(f.workspace.ID)
+		raw := daemonLegacySnapshot(t, ws, true)
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), raw)
+		assertFailedMigrationSurvivesRestart(t, &f, raw)
+	})
+	t.Run("Should preserve unparseable bytes and provide a working default (IT-003)", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), []byte(`{"placeholder":true}`))
+		closeDaemonWindowManagerEngine(t, f.engine)
+		raw := []byte("{broken\noriginal bytes\x00")
+		db, err := bolt.Open(f.storePath, 0o600, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = db.Update(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("ws:" + f.workspace.ID)).Bucket([]byte(windowManagerStateDomain))
+			key := []byte(windowManagerSnapshotKey(testWindowManagerProfileID))
+			old := b.Get(key)
+			encoded := append(append([]byte{}, old[:25]...), raw...)
+			return b.Put(key, encoded)
+		})
+		closeErr := db.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("corrupt fixture: %v close=%v", err, closeErr)
+		}
+		restartDaemonWindowManagerFixture(t, &f)
+		assertFailedMigrationSurvivesRestart(t, &f, raw)
+	})
+	t.Run("Should acknowledge retry and fence replacement without deleting backup (IT-004)", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		ws := windowmanager.WorkspaceID(f.workspace.ID)
+		raw := daemonLegacySnapshot(t, ws, true)
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), raw)
+		if _, err := f.repository.Load(t.Context(), ws); err != nil {
+			t.Fatal(err)
+		}
+		status, err := f.repository.Migration(t.Context(), ws, "ack", false)
+		if err != nil || !status.Acknowledged || status.State != "failed" {
+			t.Fatalf("ack=%+v error=%v", status, err)
+		}
+		s, err := f.repository.Load(t.Context(), ws)
+		if err != nil || s.Migration != nil {
+			t.Fatalf("ack notice=%+v error=%v", s.Migration, err)
+		}
+		status, err = f.repository.Migration(t.Context(), ws, "retry", false)
+		if err != nil || status.Acknowledged || status.State != "failed" {
+			t.Fatalf("failed retry=%+v error=%v", status, err)
+		}
+		if !bytes.Equal(getDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID)).Value, raw) {
+			t.Fatal("failed retry replaced legacy")
+		}
+		_, err = f.manager.Execute(
+			t.Context(),
+			windowmanager.CommandRequest{
+				WorkspaceID: ws,
+				Payload:     windowmanager.CreateDesktopCommand{DesktopID: "extra", Name: "Extra"},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := getDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID))
+		_, err = f.repository.Migration(t.Context(), ws, "retry", false)
+		if !errors.Is(err, windowmanager.ErrRevisionConflict) {
+			t.Fatalf("retry fence=%v", err)
+		}
+		if !bytes.Equal(getDaemonState(t, &f, before.Key).Value, before.Value) {
+			t.Fatal("conflict replaced snapshot")
+		}
+		// A later converter can repair input that a previous version could not decode.
+		valid := daemonLegacySnapshot(t, ws, false)
+		putDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID), valid)
+		status, err = f.repository.Migration(t.Context(), ws, "retry", true)
+		if err != nil || status.State != "migrated" || status.Error != nil {
+			t.Fatalf("successful retry=%+v error=%v", status, err)
+		}
+		s, err = f.repository.Load(t.Context(), ws)
+		if err != nil || s.Windows["old"].ID != "old" || s.Revision != 2 ||
+			!bytes.Equal(getDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID)).Value, valid) {
+			t.Fatalf("retry snapshot=%+v error=%v", s, err)
+		}
+	})
+	t.Run("Should refuse future state without modifying bytes (IT-005)", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		raw := []byte(`{"version":7,"unknown":"future"}`)
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), raw)
+		_, err := f.repository.Load(t.Context(), windowmanager.WorkspaceID(f.workspace.ID))
+		ahead, ok := errors.AsType[*windowmanager.SnapshotVersionError](err)
+		if !errors.Is(err, windowmanager.ErrUnavailable) || !ok || ahead.Diagnostic().Path != "version" {
+			t.Fatalf("future=%v", err)
+		}
+		if !bytes.Equal(raw, getDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID)).Value) {
+			t.Fatal("future bytes changed")
+		}
+	})
+	t.Run("Should purge all migration keys and move only converted snapshots to User (IT-006)", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		ws := windowmanager.WorkspaceID(f.workspace.ID)
+		raw := daemonLegacySnapshot(t, ws, false)
+		for _, key := range []string{windowManagerSnapshotKey(testWindowManagerProfileID), windowManagerLegacyKey(testWindowManagerProfileID), windowManagerMigrationKey(testWindowManagerProfileID)} {
+			putDaemonState(t, &f, key, raw)
+		}
+		if err := migrateUserScopeLayouts(t.Context(), f.engine, f.workspace.ID, discardLogger()); err != nil {
+			t.Fatal(err)
+		}
+		moved, err := f.engine.List(
+			t.Context(),
+			clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID),
+			windowManagerStateDomain,
+		)
+		if err != nil || len(moved) != 1 {
+			t.Fatalf("User=%+v error=%v", moved, err)
+		}
+		s, _, err := windowmanager.DecodeSnapshot(moved[0].Value)
+		if err != nil || s.WorkspaceID != windowmanager.UserDesktopWorkspaceID || s.Windows["old"].ID != "old" {
+			t.Fatalf("moved=%+v error=%v", s, err)
+		}
+		if err := f.repository.DeleteWorkspace(t.Context(), ws); err != nil {
+			t.Fatal(err)
+		}
+		assertDaemonMigrationKeysAbsent(t, &f, clientstate.WorkspaceID(ws))
+		// A backup without a snapshot still belongs to the deleted profile.
+		putDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID), raw)
+		if err := f.registry.PurgeDesktopPartitions(t.Context(), testWindowManagerProfileID); err != nil {
+			t.Fatal(err)
+		}
+		assertDaemonMigrationKeysAbsent(t, &f, clientstate.WorkspaceID(ws))
+		assertDaemonMigrationKeysAbsent(t, &f, clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID))
+	})
+}
+
+func daemonLegacySnapshot(t *testing.T, ws windowmanager.WorkspaceID, orphan bool) []byte {
+	t.Helper()
+	s := windowmanager.SnapshotV5{
+		Version:     5,
+		WorkspaceID: ws,
+		Windows: map[windowmanager.WindowID]windowmanager.WindowV5{
+			"old": {
+				ID:        "old",
+				App:       "settings",
+				DesktopID: "desktop-default",
+				Route:     windowmanager.RouteIntent{Pathname: "/settings", Search: windowmanager.RouteSearch{}},
+				NavStack:  []windowmanager.RouteIntent{},
+			},
+		},
+		Desktops: []windowmanager.DesktopV5{
+			{ID: "desktop-default", Name: "Primary", Floating: []windowmanager.WindowID{"old"}},
+		},
+	}
+	if orphan {
+		s.Desktops[0].Floating = nil
+	}
+	raw, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+func putDaemonState(t *testing.T, f *daemonWindowManagerFixture, key string, raw []byte) {
+	t.Helper()
+	_, err := f.engine.Apply(
+		t.Context(),
+		clientstate.WorkspaceID(f.workspace.ID),
+		windowManagerStateDomain,
+		[]clientstate.Op{{Kind: clientstate.OpPut, Key: key, Value: raw}},
+		clientstate.ApplyOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func getDaemonState(t *testing.T, f *daemonWindowManagerFixture, key string) clientstate.Entry {
+	t.Helper()
+	entry, err := f.engine.Get(t.Context(), clientstate.WorkspaceID(f.workspace.ID), windowManagerStateDomain, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return entry
+}
+func assertDaemonMigrationKeysAbsent(t *testing.T, f *daemonWindowManagerFixture, ws clientstate.WorkspaceID) {
+	t.Helper()
+	for _, key := range []string{windowManagerSnapshotKey(testWindowManagerProfileID), windowManagerLegacyKey(testWindowManagerProfileID), windowManagerMigrationKey(testWindowManagerProfileID)} {
+		_, err := f.engine.Get(t.Context(), ws, windowManagerStateDomain, key)
+		if !errors.Is(err, clientstate.ErrNotFound) {
+			t.Fatalf("key %s remains: %v", key, err)
+		}
+	}
+}
+func restartDaemonWindowManagerFixture(t *testing.T, f *daemonWindowManagerFixture) {
+	t.Helper()
+	if err := f.manager.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	engine, err := clientstate.Open(
+		t.Context(),
+		f.storePath,
+		f.storeResolver,
+		clientstate.Limits{
+			MaxValueBytes:       windowManagerMaxSnapshotBytes,
+			MaxKeysPerWorkspace: clientstate.DefaultLimits().MaxKeysPerWorkspace,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.engine = engine
+	t.Cleanup(func() {
+		if err := engine.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	repository, err := newWindowManagerRepository(engine, testWindowManagerProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.repository = repository
+	manager, err := windowmanager.NewService(
+		repository,
+		windowManagerWorkspaceAuthorizer{resolver: f.storeResolver},
+		nil,
+		windowmanager.DefaultConfig(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.manager = manager
+	t.Cleanup(func() {
+		if err := manager.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+}
+func assertFailedMigrationSurvivesRestart(t *testing.T, f *daemonWindowManagerFixture, raw []byte) {
+	t.Helper()
+	ws := windowmanager.WorkspaceID(f.workspace.ID)
+	s, err := f.repository.Load(t.Context(), ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := windowmanager.ValidateSnapshot(s); err != nil {
+		t.Fatal(err)
+	}
+	if s.Migration == nil || s.Migration.State != "failed" || s.Migration.Error == nil {
+		t.Fatalf("failure=%+v", s.Migration)
+	}
+	_, err = f.manager.Execute(
+		t.Context(),
+		windowmanager.CommandRequest{
+			WorkspaceID:      ws,
+			ExpectedRevision: s.Revision,
+			Payload: windowmanager.OpenWindowCommand{
+				Window: windowmanager.WindowSpec{
+					ID:    "new",
+					App:   "settings",
+					Route: windowmanager.RouteIntent{Pathname: "/settings", Search: windowmanager.RouteSearch{}},
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restartDaemonWindowManagerFixture(t, f)
+	s, err = f.repository.Load(t.Context(), ws)
+	if err != nil || s.Windows["new"].ID != "new" ||
+		!bytes.Equal(getDaemonState(t, f, windowManagerLegacyKey(testWindowManagerProfileID)).Value, raw) {
+		t.Fatalf("restart=%+v error=%v", s, err)
+	}
 }

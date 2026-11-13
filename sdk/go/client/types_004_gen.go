@@ -168,6 +168,9 @@ type ChangePatchPayload struct {
 
 // ChangeSet is a daemon API value.
 type ChangeSet struct {
+	TabIDs         []TabID                 `json:"tab_ids,omitempty"`
+	TabSplit       []TabID                 `json:"tab_split,omitempty"`
+	TabUnsplit     []TabID                 `json:"tab_unsplit,omitempty"`
 	DesktopIDs     []DesktopID             `json:"desktop_ids,omitempty"`
 	WindowIDs      []WindowID              `json:"window_ids,omitempty"`
 	GroupIDs       []GroupID               `json:"group_ids,omitempty"`
@@ -432,18 +435,4 @@ type CmdPaletteViewSessionOpenResponse struct {
 	ViewSession string      `json:"view_session"`
 	StreamToken string      `json:"stream_token"`
 	FirstFrame  ViewFrame   `json:"first_frame"`
-}
-
-// CommandFlag is a daemon API value.
-type CommandFlag struct {
-	Name       string          `json:"name"`
-	Field      string          `json:"field"`
-	Type       CommandFlagType `json:"type"`
-	Repeatable bool            `json:"repeatable"`
-	Required   bool            `json:"required"`
-	Nullable   bool            `json:"nullable"`
-	Enum       []string        `json:"enum,omitempty"`
-	Default    json.RawMessage `json:"default,omitempty"`
-	Minimum    *float64        `json:"minimum,omitempty"`
-	Maximum    *float64        `json:"maximum,omitempty"`
 }

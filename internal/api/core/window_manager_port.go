@@ -26,6 +26,7 @@ type WindowManagerProvider interface {
 
 // WindowManagerService is the semantic window-manager port consumed by public transports.
 type WindowManagerService interface {
+	Migration(context.Context, windowmanager.WorkspaceID, string, bool) (windowmanager.MigrationStatus, error)
 	Snapshot(context.Context, windowmanager.WorkspaceID) (windowmanager.Snapshot, error)
 	Preview(context.Context, windowmanager.CommandRequest) (windowmanager.Preview, error)
 	Execute(context.Context, windowmanager.CommandRequest) (windowmanager.Result, error)

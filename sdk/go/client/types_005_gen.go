@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// CommandFlag is a daemon API value.
+type CommandFlag struct {
+	Name       string          `json:"name"`
+	Field      string          `json:"field"`
+	Type       CommandFlagType `json:"type"`
+	Repeatable bool            `json:"repeatable"`
+	Required   bool            `json:"required"`
+	Nullable   bool            `json:"nullable"`
+	Enum       []string        `json:"enum,omitempty"`
+	Default    json.RawMessage `json:"default,omitempty"`
+	Minimum    *float64        `json:"minimum,omitempty"`
+	Maximum    *float64        `json:"maximum,omitempty"`
+}
+
 // CommandFlagType is a daemon API value.
 type CommandFlagType string
 
@@ -430,20 +444,4 @@ type DeleteAgentResponse struct {
 	Name             string      `json:"name"`
 	Origin           AgentOrigin `json:"origin"`
 	UnshadowedOrigin AgentOrigin `json:"unshadowed_origin,omitempty"`
-}
-
-// DeleteLoopInputDefaultResponse is a daemon API value.
-type DeleteLoopInputDefaultResponse struct {
-	LoopName string                 `json:"loop_name"`
-	Key      string                 `json:"key"`
-	Scope    LoopInputDefaultsScope `json:"scope"`
-	Deleted  bool                   `json:"deleted"`
-}
-
-// DeleteProfilePlan is a daemon API value.
-type DeleteProfilePlan struct {
-	Revision          string                `json:"revision"`
-	Removed           ProfileRemovalSummary `json:"removed"`
-	SelectionsToSweep int                   `json:"selections_to_sweep"`
-	ApprovalBlockers  []string              `json:"approval_blockers"`
 }

@@ -590,34 +590,7 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 				)
 			}
 
-			// The window.stack.group journey below groups two floating windows. The
-			// shipped new_window_policy is tab (tiled tabs), so the floating
-			// premise is set explicitly through the public settings route.
-			var windowManagerSettings map[string]json.RawMessage
-			if err := runtimeHarness.HTTPJSON(
-				ctx,
-				http.MethodGet,
-				"/api/settings/window-manager",
-				nil,
-				&windowManagerSettings,
-			); err != nil {
-				t.Fatalf("HTTP window manager settings error = %v", err)
-			}
-			var windowManagerConfig map[string]json.RawMessage
-			if err := json.Unmarshal(windowManagerSettings["config"], &windowManagerConfig); err != nil {
-				t.Fatalf("decode window manager settings config error = %v", err)
-			}
-			windowManagerConfig["new_window_policy"] = json.RawMessage(`"floating"`)
-			if err := runtimeHarness.HTTPJSON(
-				ctx,
-				http.MethodPatch,
-				"/api/settings/window-manager",
-				map[string]any{"config": windowManagerConfig},
-				nil,
-			); err != nil {
-				t.Fatalf("HTTP window manager floating policy error = %v", err)
-			}
-
+			// The retired grouping boundary places solo tabs after the target.
 			openRequest := func(
 				revision compozycontract.WindowManagerRevision,
 				windowID string,
@@ -700,7 +673,8 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			}
 			groupedDesktop := requireWindowManagerDesktop(t, grouped.Snapshot, "desktop-default")
 			if !grouped.Applied || grouped.Snapshot.Version != windowmanager.SnapshotVersion ||
-				len(groupedDesktop.FloatingStacks) != 1 {
+				grouped.Snapshot.Windows["window-a"].TabID == grouped.Snapshot.Windows["window-b"].TabID ||
+				len(groupedDesktop.Tabs) != 3 || len(grouped.Deprecations) != 1 {
 				t.Fatalf("window.stack.group result = %#v", grouped)
 			}
 
@@ -716,37 +690,24 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			}
 
 			var cliWindows []struct {
-				ID          windowmanager.WindowID `json:"id"`
-				StackID     *windowmanager.NodeID  `json:"stack_id,omitempty"`
-				MemberOrder *int                   `json:"member_order,omitempty"`
-				Active      bool                   `json:"active"`
-				Pinned      bool                   `json:"pinned"`
-				NavDepth    int                    `json:"nav_depth"`
+				ID       windowmanager.WindowID `json:"id"`
+				TabID    windowmanager.TabID    `json:"tab_id"`
+				TabIndex int                    `json:"tab_index"`
+				Members  int                    `json:"members"`
+				Active   bool                   `json:"active"`
 			}
-			if err := runtimeHarness.CLI.RunJSON(
-				ctx,
-				&cliWindows,
+			if err := runtimeHarness.CLI.RunJSON(ctx, &cliWindows,
 				"window", "list", "--workspace", runtimeHarness.WorkspaceID, "-o", "json",
 			); err != nil {
 				t.Fatalf("CLI window list error = %v", err)
 			}
-			if len(cliWindows) != 3 {
-				t.Fatalf("CLI window list length = %d, want 3: %#v", len(cliWindows), cliWindows)
+			if len(cliWindows) != len(thirdOpen.Snapshot.Windows) {
+				t.Fatalf("CLI window list = %#v, want every snapshot window", cliWindows)
 			}
-			listedByID := make(map[windowmanager.WindowID]struct {
-				stackID     *windowmanager.NodeID
-				memberOrder *int
-			}, len(cliWindows))
 			for _, item := range cliWindows {
-				listedByID[item.ID] = struct {
-					stackID     *windowmanager.NodeID
-					memberOrder *int
-				}{stackID: item.StackID, memberOrder: item.MemberOrder}
-			}
-			if listedByID["window-a"].stackID == nil || listedByID["window-a"].memberOrder == nil ||
-				listedByID["window-b"].stackID == nil || listedByID["window-b"].memberOrder == nil ||
-				listedByID["window-c"].stackID != nil {
-				t.Fatalf("CLI window list topology = %#v, want grouped a/b and standalone c", cliWindows)
+				if item.TabID != thirdOpen.Snapshot.Windows[string(item.ID)].TabID || item.Members != 1 {
+					t.Fatalf("CLI tab membership = %#v", item)
+				}
 			}
 
 			assertCLIHTTPParity := func(label string, cliSnapshot compozycontract.WindowManagerSnapshot) {
@@ -782,26 +743,14 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			assertCLIHTTPParity("group", cliGrouped.Snapshot)
 
 			cliDesktop := requireWindowManagerDesktop(t, cliGrouped.Snapshot, "desktop-default")
-			cliStackIndex := -1
-			for idx := range cliDesktop.FloatingStacks {
-				candidate := &cliDesktop.FloatingStacks[idx]
-				if slices.Contains(candidate.WindowIDs, windowmanager.WindowID("window-a")) &&
-					slices.Contains(candidate.WindowIDs, windowmanager.WindowID("window-c")) {
-					cliStackIndex = idx
-					break
-				}
+			indices := make(map[windowmanager.TabID]int, len(cliDesktop.Tabs))
+			for i, tab := range cliDesktop.Tabs {
+				indices[tab.ID] = i
 			}
-			if cliStackIndex < 0 {
-				t.Fatalf(
-					"CLI grouped stacks = %#v, want stack containing window-a and window-c",
-					cliDesktop.FloatingStacks,
-				)
+			if indices[cliGrouped.Snapshot.Windows["window-c"].TabID] != indices[cliGrouped.Snapshot.Windows["window-a"].TabID]+1 {
+				t.Fatalf("CLI grouped tabs = %#v, want c immediately after a", cliDesktop.Tabs)
 			}
-			cliStack := cliDesktop.FloatingStacks[cliStackIndex]
-			activateID := cliStack.WindowIDs[0]
-			if cliStack.ActiveID != nil && activateID == *cliStack.ActiveID {
-				activateID = cliStack.WindowIDs[1]
-			}
+			activateID := windowmanager.WindowID("window-a")
 			var cliActivated compozycontract.WindowManagerResult
 			if err := runtimeHarness.CLI.RunJSON(
 				ctx,

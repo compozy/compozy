@@ -2,159 +2,98 @@ package contract
 
 import "github.com/compozy/compozy/internal/windowmanager"
 
-// WindowManagerDesktop is one ordered workspace desktop in the stable wire contract.
 type WindowManagerDesktop struct {
-	ID             windowmanager.DesktopID      `json:"id"`
-	Name           string                       `json:"name"`
-	Order          int                          `json:"order"`
-	Groups         []WindowManagerLayoutGroup   `json:"groups"`
-	Floating       []windowmanager.WindowID     `json:"floating"`
-	FloatingStacks []WindowManagerFloatingStack `json:"floating_stacks"`
+	ID          windowmanager.DesktopID `json:"id"`
+	Name        string                  `json:"name"`
+	Order       int                     `json:"order"`
+	Tabs        []WindowManagerTab      `json:"tabs"`
+	ActiveTabID windowmanager.TabID     `json:"active_tab_id"`
 }
 
-// WindowManagerFloatingStack is one ordered tab frame outside the tiled tree.
-type WindowManagerFloatingStack struct {
-	ID        windowmanager.NodeID         `json:"id"`
-	WindowIDs []windowmanager.WindowID     `json:"window_ids"`
-	ActiveID  *windowmanager.WindowID      `json:"active_id,omitzero"`
-	Rect      windowmanager.NormalizedRect `json:"rect"`
-	Minimized bool                         `json:"minimized"`
+type WindowManagerTab struct {
+	ID     windowmanager.TabID     `json:"id"`
+	Pinned bool                    `json:"pinned"`
+	Root   WindowManagerLayoutNode `json:"root"`
 }
 
-// WindowManagerLayoutGroup is one independent tiled island in a desktop.
-type WindowManagerLayoutGroup struct {
-	ID    windowmanager.GroupID        `json:"id"`
-	Frame windowmanager.NormalizedRect `json:"frame"`
-	Root  WindowManagerLayoutNode      `json:"root"`
-}
-
-// WindowManagerLayoutNode is a recursive leaf, weighted split, or tabbed stack.
 type WindowManagerLayoutNode struct {
-	ID        windowmanager.NodeID      `json:"id"`
-	Kind      windowmanager.NodeKind    `json:"kind"`
-	WindowID  *windowmanager.WindowID   `json:"window_id,omitzero"`
-	Axis      *windowmanager.Axis       `json:"axis,omitzero"`
-	Children  []WindowManagerLayoutNode `json:"children,omitempty"`
-	Weights   []float64                 `json:"weights,omitempty"`
-	WindowIDs []windowmanager.WindowID  `json:"window_ids,omitempty"`
-	ActiveID  *windowmanager.WindowID   `json:"active_id,omitzero"`
+	ID       windowmanager.NodeID      `json:"id"`
+	Kind     windowmanager.NodeKind    `json:"kind"`
+	WindowID *windowmanager.WindowID   `json:"window_id,omitzero"`
+	Axis     *windowmanager.Axis       `json:"axis,omitzero"`
+	Children []WindowManagerLayoutNode `json:"children,omitempty"`
+	Weights  []float64                 `json:"weights,omitempty"`
 }
 
 func windowManagerDesktopsFromDomain(desktops []windowmanager.Desktop) []WindowManagerDesktop {
 	result := make([]WindowManagerDesktop, 0, len(desktops))
-	for _, desktop := range desktops {
-		groups := make([]WindowManagerLayoutGroup, 0, len(desktop.Groups))
-		for _, group := range desktop.Groups {
-			groups = append(groups, windowManagerLayoutGroupFromDomain(group))
+	for _, d := range desktops {
+		tabs := make([]WindowManagerTab, 0, len(d.Tabs))
+		for _, t := range d.Tabs {
+			tabs = append(
+				tabs,
+				WindowManagerTab{ID: t.ID, Pinned: t.Pinned, Root: windowManagerLayoutNodeFromDomain(t.Root)},
+			)
 		}
-		result = append(result, WindowManagerDesktop{
-			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Groups: groups,
-			Floating:       append([]windowmanager.WindowID{}, desktop.Floating...),
-			FloatingStacks: windowManagerFloatingStacksFromDomain(desktop.FloatingStacks),
-		})
+		result = append(
+			result,
+			WindowManagerDesktop{ID: d.ID, Name: d.Name, Order: d.Order, Tabs: tabs, ActiveTabID: d.ActiveTabID},
+		)
 	}
 	return result
-}
-
-func windowManagerFloatingStacksFromDomain(stacks []windowmanager.FloatingStack) []WindowManagerFloatingStack {
-	result := make([]WindowManagerFloatingStack, 0, len(stacks))
-	for _, stack := range stacks {
-		result = append(result, WindowManagerFloatingStack{
-			ID: stack.ID, WindowIDs: append([]windowmanager.WindowID(nil), stack.WindowIDs...),
-			ActiveID: cloneWindowManagerPointer(stack.ActiveID), Rect: stack.Rect, Minimized: stack.Minimized,
-		})
-	}
-	return result
-}
-
-func windowManagerLayoutGroupFromDomain(group windowmanager.LayoutGroup) WindowManagerLayoutGroup {
-	return WindowManagerLayoutGroup{
-		ID: group.ID, Frame: group.Frame, Root: windowManagerLayoutNodeFromDomain(group.Root),
-	}
-}
-
-func optionalWindowManagerLayoutGroupFromDomain(
-	group *windowmanager.LayoutGroup,
-) *WindowManagerLayoutGroup {
-	if group == nil {
-		return nil
-	}
-	return new(windowManagerLayoutGroupFromDomain(*group))
-}
-
-func windowManagerLayoutNodeFromDomain(node windowmanager.LayoutNode) WindowManagerLayoutNode {
-	children := make([]WindowManagerLayoutNode, 0, len(node.Children))
-	for _, child := range node.Children {
-		children = append(children, windowManagerLayoutNodeFromDomain(child))
-	}
-	return WindowManagerLayoutNode{
-		ID: node.ID, Kind: node.Kind,
-		WindowID: cloneWindowManagerPointer(node.WindowID), Axis: cloneWindowManagerPointer(node.Axis),
-		Children: children, Weights: append([]float64(nil), node.Weights...),
-		WindowIDs: append([]windowmanager.WindowID(nil), node.WindowIDs...),
-		ActiveID:  cloneWindowManagerPointer(node.ActiveID),
-	}
 }
 
 func windowManagerDesktopsToDomain(desktops []WindowManagerDesktop) []windowmanager.Desktop {
 	result := make([]windowmanager.Desktop, 0, len(desktops))
-	for _, desktop := range desktops {
-		groups := make([]windowmanager.LayoutGroup, 0, len(desktop.Groups))
-		for _, group := range desktop.Groups {
-			groups = append(groups, windowManagerLayoutGroupToDomain(group))
+	for _, d := range desktops {
+		tabs := make([]windowmanager.Tab, 0, len(d.Tabs))
+		for _, t := range d.Tabs {
+			tabs = append(
+				tabs,
+				windowmanager.Tab{ID: t.ID, Pinned: t.Pinned, Root: windowManagerLayoutNodeToDomain(t.Root)},
+			)
 		}
-		result = append(result, windowmanager.Desktop{
-			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Groups: groups,
-			Floating:       append([]windowmanager.WindowID(nil), desktop.Floating...),
-			FloatingStacks: windowManagerFloatingStacksToDomain(desktop.FloatingStacks),
-		})
+		result = append(
+			result,
+			windowmanager.Desktop{ID: d.ID, Name: d.Name, Order: d.Order, Tabs: tabs, ActiveTabID: d.ActiveTabID},
+		)
 	}
 	return result
 }
 
-func windowManagerFloatingStacksToDomain(stacks []WindowManagerFloatingStack) []windowmanager.FloatingStack {
-	result := make([]windowmanager.FloatingStack, 0, len(stacks))
-	for _, stack := range stacks {
-		result = append(result, windowmanager.FloatingStack{
-			ID: stack.ID, WindowIDs: append([]windowmanager.WindowID(nil), stack.WindowIDs...),
-			ActiveID: cloneWindowManagerPointer(stack.ActiveID), Rect: stack.Rect, Minimized: stack.Minimized,
-		})
+func windowManagerLayoutNodeFromDomain(n windowmanager.LayoutNode) WindowManagerLayoutNode {
+	children := make([]WindowManagerLayoutNode, 0, len(n.Children))
+	for _, c := range n.Children {
+		children = append(children, windowManagerLayoutNodeFromDomain(c))
 	}
-	return result
-}
-
-func windowManagerLayoutGroupToDomain(group WindowManagerLayoutGroup) windowmanager.LayoutGroup {
-	return windowmanager.LayoutGroup{
-		ID: group.ID, Frame: group.Frame, Root: windowManagerLayoutNodeToDomain(group.Root),
+	return WindowManagerLayoutNode{
+		ID:       n.ID,
+		Kind:     n.Kind,
+		WindowID: cloneWindowManagerPointer(n.WindowID),
+		Axis:     cloneWindowManagerPointer(n.Axis),
+		Children: children,
+		Weights:  append([]float64(nil), n.Weights...),
 	}
 }
 
-func optionalWindowManagerLayoutGroupToDomain(
-	group *WindowManagerLayoutGroup,
-) *windowmanager.LayoutGroup {
-	if group == nil {
-		return nil
-	}
-	return new(windowManagerLayoutGroupToDomain(*group))
-}
-
-func windowManagerLayoutNodeToDomain(node WindowManagerLayoutNode) windowmanager.LayoutNode {
-	children := make([]windowmanager.LayoutNode, 0, len(node.Children))
-	for _, child := range node.Children {
-		children = append(children, windowManagerLayoutNodeToDomain(child))
+func windowManagerLayoutNodeToDomain(n WindowManagerLayoutNode) windowmanager.LayoutNode {
+	children := make([]windowmanager.LayoutNode, 0, len(n.Children))
+	for _, c := range n.Children {
+		children = append(children, windowManagerLayoutNodeToDomain(c))
 	}
 	return windowmanager.LayoutNode{
-		ID: node.ID, Kind: node.Kind,
-		WindowID: cloneWindowManagerPointer(node.WindowID), Axis: cloneWindowManagerPointer(node.Axis),
-		Children: children, Weights: append([]float64(nil), node.Weights...),
-		WindowIDs: append([]windowmanager.WindowID(nil), node.WindowIDs...),
-		ActiveID:  cloneWindowManagerPointer(node.ActiveID),
+		ID:       n.ID,
+		Kind:     n.Kind,
+		WindowID: cloneWindowManagerPointer(n.WindowID),
+		Axis:     cloneWindowManagerPointer(n.Axis),
+		Children: children,
+		Weights:  append([]float64(nil), n.Weights...),
 	}
 }
 
-func cloneWindowManagerPointer[T any](value *T) *T {
-	if value == nil {
+func cloneWindowManagerPointer[T any](v *T) *T {
+	if v == nil {
 		return nil
 	}
-	return new(*value)
+	return new(*v)
 }

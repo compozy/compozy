@@ -50,109 +50,84 @@ func projectDurableClientView(
 	request CommandRequest,
 	clientID ClientID,
 ) ClientView {
+	view = cloneClientView(view)
 	issuing := request.ClientID != nil && clientID == *request.ClientID
-	var peerStack stackActivePin
-	if !issuing {
-		peerStack = peerOpenedStackActive(view, snapshot, request.Payload)
+	if issuing {
+		if _, closing := request.Payload.(CloseWindowCommand); closing && len(snapshot.ClosedEntries) > 0 {
+			entry := snapshot.ClosedEntries[len(snapshot.ClosedEntries)-1]
+			if di, ok := desktopIndexByID(&snapshot, view.ActiveDesktopID); ok {
+				d := snapshot.Desktops[di]
+				active := view.ActiveTab[d.ID]
+				for _, tab := range entry.Tabs {
+					if tab.ID == active && len(d.Tabs) > 0 {
+						if view.ActiveTab == nil {
+							view.ActiveTab = map[DesktopID]TabID{}
+						}
+						view.ActiveTab[d.ID] = d.Tabs[min(tab.Index, len(d.Tabs)-1)].ID
+						view.FocusedWindowID = nil
+					}
+				}
+			}
+		}
 	}
 	view = repairClientView(view, snapshot)
-	if peerStack.stackID != "" {
-		view.StackActive[peerStack.stackID] = peerStack.windowID
-	}
 	if issuing {
 		view = projectIssuedCommand(view, snapshot, request.Payload)
 	}
 	return repairClientView(view, snapshot)
 }
 
-// projectIssuedCommand applies the activation a command implies for the
-// client that issued it.
 func projectIssuedCommand(view ClientView, snapshot Snapshot, payload Command) ClientView {
-	switch command := payload.(type) {
-	case ZoomWindowCommand:
-		if window, exists := snapshot.Windows[command.WindowID]; exists {
-			view.ActiveDesktopID = window.DesktopID
-			view.FocusedWindowID = &command.WindowID
-			view.FocusOrder = prependFocus(view.FocusOrder, command.WindowID)
-		}
+	var id WindowID
+	switch c := payload.(type) {
+	case reuseWindowCommand:
+		id = c.id
 	case OpenWindowCommand:
-		windowID := command.Window.ID
-		if command.RestoreWindowID != nil {
-			windowID = *command.RestoreWindowID
-		}
-		if window, exists := snapshot.Windows[windowID]; exists && !window.Minimized {
-			// Restoring a minimized window activates its desktop.
-			if command.RestoreWindowID != nil {
-				view.ActiveDesktopID = window.DesktopID
-			}
-			if window.DesktopID == view.ActiveDesktopID {
-				view = projectWindowActivation(view, snapshot, windowID)
-			}
+		id = c.Window.ID
+		if c.RestoreWindowID != nil {
+			id = *c.RestoreWindowID
 		}
 	case NavigateWindowCommand:
-		if window, exists := snapshot.Windows[command.WindowID]; exists && !window.Minimized {
-			view = projectWindowActivation(view, snapshot, command.WindowID)
+		id = c.WindowID
+	case MoveWindowCommand:
+		id = c.WindowID
+	case ReopenCommand:
+		if len(view.FocusOrder) > 0 {
+			id = view.FocusOrder[0]
 		}
-	case GroupWindowsCommand:
-		if len(command.WindowIDs) > 0 {
-			activeID := command.WindowIDs[len(command.WindowIDs)-1]
-			view = projectWindowActivation(view, snapshot, activeID)
-		}
-	case SetStackActiveCommand:
-		if location, stacked := findStackByWindow(&snapshot, command.WindowID); stacked {
-			if view.StackActive == nil {
-				view.StackActive = make(map[NodeID]WindowID)
+	case ActivateTabCommand:
+		if w, ok := snapshot.Windows[c.WindowID]; ok {
+			if d, ti, ok := findTab(&snapshot, w.TabID); ok {
+				id = tabLeadWindow(view, d.Tabs[ti])
 			}
-			view.StackActive[location.id()] = command.WindowID
 		}
+	}
+	if id != "" {
+		view = projectWindowActivation(view, snapshot, id)
 	}
 	return view
 }
 
-type stackActivePin struct {
-	stackID  NodeID
-	windowID WindowID
-}
-
-// peerOpenedStackActive keeps a peer's picture of a frame that an open just
-// created around a window the peer was already showing: that window stays the
-// peer's active tab. Only the issuing client's open is a focusing open; without
-// the pin the peer would fall back to the durable active tab, the new window.
-func peerOpenedStackActive(view ClientView, snapshot Snapshot, payload Command) stackActivePin {
-	command, isOpen := payload.(OpenWindowCommand)
-	if !isOpen || command.RestoreWindowID != nil || command.Window.ID == "" {
-		return stackActivePin{}
-	}
-	location, stacked := findStackByWindow(&snapshot, command.Window.ID)
-	if !stacked {
-		return stackActivePin{}
-	}
-	if _, known := view.StackActive[location.id()]; known {
-		return stackActivePin{}
-	}
-	for _, member := range location.members() {
-		if member != command.Window.ID {
-			return stackActivePin{stackID: location.id(), windowID: member}
-		}
-	}
-	return stackActivePin{}
-}
-
-func projectWindowActivation(view ClientView, snapshot Snapshot, windowID WindowID) ClientView {
-	window, exists := snapshot.Windows[windowID]
-	if !exists || window.Minimized {
+func projectWindowActivation(view ClientView, snapshot Snapshot, id WindowID) ClientView {
+	w, ok := snapshot.Windows[id]
+	if !ok {
 		return view
 	}
-	view.ActiveDesktopID = window.DesktopID
-	view.FocusedWindowID = &windowID
-	view.FocusOrder = prependFocus(view.FocusOrder, windowID)
-	if location, stacked := findStackByWindow(&snapshot, windowID); stacked {
-		if view.StackActive == nil {
-			view.StackActive = make(map[NodeID]WindowID)
-		}
-		view.StackActive[location.id()] = windowID
+	view.ActiveDesktopID = w.DesktopID
+	view.FocusedWindowID = new(id)
+	view.FocusOrder = prependFocus(view.FocusOrder, id)
+	if view.ActiveTab == nil {
+		view.ActiveTab = map[DesktopID]TabID{}
 	}
+	view.ActiveTab[w.DesktopID] = w.TabID
 	return view
+}
+
+func clientActiveTabs(view *ClientView) map[DesktopID]TabID {
+	if view == nil {
+		return nil
+	}
+	return view.ActiveTab
 }
 
 func (m *Manager) applyClientProjection(
@@ -185,142 +160,82 @@ func (m *Manager) previewDurableClient(
 }
 
 func repairClientView(view ClientView, snapshot Snapshot) ClientView {
-	view.StackActive = repairStackActive(view.StackActive, &snapshot)
-	if _, exists := desktopIndexByID(&snapshot, view.ActiveDesktopID); !exists {
+	repaired := make(map[DesktopID]TabID, len(snapshot.Desktops))
+	for _, d := range snapshot.Desktops {
+		active := view.ActiveTab[d.ID]
+		if tabHoldingID(d.Tabs, active) < 0 {
+			active = d.ActiveTabID
+		}
+		if tabHoldingID(d.Tabs, active) < 0 && len(d.Tabs) > 0 {
+			active = d.Tabs[0].ID
+		}
+		repaired[d.ID] = active
+	}
+	view.ActiveTab = repaired
+	view.StackActive = map[NodeID]WindowID{}
+	if _, ok := desktopIndexByID(&snapshot, view.ActiveDesktopID); !ok {
 		view.ActiveDesktopID = defaultDesktopID(snapshot)
 	}
 	filtered := make([]WindowID, 0, len(view.FocusOrder))
-	for _, windowID := range view.FocusOrder {
-		window, exists := snapshot.Windows[windowID]
-		if exists && window.DesktopID == view.ActiveDesktopID && !window.Minimized &&
-			!containsWindowID(filtered, windowID) {
-			filtered = append(filtered, windowID)
+	for _, id := range view.FocusOrder {
+		if _, ok := snapshot.Windows[id]; ok && !containsWindowID(filtered, id) {
+			filtered = append(filtered, id)
 		}
 	}
 	view.FocusOrder = filtered
 	if view.FocusedWindowID != nil {
-		window, exists := snapshot.Windows[*view.FocusedWindowID]
-		if !exists || window.DesktopID != view.ActiveDesktopID || window.Minimized {
+		w, ok := snapshot.Windows[*view.FocusedWindowID]
+		if !ok || w.DesktopID != view.ActiveDesktopID || w.TabID != view.ActiveTab[w.DesktopID] {
 			view.FocusedWindowID = nil
 		}
 	}
 	if view.FocusedWindowID == nil {
-		focused := focusForDesktop(view, snapshot)
-		view.FocusedWindowID = focused
-		if focused != nil {
-			view.FocusOrder = prependFocus(view.FocusOrder, *focused)
-		}
+		view.FocusedWindowID = focusForDesktop(view, snapshot)
 	}
 	view.PaletteContext = derivePaletteContext(view, snapshot)
 	return view
 }
 
-func repairStackActive(current map[NodeID]WindowID, snapshot *Snapshot) map[NodeID]WindowID {
-	repaired := make(map[NodeID]WindowID)
-	for desktopIndex := range snapshot.Desktops {
-		desktop := &snapshot.Desktops[desktopIndex]
-		for stackIndex := range desktop.FloatingStacks {
-			stack := &desktop.FloatingStacks[stackIndex]
-			repaired[stack.ID] = repairedStackActive(current, stack.ID, stack.WindowIDs, stack.ActiveID)
-		}
-		for groupIndex := range desktop.Groups {
-			collectNodeStackActive(&desktop.Groups[groupIndex].Root, current, repaired)
+func tabLeadWindow(view ClientView, tab Tab) WindowID {
+	ids := nodeWindowIDs(tab.Root)
+	for _, id := range view.FocusOrder {
+		if containsWindowID(ids, id) {
+			return id
 		}
 	}
-	return repaired
-}
-
-func collectNodeStackActive(node *LayoutNode, current map[NodeID]WindowID, repaired map[NodeID]WindowID) {
-	if node.Kind == NodeKindStack {
-		repaired[node.ID] = repairedStackActive(current, node.ID, node.WindowIDs, node.ActiveID)
-	}
-	for index := range node.Children {
-		collectNodeStackActive(&node.Children[index], current, repaired)
-	}
-}
-
-func repairedStackActive(
-	current map[NodeID]WindowID,
-	stackID NodeID,
-	members []WindowID,
-	durable *WindowID,
-) WindowID {
-	if active, exists := current[stackID]; exists && containsWindowID(members, active) {
-		return active
-	}
-	if durable != nil && containsWindowID(members, *durable) {
-		return *durable
-	}
-	return members[0]
-}
-
-// focusForDesktop picks the window a client's focus falls back to: the most
-// recently focused one still showing on its active desktop. A candidate that is
-// a background tab resolves to its frame's active tab for this client, so focus
-// — and every shortcut that acts on it, such as close — lands on the tab the
-// operator sees, never on one hidden behind it.
-func focusForDesktop(view ClientView, snapshot Snapshot) *WindowID {
-	for _, windowID := range view.FocusOrder {
-		if window, exists := snapshot.Windows[windowID]; exists &&
-			window.DesktopID == view.ActiveDesktopID &&
-			!window.Minimized {
-			visible := visibleStackMember(view, &snapshot, windowID)
-			return &visible
-		}
-	}
-	windowID := firstVisibleWindow(snapshot, view.ActiveDesktopID)
-	if windowID == "" {
-		return nil
-	}
-	windowID = visibleStackMember(view, &snapshot, windowID)
-	return &windowID
-}
-
-// visibleStackMember is the tab a client shows for windowID's frame: the
-// window itself when it is not stacked.
-func visibleStackMember(view ClientView, snapshot *Snapshot, windowID WindowID) WindowID {
-	if location, stacked := findStackByWindow(snapshot, windowID); stacked {
-		if active, known := view.StackActive[location.id()]; known {
-			return active
-		}
-	}
-	return windowID
-}
-
-func firstVisibleWindow(snapshot Snapshot, desktopID DesktopID) WindowID {
-	desktopIndex, exists := desktopIndexByID(&snapshot, desktopID)
-	if !exists {
-		return ""
-	}
-	for _, group := range snapshot.Desktops[desktopIndex].Groups {
-		if windowID := firstVisibleNodeWindow(group.Root); windowID != "" {
-			return windowID
-		}
-	}
-	for _, stack := range snapshot.Desktops[desktopIndex].FloatingStacks {
-		if stack.ActiveID != nil && !snapshot.Windows[*stack.ActiveID].Minimized {
-			return *stack.ActiveID
-		}
-	}
-	for _, windowID := range snapshot.Desktops[desktopIndex].Floating {
-		if !snapshot.Windows[windowID].Minimized {
-			return windowID
-		}
+	if len(ids) > 0 {
+		return ids[0]
 	}
 	return ""
 }
 
-func firstVisibleNodeWindow(node LayoutNode) WindowID {
-	if node.Kind == NodeKindStack && node.ActiveID != nil {
-		return *node.ActiveID
-	}
-	if node.Kind == NodeKindLeaf && node.WindowID != nil {
-		return *node.WindowID
-	}
-	for _, child := range node.Children {
-		if windowID := firstVisibleNodeWindow(child); windowID != "" {
-			return windowID
+func focusForDesktop(view ClientView, snapshot Snapshot) *WindowID {
+	if d, ti, ok := findTab(&snapshot, view.ActiveTab[view.ActiveDesktopID]); ok && d.ID == view.ActiveDesktopID {
+		id := tabLeadWindow(view, d.Tabs[ti])
+		if id != "" {
+			return new(id)
 		}
+	}
+	return nil
+}
+
+func firstVisibleWindow(snapshot Snapshot, id DesktopID) WindowID {
+	di, ok := desktopIndexByID(&snapshot, id)
+	if !ok {
+		return ""
+	}
+	d := snapshot.Desktops[di]
+	ti := tabHoldingID(d.Tabs, d.ActiveTabID)
+	if ti < 0 {
+		return ""
+	}
+	return firstVisibleNodeWindow(d.Tabs[ti].Root)
+}
+
+func firstVisibleNodeWindow(node LayoutNode) WindowID {
+	ids := nodeWindowIDs(node)
+	if len(ids) > 0 {
+		return ids[0]
 	}
 	return ""
 }
@@ -344,11 +259,11 @@ func clientViewsEqual(left, right ClientView) bool {
 		!globalShortcutRegistrationsEqual(left.GlobalShortcuts, right.GlobalShortcuts) {
 		return false
 	}
-	if len(left.StackActive) != len(right.StackActive) {
+	if len(left.ActiveTab) != len(right.ActiveTab) {
 		return false
 	}
-	for stackID, windowID := range left.StackActive {
-		if right.StackActive[stackID] != windowID {
+	for desktopID, tabID := range left.ActiveTab {
+		if right.ActiveTab[desktopID] != tabID {
 			return false
 		}
 	}
@@ -365,4 +280,31 @@ func defaultDesktopID(snapshot Snapshot) DesktopID {
 		return snapshot.Desktops[0].ID
 	}
 	return ""
+}
+
+func resolvedProjectionRequest(before, after Snapshot, request CommandRequest) CommandRequest {
+	var id WindowID
+	switch c := request.Payload.(type) {
+	case OpenWindowCommand:
+		if c.Window.ID != "" || c.RestoreWindowID != nil {
+			return request
+		}
+		for _, candidate := range sortedWindowIDs(after.Windows) {
+			if _, existed := before.Windows[candidate]; !existed && after.Windows[candidate].App == c.Window.App {
+				id = candidate
+				break
+			}
+		}
+	case ReopenCommand:
+		if len(before.ClosedEntries) > 0 {
+			entry := before.ClosedEntries[len(before.ClosedEntries)-1]
+			if len(entry.Windows) > 0 {
+				id = entry.Windows[0].ID
+			}
+		}
+	}
+	if id != "" {
+		request.Payload = NavigateWindowCommand{WindowID: id}
+	}
+	return request
 }

@@ -19,24 +19,15 @@ func (r *windowManagerRepository) reconcileLoadedSnapshot(
 ) (windowmanager.Snapshot, error) {
 	// Decoding already applied any snapshot-version migration, so reconciliation
 	// sees retired app ids only after they were rewritten to their replacements.
-	version := storedWindowManagerSnapshotVersion(entry.Value)
-	migrated := version == windowmanager.LegacySnapshotVersion || version == windowmanager.PreviousSnapshotVersion
 	reconciled, changed := windowmanager.ReconcileRegisteredApps(snapshot, corecmds.RegisteredApp)
 	if !changed {
-		if migrated {
-			return snapshot, r.persistMigratedSnapshot(
-				ctx, workspaceID, snapshot, entry.Rev, version, retiredSnapshotWindows(entry.Value),
-			)
-		}
 		return snapshot, nil
 	}
-	if !migrated {
-		revision, err := windowmanager.NextTopologyRevision(snapshot.Revision)
-		if err != nil {
-			return windowmanager.Snapshot{}, fmt.Errorf("daemon: reconciled snapshot revision: %w", err)
-		}
-		reconciled.Revision = revision
+	revision, err := windowmanager.NextTopologyRevision(snapshot.Revision)
+	if err != nil {
+		return windowmanager.Snapshot{}, fmt.Errorf("reconciled snapshot revision: %w", err)
 	}
+	reconciled.Revision = revision
 	if err := windowmanager.ValidateSnapshot(reconciled); err != nil {
 		return windowmanager.Snapshot{}, fmt.Errorf("daemon: validate reconciled snapshot: %w", err)
 	}
@@ -50,12 +41,6 @@ func (r *windowManagerRepository) reconcileLoadedSnapshot(
 		clientstate.ApplyOptions{Origin: "window-manager.snapshot.reconcile"})
 	if err != nil {
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("persist reconciled snapshot", err)
-	}
-	if migrated {
-		r.logger.Info("migrated window-manager snapshot", "workspace_id", workspaceID,
-			"event", "windowmanager.snapshot_migrated", "from_version", version,
-			"windows_rewritten", retiredSnapshotWindows(entry.Value),
-			"to_version", reconciled.Version, "revision", reconciled.Revision)
 	}
 	droppedApps, rewrittenRoutes := windowManagerReconciliationAudit(snapshot)
 	r.logger.Info("windowmanager.snapshot_reconciled", "workspace_id", workspaceID,

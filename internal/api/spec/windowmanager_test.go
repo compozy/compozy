@@ -24,6 +24,8 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			http.MethodGet + " " + windowManagerPath:                                      "getWindowManagerSnapshot",
 			http.MethodPost + " " + windowManagerPath + "/preview":                        "previewWindowManagerCommand",
 			http.MethodPost + " " + windowManagerPath + "/commands":                       "executeWindowManagerCommand",
+			http.MethodGet + " " + windowManagerPath + "/migration":                       "getWindowManagerMigration",
+			http.MethodPost + " " + windowManagerPath + "/migration":                      "updateWindowManagerMigration",
 			http.MethodGet + " " + windowManagerPath + "/clients":                         "listWindowManagerClients",
 			http.MethodPost + " " + windowManagerPath + "/clients":                        "registerWindowManagerClient",
 			http.MethodDelete + " " + windowManagerPath + "/clients/{client_id}":          "unregisterWindowManagerClient",
@@ -89,6 +91,10 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 				false,
 			},
 			{contract.WindowManagerCommandWindowPin, "WindowManagerPinWindowPayload", false},
+			{contract.WindowManagerCommandWindowTabActivate, "WindowManagerSetStackActivePayload", false},
+			{contract.WindowManagerCommandWindowTabReorder, "WindowManagerReorderStackPayload", false},
+			{contract.WindowManagerCommandWindowResize, "WindowManagerResizeWindowPayload", false},
+			{contract.WindowManagerCommandLayoutFrameResize, "WindowManagerFrameResizeLayoutPayload", false},
 			{contract.WindowManagerCommandWindowReopen, "WindowManagerReopenWindowPayload", false},
 			{contract.WindowManagerCommandWindowFocus, "WindowManagerFocusWindowPayload", true},
 			{contract.WindowManagerCommandWindowMove, "WindowManagerMoveWindowPayload", false},
@@ -98,7 +104,7 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 				"WindowManagerToggleFloatingPayload",
 				false,
 			},
-			{contract.WindowManagerCommandWindowZoom, "WindowManagerZoomWindowPayload", true},
+			{contract.WindowManagerCommandWindowZoom, "WindowManagerZoomWindowPayload", false},
 			{contract.WindowManagerCommandLayoutArrange, "WindowManagerArrangeLayoutPayload", false},
 			{contract.WindowManagerCommandLayoutResize, "WindowManagerResizeLayoutPayload", false},
 			{contract.WindowManagerCommandLayoutBalance, "WindowManagerBalanceLayoutPayload", false},
@@ -257,6 +263,8 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			string(windowmanager.CloseScopeGroup),
 			string(windowmanager.CloseScopeOthers),
 			string(windowmanager.CloseScopeRight),
+			string(windowmanager.CloseScopeLeft),
+			string(windowmanager.CloseScopeAll),
 		)
 		openPayload := componentSchema(t, document, "WindowManagerOpenWindowPayload")
 		windowSpec := propertySchema(t, openPayload, "window")
@@ -300,11 +308,11 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		if desktops.Items == nil || desktops.Items.Value == nil {
 			t.Fatalf("replace-layout desktops items are unresolved: %#v", desktops.Items)
 		}
-		groups := propertySchema(t, desktops.Items.Value, "groups")
-		if groups.Items == nil || groups.Items.Value == nil {
-			t.Fatalf("replace-layout groups items are unresolved: %#v", groups.Items)
+		tabs := propertySchema(t, desktops.Items.Value, "tabs")
+		if tabs.Items == nil || tabs.Items.Value == nil {
+			t.Fatalf("replace-layout tabs items are unresolved: %#v", tabs.Items)
 		}
-		assertSchemaHasAdditionalProperties(t, propertySchema(t, groups.Items.Value, "root"), false)
+		assertSchemaHasAdditionalProperties(t, propertySchema(t, tabs.Items.Value, "root"), false)
 
 		for name, frameType := range map[string]string{
 			"WindowManagerSnapshotFrame":  contract.WindowManagerFrameSnapshot,
@@ -380,7 +388,7 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should describe optional exact source groups on return anchors", func(t *testing.T) {
+	t.Run("Should describe tabs and window membership without retired topology", func(t *testing.T) {
 		t.Parallel()
 		document, err := Document()
 		if err != nil {
@@ -395,28 +403,28 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		if desktops.Items == nil || desktops.Items.Value == nil {
 			t.Fatalf("WindowManagerSnapshot desktops are unresolved: %#v", desktops.Items)
 		}
-		assertRequired(t, desktops.Items.Value, "floating_stacks")
+		assertRequired(t, desktops.Items.Value, "tabs", "active_tab_id")
 		clientView := componentSchema(t, document, "WindowManagerClientView")
-		assertRequired(t, clientView, "stack_active")
+		assertRequired(t, clientView, "active_tab", "stack_active")
 		windows := propertySchema(t, snapshot, "windows")
 		windowRef := windows.AdditionalProperties.Schema
 		if windowRef == nil || windowRef.Value == nil {
 			t.Fatalf("window map value schema is unresolved: %#v", windows.AdditionalProperties)
 		}
-		returnAnchor := propertySchema(t, windowRef.Value, "return_anchor")
-		assertRequired(t, windowRef.Value, "nav_stack", "pinned")
-		assertNotRequired(t, returnAnchor, "source_group")
-		sourceGroup := propertySchema(t, returnAnchor, "source_group")
-		assertSchemaIncludesType(t, sourceGroup, openapi3.TypeObject)
-		assertRequired(t, sourceGroup, "id", "frame", "root")
-		root := propertySchema(t, sourceGroup, "root")
-		children := propertySchema(t, root, "children")
-		if children.Items == nil ||
-			children.Items.Ref != "#/components/schemas/WindowManagerLayoutNode" ||
-			children.Items.Value == nil {
-			t.Fatalf("source-group root children do not resolve recursively: %#v", children.Items)
+		assertRequired(t, windowRef.Value, "nav_stack", "tab_id", "desktop_id")
+		for _, retired := range []string{"return_anchor", "pinned", "zoomed", "placement", "floating_rect"} {
+			if _, exists := windowRef.Value.Properties[retired]; exists {
+				t.Fatalf("retired window property %s remains in v6", retired)
+			}
 		}
-		assertRequired(t, children.Items.Value, "id", "kind")
+		tabs := propertySchema(t, desktops.Items.Value, "tabs")
+		assertRequired(t, tabs.Items.Value, "id", "pinned", "root")
+		assertEnumValues(
+			t,
+			propertySchema(t, componentSchema(t, document, "WindowManagerLayoutNode"), "kind"),
+			"leaf",
+			"split",
+		)
 	})
 }
 

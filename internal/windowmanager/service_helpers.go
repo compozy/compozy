@@ -154,6 +154,12 @@ func validateRebaseGuard(snapshot *Snapshot, guard *RebaseGuard) []Conflict {
 			conflicts = append(conflicts, Conflict{Code: "rebase.boundary_changed", EntityID: string(*guard.SplitID)})
 		}
 	}
+	if guard.TabID != nil {
+		guarded = true
+		if _, _, ok := findTab(snapshot, *guard.TabID); !ok {
+			conflicts = append(conflicts, Conflict{Code: "rebase.tab_missing", EntityID: string(*guard.TabID)})
+		}
+	}
 	if !guarded {
 		conflicts = append(conflicts, Conflict{Code: "rebase.guard_required"})
 	}

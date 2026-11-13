@@ -9,6 +9,48 @@ import (
 	"strings"
 )
 
+// ListGlobalSessionEvents List persisted session events for a Global session
+func (c *Client) ListGlobalSessionEvents(ctx context.Context, params ListGlobalSessionEventsParams) (*SessionEventsResponse, error) {
+	path := "/api/sessions/{session_id}/events"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.TurnID != nil {
+		query.Set("turn_id", *params.TurnID)
+	}
+	if params.Archive != nil {
+		query.Set("archive", *params.Archive)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionEventsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListGoalTurnsParams carries the path, query, and header parameters.
 type ListGoalTurnsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -397,18 +439,4 @@ func (c *Client) ListLoopRunsAggregate(ctx context.Context, params ListLoopRunsA
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListLoopsParams carries the path, query, and header parameters.
-type ListLoopsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Q           *string `url:"q"`
-	Kind        *string `url:"kind"`
-	Category    *string `url:"category"`
-	Status      *string `url:"status"`
-	Sort        *string `url:"sort"`
-	Cursor      *string `url:"cursor"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

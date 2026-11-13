@@ -833,21 +833,40 @@ func TestWindowManagerReadAndClientCommands(t *testing.T) {
 				t.Fatalf("workspace = %q, want w1", workspace)
 			}
 			snapshot := windowManagerTestSnapshot(7)
-			activeID := windowmanager.WindowID("win-2")
-			snapshot.Desktops[0].Floating = []windowmanager.WindowID{}
-			snapshot.Desktops[0].FloatingStacks = []contract.WindowManagerFloatingStack{{
-				ID: "stack-1", WindowIDs: []windowmanager.WindowID{"win-1", "win-2"}, ActiveID: &activeID,
-			}}
-			snapshot.Desktops[1].Floating = []windowmanager.WindowID{}
+			snapshot.Desktops[0].Tabs = []contract.WindowManagerTab{
+				{
+					ID:     "stack-1",
+					Pinned: true,
+					Root: contract.WindowManagerLayoutNode{
+						ID:   "split-1",
+						Kind: windowmanager.NodeKindSplit,
+						Axis: new(windowmanager.AxisHorizontal),
+						Children: []contract.WindowManagerLayoutNode{
+							{
+								ID:       "leaf-1",
+								Kind:     windowmanager.NodeKindLeaf,
+								WindowID: new(windowmanager.WindowID("win-1")),
+							},
+							{
+								ID:       "leaf-2",
+								Kind:     windowmanager.NodeKindLeaf,
+								WindowID: new(windowmanager.WindowID("win-2")),
+							},
+						},
+						Weights: []float64{.5, .5},
+					},
+				},
+			}
+			snapshot.Desktops[0].ActiveTabID = "stack-1"
+			snapshot.Desktops[1].Tabs = nil
 			first := snapshot.Windows["win-1"]
 			first.DesktopID = "d1"
-			first.Placement = windowmanager.WindowPlacementStacked
-			first.Pinned = true
+			first.TabID = "stack-1"
 			first.NavStack = []windowmanager.RouteIntent{{Pathname: "/tasks/root", Search: windowmanager.RouteSearch{}}}
 			snapshot.Windows["win-1"] = first
 			second := snapshot.Windows["win-2"]
 			second.DesktopID = "d1"
-			second.Placement = windowmanager.WindowPlacementStacked
+			second.TabID = "stack-1"
 			snapshot.Windows["win-2"] = second
 			return snapshot, nil
 		}
@@ -872,11 +891,9 @@ func TestWindowManagerReadAndClientCommands(t *testing.T) {
 		if len(windows) != 2 || windows[0].ID != "win-1" || windows[1].ID != "win-2" {
 			t.Fatalf("windows = %#v, want stable ID order", windows)
 		}
-		if windows[0].StackID == nil || *windows[0].StackID != "stack-1" ||
-			windows[0].MemberOrder == nil || *windows[0].MemberOrder != 0 || windows[0].Active ||
-			!windows[0].Pinned || windows[0].NavDepth != 1 ||
-			windows[1].StackID == nil || *windows[1].StackID != "stack-1" ||
-			windows[1].MemberOrder == nil || *windows[1].MemberOrder != 1 || !windows[1].Active {
+		if windows[0].TabID != "stack-1" || windows[0].TabIndex != 0 || !windows[0].Active ||
+			!windows[0].Pinned || windows[0].NavDepth != 1 || windows[0].Members != 2 ||
+			windows[1].TabID != "stack-1" || windows[1].TabIndex != 0 || !windows[1].Active || windows[1].Members != 2 {
 			t.Fatalf("window tab projection = %#v", windows)
 		}
 	})
@@ -1872,30 +1889,48 @@ func windowManagerTestSnapshot(revision contract.WindowManagerRevision) contract
 		Version: windowmanager.SnapshotVersion, WorkspaceID: "w1", Revision: revision,
 		Desktops: []contract.WindowManagerDesktop{
 			{
-				ID:       "d1",
-				Name:     "Desktop 1",
-				Order:    0,
-				Groups:   []contract.WindowManagerLayoutGroup{},
-				Floating: []windowmanager.WindowID{"win-1"},
+				ID:    "d1",
+				Name:  "Desktop 1",
+				Order: 0,
+				Tabs: []contract.WindowManagerTab{
+					{
+						ID: "tab-win-1",
+						Root: contract.WindowManagerLayoutNode{
+							ID:       "leaf-1",
+							Kind:     windowmanager.NodeKindLeaf,
+							WindowID: new(windowmanager.WindowID("win-1")),
+						},
+					},
+				},
+				ActiveTabID: "tab-win-1",
 			},
 			{
-				ID:       "d2",
-				Name:     "Desktop 2",
-				Order:    1,
-				Groups:   []contract.WindowManagerLayoutGroup{},
-				Floating: []windowmanager.WindowID{"win-2"},
+				ID:    "d2",
+				Name:  "Desktop 2",
+				Order: 1,
+				Tabs: []contract.WindowManagerTab{
+					{
+						ID: "tab-win-2",
+						Root: contract.WindowManagerLayoutNode{
+							ID:       "leaf-2",
+							Kind:     windowmanager.NodeKindLeaf,
+							WindowID: new(windowmanager.WindowID("win-2")),
+						},
+					},
+				},
+				ActiveTabID: "tab-win-2",
 			},
 		},
 		Windows: map[string]contract.WindowManagerWindow{
 			"win-2": {
 				ID: "win-2", App: "settings", Route: windowmanager.RouteIntent{
 					Pathname: "/settings", Search: windowmanager.RouteSearch{},
-				}, DesktopID: "d2", Placement: windowmanager.WindowPlacementFloating,
+				}, DesktopID: "d2", TabID: "tab-win-2",
 			},
 			"win-1": {
 				ID: "win-1", App: "tasks", Route: windowmanager.RouteIntent{
 					Pathname: "/tasks", Search: windowmanager.RouteSearch{},
-				}, DesktopID: "d1", Placement: windowmanager.WindowPlacementFloating,
+				}, DesktopID: "d1", TabID: "tab-win-1",
 			},
 		},
 		UpdatedAt: time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC),

@@ -12,6 +12,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/version"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -85,6 +86,9 @@ func (d *Daemon) bootWindowManager(
 		return fmt.Errorf("daemon: create window managers: %w", err)
 	}
 	cleanup.add(func(context.Context) error { return registry.Close() })
+	if err := registry.expireMigrationBackups(ctx, version.Current().Version); err != nil {
+		return fmt.Errorf("daemon: expire window-manager migration backups: %w", err)
+	}
 	state.windowManagerStoreResolver = resolver
 	state.windowManagerStore = engine
 	state.windowManagers = registry

@@ -32,6 +32,7 @@ func windowManagerOperations() []OperationSpec {
 		operations,
 		windowManagerLayoutOperations(transports, workspaceParam, readErrors, mutationErrors)...,
 	)
+	operations = append(operations, windowManagerMigrationOperations(transports, workspaceParam, mutationErrors)...)
 	return append(operations, windowManagerStreamOperation(transports, workspaceParam, errorBody))
 }
 

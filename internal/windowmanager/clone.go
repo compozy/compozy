@@ -3,6 +3,11 @@ package windowmanager
 import "maps"
 
 func cloneSnapshot(snapshot Snapshot) Snapshot {
+	snapshot.Migration = clonePointer(snapshot.Migration)
+	if snapshot.Migration != nil {
+		snapshot.Migration.Summary = clonePointer(snapshot.Migration.Summary)
+		snapshot.Migration.Error = clonePointer(snapshot.Migration.Error)
+	}
 	snapshot.Desktops = cloneDesktops(snapshot.Desktops)
 	snapshot.Windows = cloneWindows(snapshot.Windows)
 	snapshot.ClosedEntries = cloneClosedEntries(snapshot.ClosedEntries)
@@ -20,19 +25,13 @@ func cloneDesktops(desktops []Desktop) []Desktop {
 }
 
 func cloneDesktop(desktop Desktop) Desktop {
-	sourceGroups := desktop.Groups
-	desktop.Groups = make([]LayoutGroup, len(sourceGroups))
-	for index, group := range sourceGroups {
-		desktop.Groups[index] = cloneLayoutGroup(group)
+	source := desktop.Tabs
+	desktop.Tabs = make([]Tab, len(source))
+	for i, tab := range source {
+		tab.Root = cloneNode(tab.Root)
+		desktop.Tabs[i] = tab
 	}
-	desktop.Floating = append([]WindowID(nil), desktop.Floating...)
-	desktop.FloatingStacks = cloneFloatingStacks(desktop.FloatingStacks)
 	return desktop
-}
-
-func cloneLayoutGroup(group LayoutGroup) LayoutGroup {
-	group.Root = cloneNode(group.Root)
-	return group
 }
 
 func cloneNode(node LayoutNode) LayoutNode {
@@ -44,8 +43,6 @@ func cloneNode(node LayoutNode) LayoutNode {
 		node.Children[index] = cloneNode(child)
 	}
 	node.Weights = append([]float64(nil), node.Weights...)
-	node.WindowIDs = append([]WindowID(nil), node.WindowIDs...)
-	node.ActiveID = clonePointer(node.ActiveID)
 	return node
 }
 
@@ -61,7 +58,6 @@ func cloneWindow(window Window) Window {
 	window.InstanceKey = clonePointer(window.InstanceKey)
 	window.Route = cloneRouteIntent(window.Route)
 	window.NavStack = cloneRouteIntents(window.NavStack)
-	window.ReturnAnchor = cloneReturnAnchor(window.ReturnAnchor)
 	return window
 }
 
@@ -73,20 +69,6 @@ func cloneRouteIntents(routes []RouteIntent) []RouteIntent {
 	return cloned
 }
 
-func cloneFloatingStack(stack FloatingStack) FloatingStack {
-	stack.WindowIDs = append([]WindowID(nil), stack.WindowIDs...)
-	stack.ActiveID = clonePointer(stack.ActiveID)
-	return stack
-}
-
-func cloneFloatingStacks(stacks []FloatingStack) []FloatingStack {
-	cloned := make([]FloatingStack, len(stacks))
-	for index, stack := range stacks {
-		cloned[index] = cloneFloatingStack(stack)
-	}
-	return cloned
-}
-
 func cloneClosedEntries(entries []ClosedEntry) []ClosedEntry {
 	cloned := make([]ClosedEntry, len(entries))
 	for index, entry := range entries {
@@ -94,8 +76,11 @@ func cloneClosedEntries(entries []ClosedEntry) []ClosedEntry {
 		for windowIndex, window := range entries[index].Windows {
 			entry.Windows[windowIndex] = cloneWindow(window)
 		}
-		entry.ActiveID = clonePointer(entry.ActiveID)
-		entry.StackID = clonePointer(entry.StackID)
+		entry.Member = clonePointer(entry.Member)
+		entry.Tabs = append([]ClosedTab(nil), entry.Tabs...)
+		for i := range entry.Tabs {
+			entry.Tabs[i].Root = cloneNode(entry.Tabs[i].Root)
+		}
 		cloned[index] = entry
 	}
 	return cloned
@@ -117,31 +102,11 @@ func cloneRouteSearch(search RouteSearch) RouteSearch {
 	return cloned
 }
 
-func cloneReturnAnchor(anchor *ReturnAnchor) *ReturnAnchor {
-	if anchor == nil {
-		return nil
-	}
-	cloned := *anchor
-	cloned.GroupID = clonePointer(anchor.GroupID)
-	cloned.ParentSplitID = clonePointer(anchor.ParentSplitID)
-	cloned.ChildIndex = clonePointer(anchor.ChildIndex)
-	cloned.Weight = clonePointer(anchor.Weight)
-	cloned.NeighborIDs = append([]WindowID(nil), anchor.NeighborIDs...)
-	if anchor.SourceGroup != nil {
-		sourceGroup := cloneLayoutGroup(*anchor.SourceGroup)
-		cloned.SourceGroup = &sourceGroup
-	}
-	if anchor.SourceStack != nil {
-		sourceStack := cloneFloatingStack(*anchor.SourceStack)
-		cloned.SourceStack = &sourceStack
-	}
-	return &cloned
-}
-
 func cloneClientView(view ClientView) ClientView {
 	view.FocusedWindowID = clonePointer(view.FocusedWindowID)
 	view.FocusOrder = append([]WindowID(nil), view.FocusOrder...)
 	view.StackActive = cloneStackActive(view.StackActive)
+	view.ActiveTab = maps.Clone(view.ActiveTab)
 	view.GlobalShortcuts = CloneGlobalShortcutRegistrations(view.GlobalShortcuts)
 	if view.PaletteContext.DestinationIntent != nil {
 		destination := cloneRouteIntent(*view.PaletteContext.DestinationIntent)
@@ -183,6 +148,7 @@ func cloneState(state State) State {
 	state.Desktops = cloneDesktops(state.Desktops)
 	state.Windows = cloneWindows(state.Windows)
 	state.Overrides = cloneWorkspaceConfig(state.Overrides)
+	state.ClosedEntries = cloneClosedEntries(state.ClosedEntries)
 	return state
 }
 
@@ -222,6 +188,9 @@ func cloneSnapConfig(config SnapConfig) SnapConfig {
 }
 
 func cloneChangeSet(changes ChangeSet) ChangeSet {
+	changes.TabIDs = append([]TabID(nil), changes.TabIDs...)
+	changes.TabSplit = append([]TabID(nil), changes.TabSplit...)
+	changes.TabUnsplit = append([]TabID(nil), changes.TabUnsplit...)
 	changes.DesktopIDs = append([]DesktopID(nil), changes.DesktopIDs...)
 	changes.WindowIDs = append([]WindowID(nil), changes.WindowIDs...)
 	changes.GroupIDs = append([]GroupID(nil), changes.GroupIDs...)

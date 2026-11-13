@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// OverviewPulsePayload is a daemon API value.
+type OverviewPulsePayload struct {
+	WindowDays     int                            `json:"window_days"`
+	Buckets        []OverviewPulseBucketPayload   `json:"buckets"`
+	Busiest        *OverviewPulseBucketPayload    `json:"busiest,omitzero"`
+	LongestSession *OverviewLongestSessionPayload `json:"longest_session,omitzero"`
+}
+
+// OverviewSystemPayload is a daemon API value.
+type OverviewSystemPayload struct {
+	HookRunsToday     int `json:"hook_runs_today"`
+	HookFailuresToday int `json:"hook_failures_today"`
+	RetentionDays     int `json:"retention_days"`
+}
+
 // OverviewTodayPayload is a daemon API value.
 type OverviewTodayPayload struct {
 	RunsCompleted int `json:"runs_completed"`
@@ -414,35 +429,4 @@ type ProviderModelCurationResponse struct {
 // ProviderModelListResponse is a daemon API value.
 type ProviderModelListResponse struct {
 	Models []ProviderModelPayload `json:"models"`
-}
-
-// ProviderModelPayload is a daemon API value.
-type ProviderModelPayload struct {
-	ProviderID             string                              `json:"provider_id"`
-	ModelID                string                              `json:"model_id"`
-	DisplayName            string                              `json:"display_name,omitempty"`
-	Sources                []ModelCatalogSourceRefPayload      `json:"sources"`
-	Available              *bool                               `json:"available"`
-	AvailabilityState      string                              `json:"availability_state"`
-	Stale                  bool                                `json:"stale"`
-	RefreshedAt            string                              `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                              `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                              `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                              `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                               `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                               `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []Effort                            `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *Effort                             `json:"default_reasoning_effort,omitempty"`
-	ConfigOptions          []SessionConfigOptionPayload        `json:"config_options,omitempty"`
-	Configurations         []ProviderModelConfigurationPayload `json:"configurations,omitempty"`
-	Cost                   *ModelCatalogCostPayload            `json:"cost,omitempty"`
-	Curated                bool                                `json:"curated"`
-	Deprecated             bool                                `json:"deprecated"`
-	Hidden                 bool                                `json:"hidden"`
-	Featured               bool                                `json:"featured"`
-	ReleaseDate            string                              `json:"release_date,omitempty"`
-	ReasoningKnown         bool                                `json:"reasoning_known,omitempty"`
-	ReasoningApply         string                              `json:"reasoning_apply,omitempty"`
-	ReasoningSource        ReasoningSource                     `json:"reasoning_source,omitempty"`
-	LastError              string                              `json:"last_error,omitempty"`
 }

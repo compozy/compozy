@@ -141,16 +141,11 @@ func daemonWindowManagerSnapshot(
 	revision windowmanager.Revision,
 	name string,
 ) windowmanager.Snapshot {
-	return windowmanager.Snapshot{
-		Version: windowmanager.SnapshotVersion, WorkspaceID: workspaceID, Revision: revision,
-		Desktops: []windowmanager.Desktop{{
-			ID: "desktop-default", Name: name,
-			Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
-		}},
-		Windows:   map[windowmanager.WindowID]windowmanager.Window{},
-		History:   windowmanager.History{Undo: []windowmanager.HistoryEntry{}, Redo: []windowmanager.HistoryEntry{}},
-		UpdatedAt: time.Date(2026, time.July, 22, 12, 0, int(revision), 0, time.UTC),
-	}
+	s := windowmanager.DefaultSnapshot(workspaceID)
+	s.Revision = revision
+	s.Desktops[0].Name = name
+	s.UpdatedAt = time.Date(2026, time.July, 22, 12, 0, int(revision), 0, time.UTC)
+	return s
 }
 
 func daemonWindowManagerCommit(

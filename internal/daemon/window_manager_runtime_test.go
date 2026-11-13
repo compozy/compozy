@@ -466,7 +466,8 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Snapshot(recreated) error = %v", err)
 		}
-		if snapshot.Revision != 0 || len(snapshot.Windows) != 0 {
+		if snapshot.Revision != 0 || len(snapshot.Windows) != 1 ||
+			snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
 			t.Fatalf("Snapshot(recreated) = %#v, want fresh revision zero", snapshot)
 		}
 		clients, err := fixture.manager.Clients(ctx, workspaceID)
@@ -658,12 +659,12 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 		}
 
 		workspaceAResult := open(fixture.workspace.ID, "window-a")
-		if got := workspaceAResult.Snapshot.Windows["window-a"].Placement; got != windowmanager.WindowPlacementTiled {
+		if got := workspaceAResult.Snapshot.Desktops[0].Tabs[0].Root.Kind; got != windowmanager.NodeKindSplit {
 			t.Fatalf("workspace A placement = %q, want workspace-configured tiled", got)
 		}
 		workspaceBResult := open(workspaceB.ID, "window-b")
-		if got := workspaceBResult.Snapshot.Windows["window-b"].Placement; got != windowmanager.WindowPlacementFloating {
-			t.Fatalf("workspace B placement = %q, want active-global floating", got)
+		if got := len(workspaceBResult.Snapshot.Desktops[0].Tabs); got != 2 {
+			t.Fatalf("workspace B placement = %v, want active-global floating", got)
 		}
 
 		active := windowmanager.DefaultConfig()
@@ -672,7 +673,7 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 			t.Fatalf("UpdateDefaults() error = %v", err)
 		}
 		workspaceBResult = open(workspaceB.ID, "window-b-hot-applied")
-		if got := workspaceBResult.Snapshot.Windows["window-b-hot-applied"].Placement; got != windowmanager.WindowPlacementTiled {
+		if got := workspaceBResult.Snapshot.Desktops[0].Tabs[1].Root.Kind; got != windowmanager.NodeKindSplit {
 			t.Fatalf("workspace B hot-applied placement = %q, want tiled", got)
 		}
 	})
@@ -895,10 +896,16 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if snapshot.Windows["bound"].InstanceKey != nil ||
-						snapshot.Windows["bound"].Route.Pathname != "/sessions" ||
-						len(snapshot.History.Undo) != 0 ||
-						len(snapshot.Windows["bound"].Route.Search) != 0 {
+					bound, exists := snapshot.Windows["bound"]
+					if len(snapshot.History.Undo) != 0 || snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
+						t.Fatalf("retirement state %s/%s: %#v", profile, partition, snapshot)
+					}
+					if retirement == "session" {
+						if exists || len(snapshot.Windows) != 1 {
+							t.Fatalf("deleted session remains in %s/%s: %#v", profile, partition, snapshot)
+						}
+					} else if !exists || bound.InstanceKey != nil || bound.Route.Pathname != "/sessions" ||
+						len(bound.Route.Search) != 0 || len(snapshot.Windows) != 2 {
 						t.Fatalf("unretired %s/%s: %#v", profile, partition, snapshot)
 					}
 				}
@@ -1158,11 +1165,11 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(snapshot.Windows) != 2 {
+			if len(snapshot.Windows) != 3 {
 				t.Fatalf("persisted windows: %+v", snapshot.Windows)
 			}
 			for _, window := range snapshot.Windows {
-				kept := window.App == "settings" ||
+				kept := window.App == "new-tab" || window.App == "settings" ||
 					(window.App == "terminal" && window.InstanceKey == nil && window.Route.Pathname == "/terminal")
 				if !kept {
 					t.Fatal("stale terminal persisted")
@@ -1238,7 +1245,7 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(snapshot.Windows) != 0 {
+		if len(snapshot.Windows) != 1 || snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
 			t.Fatal("agent PTY opened a desktop window")
 		}
 		id := string(handle.Info().ID)
@@ -1293,7 +1300,7 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(persisted.Windows) != 0 {
+		if len(persisted.Windows) != 1 || persisted.Windows["win-newtab-desktop-default"].App != "new-tab" {
 			t.Fatal("exited agent PTY left a persisted window")
 		}
 	})

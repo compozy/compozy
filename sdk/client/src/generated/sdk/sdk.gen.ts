@@ -780,6 +780,9 @@ import type {
   GetVaultSecretMetadataData,
   GetVaultSecretMetadataErrors,
   GetVaultSecretMetadataResponses,
+  GetWindowManagerMigrationData,
+  GetWindowManagerMigrationErrors,
+  GetWindowManagerMigrationResponses,
   GetWindowManagerSnapshotData,
   GetWindowManagerSnapshotErrors,
   GetWindowManagerSnapshotResponses,
@@ -1638,6 +1641,9 @@ import type {
   UpdateTaskData,
   UpdateTaskErrors,
   UpdateTaskResponses,
+  UpdateWindowManagerMigrationData,
+  UpdateWindowManagerMigrationErrors,
+  UpdateWindowManagerMigrationResponses,
   UpdateWorkspaceData,
   UpdateWorkspaceErrors,
   UpdateWorkspaceResponses,
@@ -13117,6 +13123,56 @@ export class workspaces extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/window-manager/layout/validate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read window layout migration status
+   */
+  public getWindowManagerMigration<ThrowOnError extends boolean = true>(
+    options: Options<GetWindowManagerMigrationData, ThrowOnError>
+  ): RequestResult<
+    GetWindowManagerMigrationResponses,
+    GetWindowManagerMigrationErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetWindowManagerMigrationResponses,
+      GetWindowManagerMigrationErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/window-manager/migration",
+      ...options,
+    });
+  }
+
+  /**
+   * Acknowledge or retry window layout migration
+   */
+  public updateWindowManagerMigration<ThrowOnError extends boolean = true>(
+    options: Options<UpdateWindowManagerMigrationData, ThrowOnError>
+  ): RequestResult<
+    UpdateWindowManagerMigrationResponses,
+    UpdateWindowManagerMigrationErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      UpdateWindowManagerMigrationResponses,
+      UpdateWindowManagerMigrationErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/window-manager/migration",
       ...options,
       headers: {
         "Content-Type": "application/json",

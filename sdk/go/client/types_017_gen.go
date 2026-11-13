@@ -7,6 +7,41 @@ import (
 	"time"
 )
 
+// RunPayload is a daemon API value.
+type RunPayload struct {
+	WorkspaceID     *string        `json:"workspace_id,omitempty"`
+	Attribution     string         `json:"attribution"`
+	ID              string         `json:"id"`
+	ProfileID       string         `json:"profile_id"`
+	ProfileName     string         `json:"profile_name"`
+	ProfileColor    string         `json:"profile_color,omitempty"`
+	ProfileIcon     string         `json:"profile_icon,omitempty"`
+	JobID           string         `json:"job_id,omitempty"`
+	TriggerID       string         `json:"trigger_id,omitempty"`
+	SessionID       string         `json:"session_id,omitempty"`
+	TaskID          string         `json:"task_id,omitempty"`
+	TaskRunID       string         `json:"task_run_id,omitempty"`
+	LoopRunID       string         `json:"loop_run_id,omitempty"`
+	FireID          string         `json:"fire_id,omitempty"`
+	Status          RunStatus      `json:"status"`
+	Attempt         int            `json:"attempt"`
+	ScheduledAt     *time.Time     `json:"scheduled_at,omitempty"`
+	StartedAt       *time.Time     `json:"started_at,omitempty"`
+	EndedAt         *time.Time     `json:"ended_at,omitempty"`
+	Error           string         `json:"error,omitempty"`
+	DeliveryError   string         `json:"delivery_error,omitempty"`
+	DeliveryErrorAt *time.Time     `json:"delivery_error_at,omitempty"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
+}
+
+// RunResponse is a daemon API value.
+type RunResponse struct {
+	Run RunPayload `json:"run"`
+}
+
+// RunReviewOutcome is a daemon API value.
+type RunReviewOutcome string
+
 // RunReviewRequest is a daemon API value.
 type RunReviewRequest struct {
 	TaskID         string       `json:"task_id"`
@@ -404,42 +439,4 @@ type SessionAttachPayload struct {
 type SessionAttachResponse struct {
 	Session SessionPayload       `json:"session"`
 	Attach  SessionAttachPayload `json:"attach"`
-}
-
-// SessionAttachmentPayload is a daemon API value.
-type SessionAttachmentPayload struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	MIMEType  string    `json:"mime_type"`
-	Bytes     int64     `json:"bytes"`
-	SHA256    string    `json:"sha256"`
-	Kind      string    `json:"kind"`
-	Width     int       `json:"width"`
-	Height    int       `json:"height"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-// SessionAttachmentUploadResponse is a daemon API value.
-type SessionAttachmentUploadResponse struct {
-	Attachment SessionAttachmentPayload `json:"attachment"`
-}
-
-// SessionAttentionEventPayload is a daemon API value.
-type SessionAttentionEventPayload struct {
-	SessionID   string         `json:"session_id"`
-	ProfileID   string         `json:"profile_id"`
-	ProfileName string         `json:"profile_name"`
-	WorkspaceID string         `json:"workspace_id"`
-	From        Badge          `json:"from"`
-	To          Badge          `json:"to"`
-	Class       AttentionClass `json:"class"`
-	At          time.Time      `json:"at"`
-}
-
-// SessionAttentionSummaryPayload is a daemon API value.
-type SessionAttentionSummaryPayload struct {
-	TerminalApprovals []TerminalApprovalCountPayload     `json:"terminal_approvals,omitempty"`
-	NeedsYou          int                                `json:"needs_you"`
-	Finished          int                                `json:"finished"`
-	ByWorkspace       []WorkspaceAttentionSummaryPayload `json:"by_workspace"`
 }

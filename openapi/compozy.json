@@ -4491,6 +4491,24 @@
             },
             "type": "array"
           },
+          "tab_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tab_split": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tab_unsplit": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "window_ids": {
             "items": {
               "type": "string"
@@ -5930,6 +5948,12 @@
           "active_desktop_id": {
             "type": "string"
           },
+          "active_tab": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
           "attachment_token": {
             "type": "string"
           },
@@ -5984,6 +6008,7 @@
         },
         "required": [
           "active_desktop_id",
+          "active_tab",
           "client_id",
           "connected_at",
           "context_revision",
@@ -6045,6 +6070,8 @@
               "window.stack.set_active",
               "window.pin",
               "window.reopen",
+              "window.tab.reorder",
+              "window.tab.activate",
               "layout.arrange",
               "layout.resize",
               "layout.frame_resize",
@@ -6093,23 +6120,8 @@
       },
       "ContractWindowManagerDesktop": {
         "properties": {
-          "floating": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "floating_stacks": {
-            "items": {
-              "$ref": "#/components/schemas/WindowManagerFloatingStack"
-            },
-            "type": "array"
-          },
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/ContractWindowManagerLayoutGroup"
-            },
-            "type": "array"
+          "active_tab_id": {
+            "type": "string"
           },
           "id": {
             "type": "string"
@@ -6119,15 +6131,20 @@
           },
           "order": {
             "type": "integer"
+          },
+          "tabs": {
+            "items": {
+              "$ref": "#/components/schemas/ContractWindowManagerTab"
+            },
+            "type": "array"
           }
         },
         "required": [
-          "floating",
-          "floating_stacks",
-          "groups",
+          "active_tab_id",
           "id",
           "name",
-          "order"
+          "order",
+          "tabs"
         ],
         "type": "object"
       },
@@ -6290,25 +6307,6 @@
         ],
         "type": "object"
       },
-      "ContractWindowManagerLayoutGroup": {
-        "properties": {
-          "frame": {
-            "$ref": "#/components/schemas/NormalizedRect"
-          },
-          "id": {
-            "type": "string"
-          },
-          "root": {
-            "$ref": "#/components/schemas/WindowManagerLayoutNode"
-          }
-        },
-        "required": [
-          "frame",
-          "id",
-          "root"
-        ],
-        "type": "object"
-      },
       "ContractWindowManagerLayoutReplaceRequest": {
         "properties": {
           "actor": {
@@ -6399,6 +6397,12 @@
               }
             ]
           },
+          "deprecations": {
+            "items": {
+              "$ref": "#/components/schemas/Deprecation"
+            },
+            "type": "array"
+          },
           "diagnostics": {
             "items": {
               "$ref": "#/components/schemas/Diagnostic"
@@ -6412,6 +6416,7 @@
         "required": [
           "changed",
           "changes",
+          "deprecations",
           "snapshot"
         ],
         "type": "object"
@@ -6437,6 +6442,12 @@
               }
             ]
           },
+          "deprecations": {
+            "items": {
+              "$ref": "#/components/schemas/Deprecation"
+            },
+            "type": "array"
+          },
           "diagnostics": {
             "items": {
               "$ref": "#/components/schemas/Diagnostic"
@@ -6455,6 +6466,7 @@
         "required": [
           "applied",
           "changes",
+          "deprecations",
           "snapshot"
         ],
         "type": "object"
@@ -6469,6 +6481,19 @@
               "$ref": "#/components/schemas/ContractWindowManagerDesktop"
             },
             "type": "array"
+          },
+          "migration": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MigrationStatus"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "overrides": {
             "$ref": "#/components/schemas/WorkspaceConfig"
@@ -6547,6 +6572,25 @@
           "snapshot",
           "type",
           "workspace_id"
+        ],
+        "type": "object"
+      },
+      "ContractWindowManagerTab": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "root": {
+            "$ref": "#/components/schemas/WindowManagerLayoutNode"
+          }
+        },
+        "required": [
+          "id",
+          "pinned",
+          "root"
         ],
         "type": "object"
       },
@@ -7678,6 +7722,32 @@
         },
         "required": [
           "expected_version"
+        ],
+        "type": "object"
+      },
+      "Deprecation": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "removal_release": {
+            "type": "string"
+          },
+          "replacement": {
+            "type": "string"
+          },
+          "surface": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "removal_release",
+          "surface"
         ],
         "type": "object"
       },
@@ -19159,6 +19229,100 @@
         },
         "required": [
           "direction"
+        ],
+        "type": "object"
+      },
+      "MigrationStatus": {
+        "properties": {
+          "acknowledged": {
+            "type": "boolean"
+          },
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Diagnostic"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "failure_revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "from_version": {
+            "maximum": 4294967295,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "summary": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MigrationSummary"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "acknowledged",
+          "state"
+        ],
+        "type": "object"
+      },
+      "MigrationSummary": {
+        "properties": {
+          "desktops": {
+            "type": "integer"
+          },
+          "floating_to_tabs": {
+            "type": "integer"
+          },
+          "islands_merged": {
+            "type": "integer"
+          },
+          "minimized_to_tabs": {
+            "type": "integer"
+          },
+          "pins_dropped": {
+            "type": "integer"
+          },
+          "tabs": {
+            "type": "integer"
+          },
+          "windows": {
+            "type": "integer"
+          },
+          "zoom_desktops_merged": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "desktops",
+          "floating_to_tabs",
+          "islands_merged",
+          "minimized_to_tabs",
+          "pins_dropped",
+          "tabs",
+          "windows",
+          "zoom_desktops_merged"
         ],
         "type": "object"
       },
@@ -45356,6 +45520,18 @@
         ],
         "type": "object"
       },
+      "WindowManagerActivateTabPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "window_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "window_id"
+        ],
+        "type": "object"
+      },
       "WindowManagerActor": {
         "properties": {
           "id": {
@@ -45419,6 +45595,10 @@
             "type": "string"
           },
           "split_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "tab_id": {
             "nullable": true,
             "type": "string"
           }
@@ -45523,6 +45703,12 @@
           "active_desktop_id": {
             "type": "string"
           },
+          "active_tab": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
           "attachment_token": {
             "type": "string"
           },
@@ -45577,6 +45763,7 @@
         },
         "required": [
           "active_desktop_id",
+          "active_tab",
           "client_id",
           "connected_at",
           "context_revision",
@@ -45620,7 +45807,9 @@
               "tab",
               "group",
               "others",
-              "right"
+              "right",
+              "left",
+              "all"
             ],
             "type": "string"
           },
@@ -46246,6 +46435,222 @@
               },
               "command_id": {
                 "enum": [
+                  "window.tab.reorder"
+                ],
+                "type": "string"
+              },
+              "expected_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "origin": {
+                "type": "string"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/WindowManagerReorderStackPayload"
+              },
+              "rebase": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/WindowManagerRebaseGuard"
+                  },
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  }
+                ]
+              },
+              "workspace_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "actor",
+              "command_id",
+              "expected_revision",
+              "origin",
+              "payload",
+              "workspace_id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "actor": {
+                "$ref": "#/components/schemas/WindowManagerActor"
+              },
+              "client_id": {
+                "nullable": true,
+                "type": "string"
+              },
+              "command_id": {
+                "enum": [
+                  "window.tab.activate"
+                ],
+                "type": "string"
+              },
+              "expected_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "origin": {
+                "type": "string"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/WindowManagerSetStackActivePayload"
+              },
+              "rebase": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/WindowManagerRebaseGuard"
+                  },
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  }
+                ]
+              },
+              "workspace_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "actor",
+              "command_id",
+              "expected_revision",
+              "origin",
+              "payload",
+              "workspace_id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "actor": {
+                "$ref": "#/components/schemas/WindowManagerActor"
+              },
+              "client_id": {
+                "nullable": true,
+                "type": "string"
+              },
+              "command_id": {
+                "enum": [
+                  "window.resize"
+                ],
+                "type": "string"
+              },
+              "expected_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "origin": {
+                "type": "string"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/WindowManagerResizeWindowPayload"
+              },
+              "rebase": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/WindowManagerRebaseGuard"
+                  },
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  }
+                ]
+              },
+              "workspace_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "actor",
+              "command_id",
+              "expected_revision",
+              "origin",
+              "payload",
+              "workspace_id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "actor": {
+                "$ref": "#/components/schemas/WindowManagerActor"
+              },
+              "client_id": {
+                "nullable": true,
+                "type": "string"
+              },
+              "command_id": {
+                "enum": [
+                  "layout.frame_resize"
+                ],
+                "type": "string"
+              },
+              "expected_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "origin": {
+                "type": "string"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/WindowManagerFrameResizeLayoutPayload"
+              },
+              "rebase": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/WindowManagerRebaseGuard"
+                  },
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  }
+                ]
+              },
+              "workspace_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "actor",
+              "command_id",
+              "expected_revision",
+              "origin",
+              "payload",
+              "workspace_id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "actor": {
+                "$ref": "#/components/schemas/WindowManagerActor"
+              },
+              "client_id": {
+                "nullable": true,
+                "type": "string"
+              },
+              "command_id": {
+                "enum": [
                   "window.pin"
                 ],
                 "type": "string"
@@ -46565,6 +46970,7 @@
                 "$ref": "#/components/schemas/WindowManagerActor"
               },
               "client_id": {
+                "nullable": true,
                 "type": "string"
               },
               "command_id": {
@@ -46603,7 +47009,6 @@
             },
             "required": [
               "actor",
-              "client_id",
               "command_id",
               "expected_revision",
               "origin",
@@ -46977,23 +47382,8 @@
       "WindowManagerDesktop": {
         "additionalProperties": false,
         "properties": {
-          "floating": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "floating_stacks": {
-            "items": {
-              "$ref": "#/components/schemas/WindowManagerFloatingStack"
-            },
-            "type": "array"
-          },
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/ContractWindowManagerLayoutGroup"
-            },
-            "type": "array"
+          "active_tab_id": {
+            "type": "string"
           },
           "id": {
             "type": "string"
@@ -47003,15 +47393,20 @@
           },
           "order": {
             "type": "integer"
+          },
+          "tabs": {
+            "items": {
+              "$ref": "#/components/schemas/ContractWindowManagerTab"
+            },
+            "type": "array"
           }
         },
         "required": [
-          "floating",
-          "floating_stacks",
-          "groups",
+          "active_tab_id",
           "id",
           "name",
-          "order"
+          "order",
+          "tabs"
         ],
         "type": "object"
       },
@@ -47118,6 +47513,8 @@
               "window.stack.set_active",
               "window.pin",
               "window.reopen",
+              "window.tab.reorder",
+              "window.tab.activate",
               "layout.arrange",
               "layout.resize",
               "layout.frame_resize",
@@ -47183,36 +47580,6 @@
         ],
         "type": "object"
       },
-      "WindowManagerFloatingStack": {
-        "properties": {
-          "active_id": {
-            "nullable": true,
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "minimized": {
-            "type": "boolean"
-          },
-          "rect": {
-            "$ref": "#/components/schemas/NormalizedRect"
-          },
-          "window_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "id",
-          "minimized",
-          "rect",
-          "window_ids"
-        ],
-        "type": "object"
-      },
       "WindowManagerFocusWindowPayload": {
         "additionalProperties": false,
         "properties": {
@@ -47230,6 +47597,40 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "WindowManagerFrameResizeLayoutPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "desktop_id": {
+            "type": "string"
+          },
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/WindowManagerGroupFrameEditPayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "desktop_id",
+          "edits"
+        ],
+        "type": "object"
+      },
+      "WindowManagerGroupFrameEditPayload": {
+        "properties": {
+          "frame": {
+            "$ref": "#/components/schemas/NormalizedRect"
+          },
+          "group_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "frame",
+          "group_id"
+        ],
         "type": "object"
       },
       "WindowManagerGroupWindowsPayload": {
@@ -47316,33 +47717,9 @@
         ],
         "type": "object"
       },
-      "WindowManagerLayoutGroup": {
-        "additionalProperties": false,
-        "properties": {
-          "frame": {
-            "$ref": "#/components/schemas/NormalizedRect"
-          },
-          "id": {
-            "type": "string"
-          },
-          "root": {
-            "$ref": "#/components/schemas/WindowManagerLayoutNode"
-          }
-        },
-        "required": [
-          "frame",
-          "id",
-          "root"
-        ],
-        "type": "object"
-      },
       "WindowManagerLayoutNode": {
         "additionalProperties": false,
         "properties": {
-          "active_id": {
-            "nullable": true,
-            "type": "string"
-          },
           "axis": {
             "enum": [
               "horizontal",
@@ -47363,8 +47740,7 @@
           "kind": {
             "enum": [
               "leaf",
-              "split",
-              "stack"
+              "split"
             ],
             "type": "string"
           },
@@ -47378,12 +47754,6 @@
           "window_id": {
             "nullable": true,
             "type": "string"
-          },
-          "window_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
           }
         },
         "required": [
@@ -47464,6 +47834,21 @@
         ],
         "type": "object"
       },
+      "WindowManagerMigrationRequest": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "replace": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "action",
+          "replace"
+        ],
+        "type": "object"
+      },
       "WindowManagerMoveWindowPayload": {
         "additionalProperties": false,
         "properties": {
@@ -47488,6 +47873,7 @@
           },
           "placement": {
             "enum": [
+              "tab",
               "floating",
               "before",
               "after",
@@ -47497,6 +47883,10 @@
               "bottom",
               "center"
             ],
+            "type": "string"
+          },
+          "target_tab_id": {
+            "nullable": true,
             "type": "string"
           },
           "target_window_id": {
@@ -47628,6 +48018,9 @@
           "window_focused": {
             "type": "boolean"
           },
+          "window_in_split": {
+            "type": "boolean"
+          },
           "window_stacked": {
             "type": "boolean"
           },
@@ -47641,6 +48034,7 @@
           "shell_desktop",
           "window_floating",
           "window_focused",
+          "window_in_split",
           "window_stacked",
           "workspace_trusted"
         ],
@@ -47684,6 +48078,12 @@
               }
             ]
           },
+          "deprecations": {
+            "items": {
+              "$ref": "#/components/schemas/Deprecation"
+            },
+            "type": "array"
+          },
           "diagnostics": {
             "items": {
               "$ref": "#/components/schemas/Diagnostic"
@@ -47697,6 +48097,7 @@
         "required": [
           "changed",
           "changes",
+          "deprecations",
           "snapshot"
         ],
         "type": "object"
@@ -47712,6 +48113,10 @@
             "type": "string"
           },
           "split_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "tab_id": {
             "nullable": true,
             "type": "string"
           },
@@ -47764,6 +48169,22 @@
         ],
         "type": "object"
       },
+      "WindowManagerReorderTabPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "window_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "window_id"
+        ],
+        "type": "object"
+      },
       "WindowManagerReplaceLayoutPayload": {
         "additionalProperties": false,
         "properties": {
@@ -47797,6 +48218,22 @@
         ],
         "type": "object"
       },
+      "WindowManagerResizeWindowPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "frame": {
+            "$ref": "#/components/schemas/NormalizedRect"
+          },
+          "window_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "frame",
+          "window_id"
+        ],
+        "type": "object"
+      },
       "WindowManagerResult": {
         "additionalProperties": false,
         "properties": {
@@ -47819,6 +48256,12 @@
               }
             ]
           },
+          "deprecations": {
+            "items": {
+              "$ref": "#/components/schemas/Deprecation"
+            },
+            "type": "array"
+          },
           "diagnostics": {
             "items": {
               "$ref": "#/components/schemas/Diagnostic"
@@ -47837,63 +48280,8 @@
         "required": [
           "applied",
           "changes",
+          "deprecations",
           "snapshot"
-        ],
-        "type": "object"
-      },
-      "WindowManagerReturnAnchor": {
-        "properties": {
-          "child_index": {
-            "nullable": true,
-            "type": "integer"
-          },
-          "desktop_id": {
-            "type": "string"
-          },
-          "group_id": {
-            "nullable": true,
-            "type": "string"
-          },
-          "neighbor_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "parent_split_id": {
-            "nullable": true,
-            "type": "string"
-          },
-          "source_group": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ContractWindowManagerLayoutGroup"
-              },
-              {
-                "enum": [
-                  null
-                ],
-                "nullable": true
-              }
-            ]
-          },
-          "source_revision": {
-            "maximum": 9007199254740991,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "weight": {
-            "format": "double",
-            "nullable": true,
-            "type": "number"
-          },
-          "zoomed": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "desktop_id",
-          "source_revision"
         ],
         "type": "object"
       },
@@ -47920,6 +48308,19 @@
               "$ref": "#/components/schemas/ContractWindowManagerDesktop"
             },
             "type": "array"
+          },
+          "migration": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MigrationStatus"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "overrides": {
             "$ref": "#/components/schemas/WorkspaceConfig"
@@ -48030,6 +48431,26 @@
         ],
         "type": "object"
       },
+      "WindowManagerTab": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "root": {
+            "$ref": "#/components/schemas/WindowManagerLayoutNode"
+          }
+        },
+        "required": [
+          "id",
+          "pinned",
+          "root"
+        ],
+        "type": "object"
+      },
       "WindowManagerToggleFloatingPayload": {
         "additionalProperties": false,
         "properties": {
@@ -48082,9 +48503,6 @@
           "desktop_id": {
             "type": "string"
           },
-          "floating_rect": {
-            "$ref": "#/components/schemas/NormalizedRect"
-          },
           "id": {
             "type": "string"
           },
@@ -48092,57 +48510,26 @@
             "nullable": true,
             "type": "string"
           },
-          "minimized": {
-            "type": "boolean"
-          },
           "nav_stack": {
             "items": {
               "$ref": "#/components/schemas/RouteIntent"
             },
             "type": "array"
           },
-          "pinned": {
-            "type": "boolean"
-          },
-          "placement": {
-            "enum": [
-              "tiled",
-              "stacked",
-              "floating"
-            ],
-            "type": "string"
-          },
-          "return_anchor": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/WindowManagerReturnAnchor"
-              },
-              {
-                "enum": [
-                  null
-                ],
-                "nullable": true
-              }
-            ]
-          },
           "route": {
             "$ref": "#/components/schemas/RouteIntent"
           },
-          "zoomed": {
-            "type": "boolean"
+          "tab_id": {
+            "type": "string"
           }
         },
         "required": [
           "app",
           "desktop_id",
-          "floating_rect",
           "id",
-          "minimized",
           "nav_stack",
-          "pinned",
-          "placement",
           "route",
-          "zoomed"
+          "tab_id"
         ],
         "type": "object"
       },
@@ -109865,6 +110252,205 @@
           }
         },
         "summary": "Validate one declarative window layout",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/window-manager/migration": {
+      "get": {
+        "operationId": "getWindowManagerMigration",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid window workspace binding"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace or referenced entity not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Revision or state conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid window-manager request"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Window manager unavailable"
+          }
+        },
+        "summary": "Read window layout migration status",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "updateWindowManagerMigration",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WindowManagerMigrationRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid window workspace binding"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace or referenced entity not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Revision or state conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid window-manager request"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractWindowManagerErrorPayload"
+                }
+              }
+            },
+            "description": "Window manager unavailable"
+          }
+        },
+        "summary": "Acknowledge or retry window layout migration",
         "tags": [
           "workspaces"
         ],

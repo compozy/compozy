@@ -2586,9 +2586,10 @@ func assertWindowManagerMoveSchema(t *testing.T, raw json.RawMessage) {
 			valid: true,
 		},
 		{
-			name: "Should reject missing placement outside group mode",
+			name: "Should accept omitted placement as a tab",
 			payload: `{"expected_revision":1,"window_id":"window-a",` +
 				`"destination_desktop_id":"desktop-b"}`,
+			valid: true,
 		},
 		{
 			name: "Should accept structural group relocation onto a target",
@@ -2605,11 +2606,16 @@ func assertWindowManagerMoveSchema(t *testing.T, raw json.RawMessage) {
 			valid: true,
 		},
 		{
-			name: "Should reject a structural group relocation with a floating rectangle",
+			name: "Should accept a deprecated floating rectangle on group relocation",
 			payload: `{"expected_revision":1,"window_id":"window-a",` +
 				`"destination_desktop_id":"desktop-b","move_group":true,` +
 				`"target_window_id":"window-b",` +
 				`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
+			valid: true,
+		},
+		{
+			name:    "Should reject an unknown placement",
+			payload: `{"expected_revision":1,"window_id":"window-a","destination_desktop_id":"desktop-b","placement":"unknown"}`,
 		},
 	}
 	for _, tc := range cases {
@@ -2708,8 +2714,16 @@ func assertWindowManagerResultSchemas(t *testing.T, commandRaw, previewRaw json.
 		t.Fatalf("window manager command output schema unmarshal error = %v", err)
 	}
 	assertSchemaFields(t, "window manager command output", command, []string{
-		"applied", "changes", "client", "command_id", "diagnostics", "rebased_from", "revision", "workspace_id",
-	}, []string{"applied", "changes", "command_id", "diagnostics", "revision", "workspace_id"})
+		"applied",
+		"changes",
+		"client",
+		"command_id",
+		"deprecations",
+		"diagnostics",
+		"rebased_from",
+		"revision",
+		"workspace_id",
+	}, []string{"applied", "changes", "command_id", "deprecations", "diagnostics", "revision", "workspace_id"})
 	assertWindowManagerChangesSchema(t, "window manager command output", command.Properties["changes"])
 
 	var preview resultSchema
@@ -2717,8 +2731,16 @@ func assertWindowManagerResultSchemas(t *testing.T, commandRaw, previewRaw json.
 		t.Fatalf("window manager preview output schema unmarshal error = %v", err)
 	}
 	assertSchemaFields(t, "window manager preview output", preview, []string{
-		"changed", "changes", "client", "command_id", "diagnostics", "revision", "snapshot", "workspace_id",
-	}, []string{"changed", "changes", "command_id", "diagnostics", "revision", "snapshot", "workspace_id"})
+		"changed",
+		"changes",
+		"client",
+		"command_id",
+		"deprecations",
+		"diagnostics",
+		"revision",
+		"snapshot",
+		"workspace_id",
+	}, []string{"changed", "changes", "command_id", "deprecations", "diagnostics", "revision", "snapshot", "workspace_id"})
 	assertWindowManagerChangesSchema(t, "window manager preview output", preview.Properties["changes"])
 }
 
@@ -2732,7 +2754,16 @@ func assertWindowManagerChangesSchema(t *testing.T, owner string, raw json.RawMe
 		t.Fatalf("%s changes schema unmarshal error = %v", owner, err)
 	}
 	assertSchemaFields(t, owner+" changes", changes, []string{
-		"client_ids", "desktop_ids", "group_ids", "node_ids", "stack_grouped", "stack_ungrouped", "window_ids",
+		"client_ids",
+		"desktop_ids",
+		"group_ids",
+		"node_ids",
+		"stack_grouped",
+		"stack_ungrouped",
+		"tab_ids",
+		"tab_split",
+		"tab_unsplit",
+		"window_ids",
 	}, nil)
 }
 
@@ -2752,13 +2783,13 @@ func assertWindowManagerLayoutDocumentSchemas(t *testing.T, schemas ...json.RawM
 			t.Fatalf("window manager layout document schema unmarshal error = %v", err)
 		}
 		var version struct {
-			Const int `json:"const"`
+			Enum []int `json:"enum"`
 		}
 		if err := json.Unmarshal(document.Properties["version"], &version); err != nil {
 			t.Fatalf("window manager layout version schema unmarshal error = %v", err)
 		}
-		if version.Const != int(windowmanager.SnapshotVersion) {
-			t.Fatalf("window manager layout version const = %d, want %d", version.Const, windowmanager.SnapshotVersion)
+		if !slices.Equal(version.Enum, []int{4, 5, int(windowmanager.SnapshotVersion)}) {
+			t.Fatalf("window manager layout versions = %v, want 4, 5, 6", version.Enum)
 		}
 	}
 }

@@ -118,14 +118,7 @@ func writeExtensionKitE2ELayout(t *testing.T, sourceDir string) {
 	t.Helper()
 	layout := windowmanager.LayoutResource{
 		Version: windowmanager.LayoutResourceVersion, ID: "kit-e2e", DisplayName: "Kit E2E",
-		Document: windowmanager.LayoutDocument{
-			Version: windowmanager.SnapshotVersion,
-			Desktops: []windowmanager.Desktop{{
-				ID: "desktop-main", Name: "Main",
-				Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
-			}},
-			Windows: map[windowmanager.WindowID]windowmanager.Window{},
-		},
+		Document: daemonTestLayoutDocument("Main"),
 	}
 	raw, err := json.Marshal(layout)
 	if err != nil {

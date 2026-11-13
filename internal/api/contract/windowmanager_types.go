@@ -91,33 +91,14 @@ type WindowManagerActor struct {
 	ID   string `json:"id,omitempty"`
 }
 
-// WindowManagerReturnAnchor is the stable wire form of a prior structural slot.
-type WindowManagerReturnAnchor struct {
-	DesktopID      windowmanager.DesktopID   `json:"desktop_id"`
-	GroupID        *windowmanager.GroupID    `json:"group_id,omitzero"`
-	ParentSplitID  *windowmanager.NodeID     `json:"parent_split_id,omitzero"`
-	ChildIndex     *int                      `json:"child_index,omitzero"`
-	Weight         *float64                  `json:"weight,omitzero"`
-	NeighborIDs    []windowmanager.WindowID  `json:"neighbor_ids,omitempty"`
-	SourceRevision WindowManagerRevision     `json:"source_revision"`
-	SourceGroup    *WindowManagerLayoutGroup `json:"source_group,omitzero"`
-	Zoomed         bool                      `json:"zoomed,omitzero"`
-}
-
-// WindowManagerWindow is one durable application instance.
 type WindowManagerWindow struct {
-	ID           windowmanager.WindowID        `json:"id"`
-	App          string                        `json:"app"`
-	InstanceKey  *string                       `json:"instance_key,omitzero"`
-	Route        windowmanager.RouteIntent     `json:"route"`
-	NavStack     []windowmanager.RouteIntent   `json:"nav_stack"`
-	Pinned       bool                          `json:"pinned"`
-	Placement    windowmanager.WindowPlacement `json:"placement"`
-	DesktopID    windowmanager.DesktopID       `json:"desktop_id"`
-	FloatingRect windowmanager.NormalizedRect  `json:"floating_rect"`
-	Minimized    bool                          `json:"minimized"`
-	Zoomed       bool                          `json:"zoomed"`
-	ReturnAnchor *WindowManagerReturnAnchor    `json:"return_anchor,omitzero"`
+	ID          windowmanager.WindowID      `json:"id"`
+	App         string                      `json:"app"`
+	InstanceKey *string                     `json:"instance_key,omitzero"`
+	Route       windowmanager.RouteIntent   `json:"route"`
+	NavStack    []windowmanager.RouteIntent `json:"nav_stack"`
+	DesktopID   windowmanager.DesktopID     `json:"desktop_id"`
+	TabID       windowmanager.TabID         `json:"tab_id"`
 }
 
 // WindowManagerSnapshot is the complete durable workspace aggregate.
@@ -127,6 +108,7 @@ type WindowManagerSnapshot struct {
 	Revision         WindowManagerRevision          `json:"revision"`
 	Desktops         []WindowManagerDesktop         `json:"desktops"`
 	Windows          map[string]WindowManagerWindow `json:"windows"`
+	Migration        *windowmanager.MigrationStatus `json:"migration,omitzero"`
 	ClosedEntryCount int                            `json:"closed_entry_count"`
 	Overrides        windowmanager.WorkspaceConfig  `json:"overrides"`
 	UpdatedAt        time.Time                      `json:"updated_at"`
@@ -151,6 +133,7 @@ type WindowManagerClientView struct {
 	ActiveDesktopID      windowmanager.DesktopID                    `json:"active_desktop_id"`
 	FocusedWindowID      *windowmanager.WindowID                    `json:"focused_window_id,omitzero"`
 	FocusOrder           []windowmanager.WindowID                   `json:"focus_order"`
+	ActiveTab            map[string]string                          `json:"active_tab"`
 	StackActive          map[string]string                          `json:"stack_active"`
 	PaletteContext       WindowManagerPaletteContext                `json:"palette_context"`
 	GlobalShortcuts      []windowmanager.GlobalShortcutRegistration `json:"global_shortcuts"`
@@ -161,6 +144,7 @@ type WindowManagerClientView struct {
 type WindowManagerPaletteContext struct {
 	WindowFocused       bool                       `json:"window_focused"`
 	WindowFloating      bool                       `json:"window_floating"`
+	WindowInSplit       bool                       `json:"window_in_split"`
 	WindowStacked       bool                       `json:"window_stacked"`
 	DesktopWindowCount  int                        `json:"desktop_window_count"`
 	ScopeGlobal         bool                       `json:"scope_global"`
@@ -218,19 +202,21 @@ type WindowManagerLayoutReplaceRequest struct {
 
 // WindowManagerResult reports one applied or no-op command.
 type WindowManagerResult struct {
-	Snapshot    WindowManagerSnapshot      `json:"snapshot"`
-	Applied     bool                       `json:"applied"`
-	Changes     windowmanager.ChangeSet    `json:"changes"`
-	Diagnostics []windowmanager.Diagnostic `json:"diagnostics,omitempty"`
-	Client      *WindowManagerClientView   `json:"client,omitzero"`
-	RebasedFrom *WindowManagerRevision     `json:"rebased_from,omitzero"`
+	Deprecations []windowmanager.Deprecation `json:"deprecations"`
+	Snapshot     WindowManagerSnapshot       `json:"snapshot"`
+	Applied      bool                        `json:"applied"`
+	Changes      windowmanager.ChangeSet     `json:"changes"`
+	Diagnostics  []windowmanager.Diagnostic  `json:"diagnostics,omitempty"`
+	Client       *WindowManagerClientView    `json:"client,omitzero"`
+	RebasedFrom  *WindowManagerRevision      `json:"rebased_from,omitzero"`
 }
 
 // WindowManagerPreview reports a validated proposal without a durable write.
 type WindowManagerPreview struct {
-	Snapshot    WindowManagerSnapshot      `json:"snapshot"`
-	Changed     bool                       `json:"changed"`
-	Changes     windowmanager.ChangeSet    `json:"changes"`
-	Diagnostics []windowmanager.Diagnostic `json:"diagnostics,omitempty"`
-	Client      *WindowManagerClientView   `json:"client,omitzero"`
+	Deprecations []windowmanager.Deprecation `json:"deprecations"`
+	Snapshot     WindowManagerSnapshot       `json:"snapshot"`
+	Changed      bool                        `json:"changed"`
+	Changes      windowmanager.ChangeSet     `json:"changes"`
+	Diagnostics  []windowmanager.Diagnostic  `json:"diagnostics,omitempty"`
+	Client       *WindowManagerClientView    `json:"client,omitzero"`
 }

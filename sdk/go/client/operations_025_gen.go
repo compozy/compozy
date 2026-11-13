@@ -9,6 +9,54 @@ import (
 	"strings"
 )
 
+// ListTerminalsAggregate List workspace terminals
+func (c *Client) ListTerminalsAggregate(ctx context.Context, params ListTerminalsAggregateParams) (*TerminalListResponse, error) {
+	path := "/api/terminals"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListToolApprovalGrantsParams carries the path, query, and header parameters.
+type ListToolApprovalGrantsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+}
+
+// ListToolApprovalGrants List remembered native-tool approval decisions for one workspace
+func (c *Client) ListToolApprovalGrants(ctx context.Context, params ListToolApprovalGrantsParams) (*ToolApprovalGrantListResponse, error) {
+	path := "/api/tool-approval-grants"
+	query := url.Values{}
+	query.Set("workspace_id", params.WorkspaceID)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalGrantListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListToolsParams carries the path, query, and header parameters.
 type ListToolsParams struct {
 	WorkspaceID *string `url:"workspace_id"`
@@ -385,60 +433,4 @@ type LogoutSettingsMCPAuthParams struct {
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 	Owner       *string `url:"owner"`
-}
-
-// LogoutSettingsMCPAuth Log out one scoped MCP server
-func (c *Client) LogoutSettingsMCPAuth(ctx context.Context, params LogoutSettingsMCPAuthParams) (*SettingsMCPAuthStatusPayload, error) {
-	path := "/api/settings/mcp-servers/{name}/auth/logout"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("scope", params.Scope)
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPAuthStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MarkAgentInstanceSeenParams carries the path, query, and header parameters.
-type MarkAgentInstanceSeenParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// MarkAgentInstanceSeen Mark the instance seen by the local operator
-func (c *Client) MarkAgentInstanceSeen(ctx context.Context, params MarkAgentInstanceSeenParams) (*AgentInstanceSeenResponse, error) {
-	path := "/api/agent-instances/{id}/away"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceSeenResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MarkSessionSeenParams carries the path, query, and header parameters.
-type MarkSessionSeenParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

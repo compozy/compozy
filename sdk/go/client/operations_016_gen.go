@@ -232,6 +232,30 @@ func (c *Client) GetVaultSecretMetadata(ctx context.Context, params GetVaultSecr
 	return &out, nil
 }
 
+// GetWindowManagerMigrationParams carries the path, query, and header parameters.
+type GetWindowManagerMigrationParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetWindowManagerMigration Read window layout migration status
+func (c *Client) GetWindowManagerMigration(ctx context.Context, params GetWindowManagerMigrationParams) (*MigrationStatus, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/migration"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MigrationStatus
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetWindowManagerSnapshotParams carries the path, query, and header parameters.
 type GetWindowManagerSnapshotParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -420,29 +444,4 @@ type InspectSessionParams struct {
 	IncludeRecentWakeEvents *bool   `url:"include_recent_wake_events"`
 	Profile                 *string `url:"profile"`
 	AllProfiles             *bool   `url:"all_profiles"`
-}
-
-// InspectSession Inspect session health, wake audit, and policy correlation metadata
-func (c *Client) InspectSession(ctx context.Context, params InspectSessionParams) (*SessionInspectResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.IncludeRecentWakeEvents != nil {
-		query.Set("include_recent_wake_events", strconv.FormatBool(*params.IncludeRecentWakeEvents))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionInspectResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

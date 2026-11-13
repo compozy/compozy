@@ -4,6 +4,37 @@ package client
 
 import "time"
 
+// WorktreeExitPRPrefill is a daemon API value.
+type WorktreeExitPRPrefill struct {
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body,omitempty"`
+}
+
+// WorktreeExitPlanResponse is a daemon API value.
+type WorktreeExitPlanResponse struct {
+	WorktreeID       string                         `json:"worktree_id"`
+	Primary          WorktreeExitAction             `json:"primary,omitempty"`
+	Actions          []WorktreeExitActionPlan       `json:"actions"`
+	GlobalPauseCause string                         `json:"global_pause_cause,omitempty"`
+	CommitScope      WorktreeExitCommitScope        `json:"commit_scope"`
+	BrowserURL       string                         `json:"browser_url,omitempty"`
+	Forge            *WorktreeExitForgeCapabilities `json:"forge,omitzero"`
+	ForgeStatus      *WorktreeForgeStatusPayload    `json:"forge_status,omitzero"`
+	PRPrefill        *WorktreeExitPRPrefill         `json:"pr_prefill,omitzero"`
+	Cleanup          WorktreeExitCleanupEvidence    `json:"cleanup"`
+	Base             string                         `json:"base,omitempty"`
+}
+
+// WorktreeForgeStatusPayload is a daemon API value.
+type WorktreeForgeStatusPayload struct {
+	Provider  string     `json:"provider"`
+	PRNumber  *int       `json:"pr_number"`
+	PRState   *string    `json:"pr_state"`
+	PRURL     string     `json:"pr_url,omitempty"`
+	Merged    *bool      `json:"merged"`
+	FetchedAt *time.Time `json:"fetched_at"`
+}
+
 // WorktreeInspectionResponse is a daemon API value.
 type WorktreeInspectionResponse struct {
 	Worktree WorktreePayload             `json:"worktree"`
