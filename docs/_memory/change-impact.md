@@ -1,5 +1,27 @@
 # Compozy Change Impact
 
+## Grouped menus with List and Kanban parity — 2026-11-13
+
+Owner: PR `feat/grouped-menus` (proto drafts `web/src/drafts/session-menus` and `web/src/drafts/app-menus`,
+approved by the operator). QA: grouped-menu notes in `docs/qa/scenarios/RT-session-list-row-actions.md`,
+`ET-web-sessions-board-card-actions-group-sort.md`, `ET-web-session-pr-chip.md`,
+`RT-workspace-overview-command-tab.md`, `APP-open-in-targets.md`, `TA-web-automations-listing.md` and the
+other scenarios touched by the PR.
+
+- Web and `@compozy/ui` only, internal regime (SD-013). New primitive `MenuTreeItems` with `tidyMenuTree`
+  and `MenuTreeNode`; the context-menu and dropdown-menu primitives render item and submenu icons in
+  `subtle` ink and space a group label that follows an item. DESIGN.md §8 and the `eng-design` skill
+  record the icon rule.
+- Session row, Kanban card and selection menus, the pull request menu (chip, Linked work row, session
+  submenu), project menus, file Open in and automation menus are each one tree rendered by right-click and
+  the overflow button. Verbs moved into submenus; none were removed. Kanban cards gain folder moves and
+  linked work; selections gain Nest under and Copy branch names.
+- The session list toolbar's Collapse all / Expand all becomes its own icon button beside View options.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema or migration
+  change; menus call the existing endpoints. Workspace data isolation: unchanged; User-scope folder reads
+  go through the existing `@user` selector. Official skill `skills/compozy/`: no change (menus are not an
+  agent surface). Docs: `packages/site/content/docs/files/open-in.mdx` and `sessions/board.mdx`.
+
 ## Always-on context: operator rules, peer roster, provider MCP isolation — 2026-11-12
 
 Owner: small-work PR `feat/always-on-binding-context`. QA: `docs/qa/scenarios/RT-always-on-standing-context.md`
