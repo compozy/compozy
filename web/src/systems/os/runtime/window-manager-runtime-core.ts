@@ -405,11 +405,13 @@ export abstract class WindowManagerRuntimeCore {
     }
     // Refused commands must not publish optimistic routes while recovery is pending.
     if (windowManagerStore.getSnapshot().context.commandState.status === "conflict") return null;
-    // Rapid interactions (tab clicks, dock activations, seam arrows) queue
-    // behind the in-flight command instead of being silently dropped; each
-    // queued command reads a fresh snapshot revision when it runs. The deadline
-    // starts at the click, so a backlog stalled behind a busy connection pool
-    // expires instead of replaying every stale click at once.
+    // Rapid interactions (tab clicks, dock activations) queue behind the
+    // in-flight command instead of being silently dropped; each queued command
+    // reads a fresh snapshot revision when it runs. The deadline starts here, at
+    // dispatch, so a backlog stalled behind a busy connection pool expires
+    // instead of replaying every stale click at once. Seam input that waits in
+    // the seam hook's own queue (hooks/seam-command-queue) before it is
+    // dispatched is held to the same deadline there, counted from the input.
     const deadline = AbortSignal.timeout(WINDOW_MANAGER_COMMAND_DEADLINE_MS);
     const run = () => this.runCommand(command, { ...binding }, deadline);
     const chained = this.commandChain.then(run, run);

@@ -22,8 +22,6 @@ export interface OsSplitSeamSlot {
   splitId: string;
   boundaryIndex: number;
   axis: LayoutAxis;
-  /** Members of the split this seam belongs to. */
-  memberCount: number;
   /** The inner gap the seam spans; 0 lays members edge to edge with the line drawn over them. */
   gap: number;
   seam: ProjectedSeam | undefined;

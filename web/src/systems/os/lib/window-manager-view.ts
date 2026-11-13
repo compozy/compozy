@@ -149,6 +149,30 @@ export function authoritativeSeam(
   return null;
 }
 
+function findSplitMembers(node: LayoutNode, splitId: string): number | null {
+  if (node.kind !== "split") return null;
+  if (node.id === splitId) return node.children.length;
+  for (const child of node.children) {
+    const found = findSplitMembers(child, splitId);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
+/** How many members a split has in the authoritative snapshot; null when it is not there. */
+export function authoritativeSplitMembers(
+  snapshot: WindowManagerSnapshot | null,
+  splitId: string
+): number | null {
+  for (const desktop of snapshot?.desktops ?? []) {
+    for (const tab of desktop.tabs) {
+      const found = findSplitMembers(tab.root, splitId);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
+
 /** Every tab's split tree projected against the one measured content area. */
 export function buildWindowManagerProjections(input: {
   snapshot: WindowManagerSnapshot | null;

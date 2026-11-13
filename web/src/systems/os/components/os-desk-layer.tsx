@@ -93,10 +93,7 @@ const renderWindow = (windowId: string) => <OsWindowPane key={windowId} windowId
 
 /** A laid-out seam: drag to resize, double-click to balance, arrow keys when focused. */
 function LiveOsSplitSeam({ slot }: { slot: OsSplitSeamSlot }) {
-  const { state, onPointerDown, onKeyDown, onDoubleClick } = useOsSplitSeam(
-    slot.seam,
-    slot.memberCount
-  );
+  const { state, onPointerDown, onKeyDown, onDoubleClick } = useOsSplitSeam(slot.seam);
   if (slot.seam === undefined) return <OsSplitSeam axis={slot.axis} gap={slot.gap} />;
   const { leadingWeight, trailingWeight } = slot.seam;
   const pair = leadingWeight + trailingWeight;

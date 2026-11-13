@@ -203,7 +203,6 @@ function Node({ node }: { node: LayoutNode }) {
                 splitId: node.id,
                 boundaryIndex: index - 1,
                 axis: node.axis,
-                memberCount: node.children.length,
                 gap: view.innerGap,
                 seam: view.seams.get(`${node.id}:${index - 1}`),
               })
