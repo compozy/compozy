@@ -961,16 +961,22 @@ The runtime shell is a desktop with flat chrome on `--color-rail`:
   desktop that needs you) and the All desktops button that opens the overview.
 - A left rail (`--width-rail`, 60px; items `--size-rail-item`, 40px) that is
   the dock: app launchers in dock order without dividers, a running dot per
-  open app, a hollow ring for minimized ones, and the profile switcher, theme
-  toggle and Settings in its foot. Below 960px the rail hides and the bottom
-  tab bar takes over.
-- Gutterless tiling on `--color-desk`. Tiled windows are flat panes on
-  `--color-canvas` with no radius, border or shadow; the 1px `line` seam is the
-  only divider, with a `--size-seam-hit` (9px) hit area that turns brand on
-  hover and drag. Floating windows keep a 1px hairline and `shadow-elevated`.
-- Browser-style tabs. A window with several tabs shows the deck
-  (`--height-deck`, 40px): a recessed `sunken` strip where the active tab is a
-  surface plate fused with the head, and tabs shrink from 208px to 136px.
+  open app, and the profile switcher, theme toggle and Settings in its foot.
+  Below 960px the rail hides and the bottom tab bar takes over.
+- One tab bar per desktop: a 40px strip on `bg-rail` above the work area.
+  Each tab is a 27px rounded plate (`bg-fg/7` when active, `bg-fg/4`
+  otherwise) showing its lead window's icon and title, or up to three icons
+  and a member count for a split. Tabs share the width from 224px down to a
+  40px icon-only plate, then the strip scrolls; pinned tabs sit at the left,
+  icon-only.
+- A tab holds one window or a split. Windows are flat panes on `--color-canvas`
+  with no radius, border or shadow, edge to edge by default (the configurable
+  gaps show the desk, painted by the flat wallpaper's `--color-desk`). Between
+  split members the 1px `line` seam is the only divider and the only resize
+  handle: its separator box is at least 12px wide (the gap, or 12px when the
+  gap is narrower, with negative margins so it takes only the gap), and a 3px
+  pill turns brand on hover, focus and drag, attention at the minimum size.
+  There are no floating windows.
 
 Each window hosts one app's route subtree. Page identity belongs in the window
 head (`--height-window-head`, 48px), which is the route's `<Topbar>` with the
@@ -1079,7 +1085,7 @@ darkest outside → lightest inside: rail chrome → canvas pane → `card`
 - `--shadow-card` opens with the 1px `--color-line` hairline, then a soft drop:
   every `bg-card` surface (cards, KPI tiles, section cards, the composer) pairs
   with it instead of a border.
-- `--shadow-elevated` sits under floating windows (with their 1px hairline).
+- `--shadow-elevated` lifts the Desktops Overview card while it is dragged.
 - `--shadow-pop` is the `line` hairline plus the md drop, for `bg-popover`
   menus, popovers, selects, and tooltips (tooltips are an elevated plate, not
   an inverted pill). Dialogs share the `bg-popover` fill with
@@ -1095,8 +1101,8 @@ Each theme-scoped shadow is an `@theme` adapter over a `--theme-shadow-*`
 literal (dark in `tokens.css` `:root`, light in `tokens-light.css`): Tailwind
 inlines literal `--shadow-*` values into `shadow-*` utilities, so the theme must
 switch the literal behind the adapter. There is no window shadow in the shared
-tokens: product floating windows use a `line` hairline plus `--shadow-elevated`,
-and the marketing site keeps its hero mock's window radius and shadow in its own
+tokens: product windows are flat panes with no shadow, and the marketing site
+keeps its hero mock's window radius and shadow in its own
 `packages/site/app/global.css`.
 
 <!-- BEGIN:tokens:shadows -->
