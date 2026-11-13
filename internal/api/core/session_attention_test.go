@@ -1291,8 +1291,9 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 		})
 	}
 	// Invariant: the receipts commit the whole frozen population before any source write, so a
-	// failing source never leaves the reader's bell partly read and a same-snapshot retry finishes it.
-	t.Run("Should commit every receipt before sources and finish a failed source on retry", func(t *testing.T) {
+	// failing source never leaves the reader's bell partly read, and the reader's next bell read
+	// finishes the source it left pending.
+	t.Run("Should commit every receipt before sources and finish a failed source on the next read", func(t *testing.T) {
 		t.Parallel()
 		source := &bellMigrationSource{fail: map[windowmanager.WorkspaceID]error{
 			windowmanager.UserDesktopWorkspaceID: errors.New("window store unavailable"),
@@ -1321,22 +1322,25 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 		if len(source.acked) != 2 {
 			t.Fatalf("a failing source stopped the others: acked=%+v", source.acked)
 		}
-		if reader := readBellMigrationNotifications(t, f, "profile=default"); reader.Total != 0 {
-			t.Fatalf("reader bell partly read: %+v", reader)
-		}
 		other := readBellMigrationNotifications(t, f, "profile=marketing&receipt_profile=marketing")
 		if other.Total != 1 || other.Items[0].WorkspaceID != string(windowmanager.UserDesktopWorkspaceID) {
 			t.Fatalf("other bell=%+v, want only the failed source", other)
 		}
-		if response := ack(); response.Code != http.StatusNoContent {
-			t.Fatalf("retry status=%d body=%s", response.Code, response.Body.String())
+		if len(source.acked) != 2 {
+			t.Fatalf("a reader without the receipt acknowledged a source: acked=%+v", source.acked)
 		}
-		if len(source.acked) != 3 {
-			t.Fatalf("retry acked=%+v", source.acked)
+		if reader := readBellMigrationNotifications(t, f, "profile=default"); reader.Total != 0 {
+			t.Fatalf("reader bell partly read: %+v", reader)
+		}
+		if len(source.acked) != 3 || source.acked[2].WorkspaceID != windowmanager.UserDesktopWorkspaceID {
+			t.Fatalf("the reader's next read did not finish the failed source: acked=%+v", source.acked)
 		}
 		other = readBellMigrationNotifications(t, f, "profile=marketing&receipt_profile=marketing")
 		if other.Total != 0 {
-			t.Fatalf("other bell after retry=%+v", other)
+			t.Fatalf("other bell after repair=%+v", other)
+		}
+		if response := ack(); response.Code != http.StatusNoContent || len(source.acked) != 3 {
+			t.Fatalf("same-snapshot retry status=%d acked=%d", response.Code, len(source.acked))
 		}
 	})
 	for _, tc := range []struct {

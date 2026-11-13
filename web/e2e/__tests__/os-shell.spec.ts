@@ -2806,8 +2806,8 @@ test("Tabs-split E2E-012: a v5 layout opens as tabs and the bell's upgrade item 
 
   // Told once per client: a reload that lists the still-unread item again raises no second toast.
   // A page-side observer records any toast that mounts, so one that shows and times out before the
-  // check still fails it. The response is awaited after the reload, so only the new page's read of
-  // the list (or a later poll) counts.
+  // check still fails it. Any read of the list the new page makes, its first or a later poll, can
+  // only toast into that record.
   await appPage.addInitScript(() => {
     const record = window as typeof window & { __layoutUpgradeToasted?: boolean };
     record.__layoutUpgradeToasted = false;

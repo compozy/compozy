@@ -50,7 +50,14 @@ func (h *BaseHandlers) AttentionNotifications(c *gin.Context) {
 	for _, id := range unread {
 		visible[id] = true
 	}
-	items = slices.DeleteFunc(items, func(item contract.AttentionNotificationPayload) bool { return !visible[item.ID] })
+	var receipted []string
+	items = slices.DeleteFunc(items, func(item contract.AttentionNotificationPayload) bool {
+		if !visible[item.ID] && item.Kind == "layout-upgrade" {
+			receipted = append(receipted, item.ID)
+		}
+		return !visible[item.ID]
+	})
+	h.repairLayoutUpgradeSources(c.Request.Context(), receipted)
 	slices.SortFunc(items, func(a, b contract.AttentionNotificationPayload) int {
 		if order := b.OccurredAt.Compare(a.OccurredAt); order != 0 {
 			return order
@@ -94,8 +101,9 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 	// The receipts are the commit point: every member of the frozen population is acknowledged in
 	// one statement or none is. Conversion sources live in the window-manager store, outside that
 	// transaction, so they follow the receipts and are idempotent: a failed source leaves this bell
-	// fully read and a retry with the same snapshot finishes it. Writing sources first let a partial
-	// failure clear some conversions for every bell while the rest stayed unread.
+	// fully read, and the next bell read (or a retry with the same snapshot) finishes it. Writing
+	// sources first let a partial failure clear some conversions for every bell while the rest
+	// stayed unread.
 	var ids []string
 	var err error
 	if population == attentionBellPopulation {

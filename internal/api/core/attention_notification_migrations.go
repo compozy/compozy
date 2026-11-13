@@ -106,6 +106,19 @@ func (h *BaseHandlers) acknowledgeMigrationNotifications(ctx context.Context, id
 	return errors.Join(errs...)
 }
 
+// repairLayoutUpgradeSources finishes the source acknowledgement of conversions this reader has
+// already acknowledged by receipt: still pending at their source means an earlier acknowledgement
+// committed its receipts and then failed on the window-manager store. The read stays successful;
+// a source that fails again is retried on the next read.
+func (h *BaseHandlers) repairLayoutUpgradeSources(ctx context.Context, ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	if err := h.acknowledgeMigrationNotifications(ctx, ids); err != nil {
+		h.Logger.Warn("api: layout upgrade acknowledgement repair failed", "error", err)
+	}
+}
+
 func migrationNotificationDetail(summary *windowmanager.MigrationSummary) string {
 	var floating, minimized, pins int
 	if summary != nil {
