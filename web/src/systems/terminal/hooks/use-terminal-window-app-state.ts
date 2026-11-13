@@ -127,6 +127,7 @@ export function useTerminalWindowAppState({
     atLimit,
     setLimitOpen,
     onOpenTerminal: actions.onOpenTerminal,
+    openRefused: actions.openTerminalRefused === true,
     onCloseTerminal: actions.onCloseTerminal,
   });
   const resolving = awaitingRoute && !limitWait.dismissed;

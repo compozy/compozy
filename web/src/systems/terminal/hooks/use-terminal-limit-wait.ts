@@ -22,7 +22,9 @@ export interface UseTerminalLimitWaitOptions {
   resolutionKey: string;
   atLimit: boolean;
   setLimitOpen: (open: boolean) => void;
-  onOpenTerminal: (() => void | Promise<boolean>) | undefined;
+  onOpenTerminal: (() => void) | undefined;
+  /** The host's last create for this window was refused. */
+  openRefused: boolean;
   onCloseTerminal: (terminalId: string) => void;
 }
 
@@ -48,6 +50,7 @@ export function useTerminalLimitWait({
   atLimit,
   setLimitOpen,
   onOpenTerminal,
+  openRefused,
   onCloseTerminal,
 }: UseTerminalLimitWaitOptions): TerminalLimitWait {
   const [limitWait, setLimitWait] = useState<LimitWait | null>(null);
@@ -63,22 +66,18 @@ export function useTerminalLimitWait({
 
   // Creating the terminal is the daemon synchronization; once per claim.
   const lastClaimRef = useRef<LimitWait | null>(null);
-  const openClaimedSlot = useEffectEvent((claim: LimitWait) => {
-    const opened = onOpenTerminal?.();
-    if (!(opened instanceof Promise)) return;
-    // A refused create (another window took the slot first) ends the wait on the empty state.
-    void opened.then(ok => {
-      if (!ok) setLimitWait(wait => (wait === claim ? { ...claim, status: "dismissed" } : wait));
-    });
+  const openClaimedSlot = useEffectEvent(() => {
+    onOpenTerminal?.();
   });
   useEffect(() => {
     if (claimed === null || lastClaimRef.current === claimed) return;
     lastClaimRef.current = claimed;
-    openClaimedSlot(claimed);
+    openClaimedSlot();
   }, [claimed]);
 
   return {
-    dismissed: current?.status === "dismissed",
+    // A refused create (another window took the slot first) ends the wait on the empty state.
+    dismissed: current?.status === "dismissed" || (claimed !== null && openRefused),
     wait: () => {
       if (awaitingRoute) {
         setLimitWait({ key: resolutionKey, status: "waiting", closeRequested: false });

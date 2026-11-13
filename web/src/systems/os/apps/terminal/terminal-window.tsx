@@ -136,14 +136,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     retargetSearch,
     workspaceId,
   } = useTerminalWindowControllerContext();
-  // Resolves whether the create went through; a refusal is already reported by its toast.
-  const openTerminal = viewer
-    ? () =>
-        create.mutateAsync(viewer).then(
-          () => true,
-          () => false
-        )
-    : undefined;
+  const openTerminal = viewer ? () => create.mutate(viewer) : undefined;
   const retargetTerminal = (terminalId: string) => {
     void coordinator.userRetarget(windowId, {
       app: "terminal",
@@ -160,6 +153,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     },
     hasActiveSession: activeSessionWindowId !== null && activeSessionId !== null,
     openTerminal,
+    openTerminalRefused: create.isError,
     retargetTerminal,
     // Another terminal beside this one: a fresh window opens as the tab right
     // after this one. `new` marks deliberate creation, so the resolver there opens a

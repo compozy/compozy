@@ -112,5 +112,7 @@ export function useTerminalWindowCreation(scope: TerminalWindowCreationScope) {
     mutate: (identity: TerminalViewerIdentity) => mutation.mutate(capture(identity)),
     mutateAsync: (identity: TerminalViewerIdentity) => mutation.mutateAsync(capture(identity)),
     isPending: mutation.isPending,
+    /** The last create was refused; a later one resets it. */
+    isError: mutation.isError,
   };
 }
