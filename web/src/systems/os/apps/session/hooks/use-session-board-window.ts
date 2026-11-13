@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
 import {
@@ -74,7 +75,10 @@ export function useSessionBoardWindow(
   const actions = drawer.withLanding(lifecycle.actions);
 
   const queryClient = useQueryClient();
+  // The latest open wins: a slower child lookup never replaces a later choice.
+  const openRequest = useRef(0);
   const onOpen = (session: SessionBoardPayload) => {
+    const request = ++openRequest.current;
     const workspaceId = session.workspace_id ?? "";
     const open = (agentName: string) =>
       openInDrawer({ sessionId: session.id, agentName, workspaceId });
@@ -87,10 +91,13 @@ export function useSessionBoardWindow(
     const selector = workspaceSelectorForScope(ownerDataScope(workspaceId));
     void queryClient
       .ensureQueryData(sessionDetailOptions(selector, session.id))
-      .then(child => open(child.agent_name))
-      .catch(() =>
-        notifyUser({ message: "Couldn't open this session. Try again.", tone: "error" })
-      );
+      .then(child => {
+        if (request === openRequest.current) open(child.agent_name);
+      })
+      .catch(() => {
+        if (request !== openRequest.current) return;
+        notifyUser({ message: "Couldn't open this session. Try again.", tone: "error" });
+      });
   };
   /** List shows the drawer's session full size: leaving the board takes the drawer with it. */
   const setView = (next: SessionWindowViewMode) => {
