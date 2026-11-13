@@ -8,6 +8,16 @@ export const WINDOW_MANAGER_DIAGNOSTIC_TTL_MS = 5_000;
 /** How long a window-manager command may wait, queued or in flight, before it is dropped. */
 export const WINDOW_MANAGER_COMMAND_DEADLINE_MS = 8_000;
 
+/**
+ * What is left of a command's deadline at `now`: counted from the input that authored it when the
+ * command carries that time, from now otherwise. Zero or less means it has expired.
+ */
+export function commandTimeLeft(inputAt: number | undefined, now: number): number {
+  return inputAt === undefined
+    ? WINDOW_MANAGER_COMMAND_DEADLINE_MS
+    : WINDOW_MANAGER_COMMAND_DEADLINE_MS - (now - inputAt);
+}
+
 /** Whether a queued command still targets the workspace, profile and client it was issued for. */
 export function sameRuntimeBinding(
   current: WindowManagerRuntimeBinding,

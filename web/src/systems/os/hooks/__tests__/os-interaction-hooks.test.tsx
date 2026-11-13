@@ -1936,13 +1936,23 @@ const EXACT_SEAM: ProjectedSeam = {
 // Invariant: a seam drag commits one `layout.resize` fenced to the revision and split it is based
 // on; Escape, a cancelled or lost pointer, unmounting and a change of the context it was drawn in
 // — including the seam's layout (own, ancestor or minimums) changed by someone else — (US-009.EC-2) cancel it, restore the
-// shares and send nothing. While this client has a command in flight on the split, the drag is
-// re-based on the latest layout instead and its release waits for that command, so what it sends
-// always equals what its preview showed, clamp included (US-009.EC-1). Keyboard and pair-balance
-// resizes carry the same fence.
+// shares and send nothing. While this client has a seam command in flight on any split, the drag
+// is re-based on the latest layout instead and its release waits for that command, so what it
+// sends always equals what its preview showed, clamp included (US-009.EC-1). Keyboard and
+// pair-balance resizes carry the same fence; every seam command carries its input time, from
+// which the runtime counts its deadline.
 // Owning layer: the seam gesture hook over the shared seam drag store (hooks/seam-drag-store).
 describe("useOsSplitSeam gesture lifecycle", () => {
   let frames: FrameRequestCallback[] = [];
+
+  /** A seam command's fence: its revision and seam, and the time of the input that made it. */
+  const seamFence = (
+    splitId: string,
+    boundaryIndex: number,
+    expectedRevision: number,
+    inputAt: unknown = expect.any(Number)
+  ) => ({ expectedRevision, rebase: { splitId, boundaryIndex }, inputAt });
+  const fenceAt = (expectedRevision: number) => seamFence("split:main", 0, expectedRevision);
 
   function flushFrames() {
     const pending = frames;
@@ -2018,7 +2028,7 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       "split:main",
       0,
       expect.closeTo(0.06),
-      { expectedRevision: SNAPSHOT.revision, rebase: { splitId: "split:main", boundaryIndex: 0 } }
+      fenceAt(SNAPSHOT.revision)
     );
     await waitFor(() => expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull());
   });
@@ -2061,10 +2071,7 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     const wide: ProjectedSeam = { ...EXACT_SEAM, leadingWeight: 0.3, trailingWeight: 0.5 };
     render(<SeamHarness seam={wide} />, { wrapper: shell.wrapper });
     const seam = screen.getByTestId("seam");
-    const fence = {
-      expectedRevision: SNAPSHOT.revision,
-      rebase: { splitId: "split:main", boundaryIndex: 0 },
-    };
+    const fence = fenceAt(SNAPSHOT.revision);
 
     fireEvent.keyDown(seam, { key: "ArrowRight" });
     // The balance waits behind a resize in flight on the split; let the arrow's settle first.
@@ -2129,11 +2136,6 @@ describe("useOsSplitSeam gesture lifecycle", () => {
   function previewDelta() {
     return windowManagerStore.getSnapshot().context.seamPreview?.deltaPx;
   }
-
-  const fenceAt = (expectedRevision: number) => ({
-    expectedRevision,
-    rebase: { splitId: "split:main", boundaryIndex: 0 },
-  });
 
   it("Should keep a drag re-based when this seam's own earlier resize lands, and cancel on someone else's", async () => {
     const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
@@ -2292,10 +2294,8 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       }, start);
   }
 
-  const fenceOn = (boundaryIndex: number, expectedRevision: number) => ({
-    expectedRevision,
-    rebase: { splitId: "split:main", boundaryIndex },
-  });
+  const fenceOn = (boundaryIndex: number, expectedRevision: number) =>
+    seamFence("split:main", boundaryIndex, expectedRevision);
 
   it("Should keep a drag through a sibling seam's own resize and send it against the moved bounds", async () => {
     const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
@@ -2501,6 +2501,116 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
   });
 
+  /** [a | [b | c]] on one axis over 1000px: the inner seam's place and bounds follow the outer. */
+  function renderNested(outer: number[]) {
+    const nestedAt = (weights: number[], revision: number) =>
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "horizontal",
+          weights,
+          children: [
+            leafNode("window:a"),
+            {
+              id: "split:inner",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:b"), leafNode("window:c")],
+            },
+          ],
+        },
+        ["window:a", "window:b", "window:c"],
+        revision
+      );
+    const shell = exactShell(nestedAt(outer, SNAPSHOT.revision));
+    const outerSeam: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:outer:0",
+      splitId: "split:outer",
+      rect: { x: 400, y: 0, w: 0, h: 700 },
+      value: 400,
+      maxValue: 560,
+      leadingWeight: 0.4,
+      trailingWeight: 0.6,
+      leadingWindowIds: ["window:a"],
+      trailingWindowIds: ["window:b", "window:c"],
+    };
+    const innerSeam: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:inner:0",
+      splitId: "split:inner",
+      rect: { x: 700, y: 0, w: 0, h: 700 },
+      value: 700,
+      minValue: 620,
+      maxValue: 780,
+      axisSpan: 600,
+      leadingWindowIds: ["window:b"],
+      trailingWindowIds: ["window:c"],
+    };
+    render(
+      <>
+        <SeamHarness seam={outerSeam} testId="outer" />
+        <SeamHarness seam={innerSeam} />
+      </>,
+      { wrapper: shell.wrapper }
+    );
+    return { shell, nestedAt };
+  }
+
+  it("Should author a nested seam's keystroke after an ancestor resize in flight lands (R7-01)", async () => {
+    const { shell, nestedAt } = renderNested([0.4, 0.6]);
+    const settle = deferResize(shell);
+    fireEvent.keyDown(screen.getByTestId("outer"), { key: "ArrowRight", shiftKey: true });
+    // Authored now, on the inner seam's 600px, this would be -0.1 and leave c at 200px on 500px.
+    fireEvent.keyDown(screen.getByTestId("seam"), { key: "ArrowLeft", shiftKey: true });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo(0.1),
+      seamFence("split:outer", 0, 7)
+    );
+
+    // The outer resize lands (50/50): the inner seam sits at 750 on 500px, its floor at 720.
+    act(() => shell.setRuntimeState({ snapshot: nestedAt([0.5, 0.5], 8) }));
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:inner",
+      0,
+      expect.closeTo(-0.06),
+      seamFence("split:inner", 0, 8)
+    );
+  });
+
+  it("Should re-base a nested drag when this client's ancestor resize lands, and hold its release behind it (R7-01)", async () => {
+    const { shell, nestedAt } = renderNested([0.4, 0.6]);
+    const settle = deferResize(shell);
+    fireEvent.keyDown(screen.getByTestId("outer"), { key: "ArrowRight", shiftKey: true });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    dragSeam(seam, 4, 700, 760);
+    flushFrames();
+
+    // The outer 50/50 lands while it is in flight: the inner seam moves to 750 and the drag is
+    // re-based on it, the seam kept under the pointer at 760.
+    act(() => shell.setRuntimeState({ snapshot: nestedAt([0.5, 0.5], 8) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+    expect(previewDelta()).toBeCloseTo(10);
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 760, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+    await settle();
+
+    // 10px of the inner 500px.
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:inner",
+      0,
+      expect.closeTo(0.02),
+      seamFence("split:inner", 0, 8)
+    );
+  });
+
   const BINDING_A = {
     workspaceId: "workspace:a",
     profileId: "profile:test",
@@ -2556,6 +2666,30 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     await settle();
 
     expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should send a keystroke resumed near its deadline with the time of the key press (AS-F-13)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    const pressedAt = Date.now();
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+
+    // Resumed 7.5s after the press: it goes out still carrying the press time, so the runtime
+    // gives it what is left of the same 8s, not a new deadline behind other commands.
+    vi.setSystemTime(pressedAt + 7_500);
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(0.02),
+      seamFence("split:main", 0, SNAPSHOT.revision, pressedAt)
+    );
   });
 
   it("Should cancel a held release older than the command deadline and restore the shares", async () => {
@@ -2679,7 +2813,7 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     );
   });
 
-  it("Should keep resuming queued commands behind one that throws, and free the split after", async () => {
+  it("Should keep resuming queued commands behind one that throws, and free the queue after", async () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
     render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
@@ -2697,10 +2831,60 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3);
     expect(errors).toHaveBeenCalledOnce();
 
-    // Nothing is left holding the split: the next press goes out at once.
+    // Nothing is left holding the queue: the next press goes out at once.
     await act(async () => {});
     fireEvent.keyDown(seam, { key: "ArrowRight" });
     expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(4);
+  });
+
+  it("Should cancel a drag whose seam turns to the other axis while this client's resize is in flight (R7-02)", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    dragSeam(seam, 4, 500, 560);
+    flushFrames();
+
+    // The same pair, now stacked: a re-base cannot carry a horizontal delta onto it.
+    act(() =>
+      shell.setRuntimeState({
+        snapshot: snapshotWithRoot(
+          {
+            id: "split:main",
+            kind: "split",
+            axis: "vertical",
+            weights: [0.5, 0.5],
+            children: [leafNode("window:primary"), leafNode("window:peer")],
+          },
+          ["window:primary", "window:peer"],
+          8
+        ),
+      })
+    );
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should not arm a press on a seam the stored layout does not have (R7-02)", () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={{ ...EXACT_SEAM, id: "split:gone:0", splitId: "split:gone" }} />, {
+      wrapper: shell.wrapper,
+    });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+
+    dragSeam(seam, 4, 500, 560);
+    flushFrames();
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(seam.setPointerCapture).not.toHaveBeenCalled();
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
   });
 
   it("Should fence a two-member balance like a drag", () => {
@@ -2711,7 +2895,7 @@ describe("useOsSplitSeam gesture lifecycle", () => {
 
     expect(shell.controller.balanceLayout).toHaveBeenCalledExactlyOnceWith(
       { splitId: "split:main" },
-      { expectedRevision: SNAPSHOT.revision, rebase: { splitId: "split:main", boundaryIndex: 0 } }
+      fenceAt(SNAPSHOT.revision)
     );
   });
 });

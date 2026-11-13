@@ -141,6 +141,8 @@ export interface MoveWindowInput {
 export interface WindowManagerCommandFence {
   expectedRevision: LayoutRevision;
   rebase: WindowManagerRebaseGuard;
+  /** When the gesture's input was made, so its deadline counts from there; never sent. */
+  inputAt?: number;
 }
 
 export interface WindowManagerCommandOutcome {

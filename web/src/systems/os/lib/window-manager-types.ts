@@ -311,6 +311,11 @@ export interface WindowManagerCommandInput {
   rebase?: WindowManagerRebaseGuard;
   /** Revision the command was authored against; the cached revision is used when absent. */
   expectedRevision?: LayoutRevision;
+  /**
+   * When the input that authored the command was made (`Date.now()`); its deadline counts from
+   * here instead of from dispatch. Local to this client: never part of the command on the wire.
+   */
+  inputAt?: number;
 }
 
 export interface WindowManagerCommandResult {

@@ -30,10 +30,10 @@ import {
   reportCommandRefused,
 } from "./window-manager-command-outcome";
 import {
+  commandTimeLeft,
   queryCacheEventChangesData,
   randomWindowManagerId,
   sameRuntimeBinding,
-  WINDOW_MANAGER_COMMAND_DEADLINE_MS,
   WINDOW_MANAGER_DIAGNOSTIC_TTL_MS,
 } from "./window-manager-runtime-helpers";
 import { WindowManagerSnapshotRefresher } from "./window-manager-snapshot-refresher";
@@ -405,14 +405,12 @@ export abstract class WindowManagerRuntimeCore {
     }
     // Refused commands must not publish optimistic routes while recovery is pending.
     if (windowManagerStore.getSnapshot().context.commandState.status === "conflict") return null;
-    // Rapid interactions (tab clicks, dock activations) queue behind the
-    // in-flight command instead of being silently dropped; each queued command
-    // reads a fresh snapshot revision when it runs. The deadline starts here, at
-    // dispatch, so a backlog stalled behind a busy connection pool expires
-    // instead of replaying every stale click at once. Seam input that waits in
-    // the seam hook's own queue (hooks/seam-command-queue) before it is
-    // dispatched is held to the same deadline there, counted from the input.
-    const deadline = AbortSignal.timeout(WINDOW_MANAGER_COMMAND_DEADLINE_MS);
+    // Rapid input queues behind the in-flight command and reads a fresh revision when it runs.
+    // One deadline spans every queue a command waits in: from its input (`inputAt`) when it has
+    // one, else from dispatch. Expired input is refused unqueued; a stalled backlog expires.
+    const timeLeft = commandTimeLeft(command.inputAt, Date.now());
+    if (timeLeft <= 0) return null;
+    const deadline = AbortSignal.timeout(timeLeft);
     const run = () => this.runCommand(command, { ...binding }, deadline);
     const chained = this.commandChain.then(run, run);
     this.commandChain = chained;

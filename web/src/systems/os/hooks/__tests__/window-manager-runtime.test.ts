@@ -9,7 +9,7 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { useAtom } from "@xstate/store-react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   executeWindowManagerCommand,
@@ -472,6 +472,89 @@ describe("WindowManagerRuntime", () => {
     expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
     expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[5]).toBe(deadlines[0]?.signal);
     timeout.mockRestore();
+    runtime.stop();
+  });
+
+  it("Should hold a command that carries its input time to the deadline counted from that input", async () => {
+    // Fake clock for both halves of the deadline: `Date.now()` and the timer that aborts it.
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(ms => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), ms);
+      return controller.signal;
+    });
+    onTestFinished(() => {
+      timeout.mockRestore();
+      vi.useRealTimers();
+    });
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    let settleOther!: () => void;
+    vi.mocked(executeWindowManagerCommand).mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          settleOther = () =>
+            resolve({
+              snapshot: SNAPSHOT,
+              applied: true,
+              changes: EMPTY_CHANGES,
+              diagnostics: [],
+              client: null,
+              deprecations: [],
+              rebasedFrom: null,
+            });
+        })
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    const fence = (splitId: string, inputAt: number) => ({
+      expectedRevision: SNAPSHOT.revision,
+      rebase: { splitId, boundaryIndex: 0 },
+      inputAt,
+    });
+    const pressedAt = Date.now();
+
+    // 7s later a resize on another split enters the queue and stays in flight; it has no input
+    // time, so its deadline counts from now as before.
+    vi.advanceTimersByTime(7_000);
+    const other = runtime.resizeLayout("split:other", 0, 0.1);
+    await flushCommandQueue();
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    // At 7.5s the key press waits behind it with what is left of its 8s: 0.5s, not a new 8s.
+    vi.advanceTimersByTime(500);
+    const pressed = runtime.resizeLayout(
+      "split:pressed",
+      0,
+      0.02,
+      fence("split:pressed", pressedAt)
+    );
+    expect(pressed.accepted).toBe(true);
+    expect(timeout.mock.calls).toEqual([[WINDOW_MANAGER_COMMAND_DEADLINE_MS], [500]]);
+
+    // The other resize settles at 14s, 6s after the press's deadline: the press is not sent.
+    vi.advanceTimersByTime(6_500);
+    settleOther();
+    await expect(other.completion).resolves.toBe(true);
+    await expect(pressed.completion).resolves.toBe(false);
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+
+    // Input already past its deadline is refused at dispatch, never queued.
+    const late = runtime.resizeLayout("split:pressed", 0, 0.02, fence("split:pressed", pressedAt));
+    expect(late.accepted).toBe(false);
+    await expect(late.completion).resolves.toBe(false);
+    expect(timeout).toHaveBeenCalledTimes(2);
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
     runtime.stop();
   });
 

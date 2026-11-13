@@ -1,6 +1,6 @@
 import type { OsDesktopRuntime } from "../lib/os-types";
 import type { PixelRect } from "../lib/window-manager-types";
-import { WINDOW_MANAGER_COMMAND_DEADLINE_MS } from "../runtime/window-manager-runtime-helpers";
+import { commandTimeLeft } from "../runtime/window-manager-runtime-helpers";
 import type { WindowManagerBinding } from "../stores/window-manager-store-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 
@@ -37,7 +37,7 @@ export interface SeamInputScope {
   readonly mounted: () => boolean;
 }
 
-/** A seam command waiting behind this client's commands in flight on its split. */
+/** A seam command waiting behind this client's seam commands in flight. */
 export interface QueuedSeamCommand {
   readonly scope: SeamInputScope;
   /** Authors and sends the command against the layout as it is now. */
@@ -47,37 +47,45 @@ export interface QueuedSeamCommand {
 }
 
 /**
- * This client's own resizes and balances in flight on one split, and the seam commands queued
- * behind them. Kept per manager (one per client) and split, so a sibling seam's command counts
- * too, and only while something is in flight or queued: the map never outgrows the splits this
- * client is resizing right now. The runtime publishes a command's snapshot before its completion
- * settles, so its result always lands while it is still counted.
+ * This client's own seam resizes and balances in flight, and the seam commands queued behind
+ * them. Kept per manager (one per client), not per split: a seam's geometry also depends on every
+ * split around it, so a command on an ancestor, a descendant or a sibling moves the layout the
+ * next one is authored against. Only the shown tab's seams take input, and a frame change drops
+ * what waits. The runtime publishes a command's snapshot before its completion settles, so its
+ * result always lands while it is still counted.
  */
-interface OwnSplitCommands {
+interface OwnCommands {
   pending: number;
   queued: QueuedSeamCommand[];
 }
 
-const ownCommands = new WeakMap<object, Map<string, OwnSplitCommands>>();
+const ownCommands = new WeakMap<object, OwnCommands>();
 
-export function ownPending(manager: object, splitId: string): number {
-  return ownCommands.get(manager)?.get(splitId)?.pending ?? 0;
+function ownCommandsOf(manager: object): OwnCommands {
+  let own = ownCommands.get(manager);
+  if (own === undefined) {
+    own = { pending: 0, queued: [] };
+    ownCommands.set(manager, own);
+  }
+  return own;
 }
 
-/** Whether a command of this client is in flight on the split, or queued behind one. */
-export function ownBusy(manager: object, splitId: string): boolean {
-  const own = ownCommands.get(manager)?.get(splitId);
+export function ownPending(manager: object): number {
+  return ownCommands.get(manager)?.pending ?? 0;
+}
+
+/** Whether a seam command of this client is in flight, or queued behind one. */
+export function ownBusy(manager: object): boolean {
+  const own = ownCommands.get(manager);
   return own !== undefined && (own.pending > 0 || own.queued.length > 0);
 }
 
 /**
  * Whether an input made in `scope` may still be sent from `frame`: same binding and shown frame,
- * its seam still mounted, and younger than the runtime's command deadline, counted from the input.
+ * its seam still mounted, and time left of the runtime's command deadline, counted from the input.
  */
 export function seamInputHolds(scope: SeamInputScope, frame: string, now: number): boolean {
-  return (
-    scope.frame === frame && scope.mounted() && now - scope.at <= WINDOW_MANAGER_COMMAND_DEADLINE_MS
-  );
+  return scope.frame === frame && scope.mounted() && commandTimeLeft(scope.at, now) > 0;
 }
 
 /** Runs one queued command, or drops it when its input no longer holds; never throws. */
@@ -86,52 +94,34 @@ function resume(manager: OsDesktopRuntime, command: QueuedSeamCommand): void {
     if (seamInputHolds(command.scope, currentSeamFrame(manager), Date.now())) command.run();
     else command.drop?.();
   } catch (error) {
-    // One failing command must not leave the split busy behind it forever.
+    // One failing command must not leave the client's seams busy behind it forever.
     console.error("A queued seam command failed.", error);
   }
 }
 
 /**
- * Counts one of this client's commands on a split until it settles, then resumes what is queued
- * behind it strictly one at a time: a resumed command that sends puts the rest behind its own
- * result, so each one is authored against the layout the one before it leaves.
+ * Counts one of this client's seam commands until it settles, then resumes what is queued behind
+ * it strictly one at a time: a resumed command that sends puts the rest behind its own result, so
+ * each one is authored against the layout the one before it leaves.
  */
 export function trackOwnCommand(
   manager: OsDesktopRuntime,
-  splitId: string,
   completion: Promise<boolean>
 ): Promise<boolean> {
-  let splits = ownCommands.get(manager);
-  if (splits === undefined) {
-    splits = new Map();
-    ownCommands.set(manager, splits);
-  }
-  let own = splits.get(splitId);
-  if (own === undefined) {
-    own = { pending: 0, queued: [] };
-    splits.set(splitId, own);
-  }
-  const tracked = own;
-  const owner = splits;
-  tracked.pending += 1;
+  const own = ownCommandsOf(manager);
+  own.pending += 1;
   return completion.finally(() => {
-    tracked.pending -= 1;
-    while (tracked.pending === 0) {
-      const next = tracked.queued.shift();
+    own.pending -= 1;
+    while (own.pending === 0) {
+      const next = own.queued.shift();
       if (next === undefined) break;
       resume(manager, next);
     }
-    if (tracked.pending === 0 && owner.get(splitId) === tracked) owner.delete(splitId);
   });
 }
 
-/** Runs `command` now when nothing of this client is in flight or queued on the split, else queues it. */
-export function afterOwnCommands(
-  manager: OsDesktopRuntime,
-  splitId: string,
-  command: QueuedSeamCommand
-): void {
-  const own = ownCommands.get(manager)?.get(splitId);
-  if (own === undefined || (own.pending === 0 && own.queued.length === 0)) resume(manager, command);
-  else own.queued.push(command);
+/** Runs `command` now when no seam command of this client is in flight or queued, else queues it. */
+export function afterOwnCommands(manager: OsDesktopRuntime, command: QueuedSeamCommand): void {
+  if (ownBusy(manager)) ownCommandsOf(manager).queued.push(command);
+  else resume(manager, command);
 }

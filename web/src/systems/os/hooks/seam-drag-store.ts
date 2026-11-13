@@ -9,11 +9,12 @@ import type { LayoutRevision, ProjectedSeam } from "../lib/window-manager-types"
 export const SEAM_WEIGHT_EPSILON = 0.000001;
 
 /**
- * One seam drag. Everything the commit needs is captured at press: the seam's geometry, the
- * layout revision the drag was authored against, and the context it was drawn in (binding,
- * shown desktop and tab, work area). A drag whose context changes is cancelled, never committed.
- * When the seam's layout changes under a drag that continues, the whole gesture is re-based on
- * the latest layout, so preview, limit and commit always share one seam.
+ * One seam drag: the seam's geometry and layout revision it is currently based on, and the
+ * context it was drawn in (binding, shown desktop and tab, work area). The press bases it on the
+ * authoritative seam; every change of that seam's layout under the drag either re-bases the whole
+ * gesture (`rebased`, so preview, limit and commit always share one seam) or cancels it, and the
+ * release re-checks the latest layout once more before it commits. A drag whose context changes
+ * is cancelled, never committed.
  */
 export interface SeamDragState {
   phase: "idle" | "dragging";
@@ -113,7 +114,7 @@ export interface SeamDragCommit {
   splitId: string;
   boundaryIndex: number;
   delta: number;
-  /** The revision captured at press, guarded by the seam's own split and boundary. */
+  /** The revision the drag is based on when it commits, guarded by the seam's split and boundary. */
   fence: WindowManagerCommandFence;
 }
 
