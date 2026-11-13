@@ -6,8 +6,6 @@
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
-import type { MenuTreeNode } from "@compozy/ui";
-
 import {
   buildAddressReviewPrompt,
   buildFixChecksPrompt,
