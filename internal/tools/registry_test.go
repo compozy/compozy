@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 )
 
 type registryTestProvider struct {
@@ -64,8 +65,9 @@ func (p registryTestProvider) Resolve(_ context.Context, _ Scope, id ToolID) (Ha
 
 type scopedListingTestProvider struct {
 	registryTestProvider
-	calls atomic.Int64
-	fail  atomic.Bool
+	calls      atomic.Int64
+	fail       atomic.Bool
+	beforeList func(context.Context) error
 }
 
 var _ ProjectionScopeProvider = (*scopedListingTestProvider)(nil)
@@ -74,6 +76,11 @@ func (p *scopedListingTestProvider) List(ctx context.Context, scope Scope) ([]De
 	p.calls.Add(1)
 	if p.fail.Load() {
 		return nil, errors.New("listing failed")
+	}
+	if p.beforeList != nil {
+		if err := p.beforeList(ctx); err != nil {
+			return nil, err
+		}
 	}
 	return p.registryTestProvider.List(ctx, scope)
 }
@@ -564,6 +571,136 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		if calls := provider.calls.Load(); calls != 5 {
 			t.Fatalf("listing after a failure ran %d times in total, want 5", calls)
 		}
+	})
+
+	t.Run("Should coordinate passes waiting on an in-flight shared listing", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: a waiter joins the leader's in-flight listing, stops on its own cancellation
+		// without disturbing the leader, and lists on its own when the leader fails.
+		alpha := descriptorWithID(ToolIDTaskRead, "Read task")
+		inputs := DefaultPolicyInputs()
+		inputs.Session = SessionToolPolicy{Enforced: true, Tools: []ToolID{alpha.ID}}
+		type outcome struct {
+			views []ToolView
+			err   error
+		}
+		// gated makes the first listing park until release closes, then fail when failLeader is set.
+		gated := func(t *testing.T, failLeader bool) (*RuntimeRegistry, *scopedListingTestProvider, chan struct{}) {
+			t.Helper()
+			release := make(chan struct{})
+			provider := &scopedListingTestProvider{registryTestProvider: providerWithDescriptors(alpha.Source, alpha)}
+			provider.beforeList = func(ctx context.Context) error {
+				if provider.calls.Load() != 1 {
+					return nil
+				}
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+				if failLeader {
+					return errors.New("leader listing failed")
+				}
+				return nil
+			}
+			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return registry, provider, release
+		}
+		project := func(ctx context.Context, registry *RuntimeRegistry, sessionID string) <-chan outcome {
+			done := make(chan outcome, 1)
+			go func() {
+				views, err := registry.SessionProjection(ctx, Scope{SessionID: sessionID, WorkspaceID: "ws-1"})
+				done <- outcome{views, err}
+			}()
+			return done
+		}
+
+		t.Run("Should share one in-flight listing between concurrent passes", func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				registry, provider, release := gated(t, false)
+				shared := WithProjectionListings(t.Context(), NewProjectionListings())
+				leader := project(shared, registry, "sess-leader")
+				synctest.Wait()
+				waiter := project(shared, registry, "sess-waiter")
+				synctest.Wait()
+				if calls := provider.calls.Load(); calls != 1 {
+					t.Fatalf("parked waiter listed on its own: %d listings", calls)
+				}
+				close(release)
+				for _, done := range []<-chan outcome{leader, waiter} {
+					result := <-done
+					if result.err != nil {
+						t.Fatal(result.err)
+					}
+					requireToolIDs(t, result.views, alpha.ID)
+				}
+				if calls := provider.calls.Load(); calls != 1 {
+					t.Fatalf("concurrent passes listed %d times, want 1", calls)
+				}
+			})
+		})
+
+		t.Run("Should return a canceled waiter's context error while the leader lists", func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				registry, provider, release := gated(t, false)
+				shared := WithProjectionListings(t.Context(), NewProjectionListings())
+				leader := project(shared, registry, "sess-leader")
+				synctest.Wait()
+				waiterCtx, cancel := context.WithCancel(shared)
+				waiter := project(waiterCtx, registry, "sess-waiter")
+				synctest.Wait()
+				cancel()
+				if result := <-waiter; !errors.Is(result.err, ErrToolCanceled) {
+					t.Fatalf("canceled waiter error = %v, want ErrToolCanceled", result.err)
+				}
+				close(release)
+				result := <-leader
+				if result.err != nil {
+					t.Fatalf("leader error = %v", result.err)
+				}
+				requireToolIDs(t, result.views, alpha.ID)
+				if calls := provider.calls.Load(); calls != 1 {
+					t.Fatalf("waiter cancellation caused %d listings, want 1", calls)
+				}
+			})
+		})
+
+		t.Run("Should let a parked waiter list on its own after the leader fails", func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				registry, provider, release := gated(t, true)
+				shared := WithProjectionListings(t.Context(), NewProjectionListings())
+				leader := project(shared, registry, "sess-leader")
+				synctest.Wait()
+				waiter := project(shared, registry, "sess-waiter")
+				synctest.Wait()
+				close(release)
+				if result := <-leader; result.err == nil {
+					t.Fatal("failed leader returned no error")
+				}
+				result := <-waiter
+				if result.err != nil {
+					t.Fatalf("waiter error = %v", result.err)
+				}
+				requireToolIDs(t, result.views, alpha.ID)
+				if calls := provider.calls.Load(); calls != 2 {
+					t.Fatalf("waiter after a failed leader listed %d times in total, want 2", calls)
+				}
+				result = <-project(shared, registry, "sess-later")
+				if result.err != nil {
+					t.Fatalf("pass after a failed leader error = %v", result.err)
+				}
+				if calls := provider.calls.Load(); calls != 3 {
+					t.Fatalf("failed listing was cached: %d listings in total, want 3", calls)
+				}
+			})
+		})
 	})
 
 	t.Run("Should avoid probing denied backends while retaining operator diagnostics", func(t *testing.T) {

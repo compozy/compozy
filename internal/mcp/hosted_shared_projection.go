@@ -60,7 +60,8 @@ func (s *HostedService) sharedStreamProjection(
 			}
 			return s.checkedSharedProjection(ctx, record, response)
 		}
-		response, err := buildHostedProjection(s.withProjectionListings(ctx, key.epoch), registry, record)
+		listingCtx, builtAt := s.withProjectionListings(ctx, key.epoch)
+		response, err := buildHostedProjection(listingCtx, registry, record)
 		if err == nil {
 			err = ctx.Err()
 		}
@@ -70,7 +71,7 @@ func (s *HostedService) sharedStreamProjection(
 		}
 		s.mu.Lock()
 		owned := s.ownsBindRecord(record)
-		s.sharedProjections.finish(key, response, err, stable, owned, s.now())
+		s.sharedProjections.finish(key, response, err, stable, owned, builtAt)
 		s.mu.Unlock()
 		if err != nil {
 			return HostedProjectionResponse{}, true, err
@@ -165,8 +166,7 @@ func (c *hostedSharedProjectionCache) clear() {
 	c.mu.Unlock()
 }
 
-// hostedProjectionListings rotates the provider listing share per epoch and refresh window, so a
-// reused listing is never older than the window the unversioned projection caches already accept.
+// hostedProjectionListings rotates the provider listing share per epoch and refresh window.
 type hostedProjectionListings struct {
 	mu        sync.Mutex
 	epoch     uint64
@@ -174,28 +174,29 @@ type hostedProjectionListings struct {
 	listings  *tools.ProjectionListings
 }
 
-// withProjectionListings shares provider listings among unversioned builds of the same epoch.
-func (s *HostedService) withProjectionListings(ctx context.Context, epoch uint64) context.Context {
-	return tools.WithProjectionListings(
-		ctx, s.projectionListings.current(epoch, s.now(), s.StreamRefreshInterval()),
-	)
+// withProjectionListings shares provider listings among unversioned builds of the same epoch. It
+// returns the share's start as the build's freshness origin: a projection cached from a shared
+// listing expires with that listing's window, so staleness stays within one refresh window.
+func (s *HostedService) withProjectionListings(ctx context.Context, epoch uint64) (context.Context, time.Time) {
+	listings, startedAt := s.projectionListings.current(epoch, s.now(), s.StreamRefreshInterval())
+	return tools.WithProjectionListings(ctx, listings), startedAt
 }
 
 func (l *hostedProjectionListings) current(
 	epoch uint64,
 	now time.Time,
 	refresh time.Duration,
-) *tools.ProjectionListings {
+) (*tools.ProjectionListings, time.Time) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.listings != nil && epoch < l.epoch {
 		// A build that read an older epoch is discarded by its own epoch check; keep it private.
-		return tools.NewProjectionListings()
+		return tools.NewProjectionListings(), now
 	}
 	if l.listings == nil || epoch != l.epoch || now.Before(l.startedAt) || now.Sub(l.startedAt) >= refresh {
 		l.listings, l.epoch, l.startedAt = tools.NewProjectionListings(), epoch, now
 	}
-	return l.listings
+	return l.listings, l.startedAt
 }
 
 func (l *hostedProjectionListings) clear() {
