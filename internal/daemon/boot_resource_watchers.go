@@ -12,7 +12,7 @@ func (d *Daemon) bootResourceWatchers(ctx context.Context, state *bootState, cle
 		if hookBindings == nil {
 			return errors.New("daemon: hook bindings are required before starting the skills watcher")
 		}
-		if state.workspaceResolver == nil {
+		if state.registry != nil && state.workspaceResolver == nil {
 			return errors.New("daemon: workspace resolver is required before starting the skills watcher")
 		}
 		state.skillsCancel, state.skillsDone = startSkillsWatcher(

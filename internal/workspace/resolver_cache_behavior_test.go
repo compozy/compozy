@@ -81,7 +81,10 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 
 	t.Run("Should reload skills config only after a file the loader reads changes", func(t *testing.T) {
 		t.Parallel()
-		for _, layer := range []string{"user", "workspace", "profile", "workspace-profile", "dotenv"} {
+		for _, layer := range []string{
+			"user", "workspace", "profile", "workspace-profile", "dotenv",
+			"user-mcp", "workspace-mcp", "profile-mcp", "workspace-profile-mcp",
+		} {
 			t.Run("Should reload after a "+layer+" edit", func(t *testing.T) {
 				t.Parallel()
 				home := newTestHomePaths(t)
@@ -94,7 +97,13 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 					"workspace-profile": filepath.Join(
 						workspaceDir, compozyconfig.ProfilesDirName, "design", compozyconfig.ConfigName,
 					),
-					"dotenv": compozyconfig.WorkspaceDotEnvFile(ws.RootDir),
+					"dotenv":        compozyconfig.WorkspaceDotEnvFile(ws.RootDir),
+					"user-mcp":      filepath.Join(home.HomeDir, compozyconfig.MCPJSONName),
+					"workspace-mcp": filepath.Join(workspaceDir, compozyconfig.MCPJSONName),
+					"profile-mcp":   filepath.Join(home.ProfilesDir, "design", compozyconfig.MCPJSONName),
+					"workspace-profile-mcp": filepath.Join(
+						workspaceDir, compozyconfig.ProfilesDirName, "design", compozyconfig.MCPJSONName,
+					),
 				}
 				var loads atomic.Int32
 				r := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(home),
@@ -125,6 +134,8 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 				content, want := "[skills]\ncustom_sources = [\"/opt/team-skills\"]\n", []string{"/opt/team-skills"}
 				if layer == "dotenv" {
 					content, want = "COMPOZY_SKILLS_WATCHER_TEST=1\n", nil
+				} else if strings.HasSuffix(layer, "-mcp") {
+					content, want = "{\"mcpServers\":{}}\n", nil
 				}
 				writeFile(t, paths[layer], content)
 				got := customSources()
@@ -139,9 +150,27 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 				}
 				assertLoads(2)
 
-				r.InvalidateAll()
+				writeFile(t, paths[layer], content+"\n")
+				customSources()
 				customSources()
 				assertLoads(3)
+
+				if err := os.Remove(paths[layer]); err != nil {
+					t.Fatal(err)
+				}
+				if got := customSources(); len(got) != 0 {
+					t.Fatalf("custom sources after deletion = %v, want none", got)
+				}
+				customSources()
+				assertLoads(4)
+
+				r.Invalidate(ws.ID)
+				customSources()
+				assertLoads(5)
+
+				r.InvalidateAll()
+				customSources()
+				assertLoads(6)
 			})
 		}
 	})
