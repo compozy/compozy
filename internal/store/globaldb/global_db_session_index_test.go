@@ -3790,6 +3790,31 @@ func TestSessionCatalogBoard(t *testing.T) {
 		if !maps.Equal(relations.ContinuedTreeParents, want) {
 			t.Fatalf("continued tree parents = %#v, want %#v", relations.ContinuedTreeParents, want)
 		}
+		// Deleting an intermediate continuation keeps the survivor in the thread: the walk
+		// steps over the deleted row through its durable derivation receipt.
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO session_derivations (workspace_id, idempotency_key, profile_id, request_fingerprint,
+ source_session_id, child_session_id, kind, outcome_json, created_at)
+ VALUES (?, 'continue-worker-2', ?, 'fingerprint', 'worker', 'worker-2', 'continue', '{}', ?)`,
+			workspace, store.DefaultProfileID, store.FormatTimestamp(base),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.DeleteSession(ctx, "worker-2"); err != nil {
+			t.Fatal(err)
+		}
+		relations, err = db.SessionCatalogRelations(ctx, store.SessionCatalogRelationsQuery{
+			ReadScope:          store.ReadScope{ProfileID: store.DefaultProfileID},
+			SessionIDs:         []string{"worker-3"},
+			ContinuedSourceIDs: []string{"worker-2"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := relations.ContinuedTreeParents["worker-2"]; got != "conductor" {
+			t.Fatalf("tree parent after deleting the predecessor = %q, want conductor", got)
+		}
 	})
 
 	t.Run("Should keep forked and continued sessions top-level when hiding children", func(t *testing.T) {

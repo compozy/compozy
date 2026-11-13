@@ -154,7 +154,9 @@ top-level session, so session lists show it as its own row rather than under its
 counted as the source's child (it never keeps the source alive). A continuation keeps its predecessor's
 place in the list, though: continuing a child session (for example, one interrupted by a daemon
 restart) nests the new session under the same parent, and its catalog row carries that parent as
-`tree_parent_session_id`. Its permissions and lifecycle stay those of a top-level session. Spawned, provenance, and recovery
+`tree_parent_session_id`. Deleting an earlier continuation in the chain keeps that place; deleting
+the original child session, whose parent is the only record of the place, shows its continuations as
+top-level rows again. A continuation's permissions and lifecycle stay those of a top-level session. Spawned, provenance, and recovery
 sessions are children of their parent. The `parent=`/`root=` catalog filters match the stored fields
 as-is, so they include continued and forked sessions; read `lineage.kind` to tell them apart.
 A plain create accepts only `provenance` or `recovery`, and only together with a parent:

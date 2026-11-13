@@ -123,17 +123,21 @@ const sessionContinuationChainLimit = 64
 
 // sessionContinuedTreeParentsQuery walks each source back through its continue chain to the
 // first session that is not a continuation, and returns that session's hierarchy parent. A
-// chain that began top-level or at a fork yields no row: forks and top-level sessions name
-// their source as provenance only (store.HierarchyParentSessionID).
+// continuation deleted from the catalog is stepped over through its durable derivation
+// receipt, so removing an intermediate continuation does not split the thread. A chain that
+// began top-level or at a fork yields no row: forks and top-level sessions name their source
+// as provenance only (store.HierarchyParentSessionID).
 var sessionContinuedTreeParentsQuery = fmt.Sprintf(`WITH RECURSIVE continuation_chain(source_id, current_id, hops) AS (
  SELECT value, value, 0 FROM json_each(?)
  UNION ALL
- SELECT chain.source_id, predecessor.parent_session_id, chain.hops + 1
+ SELECT chain.source_id, COALESCE(predecessor.parent_session_id, receipt.source_session_id), chain.hops + 1
  FROM continuation_chain AS chain
- JOIN sessions AS predecessor ON predecessor.id = chain.current_id
- WHERE predecessor.lineage_kind = '%[1]s'
-  AND COALESCE(predecessor.parent_session_id, '') <> ''
-  AND chain.hops < %[3]d
+ LEFT JOIN sessions AS predecessor ON predecessor.id = chain.current_id
+ LEFT JOIN session_derivations AS receipt
+  ON predecessor.id IS NULL AND receipt.child_session_id = chain.current_id AND receipt.kind = '%[1]s'
+ WHERE chain.hops < %[3]d
+  AND ((predecessor.lineage_kind = '%[1]s' AND COALESCE(predecessor.parent_session_id, '') <> '')
+   OR (predecessor.id IS NULL AND COALESCE(receipt.source_session_id, '') <> ''))
 )
 SELECT chain.source_id, origin.parent_session_id
 FROM continuation_chain AS chain
