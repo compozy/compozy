@@ -187,7 +187,7 @@ function DeskLayer({
     drag.contentTabId !== null &&
     tabs.some(tab => tab.id === drag.contentTabId);
   const shownTabId = previewing ? drag.contentTabId : model.activeTabId;
-  const { visited, paneWindowIds, hosts } = useDeskTabPanes(tabs, shownTabId, manager);
+  const { visited, paneWindowIds, hosts } = useDeskTabPanes(tabs, shownTabId, manager, windows);
   const renderWindow = (windowId: string) => (
     <OsWindowSlot key={windowId} hosts={hosts} windowId={windowId} />
   );

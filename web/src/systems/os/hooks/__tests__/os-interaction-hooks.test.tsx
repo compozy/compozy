@@ -1406,6 +1406,25 @@ describe("useVisitedTabs", () => {
     rerender({ tabIds: ["a", "c"], active: "c" });
     expect(result.current).toEqual(["a", "c"]);
   });
+
+  // A shown window moved into a new tab that is not shown keeps its pane mounted (#1654).
+  it("Should keep a tab that received a mounted window, though it was never shown", () => {
+    const { result, rerender } = renderHook(
+      ({ tabIds, adopted }: { tabIds: string[]; adopted: string[] }) =>
+        useVisitedTabs(tabIds, "a", adopted),
+      { initialProps: { tabIds: ["a", "b"], adopted: [] as string[] } }
+    );
+    expect(result.current).toEqual(["a"]);
+
+    rerender({ tabIds: ["a", "b"], adopted: ["b"] });
+    expect(result.current).toEqual(["a", "b"]);
+
+    // Kept once adopted, as a shown tab is; closing it still drops it.
+    rerender({ tabIds: ["a", "b"], adopted: [] });
+    expect(result.current).toEqual(["a", "b"]);
+    rerender({ tabIds: ["a"], adopted: [] });
+    expect(result.current).toEqual(["a"]);
+  });
 });
 
 // Invariant: a pane keeps the scroll offsets of its scroll containers and its focused element
@@ -1848,6 +1867,87 @@ describe("WindowPaneHosts", () => {
     cleanup();
   });
 
+  it("Should keep an offset across a route change its container outlived in view (#1654)", () => {
+    const { hosts, content, surface, scroller, first, scrollTo, box, cleanup } = setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(140);
+
+    // A detail opens beside the list while the pane renders: the list keeps its content.
+    content.route = { pathname: "/files", search: { path: "docs/readme.md" } };
+    hosts.syncRoutes();
+    surface.hidden = true;
+    scroller.scrollTop = 0;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(scroller.scrollTop).toBe(140);
+    cleanup();
+  });
+
+  it("Should drop a hidden container's offset across a route change in a shown pane (#1654)", () => {
+    const { hosts, content, surface, first, box, cleanup } = setup();
+    const drawer = document.createElement("div");
+    surface.append(drawer);
+    hosts.place("w", first);
+    box(640, 480);
+    drawer.scrollTop = 260;
+    drawer.dispatchEvent(new Event("scroll"));
+
+    // The drawer is collapsed when the window navigates: its new content never scrolled.
+    drawer.hidden = true;
+    drawer.scrollTop = 0;
+    content.route = { pathname: "/files", search: { path: "src" } };
+    hosts.syncRoutes();
+    drawer.hidden = false;
+    surface.hidden = true;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(drawer.scrollTop).toBe(0);
+    cleanup();
+  });
+
+  it("Should not record the offset a container reads while its pane is hidden (#1654)", () => {
+    const { hosts, surface, scroller, first, scrollTo, box, cleanup } = setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(220);
+
+    // Hidden, the container reads 0 and a scroll still reaches the host (a list re-reading it).
+    surface.hidden = true;
+    scrollTo(0);
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(scroller.scrollTop).toBe(220);
+    cleanup();
+  });
+
+  it("Should restore once when a hidden pane is placed into a rendered slot (#1654)", () => {
+    const { hosts, surface, first, second, box, cleanup } = setup();
+    const owner = document.createElement("div");
+    owner.setAttribute(SCROLL_OWNER_ATTRIBUTE, "");
+    surface.append(owner);
+    const told = vi.fn();
+    owner.addEventListener(SCROLL_RESTORE_EVENT, told);
+    first.hidden = true;
+    hosts.place("w", first);
+    box(0, 0);
+    expect(told).not.toHaveBeenCalled();
+
+    // Placing shows it: the box its root reports next is not a second show.
+    hosts.place("w", second);
+    box(640, 480);
+
+    expect(told).toHaveBeenCalledOnce();
+    first.hidden = false;
+    cleanup();
+  });
+
   /**
    * A 200px scroller over content that can be emptied and grown again, writes clamped to the
    * scrollable range the way the browser clamps them.
@@ -1944,6 +2044,28 @@ describe("WindowPaneHosts", () => {
     box(0, 0);
     surface.hidden = false;
     box(640, 480);
+    expect(scroller.scrollTop).toBe(0);
+    cleanup();
+  });
+
+  it("Should keep a reset to 0 an in-window navigation makes right after a show (#1654)", () => {
+    const { hosts, content, surface, scroller, first, scrollTo, box, cleanup } = setup();
+    clampingContent(scroller);
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(600);
+    surface.hidden = true;
+    scroller.scrollTop = 0;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+    expect(scroller.scrollTop).toBe(600);
+
+    // The palette or the sidebar navigates the window; the app resets the container to the top.
+    content.route = { pathname: "/files", search: { path: "src" } };
+    hosts.syncRoutes();
+    scrollTo(0);
+
     expect(scroller.scrollTop).toBe(0);
     cleanup();
   });

@@ -1,8 +1,13 @@
 import { shallowEqual } from "@xstate/store";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 import { descendantWindowIds } from "../lib/layout-minimums";
-import type { OsPresentation, OsViewportState, WindowManagerController } from "../lib/os-types";
+import type {
+  OsPresentation,
+  OsViewportState,
+  OsWindow,
+  WindowManagerController,
+} from "../lib/os-types";
 import type { LayoutDesktop, LayoutTab, TabId } from "../lib/window-manager-types";
 import { WindowPaneHosts } from "../lib/window-pane-hosts";
 import { useDesktop } from "./use-desktop";
@@ -23,26 +28,29 @@ export interface OsDeskLayerModel {
 
 /**
  * The tabs a desktop has shown, so a tab the operator leaves stays mounted and returning to it
- * never reloads its windows. Closed tabs drop out; the active tab always counts.
+ * never reloads its windows. Closed tabs drop out; the active tab always counts, and so does
+ * every `adopted` tab (one that received a window whose pane is mounted).
  */
 export function useVisitedTabs(
   tabIds: readonly TabId[],
-  activeTabId: TabId | null
+  activeTabId: TabId | null,
+  adopted: readonly TabId[] = []
 ): readonly TabId[] {
   const [visited, setVisited] = useState<readonly TabId[]>(() =>
     activeTabId === null ? [] : [activeTabId]
   );
   const present = new Set(tabIds);
-  const live = visited.filter(tabId => present.has(tabId));
-  const next =
-    activeTabId !== null && present.has(activeTabId) && !live.includes(activeTabId)
-      ? [...live, activeTabId]
-      : live;
+  const next = visited.filter(tabId => present.has(tabId));
+  const kept = new Set(next);
+  for (const tabId of activeTabId === null ? adopted : [activeTabId, ...adopted]) {
+    if (!present.has(tabId) || kept.has(tabId)) continue;
+    kept.add(tabId);
+    next.push(tabId);
+  }
   if (next.length !== visited.length || next.some((tabId, index) => tabId !== visited[index])) {
     setVisited(next);
   }
   // Bar order keeps sibling tab layers stable while the set changes.
-  const kept = new Set(next);
   return tabIds.filter(tabId => kept.has(tabId));
 }
 
@@ -59,15 +67,26 @@ export interface DeskTabPanes {
  * The tabs a desktop keeps mounted and one pane for every window in them, keyed by window, never
  * by tab or split position: the pane renders into the window's host (`WindowPaneHosts`) and the
  * split slot it occupies adopts the host, so a window changing tab or position never remounts.
+ * A tab that receives a mounted window (a move into a new tab that is not shown) is kept mounted
+ * from then on, so the window's pane stays mounted too.
  */
 export function useDeskTabPanes(
   tabs: readonly LayoutTab[],
   shownTabId: TabId | null,
-  manager: Pick<WindowManagerController, "getState">
+  manager: Pick<WindowManagerController, "getState">,
+  windows: Readonly<Record<string, OsWindow>>
 ): DeskTabPanes {
+  // The windows whose panes the last render mounted: a tab holding one now adopts it.
+  const [mounted, setMounted] = useState<readonly string[]>([]);
+  const held = new Set(mounted);
+  const adopted: TabId[] = [];
+  for (const tab of tabs) {
+    if (descendantWindowIds(tab.root).some(windowId => held.has(windowId))) adopted.push(tab.id);
+  }
   const visited = useVisitedTabs(
     tabs.map(tab => tab.id),
-    shownTabId
+    shownTabId,
+    adopted
   );
   // Read at the moment a host acts, never from a render: focus may have moved since.
   const [hosts] = useState(
@@ -82,10 +101,13 @@ export function useDeskTabPanes(
     return tab === undefined ? [] : descendantWindowIds(tab.root);
   });
   const paneKey = paneWindowIds.join("\n");
+  if (paneKey !== mounted.join("\n")) setMounted(paneWindowIds);
   useEffect(() => {
     hosts.retain(new Set(paneKey === "" ? [] : paneKey.split("\n")));
   }, [hosts, paneKey]);
   useEffect(() => () => hosts.dispose(), [hosts]);
+  // A window's route change, read in the commit that rendered it, before a later move or hide.
+  useLayoutEffect(() => hosts.syncRoutes(), [hosts, windows]);
   return { visited, paneWindowIds, hosts };
 }
 

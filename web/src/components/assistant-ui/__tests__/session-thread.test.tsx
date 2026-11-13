@@ -6,6 +6,7 @@ import {
 } from "@/systems/session/stores/session-prompt-runtime-store";
 import { StrictMode, useEffect, useLayoutEffect, type ComponentProps } from "react";
 import { useAui, type ThreadMessage } from "@assistant-ui/react";
+import type { Virtualizer } from "@tanstack/react-virtual";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -32,11 +33,13 @@ import {
   UNDO_COMMAND,
   type ElementNode,
 } from "lexical";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { OverlayContainerContext, toast } from "@compozy/ui";
 
 import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
 import { useSessionComposerState } from "../hooks/use-session-composer-state";
+import { threadScrollLogic, threadScrollMode } from "../hooks/thread-scroll-store";
+import { useThreadScrollResume } from "../hooks/use-thread-scroll-resume";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { SCROLL_RESTORE_EVENT } from "@/lib/scroll-owner";
@@ -8973,5 +8976,256 @@ describe("SessionMentionChip agent kind", () => {
 
     expect(chip).toHaveAttribute("data-mention-unresolved", "true");
     expect(chip).toHaveTextContent("Release Captain");
+  });
+});
+
+// Invariant (#1654): a transcript shown again resumes the reader's text, not a pixel offset, by
+// the row's current measurement; a turn that started while hidden is placed by its anchor; and
+// the controller's own move ends the hold. Owning layer: the resume hook's DOM wiring; the
+// virtualizer is reduced to the two reads the hook makes.
+describe("useThreadScrollResume", () => {
+  function setupResume() {
+    const rows = [
+      { key: "a", size: 400 },
+      { key: "b", size: 400 },
+      { key: "c", size: 400 },
+    ];
+    const measurements = () => {
+      let start = 0;
+      return rows.map((row, index) => {
+        const item = { key: row.key, index, start, size: row.size, end: start + row.size, lane: 0 };
+        start += row.size;
+        return item;
+      });
+    };
+    const virtualizer = {
+      get measurementsCache() {
+        return measurements();
+      },
+      getVirtualItemForOffset: (offset: number) =>
+        measurements().find(item => offset >= item.start && offset < item.end),
+      getTotalSize: () => rows.reduce((total, row) => total + row.size, 0),
+    } as unknown as Virtualizer<HTMLDivElement, HTMLDivElement>;
+    const viewport = document.createElement("div");
+    const layout = { width: 800 };
+    Object.defineProperty(viewport, "clientWidth", { configurable: true, get: () => layout.width });
+    document.body.append(viewport);
+    onTestFinished(() => viewport.remove());
+    const store = threadScrollLogic.createStore();
+    const placeTurn = { current: vi.fn((_viewport: HTMLDivElement) => false) };
+    const hook = renderHook(() =>
+      useThreadScrollResume({ current: viewport }, virtualizer, store, placeTurn)
+    );
+    onTestFinished(() => hook.unmount());
+    const hideAndShow = (whileHidden: () => void) => {
+      viewport.hidden = true;
+      viewport.scrollTop = 0;
+      whileHidden();
+      viewport.hidden = false;
+      act(() => {
+        viewport.dispatchEvent(new Event(SCROLL_RESTORE_EVENT));
+      });
+    };
+    return { rows, layout, viewport, store, placeTurn, hook, hideAndShow };
+  }
+
+  it("Should resume the same share of a row a width change reflowed while hidden", () => {
+    const { rows, layout, viewport, store, hideAndShow } = setupResume();
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // A narrower pane reflows the rows: each one doubles in height.
+    hideAndShow(() => {
+      layout.width = 400;
+      for (const row of rows) row.size = 800;
+    });
+
+    // Halfway into row b, as before, not the old 200px into it.
+    expect(viewport.scrollTop).toBe(1_200);
+  });
+
+  it("Should resume the same share of a row a text size change reflowed while hidden", () => {
+    const { rows, viewport, store, hideAndShow } = setupResume();
+    const root = document.documentElement;
+    onTestFinished(() => {
+      root.style.removeProperty("--user-text-scale");
+    });
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // Settings › Text size grows the text at the same width: each row doubles in height.
+    hideAndShow(() => {
+      root.style.setProperty("--user-text-scale", "1.15");
+      for (const row of rows) row.size = 800;
+    });
+
+    expect(viewport.scrollTop).toBe(1_200);
+  });
+
+  it("Should keep the reader's text in a reply that grew while hidden at the same width", () => {
+    const { rows, viewport, store, hideAndShow } = setupResume();
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // The reply in row b streamed on: text was appended below the reader. A theme switch writes
+    // the root's color scheme, which lays no text out.
+    const root = document.documentElement;
+    onTestFinished(() => {
+      root.style.removeProperty("color-scheme");
+    });
+    hideAndShow(() => {
+      root.style.setProperty("color-scheme", "dark");
+      rows[1]!.size = 1_600;
+    });
+
+    // Still 200px into row b, not halfway into the longer reply.
+    expect(viewport.scrollTop).toBe(600);
+  });
+
+  it("Should place a turn that started while the pane was hidden", () => {
+    const { viewport, store, placeTurn, hideAndShow } = setupResume();
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    hideAndShow(() => {
+      store.trigger.messagesCommitted({ count: 2, lastUserId: "u1", lastUserIndex: 0 });
+      store.trigger.messagesCommitted({ count: 4, lastUserId: "u2", lastUserIndex: 2 });
+      expect(threadScrollMode(store.getSnapshot().context)).toBe("anchoring-new-turn");
+      placeTurn.current.mockImplementation(target => {
+        target.scrollTop = 1_000;
+        return true;
+      });
+    });
+
+    expect(placeTurn.current).toHaveBeenCalledWith(viewport);
+    expect(viewport.scrollTop).toBe(1_000);
+  });
+
+  it("Should resume from the place the last show settled on", async () => {
+    const { rows, layout, viewport, store, hideAndShow } = setupResume();
+    const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+    hideAndShow(() => {
+      layout.width = 400;
+      for (const row of rows) row.size = 800;
+    });
+    expect(viewport.scrollTop).toBe(1_200);
+    for (let index = 0; index < 8; index += 1) await frame();
+
+    // Hidden again with no scroll in between, and the reply grows at the new width: 400px into
+    // row b stays 400px, read where the last show settled, not from the layout before it.
+    hideAndShow(() => {
+      rows[1]!.size = 1_600;
+    });
+    expect(viewport.scrollTop).toBe(1_200);
+  });
+
+  it("Should keep the text the reader was on when a reply grows and reflows while hidden", () => {
+    const { rows, layout, viewport, store, hideAndShow } = setupResume();
+    // The paragraph under the top edge, at 500px into the content, 400px tall.
+    const paragraph = document.createElement("p");
+    viewport.append(paragraph);
+    const text = { offset: 500, height: 400 };
+    vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 800, 500));
+    vi.spyOn(paragraph, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, text.offset - viewport.scrollTop, 800, text.height)
+    );
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => paragraph,
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    });
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // Narrower and longer: the paragraph reflows to 600px at 700px, and the reply grows far
+    // past it. A share of the whole row would land in text appended below the reader.
+    hideAndShow(() => {
+      layout.width = 400;
+      rows[1]!.size = 4_000;
+      text.offset = 700;
+      text.height = 600;
+    });
+
+    // A quarter into the paragraph, as the reader left it.
+    expect(viewport.scrollTop).toBe(850);
+  });
+
+  it("Should keep the depth into a paragraph that grew while hidden at the same layout", () => {
+    const { viewport, store, hideAndShow } = setupResume();
+    const paragraph = document.createElement("p");
+    viewport.append(paragraph);
+    const text = { offset: 400, height: 400 };
+    vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 800, 500));
+    vi.spyOn(paragraph, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, text.offset - viewport.scrollTop, 800, text.height)
+    );
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => paragraph,
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    });
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // The streaming paragraph doubles: its text was appended below the reader.
+    hideAndShow(() => {
+      text.height = 800;
+    });
+
+    // Still 200px into the paragraph, not halfway into the longer one.
+    expect(viewport.scrollTop).toBe(600);
+  });
+
+  it("Should hold the resumed row while rows re-measure, and yield to any other move", async () => {
+    const { rows, viewport, store, hideAndShow } = setupResume();
+    const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+    hideAndShow(() => undefined);
+
+    // Row a re-measures taller and the virtualizer compensates: the row is held in place.
+    rows[0]!.size = 500;
+    viewport.scrollTop = 900;
+    fireEvent.scroll(viewport);
+    await waitFor(() => expect(viewport.scrollTop).toBe(700));
+
+    // A move with no re-measure (autoscroll, assistive tech, a scrollbar drag) is the reader's.
+    viewport.scrollTop = 150;
+    fireEvent.scroll(viewport);
+    await frame();
+    await frame();
+    expect(viewport.scrollTop).toBe(150);
+  });
+
+  it("Should let go of the resumed row when the controller moves the viewport", async () => {
+    const { viewport, store, hook, hideAndShow } = setupResume();
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+    hideAndShow(() => undefined);
+    expect(viewport.scrollTop).toBe(600);
+
+    // A message jump starts: its landing owns the viewport.
+    hook.result.current.current();
+    viewport.scrollTop = 100;
+    fireEvent.scroll(viewport);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    expect(viewport.scrollTop).toBe(100);
   });
 });

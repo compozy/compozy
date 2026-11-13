@@ -32,6 +32,8 @@ interface PaneHost {
   rendered: boolean | null;
   /** The pane roots the resize observer watches, so they can be released by name. */
   observed: Set<Element>;
+  /** The window's route when the hosts last read it (`syncRoutes`). */
+  route: OsWindowRoute | null;
 }
 
 /** What the hosts read from the window manager, at the moment they act. */
@@ -67,6 +69,10 @@ const GESTURES = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
  *   browser dropped (now 0), which lays the pane out once. An offset belongs to the content that
  *   scrolled: one recorded under another route (a `window navigate` while the pane was hidden, a
  *   route change just before it hid) is dropped instead of written onto the new content. A
+ *   container that stays in the pane across a route change while the pane is rendered (a section
+ *   rail, a list beside its detail, a search-only change) kept its content and its real offset:
+ *   `syncRoutes` moves its recorded offset to the new route, so it is restored as usual. Only a
+ *   rendered container records: a hidden one reads 0, which is no evidence of its position. A
  *   re-insertion is seen by a `childList` mutation observer on the slot's ancestors up to the
  *   desk layer: those lists change only when the layout does, never with an app's content. The
  *   same observer watches each host's own children, so a pane root that mounts after `place` is
@@ -145,6 +151,25 @@ export class WindowPaneHosts {
     };
   }
 
+  /**
+   * Reads every window's route. A route change ends the restores still settling in its pane (an
+   * in-window navigation that reset a container is the app's move, not a dropped offset) and,
+   * while the pane is rendered, keeps the offsets of the containers that outlived it.
+   */
+  syncRoutes(): void {
+    for (const host of this.hosts.values()) {
+      const route = this.windows.routeOf(host.windowId);
+      if (sameOsWindowRoute(host.route, route)) continue;
+      host.route = route;
+      this.settler.releaseOwner(host);
+      if (host.rendered === false || !isRendered(host.element)) continue;
+      for (const [container, offset] of host.offsets) {
+        // A hidden container kept no evidence of the new content: its offset stays dropped.
+        if (host.element.contains(container) && isRendered(container)) offset.route = route;
+      }
+    }
+  }
+
   /** Drops the hosts of windows the layer no longer renders. */
   retain(windowIds: ReadonlySet<string>): void {
     for (const [windowId, host] of this.hosts) {
@@ -187,6 +212,7 @@ export class WindowPaneHosts {
       sweepAt: SWEEP_FLOOR,
       rendered: null,
       observed: new Set(),
+      route: this.windows.routeOf(windowId),
     };
     element.addEventListener(
       "scroll",
@@ -279,6 +305,8 @@ export class WindowPaneHosts {
   private record(host: PaneHost, container: Element): void {
     // An owner keeps its own position; a restore still settling consumes the scrolls it causes.
     if (container.hasAttribute(SCROLL_OWNER_ATTRIBUTE) || this.settler.scrolled(container)) return;
+    // A container that is not rendered (its pane hidden or detached mid-move) reads 0.
+    if (!isRendered(container)) return;
     const known = host.offsets.has(container);
     host.offsets.set(container, {
       top: container.scrollTop,
@@ -297,6 +325,9 @@ export class WindowPaneHosts {
   }
 
   private restore(host: PaneHost): void {
+    // A restore while the pane renders is its show: the box the resize observer reports for it
+    // next is not a second one.
+    if (isRendered(host.element)) host.rendered = true;
     const route = this.windows.routeOf(host.windowId);
     for (const [element, offset] of host.offsets) {
       if (!host.element.contains(element) || !sameOsWindowRoute(offset.route, route)) {
