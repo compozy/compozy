@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { BULK_SESSION_FAMILY, BULK_SELECTED_SESSIONS } from "./session-bulk-fixtures";
 import {
+  CONTINUED_FAMILY,
   GOAL_OWNER,
   HISTORICAL_JUDGES,
   LONG_AGENT,
@@ -165,6 +166,28 @@ export const CollapsedThreadSignal: Story = {
     ...ProvenanceThreads.args,
     collapsedThreadIds: ["sess-pricing"],
     currentSessionId: "sess-deps",
+  },
+};
+
+/**
+ * Issue #1644: workers a daemon restart stopped and their orchestrator continued
+ * stay in its thread, each continuation beside its stopped predecessor, through a
+ * repeated continuation. A continued top-level session stays its own row.
+ */
+export const ContinuedChildren: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: CONTINUED_FAMILY,
+    currentSessionId: "sess-s3-next",
+  },
+};
+
+/** The folded orchestrator thread still signals its running continuations. */
+export const ContinuedChildrenCollapsed: Story = {
+  args: {
+    ...ContinuedChildren.args,
+    collapsedThreadIds: ["sess-conductor"],
+    currentSessionId: "sess-notes-next",
   },
 };
 
