@@ -18084,6 +18084,10 @@ export interface components {
         | "failed"
         | "canceled";
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     SettingsWindowManagerBindingPayload: {
       /** @enum {string} */
       bottom_center: "none" | "reserved" | "zoom";
@@ -18101,7 +18105,11 @@ export interface components {
       closed_entry_limit: number;
       /** @enum {string} */
       desktop_transition: "slide" | "crossfade" | "instant";
-      /** @enum {string} */
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       * @enum {string}
+       */
       drag_away_policy: "window" | "group";
       focus_follows_pointer: boolean;
       /** @enum {string} */
@@ -18111,12 +18119,20 @@ export interface components {
       global_shortcuts: {
         [key: string]: string;
       };
-      /** @enum {string} */
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       * @enum {string}
+       */
       group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
       history_limit: number;
       nav_stack_limit: number;
       /** @enum {string} */
       new_window_policy: "floating" | "beside_focus" | "tab";
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       raise_on_focus: boolean;
       shortcuts: {
         [key: string]: string | string[];
@@ -18222,6 +18238,10 @@ export interface components {
         | "marketplace";
       workspace_id?: string;
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     SettingsWindowManagerSnapPayload: {
       corner_reach: number;
       edge_band: number;

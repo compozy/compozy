@@ -35105,6 +35105,8 @@
       },
       "SettingsWindowManagerBindingPayload": {
         "additionalProperties": false,
+        "deprecated": true,
+        "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
         "properties": {
           "bottom_center": {
             "enum": [
@@ -35171,6 +35173,8 @@
             "type": "string"
           },
           "drag_away_policy": {
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
             "enum": [
               "window",
               "group"
@@ -35200,6 +35204,8 @@
             "type": "object"
           },
           "group_move_modifier": {
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
             "enum": [
               "alt",
               "control",
@@ -35224,6 +35230,8 @@
             "type": "string"
           },
           "raise_on_focus": {
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
             "type": "boolean"
           },
           "shortcuts": {
@@ -35635,6 +35643,8 @@
       },
       "SettingsWindowManagerSnapPayload": {
         "additionalProperties": false,
+        "deprecated": true,
+        "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
         "properties": {
           "corner_reach": {
             "type": "integer"

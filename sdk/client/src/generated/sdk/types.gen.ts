@@ -9833,6 +9833,11 @@ export type SettingsUpdateRuntimePayload = {
     | "canceled";
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type SettingsWindowManagerBindingPayload = {
   bottom_center: "none" | "reserved" | "zoom";
   top_center: "none" | "reserved" | "zoom";
@@ -9849,6 +9854,11 @@ export type SettingsWindowManagerConfigPayload = {
   bindings: SettingsWindowManagerBindingPayload;
   closed_entry_limit: number;
   desktop_transition: "slide" | "crossfade" | "instant";
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   drag_away_policy: "window" | "group";
   focus_follows_pointer: boolean;
   focus_policy: "click_directional" | "directional";
@@ -9857,10 +9867,20 @@ export type SettingsWindowManagerConfigPayload = {
   global_shortcuts: {
     [key: string]: string;
   };
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
   history_limit: number;
   nav_stack_limit: number;
   new_window_policy: "floating" | "beside_focus" | "tab";
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   raise_on_focus: boolean;
   shortcuts: {
     [key: string]: string | Array<string>;
@@ -9967,6 +9987,11 @@ export type SettingsWindowManagerResponse = {
   workspace_id?: string;
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type SettingsWindowManagerSnapPayload = {
   corner_reach: number;
   edge_band: number;

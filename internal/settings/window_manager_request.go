@@ -34,6 +34,13 @@ func mergeWindowManagerRequest(
 			*req.WindowManagerGlobalShortcuts,
 		)
 	}
+	// Retired request fields are ignored at the settings boundary until v0.8.0.
+	desired.RaiseOnFocus, desired.DragAwayPolicy, desired.GroupMoveModifier = false, "", ""
+	desired.Snap, desired.Bindings = compozyconfig.WindowManagerSnapConfig{}, compozyconfig.WindowManagerBindingConfig{}
+	if desired.NewWindowPolicy == compozyconfig.WindowNewPolicyFloating {
+		windowmanager.WarnRetiredConfigKey("new_window_policy", true)
+		desired.NewWindowPolicy = compozyconfig.WindowNewPolicyTab
+	}
 	desiredAliases := cloneAliases(aliases)
 	if req.WindowManagerAliases != nil {
 		desiredAliases = cloneAliases(*req.WindowManagerAliases)

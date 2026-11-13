@@ -3297,6 +3297,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatal("approved output_views addition: no historical tool descriptors found")
 		}
 		addSettingsMCPHeaderPresence(t, baseline)
+		deprecateRetiredWindowManagerSettings(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
 		}

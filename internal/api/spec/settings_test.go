@@ -460,6 +460,14 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"bindings",
 			"shortcuts",
 		)
+		for _, name := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+			if !propertySchema(t, windowManagerConfigSchema, name).Deprecated {
+				t.Fatalf("retired setting %s lacks its deprecation marker", name)
+			}
+		}
+		if propertySchema(t, windowManagerConfigSchema, "swap_modifier").Deprecated {
+			t.Fatal("kept swap modifier is deprecated")
+		}
 		assertEnumValues(
 			t,
 			propertySchema(t, windowManagerConfigSchema, "new_window_policy"),
@@ -1081,5 +1089,33 @@ func addSettingsMCPHeaderPresence(t *testing.T, baseline map[string]any) {
 	walk(baseline)
 	if reads == 0 || writes == 0 {
 		t.Fatalf("approved MCP header additions: found %d read schemas and %d write schemas", reads, writes)
+	}
+}
+
+// window-tabs-split retains the v0.6 Settings shapes, deprecated until v0.8.0.
+func deprecateRetiredWindowManagerSettings(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	for _, path := range [][]string{
+		{"get", "responses", "200", "content", "application/json", "schema"},
+		{"patch", "requestBody", "content", "application/json", "schema"},
+		{"patch", "responses", "200", "content", "application/json", "schema"},
+	} {
+		value := baseline["paths"].(map[string]any)["/api/settings/window-manager"].(map[string]any)
+		for _, key := range path {
+			next, ok := value[key].(map[string]any)
+			if !ok {
+				t.Fatalf("approved window-manager deprecations: missing %v at %s", path, key)
+			}
+			value = next
+		}
+		properties := value["properties"].(map[string]any)["config"].(map[string]any)["properties"].(map[string]any)
+		for _, name := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+			property, ok := properties[name].(map[string]any)
+			if !ok {
+				t.Fatalf("approved window-manager deprecations: missing %s in %v", name, path)
+			}
+			property["deprecated"] = true
+			property["description"] = "Deprecated: accepted and ignored; remove before v0.8.0."
+		}
 	}
 }

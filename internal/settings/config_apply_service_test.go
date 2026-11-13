@@ -807,20 +807,20 @@ cost_reasoning_per_million = 30
 			t.Fatalf("runtime defaults.provider = %q, want pending restart value %q excluded", got, want)
 		}
 
-		desired.Snap.RepeatRatios[0] = 0.9
+		desired.Gaps.Inner = 9
 		desired.Shortcuts["desktop.switch.next"][0] = "Meta+ArrowDown"
 		first, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(first) error = %v", err)
 		}
-		first.WindowManager.Snap.RepeatRatios[0] = 0.8
+		first.WindowManager.Gaps.Inner = 8
 		first.WindowManager.Shortcuts["desktop.switch.next"][0] = "Meta+ArrowUp"
 		second, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(second) error = %v", err)
 		}
-		if got, want := second.WindowManager.Snap.RepeatRatios[0], 0.4; got != want {
-			t.Fatalf("active repeat ratio = %v, want %v", got, want)
+		if got, want := second.WindowManager.Gaps.Inner, 12; got != want {
+			t.Fatalf("active inner gap = %v, want %v", got, want)
 		}
 		if got, want := second.WindowManager.Shortcuts["desktop.switch.next"], (windowmanager.ShortcutBinding{"Meta+ArrowRight"}); !slices.Equal(
 			got,
