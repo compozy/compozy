@@ -752,6 +752,31 @@ describe("RoutingCoordinator", () => {
     await vi.waitFor(() => expect(request).toHaveBeenCalledWith(settings.id, expect.any(Number)));
   });
 
+  it("Should keep a navigation's first keyboard mark when the router reports it again [#1655]", async () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const settings = windowFixture("settings", "/settings/general");
+    const { coordinator, store, history } = createCoordinator([tasks, settings]);
+    coordinator.completeHydration();
+    await coordinator.userFocus(tasks.id);
+    coordinator.reportRouteMatch(tasks.route, history.current());
+    const request = vi.spyOn(coordinator.keyboardFocus, "request");
+    store.deferLifecycle();
+
+    // Back to Settings: the router reports the entry as loading starts and again when it mounts,
+    // and the operator clicks a field between the two reports.
+    history.back();
+    const entry = history.current();
+    coordinator.reportRouteMatch(settings.route, entry);
+    coordinator.keyboardFocus.cancel();
+    coordinator.reportRouteMatch(settings.route, entry);
+    store.settleLifecycle(true);
+
+    await vi.waitFor(() => expect(store.getState().focusedId).toBe(settings.id));
+    await vi.waitFor(() => expect(request).toHaveBeenCalled());
+    const [, since] = request.mock.lastCall!;
+    expect(since).not.toBe(coordinator.keyboardFocus.begin());
+  });
+
   it("Should hold user route intent until window commands become available", () => {
     const { coordinator, router, store, history } = createCoordinator();
     coordinator.completeHydration();

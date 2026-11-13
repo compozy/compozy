@@ -71,7 +71,11 @@ export class RouteReconciler {
       current
     );
     if (current && sameOsWindowRoute(current.route, route)) {
-      if (keyboardSince !== undefined) this.current = { ...current, keyboardSince };
+      // A repeated report of the same navigation keeps its first mark: a pointer press between
+      // the reports still cancels the handoff.
+      if (keyboardSince !== undefined && current.keyboardSince === undefined) {
+        this.current = { ...current, keyboardSince };
+      }
       if (!current.inFlight) this.reconcilePending();
       return;
     }
