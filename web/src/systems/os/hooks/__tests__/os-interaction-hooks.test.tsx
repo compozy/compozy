@@ -3552,17 +3552,19 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     });
     fireEvent.keyDown(seam, { key: "ArrowRight" });
     fireEvent.keyDown(seam, { key: "ArrowRight" });
-    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    // A balance queued behind the second step, so the two waiting commands stay separate.
+    fireEvent.doubleClick(seam);
 
-    // The second throws as it is sent; the third still goes out.
+    // The second step throws as it is sent; the balance behind it still goes out.
     await settle();
-    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3);
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.balanceLayout).toHaveBeenCalledOnce();
     expect(errors).toHaveBeenCalledOnce();
 
     // Nothing is left holding the queue: the next press goes out at once.
     await act(async () => {});
     fireEvent.keyDown(seam, { key: "ArrowRight" });
-    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(4);
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3);
   });
 
   it("Should cancel a drag whose seam turns to the other axis while this client's resize is in flight (R7-02)", async () => {
