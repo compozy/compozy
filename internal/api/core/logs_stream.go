@@ -82,22 +82,19 @@ func (h *BaseHandlers) StreamLogs(c *gin.Context) {
 			return
 		}
 		cursor = EmitLogs(writer, initial, cursor)
-		scan = nextLogsScanSequence(cursor.Sequence, scan, initial, query.Limit, query.Forward)
+		scan = nextLogsScanSequence(cursor.Sequence, scan, initial, query.Limit, query.Forward || resume)
 	}
 	// A live-only stream starts at the ledger head without reading a row; an empty
 	// ledger starts at sequence zero, independently of event timestamps.
 	h.pollLogs(c, writer, query, cursor, scan)
 }
 
-// nextLogsScanSequence returns the sequence the next read starts after. A filter
-// that rarely matches must not pin the scan to its last matching event, so a
-// read that drained its range advances to the head observed before it ran. A
-// full forward page may have left matching rows behind and stops at its last row.
-func nextLogsScanSequence(scan int64, head int64, events []store.EventSummary, limit int, forward bool) int64 {
+// Full forward or resume pages retain their cursor until the backlog drains.
+func nextLogsScanSequence(scan int64, head int64, events []store.EventSummary, limit int, keepFullPage bool) int64 {
 	for _, event := range events {
 		scan = max(scan, event.Sequence)
 	}
-	if forward && limit > 0 && len(events) >= limit {
+	if keepFullPage && limit > 0 && len(events) >= limit {
 		return scan
 	}
 	return max(scan, head)

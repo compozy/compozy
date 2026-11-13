@@ -126,3 +126,12 @@ restores the view on screen without persisting All profiles, so reloads defer to
 operator chooses a view again; a write the daemon refused still keeps All profiles. E2E-013 holds
 the write unanswered across the reload, which makes step 7 deterministic: 3/3 failed before the
 repair, 10/10 passed after it on a local production build.
+
+qa-impact: 2026-11-12 issue #1624. The always-open filtered profile lifecycle stream now
+starts at the physical ledger head and advances past unrelated events. With a large retained
+ledger, leave the app open without profile changes and confirm idle polls do not repeatedly scan
+history; create or rename a profile and confirm the switcher still refreshes. Reconnect with a
+legacy Last-Event-ID and a one-row replay limit while newer sequences have older timestamps;
+confirm every remaining sequence arrives once, including across a full 200-row poll page.
+Handler and SQLite regressions run in CI. A patched-daemon CPU profile and this manual walk
+remain unverified because the operator prohibited local runtime validation for this dispatch.

@@ -257,6 +257,69 @@ func TestStreamLogsPollsForNewEvents(t *testing.T) {
 	}
 }
 
+func TestStreamLogsResumePages(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should drain full legacy resume pages before advancing to the head", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		boundary := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+		events := make([]store.EventSummary, 202)
+		for index := range events {
+			events[index] = store.EventSummary{
+				ID: "delayed", Sequence: int64(index + 1), Type: "settings.changed",
+				Timestamp: boundary.Add(time.Hour),
+			}
+		}
+		events[0].Timestamp = boundary.Add(2 * time.Hour)
+		calls := 0
+		observer := stubObserver{
+			EventSequenceHeadFn: func(context.Context) (int64, error) { return 500, nil },
+			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
+				calls++
+				if !query.Since.Equal(boundary) {
+					t.Fatalf("resume since = %v, want %v", query.Since, boundary)
+				}
+				switch calls {
+				case 1:
+					if query.Limit != 1 || query.Forward || query.SequenceOrder {
+						t.Fatalf("legacy initial query = %#v, want timestamp-ordered page of one", query)
+					}
+					return events[:1], nil
+				case 2:
+					if query.AfterSequence != 1 || !query.Forward || query.Limit != 200 {
+						t.Fatalf("first poll = %#v, want 200 rows after sequence 1", query)
+					}
+					return events[1:201], nil
+				default:
+					if query.AfterSequence != 201 || !query.Forward {
+						t.Fatalf("second poll = %#v, want read after sequence 201", query)
+					}
+					close(done)
+					return events[201:], nil
+				}
+			},
+		}
+		handlers := newTestHandlers(t, &stubSessionManager{}, observer, newTestHomePaths(t))
+		handlers.setStreamDone(done)
+		recorder := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/logs/stream?limit=1", http.NoBody)
+		req.Header.Set("Last-Event-ID", boundary.Format(time.RFC3339Nano)+"|legacy-id")
+		newTestRouter(t, handlers).ServeHTTP(recorder, req)
+
+		records := parseSSE(t, recorder.Body.String())
+		if recorder.Code != http.StatusOK || len(records) != len(events) {
+			t.Fatalf("stream status/count = %d/%d, want 200/%d", recorder.Code, len(records), len(events))
+		}
+		for index, record := range records {
+			if record.ID != core.LogEventID(events[index]) {
+				t.Fatalf("record %d ID = %q, want %q", index, record.ID, core.LogEventID(events[index]))
+			}
+		}
+	})
+}
+
 func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 	t.Parallel()
 
