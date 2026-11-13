@@ -29,7 +29,10 @@ if candidates:
     seed = os.environ.get('GITHUB_SHA', '')
     package = min(candidates, key=lambda name: hashlib.sha256((seed + name).encode()).hexdigest())
     print(f'Cold cache audit: {package}#test', flush=True)
+    test_args = []
+    if package == 'compozy-web' and os.environ.get('CI_WEB_SHARD'):
+        test_args = ['--', '--shard=' + os.environ['CI_WEB_SHARD'], '--maxWorkers=75%', '--retry=2']
     subprocess.run(['bunx', '--no-install', 'turbo', 'run', 'test', '--filter=' + package,
-                    '--cache=', '--concurrency=2'], check=True)
+                    '--cache=', '--concurrency=2', *test_args], check=True)
 else:
     print('Cold cache audit: no cached test task in this lane.')

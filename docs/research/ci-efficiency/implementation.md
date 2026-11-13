@@ -27,6 +27,23 @@ No timeout, threshold, assertion or retry policy was relaxed.
 
 ## Timing interpretation
 
+The `Frontend (web)` check is a single `always()` aggregate over the selected
+frontend matrix. Four independent web Vitest shards run alongside lint,
+site/SDK checks and the web/package typecheck, build and non-web tests. A failed,
+canceled or skipped selected matrix fails the aggregate; `Verify (fmt, lint,
+unit, build)` continues to consume the same `frontend` dependency. The current
+main ruleset requires review-thread resolution and declares no required status
+contexts; the existing frontend check name is nevertheless preserved.
+
+Web shards pass `--shard=i/4 --maxWorkers=75% --retry=2` through Turbo, so each
+shard has its own task hash and retains retries on its own runner. Local Vitest
+defaults stay at `maxWorkers: "50%"`. Each Turbo invocation must still produce
+exactly one fresh receipt, and a cached web test is cold-audited with the same
+shard, workers and retries. Artifact and GitHub cache names distinguish matrix
+entries. `scripts/ci-changes.sh --self-test` owns the selection, receipt and cold
+audit contracts; the PR's CI run supplies runtime validation and lane wall time.
+The separate investigation into web test import time remains out of scope.
+
 Integration logs separate package/source discovery from each invocation's wall time.
 Invocation wall time includes remaining compilation, process setup and execution;
 gotestsum JSON retains individual test/package elapsed times. These are not presented

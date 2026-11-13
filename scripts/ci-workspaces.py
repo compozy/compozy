@@ -63,16 +63,24 @@ def select_known(paths, root):
         selected.update(dependents)
 
 
+def frontend_lanes(selected):
+    """Keep web tests on independent runners while retaining workspace selection."""
+    sdk = {'@compozy/site', '@compozy/client', '@compozy/extension-sdk', '@compozy/extension-react', '@compozy/example-prompt-enhancer', '@compozy/view-program-fixture'}
+    lanes = [{'lane': 'lint', 'name': 'Frontend (lint)', 'shard': ''}]
+    if '*' in selected or set(selected) - sdk - {'@compozy/desktop'}:
+        lanes.append({'lane': 'web', 'name': 'Frontend (web checks)', 'shard': ''})
+    if '*' in selected or set(selected) & sdk:
+        lanes.append({'lane': 'site-sdk', 'name': 'Frontend (site-sdk)', 'shard': ''})
+    if '*' in selected or 'compozy-web' in selected:
+        for shard in range(1, 5):
+            lanes.append({'lane': 'web-tests', 'name': f'Frontend (web shard {shard}/4)',
+                          'shard': f'{shard}/4'})
+    return lanes
+
+
 if __name__ == '__main__':
     if '--lanes' in sys.argv:
-        selected = json.load(sys.stdin)
-        sdk = {'@compozy/site', '@compozy/client', '@compozy/extension-sdk', '@compozy/extension-react', '@compozy/example-prompt-enhancer', '@compozy/view-program-fixture'}
-        lanes = ['lint']
-        if '*' in selected or set(selected) - sdk - {'@compozy/desktop'}:
-            lanes.append('web')
-        if '*' in selected or set(selected) & sdk:
-            lanes.append('site-sdk')
-        print(json.dumps(lanes))
+        print(json.dumps(frontend_lanes(json.load(sys.stdin))))
         sys.exit(0)
     try:
         paths = sys.stdin.buffer.read().decode('utf-8').split('\0')
