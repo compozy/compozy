@@ -3657,6 +3657,52 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     await switchInput.detach();
   }
   const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
+  if (worstFrame > 50) {
+    // Diagnose a separate replay after the scored switch measurement, before any splits.
+    // Sampling stays outside both measured windows and keeps the original 11-tab layout.
+    const diagnostic = await appPage.context().newCDPSession(appPage);
+    try {
+      await diagnostic.send("Debugger.enable");
+      await diagnostic.send("Profiler.enable");
+      await diagnostic.send("Profiler.start");
+      for (let index = 0; index < 200; index += 1) {
+        const target = targets[index % targets.length];
+        if (!target) continue;
+        for (const type of ["mousePressed", "mouseReleased"] as const) {
+          await diagnostic.send("Input.dispatchMouseEvent", {
+            type,
+            x: target.x,
+            y: target.y,
+            button: "left",
+            buttons: type === "mousePressed" ? 1 : 0,
+            clickCount: 1,
+          });
+        }
+      }
+      const { profile } = await diagnostic.send("Profiler.stop");
+      await testInfo.attach("switch-replay.cpuprofile", {
+        body: JSON.stringify(profile),
+        contentType: "application/json",
+      });
+      const scripts = new Map(
+        profile.nodes
+          .filter(node => node.callFrame.url.includes("/assets/"))
+          .map(node => [node.callFrame.scriptId, node.callFrame.url])
+      );
+      for (const [scriptId, url] of scripts) {
+        const { scriptSource } = await diagnostic.send("Debugger.getScriptSource", { scriptId });
+        await testInfo.attach(`switch-replay-${new URL(url).pathname.split("/").pop()}`, {
+          body: scriptSource,
+          contentType: "text/javascript",
+        });
+      }
+    } catch (error) {
+      console.log("[perf-diagnostic]", String(error));
+    } finally {
+      await diagnostic.detach();
+    }
+  }
+
   const appOfWindow = new Map([...perfWindowIDs].map(([app, id]) => [id, app]));
 
   const peerA = await openPeerPage(browser, runtime);
@@ -3729,52 +3775,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     body: JSON.stringify(envelope, null, 2),
     contentType: "application/json",
   });
-
-  if (worstFrame > 50 || worstPeerTask > 50) {
-    // Diagnose a separate replay only after both scored measurements have ended.
-    // Sampling never runs inside the envelope or changes its acceptance limits.
-    const diagnostic = await appPage.context().newCDPSession(appPage);
-    try {
-      await diagnostic.send("Debugger.enable");
-      await diagnostic.send("Profiler.enable");
-      await diagnostic.send("Profiler.start");
-      for (let index = 0; index < 200; index += 1) {
-        const target = targets[index % targets.length];
-        if (!target) continue;
-        for (const type of ["mousePressed", "mouseReleased"] as const) {
-          await diagnostic.send("Input.dispatchMouseEvent", {
-            type,
-            x: target.x,
-            y: target.y,
-            button: "left",
-            buttons: type === "mousePressed" ? 1 : 0,
-            clickCount: 1,
-          });
-        }
-      }
-      const { profile } = await diagnostic.send("Profiler.stop");
-      await testInfo.attach("switch-replay.cpuprofile", {
-        body: JSON.stringify(profile),
-        contentType: "application/json",
-      });
-      const scripts = new Map(
-        profile.nodes
-          .filter(node => node.callFrame.url.includes("/assets/"))
-          .map(node => [node.callFrame.scriptId, node.callFrame.url])
-      );
-      for (const [scriptId, url] of scripts) {
-        const { scriptSource } = await diagnostic.send("Debugger.getScriptSource", { scriptId });
-        await testInfo.attach(`switch-replay-${new URL(url).pathname.split("/").pop()}`, {
-          body: scriptSource,
-          contentType: "text/javascript",
-        });
-      }
-    } catch (error) {
-      console.log("[perf-diagnostic]", String(error));
-    } finally {
-      await diagnostic.detach();
-    }
-  }
 
   // Envelope: no shell frame beyond 50ms while switching tabs, no peer thrash.
   expect(worstFrame).toBeLessThanOrEqual(50);
