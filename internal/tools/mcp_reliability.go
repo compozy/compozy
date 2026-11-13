@@ -68,7 +68,8 @@ func (p *MCPProvider) listSourceDescriptors(
 			return nil, false, fmt.Errorf("tools: admit mcp source %q: %w", source.Owner, err)
 		}
 		if !decision.Allowed {
-			return p.reliability.cached(key, reliabilityState), false, nil
+			// A settled breaker decision is reusable; failed discovery attempts are not.
+			return p.reliability.cached(key, reliabilityState), true, nil
 		}
 	}
 

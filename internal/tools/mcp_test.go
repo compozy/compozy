@@ -411,7 +411,6 @@ func TestShouldSkipMCPSourceWhenDiscoveryFails(t *testing.T) {
 			requireToolIDs(t, second.views, "mcp__broken__lookup", "mcp__healthy__lookup")
 		})
 	})
-
 }
 
 func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
@@ -447,6 +446,55 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 }
 
 func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) {
+	// Invariant: a settled breaker decision shares healthy discovery within the peer refresh window.
+	// Owner and canonical suite: MCP reliability/registry projection.
+	t.Run("Should share healthy discovery while another source waits for breaker recovery", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		clock := &mcpReliabilityTestClock{now: time.Date(2026, 7, 15, 18, 0, 0, 0, time.UTC)}
+		deadService := deadentity.New(newMCPReliabilityStore(), deadentity.WithClock(clock.Now))
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`),
+		}})
+		sources := []SourceRef{
+			{Kind: SourceMCP, Owner: "broken", RawServerName: "broken",
+				Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-breaker"},
+			{Kind: SourceMCP, Owner: "healthy", RawServerName: "healthy",
+				Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-breaker"},
+		}
+		provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+			return sources, nil
+		}), executor, executor, WithMCPDeadEntityService(deadService))
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope := Scope{Operator: true, WorkspaceID: "ws-breaker"}
+		if descriptors, err := provider.List(ctx, scope); err != nil || len(descriptors) != 2 {
+			t.Fatalf("initial descriptors = %+v, %v", descriptors, err)
+		}
+		key, _ := mcpDeadEntityKey(sources[0], scope.ProfileID)
+		for range deadentity.DefaultPermanentFailureThreshold {
+			if err := deadService.RecordFailure(ctx, key, deadentity.FailurePermanent, "sidecar unavailable"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		registry := newMCPRegistry(t, provider)
+		shared := WithProjectionListings(ctx, NewProjectionListings())
+		for _, peer := range []string{"leader", "peer"} {
+			scope.SessionID = peer
+			views, err := registry.OperatorProjection(shared, scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireToolIDs(t, views, "mcp__broken__lookup", "mcp__healthy__lookup")
+		}
+		executor.mu.Lock()
+		defer executor.mu.Unlock()
+		if len(executor.listedSources) != 3 || executor.listedSources[2].Owner != "healthy" {
+			t.Fatalf("source discovery = %+v, want initial sources plus one shared healthy refresh", executor.listedSources)
+		}
+	})
+
 	t.Run("Should Retain Dead MCP Descriptors Until Opportunistic Recovery", func(t *testing.T) {
 		t.Parallel()
 

@@ -274,13 +274,13 @@ func (p *AgentProcess) resolvePermissionRequest(
 
 	digest := permissionRequestDigest(request)
 	denialEpoch := p.permissionDenials.Epoch()
-	if p.permissionDenials.Contains(digest) {
+	if denialActor, denied := p.permissionDenials.lookup(digest); denied {
 		slog.InfoContext(ctx, "permission.repeat_denied", "session_id", sessionID, "request_id", requestID)
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
 		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
 		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource,
 			appliedDecision, "repeat_denied", raw)
-		if cancellationActor == permissionActorSystem && p.permissionDenials.timedOut(digest) {
+		if cancellationActor == permissionActorSystem && denialActor == "timeout" {
 			return acpsdk.RequestPermissionResponse{}, ErrPermissionExpired
 		}
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil

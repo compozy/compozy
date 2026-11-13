@@ -21,13 +21,18 @@ type PermissionDenials struct {
 }
 
 func (d *PermissionDenials) Contains(key string) bool {
+	_, found := d.lookup(key)
+	return found
+}
+
+func (d *PermissionDenials) lookup(key string) (string, bool) {
 	if d == nil || key == "" {
-		return false
+		return "", false
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	_, found := d.expired[key]
-	return found
+	actor, found := d.expired[key]
+	return actor, found
 }
 
 func (d *PermissionDenials) Record(key string, epoch uint64) {
@@ -85,13 +90,4 @@ func (d *PermissionDenials) Epoch() uint64 {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.epoch
-}
-
-func (d *PermissionDenials) timedOut(key string) bool {
-	if d == nil {
-		return false
-	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.expired[key] == "timeout"
 }

@@ -243,7 +243,7 @@ Common deterministic codes:
 | `heartbeat_conflict`                                   | `expected_digest` did not match.                                          |
 | `heartbeat_if_match_header_unsupported`                | HTTP `If-Match` header was sent; use `expected_digest` instead.           |
 | `heartbeat_rate_limited`                               | The agent exceeded `max_wakes_per_cycle` for the current scheduler cycle. |
-| `heartbeat_no_policy`                                  | No current policy exists.     |
+| `heartbeat_no_policy`                                  | No current policy exists.                                                 |
 | `cooldown_active`                                      | The session is inside `wake_cooldown` from a prior wake.                  |
 | `quiet_window`                                         | Wake fell inside an authored quiet window.                                |
 | `session_not_found`                                    | The target session id was not resolved.                                   |

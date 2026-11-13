@@ -464,7 +464,7 @@ cache-read, cache-write, and reasoning bucket; missing bucket rates never fall b
 | `task.blocked`         | A typed block was created on a task.                   |
 | `task.unblocked`       | A block was cleared explicitly or by transient expiry. |
 | `task.needs_attention` | The unblock-loop breaker escalated a task.             |
-| `task.recovered`       | An operator recovered an escalated task.      |
+| `task.recovered`       | An operator recovered an escalated task.               |
 
 Blocking a running task also emits `task.run_released` for the parked run. See the
 [Hook Event Catalog](/docs/hooks/event-catalog) for payload shapes.

@@ -168,8 +168,11 @@ func forwardMonitorTargetChanges(
 }
 
 func monitorAttentionOccurrence(info *session.Info, badge session.Badge) string {
-	if !session.EndedEarlyAttention(info, badge) {
-		return ""
+	if session.EndedEarlyAttention(info, badge) {
+		return fmt.Sprintf("%d:ended-early:%s", info.TranscriptEpoch, info.EndedEarlyTurnID)
 	}
-	return fmt.Sprintf("%d:%s", info.TranscriptEpoch, info.EndedEarlyTurnID)
+	if info != nil && badge == session.BadgeNeedsAttention && info.AttentionRevision > 0 {
+		return fmt.Sprintf("%d:attention:%d", info.TranscriptEpoch, info.AttentionRevision)
+	}
+	return ""
 }

@@ -289,3 +289,6 @@ QA impact #1545 (CI-only verification; public-surface re-walk not run locally):
   the child, then release the parent queue. Only the monitor wake reaches the creator. Repeat
   with an unmatched sibling outcome sorted before the matching child monitor. A newer child turn
   invalidates the old monitor coverage.
+
+For non-ended-early lifecycle attention, retain coverage across presence updates using the child
+transcript epoch and attention revision; a newer revision must invalidate the previous outcome.

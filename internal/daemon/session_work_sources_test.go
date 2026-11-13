@@ -154,10 +154,15 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 		}
 	})
 
-	for _, delivering := range []bool{false, true} {
+	for _, scenario := range []struct{ delivering, endedEarly bool }{
+		{false, true}, {true, true}, {false, false}, {true, false},
+	} {
 		name := "Should retain coverage after the monitor wake is admitted"
-		if delivering {
+		if scenario.delivering {
 			name = "Should retain coverage while the monitor wake is delivering"
+		}
+		if !scenario.endedEarly {
+			name += " for lifecycle attention"
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -165,6 +170,11 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 				now := time.Now()
 				child := &session.Info{ID: "child", WorkspaceID: "ws", ProfileID: store.DefaultProfileID,
 					State: session.StateActive, EndedEarlyTurnID: "turn-1", AttentionChangedAt: &now}
+				if !scenario.endedEarly {
+					child.EndedEarlyTurnID = ""
+					child.StopVerificationFailed = true
+					child.AttentionRevision = 1
+				}
 				targets := &monitorTargetManagerStub{
 					reads: map[string]int{}, infos: map[string]*session.Info{"child": child},
 				}
@@ -173,7 +183,7 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 					sessions: func() monitorSessionManager { return wakeManager },
 				}
 				wantStatus := monitor.StatusFired
-				if delivering {
+				if scenario.delivering {
 					waker, wantStatus = retryMonitorWaker{}, monitor.StatusDelivering
 				}
 				service, err := monitor.NewService(t.Context(), nil, waker,
@@ -209,6 +219,10 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 				}
 				newer := seen
 				newer.EndedEarlyTurnID = "turn-2"
+				if !scenario.endedEarly {
+					newer.EndedEarlyTurnID = ""
+					newer.AttentionRevision++
+				}
 				if sources.creatorMonitorCovers("creator", &newer, session.BadgeNeedsAttention) {
 					t.Fatal("a previous monitor outcome covered a newer child attention occurrence")
 				}

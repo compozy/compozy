@@ -2992,7 +2992,10 @@ func TestServicePullRequestMonitorSpec(t *testing.T) {
 	// Invariant: qualified selectors retain GitHub owner names and slash-separated branches.
 	t.Run("Should preserve valid owners and branch slashes", func(t *testing.T) {
 		t.Parallel()
-		for _, branch := range []string{"contributor:feat/topic", "Acme-123:fix/one/two", "a:topic"} {
+		for _, branch := range []string{
+			"contributor:feat/topic", "Acme-123:fix/one/two", "a:topic",
+			"octocat_acme:feature/topic", "legacy--owner:topic", "legacy-:topic",
+		} {
 			spec := pullRequestSpec("sess-1")
 			spec.Branch = branch
 			normalized, err := normalizeSpec(spec)

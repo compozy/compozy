@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // Kind selects what a monitor watches.
@@ -235,7 +236,7 @@ func normalizeSpec(spec Spec) (Spec, error) {
 func normalizePullRequestSpec(spec Spec) (Spec, error) {
 	if owner, branch, qualified := strings.Cut(spec.Branch, ":"); qualified {
 		if !validPullRequestOwner(owner) || strings.TrimSpace(branch) == "" ||
-			strings.ContainsAny(branch, ": \t\r\n") {
+			strings.Contains(branch, ":") || strings.ContainsFunc(branch, unicode.IsSpace) {
 			return Spec{}, invalid(
 				"qualified pull_request branch must use owner:branch with a non-empty owner and branch",
 			)
@@ -306,15 +307,6 @@ func (m Monitor) observable() Monitor {
 }
 
 func validPullRequestOwner(owner string) bool {
-	if len(owner) == 0 || len(owner) > 39 || owner[0] == '-' || owner[len(owner)-1] == '-' ||
-		strings.Contains(owner, "--") {
-		return false
-	}
-	for _, char := range owner {
-		if char != '-' && (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') &&
-			(char < '0' || char > '9') {
-			return false
-		}
-	}
-	return true
+	return owner != "" && !strings.ContainsAny(owner, "/\\:") &&
+		!strings.ContainsFunc(owner, func(char rune) bool { return unicode.IsSpace(char) || unicode.IsControl(char) })
 }
