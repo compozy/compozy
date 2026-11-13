@@ -1,5 +1,7 @@
 import { Outlet } from "@tanstack/react-router";
 
+import { WindowNavigationGuardContext } from "@/hooks/use-window-navigation-guard";
+
 import { cn } from "@compozy/ui";
 
 import { CmdPaletteRegistryProvider } from "../contexts/cmd-palette-registry-context";
@@ -15,6 +17,7 @@ import { useProfileLifecycleHostActions } from "../hooks/use-profile-lifecycle-h
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import type { WorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
+import { createWindowNavigationGuard } from "../lib/window-navigation-guard";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
@@ -85,6 +88,7 @@ export function DesktopShell() {
 /** Mounts the shell context and its lifecycle confirmation before rendering desktop content. */
 function DesktopChrome({ firstRun, update }: { firstRun: boolean; update: MenubarUpdateModel }) {
   const controller = useDesktopChromeController();
+  const navigationGuard = createWindowNavigationGuard(controller.chrome.shell.manager);
 
   // Zero project workspaces boots into All projects with User focused; the
   // shell never waits for a project before rendering.
@@ -92,18 +96,20 @@ function DesktopChrome({ firstRun, update }: { firstRun: boolean; update: Menuba
   return (
     <WorktreeDialogActionsContext.Provider value={controller.worktreeDialogs}>
       <OsShellContext.Provider value={controller.chrome.shell}>
-        <DeskProfileContext value={controller.chrome.profileId}>
-          <TerminalCloseDialog controller={controller.chrome.terminalClose} />
-          <DesktopChromeContent
-            client={controller.chrome.client}
-            firstRun={firstRun}
-            model={controller.model}
-            clientCommandChannel={controller.chrome.clientCommandChannel}
-            update={update}
-            worktreeDialogs={controller.worktreeDialogs}
-            workspaceSetupDefaults={controller.workspaceSetupDefaults}
-          />
-        </DeskProfileContext>
+        <WindowNavigationGuardContext value={navigationGuard}>
+          <DeskProfileContext value={controller.chrome.profileId}>
+            <TerminalCloseDialog controller={controller.chrome.terminalClose} />
+            <DesktopChromeContent
+              client={controller.chrome.client}
+              firstRun={firstRun}
+              model={controller.model}
+              clientCommandChannel={controller.chrome.clientCommandChannel}
+              update={update}
+              worktreeDialogs={controller.worktreeDialogs}
+              workspaceSetupDefaults={controller.workspaceSetupDefaults}
+            />
+          </DeskProfileContext>
+        </WindowNavigationGuardContext>
       </OsShellContext.Provider>
     </WorktreeDialogActionsContext.Provider>
   );

@@ -8,6 +8,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  defaultParseSearch,
   redirect,
 } from "@tanstack/react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -16,6 +17,7 @@ import type { OsHydration, OsOpenTarget, OsWindow, OsWindowRoute } from "../os-t
 import { connectRouterEntries, RouterEntryBridge } from "../router-entry-bridge";
 import { RoutingCoordinator, type OsRouterPort } from "../routing-coordinator";
 import { RoutingEntryLedger } from "../routing-entry-ledger";
+import { routeReplacesWindowContent } from "../window-navigation-guard";
 import type { WindowManagerClientView } from "../window-manager-types";
 
 function route(pathname: string, search: Record<string, unknown> = {}): OsWindowRoute {
@@ -301,7 +303,9 @@ function createCoordinator(initialWindows: readonly OsWindow[] = []) {
  */
 function createBridgedCoordinator(
   initialWindows: readonly OsWindow[],
-  blockerFn: () => boolean | Promise<boolean>
+  blockerFn: (args: {
+    nextLocation: { pathname: string; search: string };
+  }) => boolean | Promise<boolean>
 ) {
   const rootRoute = createRootRoute();
   const sessionRoute = createRoute({
@@ -2059,6 +2063,45 @@ describe("RoutingCoordinator", () => {
         disconnect();
       }
     );
+
+    // Invariant (B-1): a dirty editor's guard holds only a navigation that lands in the editor's
+    // own window with another route, resolved where the coordinator lands it; the URL following
+    // focus to another window, that window's own navigation and a return to the editor's route
+    // pass. Owning layer: the shell's answer to the guard over the real router and history.
+    it("Should hold only a navigation that would replace a dirty editor in its own window [B-1]", async () => {
+      const settings = windowFixture("settings", "/settings");
+      const editor = windowFixture("tasks", "/tasks");
+      const held: string[] = [];
+      const bridged = createBridgedCoordinator([settings, editor], ({ nextLocation }) => {
+        const replaces = routeReplacesWindowContent(bridged.store.getState(), editor.id, {
+          pathname: nextLocation.pathname,
+          search: defaultParseSearch(nextLocation.search),
+        });
+        if (replaces) held.push(`${nextLocation.pathname}${nextLocation.search}`);
+        return replaces;
+      });
+      const { coordinator, router, currentKey, disconnect } = bridged;
+      await router.load();
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(editor.route, currentKey());
+
+      // Another tab: the URL follows focus to Settings.
+      await coordinator.userActivateWindow(settings.id);
+      expect(router.history.location.pathname).toBe("/settings");
+      // Settings' own navigation, a section.
+      await router.navigate({ href: "/settings?section=general" });
+      expect(router.history.location.search).toContain("section=general");
+      // A location that would land in the editor's window with another route.
+      void router.navigate({ href: "/tasks?status=ready" });
+      await Promise.resolve();
+      expect(router.history.location.pathname).toBe("/settings");
+      // Back to the editor's own route.
+      await coordinator.userActivateWindow(editor.id);
+      expect(router.history.location.pathname).toBe("/tasks");
+
+      expect(held).toEqual(["/tasks?status=ready"]);
+      disconnect();
+    });
 
     it("Should carry a same-path replace made during an owned load to its window when a competing activation moves focus [AS-F-17]", async () => {
       const tasks = windowFixture("tasks", "/tasks");
