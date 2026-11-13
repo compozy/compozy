@@ -756,6 +756,72 @@ func TestLegacyWindowLayoutResources(t *testing.T) {
 		}
 	})
 
+	// Invariant: boot persists v4 app upgrades before registered-app reconciliation can prune windows.
+	t.Run("Should rewrite retired apps in a stored v4 profile without losing windows (IT-013)", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatal(err)
+		}
+		codecs := resources.NewCodecRegistry()
+		if err := registerDaemonResourceCodecs(codecs); err != nil {
+			t.Fatal(err)
+		}
+		state := &bootState{resourceKernel: kernel, resourceCodecs: codecs, logger: discardLogger()}
+		actor := resources.MutationActor{
+			Kind: resources.MutationActorKindOperator, ID: "operator",
+			Source:   resources.ResourceSource{Kind: "dynamic", ID: "operator"},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}
+		raw := []byte(legacyWindowLayoutResourceJSON)
+		for _, replacement := range [][2]string{
+			{`"version":5`, `"version":4`},
+			{`"app":"session"`, `"app":"jobs"`},
+			{`"app":"terminal"`, `"app":"triggers"`},
+			{`/sessions/one`, `/jobs/one`},
+			{`/sessions`, `/jobs`},
+			{`/terminal/two`, `/triggers/two`},
+		} {
+			raw = bytes.ReplaceAll(raw, []byte(replacement[0]), []byte(replacement[1]))
+		}
+		if _, err := kernel.PutRaw(ctx, actor, resources.RawDraft{
+			Kind: windowmanager.WindowLayoutResourceKind, ID: "legacy", Scope: actor.MaxScope, SpecJSON: raw,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := reconcileStoredWindowLayouts(ctx, state); err != nil {
+			t.Fatal(err)
+		}
+		stored, err := kernel.GetRaw(ctx, actor, windowmanager.WindowLayoutResourceKind, "legacy")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Inspect stored window fields directly so a second document decode cannot mask a missed rewrite.
+		var persisted struct {
+			Document struct {
+				Version uint32                          `json:"version"`
+				Windows map[string]windowmanager.Window `json:"windows"`
+			} `json:"document"`
+			ParticipantSlots []windowmanager.WindowID `json:"participant_slots"`
+		}
+		if err := json.Unmarshal(stored.SpecJSON, &persisted); err != nil {
+			t.Fatal(err)
+		}
+		job, trigger := persisted.Document.Windows["one"], persisted.Document.Windows["two"]
+		if persisted.Document.Version != 6 || len(persisted.Document.Windows) != 2 ||
+			job.App != "automations" || job.Route.Pathname != "/automations/jobs/one" ||
+			trigger.App != "automations" || trigger.Route.Pathname != "/automations/triggers/two" ||
+			len(job.NavStack) != 1 ||
+			!reflect.DeepEqual(persisted.ParticipantSlots, []windowmanager.WindowID{"one", "two", "virtual"}) {
+			t.Fatalf("persisted v4 upgrade = %+v", persisted)
+		}
+		if job.NavStack[0].Pathname != "/automations" || string(job.NavStack[0].Search["start"]) != `"schedule"` {
+			t.Fatalf("persisted navigation stack = %+v", job.NavStack)
+		}
+	})
+
 	t.Run("Should load a static v5 extension layout as v6 tabs (IT-013)", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()

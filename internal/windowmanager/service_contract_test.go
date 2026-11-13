@@ -76,6 +76,49 @@ func TestLayoutDocumentContract(t *testing.T) {
 		}
 	})
 
+	// Invariant: document decoding preserves the snapshot migration's retired-app and route upgrade.
+	t.Run("Should decode v4 retired apps with the snapshot migration rules", func(t *testing.T) {
+		t.Parallel()
+		raw := []byte(`{
+			"version":4,"workspace_id":"workspace-a",
+			"desktops":[{"id":"saved","name":"Saved","order":0,"groups":[],"floating":["job","trigger"],"floating_stacks":[]}],
+			"windows":{
+				"job":{"id":"job","app":"jobs","instance_key":"morning-digest","desktop_id":"saved","placement":"floating","route":{"pathname":"/jobs/morning-digest","search":{}},"nav_stack":[{"pathname":"/jobs","search":{}}]},
+				"trigger":{"id":"trigger","app":"triggers","desktop_id":"saved","placement":"floating","route":{"pathname":"/triggers","search":{"event":"session.stopped"}},"nav_stack":[{"pathname":"/triggers/notify","search":{}}]}
+			},"overrides":{}
+		}`)
+		var document LayoutDocument
+		if err := json.Unmarshal(raw, &document); err != nil {
+			t.Fatal(err)
+		}
+		snapshot, _, err := DecodeSnapshot(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := LayoutDocument{
+			Version: snapshot.Version, WorkspaceID: snapshot.WorkspaceID,
+			Desktops: snapshot.Desktops, Windows: snapshot.Windows, Overrides: snapshot.Overrides,
+		}
+		if !reflect.DeepEqual(document, want) {
+			t.Fatalf("decoded document = %+v; want snapshot migration %+v", document, want)
+		}
+		job, trigger := document.Windows["job"], document.Windows["trigger"]
+		if document.Version != 6 || len(document.Windows) != 2 ||
+			job.App != "automations" || job.Route.Pathname != "/automations/jobs/morning-digest" ||
+			job.InstanceKey == nil || *job.InstanceKey != "morning-digest" ||
+			trigger.App != "automations" || trigger.Route.Pathname != "/automations" ||
+			string(trigger.Route.Search["q"]) != `"session.stopped"` ||
+			string(trigger.Route.Search["start"]) != `"event"` || trigger.Route.Search["event"] != nil ||
+			len(job.NavStack) != 1 || len(trigger.NavStack) != 1 {
+			t.Fatalf("upgraded document = %+v", document)
+		}
+		if job.NavStack[0].Pathname != "/automations" ||
+			string(job.NavStack[0].Search["start"]) != `"schedule"` ||
+			trigger.NavStack[0].Pathname != "/automations/triggers/notify" {
+			t.Fatalf("upgraded navigation stacks = %+v / %+v", job.NavStack, trigger.NavStack)
+		}
+	})
+
 	// Invariant: exported v4 layouts remain importable without mutating input; this contract suite owns it.
 	t.Run("Should validate and replace an exported v4 layout with canonical apps", func(t *testing.T) {
 		t.Parallel()
