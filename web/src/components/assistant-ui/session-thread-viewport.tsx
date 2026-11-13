@@ -83,6 +83,9 @@ export function ThreadViewport({
           ref={viewportRef}
           className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto", className)}
           data-testid="chat-view"
+          // `SCROLL_OWNER_ATTRIBUTE`: the transcript keeps its own reading position across a
+          // hidden pane (`useThreadScrollResume`), and the pane host leaves it alone.
+          data-scroll-owner=""
         >
           <ThreadContentRail
             ref={contentRef}

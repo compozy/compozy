@@ -1,3 +1,9 @@
+import {
+  isRenderedElement as isRendered,
+  SCROLL_OWNER_ATTRIBUTE,
+  SCROLL_RESTORE_EVENT,
+} from "@/lib/scroll-owner";
+
 import type { OsWindowRoute } from "./os-types";
 import { sameOsWindowRoute } from "./window-manager-route";
 
@@ -35,10 +41,7 @@ export interface PaneHostWindows {
   routeOf(windowId: string): OsWindowRoute | null;
 }
 
-/** Not hidden by the pane, its tab or a collapsed split: an element the browser renders. */
-function isRendered(element: Element): boolean {
-  return element.isConnected && element.closest("[hidden]") === null;
-}
+const OWNER_SELECTOR = `[${SCROLL_OWNER_ATTRIBUTE}]`;
 
 /**
  * One DOM host per window, owned by a desktop's tab layer. A window's pane renders into its host
@@ -60,10 +63,11 @@ function isRendered(element: Element): boolean {
  *   pane's surface getting a box again after it had none write back every recorded offset the
  *   browser dropped (now 0), which lays the pane out once. An offset belongs to the content that
  *   scrolled: one recorded under another route (a `window navigate` while the pane was hidden, a
- *   route change just before it hid) is dropped instead of written onto the new content. A re-insertion is seen by a
- *   `childList` mutation observer on the slot's ancestors up to the desk layer: those lists change
- *   only when the layout does, never with an app's content. The same observer watches each host's
- *   own children, so a pane root that mounts after `place` is observed for size too.
+ *   route change just before it hid) is dropped instead of written onto the new content. A
+ *   re-insertion is seen by a `childList` mutation observer on the slot's ancestors up to the
+ *   desk layer: those lists change only when the layout does, never with an app's content. The
+ *   same observer watches each host's own children, so a pane root that mounts after `place` is
+ *   observed for size too.
  *   It runs before the apps' own resize handling for that frame (its observer is created first),
  *   so an app that sets its offset again still has the last word.
  * - Focus that last landed inside the pane returns to that element (`preventScroll`) when it was
@@ -76,8 +80,9 @@ function isRendered(element: Element): boolean {
  *   the window that already has focus). The remembered element is kept while its window is not
  *   focused: the next restore after the window has focus again (a show, a move) still returns
  *   the caret where the operator left it.
- * Apps keep their own scroll ownership: a restored offset reads to them as a scroll without a
- * gesture, and the transcript re-pins its end afterwards only while it is following the end.
+ * A container that declares itself a scroll owner (`data-scroll-owner`, the transcript) keeps its
+ * own position: the host records nothing for it and, instead of writing its offset, dispatches
+ * `SCROLL_RESTORE_EVENT` to it at the same moments, so one writer moves it.
  */
 export class WindowPaneHosts {
   private readonly windows: PaneHostWindows;
@@ -250,6 +255,8 @@ export class WindowPaneHosts {
   }
 
   private record(host: PaneHost, container: Element): void {
+    // An owner keeps its own position.
+    if (container.hasAttribute(SCROLL_OWNER_ATTRIBUTE)) return;
     const known = host.offsets.has(container);
     host.offsets.set(container, {
       top: container.scrollTop,
@@ -276,9 +283,13 @@ export class WindowPaneHosts {
       }
       if (!isRendered(element)) continue;
       // Only an offset the browser dropped: one the app already set again (a terminal syncing
-      // to its buffer, the transcript pinning its end) is the app's.
+      // to its buffer) is the app's.
       if (element.scrollTop === 0 && offset.top !== 0) element.scrollTop = offset.top;
       if (element.scrollLeft === 0 && offset.left !== 0) element.scrollLeft = offset.left;
+    }
+    // Scroll owners restore themselves, in the same frame.
+    for (const owner of host.element.querySelectorAll(OWNER_SELECTOR)) {
+      if (isRendered(owner)) owner.dispatchEvent(new Event(SCROLL_RESTORE_EVENT));
     }
     const focus = this.lastFocus;
     if (focus === null || focus.windowId !== host.windowId) return;

@@ -31,6 +31,7 @@ import type {
   WindowManagerSnapshot,
 } from "../../lib/window-manager-types";
 import type { WindowManagerGlobalShortcutMap } from "../../lib/window-manager-shortcut-types";
+import { SCROLL_OWNER_ATTRIBUTE, SCROLL_RESTORE_EVENT } from "@/lib/scroll-owner";
 import { statusKeys } from "@/systems/status";
 import { workspaceKeys } from "@/systems/workspace";
 import { ensureWindowSlotStore, pruneWindowSlotStores } from "../../lib/window-slot-registry";
@@ -1413,24 +1414,29 @@ describe("useVisitedTabs", () => {
 // asserts what the hosts write back.
 describe("WindowPaneHosts", () => {
   function setup() {
-    let observe!: ResizeObserverCallback;
-    let observer!: ResizeObserver;
-    /** What the live resize observer watches. */
+    /** Every live resize observer and what it watches. */
+    const observers = new Map<
+      ResizeObserver,
+      { callback: ResizeObserverCallback; on: Set<Element> }
+    >();
+    /** What any live resize observer watches. */
     const sized = new Set<Element>();
     class ResizeObserverMock implements ResizeObserver {
       constructor(callback: ResizeObserverCallback) {
-        observe = callback;
-        observer = this;
+        observers.set(this, { callback, on: new Set() });
       }
 
       observe(target: Element) {
+        observers.get(this)?.on.add(target);
         sized.add(target);
       }
       unobserve(target: Element) {
+        observers.get(this)?.on.delete(target);
         sized.delete(target);
       }
       disconnect() {
-        sized.clear();
+        for (const target of observers.get(this)?.on ?? []) sized.delete(target);
+        observers.get(this)?.on.clear();
       }
     }
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
@@ -1478,19 +1484,21 @@ describe("WindowPaneHosts", () => {
       );
       field.blur();
     };
-    const box = (width: number, height: number) =>
-      observe(
-        [
-          {
-            target: surface,
-            contentRect: new DOMRectReadOnly(0, 0, width, height),
-            borderBoxSize: [],
-            contentBoxSize: [],
-            devicePixelContentBoxSize: [],
-          },
-        ],
-        observer
-      );
+    /** The browser reports `target`'s new size to the observers watching it. */
+    const resize = (target: Element, width: number, height: number) => {
+      for (const [instance, { callback, on }] of observers) {
+        if (!on.has(target)) continue;
+        const entry = {
+          target,
+          contentRect: new DOMRectReadOnly(0, 0, width, height),
+          borderBoxSize: [],
+          contentBoxSize: [],
+          devicePixelContentBoxSize: [],
+        };
+        callback([entry], instance);
+      }
+    };
+    const box = (width: number, height: number) => resize(surface, width, height);
     const cleanup = () => {
       hosts.dispose();
       first.remove();
@@ -1509,6 +1517,7 @@ describe("WindowPaneHosts", () => {
       scrollTo,
       loseLayoutState,
       stopRendering,
+      resize,
       box,
       cleanup,
     };
@@ -1782,6 +1791,31 @@ describe("WindowPaneHosts", () => {
     box(640, 480);
 
     expect(scroller.scrollTop).toBe(0);
+    cleanup();
+  });
+
+  it("Should leave a scroll owner's offset to it and tell it the pane shows again [A-1]", () => {
+    const { hosts, surface, first, box, cleanup } = setup();
+    const owner = document.createElement("div");
+    owner.setAttribute(SCROLL_OWNER_ATTRIBUTE, "");
+    surface.append(owner);
+    const told = vi.fn();
+    owner.addEventListener(SCROLL_RESTORE_EVENT, told);
+    hosts.place("w", first);
+    box(640, 480);
+    expect(told).toHaveBeenCalledOnce();
+    owner.scrollTop = 300;
+    owner.dispatchEvent(new Event("scroll"));
+
+    surface.hidden = true;
+    owner.scrollTop = 0;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+
+    // One writer: the owner restores itself on the event; the host never wrote its offset.
+    expect(told).toHaveBeenCalledTimes(2);
+    expect(owner.scrollTop).toBe(0);
     cleanup();
   });
 
