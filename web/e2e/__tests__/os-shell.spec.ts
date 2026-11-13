@@ -1527,6 +1527,7 @@ test("E2E-004: appearance stays client-local and never writes the window layout"
 }) => {
   const workspace = await prepareShell(appPage, runtime);
   const tasksWindow = await openDockApp(appPage, "Tasks", "tasks");
+  const tasksID = await windowID(tasksWindow);
 
   await openMenu(appPage, "CompozyOS");
   await appPage.getByRole("menuitem", { name: "Settings → Appearance" }).click();
@@ -1573,6 +1574,11 @@ test("E2E-004: appearance stays client-local and never writes the window layout"
     revisionBeforePreferences
   );
 
+  // Settings holds the active tab; Tasks keeps its own tab and shows again when chosen.
+  const shell = osShellSelectors(appPage);
+  await expect(tasksWindow).toBeHidden();
+  await shell.tabOfWindow(tasksID).click();
+  await expect(shell.tabOfWindow(tasksID)).toHaveAttribute("aria-selected", "true");
   await expect(tasksWindow).toBeVisible();
 });
 
@@ -2669,7 +2675,16 @@ test("Tabs-split E2E-011: a tab dragged onto a desktop indicator moves there; th
 
   await test.step("closing a desktop with tabs asks for a destination and moves them", async () => {
     const before = await windowManagerSnapshot(runtime, workspace.id);
-    const moving = desktopTabIds(before, second);
+    // A tab holding only a New Tab window is a placeholder, not content: the delete drops it
+    // (spec "Empty desktop"; reducer UT-039) and moves every other tab.
+    const secondTabs = before.desktops.find(desktop => desktop.id === second)?.tabs ?? [];
+    const isPlaceholder = (tab: WindowManagerTab) => {
+      const ids = nodeWindowIds(tab.root);
+      return ids.length === 1 && before.windows[ids[0] ?? ""]?.app === "new-tab";
+    };
+    const moving = secondTabs.filter(tab => !isPlaceholder(tab)).map(tab => tab.id);
+    const dropped = secondTabs.filter(isPlaceholder).flatMap(tab => nodeWindowIds(tab.root));
+    expect(moving).toContain(agentsTab);
     await openOverview();
     const closing = card("Second");
     await closing.getByRole("button", { name: "Close Second" }).click();
@@ -2686,6 +2701,7 @@ test("Tabs-split E2E-011: a tab dragged onto a desktop indicator moves there; th
     // Nothing closed: every tab of the closed desktop now ends the destination's bar.
     expect(desktopTabIds(after, "desktop-default").slice(-moving.length)).toEqual(moving);
     expect(after.windows[agentsID]).toMatchObject({ desktop_id: "desktop-default" });
+    for (const id of dropped) expect(after.windows[id]).toBeUndefined();
     await expect(card("Desktop 1").getByRole("button", { name: "Close Desktop 1" })).toHaveCount(0);
   });
 });
@@ -2954,33 +2970,33 @@ test("E2E-038 (logical E2E-014): palette Go to tab crosses desktops by opaque id
     .toBe(agentsID);
 });
 
-test("E2E-039 (logical E2E-004/013): a crowded tab bar keeps overflow, tooltip, and 15-tab reachability", async ({
+test("E2E-039 (logical E2E-004/013): a crowded tab bar keeps overflow, tooltip, and last-tab reachability", async ({
   appPage,
   runtime,
 }) => {
+  // Tabs shrink to fit down to the 40px floor before the bar scrolls (spec "Tab width"): at
+  // 1280px the strip holds about 26 floor tabs, so 30 windows plus the New Tab overflow it.
+  await appPage.setViewportSize({ width: 1280, height: 720 });
   const workspace = await prepareShell(appPage, runtime);
   const ids = await openFixtureWindows(
     runtime,
     workspace.id,
-    Array.from({ length: 15 }, () => "tasks")
+    Array.from({ length: 30 }, () => "tasks")
   );
   const shell = osShellSelectors(appPage);
   const order = desktopTabIds(
     await windowManagerSnapshot(runtime, workspace.id),
     "desktop-default"
   );
-  expect(order.length).toBeGreaterThanOrEqual(15);
+  expect(order.length).toBeGreaterThanOrEqual(30);
   await expect(shell.tabs).toHaveCount(order.length);
   for (const id of ids) await expect(shell.tabOfWindow(id)).toHaveCount(1);
   // The strip scrolls; the bar box around it holds the overflow list's trigger.
-  const dimensions = await shell.tabStrip.evaluate(strip => ({
-    clientWidth: strip.clientWidth,
-    scrollWidth: strip.scrollWidth,
-  }));
   const overflow = shell.tabBar.getByRole("button", { name: `All ${order.length} tabs` });
-  expect(dimensions.scrollWidth > dimensions.clientWidth || (await overflow.isVisible())).toBe(
-    true
-  );
+  await expect(overflow).toBeVisible();
+  await expect
+    .poll(() => shell.tabStrip.evaluate(strip => strip.scrollWidth > strip.clientWidth))
+    .toBe(true);
   const lastID = ids.at(-1);
   if (!lastID) throw new Error("overflow fixture must retain its last tab");
   const lastTab = shell.tabOfWindow(lastID);
@@ -4571,13 +4587,12 @@ test("E2E-018: a cold daemon explains and refuses primary actions while exempt c
   );
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await prepareShell(appPage, runtime);
-  // Recovery replaces the transport failure with the live contextual reason;
-  // this fresh shell has no focused window yet.
+  // Recovery replaces the transport failure with the live context: a desktop always holds a
+  // tab, so this fresh shell focuses its New Tab and Close window is available again.
   const reopened = await openCommandPalette(appPage);
-  await expect(paletteRowReason(reopened, "window.close")).toHaveText("requires a focused window");
-  await expect(paletteRow(reopened, "window.close")).toHaveAccessibleDescription(
-    "requires a focused window"
-  );
+  await expect(paletteRow(reopened, "window.close")).toBeEnabled();
+  await expect(paletteRowReason(reopened, "window.close")).toHaveCount(0);
+  await expect(paletteRow(reopened, "window.close")).toHaveAccessibleDescription("");
 });
 
 test("E2E-019 / E2E-017: menubar matches the palette and overlays unwind above the bell", async ({

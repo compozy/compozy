@@ -261,8 +261,8 @@ test("Herdr E2E-018 / E2E-017: Terminal preset lifecycle and shortcut alternates
     await newTab.getByRole("button", { name: "New tab shortcut" }).click();
     await appPage.keyboard.press("Control+Alt+ArrowLeft");
     const conflict = settingsWin.getByTestId("shortcut-conflict-window.tab.new");
-    await expect(conflict).toContainText("⌃⌥← is already used by Tile left half");
-    await expect(conflict).toContainText("Overwriting leaves Tile left half unbound.");
+    await expect(conflict).toContainText("⌃⌥← is already used by Move to tab's left edge");
+    await expect(conflict).toContainText("Overwriting leaves Move to tab's left edge unbound.");
     await expect(conflict.getByRole("button", { name: "Overwrite" })).toBeVisible();
     await expect(conflict.getByRole("button", { name: "Cancel" })).toBeVisible();
     await expect(settingsWin.getByTestId("window-manager-shortcut-sidebar.toggle")).toContainText(
