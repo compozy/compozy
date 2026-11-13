@@ -18,11 +18,7 @@ export function selectFocusedSessionId(state: OsDesktopRuntimeStore): string | n
   const windowId = state.focusedId;
   if (windowId === null) return null;
   const focused = state.windows[windowId];
-  if (
-    focused === undefined ||
-    focused.desktopId !== state.activeDesktopId ||
-    !focused.shown
-  ) {
+  if (focused === undefined || focused.desktopId !== state.activeDesktopId || !focused.shown) {
     return null;
   }
   return matchSessionInstance(focused.route.pathname);

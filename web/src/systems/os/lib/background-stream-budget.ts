@@ -12,9 +12,7 @@ export function backgroundStreamsWithinConnectionBudget(
 ): boolean {
   return (
     state.connectionStatus === "connected" &&
-    !Object.values(state.windows).some(
-      win => win.desktopId === state.activeDesktopId && win.shown
-    )
+    !Object.values(state.windows).some(win => win.desktopId === state.activeDesktopId && win.shown)
   );
 }
 

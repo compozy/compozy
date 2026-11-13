@@ -6,12 +6,7 @@
 // Boundary OUT: rendered tab bar, scrolling, and the overflow list.
 import { describe, expect, it } from "vitest";
 
-import {
-  allocateTabWidths,
-  TAB_MAX_WIDTH,
-  TAB_MIN_WIDTH,
-  tabPresentation,
-} from "../tab-width";
+import { allocateTabWidths, TAB_MAX_WIDTH, TAB_MIN_WIDTH, tabPresentation } from "../tab-width";
 
 function total(widths: readonly number[]): number {
   return widths.reduce((sum, width) => sum + width, 0);

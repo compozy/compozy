@@ -1,317 +1,317 @@
 {
-  "version": 3,
-  "key": "window-tabs",
-  "sequence": 4,
-  "review": {
-    "status": "in_review",
-    "updatedAt": null
-  },
-  "events": [],
-  "comments": [
-    {
-      "id": "window-tabs-1",
-      "slug": "window-tabs",
-      "status": "resolved",
-      "createdAt": "2026-11-12T17:59:19.891Z",
-      "updatedAt": "2026-11-12T18:05:10.890Z",
-      "resolvedAt": "2026-11-12T18:05:10.890Z",
-      "context": {
-        "commit": "cd12fe07d63fd6cefdb0fd7a1204e909e178b7af",
-        "state": "live",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 1236,
-          "height": 592
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "div:nth-of-type(2) > button:nth-of-type(1) > span:nth-of-type(1) > span > span",
-        "testId": null,
-        "tag": "span",
-        "text": "",
-        "source": "src/drafts/window-tabs-shared/os-tab.tsx:56:11",
-        "sourceChain": [
-          "src/drafts/window-tabs-shared/os-tab.tsx:56:11",
-          "src/drafts/window-tabs-shared/os-tab.tsx:41:5",
-          "src/drafts/window-tabs-shared/os-tab.tsx:148:11",
-          "src/drafts/window-tabs-shared/os-tab.tsx:147:9",
-          "src/drafts/window-tabs-shared/os-tab.tsx:138:7",
-          "src/drafts/window-tabs-shared/os-tab.tsx:121:5",
-          "src/drafts/window-tabs-shared/os-tab-bar.tsx:80:15",
-          "src/drafts/window-tabs-shared/os-tab-bar.tsx:73:9"
-        ],
-        "rect": {
-          "x": 122.5,
-          "y": 62,
-          "width": 24,
-          "height": 20
-        },
-        "rectNormalized": {
-          "x": 0.09911003236245955,
-          "y": 0.10472972972972973,
-          "width": 0.019417475728155338,
-          "height": 0.033783783783783786
-        },
-        "offset": null
-      },
-      "thread": [
-        {
-          "id": "b06c4daf-46ce-45b8-95ce-fae468fa866f",
-          "at": "2026-11-12T17:59:19.903Z",
-          "editedAt": null,
-          "body": "não precisa ter um border no box do icon",
-          "author": "reviewer",
-          "attachments": []
-        },
-        {
-          "id": "ce1ce18e-79ec-468e-bd36-516c5089c44b",
-          "at": "2026-11-12T18:05:10.889Z",
-          "editedAt": null,
-          "body": "Removi a borda do box do ícone: o tile agora é um preenchimento sólido sem contorno (os de trás, em abas com split, usam um tom mais claro). Arquivo: src/drafts/window-tabs-shared/os-tab.tsx. Conferi em tab-sheet e nas barras em tema escuro.",
-          "author": "agent",
-          "attachments": []
-        }
-      ]
+    "version": 3,
+    "key": "window-tabs",
+    "sequence": 4,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
     },
-    {
-      "id": "window-tabs-2",
-      "slug": "window-tabs",
-      "status": "resolved",
-      "createdAt": "2026-11-12T18:01:33.134Z",
-      "updatedAt": "2026-11-12T18:05:23.614Z",
-      "resolvedAt": "2026-11-12T18:05:11.208Z",
-      "context": {
-        "commit": "cd12fe07d63fd6cefdb0fd7a1204e909e178b7af",
-        "state": "bar-many",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 1236,
-          "height": 592
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "body > div:nth-of-type(1) > div > div:nth-of-type(2) > div",
-        "testId": null,
-        "tag": "div",
-        "text": "Fix login redirect loop Window tabs and splits 2 Review PR #1609 2 Release notes v0.7.0 Flaky attach test make dev web/…",
-        "source": "src/drafts/window-tabs-shared/os-tab-bar.tsx:62:5",
-        "sourceChain": [
-          "src/drafts/window-tabs-shared/os-tab-bar.tsx:62:5",
-          "src/drafts/window-tabs/scene-view.tsx:28:9",
-          "src/drafts/window-tabs-shared/shell.tsx:131:7",
-          "src/drafts/window-tabs-shared/shell.tsx:91:5",
-          "src/drafts/window-tabs/scene-view.tsx:26:5",
-          "src/drafts/window-tabs/index.proto.tsx:51:10"
-        ],
-        "rect": {
-          "x": 60,
-          "y": 52,
-          "width": 1176,
-          "height": 40
-        },
-        "rectNormalized": {
-          "x": 0.04854368932038835,
-          "y": 0.08783783783783784,
-          "width": 0.9514563106796117,
-          "height": 0.06756756756756757
-        },
-        "offset": null
-      },
-      "thread": [
+    "events": [],
+    "comments": [
         {
-          "id": "76be625f-7614-4073-aa5a-9137748e72fb",
-          "at": "2026-11-12T18:01:33.146Z",
-          "editedAt": null,
-          "body": "too many tabs ta estranho, principalmente em telas menores, acho que tem melhorar essa UI/UX, não sei como isso costumar ser mas eu acho que usar @container pra ver e ai reduzir o tamanho de todas e dai só a selecionada um pouco maior, até chegar uma hora que todas fiquem só o icone, algo nessa linha",
-          "author": "reviewer",
-          "attachments": [
-            {
-              "id": "15f17452-d3b2-4b5f-ad6e-0b8e1ede67d3",
-              "name": "CleanShot 2026-11-12 at 2.59.37 PM@2x.png",
-              "type": "image/png",
-              "size": 700784,
-              "width": 2704,
-              "height": 1756,
-              "uploaderKind": "reviewer"
+            "id": "window-tabs-1",
+            "slug": "window-tabs",
+            "status": "resolved",
+            "createdAt": "2026-11-12T17:59:19.891Z",
+            "updatedAt": "2026-11-12T18:05:10.890Z",
+            "resolvedAt": "2026-11-12T18:05:10.890Z",
+            "context": {
+                "commit": "cd12fe07d63fd6cefdb0fd7a1204e909e178b7af",
+                "state": "live",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1236,
+                    "height": 592
+                }
             },
-            {
-              "id": "9d53f0ce-7a3a-491a-8dba-c872c71e0eec",
-              "name": "CleanShot 2026-11-12 at 3.00.20 PM@2x.png",
-              "type": "image/png",
-              "size": 77186,
-              "width": 2704,
-              "height": 204,
-              "uploaderKind": "reviewer"
-            }
-          ]
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(2) > button:nth-of-type(1) > span:nth-of-type(1) > span > span",
+                "testId": null,
+                "tag": "span",
+                "text": "",
+                "source": "src/drafts/window-tabs-shared/os-tab.tsx:56:11",
+                "sourceChain": [
+                    "src/drafts/window-tabs-shared/os-tab.tsx:56:11",
+                    "src/drafts/window-tabs-shared/os-tab.tsx:41:5",
+                    "src/drafts/window-tabs-shared/os-tab.tsx:148:11",
+                    "src/drafts/window-tabs-shared/os-tab.tsx:147:9",
+                    "src/drafts/window-tabs-shared/os-tab.tsx:138:7",
+                    "src/drafts/window-tabs-shared/os-tab.tsx:121:5",
+                    "src/drafts/window-tabs-shared/os-tab-bar.tsx:80:15",
+                    "src/drafts/window-tabs-shared/os-tab-bar.tsx:73:9"
+                ],
+                "rect": {
+                    "x": 122.5,
+                    "y": 62,
+                    "width": 24,
+                    "height": 20
+                },
+                "rectNormalized": {
+                    "x": 0.09911003236245955,
+                    "y": 0.10472972972972973,
+                    "width": 0.019417475728155338,
+                    "height": 0.033783783783783786
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "b06c4daf-46ce-45b8-95ce-fae468fa866f",
+                    "at": "2026-11-12T17:59:19.903Z",
+                    "editedAt": null,
+                    "body": "não precisa ter um border no box do icon",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "ce1ce18e-79ec-468e-bd36-516c5089c44b",
+                    "at": "2026-11-12T18:05:10.889Z",
+                    "editedAt": null,
+                    "body": "Removi a borda do box do ícone: o tile agora é um preenchimento sólido sem contorno (os de trás, em abas com split, usam um tom mais claro). Arquivo: src/drafts/window-tabs-shared/os-tab.tsx. Conferi em tab-sheet e nas barras em tema escuro.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
         },
         {
-          "id": "e4b12b15-cd66-46f9-bd1b-cbdb8a6dd001",
-          "at": "2026-11-12T18:05:11.208Z",
-          "editedAt": "2026-11-12T18:05:23.614Z",
-          "body": "Refiz o encolhimento no estilo do Chrome, com @container em cada aba. Todas encolhem juntas e a selecionada cede largura mais devagar, então fica a maior. Cada aba vai soltando, nesta ordem: contagem de janelas (abaixo de 160px), contagem de pendências (144px), sinal ao lado do título, que passa para o canto do ícone, e botão de fechar (120px), e por fim o título (72px), ficando só o ícone. A selecionada mantém o fechar por mais tempo e no limite também vira só ícone. Nenhuma aba mostra mais título de uma letra. Só quando nem os ícones cabem a barra rola e aparece a lista. Novo estado bar-crowded; tab-sheet mostra cada degrau. Arquivos: os-tab.tsx, os-tab-bar.tsx. Conferi bar-many em 1440, 1236, 960 e 720px (imagem anexa).",
-          "author": "agent",
-          "attachments": [
-            {
-              "id": "d21cb33d-f12e-498b-9799-3b19490af7a1",
-              "name": "tab-bar-widths.png",
-              "type": "image/png",
-              "size": 53423,
-              "width": 1440,
-              "height": 336,
-              "uploaderKind": "agent"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "window-tabs-3",
-      "slug": "window-tabs",
-      "status": "resolved",
-      "createdAt": "2026-11-12T18:10:53.693Z",
-      "updatedAt": "2026-11-12T18:14:55.913Z",
-      "resolvedAt": "2026-11-12T18:14:55.913Z",
-      "context": {
-        "commit": "cd12fe07d63fd6cefdb0fd7a1204e909e178b7af",
-        "state": "bar-pinned",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 1236,
-          "height": 592
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "div:nth-of-type(2) > div > div > div > div:nth-of-type(1)",
-        "testId": null,
-        "tag": "div",
-        "text": "",
-        "source": "src/drafts/window-tabs-shared/os-tab.tsx:141:5",
-        "sourceChain": [
-          "src/drafts/window-tabs-shared/os-tab.tsx:141:5",
-          "src/drafts/window-tabs-shared/os-tab-bar.tsx:77:15",
-          "src/drafts/window-tabs-shared/os-tab-bar.tsx:70:9",
-          "src/drafts/window-tabs-shared/os-tab-bar.tsx:66:7",
-          "src/drafts/window-tabs-shared/os-tab-bar.tsx:62:5",
-          "src/drafts/window-tabs/scene-view.tsx:28:9",
-          "src/drafts/window-tabs-shared/shell.tsx:131:7",
-          "src/drafts/window-tabs-shared/shell.tsx:91:5"
-        ],
-        "rect": {
-          "x": 66,
-          "y": 58.5,
-          "width": 40,
-          "height": 27
-        },
-        "rectNormalized": {
-          "x": 0.05339805825242718,
-          "y": 0.09881756756756757,
-          "width": 0.032362459546925564,
-          "height": 0.04560810810810811
-        },
-        "offset": null
-      },
-      "thread": [
-        {
-          "id": "b43938ab-ab3e-4dc5-9120-3835dc8a7659",
-          "at": "2026-11-12T18:10:53.705Z",
-          "editedAt": null,
-          "body": "o padding left e right está bem maior que o top e bottom da pra diminuir",
-          "author": "reviewer",
-          "attachments": []
-        },
-        {
-          "id": "c8d8fcbe-c5a5-49f2-8b5f-68063924ca7c",
-          "at": "2026-11-12T18:14:55.913Z",
-          "editedAt": null,
-          "body": "A aba fixada tinha 40px de largura para um ícone de 24px, o que dava 8px dos lados contra 3.5px em cima e embaixo. Agora ela tem a largura exata do ícone mais 3.5px de cada lado (31px; 35px na fixada com split). Medi no navegador: 3.5px nos quatro lados. As abas normais continuam com piso de 40px. Arquivo: src/drafts/window-tabs-shared/os-tab.tsx. Conferi bar-pinned e bar-many em 1236px, temas claro e escuro.",
-          "author": "agent",
-          "attachments": []
-        }
-      ]
-    },
-    {
-      "id": "window-tabs-4",
-      "slug": "window-tabs",
-      "status": "resolved",
-      "createdAt": "2026-11-12T18:12:28.977Z",
-      "updatedAt": "2026-11-12T18:14:57.170Z",
-      "resolvedAt": "2026-11-12T18:14:56.324Z",
-      "context": {
-        "commit": "cd12fe07d63fd6cefdb0fd7a1204e909e178b7af",
-        "state": "tab-sheet",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 1236,
-          "height": 592
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "section:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div",
-        "testId": null,
-        "tag": "div",
-        "text": "Fix login redirect loop",
-        "source": "src/drafts/window-tabs-shared/os-tab.tsx:141:5",
-        "sourceChain": [
-          "src/drafts/window-tabs-shared/os-tab.tsx:141:5",
-          "src/drafts/window-tabs/tab-sheet.tsx:134:17",
-          "src/drafts/window-tabs/tab-sheet.tsx:120:7",
-          "src/drafts/window-tabs/tab-sheet.tsx:115:5",
-          "src/drafts/window-tabs/tab-sheet.tsx:133:15",
-          "src/drafts/window-tabs/tab-sheet.tsx:130:11",
-          "src/drafts/window-tabs/tab-sheet.tsx:128:7",
-          "src/drafts/window-tabs/tab-sheet.tsx:127:5"
-        ],
-        "rect": {
-          "x": 246,
-          "y": 180.5,
-          "width": 200,
-          "height": 27
-        },
-        "rectNormalized": {
-          "x": 0.19902912621359223,
-          "y": 0.30489864864864863,
-          "width": 0.16181229773462782,
-          "height": 0.04560810810810811
-        },
-        "offset": null
-      },
-      "thread": [
-        {
-          "id": "b473203a-5278-46d3-b3eb-88d3bdf0056c",
-          "at": "2026-11-12T18:12:28.990Z",
-          "editedAt": null,
-          "body": "o cinza de tom selected está claro demais, pode seguir o cinza do hover e o cinza do icone tb pode por consequencia diminuir um pouco também",
-          "author": "reviewer",
-          "attachments": []
+            "id": "window-tabs-2",
+            "slug": "window-tabs",
+            "status": "resolved",
+            "createdAt": "2026-11-12T18:01:33.134Z",
+            "updatedAt": "2026-11-12T18:05:23.614Z",
+            "resolvedAt": "2026-11-12T18:05:11.208Z",
+            "context": {
+                "commit": "cd12fe07d63fd6cefdb0fd7a1204e909e178b7af",
+                "state": "bar-many",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1236,
+                    "height": 592
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "body > div:nth-of-type(1) > div > div:nth-of-type(2) > div",
+                "testId": null,
+                "tag": "div",
+                "text": "Fix login redirect loop Window tabs and splits 2 Review PR #1609 2 Release notes v0.7.0 Flaky attach test make dev web/…",
+                "source": "src/drafts/window-tabs-shared/os-tab-bar.tsx:62:5",
+                "sourceChain": [
+                    "src/drafts/window-tabs-shared/os-tab-bar.tsx:62:5",
+                    "src/drafts/window-tabs/scene-view.tsx:28:9",
+                    "src/drafts/window-tabs-shared/shell.tsx:131:7",
+                    "src/drafts/window-tabs-shared/shell.tsx:91:5",
+                    "src/drafts/window-tabs/scene-view.tsx:26:5",
+                    "src/drafts/window-tabs/index.proto.tsx:51:10"
+                ],
+                "rect": {
+                    "x": 60,
+                    "y": 52,
+                    "width": 1176,
+                    "height": 40
+                },
+                "rectNormalized": {
+                    "x": 0.04854368932038835,
+                    "y": 0.08783783783783784,
+                    "width": 0.9514563106796117,
+                    "height": 0.06756756756756757
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "76be625f-7614-4073-aa5a-9137748e72fb",
+                    "at": "2026-11-12T18:01:33.146Z",
+                    "editedAt": null,
+                    "body": "too many tabs ta estranho, principalmente em telas menores, acho que tem melhorar essa UI/UX, não sei como isso costumar ser mas eu acho que usar @container pra ver e ai reduzir o tamanho de todas e dai só a selecionada um pouco maior, até chegar uma hora que todas fiquem só o icone, algo nessa linha",
+                    "author": "reviewer",
+                    "attachments": [
+                        {
+                            "id": "15f17452-d3b2-4b5f-ad6e-0b8e1ede67d3",
+                            "name": "CleanShot 2026-11-12 at 2.59.37 PM@2x.png",
+                            "type": "image/png",
+                            "size": 700784,
+                            "width": 2704,
+                            "height": 1756,
+                            "uploaderKind": "reviewer"
+                        },
+                        {
+                            "id": "9d53f0ce-7a3a-491a-8dba-c872c71e0eec",
+                            "name": "CleanShot 2026-11-12 at 3.00.20 PM@2x.png",
+                            "type": "image/png",
+                            "size": 77186,
+                            "width": 2704,
+                            "height": 204,
+                            "uploaderKind": "reviewer"
+                        }
+                    ]
+                },
+                {
+                    "id": "e4b12b15-cd66-46f9-bd1b-cbdb8a6dd001",
+                    "at": "2026-11-12T18:05:11.208Z",
+                    "editedAt": "2026-11-12T18:05:23.614Z",
+                    "body": "Refiz o encolhimento no estilo do Chrome, com @container em cada aba. Todas encolhem juntas e a selecionada cede largura mais devagar, então fica a maior. Cada aba vai soltando, nesta ordem: contagem de janelas (abaixo de 160px), contagem de pendências (144px), sinal ao lado do título, que passa para o canto do ícone, e botão de fechar (120px), e por fim o título (72px), ficando só o ícone. A selecionada mantém o fechar por mais tempo e no limite também vira só ícone. Nenhuma aba mostra mais título de uma letra. Só quando nem os ícones cabem a barra rola e aparece a lista. Novo estado bar-crowded; tab-sheet mostra cada degrau. Arquivos: os-tab.tsx, os-tab-bar.tsx. Conferi bar-many em 1440, 1236, 960 e 720px (imagem anexa).",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "d21cb33d-f12e-498b-9799-3b19490af7a1",
+                            "name": "tab-bar-widths.png",
+                            "type": "image/png",
+                            "size": 53423,
+                            "width": 1440,
+                            "height": 336,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
         },
         {
-          "id": "2c3c89b1-2b9d-4dbf-b4c2-5d4a66c97274",
-          "at": "2026-11-12T18:14:56.323Z",
-          "editedAt": "2026-11-12T18:14:57.170Z",
-          "body": "A aba selecionada agora usa o cinza que era do hover (7% da tinta, antes 10%). O hover das outras desceu para 6% para continuar abaixo da selecionada, e o repouso segue em 4%. O box do ícone também ficou mais escuro: 13% em vez do cinza anterior, e 20% nos boxes de trás de um split. Arquivo: src/drafts/window-tabs-shared/os-tab.tsx. Conferi tab-sheet, bar-pinned e bar-many nos dois temas (imagem anexa).",
-          "author": "agent",
-          "attachments": [
-            {
-              "id": "df9f13a9-da73-4700-9a36-e70437f9856f",
-              "name": "tab-fills-and-pinned.png",
-              "type": "image/png",
-              "size": 139653,
-              "width": 1400,
-              "height": 383,
-              "uploaderKind": "agent"
-            }
-          ]
+            "id": "window-tabs-3",
+            "slug": "window-tabs",
+            "status": "resolved",
+            "createdAt": "2026-11-12T18:10:53.693Z",
+            "updatedAt": "2026-11-12T18:14:55.913Z",
+            "resolvedAt": "2026-11-12T18:14:55.913Z",
+            "context": {
+                "commit": "cd12fe07d63fd6cefdb0fd7a1204e909e178b7af",
+                "state": "bar-pinned",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1236,
+                    "height": 592
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(2) > div > div > div > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "",
+                "source": "src/drafts/window-tabs-shared/os-tab.tsx:141:5",
+                "sourceChain": [
+                    "src/drafts/window-tabs-shared/os-tab.tsx:141:5",
+                    "src/drafts/window-tabs-shared/os-tab-bar.tsx:77:15",
+                    "src/drafts/window-tabs-shared/os-tab-bar.tsx:70:9",
+                    "src/drafts/window-tabs-shared/os-tab-bar.tsx:66:7",
+                    "src/drafts/window-tabs-shared/os-tab-bar.tsx:62:5",
+                    "src/drafts/window-tabs/scene-view.tsx:28:9",
+                    "src/drafts/window-tabs-shared/shell.tsx:131:7",
+                    "src/drafts/window-tabs-shared/shell.tsx:91:5"
+                ],
+                "rect": {
+                    "x": 66,
+                    "y": 58.5,
+                    "width": 40,
+                    "height": 27
+                },
+                "rectNormalized": {
+                    "x": 0.05339805825242718,
+                    "y": 0.09881756756756757,
+                    "width": 0.032362459546925564,
+                    "height": 0.04560810810810811
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "b43938ab-ab3e-4dc5-9120-3835dc8a7659",
+                    "at": "2026-11-12T18:10:53.705Z",
+                    "editedAt": null,
+                    "body": "o padding left e right está bem maior que o top e bottom da pra diminuir",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "c8d8fcbe-c5a5-49f2-8b5f-68063924ca7c",
+                    "at": "2026-11-12T18:14:55.913Z",
+                    "editedAt": null,
+                    "body": "A aba fixada tinha 40px de largura para um ícone de 24px, o que dava 8px dos lados contra 3.5px em cima e embaixo. Agora ela tem a largura exata do ícone mais 3.5px de cada lado (31px; 35px na fixada com split). Medi no navegador: 3.5px nos quatro lados. As abas normais continuam com piso de 40px. Arquivo: src/drafts/window-tabs-shared/os-tab.tsx. Conferi bar-pinned e bar-many em 1236px, temas claro e escuro.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "window-tabs-4",
+            "slug": "window-tabs",
+            "status": "resolved",
+            "createdAt": "2026-11-12T18:12:28.977Z",
+            "updatedAt": "2026-11-12T18:14:57.170Z",
+            "resolvedAt": "2026-11-12T18:14:56.324Z",
+            "context": {
+                "commit": "cd12fe07d63fd6cefdb0fd7a1204e909e178b7af",
+                "state": "tab-sheet",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1236,
+                    "height": 592
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div",
+                "testId": null,
+                "tag": "div",
+                "text": "Fix login redirect loop",
+                "source": "src/drafts/window-tabs-shared/os-tab.tsx:141:5",
+                "sourceChain": [
+                    "src/drafts/window-tabs-shared/os-tab.tsx:141:5",
+                    "src/drafts/window-tabs/tab-sheet.tsx:134:17",
+                    "src/drafts/window-tabs/tab-sheet.tsx:120:7",
+                    "src/drafts/window-tabs/tab-sheet.tsx:115:5",
+                    "src/drafts/window-tabs/tab-sheet.tsx:133:15",
+                    "src/drafts/window-tabs/tab-sheet.tsx:130:11",
+                    "src/drafts/window-tabs/tab-sheet.tsx:128:7",
+                    "src/drafts/window-tabs/tab-sheet.tsx:127:5"
+                ],
+                "rect": {
+                    "x": 246,
+                    "y": 180.5,
+                    "width": 200,
+                    "height": 27
+                },
+                "rectNormalized": {
+                    "x": 0.19902912621359223,
+                    "y": 0.30489864864864863,
+                    "width": 0.16181229773462782,
+                    "height": 0.04560810810810811
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "b473203a-5278-46d3-b3eb-88d3bdf0056c",
+                    "at": "2026-11-12T18:12:28.990Z",
+                    "editedAt": null,
+                    "body": "o cinza de tom selected está claro demais, pode seguir o cinza do hover e o cinza do icone tb pode por consequencia diminuir um pouco também",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "2c3c89b1-2b9d-4dbf-b4c2-5d4a66c97274",
+                    "at": "2026-11-12T18:14:56.323Z",
+                    "editedAt": "2026-11-12T18:14:57.170Z",
+                    "body": "A aba selecionada agora usa o cinza que era do hover (7% da tinta, antes 10%). O hover das outras desceu para 6% para continuar abaixo da selecionada, e o repouso segue em 4%. O box do ícone também ficou mais escuro: 13% em vez do cinza anterior, e 20% nos boxes de trás de um split. Arquivo: src/drafts/window-tabs-shared/os-tab.tsx. Conferi tab-sheet, bar-pinned e bar-many nos dois temas (imagem anexa).",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "df9f13a9-da73-4700-9a36-e70437f9856f",
+                            "name": "tab-fills-and-pinned.png",
+                            "type": "image/png",
+                            "size": 139653,
+                            "width": 1400,
+                            "height": 383,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }

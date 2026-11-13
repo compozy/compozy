@@ -1,11 +1,5 @@
 import { descendantWindowIds } from "./layout-minimums";
-import type {
-  DesktopId,
-  LayoutDesktop,
-  LayoutTab,
-  TabId,
-  WindowId,
-} from "./window-manager-types";
+import type { DesktopId, LayoutDesktop, LayoutTab, TabId, WindowId } from "./window-manager-types";
 
 /** Every window of a tab, in reading order. */
 export function tabWindowIds(tab: LayoutTab): WindowId[] {

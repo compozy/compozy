@@ -106,11 +106,7 @@ export function AppearanceSettingsPaneView({
                 ? "Your system already prefers reduced motion — that preference wins while it is on."
                 : undefined
             }
-            help={
-              systemReducedMotion
-                ? undefined
-                : "Window and dock animations become instant."
-            }
+            help={systemReducedMotion ? undefined : "Window and dock animations become instant."}
             label="Reduce motion"
           />
         </SettingsGroup>

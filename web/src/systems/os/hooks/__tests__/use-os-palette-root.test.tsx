@@ -448,7 +448,11 @@ const DESKTOPS: readonly LayoutDesktop[] = [
     name: "Alpha",
     order: 0,
     tabs: [
-      { id: "tab:alpha", pinned: false, root: { id: "leaf:alpha", kind: "leaf", windowId: "window:tasks" } },
+      {
+        id: "tab:alpha",
+        pinned: false,
+        root: { id: "leaf:alpha", kind: "leaf", windowId: "window:tasks" },
+      },
     ],
   },
   {
@@ -457,7 +461,11 @@ const DESKTOPS: readonly LayoutDesktop[] = [
     name: "Beta",
     order: 1,
     tabs: [
-      { id: "tab:beta", pinned: false, root: { id: "leaf:beta", kind: "leaf", windowId: "window:beta" } },
+      {
+        id: "tab:beta",
+        pinned: false,
+        root: { id: "leaf:beta", kind: "leaf", windowId: "window:beta" },
+      },
     ],
   },
 ];

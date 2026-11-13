@@ -1141,18 +1141,18 @@ field writes/applies nothing and leaves the previous active generation in place.
 Settings › Layouts, while agents can use `compozy config` or the typed
 `GET/PATCH /api/settings/window-manager` surface and inspect config apply history.
 
-| Field                   | Type    | Default             | Valid values                              | Description                                               |
-| ----------------------- | ------- | ------------------- | ----------------------------------------- | --------------------------------------------------------- |
-| `new_window_policy`     | string  | `tab`               | `tab`, `beside_focus`                     | `tab` opens a new tab after the active one; `beside_focus` splits it right of the focused window. |
+| Field                   | Type    | Default             | Valid values                              | Description                                                                                                              |
+| ----------------------- | ------- | ------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `new_window_policy`     | string  | `tab`               | `tab`, `beside_focus`                     | `tab` opens a new tab after the active one; `beside_focus` splits it right of the focused window.                        |
 | `small_viewport_policy` | string  | `stack`             | `stack`, `reject`                         | Below the compact breakpoint, `stack` switches to the compact presentation and `reject` marks the viewport as too small. |
-| `focus_policy`          | string  | `click_directional` | `click_directional`, `directional`        | Enabled focus inputs.                                     |
-| `focus_wrap`            | boolean | `false`             | `true` or `false`                         | Whether directional focus wraps at a desktop boundary.    |
-| `focus_follows_pointer` | boolean | `false`             | `true` or `false`                         | Whether pointer entry changes client-local focus.         |
-| `swap_modifier`         | string  | `shift`             | `alt`, `control`, `meta`, `shift`, `none` | Modifier held while dropping a window on another window of the same tab to swap them. |
-| `history_limit`         | integer | `50`                | `1` through `500`                         | Maximum workspace-scoped layout undo entries.             |
-| `nav_stack_limit`       | integer | `50`                | `1` through `200`                         | Write-time cap for each window's prior-route stack.       |
-| `closed_entry_limit`    | integer | `20`                | `1` through `100`                         | Write-time cap for retained closed-window entries.        |
-| `desktop_transition`    | string  | `slide`             | `slide`, `crossfade`, `instant`           | Desktop transition; reduced motion remains authoritative. |
+| `focus_policy`          | string  | `click_directional` | `click_directional`, `directional`        | Enabled focus inputs.                                                                                                    |
+| `focus_wrap`            | boolean | `false`             | `true` or `false`                         | Whether directional focus wraps at a desktop boundary.                                                                   |
+| `focus_follows_pointer` | boolean | `false`             | `true` or `false`                         | Whether pointer entry changes client-local focus.                                                                        |
+| `swap_modifier`         | string  | `shift`             | `alt`, `control`, `meta`, `shift`, `none` | Modifier held while dropping a window on another window of the same tab to swap them.                                    |
+| `history_limit`         | integer | `50`                | `1` through `500`                         | Maximum workspace-scoped layout undo entries.                                                                            |
+| `nav_stack_limit`       | integer | `50`                | `1` through `200`                         | Write-time cap for each window's prior-route stack.                                                                      |
+| `closed_entry_limit`    | integer | `20`                | `1` through `100`                         | Write-time cap for retained closed-window entries.                                                                       |
+| `desktop_transition`    | string  | `slide`             | `slide`, `crossfade`, `instant`           | Desktop transition; reduced motion remains authoritative.                                                                |
 
 `nav_stack_limit` applies when `compozy window navigate --mode push` records the current route.
 `closed_entry_limit` applies when a close records a reopen entry. Lowering either live

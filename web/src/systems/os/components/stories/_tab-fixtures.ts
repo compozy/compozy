@@ -4,7 +4,11 @@ import type { SessionPayload } from "@/systems/session";
 import type { OsAppId, OsWindow } from "../../lib/os-types";
 
 /** A projected window for tab and split specimens; sessions carry their session ID as the key. */
-export function storyOsWindow(id: string, app: OsAppId, instanceKey: string | null = null): OsWindow {
+export function storyOsWindow(
+  id: string,
+  app: OsAppId,
+  instanceKey: string | null = null
+): OsWindow {
   return {
     id,
     app,
@@ -25,8 +29,20 @@ const waitingSource =
   sessionFixtures.find(session => session.pending_interactions.length > 0) ?? primarySessionFixture;
 
 const STORY_SESSIONS: Record<string, SessionPayload> = {
-  "session-auth": { ...primarySessionFixture, id: "session-auth", name: "Auth refactor", badge: "idle", pending_interactions: [] },
-  "session-tabs": { ...primarySessionFixture, id: "session-tabs", name: "Window tabs", badge: "running", pending_interactions: [] },
+  "session-auth": {
+    ...primarySessionFixture,
+    id: "session-auth",
+    name: "Auth refactor",
+    badge: "idle",
+    pending_interactions: [],
+  },
+  "session-tabs": {
+    ...primarySessionFixture,
+    id: "session-tabs",
+    name: "Window tabs",
+    badge: "running",
+    pending_interactions: [],
+  },
   "session-review": {
     ...waitingSource,
     id: "session-review",

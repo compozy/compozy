@@ -37,7 +37,6 @@ import { ensureWindowSlotStore } from "../lib/window-slot-registry";
 const TILE_HEIGHT = 20;
 const TILE_SHRINK = 2;
 
-
 function sessionProvider(session: SessionPayload | undefined): string | null {
   const runtime = session?.runtime;
   const provider =

@@ -132,9 +132,7 @@ export function OsPaletteEntitySections({
                   1
                 </span>
               ) : null}
-              <span className="ml-auto shrink-0 text-eyebrow text-subtle">
-                {tab.desktopName}
-              </span>
+              <span className="ml-auto shrink-0 text-eyebrow text-subtle">{tab.desktopName}</span>
             </CommandItem>
           ))}
           <EntityOverflow shown={entities.tabs.length} total={entities.tabTotal} />
