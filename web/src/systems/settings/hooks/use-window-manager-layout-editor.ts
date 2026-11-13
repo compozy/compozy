@@ -269,12 +269,7 @@ export function useWindowManagerLayoutEditor(
   };
   /** Any accepted version goes to the daemon, and the editor edits the version 6 it returns. */
   const convertWire = async (wire: Readonly<Record<string, unknown>>) => {
-    const converted = await convertWindowManagerLayoutDocument(
-      workspaceId,
-      profileId,
-      context.revision,
-      wire
-    );
+    const converted = await convertWindowManagerLayoutDocument(workspaceId, profileId, wire);
     updateDraft({ ...converted, workspaceId });
   };
   /** Every failure reaches the review bar in product wording, never as engine text. */

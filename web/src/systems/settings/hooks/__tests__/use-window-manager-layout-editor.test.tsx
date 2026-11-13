@@ -203,10 +203,9 @@ describe("useWindowManagerLayoutEditor", () => {
     });
 
     expect(apiMocks.convert).toHaveBeenCalledTimes(1);
-    const [workspace, profile, revision, wire] = apiMocks.convert.mock.calls[0] ?? [];
+    const [workspace, profile, wire] = apiMocks.convert.mock.calls[0] ?? [];
     expect(workspace).toBe("workspace-a");
     expect(profile).toBe("marketing");
-    expect(revision).toBe(41);
     expect(wire).toEqual(EARLIER_WIRE);
     expect(result.current.draft.version).toBe(6);
     expect(result.current.draft.desktops[0]?.name).toBe("Converted");
@@ -217,7 +216,7 @@ describe("useWindowManagerLayoutEditor", () => {
 
   it("Should export a layout file that imports back as the same draft [US-022.AC-1]", async () => {
     apiMocks.convert.mockImplementation(
-      async (_workspace: string, _profile: string, _revision: number, wire: unknown) =>
+      async (_workspace: string, _profile: string, wire: unknown) =>
         parseWindowManagerLayoutDocument(wire)
     );
     const { result } = renderEditor(stateAt(41, "Build"));
@@ -240,7 +239,7 @@ describe("useWindowManagerLayoutEditor", () => {
       await result.current.importDocument(file);
     });
 
-    expect(apiMocks.convert.mock.calls[0]?.[3]).toEqual(exported);
+    expect(apiMocks.convert.mock.calls[0]?.[2]).toEqual(exported);
     expect(result.current.importError).toBeNull();
     expect(result.current.draft).toEqual(draft);
   });
@@ -407,7 +406,7 @@ describe("useWindowManagerLayoutEditor", () => {
       await result.current.loadSource({ kind: "earlier", version: 5, wire: EARLIER_WIRE });
     });
 
-    expect(apiMocks.convert.mock.calls[0]?.[3]).toEqual(EARLIER_WIRE);
+    expect(apiMocks.convert.mock.calls[0]?.[2]).toEqual(EARLIER_WIRE);
     expect(result.current.draft.version).toBe(6);
     expect(result.current.draft.desktops[0]?.name).toBe("Classic");
   });

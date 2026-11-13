@@ -49,6 +49,11 @@ export interface WindowManagerLayoutValidation {
   workspaceId: string;
   valid: boolean;
   diagnostics: WindowManagerLayoutDiagnostic[];
+  /**
+   * The input as the version 6 document the daemon would hold, with the input's own routes and
+   * navigation history; present only for a valid input.
+   */
+  document?: WindowManagerLayoutDocument;
 }
 
 export interface WindowManagerLayoutChanges {

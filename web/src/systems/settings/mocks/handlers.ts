@@ -259,6 +259,11 @@ export const handlers: HttpHandler[] = [
         workspace_id: String(params.workspace_id),
         valid: true,
         diagnostics: [],
+        // The canonical version 6 form of the input; the mock answers with the exported layout.
+        document: {
+          ...windowManagerLayoutDocumentFixture,
+          workspace_id: String(params.workspace_id),
+        },
       })
   ),
   compozyApiMock.post("/api/workspaces/{workspace_id}/window-manager/preview", ({ params }) =>

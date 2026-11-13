@@ -276,27 +276,37 @@ export async function previewWindowManagerLayout(
 
 /**
  * Turns a layout document of any accepted version (4, 5 or 6) into the
- * version 6 document the daemon would hold, without applying it. The daemon
- * converts earlier versions on every read (`layout_decode.go`), and a
- * `layout.replace` preview returns the resulting snapshot, so the web never
- * converts a document itself. An invalid document fails with the daemon's
- * validation error and changes nothing.
+ * version 6 document the daemon would hold, without applying it: the validate
+ * route returns the input in canonical form, with the file's own routes and
+ * navigation history, so the web never converts a document itself and the
+ * live layout (a window with the same id open on another route) never leaks
+ * in. An invalid document fails as a refusal of the document (422), carrying
+ * the daemon's first diagnostic, and changes nothing.
  */
 export async function convertWindowManagerLayoutDocument(
   workspaceId: string,
   profile: string,
-  revision: number,
   wire: Readonly<Record<string, unknown>>,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutDocument> {
-  const preview = await postLayoutPreview(
-    workspaceId,
-    profile,
-    previewRequest(workspaceId, revision, { ...wire }),
-    "Unable to read the layout file",
-    signal
+  const response = await daemonFetch(
+    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/layout/validate")}`,
+    {
+      ...jsonRequest(
+        { workspace_id: workspaceId, document: { ...wire, workspace_id: workspaceId } },
+        signal
+      ),
+      method: "POST",
+    }
   );
-  return preview.document;
+  const validation = parseWindowManagerLayoutValidation(
+    await requireJson(response, "Unable to read the layout file")
+  );
+  if (validation.valid && validation.document) return validation.document;
+  throw new WindowManagerLayoutsApiError(
+    validation.diagnostics[0]?.message ?? "The layout file is not a valid layout.",
+    422
+  );
 }
 
 export async function applyWindowManagerLayout(

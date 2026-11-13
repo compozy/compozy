@@ -246,11 +246,13 @@ export function parseWindowManagerLayoutValidation(value: unknown): WindowManage
       workspace_id: identifierSchema,
       valid: z.boolean(),
       diagnostics: z.array(diagnosticSchema).optional(),
+      document: windowManagerLayoutDocumentSchema.nullish(),
     })
-    .transform(validation => ({
+    .transform((validation): WindowManagerLayoutValidation => ({
       workspaceId: validation.workspace_id,
       valid: validation.valid,
       diagnostics: validation.diagnostics ?? [],
+      ...(validation.document ? { document: validation.document } : {}),
     }))
     .parse(value);
 }
@@ -258,9 +260,7 @@ export function parseWindowManagerLayoutValidation(value: unknown): WindowManage
 /**
  * The snapshot a preview returns is the full workspace snapshot, so it goes
  * through the shell's own parser and is projected exactly as a fetched
- * snapshot is. For a `layout.replace` its document is the daemon's version 6
- * result for whatever version was sent, which is how an earlier document is
- * converted without a converter in the web.
+ * snapshot is.
  */
 export function parseWindowManagerLayoutPreview(value: unknown): WindowManagerLayoutPreview {
   return z

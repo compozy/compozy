@@ -304,37 +304,51 @@ describe("window-manager layouts API", () => {
     );
   });
 
-  it("Should convert a document of an earlier version through a layout.replace preview", async () => {
+  // Invariant: an imported document's routes reach the editor draft unchanged, even when a window
+  // with the same id is open on another route: conversion reads the validate route's canonical
+  // form of the file, never a preview of the live layout.
+  it("Should convert a document of any version through the validate route, with its own routes", async () => {
     const earlier = windowManagerEarlierLayoutResourceFixture.spec.document;
     apiMocks.fetch.mockResolvedValueOnce(
       jsonResponse({
-        snapshot: { ...settingsWindowManagerSnapshotFixture, revision: 7 },
-        changed: true,
-        changes: { tab_ids: ["tab:main"] },
+        workspace_id: "workspace-a",
+        valid: true,
+        diagnostics: [],
+        document: windowManagerLayoutDocumentFixture,
       })
     );
 
-    const document = await convertWindowManagerLayoutDocument(
-      "workspace-a",
-      "marketing",
-      7,
-      earlier
-    );
+    const document = await convertWindowManagerLayoutDocument("workspace-a", "marketing", earlier);
 
+    expect(apiMocks.fetch).toHaveBeenCalledOnce();
     expect(apiMocks.fetch).toHaveBeenCalledWith(
-      "/api/workspaces/workspace-a/window-manager/preview?profile=marketing",
+      "/api/workspaces/workspace-a/window-manager/layout/validate?profile=marketing",
       expect.objectContaining({ method: "POST" })
     );
     const request = JSON.parse(apiMocks.fetch.mock.calls[0]?.[1].body);
-    expect(request).toMatchObject({
-      command_id: "layout.replace",
-      expected_revision: 7,
-      payload: { document: { ...earlier, workspace_id: "workspace-a" } },
+    expect(request).toEqual({
+      workspace_id: "workspace-a",
+      document: { ...earlier, workspace_id: "workspace-a" },
     });
-    expect(document.version).toBe(6);
-    expect(document.desktops.map(desktop => desktop.id)).toEqual(
-      settingsWindowManagerSnapshotFixture.desktops.map(desktop => desktop.id)
+    expect(document).toEqual(parseWindowManagerLayoutDocument(windowManagerLayoutDocumentFixture));
+  });
+
+  it("Should refuse a document the daemon finds invalid, with its first diagnostic", async () => {
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({
+        workspace_id: "workspace-a",
+        valid: false,
+        diagnostics: [{ code: "layout_invalid", path: "desktops", message: "no desktops" }],
+      })
     );
+
+    await expect(
+      convertWindowManagerLayoutDocument("workspace-a", "marketing", { version: 6 })
+    ).rejects.toMatchObject({
+      name: "WindowManagerLayoutsApiError",
+      status: 422,
+      message: "no desktops",
+    });
   });
 
   it("Should surface the daemon's refusal when a document cannot be converted", async () => {
@@ -343,7 +357,7 @@ describe("window-manager layouts API", () => {
     );
 
     await expect(
-      convertWindowManagerLayoutDocument("workspace-a", "marketing", 7, { version: 3 })
+      convertWindowManagerLayoutDocument("workspace-a", "marketing", { version: 3 })
     ).rejects.toThrow("unsupported layout version 3");
   });
 
@@ -370,7 +384,7 @@ describe("window-manager layouts API", () => {
     apiMocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify(body), { status }));
 
     await expect(
-      convertWindowManagerLayoutDocument("workspace-a", "marketing", 7, { version: 5 })
+      convertWindowManagerLayoutDocument("workspace-a", "marketing", { version: 5 })
     ).rejects.toMatchObject({ name: "WindowManagerLayoutsApiError", status, code });
   });
 
