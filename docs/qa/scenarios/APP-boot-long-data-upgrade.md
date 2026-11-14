@@ -66,5 +66,4 @@ skipped), `TestReconciliationReadsOnlyChangedSessions` (reconcile reads only cha
 `bootstrap-event`, `boot-journey`, `boot-runner-engine` and `boot-control`.
 
 Archived missing-directory coverage: `TestGlobalDBReconcileSessionsWithArchivedMissingFolder`
-exercises both full and incremental reconciliation against real SQLite. The manual restart walk
-is not run when local validation is prohibited; CI owns executable validation in that case.
+exercises both full and incremental reconciliation against real SQLite.

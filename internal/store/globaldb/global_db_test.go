@@ -6493,14 +6493,8 @@ func TestGlobalDBReconcileSessionsWithArchivedMissingFolder(t *testing.T) {
 			if err := db.DeleteSession(ctx, archived.ID); err != nil {
 				t.Fatalf("DeleteSession(archived missing folder) error = %v", err)
 			}
-			if _, err := db.SessionArchivedAt(
-				ctx,
-				workspaceID,
-				archived.ID,
-			); !errors.Is(
-				err,
-				store.ErrSessionNotFound,
-			) {
+			_, err = db.SessionArchivedAt(ctx, workspaceID, archived.ID)
+			if !errors.Is(err, store.ErrSessionNotFound) {
 				t.Fatalf("SessionArchivedAt(deleted) error = %v, want ErrSessionNotFound", err)
 			}
 		})
