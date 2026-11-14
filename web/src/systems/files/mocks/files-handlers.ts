@@ -1,8 +1,12 @@
-import { http, HttpResponse } from "msw";
+import { bypass, http, HttpResponse } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import type { FileContentResponse, FileEntry, FileRootPayload } from "../adapters/files-api";
+
+import chimeMp3Url from "./fixtures/chime.mp3?url";
+import demoWebmUrl from "./fixtures/demo.webm?url";
+import skylinePngUrl from "./fixtures/skyline.png?url";
 
 export const filesRootFixture: FileRootPayload = {
   kind: "worktree",
@@ -29,6 +33,9 @@ export const fileListingsFixture: Record<string, FileEntry[]> = {
     { name: "guide.md", path: "docs/guide.md", kind: "file", size: 612 },
     { name: "people.csv", path: "docs/people.csv", kind: "file", size: 96 },
     { name: "metrics.csv", path: "docs/metrics.csv", kind: "file", size: 96_000 },
+    { name: "demo.webm", path: "docs/demo.webm", kind: "file", size: 22_057 },
+    { name: "chime.mp3", path: "docs/chime.mp3", kind: "file", size: 12_347 },
+    { name: "skyline.png", path: "docs/skyline.png", kind: "file", size: 6_291_456 },
     { name: "report.pdf", path: "docs/report.pdf", kind: "file", size: 1_409 },
     { name: "page.html", path: "docs/page.html", kind: "file", size: 240 },
     { name: "analysis.ipynb", path: "docs/analysis.ipynb", kind: "file", size: 820 },
@@ -203,6 +210,18 @@ export function fileContentFixture(path: string, reveal: boolean): FileContentRe
       return content(path, { size: METRICS_CSV.length, text: METRICS_CSV, revision: "r-metrics" });
     case "docs/report.pdf":
       return content(path, { kind: "binary", size: 1_409 });
+    case "docs/demo.webm":
+      return content(path, { kind: "binary", size: 22_057 });
+    case "docs/chime.mp3":
+      return content(path, { kind: "binary", size: 12_347 });
+    // Past the inline image cap, so the viewer streams it from the raw-bytes route.
+    case "docs/skyline.png":
+      return content(path, {
+        kind: "image",
+        size: 6_291_456,
+        image_mime: "image/png",
+        truncated: true,
+      });
     case "docs/diagram.bin":
       return content(path, { kind: "binary", size: 2_411_724 });
     default:
@@ -246,12 +265,24 @@ export const sessionFilesHandlers = [
  * The raw-bytes route (#1605) for the Files app's project root. The file path is a wildcard
  * suffix with slashes, which the typed OpenAPI mock cannot match, so it uses a plain MSW route.
  */
+// Media fixtures ship as files; the raw route reads them past MSW and serves their bytes.
+const RAW_ASSETS: Record<string, { url: string; type: string }> = {
+  "docs/demo.webm": { url: demoWebmUrl, type: "video/webm" },
+  "docs/chime.mp3": { url: chimeMp3Url, type: "audio/mpeg" },
+  "docs/skyline.png": { url: skylinePngUrl, type: "image/png" },
+};
+
 const workspaceRawFileHandler = http.get(
   "*/api/workspaces/:workspaceId/files/raw/*",
-  ({ request }) => {
+  async ({ request }) => {
     const prefix = "/files/raw/";
     const pathname = new URL(request.url).pathname;
     const path = decodeURIComponent(pathname.slice(pathname.indexOf(prefix) + prefix.length));
+    const asset = RAW_ASSETS[path];
+    if (asset) {
+      const bytes = await (await fetch(bypass(new URL(asset.url, request.url)))).arrayBuffer();
+      return new HttpResponse(bytes, { headers: { "Content-Type": asset.type } });
+    }
     if (path === "docs/report.pdf") {
       const bytes = Uint8Array.from(atob(REPORT_PDF), char => char.charCodeAt(0));
       return new HttpResponse(bytes, { headers: { "Content-Type": "application/pdf" } });

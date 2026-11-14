@@ -145,6 +145,24 @@ export const PdfPreview: Story = {
   },
 };
 
+export const VideoPreview: Story = {
+  tags: ["play-fn"],
+  beforeEach: () => placeFile("docs/demo.webm"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const video = await canvas.findByTestId("file-viewer-video");
+    await waitFor(() => expect(video).toHaveTextContent("0:03"), { timeout: 10_000 });
+  },
+};
+
+export const AudioPreview: Story = {
+  beforeEach: () => placeFile("docs/chime.mp3"),
+};
+
+export const LargeImagePreview: Story = {
+  beforeEach: () => placeFile("docs/skyline.png"),
+};
+
 export const HtmlPreview: Story = {
   beforeEach: () => placeFile("docs/page.html"),
 };
