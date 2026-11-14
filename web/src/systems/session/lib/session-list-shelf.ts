@@ -1,3 +1,5 @@
+import { createStore } from "@xstate/store";
+
 import type { SessionListFilters } from "../types";
 
 /**
@@ -29,3 +31,26 @@ export function sessionListShelfNoun(shelf: SessionListShelf): string {
   if (shelf === "later") return "sessions in Later";
   return "sessions";
 }
+
+/**
+ * Each window's shelf, keyed by window scope. Selecting a session remounts the window's content,
+ * so a shelf held in component state fell back to the active list on every open (#1706). It lives
+ * here, apart from the persisted rail state: the archive and Later stay ways of looking at the list
+ * right now, so a reload, and a window that never chose, start from the active list.
+ */
+export const sessionListShelfStore = createStore({
+  context: { byScope: {} as Record<string, SessionListShelf> },
+  on: {
+    shelfChanged: (context, event: { scopeId: string; shelf: SessionListShelf }) => {
+      if ((context.byScope[event.scopeId] ?? "active") === event.shelf) return context;
+      return { byScope: { ...context.byScope, [event.scopeId]: event.shelf } };
+    },
+    /** Closed windows, as `pruneSessionSidebarScopes` resolves them for one partition. */
+    scopesReleased: (context, event: { scopeIds: readonly string[] }) => {
+      if (!event.scopeIds.some(scopeId => Object.hasOwn(context.byScope, scopeId))) return context;
+      const byScope = { ...context.byScope };
+      for (const scopeId of event.scopeIds) delete byScope[scopeId];
+      return { byScope };
+    },
+  },
+});
