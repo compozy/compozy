@@ -6,7 +6,8 @@
 // terminal-recording-state / use-terminal-recordings.
 // Close invariant: only confirmed running targets terminate; cancellation,
 // stale scope, or failed termination keeps the managed window retryable.
-// All projects invariant: an unbound window lists the aggregate and opens in place, bound.
+// All projects invariant: an unbound window lists the aggregate and opens in place, bound, and
+// an unbound window whose terminal never resolved always closes view-only.
 // Resolution invariant: a window on the id-less route reads the catalog after it mounts, even
 // when another window's read is still fresh; a window that names its terminal forces no read.
 
@@ -28,7 +29,7 @@ import { TerminalWindowClose, terminalWindowCreateKey } from "../../../lib/termi
 import type { OsDesktopRuntimeStore, OsWindow } from "../../../lib/os-types";
 import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-context";
 import { createWindowManagerProjectionAtom } from "../../../lib/window-manager-projection";
-import { WindowDataBindingContext } from "@/systems/workspace";
+import { GLOBAL_DESKTOP_WORKSPACE_ID, WindowDataBindingContext } from "@/systems/workspace";
 import { useTerminalWindowControllerState } from "../hooks/use-terminal-window-controller-state";
 import { executeWindowManagerCommand } from "../../../adapters/window-manager-api";
 import { RoutingCoordinator } from "../../../lib/routing-coordinator";
@@ -353,6 +354,18 @@ describe("terminal window close lifecycle", () => {
       )
     ).resolves.toBe(true);
     expect(controller.confirmation.get()).toBeNull();
+    expect(closeTerminal).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("Should close an unbound terminal window under All projects without reading the daemon", async () => {
+    // Invariant: a window opened by id without its project, whose terminal the
+    // aggregate never resolved, always closes view-only — never trapped (#1712).
+    const controller = new TerminalWindowClose();
+    const guard = controller.guard(GLOBAL_DESKTOP_WORKSPACE_ID, new QueryClient());
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(true);
+    expect(controller.confirmation.get()).toBeNull();
+    expect(fetchTerminals).not.toHaveBeenCalled();
     expect(closeTerminal).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
   });

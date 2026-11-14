@@ -6,6 +6,7 @@ import { Button, Empty, toast } from "@compozy/ui";
 import {
   createTerminal,
   TerminalAggregateSkeleton,
+  TerminalNotFoundState,
   type TerminalInfo,
   type TerminalViewerIdentity,
 } from "@/systems/terminal";
@@ -64,6 +65,7 @@ export function TerminalAggregateLocation({
   viewer,
 }: TerminalAggregateLocationProps) {
   const [creating, setCreating] = useState(false);
+  const [launcherShown, setLauncherShown] = useState(false);
   const terminals = catalog.data ?? [];
   const destinations = terminalLauncherDestinations(workspaces, worktrees, profile);
   const defaultDestination = defaultTerminalLauncherDestination(
@@ -128,6 +130,13 @@ export function TerminalAggregateLocation({
         />
       </div>
     );
+  }
+
+  // The settled catalog does not have it: it exited and was reaped, or it ran
+  // before a daemon restart. Say so instead of swapping in the launcher; a new
+  // terminal stays one secondary action away.
+  if (requestedId && !catalog.error && !launcherShown) {
+    return <TerminalNotFoundState onOpenTerminal={() => setLauncherShown(true)} />;
   }
 
   return (

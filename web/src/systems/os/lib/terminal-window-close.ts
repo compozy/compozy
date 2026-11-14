@@ -51,7 +51,10 @@ export class TerminalWindowClose {
           const target = focusedWorkspaceSelector(
             windowDataScope(workspaceId, window.route.search[WINDOW_BINDING_SEARCH_KEY])
           );
-          if (!target) throw new Error("Select the terminal's workspace before closing it.");
+          // An unbound window under All projects never resolved its terminal to
+          // a scope (the aggregate binds every terminal it finds), so there is
+          // nothing to terminate from it: close the view, as for terminal_not_found.
+          if (!target) continue;
           const ids = scopes.get(target) ?? new Set<string>();
           ids.add(window.instanceKey);
           scopes.set(target, ids);

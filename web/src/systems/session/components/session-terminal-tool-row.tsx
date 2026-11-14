@@ -4,6 +4,7 @@ import { Suspense, lazy, use, useState } from "react";
 
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { TerminalInfo } from "@/systems/terminal/parts";
+import { itemBindingSearch } from "@/systems/workspace";
 import { useSessionTerminalCatalogEntry } from "../hooks/use-session-terminal-catalog";
 import { useSessionTerminalScope } from "../hooks/use-session-terminal-scope";
 import {
@@ -159,7 +160,15 @@ function TerminalToolRowView({
         }}
         statLabel={statText || undefined}
         stat={statText ? <span className="text-subtle">{statText}</span> : undefined}
-        actions={shell ? <OpenTerminalAction shell={shell} terminalId={facts.terminalId} /> : null}
+        actions={
+          shell ? (
+            <OpenTerminalAction
+              shell={shell}
+              terminalId={facts.terminalId}
+              workspaceId={scope?.workspaceId}
+            />
+          ) : null
+        }
       >
         {hasScreen ? (
           <Suspense
@@ -191,7 +200,16 @@ function TerminalToolRowView({
   );
 }
 
-function OpenTerminalAction({ shell, terminalId }: { shell: OsShellHandle; terminalId: string }) {
+function OpenTerminalAction({
+  shell,
+  terminalId,
+  workspaceId,
+}: {
+  shell: OsShellHandle;
+  terminalId: string;
+  /** The session's project: binds the window so All projects resolves it, live or reaped. */
+  workspaceId: string | undefined;
+}) {
   return (
     <Button
       aria-label="Open terminal"
@@ -203,7 +221,7 @@ function OpenTerminalAction({ shell, terminalId }: { shell: OsShellHandle; termi
           instanceKey: terminalId,
           route: {
             pathname: `/terminal/${encodeURIComponent(terminalId)}`,
-            search: {},
+            search: workspaceId === undefined ? {} : itemBindingSearch(workspaceId),
           },
         });
       }}

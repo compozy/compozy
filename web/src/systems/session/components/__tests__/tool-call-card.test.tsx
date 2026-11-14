@@ -7,6 +7,7 @@ import {
   DEV_SERVER_TERMINAL,
   SSH_STAGING_TERMINAL,
 } from "@/systems/terminal/mocks/terminal-fixtures";
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import { terminalCatalogQuery, terminalScope, type TerminalInfo } from "@/systems/terminal/parts";
 
 import { sessionDetailOptions } from "../../lib/query-options";
@@ -110,7 +111,12 @@ function terminalMessage(
  */
 function terminalRow(
   message: UIMessage,
-  options: { profileName?: string; catalog?: TerminalInfo[]; expanded?: boolean } = {}
+  options: {
+    profileName?: string;
+    catalog?: TerminalInfo[];
+    expanded?: boolean;
+    shell?: OsShellHandle;
+  } = {}
 ) {
   const client = createQueryClient();
   if (options.profileName) {
@@ -125,9 +131,11 @@ function terminalRow(
   }
   return (
     <QueryClientProvider client={client}>
-      <SessionRuntimeRenderProvider sessionId="sess-77ab" workspaceId="ws-atlas">
-        <SessionToolCallRow message={message} defaultExpanded={options.expanded ?? true} />
-      </SessionRuntimeRenderProvider>
+      <OsShellContext value={options.shell ?? null}>
+        <SessionRuntimeRenderProvider sessionId="sess-77ab" workspaceId="ws-atlas">
+          <SessionToolCallRow message={message} defaultExpanded={options.expanded ?? true} />
+        </SessionRuntimeRenderProvider>
+      </OsShellContext>
     </QueryClientProvider>
   );
 }
@@ -454,6 +462,31 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryBody()).toBeNull();
     expect(row.querySelector("[data-slot='terminal-view']")).toBeNull();
     expect(row).not.toHaveTextContent("Succeeded");
+  });
+
+  it("Should open the Terminal window bound to the session's project", async () => {
+    // Invariant: the transcript's open action binds the window to the session's
+    // project, so an All projects desktop resolves the terminal — live or reaped —
+    // instead of an unbound window that lands on the launcher (#1712).
+    const userOpen = vi.fn().mockResolvedValue(undefined);
+    const shell = { coordinator: { userOpen } } as unknown as OsShellHandle;
+    render(
+      terminalRow(terminalMessage({ exit_code: 0, output: "done" }), {
+        profileName: "work",
+        expanded: false,
+        shell,
+      })
+    );
+
+    fireEvent.click(await screen.findByTestId(`session-terminal-open-${TERMINAL_ID}`));
+    expect(userOpen).toHaveBeenCalledWith({
+      app: "terminal",
+      instanceKey: TERMINAL_ID,
+      route: {
+        pathname: `/terminal/${encodeURIComponent(TERMINAL_ID)}`,
+        search: { workspace: "ws-atlas" },
+      },
+    });
   });
 
   it("Should intercept a hosted-MCP terminal open carrying a string envelope", async () => {

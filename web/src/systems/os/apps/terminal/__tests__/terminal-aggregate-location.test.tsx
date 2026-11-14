@@ -4,7 +4,8 @@
 // whose folder is gone stays listed but unavailable, an all-profiles read offers no destination,
 // only running terminals are listed, and only ready worktrees of the acting profile are offered,
 // folded under their project until the pointer or ←/→ unfolds it or a search matches one, each
-// opening its terminal in that worktree.
+// opening its terminal in that worktree. A requested terminal the settled catalog does not list
+// reads as gone, with the launcher one secondary action away.
 // Boundary IN: TerminalAggregateLocation's launcher states.
 // Boundary OUT: catalog streaming and window retargeting (use-terminal-window-controller-state.test.ts).
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -134,6 +135,22 @@ describe("TerminalAggregateLocation", () => {
     screen.getByRole("button", { name: "Retry" }).click();
     expect(props.catalog.refetch).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("terminal-launcher")).not.toBeInTheDocument();
+  });
+
+  it("Should say a requested terminal is gone and keep the launcher one action away", () => {
+    // #1712: an exited, reaped terminal opened from a transcript must not silently
+    // become the new-terminal launcher.
+    const { props } = renderLocation(
+      { requestedId: "term-reaped" },
+      { data: [...TERMINAL_FIXTURES], isPending: false }
+    );
+
+    expect(screen.getByTestId("terminal-not-found")).toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-launcher")).not.toBeInTheDocument();
+    expect(props.coordinator.userRetarget).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open a new terminal" }));
+    expect(screen.getByTestId("terminal-launcher")).toBeInTheDocument();
   });
 
   it("Should leave out new-terminal destinations and name each owner for an all-profiles read", () => {
