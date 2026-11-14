@@ -3771,7 +3771,8 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
     // Attribute the response continuation separately, after scoring. Restore only the measured
     // pair's pre-merge topology on each replay; these profiles never replace envelope scores.
-    const sampledPeer = peers[peerLongTasks.findIndex(tasks => tasks.includes(worstPeerTask))] ?? peerB;
+    const sampledPeer =
+      peers[peerLongTasks.findIndex(tasks => tasks.includes(worstPeerTask))] ?? peerB;
     const peerDiagnostic = await sampledPeer.context().newCDPSession(sampledPeer);
     try {
       await peerDiagnostic.send("Debugger.enable");
@@ -3814,7 +3815,9 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
         }
       }
       for (const [scriptId, url] of scripts) {
-        const { scriptSource } = await peerDiagnostic.send("Debugger.getScriptSource", { scriptId });
+        const { scriptSource } = await peerDiagnostic.send("Debugger.getScriptSource", {
+          scriptId,
+        });
         await testInfo.attach(`peer-response-replay-${new URL(url).pathname.split("/").pop()}`, {
           body: scriptSource,
           contentType: "text/javascript",
