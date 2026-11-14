@@ -3142,7 +3142,11 @@ func TestDaemonExtensionInstallReplaceAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		if afterChecksum != beforeChecksum {
-			t.Fatalf("package files changed under a refused replacement: before=%s after=%s", beforeChecksum, afterChecksum)
+			t.Fatalf(
+				"package files changed under a refused replacement: before=%s after=%s",
+				beforeChecksum,
+				afterChecksum,
+			)
 		}
 
 		if err := registry.DetachInstallation(t.Context(), "tool-ext", foreign); err != nil {
