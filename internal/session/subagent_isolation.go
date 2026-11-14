@@ -302,6 +302,15 @@ func (s *subagentService) recoverIsolation(ctx context.Context, row store.Sessio
 // orphaned fallback: settle the row and wake the parent through an ordinary
 // wake. It never touches the checkout, so a failed rollback can settle the row
 // while the worktree cleanup keeps retrying from disk.
+// markWorktreeCleanupPending makes the checkout discoverable by
+// recoverIsolationCleanup, which only selects rows marked pending. It owns a
+// bounded context because the recovery context may already be expiring.
+func (s *subagentService) markWorktreeCleanupPending(ctx context.Context, id string) error {
+	markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	return s.store.SetSubagentWorktreeCleanup(markCtx, id, "pending")
+}
+
 func (s *subagentService) settleRecoveredIsolation(
 	ctx context.Context,
 	row store.SessionSubagent,
