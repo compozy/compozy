@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { gzipSync } from "node:zlib";
 
 import type { Browser, Locator, Page } from "@playwright/test";
 
@@ -3641,9 +3642,26 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   let longTasks: number[] = [];
   let switchProbe: SwitchProbeRecords = { switches: [], tasks: [], tooltipsShown: 0, frames: [] };
   let switchCount = 0;
+  // Temporary attribution: profile the failing interval itself. Final acceptance runs
+  // remove this instrumentation; keep the scored fixture and assertions unchanged.
+  const diagnosticEvents: unknown[] = [];
+  const dumpDiagnostic = (name: string, body: string) => {
+    const encoded = gzipSync(body).toString("base64");
+    for (let offset = 0; offset < encoded.length; offset += 16000) {
+      console.log("[switch-cpu]", name, offset, encoded.slice(offset, offset + 16000));
+    }
+  };
   try {
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
+    await switchInput.send("Debugger.enable");
+    await switchInput.send("Profiler.enable");
+    switchInput.on("Tracing.dataCollected", ({ value }) => diagnosticEvents.push(...value));
+    await switchInput.send("Tracing.start", {
+      categories: "devtools.timeline,disabled-by-default-devtools.timeline.stack",
+      transferMode: "ReportEvents",
+    });
+    await switchInput.send("Profiler.start");
     await installSwitchProbe(appPage);
     const start = Date.now();
     while (Date.now() - start < 3000) {
@@ -3653,6 +3671,26 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     switchProbe = await readSwitchProbe(appPage);
     longTasks = switchProbe.tasks.map(task => task.duration);
+    const { profile } = await switchInput.send("Profiler.stop");
+    const tracingComplete = new Promise<void>(resolve => {
+      switchInput.once("Tracing.tracingComplete", () => resolve());
+    });
+    await switchInput.send("Tracing.end");
+    await tracingComplete;
+    dumpDiagnostic("profile", JSON.stringify(profile));
+    dumpDiagnostic("events", JSON.stringify(diagnosticEvents));
+    dumpDiagnostic("probe", JSON.stringify(switchProbe));
+    const scripts = new Map<string, string>();
+    for (const node of profile.nodes) {
+      const url = node.callFrame.url;
+      if (url.includes("/assets/_app-") || url.includes("/assets/useBaseQuery-")) {
+        scripts.set(node.callFrame.scriptId, url);
+      }
+    }
+    for (const [scriptId, url] of scripts) {
+      const { scriptSource } = await switchInput.send("Debugger.getScriptSource", { scriptId });
+      dumpDiagnostic(new URL(url).pathname.split("/").pop()!, scriptSource);
+    }
   } finally {
     await switchInput.detach();
   }
