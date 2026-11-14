@@ -442,6 +442,30 @@ describe("RuntimeSelector reasoning reset-on-switch", () => {
     });
   });
 
+  it("Should clear a saved effort when the model exposes no selectable levels", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "with-medium", reasoning_effort: "medium" },
+      models: [
+        model("with-medium", { name: "With Medium", efforts: ["low", "medium", "high"] }),
+        model("matrix-only", {
+          name: "Matrix Only",
+          efforts: [],
+          configurations: [{ reasoning_effort: "medium" }],
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.click(row("matrix-only"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "matrix-only",
+      reasoning_effort: "",
+    });
+  });
+
   it("Should keep the current reasoning_effort when the picked model still supports it", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
