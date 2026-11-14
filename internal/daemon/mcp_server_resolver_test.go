@@ -19,6 +19,7 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -851,6 +852,34 @@ func (s mcpGrantAuthStatus) Status(
 
 func TestOperatorConsentedMCPSourceGrants(t *testing.T) {
 	t.Parallel()
+	// Invariant: personal boot declarations remain admitted without a resource ID; owner: daemon source authority.
+	t.Run("Should retain boot-time personal TOML servers in inherited authority", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		state.cfg.Tools.Policy.ExternalDefault = "disabled"
+		state.cfg.MCPServers = []compozyconfig.MCPServer{{Name: "personal", Command: "echo"}}
+		resolver, err := newNativeToolPolicyResolverForBoot(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := session.WithMCPAuthoritySession(
+			t.Context(),
+			&session.Info{
+				ID:          "root",
+				WorkspaceID: req.WorkspaceID,
+				Type:        session.SessionTypeUser,
+				ProfileID:   store.DefaultProfileID,
+				Lineage: &store.SessionLineage{
+					Kind:             store.LineageKindRoot,
+					PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit},
+				},
+			},
+		)
+		policy, err := resolver.EffectiveMCPAuthority(ctx, "root")
+		if err != nil || !slices.Equal(policy.MCPServers, []string{"personal"}) {
+			t.Fatalf("policy=%+v err=%v", policy, err)
+		}
+	})
 
 	// Invariant: admitted config sources without resource IDs retain their logical server names.
 	// Owner: daemon MCP authority; canonical suite: operator-consented source grants.
@@ -1110,6 +1139,51 @@ func (r *mcpOverrideAuthRecorder) MCPAuthDeleteState(_ context.Context, target m
 // Owner: daemon consent repository and write boundary; canonical suite: MCP source resolver.
 func TestWorkspaceMCPConsent(t *testing.T) {
 	t.Parallel()
+	// Invariant: a resource ID cannot substitute its declaring file after approval; owner: daemon execution gate.
+	t.Run("Should gate the exact resolved definition and source file", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := (settingsMCPConsent{state: state}).ApproveMCP(
+			t.Context(),
+			req,
+			decision.DefinitionDigest,
+			false,
+		); err != nil {
+			t.Fatal(err)
+		}
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         req.Server.Name,
+			RawServerName: req.Server.Name,
+			ProfileID:     store.DefaultProfileID,
+			WorkspaceID:   req.WorkspaceID,
+		}
+		resolved := mcppkg.ResolvedServer{
+			Server: req.Server,
+			Target: mcpauth.Target{
+				Scope:       mcpauth.ScopeWorkspace,
+				WorkspaceID: req.WorkspaceID,
+				ServerName:  req.Server.Name,
+			},
+		}
+		if err := requireResolvedMCPConsent(t.Context(), state, source, &resolved); err != nil {
+			t.Fatal(err)
+		}
+		resolved.Server.Command = "unapproved"
+		if err := requireResolvedMCPConsent(t.Context(), state, source, &resolved); err == nil {
+			t.Fatal("changed transport definition admitted")
+		}
+		resolved.Server = req.Server
+		resolved.Server.DefinitionSource = filepath.Join(filepath.Dir(req.Server.DefinitionSource), "other.json")
+		if err := requireResolvedMCPConsent(t.Context(), state, source, &resolved); err == nil {
+			t.Fatal("different source file admitted")
+		}
+	})
+
 	t.Run("Should approve only the observed definition and invalidate cached decisions", func(t *testing.T) {
 		t.Parallel()
 		state, req := newMCPConsentFixture(t)

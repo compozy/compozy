@@ -146,7 +146,7 @@ func (m *Manager) needsActivationReload(ctx context.Context, s *Session) (bool, 
 	s.activation.servedDigest = served
 	s.mu.Unlock()
 	if !s.hostedReloadRequired() {
-		return served == "" || served != catalog.Digest, "served_stale"
+		return served != "" && served != catalog.Digest, "served_stale"
 	}
 	return state.boundDigest != activationFingerprint(catalog.Digest, mode, runtimeDigest), "fingerprint"
 }
@@ -226,13 +226,16 @@ func (m *Manager) reloadActivationRuntime(
 		eventErr := m.recordMCPReload(cleanupCtx, s, before, attempted, outcome, reason, selection.Provider)
 		m.sessionLogger(s).Info("session.mcp_reload", "reason", reason, "outcome", outcome,
 			"duration_ms", m.now().Sub(started).Milliseconds())
-		if err != nil || eventErr != nil {
+		if eventErr != nil {
+			m.sessionLogger(s).Warn("session.mcp_reload_event_failed", "outcome", outcome, "error", eventErr)
+		}
+		if err != nil {
 			s.mu.Lock()
 			last := s.activation.lastReload
 			s.activation = before.clone()
 			s.activation.lastReload = last
 			s.mu.Unlock()
-			err = &MCPReloadError{Provider: selection.Provider, Cause: errors.Join(err, eventErr)}
+			err = &MCPReloadError{Provider: selection.Provider, Cause: err}
 		}
 	}()
 	command, env := "", snapshot.acceptedSessionEnv
@@ -284,6 +287,9 @@ func (m *Manager) recordMCPReload(
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
+	s.activation.lastReload = &reloadRecord{At: m.now(), Outcome: outcome, Reason: reason}
+	s.mu.Unlock()
 	turnID := s.CurrentTurnID()
 	if turnID == "" {
 		turnID, err = m.newPromptTurnID()

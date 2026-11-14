@@ -47,6 +47,65 @@ func (e *testMCPSecretError) Error() string {
 }
 
 func TestMCPCallExecutor(t *testing.T) {
+	// Invariant: consent and transport use one immutable definition; owner: executor I/O boundary.
+	for _, operation := range []string{"list", "call"} {
+		t.Run(
+			"Should launch the consented definition when configuration changes during "+operation,
+			func(t *testing.T) {
+				t.Parallel()
+				approved := newTestMCPHTTPServer(newFakeSDKServer(nil))
+				t.Cleanup(approved.Close)
+				var unexpected atomic.Int32
+				replacement := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					unexpected.Add(1)
+					w.WriteHeader(http.StatusForbidden)
+				}))
+				t.Cleanup(replacement.Close)
+				current := compozyconfig.MCPServer{Name: "fixture", Transport: "http", URL: approved.URL}
+				resolutions, checks := 0, 0
+				executor, err := NewMCPCallExecutor(
+					ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
+						resolutions++
+						return ResolvedServer{Server: current, Target: userMCPExecutorTarget("fixture")}, nil
+					}),
+					WithConsentCheck(func(_ context.Context, _ toolspkg.SourceRef, resolved ResolvedServer) error {
+						checks++
+						if resolved.Server.URL != approved.URL {
+							return errors.New("definition was not approved")
+						}
+						current.URL = replacement.URL
+						return nil
+					}),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+				if operation == "list" {
+					_, err = executor.ListTools(t.Context(), source)
+				} else {
+					_, err = executor.CallTool(
+						t.Context(),
+						source,
+						toolspkg.MCPToolCallRequest{
+							ToolID:      "mcp__fixture__echo",
+							RawToolName: "echo",
+							Input:       json.RawMessage(`{"message":"approved"}`),
+						},
+					)
+				}
+				if err != nil || resolutions != 1 || checks != 1 || unexpected.Load() != 0 {
+					t.Fatalf(
+						"err=%v resolutions=%d checks=%d unexpected=%d",
+						err,
+						resolutions,
+						checks,
+						unexpected.Load(),
+					)
+				}
+			},
+		)
+	}
 	t.Run("Should negotiate modern protocol and paginate tools", func(t *testing.T) {
 		t.Parallel()
 

@@ -227,54 +227,114 @@ function MCPServerRow({
         </div>
       </div>
       <div className="min-w-0" data-testid={`${rowTestId}-status`}>
-        {waiting ? (
-          <MCPApprovalCell
-            error={approvalNote?.error}
-            reason={approvalNote?.reason ?? mcpApprovalReason(server)}
-          />
-        ) : (
-          <Pill form="plain" tone={status.summary.tone}>
-            <Pill.Dot />
-            {status.summary.label}
-          </Pill>
-        )}
+        <MCPServerRowStatus
+          server={server}
+          status={status}
+          waiting={waiting}
+          approvalNote={approvalNote}
+        />
       </div>
-      <div className="flex items-center justify-end gap-1.5">
-        {waiting ? (
-          <Button
-            type="button"
-            variant="neutral"
-            size="sm"
-            aria-label={`Allow ${accessibleName}`}
-            disabled={allowing}
-            onClick={() => onAllow?.(server)}
-            data-testid={`${rowTestId}-allow`}
-          >
-            Allow
-          </Button>
-        ) : status.repairable && status.authorizeLabel ? (
-          <Button
-            type="button"
-            variant="neutral"
-            size="sm"
-            aria-label={`${status.authorizeLabel} ${accessibleName}`}
-            onClick={() => onAuthorize(server)}
-            data-testid={`${rowTestId}-authorize`}
-          >
-            {status.authorizeLabel}
-          </Button>
-        ) : null}
+      <MCPServerRowActions
+        server={server}
+        status={status}
+        waiting={waiting}
+        allowing={allowing}
+        accessibleName={accessibleName}
+        rowTestId={rowTestId}
+        onEdit={onEdit}
+        onAuthorize={onAuthorize}
+        onAllow={onAllow}
+      />
+    </div>
+  );
+}
+
+type MCPRowStatus = ReturnType<typeof composeMCPRowStatus>;
+
+function MCPServerRowStatus({
+  server,
+  status,
+  waiting,
+  approvalNote,
+}: {
+  server: SettingsMCPServerEntry;
+  status: MCPRowStatus;
+  waiting: boolean;
+  approvalNote?: MCPApprovalNote;
+}) {
+  if (waiting) {
+    return (
+      <MCPApprovalCell
+        error={approvalNote?.error}
+        reason={approvalNote?.reason ?? mcpApprovalReason(server)}
+      />
+    );
+  }
+  return (
+    <Pill form="plain" tone={status.summary.tone}>
+      <Pill.Dot />
+      {status.summary.label}
+    </Pill>
+  );
+}
+
+function MCPServerRowActions({
+  server,
+  status,
+  waiting,
+  allowing,
+  accessibleName,
+  rowTestId,
+  onEdit,
+  onAuthorize,
+  onAllow,
+}: {
+  server: SettingsMCPServerEntry;
+  status: MCPRowStatus;
+  waiting: boolean;
+  allowing: boolean;
+  accessibleName: string;
+  rowTestId: string;
+  onEdit: (entry: SettingsMCPServerEntry) => void;
+  onAuthorize: (entry: SettingsMCPServerEntry) => void;
+  onAllow?: (entry: SettingsMCPServerEntry) => void;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      {waiting ? (
         <Button
           type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => onEdit(server)}
-          aria-label={`Edit ${accessibleName}`}
-          data-testid={`${rowTestId}-edit`}
+          variant="neutral"
+          size="sm"
+          aria-label={`Allow ${accessibleName}`}
+          disabled={allowing}
+          onClick={() => onAllow?.(server)}
+          data-testid={`${rowTestId}-allow`}
         >
-          <Pencil className="size-3.5" />
+          Allow
         </Button>
-      </div>
+      ) : status.repairable && status.authorizeLabel ? (
+        <Button
+          type="button"
+          variant="neutral"
+          size="sm"
+          aria-label={`${status.authorizeLabel} ${accessibleName}`}
+          onClick={() => onAuthorize(server)}
+          data-testid={`${rowTestId}-authorize`}
+        >
+          {status.authorizeLabel}
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => onEdit(server)}
+        aria-label={`Edit ${accessibleName}`}
+        data-testid={`${rowTestId}-edit`}
+      >
+        <Pencil className="size-3.5" />
+      </Button>
     </div>
   );
 }

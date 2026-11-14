@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// RowAction is a daemon API value.
+type RowAction struct {
+	Title        string            `json:"title"`
+	Icon         string            `json:"icon,omitempty"`
+	Section      string            `json:"section,omitempty"`
+	Primary      bool              `json:"primary,omitempty"`
+	Destructive  bool              `json:"destructive,omitempty"`
+	Confirmation *Confirmation     `json:"confirmation,omitempty"`
+	Shortcut     string            `json:"shortcut,omitempty"`
+	Action       *Action           `json:"action,omitempty"`
+	Handler      string            `json:"handler,omitempty"`
+	SubmitForm   bool              `json:"submit_form,omitempty"`
+	Requires     map[string]string `json:"requires,omitempty"`
+	Fallback     string            `json:"fallback,omitempty"`
+}
+
+// RunArtifact is a daemon API value.
+type RunArtifact struct {
+	Name         string               `json:"name"`
+	Output       string               `json:"output,omitempty"`
+	Ref          string               `json:"ref,omitempty"`
+	Availability ArtifactAvailability `json:"availability"`
+}
+
 // RunDesignationSummary is a daemon API value.
 type RunDesignationSummary struct {
 	Index int    `json:"index"`
@@ -218,6 +242,12 @@ type RuntimeLimits struct {
 	ContextMaxBytes   int   `json:"context_body_max_bytes"`
 }
 
+// RuntimeMCP is a daemon API value.
+type RuntimeMCP struct {
+	RuntimeMCP string          `json:"runtime_mcp"`
+	Servers    []RuntimeMCPRow `json:"servers"`
+}
+
 // RuntimeMCPImportRequest is a daemon API value.
 type RuntimeMCPImportRequest struct {
 	Scope       SettingsScopeKind `json:"scope,omitempty"`
@@ -415,11 +445,4 @@ type SearchResult struct {
 type Section struct {
 	Title string `json:"title,omitempty"`
 	Rows  []Row  `json:"rows"`
-}
-
-// Selection is a daemon API value.
-type Selection struct {
-	ID        string `json:"id"`
-	ValueID   string `json:"value_id,omitempty"`
-	BoolValue *bool  `json:"bool_value,omitzero"`
 }

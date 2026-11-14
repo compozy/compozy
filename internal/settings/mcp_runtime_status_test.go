@@ -584,6 +584,16 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			t.Fatalf("workspace begin resolution = target:%#v server:%#v", runtime.beginTarget, runtime.beginServer)
 		}
 
+		// Invariant: digest selection without a consent provider fails before OAuth.
+		// Owner: Settings auth; canonical suite: TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget.
+		_, err = service.BeginMCPAuth(ctx, MCPAuthBeginRequest{
+			MCPAuthTargetRequest: workspaceTarget,
+			DefinitionDigest:     "observed-definition",
+		})
+		if !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("digest selection without consent provider = %v, want unavailable", err)
+		}
+
 		status, err := service.ExchangeMCPAuth(ctx, MCPAuthExchangeRequest{
 			MCPAuthTargetRequest: workspaceTarget,
 			RedirectURL:          "https://callback.example/?code=opaque&state=public",

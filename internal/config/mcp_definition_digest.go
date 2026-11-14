@@ -1,13 +1,13 @@
 package config
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json/v2"
+
+	"github.com/compozy/compozy/internal/definitiondigest"
 )
 
-// MCPDefinitionDigest hashes definitions before any Vault value is resolved.
-func MCPDefinitionDigest(server MCPServer) (string, error) {
+// MCPDefinitionDigest fingerprints definitions with a keyed digest before any Vault value is resolved.
+func MCPDefinitionDigest(server MCPServer, key ...[]byte) (string, error) {
 	server = normalizeMCPServerResourceSpec(server)
 	definition := struct {
 		Transport                              MCPServerTransport
@@ -32,6 +32,9 @@ func MCPDefinitionDigest(server MCPServer) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	digest := sha256.Sum256(data)
-	return hex.EncodeToString(digest[:]), nil
+	var digestKey []byte
+	if len(key) > 0 {
+		digestKey = key[0]
+	}
+	return definitiondigest.Sum(data, digestKey), nil
 }

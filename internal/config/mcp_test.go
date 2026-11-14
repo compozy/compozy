@@ -106,6 +106,22 @@ func TestMCPDefinitionDigest(t *testing.T) {
 		ReadOnlyTools: []string{"read"},
 		Auth:          MCPAuthConfig{Registration: MCPAuthRegistrationAuto},
 	}
+	// Invariant: public fingerprints are stable per installation and differ across installations; owner: config normalization.
+	t.Run("Should bind the definition digest to the installation key", func(t *testing.T) {
+		t.Parallel()
+		first, err := MCPDefinitionDigest(original, []byte("installation one"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := MCPDefinitionDigest(original, []byte("installation one"))
+		if err != nil || again != first {
+			t.Fatalf("unstable digest: %v", err)
+		}
+		other, err := MCPDefinitionDigest(original, []byte("installation two"))
+		if err != nil || other == first {
+			t.Fatalf("installation-independent digest: %v", err)
+		}
+	})
 	digest, err := MCPDefinitionDigest(original)
 	if err != nil {
 		t.Fatal(err)

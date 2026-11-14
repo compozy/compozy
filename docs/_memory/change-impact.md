@@ -6230,3 +6230,16 @@ Failed discovery retains advertised views but disables execution until recovery;
 window shares its discovery listing. Invalid MCP definitions remain readable without auth probing.
 The existing QA scenarios and official MCP references reflect these backend corrections; no new Web
 surface, hook, config key, SDK shape or database migration is introduced by this repair.
+
+Backend review fixes preserve this scope: consent checks the exact resolved transport definition;
+agent policy bounds inherited authority while roots follow current native tools. Session list/status
+reads degrade one failing MCP scope and share scope resolution within the request. Sign-out removes
+local credentials without network access or an approval gate. Public definition digests use an
+installation HMAC key in the private `mcp-digest.key` file; approvals and runtime inventory share it.
+Runtime config symlinks resolve through the existing bounded regular-file reader, and inventory
+caches are bounded. Hosted projection revisions remain opaque; activation and served receipts use
+`Catalog.Digest` for the external tools actually installed. Missing initial list receipts do not
+restart list-changed runtimes. Reload/receipt telemetry failures preserve successful operations.
+CLI allow/import/session MCP support JSONL and TOON; changed runtime definitions have a distinct
+Copy error. `_rf-backend-report.md` records focused evidence, including the real isolated daemon
+HTTP/native/CLI read-surfaces check. No additional wire shape, hook/config key or migration is added.

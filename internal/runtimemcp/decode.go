@@ -1,8 +1,6 @@
 package runtimemcp
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
 	"maps"
@@ -12,6 +10,8 @@ import (
 	"strings"
 
 	shellquote "github.com/kballard/go-shellquote"
+
+	"github.com/compozy/compozy/internal/definitiondigest"
 )
 
 type object = map[string]any
@@ -54,7 +54,7 @@ func names(value any) []string {
 func keys(value any) []string              { return slices.Sorted(maps.Keys(obj(value))) }
 func contains(value any, name string) bool { return slices.Contains(names(value), name) }
 
-func digest(value any) string {
+func digest(value any, key ...[]byte) string {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return ""
@@ -68,8 +68,11 @@ func digest(value any) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
+	var digestKey []byte
+	if len(key) > 0 {
+		digestKey = key[0]
+	}
+	return definitiondigest.Sum(data, digestKey)
 }
 
 func decodeServers(runtime string, doc object) (object, error) {
@@ -97,7 +100,7 @@ func checkedObject(value any) (object, error) {
 	return m, nil
 }
 
-func describeServer(runtime, name, scope, path, label string, definition object) (Server, error) {
+func describeServer(runtime, name, scope, path, label string, definition object, key ...[]byte) (Server, error) {
 	if runtime == runtimeCodex && has(definition, fieldCommand) && has(definition, fieldURL) {
 		return Server{}, errors.New("conflicting MCP transports")
 	}
@@ -156,7 +159,7 @@ func describeServer(runtime, name, scope, path, label string, definition object)
 	s.HeaderKeys = slices.Compact(s.HeaderKeys)
 	s.CopyBlockedReason = copyBlocked(s, definition)
 	s.Copyable = s.CopyBlockedReason == ""
-	s.DefinitionDigest = digest(definition)
+	s.DefinitionDigest = digest(definition, key...)
 	return s, nil
 }
 

@@ -4,6 +4,13 @@ package client
 
 import "time"
 
+// Selection is a daemon API value.
+type Selection struct {
+	ID        string `json:"id"`
+	ValueID   string `json:"value_id,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitzero"`
+}
+
 // SendPromptResultPayload is a daemon API value.
 type SendPromptResultPayload struct {
 	HeldReason            string                `json:"held_reason,omitempty"`
@@ -433,14 +440,4 @@ type SessionConversationRewindRequest struct {
 type SessionConversationRewindResponse struct {
 	Session SessionPayload                   `json:"session"`
 	Rewind  SessionConversationRewindPayload `json:"rewind"`
-}
-
-// SessionDerivationPayload is a daemon API value.
-type SessionDerivationPayload struct {
-	Kind            LineageKind `json:"kind"`
-	SourceSessionID string      `json:"source_session_id"`
-	Seed            string      `json:"seed"`
-	NativeState     string      `json:"native_state,omitempty"`
-	NativeForkError string      `json:"native_fork_error,omitempty"`
-	FirstPrompt     string      `json:"first_prompt"`
 }

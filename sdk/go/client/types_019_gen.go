@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// SessionDerivationPayload is a daemon API value.
+type SessionDerivationPayload struct {
+	Kind            LineageKind `json:"kind"`
+	SourceSessionID string      `json:"source_session_id"`
+	Seed            string      `json:"seed"`
+	NativeState     string      `json:"native_state,omitempty"`
+	NativeForkError string      `json:"native_fork_error,omitempty"`
+	FirstPrompt     string      `json:"first_prompt"`
+}
+
 // SessionDeriveCutPayload is a daemon API value.
 type SessionDeriveCutPayload struct {
 	MessageID   string `json:"message_id"`
@@ -343,19 +353,6 @@ type SessionLinkedWorkSummary struct {
 	Total        int                    `json:"total"`
 	NeedsYou     int                    `json:"needs_you"`
 	Lead         *SessionLinkedWorkItem `json:"lead,omitempty"`
-}
-
-// SessionMCP is a daemon API value.
-type SessionMCP struct {
-	SessionID          string            `json:"session_id"`
-	Runtime            string            `json:"runtime"`
-	RuntimeDisplayName string            `json:"runtime_display_name"`
-	Usable             int               `json:"usable"`
-	Attention          int               `json:"attention"`
-	PendingReload      bool              `json:"pending_reload"`
-	LastReload         *MCPReloadRecord  `json:"last_reload,omitempty"`
-	CompozyServers     []MCPServerRow    `json:"compozy_servers"`
-	RuntimeServers     SessionRuntimeMCP `json:"runtime_servers"`
 }
 
 // SessionMentionKind is a daemon API value.

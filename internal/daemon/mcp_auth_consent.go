@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/config"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
@@ -83,6 +84,30 @@ func authorizeMCPAuthNetwork(ctx context.Context, state *bootState, cfg mcpauth.
 				target.ServerName,
 			),
 		}
+	}
+	return nil
+}
+
+func requireResolvedMCPConsent(
+	ctx context.Context,
+	state *bootState,
+	source toolspkg.SourceRef,
+	resolved *mcppkg.ResolvedServer,
+) error {
+	req := settingsConsentRequest(resolved.Target, resolved.Server)
+	if source.ProfileID != "" && state.profiles != nil {
+		var err error
+		req.ProfileName, err = state.profiles.ProfileName(ctx, source.ProfileID)
+		if err != nil {
+			return err
+		}
+	}
+	decision, err := (settingsMCPConsent{state: state}).MCPConsent(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !decision.Admitted {
+		return waitingDaemonMCPApprovalError(ctx, state, resolved.Server.Name, req.WorkspaceID)
 	}
 	return nil
 }

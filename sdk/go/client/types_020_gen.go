@@ -288,12 +288,6 @@ type SessionResponse struct {
 // SessionReviewDecision is a daemon API value.
 type SessionReviewDecision string
 
-// SessionRuntimeMCP is a daemon API value.
-type SessionRuntimeMCP struct {
-	RuntimeMCP string          `json:"runtime_mcp"`
-	Servers    []RuntimeMCPRow `json:"servers"`
-}
-
 // SessionRuntimePayload is a daemon API value.
 type SessionRuntimePayload struct {
 	Status            SessionRuntimeStatus           `json:"status"`

@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
+	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -15,11 +17,14 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/runtimemcp"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 const runtimeMCPCacheTTL = 45 * time.Second
+const runtimeMCPCacheLimit = 128
 
 type runtimeMCPCacheEntry struct {
+	revision    uint64
 	readContext string
 	inventory   runtimemcp.Inventory
 	paths       []string
@@ -28,15 +33,29 @@ type runtimeMCPCacheEntry struct {
 }
 
 type runtimeMCPInventory struct {
-	mu    sync.Mutex
-	cache map[string]runtimeMCPCacheEntry
-	now   func() time.Time
+	keys     vault.KeyProvider
+	revision uint64
+	mu       sync.Mutex
+	cache    map[string]runtimeMCPCacheEntry
+	now      func() time.Time
 }
 
 var _ settingspkg.RuntimeMCPInventory = (*runtimeMCPInventory)(nil)
 
-func newRuntimeMCPInventory() *runtimeMCPInventory {
-	return &runtimeMCPInventory{cache: map[string]runtimeMCPCacheEntry{}, now: time.Now}
+func newRuntimeMCPInventory(keys ...vault.KeyProvider) *runtimeMCPInventory {
+	s := &runtimeMCPInventory{cache: map[string]runtimeMCPCacheEntry{}, now: time.Now}
+	if len(keys) > 0 {
+		s.keys = keys[0]
+	}
+	return s
+}
+
+func (s *runtimeMCPInventory) reader() (runtimemcp.Reader, error) {
+	if s.keys == nil {
+		return runtimemcp.Reader{}, nil
+	}
+	key, err := s.keys.Key()
+	return runtimemcp.Reader{DigestKey: key}, err
 }
 
 func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) (runtimemcp.Inventory, error) {
@@ -48,19 +67,24 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 	hash := sha256.Sum256(data)
 	key := hex.EncodeToString(hash[:])
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	cached, ok := s.cache[key]
-	if !ok || !s.now().Before(cached.expires) ||
-		!sameRuntimeMCPStamps(cached.stamps, captureRuntimeMCPFiles(cached.paths)) {
-		before := captureRuntimeMCPFiles(cached.paths)
-		inventory, paths, err := (runtimemcp.Reader{}).List(ctx, req)
+	s.mu.Unlock()
+	before := captureRuntimeMCPFiles(cached.paths)
+	if !ok || !s.now().Before(cached.expires) || !sameRuntimeMCPStamps(cached.stamps, before) {
+		reader, err := s.reader()
+		if err != nil {
+			return runtimemcp.Inventory{}, err
+		}
+		inventory, paths, err := reader.List(ctx, req)
 		if err != nil {
 			return runtimemcp.Inventory{}, err
 		}
 		after := captureRuntimeMCPFiles(paths)
-		if !slices.Equal(paths, cached.paths) {
+		if !ok {
 			before = after
-			inventory, paths, err = (runtimemcp.Reader{}).List(ctx, req)
+		} else if !slices.Equal(paths, cached.paths) {
+			before = after
+			inventory, paths, err = reader.List(ctx, req)
 			if err != nil {
 				return runtimemcp.Inventory{}, err
 			}
@@ -82,39 +106,73 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 			return runtimemcp.Inventory{}, err
 		}
 		cached = runtimeMCPCacheEntry{
-			readContext: string(contextData),
-			inventory:   inventory,
-			paths:       paths,
-			stamps:      after,
-			expires:     s.now().Add(runtimeMCPCacheTTL),
+			readContext: string(contextData), inventory: inventory, paths: paths,
+			stamps: after, expires: s.now().Add(runtimeMCPCacheTTL),
 		}
 		if !sameRuntimeMCPStamps(before, after) {
 			cached.expires = time.Time{}
 		}
+		s.mu.Lock()
+		s.evict(s.now())
+		s.revision++
+		cached.revision = s.revision
 		s.cache[key] = cached
+		s.mu.Unlock()
 	}
 	result := cloneRuntimeMCPInventory(cached.inventory)
 	result.GeneratedAt = s.now().UTC()
 	return result, nil
 }
 
+func (s *runtimeMCPInventory) evict(now time.Time) {
+	var oldest string
+	var expires time.Time
+	for key, entry := range s.cache {
+		if !now.Before(entry.expires) {
+			delete(s.cache, key)
+			continue
+		}
+		if oldest == "" || entry.expires.Before(expires) {
+			oldest, expires = key, entry.expires
+		}
+	}
+	if len(s.cache) >= runtimeMCPCacheLimit {
+		delete(s.cache, oldest)
+	}
+}
+
 func (s *runtimeMCPInventory) Poll() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	for key, entry := range s.cache {
-		if !sameRuntimeMCPStamps(entry.stamps, captureRuntimeMCPFiles(entry.paths)) {
-			entry.expires = time.Time{}
-			s.cache[key] = entry
+	entries := maps.Clone(s.cache)
+	s.mu.Unlock()
+	for key, entry := range entries {
+		expired := !s.now().Before(entry.expires)
+		if !expired && sameRuntimeMCPStamps(entry.stamps, captureRuntimeMCPFiles(entry.paths)) {
+			continue
 		}
+		s.mu.Lock()
+		if current, ok := s.cache[key]; ok && current.revision == entry.revision {
+			// Retain the last activation identity if the next read is transiently unreadable.
+			current.expires = time.Time{}
+			s.cache[key] = current
+		}
+		s.mu.Unlock()
 	}
 }
 
 func captureRuntimeMCPFiles(paths []string) map[string]filesnap.Snapshot {
 	result := make(map[string]filesnap.Snapshot, len(paths))
 	for _, path := range paths {
-		file, err := fileutil.OpenRegularFile(path)
+		resolved, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				result[path] = filesnap.Uncacheable()
+			}
+			continue
+		}
+		file, err := fileutil.OpenRegularFile(resolved)
 		if errors.Is(err, fileutil.ErrDirectory) {
-			dir, dirErr := fileutil.OpenDirectory(path)
+			dir, dirErr := fileutil.OpenDirectory(resolved)
 			if dirErr != nil {
 				result[path] = filesnap.Uncacheable()
 				continue
@@ -205,7 +263,11 @@ func (s *runtimeMCPInventory) Resolve(
 		}
 	}
 	s.mu.Unlock()
-	return (runtimemcp.Reader{}).Resolve(ctx, req, name, previous)
+	reader, err := s.reader()
+	if err != nil {
+		return runtimemcp.ResolvedServer{}, err
+	}
+	return reader.Resolve(ctx, req, name, previous)
 }
 
 var _ settingspkg.RuntimeMCPResolver = (*runtimeMCPInventory)(nil)

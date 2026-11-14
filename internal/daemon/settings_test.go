@@ -1858,6 +1858,33 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err == nil || requests.Load() != before {
 		t.Fatalf("continued auth escaped revoke: %v", err)
 	}
+	// Invariant: signing out while waiting for consent deletes local credentials without server I/O; owner: Settings auth.
+	fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tokens.SaveMCPAuthToken(
+		t.Context(),
+		mcpauth.TokenRecord{
+			Target:                cfg.Target,
+			DefinitionFingerprint: fingerprint,
+			ClientID:              "test-client",
+			Issuer:                req.Server.URL,
+			AccessToken:           "local-test-token",
+			TokenType:             "Bearer",
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.LogoutMCPAuth(t.Context(), target); err != nil {
+		t.Fatalf("waiting sign-out: %v", err)
+	}
+	if _, err := tokens.GetMCPAuthToken(t.Context(), cfg.Target); !errors.Is(err, mcpauth.ErrTokenNotFound) {
+		t.Fatalf("credential retained: %v", err)
+	}
+	if requests.Load() != before {
+		t.Fatal("sign-out contacted the server")
+	}
 }
 
 // Invariant: OAuth credential ownership does not select the approval profile.

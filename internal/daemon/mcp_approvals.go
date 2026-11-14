@@ -68,7 +68,7 @@ func mcpDefinitionConsent(
 	record resources.Record[config.MCPServer],
 	server config.MCPServer,
 ) (ConsentDecision, error) {
-	digest, err := config.MCPDefinitionDigest(server)
+	digest, err := state.mcpDefinitionDigest(server)
 	if err != nil {
 		return ConsentDecision{}, err
 	}
@@ -181,7 +181,14 @@ func mcpSourceConsent(
 		if found {
 			source = resolved
 		} else {
-			return ConsentDecision{}, nil
+			resolved, err := resolveDaemonMCPServer(ctx, state, source, "")
+			if err != nil {
+				return ConsentDecision{}, err
+			}
+			return (settingsMCPConsent{state: state}).MCPConsent(
+				ctx,
+				settingsConsentRequest(resolved.Target, resolved.Server),
+			)
 		}
 	}
 	if state.mcpServerCatalog == nil {
@@ -256,7 +263,7 @@ func (s settingsMCPConsent) RecordWorkspaceMCPWrite(
 		server = committed
 	}
 	server.DefinitionSource = w.SourceID
-	digest, err := config.MCPDefinitionDigest(server)
+	digest, err := s.state.mcpDefinitionDigest(server)
 	if err == nil {
 		_, err = s.ApproveMCP(
 			ctx,
@@ -277,3 +284,15 @@ func (s settingsMCPConsent) RecordWorkspaceMCPWrite(
 }
 
 func approvalTimestamp() time.Time { return time.Now().UTC() }
+
+func (s *bootState) mcpDefinitionDigest(server config.MCPServer) (string, error) {
+	var key []byte
+	if s != nil && s.mcpDigestKeys != nil {
+		var err error
+		key, err = s.mcpDigestKeys.Key()
+		if err != nil {
+			return "", err
+		}
+	}
+	return config.MCPDefinitionDigest(server, key)
+}

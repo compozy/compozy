@@ -86,7 +86,13 @@ func (s *service) BeginMCPAuth(
 		if resolveErr != nil {
 			return mcpauth.BeginResult{}, resolveErr
 		}
-		selected, selectErr := selectMCPApprovalDefinition(req.Name, definitions, req.DefinitionDigest)
+		selected, selectErr := s.selectMCPApprovalDefinition(
+			ctx,
+			req.Name,
+			req.ProfileName,
+			definitions,
+			req.DefinitionDigest,
+		)
 		if selectErr != nil {
 			return mcpauth.BeginResult{}, selectErr
 		}
@@ -228,7 +234,7 @@ func mcpAuthTargetRequest(target mcpauth.Target) MCPAuthTargetRequest {
 	return request
 }
 
-// LogoutMCPAuth revokes and removes one exact scoped credential set.
+// LogoutMCPAuth removes one exact scoped credential set locally.
 func (s *service) LogoutMCPAuth(
 	ctx context.Context,
 	req MCPAuthTargetRequest,

@@ -14,13 +14,16 @@ type entry struct {
 	definition object
 }
 
-func read(c ReadContext, descriptor Descriptor) (Snapshot, []string) {
-	snapshot, paths, _ := readDefinitions(c, descriptor)
+func read(c ReadContext, descriptor Descriptor, key []byte) (Snapshot, []string) {
+	snapshot, paths, _ := readDefinitions(c, descriptor, key)
 	return snapshot, paths
 }
 
-func readDefinitions(c ReadContext, descriptor Descriptor) (Snapshot, []string, map[string]entry) {
+func readDefinitions(c ReadContext, descriptor Descriptor, key ...[]byte) (Snapshot, []string, map[string]entry) {
 	r := reader{context: c, paths: map[string]struct{}{}}
+	if len(key) > 0 {
+		r.digestKey = key[0]
+	}
 	snapshot := Snapshot{
 		Runtime:     descriptor.Runtime,
 		DisplayName: descriptor.DisplayName,
@@ -51,13 +54,13 @@ func readDefinitions(c ReadContext, descriptor Descriptor) (Snapshot, []string, 
 		server.ActivationDigest = digest(struct {
 			Definition, Source, Scope, Approval string
 			Enabled                             bool
-		}{server.DefinitionDigest, server.SourcePath, server.Scope, server.Approval, server.EnabledInRuntime})
+		}{server.DefinitionDigest, server.SourcePath, server.Scope, server.Approval, server.EnabledInRuntime}, r.digestKey)
 		snapshot.Servers = append(snapshot.Servers, server)
 	}
 	snapshot.ActivationDigest = digest(struct {
 		Servers    []Server
 		CanDisable bool
-	}{snapshot.Servers, snapshot.RuntimeMCP.CanDisable})
+	}{snapshot.Servers, snapshot.RuntimeMCP.CanDisable}, r.digestKey)
 	if r.failure != "" {
 		snapshot.ReadState = "unreadable"
 		snapshot.ReadError = r.failure
@@ -94,7 +97,7 @@ func (r *reader) add(runtime string, src source, definitions object, entries map
 				definition = mergeDefinition(old.definition, definition)
 			}
 		}
-		server, err := describeServer(runtime, name, src.scope, src.path, r.label(src.path), definition)
+		server, err := describeServer(runtime, name, src.scope, src.path, r.label(src.path), definition, r.digestKey)
 		if err != nil {
 			r.failure = "Couldn't read " + r.label(src.path) + ": invalid MCP server definition"
 			continue

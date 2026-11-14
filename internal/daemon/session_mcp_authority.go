@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspace"
 )
 
 var _ session.MCPAuthorityResolver = (*nativeToolPolicyResolver)(nil)
@@ -35,23 +37,30 @@ func (r *nativeToolPolicyResolver) EffectiveMCPAuthority(
 		WorkspaceID: info.WorkspaceID,
 		AgentName:   info.AgentName,
 	}
-	workspace, cfg, err := r.resolveWorkspaceConfig(ctx, scope)
+	base, err := r.resolveMCPAuthorityScope(ctx, scope)
 	if err != nil {
 		return store.SessionPermissionPolicy{}, err
 	}
-	inputs, err := nativeToolPolicyInputs(cfg)
-	if err != nil {
-		return store.SessionPermissionPolicy{}, err
+	inputs := base.inputs
+	if scope.AgentName != "" && !mcpAuthorityRead(ctx) {
+		if err := r.applyAgentToolPolicy(&inputs, scope.AgentName, base.workspace, base.cfg); err != nil {
+			// Existing delegated sessions retain their stored ceiling if the agent was removed.
+			if info.Lineage == nil || !errors.Is(err, workspace.ErrAgentNotAvailable) {
+				return store.SessionPermissionPolicy{}, err
+			}
+		}
 	}
-	if err := r.applyScopedSourceGrants(ctx, &inputs, scope, workspace); err != nil {
-		return store.SessionPermissionPolicy{}, err
-	}
-	names := r.admittedMCPNames(inputs, cfg.MCPServers)
 	lineage := store.NormalizeSessionLineage(id, info.Lineage)
 	policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
-	policy.MCPServers = store.BoundMCPServers(policy, names)
-	if r.scopeTools != nil {
-		policy.Tools, err = r.effectiveScopeTools(ctx, scope, inputs, policy)
+	policy.MCPServers = store.BoundMCPServers(policy, base.names)
+	if r.scopeTools != nil && !mcpAuthorityRead(ctx) {
+		policy.Tools, err = r.effectiveScopeTools(
+			ctx,
+			scope,
+			inputs,
+			policy,
+			(lineage.Kind == store.LineageKindRoot || lineage.Kind == "" && lineage.ParentSessionID == ""),
+		)
 		if err != nil {
 			return store.SessionPermissionPolicy{}, err
 		}
@@ -89,7 +98,11 @@ func (r *nativeToolPolicyResolver) admittedMCPNames(
 }
 
 func (r *nativeToolPolicyResolver) effectiveScopeTools(
-	ctx context.Context, scope toolspkg.Scope, inputs toolspkg.PolicyInputs, policy store.SessionPermissionPolicy,
+	ctx context.Context,
+	scope toolspkg.Scope,
+	inputs toolspkg.PolicyInputs,
+	policy store.SessionPermissionPolicy,
+	root bool,
 ) ([]string, error) {
 	scope.SessionID, scope.AgentName = "", ""
 	// Supply the already resolved scope policy to avoid reentering the registry policy cache.
@@ -101,6 +114,14 @@ func (r *nativeToolPolicyResolver) effectiveScopeTools(
 	if r.mcpResourceNames != nil {
 		names = r.mcpResourceNames()
 	}
+	denied := make(map[string]bool)
+	for i := range views {
+		view := &views[i]
+		if view.Decision.AgentPolicyResult == hookPermissionDecisionDenied ||
+			view.Decision.RegistryPolicyResult == hookPermissionDecisionDenied {
+			denied[view.Descriptor.ID.String()] = true
+		}
+	}
 	if policy.ToolsMode == store.PermissionList {
 		allowedMCP := make(map[string]bool)
 		for i := range views {
@@ -111,15 +132,26 @@ func (r *nativeToolPolicyResolver) effectiveScopeTools(
 			}
 		}
 		return slices.DeleteFunc(slices.Clone(policy.Tools), func(id string) bool {
-			return strings.HasPrefix(id, "mcp__") && !allowedMCP[id]
+			return denied[id] || strings.HasPrefix(id, "mcp__") && !allowedMCP[id]
 		}), nil
 	}
 	ids := slices.DeleteFunc(slices.Clone(policy.Tools), func(id string) bool {
-		return !strings.HasPrefix(id, "compozy__")
+		return !strings.HasPrefix(id, "compozy__") || denied[id]
 	})
+	if root {
+		ids = nil
+	}
 	for i := range views {
 		view := &views[i]
+		if view.Decision.AgentPolicyResult == hookPermissionDecisionDenied ||
+			view.Decision.RegistryPolicyResult == hookPermissionDecisionDenied {
+			continue
+		}
 		source := view.Descriptor.Source
+		if root && source.Kind == toolspkg.SourceBuiltin &&
+			strings.HasPrefix(view.Descriptor.ID.String(), "compozy__") {
+			ids = append(ids, view.Descriptor.ID.String())
+		}
 		if source.Kind == toolspkg.SourceExtension && sourcePolicyAdmitted(view.Decision.SourcePolicyResult) {
 			ids = append(ids, view.Descriptor.ID.String())
 		}

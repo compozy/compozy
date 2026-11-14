@@ -52,6 +52,8 @@ func (c *daemonClient) ImportRuntimeMCPServer(
 	return result, err
 }
 
+const mcpTransportKey = "transport"
+
 func newMCPImportCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, scope, name string
 	cmd := &cobra.Command{
@@ -101,9 +103,23 @@ func newMCPImportCommand(deps commandDeps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
-			return runtimeMCPImportOutput(runtime, scope, &result), nil
-		}})
+		return writeCommandOutput(cmd, outputBundle{jsonValue: result,
+			jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+			toon: func() (string, error) {
+				return renderToonObject(
+					"mcp_server",
+					[]string{automationNameKey, automationScopeKey, mcpTransportKey, loopRuntimeKey, cliSourceKey},
+					[]string{
+						result.MCPServer.Name,
+						string(result.MCPServer.Scope),
+						result.MCPServer.Transport,
+						result.Source.Runtime,
+						result.Source.SourceLabel,
+					},
+				), nil
+			}, human: func() (string, error) {
+				return runtimeMCPImportOutput(runtime, scope, &result), nil
+			}})
 	}
 	cmd.Flags().StringVar(&scope, "scope", "user", "Target scope (user, profile, workspace)")
 	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Workspace ID, name, or path")

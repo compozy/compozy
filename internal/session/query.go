@@ -25,6 +25,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 		return nil, errors.New("session: list context is required")
 	}
 
+	ctx = m.mcpAuthorityReadContext(ctx)
 	active := m.List()
 	activeByID := make(map[string]*Info, len(active))
 	for _, info := range active {
@@ -40,9 +41,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 	case errors.Is(err, os.ErrNotExist):
 		m.pruneMetadataCache(nil)
 		for _, info := range active {
-			if err := m.populateEffectiveMCPAuthority(ctx, info); err != nil {
-				return nil, err
-			}
+			m.decorateMCPAuthority(ctx, info)
 		}
 		return sortSessionInfos(active), nil
 	default:
@@ -82,9 +81,7 @@ func (m *Manager) mergePersistedSessionInfos(
 	}
 
 	for _, info := range infos {
-		if err := m.populateEffectiveMCPAuthority(ctx, info); err != nil {
-			return nil, err
-		}
+		m.decorateMCPAuthority(ctx, info)
 	}
 	return sortSessionInfos(infos), nil
 }
@@ -140,9 +137,7 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := m.populateEffectiveMCPAuthority(ctx, info); err != nil {
-		return nil, err
-	}
+	m.decorateMCPAuthority(m.mcpAuthorityReadContext(ctx), info)
 	return info, nil
 }
 
