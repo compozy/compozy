@@ -56,10 +56,14 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session native provider startup failed", err)
 	}
+	startOpts, err = m.prepareRuntimeMCPStartup(ctx, spec, runtime, startOpts)
+	if err != nil {
+		return acp.StartOpts{}, startupFailure("session runtime MCP startup failed", err)
+	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
 	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
 	startOpts = m.prepareHostedMCPStartup(session, runtime, startOpts)
-	if err := m.prepareActivationCatalog(ctx, session, runtime, spec); err != nil {
+	if err := m.prepareActivationCatalog(ctx, session, runtime); err != nil {
 		return acp.StartOpts{}, err
 	}
 	m.constrainTriageLaunch(spec, runtime, &startOpts)

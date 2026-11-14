@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -29,16 +30,21 @@ type reloadRecord struct {
 }
 
 type activationState struct {
-	boundDigest   string
-	boundServers  map[string]int
-	servedDigest  string
-	runtimeMCP    string
-	runtimeDigest string
-	lastReload    *reloadRecord
+	boundDigest    string
+	boundServers   map[string]int
+	servedDigest   string
+	runtimeMCP     string
+	runtimeDigest  string
+	runtimeRequest *runtimemcp.Request
+	lastReload     *reloadRecord
 }
 
 func (a activationState) clone() activationState {
 	a.boundServers = maps.Clone(a.boundServers)
+	if a.runtimeRequest != nil {
+		a.runtimeRequest = new(*a.runtimeRequest)
+		a.runtimeRequest.Context.Env = maps.Clone(a.runtimeRequest.Context.Env)
+	}
 	if a.lastReload != nil {
 		a.lastReload = new(*a.lastReload)
 	}
@@ -86,8 +92,6 @@ type hostedActivationCatalog interface {
 	BoundActivationCatalog(string) (tools.AdvertisedCatalog, bool)
 }
 
-// S5 supplies the runtime activation digest at bind and compares the current inventory digest
-// at admission for runtimes whose native MCP configuration requires a restart.
 func activationFingerprint(catalog, mode, runtimeDigest string) string {
 	sum := sha256.Sum256([]byte(catalog + "\x00" + mode + "\x00" + runtimeDigest))
 	return hex.EncodeToString(sum[:])
@@ -103,6 +107,17 @@ func (m *Manager) needsActivationReload(ctx context.Context, s *Session) (bool, 
 	if process == nil {
 		return false, ""
 	}
+	mode := state.runtimeMCP
+	if plan, err := m.currentMCPRuntimePlan(ctx, s); err == nil {
+		mode = plan.spec.workspace.Config.Providers[plan.selection.Provider].EffectiveRuntimeMCP()
+	}
+	if mode != state.runtimeMCP {
+		return true, "runtime_mcp"
+	}
+	runtimeDigest := m.currentRuntimeMCPDigest(ctx, state, mode)
+	if runtimeDigest != state.runtimeDigest {
+		return true, "runtime_inventory"
+	}
 	source, ok := m.hostedMCP.(hostedActivationCatalog)
 	if !ok {
 		return m.hostedMCPToolsChanged(ctx, s), "fingerprint"
@@ -117,17 +132,10 @@ func (m *Manager) needsActivationReload(ctx context.Context, s *Session) (bool, 
 	s.mu.Lock()
 	s.activation.servedDigest = served
 	s.mu.Unlock()
-	mode := state.runtimeMCP
-	if plan, err := m.currentMCPRuntimePlan(ctx, s); err == nil {
-		mode = plan.spec.workspace.Config.Providers[plan.selection.Provider].EffectiveRuntimeMCP()
-	}
-	if mode != state.runtimeMCP {
-		return true, "runtime_mcp"
-	}
 	if !s.hostedReloadRequired() {
 		return served == "" || served != catalog.Digest, "served_stale"
 	}
-	return state.boundDigest != activationFingerprint(catalog.Digest, mode, state.runtimeDigest), "fingerprint"
+	return state.boundDigest != activationFingerprint(catalog.Digest, mode, runtimeDigest), "fingerprint"
 }
 
 func (s *Session) hostedReloadRequired() bool {
@@ -137,12 +145,11 @@ func (s *Session) hostedReloadRequired() bool {
 }
 
 func (m *Manager) prepareActivationCatalog(
-	ctx context.Context, s *Session, runtime *sessionStartRuntime, spec *sessionStartSpec,
+	ctx context.Context, s *Session, runtime *sessionStartRuntime,
 ) error {
 	if m.hostedMCP != nil && len(runtime.mcpServers) == 0 {
 		return nil
 	}
-	runtime.activationMode = spec.workspace.Config.Providers[runtime.agent.Provider].EffectiveRuntimeMCP()
 	if source, ok := m.hostedMCP.(hostedActivationCatalog); ok {
 		catalog, _, err := source.ActivationCatalog(ctx, s.ID)
 		if err != nil {
@@ -154,23 +161,25 @@ func (m *Manager) prepareActivationCatalog(
 }
 
 func (m *Manager) commitActivation(s *Session, runtime *sessionStartRuntime) {
-	if runtime.activationCatalog == nil {
-		return
-	}
 	// Prefer the exact initial revision accepted by the proxy over the prelaunch snapshot.
-	if source, ok := m.hostedMCP.(hostedActivationCatalog); ok {
+	if source, ok := m.hostedMCP.(hostedActivationCatalog); ok && runtime.activationCatalog != nil {
 		if catalog, bound := source.BoundActivationCatalog(s.ID); bound {
 			runtime.activationCatalog = &catalog
 		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.activation.boundDigest = activationFingerprint(
-		runtime.activationCatalog.Digest, runtime.activationMode, runtime.activationDigest,
-	)
-	s.activation.boundServers = maps.Clone(runtime.activationCatalog.Servers)
 	s.activation.runtimeMCP = runtime.activationMode
 	s.activation.runtimeDigest = runtime.activationDigest
+	s.activation.runtimeRequest = runtime.activationRequest
+	s.activation.boundDigest = ""
+	s.activation.boundServers = nil
+	if runtime.activationCatalog != nil {
+		s.activation.boundDigest = activationFingerprint(
+			runtime.activationCatalog.Digest, runtime.activationMode, runtime.activationDigest,
+		)
+		s.activation.boundServers = maps.Clone(runtime.activationCatalog.Servers)
+	}
 }
 
 func (m *Manager) reloadActivationRuntime(

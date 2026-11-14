@@ -133,7 +133,9 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 	}
 	if opts.LeanEnvironment || opts.IsolateProviderMCP {
 		env["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
-		options["strictMcpConfig"] = true
+		if !opts.ManagedProviderMCP {
+			options["strictMcpConfig"] = true
+		}
 	}
 	return meta
 }
@@ -164,17 +166,17 @@ func claudeCodeInputOnlySessionMeta(opts StartOpts) any {
 	if opts.ProviderConfig != nil && opts.ProviderConfig.AutoCompactWindow != nil {
 		env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = strconv.Itoa(*opts.ProviderConfig.AutoCompactWindow)
 	}
+	options := map[string]any{
+		"tools": []string{}, "plugins": []any{}, "skills": []string{},
+		"env": env, "settings": map[string]any{"disableAllHooks": true},
+	}
+	if !opts.ManagedProviderMCP {
+		options["strictMcpConfig"] = true
+	}
 	return map[string]any{
 		"systemPrompt": claudeInputOnlySystemPrompt,
 		"claudeCode": map[string]any{
-			"options": map[string]any{
-				"tools":           []string{},
-				"strictMcpConfig": true,
-				"plugins":         []any{},
-				"skills":          []string{},
-				"env":             env,
-				"settings":        map[string]any{"disableAllHooks": true},
-			},
+			"options": options,
 		},
 	}
 }

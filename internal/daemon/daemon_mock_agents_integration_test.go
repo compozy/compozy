@@ -741,6 +741,7 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 func TestDaemonHostedMCPLiveAuthRefresh(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
+	t.Run("Should apply runtime MCP off to an open Claude session [IT-010]", testDaemonRuntimeMCPSwitch)
 	t.Run("Should discover call and withdraw an MCP in the same open session", func(t *testing.T) {
 		t.Parallel()
 		authority := mcpfixture.StartOAuthHTTP(
@@ -4251,4 +4252,84 @@ func TestMCPActivationExtensionHelperProcess(t *testing.T) {
 		}
 	}
 	os.Exit(0)
+}
+
+// Invariant: a provider switch reaches session/load on the next prompt.
+// Owner: daemon and ACP; canonical suite: hosted MCP live refresh (IT-010).
+func testDaemonRuntimeMCPSwitch(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	driver, err := acpmock.DefaultDriverPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "claude-agent-acp")
+	if err := os.Symlink(driver, alias); err != nil {
+		t.Fatal(err)
+	}
+	home := e2etest.NewHomePaths(t)
+	fixture := mockFixturePath(t, "hosted_native_tools_fixture.json")
+	registration, err := acpmock.Register(home, acpmock.RegisterOptions{FixturePath: fixture, FixtureAgent: "hosted-native", AgentName: "runtime-switch", ProviderName: "claude", DriverPath: alias})
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		HomePaths: home,
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			for id := range compozyconfig.BuiltinProviders() {
+				provider := cfg.Providers[id]
+				provider.Models.Discovery.Enabled = new(false)
+				cfg.Providers[id] = provider
+			}
+			provider := acpmock.ProviderConfig(alias)
+			provider.Models.Discovery.Command = acpmock.BuildCommand(alias, fixture, "hosted-native", "", "claude")
+			provider.Models.Discovery.Enabled = new(true)
+			cfg.Providers["claude"] = provider
+		}},
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+	defer cancel()
+	active := createBoundFixtureBackedSession(t, ctx, harness, "runtime-switch", "runtime-switch")
+	before, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range acpmock.DiagnosticsForCompozySession(before, active.ID) {
+		if record.StrictMCPConfig != nil && *record.StrictMCPConfig {
+			t.Fatal("runtime started with off before configuration changed")
+		}
+	}
+	request := compozycontract.PutSettingsProviderRequest{Settings: compozycontract.SettingsProviderWritePayload{
+		RuntimeMCP: "off", Command: alias, DisplayName: "ACP Mock", Harness: "acp", AuthMode: "none",
+	}}
+	if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/providers/claude?scope=user", request, nil); err != nil {
+		t.Fatal(err)
+	}
+	status, body := activationPromptHTTP(t, ctx, harness, active.ID, compozycontract.SendPromptRequest{Message: "noop", MessageID: "runtime-off-message", IdempotencyKey: "runtime-off-send"})
+	if status != http.StatusOK {
+		t.Fatalf("prompt status %d: %s", status, body)
+	}
+	records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loads := 0
+	for _, record := range acpmock.DiagnosticsForCompozySession(records, active.ID) {
+		if record.LifecycleEvent == "session_load" {
+			loads++
+			if record.StrictMCPConfig == nil || !*record.StrictMCPConfig {
+				t.Fatalf("reload omitted strict MCP config: %+v", record)
+			}
+		}
+	}
+	if loads != 1 {
+		t.Fatalf("native session loads = %d, want 1", loads)
+	}
+	events, err := harness.SessionEvents(ctx, active.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activationEventCount(events.Events, session.EventTypeMCPReloaded) != 1 {
+		t.Fatal("switch did not emit exactly one reload")
+	}
 }
