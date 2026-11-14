@@ -113,3 +113,8 @@ a trailing catalog read: a quiet visible board relies on its existing sixty-seco
 reread, while a later delta outside the window may refresh it sooner. Focused query tests
 cover scope invalidation and the absence of a trailing live-tail refresh. A real catalog/board
 walk remains CI-owned under the host-overload restriction for this fix.
+
+QA impact 2026-11-14: rail deletes now use the OS shell's persistent lifecycle host through an xstate
+request store, so the shared confirmation survives the daemon removing the session window. The catalog
+modal's own host was already outside the row list. Automated coverage and reset scope: see the
+2026-11-14 note in `RT-session-list-row-actions.md`.
