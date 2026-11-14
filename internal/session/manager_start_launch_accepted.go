@@ -32,7 +32,17 @@ func (m *Manager) runAcceptedSessionStart(accepted *acceptedSessionStart) (err e
 	if err == nil {
 		return nil
 	}
-	return m.settleAcceptedSessionStartFailure(accepted, err)
+	if _, acceptedByProvider := acp.AcceptedSessionID(err); !acceptedByProvider && !accepted.async &&
+		accepted.spec.discardStartFailureWhen != nil && accepted.spec.discardStartFailureWhen(err) {
+		accepted.spec.discardStartFailure = true
+		accepted.persistFailure = false
+	}
+	err = m.settleAcceptedSessionStartFailure(accepted, err)
+	if accepted.spec.discardStartFailureWhen != nil && accepted.spec.discardStartFailure &&
+		(accepted.cleanupPending || accepted.retainedFailure != nil) {
+		return errors.Join(err, ErrRecoveryPersistence)
+	}
+	return err
 }
 
 func (m *Manager) runAcceptedSessionStartAndDispatch(accepted *acceptedSessionStart) error {
