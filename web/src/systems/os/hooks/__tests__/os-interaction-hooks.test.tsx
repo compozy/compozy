@@ -1038,14 +1038,19 @@ describe("useWindowLiveDataEnabled", () => {
     const shell = createShell();
     const third = windowFixture("window:third");
     const settled = shell.state;
+    let renders = 0;
     const { result } = renderHook(
-      () => ({
-        primary: useWindowLiveDataEnabled("window:primary"),
-        peer: useWindowLiveDataEnabled("window:peer"),
-        third: useWindowLiveDataEnabled("window:third"),
-      }),
+      () => {
+        renders += 1;
+        return {
+          primary: useWindowLiveDataEnabled("window:primary"),
+          peer: useWindowLiveDataEnabled("window:peer"),
+          third: useWindowLiveDataEnabled("window:third"),
+        };
+      },
       { wrapper: shell.wrapper }
     );
+    const mountedRenders = renders;
     const passThrough = {
       windows: { ...settled.windows, [third.id]: third },
       focusedId: third.id,
@@ -1072,6 +1077,8 @@ describe("useWindowLiveDataEnabled", () => {
     }
     act(() => vi.advanceTimersByTime(LIVE_DATA_SETTLE_MS));
     expect(result.current).toEqual({ primary: true, peer: true, third: false });
+    // Callers subscribe to the settled lease only: passing through never re-renders them.
+    expect(renders).toBe(mountedRenders);
   });
 
   it("Should fill the live budget by ID while excluding windows that are not shown", () => {
