@@ -29,16 +29,20 @@ interface SessionMCPActionsInput {
   onUnresolved: () => void;
 }
 
-/** The Settings lens the session's servers resolve in: its own profile, inside its project. */
+/**
+ * The Settings lens the session's servers resolve in: its own profile, inside its project. A User
+ * session (empty `workspaceId`) resolves in the User lens, with no project.
+ */
 function settingsFilter(
   workspaceId: string,
   profile: string | undefined
 ): SettingsMCPServerListFilter {
   const named = profile?.trim();
+  const project = workspaceId.trim();
   if (named && named !== "default") {
-    return { scope: "profile", profile: named, workspace_id: workspaceId };
+    return { scope: "profile", profile: named, ...(project ? { workspace_id: project } : {}) };
   }
-  return { scope: "workspace", workspace_id: workspaceId };
+  return project ? { scope: "workspace", workspace_id: project } : { scope: "user" };
 }
 
 function sameDefinition(entry: SettingsMCPServerEntry, row: SessionMCPServerRow): boolean {
@@ -69,8 +73,10 @@ export function useSessionMCPActions({
     queryClient.invalidateQueries({ queryKey: sessionKeys.mcp(workspaceId, sessionId) });
 
   const allow = (entry: SettingsMCPServerEntry) => {
+    // One Allow at a time: a second click while one is in flight is ignored, not "unresolved".
+    if (allowMutation.isPending) return;
     const target = mcpApprovalTarget(entry);
-    if (!target || allowMutation.isPending) {
+    if (!target) {
       onUnresolved();
       return;
     }
@@ -121,6 +127,8 @@ export function useSessionMCPActions({
     actingName,
     /** The Settings definitions have not answered yet, so no action can resolve its target. */
     resolving: enabled && definitions.isPending,
+    /** An Allow is in flight; every row's action waits for it. */
+    allowing: allowMutation.isPending,
     authorization,
   };
 }
