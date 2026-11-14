@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensionmcp"
@@ -1428,7 +1429,11 @@ func TestSettingsPublishedAgentMCPConsent(t *testing.T) {
 	if err != nil || len(collection.MCPServers) != 1 || collection.MCPServers[0].Approval.State != "waiting" || collection.MCPServers[0].CallableInSessions {
 		t.Fatalf("agent listing=%+v %v", collection.MCPServers, err)
 	}
-	_, err = service.SetMCPApproval(t.Context(), settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: "sentry"}, collection.MCPServers[0].Approval.DefinitionDigest, false)
+	approver, ok := service.(core.MCPSettingsApproval)
+	if !ok {
+		t.Fatal("settings service does not record MCP approvals")
+	}
+	_, err = approver.SetMCPApproval(t.Context(), settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: "sentry"}, collection.MCPServers[0].Approval.DefinitionDigest, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1445,11 +1450,11 @@ func TestSettingsPublishedAgentMCPConsent(t *testing.T) {
 	}
 	target := settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: "sentry"}
 	for _, item := range collection.MCPServers {
-		if _, err := service.SetMCPApproval(t.Context(), target, item.Approval.DefinitionDigest, false); err != nil {
+		if _, err := approver.SetMCPApproval(t.Context(), target, item.Approval.DefinitionDigest, false); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := service.SetMCPApproval(t.Context(), target, "", true); err != nil {
+	if _, err := approver.SetMCPApproval(t.Context(), target, "", true); err != nil {
 		t.Fatal(err)
 	}
 	collection, err = service.ListCollection(t.Context(), settingspkg.CollectionRequest{Collection: settingspkg.CollectionMCPServers, Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID})

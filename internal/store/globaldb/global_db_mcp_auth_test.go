@@ -1331,7 +1331,7 @@ func TestMCPApprovalSourceIsolationAndReopen(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
 		workspaceID := "ws_1111111111111111"
-		if err := db.Workspaces.InsertWorkspace(t.Context(), compozyworkspace.Workspace{ID: workspaceID, RootDir: t.TempDir(), Name: "approval"}); err != nil {
+		if err := db.InsertWorkspace(t.Context(), compozyworkspace.Workspace{ID: workspaceID, RootDir: t.TempDir(), Name: "approval"}); err != nil {
 			t.Fatal(err)
 		}
 		first := store.MCPApproval{ID: "mcpa-one", ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, ServerName: "sentry", SourceID: ".compozy/mcp.json", DefinitionDigest: "first", ApprovedAt: time.Now().UTC()}
