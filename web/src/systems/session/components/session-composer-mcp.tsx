@@ -33,8 +33,9 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
   );
   const manage = () => void navigate({ to: MCP_SETTINGS_PATH });
   const hasActions =
-    model.data?.compozy_servers.some(row => sessionMCPStateView(row.state, "").action !== undefined) ??
-    false;
+    model.data?.compozy_servers.some(
+      row => sessionMCPStateView(row.state, "").action !== undefined
+    ) ?? false;
   const actions = useSessionMCPActions({
     workspaceId,
     sessionId: session.id,
