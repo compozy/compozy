@@ -244,9 +244,14 @@ func fixtureMCPAuthorityNames(
 	names := slices.Clone(policy.MCPServers)
 	h.resolver.mu.Lock()
 	resolved := h.resolver.byRef[info.WorkspaceID]
-	profileName := info.ProfileName
-	if profileName == "" && info.ProfileID == store.DefaultProfileID {
+	profileName := ""
+	switch {
+	case info.ProfileID == store.DefaultProfileID:
 		profileName = sessionDefaultProfileName
+	case manager != nil && manager.profileNames != nil:
+		if name, err := manager.profileNames.ProfileName(context.Background(), info.ProfileID); err == nil {
+			profileName = name
+		}
 	}
 	if profiled, ok := h.resolver.byProfile[profileName]; ok && profiled.ID == info.WorkspaceID {
 		resolved = profiled
