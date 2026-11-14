@@ -58,7 +58,9 @@ export function liveDataOwners(state: LiveDataState): readonly string[] {
 }
 
 function sameOwners(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every(windowId => right.includes(windowId));
+  if (left.length !== right.length) return false;
+  const expected = new Set(right);
+  return left.every(windowId => expected.has(windowId));
 }
 
 type SettledOwners = ReturnType<typeof createAtom<readonly string[]>>;
