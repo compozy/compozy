@@ -27,9 +27,9 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 ) (settingspkg.MCPServerRuntimeStatus, error) {
 	status := settingspkg.MCPServerRuntimeStatus{Configured: true}
 	if err := s.requireMCPConsent(ctx, target, server); err != nil {
-		status.State = "waiting_approval"
+		status.State = mcpWaitingApproval
 		status.Probe = settingspkg.MCPServerProbeSkipped
-		status.Reason = "waiting_approval"
+		status.Reason = mcpWaitingApproval
 		return status, nil
 	}
 	key, tracked := settingsMCPDeadEntityKey(target, server.EffectiveRuntimeName())

@@ -23,7 +23,7 @@ func agentMCPApprovalContext(
 	workspaceID, profileName string,
 	warnings *[]string,
 ) AgentMCPApprovalContext {
-	recorder, _ := service.(settingspkg.WorkspaceMCPApprovalRecorder)
+	recorder := AgentMCPApprovalForSettings(service)
 	return AgentMCPApprovalContext{
 		Recorder:    recorder,
 		WorkspaceID: workspaceID,
@@ -106,6 +106,8 @@ func commitAgentMCPDefinition(
 
 // AgentMCPApprovalForSettings is shared by native agent creation and HTTP/UDS authoring.
 func AgentMCPApprovalForSettings(service SettingsService) settingspkg.WorkspaceMCPApprovalRecorder {
-	recorder, _ := service.(settingspkg.WorkspaceMCPApprovalRecorder)
-	return recorder
+	if recorder, ok := service.(settingspkg.WorkspaceMCPApprovalRecorder); ok {
+		return recorder
+	}
+	return nil
 }

@@ -194,7 +194,7 @@ func addMCPAuthTargetFlags(cmd *cobra.Command, opts *mcpAuthCommandOptions) {
 	cmd.Flags().StringVar(&opts.owner, "owner", "", "Definition owner: manual or extension:<name>")
 	cmd.Flags().StringVar(&opts.scope, "scope", opts.scope, "MCP server scope: user, profile, or workspace")
 	cmd.Flags().
-		StringVar(&opts.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
+		StringVar(&opts.workspaceID, workspaceSkillSource, "", "Override workspace (ID, name, or path)")
 }
 
 func (o mcpAuthCommandOptions) resolveTarget(

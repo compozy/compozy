@@ -7931,7 +7931,7 @@ func TestBaseHandlersWorkspaceAgentMCPApproval(t *testing.T) {
 	workspaces := testutil.StubWorkspaceService{
 		ResolveForProfileFn: func(_ context.Context, _, profile string) (workspacepkg.ResolvedWorkspace, error) {
 			resolved := workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "ws-agent", RootDir: root},
+				ID: "ws-agent", RootDir: root,
 				ProfileName: profile,
 				Config:      compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
 			}
@@ -7947,7 +7947,7 @@ func TestBaseHandlersWorkspaceAgentMCPApproval(t *testing.T) {
 	calls := 0
 	fixture.Handlers.Settings = &agentMCPApprovalSettings{
 		stubSettingsService: &stubSettingsService{},
-		record: func(ctx context.Context, write settingspkg.WorkspaceMCPWrite) (string, error) {
+		record: func(_ context.Context, write settingspkg.WorkspaceMCPWrite) (string, error) {
 			calls++
 			if write.WorkspaceID != "ws-agent" || !strings.HasSuffix(write.SourceID, compozyconfig.MCPJSONName) {
 				t.Fatalf("approval identity=%+v", write)
@@ -8038,7 +8038,7 @@ func TestSessionMCPDetailAndScope(t *testing.T) {
 			fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 			reader := &sessionMCPHandlerStub{
 				SessionManager: fixture.Handlers.Sessions,
-				result: session.SessionMCP{
+				result: session.MCP{
 					SessionID:  info.ID,
 					MCPSummary: session.MCPSummary{Attention: count},
 				},
@@ -8086,13 +8086,13 @@ func TestSessionMCPDetailAndScope(t *testing.T) {
 
 type sessionMCPHandlerStub struct {
 	core.SessionManager
-	result session.SessionMCP
+	result session.MCP
 	reads  int
 }
 
 var _ session.MCPReader = (*sessionMCPHandlerStub)(nil)
 
-func (s *sessionMCPHandlerStub) ListSessionMCP(context.Context, string) (session.SessionMCP, error) {
+func (s *sessionMCPHandlerStub) ListSessionMCP(context.Context, string) (session.MCP, error) {
 	s.reads++
 	return s.result, nil
 }

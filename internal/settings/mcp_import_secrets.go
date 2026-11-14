@@ -53,7 +53,8 @@ func prepareMCPSecretHeaderValues(
 }
 
 func mcpImportCleanupWarning(name string) string {
-	return name + " was copied, but CompozyOS couldn't confirm its secrets were cleaned up. Check Settings → MCP servers → " + name + "."
+	return name + " was copied, but CompozyOS couldn't confirm its secrets were cleaned up. " +
+		"Check Settings → MCP servers → " + name + "."
 }
 
 func (s *service) rollbackUnreferencedMCPSecrets(

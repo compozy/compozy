@@ -38,17 +38,17 @@ type RuntimeMCPRow struct {
 	State     string `json:"state"`
 }
 
-type SessionMCP struct {
+type MCP struct {
 	SessionID          string `json:"session_id"`
 	Runtime            string `json:"runtime"`
 	RuntimeDisplayName string `json:"runtime_display_name"`
 	MCPSummary
-	LastReload     *MCPReloadRecord  `json:"last_reload,omitempty"`
-	CompozyServers []MCPServerRow    `json:"compozy_servers"`
-	RuntimeServers SessionRuntimeMCP `json:"runtime_servers"`
+	LastReload     *MCPReloadRecord `json:"last_reload,omitempty"`
+	CompozyServers []MCPServerRow   `json:"compozy_servers"`
+	RuntimeServers RuntimeMCP       `json:"runtime_servers"`
 }
 
-type SessionRuntimeMCP struct {
+type RuntimeMCP struct {
 	RuntimeMCP string          `json:"runtime_mcp"`
 	Servers    []RuntimeMCPRow `json:"servers"`
 }
@@ -60,16 +60,16 @@ type MCPReloadRecord struct {
 }
 
 type MCPReader interface {
-	ListSessionMCP(context.Context, string) (SessionMCP, error)
+	ListSessionMCP(context.Context, string) (MCP, error)
 }
 
 var _ MCPReader = (*Manager)(nil)
 
 func (m *Manager) SetMCPReader(reader MCPReader) { m.mcpReader = reader }
 
-func (m *Manager) ListSessionMCP(ctx context.Context, id string) (SessionMCP, error) {
+func (m *Manager) ListSessionMCP(ctx context.Context, id string) (MCP, error) {
 	if m.mcpReader == nil {
-		return SessionMCP{}, errors.New("session: MCP read model unavailable")
+		return MCP{}, errors.New("session: MCP read model unavailable")
 	}
 	return m.mcpReader.ListSessionMCP(tools.WithCachedMCPProjection(ctx), id)
 }
@@ -134,34 +134,16 @@ func (m *Manager) MCPReadSnapshot(
 	if err != nil {
 		return result, err
 	}
-	if result.LastReload != nil && result.LastReload.Outcome == "failed" {
+	if result.LastReload != nil && result.LastReload.Outcome == string(BadgeFailed) {
 		result.Pending = true
 	}
 	if bound {
-		result.Pending = result.Pending || state.runtimeMCP != result.Mode ||
-			m.currentRuntimeMCPDigest(ctx, state, result.Mode) != state.runtimeDigest
-		if state.boundDigest != "" && reloadRequired {
-			result.Pending = result.Pending ||
-				state.boundDigest != activationFingerprint(catalog.Digest, result.Mode, state.runtimeDigest)
-		}
-		if !reloadRequired {
-			if source, ok := m.hostedMCP.(interface{ ServedCatalogDigest(string) string }); ok {
-				result.Pending = result.Pending || source.ServedCatalogDigest(id) != catalog.Digest
-			}
-		}
-		if result.Pending {
-			result.PendingServers = make(map[string]bool)
-			for name, digest := range catalog.ServerDigests {
-				if digest != state.boundServerDigests[name] {
-					result.PendingServers[name] = true
-				}
-			}
-		}
+		m.applyMCPPendingState(ctx, id, &result, state, reloadRequired, catalog)
 	}
 	return result, nil
 }
 
-// readMCPRuntimeContext resolves only persisted identity and configuration; accepted launches retain their exact environment.
+// readMCPRuntimeContext reads persisted identity; accepted launches retain their exact environment.
 func (m *Manager) readMCPRuntimeContext(
 	ctx context.Context,
 	id, provider string,
@@ -211,7 +193,7 @@ func (m *Manager) readMCPRuntimeContext(
 		runtimeID = "pi"
 	}
 	if runtimeID == "qwen" {
-		runtimeID = "qwen-code"
+		runtimeID = runtimeMCPQwenCode
 	}
 	return mode, &runtimemcp.Request{Context: readContext, Runtime: runtimeID}, nil
 }
@@ -263,4 +245,29 @@ func (m *Manager) RecordMCPChanged(ctx context.Context, id string, summary MCPSu
 	}
 	m.publishSessionEventByID(ctx, id, persisted)
 	return nil
+}
+
+func (m *Manager) applyMCPPendingState(
+	ctx context.Context, id string, result *MCPRuntimeSnapshot, state activationState,
+	reloadRequired bool, catalog tools.AdvertisedCatalog,
+) {
+	result.Pending = result.Pending || state.runtimeMCP != result.Mode ||
+		m.currentRuntimeMCPDigest(ctx, state, result.Mode) != state.runtimeDigest
+	if state.boundDigest != "" && reloadRequired {
+		result.Pending = result.Pending ||
+			state.boundDigest != activationFingerprint(catalog.Digest, result.Mode, state.runtimeDigest)
+	}
+	if !reloadRequired {
+		if source, ok := m.hostedMCP.(interface{ ServedCatalogDigest(string) string }); ok {
+			result.Pending = result.Pending || source.ServedCatalogDigest(id) != catalog.Digest
+		}
+	}
+	if result.Pending {
+		result.PendingServers = make(map[string]bool)
+		for name, digest := range catalog.ServerDigests {
+			if digest != state.boundServerDigests[name] {
+				result.PendingServers[name] = true
+			}
+		}
+	}
 }

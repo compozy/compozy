@@ -97,7 +97,8 @@ func (r *nativeToolPolicyResolver) effectiveScopeTools(
 	}
 	if policy.ToolsMode == store.PermissionList {
 		allowedMCP := make(map[string]bool)
-		for _, view := range views {
+		for i := range views {
+			view := &views[i]
 			if view.Descriptor.Source.Kind == toolspkg.SourceMCP {
 				name := mcpAuthoritySourceName(view.Descriptor.Source, names)
 				allowedMCP[view.Descriptor.ID.String()] = slices.Contains(policy.MCPServers, name)
@@ -110,7 +111,8 @@ func (r *nativeToolPolicyResolver) effectiveScopeTools(
 	ids := slices.DeleteFunc(slices.Clone(policy.Tools), func(id string) bool {
 		return !strings.HasPrefix(id, "compozy__")
 	})
-	for _, view := range views {
+	for i := range views {
+		view := &views[i]
 		source := view.Descriptor.Source
 		if source.Kind == toolspkg.SourceExtension && sourcePolicyAdmitted(view.Decision.SourcePolicyResult) {
 			ids = append(ids, view.Descriptor.ID.String())

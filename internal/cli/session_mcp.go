@@ -104,7 +104,7 @@ func sessionMCPStateLabel(state string) string {
 		return "Needs sign-in"
 	case "waiting_approval":
 		return "Waiting for approval"
-	case "failed":
+	case string(bootstrapPhaseFailed):
 		return "Failed"
 	case "not_available":
 		return "Not available"

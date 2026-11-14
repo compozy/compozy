@@ -263,7 +263,7 @@ func (s settingsMCPConsent) RecordWorkspaceMCPWrite(
 			settingspkg.MCPConsentRequest{
 				ProfileName: w.ProfileName,
 				WorkspaceID: w.WorkspaceID,
-				Scope:       "workspace",
+				Scope:       resourceScopeWorkspaceKind,
 				Server:      server,
 			},
 			digest,

@@ -15,7 +15,7 @@ import (
 // concrete child policy. Inheritance and toolsets only select atoms from the
 // parent's ceiling; ValidatePermissionSubset still guards the result.
 func (m *Manager) resolveSpawnPermissionPolicy(
-	ctx context.Context, parent *Info, opts SpawnOpts,
+	ctx context.Context, parent *Info, opts *SpawnOpts,
 ) (store.SessionPermissionPolicy, error) {
 	ceiling, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, parent), parent.ID)
 	if err != nil {
@@ -60,18 +60,11 @@ func (m *Manager) resolveSpawnPermissionPolicy(
 
 // bindSpawnPermissionIntent records the immutable inherited bounds, separately from live authority.
 func bindSpawnPermissionIntent(
-	parent *Info, opts SpawnOpts, ceiling, policy store.SessionPermissionPolicy,
+	parent *Info, opts *SpawnOpts, ceiling, policy store.SessionPermissionPolicy,
 ) (store.SessionPermissionPolicy, error) {
 	lineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
 	stored := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(parent.Type))
-	sameScope := opts.Workspace == "" || opts.Workspace == parent.WorkspaceID ||
-		(opts.Workspace == workspaceaccess.UserSelector && parent.WorkspaceID == "")
-	mcpNamed := opts.PermissionPolicy.MCPServersMode == store.PermissionList ||
-		(len(opts.PermissionPolicy.MCPServers) > 0 && opts.PermissionPolicy.MCPServersMode != store.PermissionInherit) ||
-		(opts.PermissionNarrowing != nil && opts.PermissionNarrowing.MCPServers != nil)
-	toolsNamed := len(opts.Toolsets) > 0 || opts.PermissionPolicy.ToolsMode == store.PermissionList ||
-		(len(opts.PermissionPolicy.Tools) > 0 && opts.PermissionPolicy.ToolsMode != store.PermissionInherit) ||
-		(opts.PermissionNarrowing != nil && opts.PermissionNarrowing.Tools != nil)
+	sameScope, mcpNamed, toolsNamed := spawnPermissionSelections(parent, opts)
 	if toolsNamed {
 		if err := validatePermissionAtoms("tools", ceiling.Tools, policy.Tools); err != nil {
 			return store.SessionPermissionPolicy{}, err
@@ -138,4 +131,17 @@ func (m *Manager) expandSpawnToolsets(names []string, ceiling []string) ([]strin
 		}
 	}
 	return selected, nil
+}
+
+func spawnPermissionSelections(parent *Info, opts *SpawnOpts) (sameScope, mcpNamed, toolsNamed bool) {
+	sameScope = opts.Workspace == "" || opts.Workspace == parent.WorkspaceID ||
+		(opts.Workspace == workspaceaccess.UserSelector && parent.WorkspaceID == "")
+	mcpNamed = opts.PermissionPolicy.MCPServersMode == store.PermissionList ||
+		(len(opts.PermissionPolicy.MCPServers) > 0 && opts.PermissionPolicy.MCPServersMode != store.PermissionInherit) ||
+		(opts.PermissionNarrowing != nil && opts.PermissionNarrowing.MCPServers != nil)
+	toolsNamed = len(opts.Toolsets) > 0 || opts.PermissionPolicy.ToolsMode == store.PermissionList ||
+		(len(opts.PermissionPolicy.Tools) > 0 && opts.PermissionPolicy.ToolsMode != store.PermissionInherit) ||
+		(opts.PermissionNarrowing != nil && opts.PermissionNarrowing.Tools != nil)
+
+	return sameScope, mcpNamed, toolsNamed
 }

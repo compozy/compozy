@@ -36,7 +36,10 @@ func authorizeMCPServer(
 	if manual {
 		mode = contract.SettingsMCPAuthBeginModeManual
 	}
-	digest, _ := cmd.Flags().GetString("digest")
+	digest, digestErr := cmd.Flags().GetString("digest")
+	if digestErr != nil {
+		digest = ""
+	}
 	begin, err := client.BeginSettingsMCPAuth(authCtx, target, SettingsMCPAuthBeginRequest{
 		DefinitionDigest:       digest,
 		Mode:                   mode,

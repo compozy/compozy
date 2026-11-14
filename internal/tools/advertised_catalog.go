@@ -18,7 +18,8 @@ type AdvertisedCatalog struct {
 // AdvertisedCatalogDigest hashes external source identity, tool names and input schemas only.
 func AdvertisedCatalogDigest(views []ToolView) string {
 	atoms := make([]string, 0, len(views))
-	for _, view := range views {
+	for i := range views {
+		view := &views[i]
 		d := view.Descriptor
 		if d.Source.Kind != SourceMCP && d.Source.Kind != SourceExtension {
 			continue
@@ -42,7 +43,8 @@ func NewAdvertisedCatalog(views []ToolView) AdvertisedCatalog {
 		ServerDigests: make(map[string]string),
 	}
 	servers := make(map[string][]ToolView)
-	for _, view := range views {
+	for i := range views {
+		view := &views[i]
 		source := view.Descriptor.Source
 		if source.Kind != SourceMCP && source.Kind != SourceExtension {
 			continue
@@ -52,7 +54,7 @@ func NewAdvertisedCatalog(views []ToolView) AdvertisedCatalog {
 			name = source.Owner
 		}
 		catalog.Servers[name]++
-		servers[name] = append(servers[name], view)
+		servers[name] = append(servers[name], *view)
 	}
 	for name, entries := range servers {
 		catalog.ServerDigests[name] = AdvertisedCatalogDigest(entries)

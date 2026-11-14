@@ -53,9 +53,11 @@ type WorkspaceMCPApprovalRecorder interface {
 
 type MCPApprovalError struct{ Code, Message string }
 
+const mcpServerNotFoundCode = "mcp_server_not_found"
+
 func (e *MCPApprovalError) Error() string { return e.Message }
 func (e *MCPApprovalError) Unwrap() error {
-	if e.Code == "mcp_server_not_found" {
+	if e.Code == mcpServerNotFoundCode {
 		return ErrNotFound
 	}
 	return ErrConflict
@@ -126,7 +128,7 @@ func (s *service) SetMCPApproval(
 		return store.MCPApproval{}, unavailableError(fmt.Errorf("settings: MCP consent is unavailable"))
 	}
 	if req.WorkspaceID != "" && req.ProfileName == "" {
-		req.Scope, req.ProfileName = ScopeProfile, "default"
+		req.Scope, req.ProfileName = ScopeProfile, mcpAuthDefaultProfileName
 	}
 	definitions, err := s.mcpApprovalDefinitions(ctx, req)
 	if err != nil {

@@ -17,9 +17,9 @@ func claudeSources(c ReadContext) []source {
 	if _, err := os.Lstat(filepath.Join(configHome, ".config.json")); err == nil {
 		global = filepath.Join(configHome, ".config.json")
 	}
-	list = append(list, source{global, "user"})
+	list = append(list, source{global, scopeUser})
 	for _, dir := range ancestorDirs(cwd, "") {
-		list = append(list, source{filepath.Join(dir, ".mcp.json"), "project"})
+		list = append(list, source{filepath.Join(dir, ".mcp.json"), scopeProject})
 	}
 	return list
 }
@@ -28,25 +28,25 @@ func codexSources(c ReadContext) []source {
 	var list []source
 	codexHome := c.homeDir("CODEX_HOME", ".codex")
 	list = append(list,
-		source{filepath.Join(c.systemDir("codex"), "config.toml"), "managed"},
-		source{filepath.Join(codexHome, "config.toml"), "user"},
+		source{filepath.Join(c.systemDir(runtimeCodex), "config.toml"), scopeManaged},
+		source{filepath.Join(codexHome, "config.toml"), scopeUser},
 	)
 	if validRuntimeProfile(c.RuntimeProfile) {
-		list = append(list, source{filepath.Join(codexHome, c.RuntimeProfile+".config.toml"), "user"})
+		list = append(list, source{filepath.Join(codexHome, c.RuntimeProfile+".config.toml"), scopeUser})
 	}
 	for _, dir := range ancestorDirs(c.CWD, cmp.Or(c.WorktreeRoot, c.GitRoot)) {
-		list = append(list, source{filepath.Join(dir, ".codex/config.toml"), "project"})
+		list = append(list, source{filepath.Join(dir, ".codex", "config.toml"), scopeProject})
 	}
 	return list
 }
 
 func opencodeSources(c ReadContext) []source {
 	home, cwd := c.Home, c.CWD
-	user := func(path string) source { return source{path, "user"} }
-	project := func(path string) source { return source{path, "project"} }
+	user := func(path string) source { return source{path, scopeUser} }
+	project := func(path string) source { return source{path, scopeProject} }
 	var list []source
 	root := cmp.Or(c.Env["XDG_CONFIG_HOME"], filepath.Join(home, ".config"))
-	configDir := c.homeDir("OPENCODE_CONFIG_DIR", filepath.Join(root, "opencode"))
+	configDir := c.homeDir("OPENCODE_CONFIG_DIR", filepath.Join(root, runtimeOpenCode))
 	for _, ext := range []string{"json", "jsonc"} {
 		list = append(list, user(filepath.Join(configDir, "opencode."+ext)))
 	}
@@ -57,7 +57,7 @@ func opencodeSources(c ReadContext) []source {
 		}
 	}
 	for _, ext := range []string{"json", "jsonc"} {
-		list = append(list, source{filepath.Join(c.systemDir("opencode"), "opencode."+ext), "managed"})
+		list = append(list, source{filepath.Join(c.systemDir(runtimeOpenCode), "opencode."+ext), scopeManaged})
 	}
 	return list
 }

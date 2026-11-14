@@ -73,7 +73,7 @@ func newMCPImportCommand(deps commandDeps) *cobra.Command {
 			return errors.New("cli: runtime MCP copy unavailable")
 		}
 		body := contract.RuntimeMCPImportRequest{Scope: contract.SettingsScopeKind(scope), Name: name}
-		if workspaceRef != "" || scope == "workspace" {
+		if workspaceRef != "" || scope == workspaceSkillSource {
 			resolved, err := resolveCommandWorkspace(
 				cmd.Context(),
 				cmd,
@@ -86,7 +86,7 @@ func newMCPImportCommand(deps commandDeps) *cobra.Command {
 			}
 			body.WorkspaceID = resolved.ID
 		}
-		if scope == "profile" {
+		if scope == profileFlagName {
 			profiles, _, err := profileResolutionClientFromDeps(deps)
 			if err != nil {
 				return err
@@ -102,43 +102,48 @@ func newMCPImportCommand(deps commandDeps) *cobra.Command {
 			return err
 		}
 		return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
-			display := runtime
-			for _, descriptor := range runtimemcp.Descriptors() {
-				if descriptor.Runtime == runtime {
-					display = descriptor.DisplayName
-				}
-			}
-			label := map[string]string{"user": "Personal", "workspace": "Project", "profile": "Profile"}[scope]
-			output := fmt.Sprintf(
-				"Copied %s from %s (%s) to CompozyOS (%s).\n",
-				result.MCPServer.Name,
-				display,
-				result.Source.SourceLabel,
-				label,
-			)
-			if result.MCPServer.AuthStatus != nil && result.MCPServer.AuthStatus.Status == "needs_login" {
-				output += fmt.Sprintf(
-					"%s uses OAuth: sign in with `compozy mcp auth login %s`.\n",
-					result.MCPServer.Name,
-					result.MCPServer.Name,
-				)
-			}
-			for _, note := range result.Notes {
-				for _, descriptor := range runtimemcp.Descriptors() {
-					if descriptor.Runtime == runtime && descriptor.CanDisableRuntimeMCP {
-						note += fmt.Sprintf("; turn off \"Use %s's own MCP servers\" to avoid duplicates", display)
-					}
-				}
-				output += note + ".\n"
-			}
-			for _, warning := range result.Warnings {
-				output += warning + "\n"
-			}
-			return output, nil
+			return runtimeMCPImportOutput(runtime, scope, &result), nil
 		}})
 	}
 	cmd.Flags().StringVar(&scope, "scope", "user", "Target scope (user, profile, workspace)")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace ID, name, or path")
-	cmd.Flags().StringVar(&name, "name", "", "Name of the copied CompozyOS server")
+	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Workspace ID, name, or path")
+	cmd.Flags().StringVar(&name, automationNameKey, "", "Name of the copied CompozyOS server")
 	return cmd
+}
+
+func runtimeMCPImportOutput(runtime, scope string, result *contract.RuntimeMCPImportResponse) string {
+	display := runtime
+	for _, descriptor := range runtimemcp.Descriptors() {
+		if descriptor.Runtime == runtime {
+			display = descriptor.DisplayName
+		}
+	}
+	label := map[string]string{"user": "Personal", workspaceSkillSource: "Project", profileFlagName: "Profile"}[scope]
+	var output strings.Builder
+	fmt.Fprintf(&output,
+		"Copied %s from %s (%s) to CompozyOS (%s).\n",
+		result.MCPServer.Name,
+		display,
+		result.Source.SourceLabel,
+		label,
+	)
+	if result.MCPServer.AuthStatus != nil && result.MCPServer.AuthStatus.Status == "needs_login" {
+		fmt.Fprintf(&output,
+			"%s uses OAuth: sign in with `compozy mcp auth login %s`.\n",
+			result.MCPServer.Name,
+			result.MCPServer.Name,
+		)
+	}
+	for _, note := range result.Notes {
+		for _, descriptor := range runtimemcp.Descriptors() {
+			if descriptor.Runtime == runtime && descriptor.CanDisableRuntimeMCP {
+				note += fmt.Sprintf("; turn off \"Use %s's own MCP servers\" to avoid duplicates", display)
+			}
+		}
+		output.WriteString(note + ".\n")
+	}
+	for _, warning := range result.Warnings {
+		output.WriteString(warning + "\n")
+	}
+	return output.String()
 }

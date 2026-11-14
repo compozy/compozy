@@ -10,6 +10,8 @@ func WithCachedMCPProjection(ctx context.Context) context.Context {
 }
 
 func cachedMCPProjection(ctx context.Context) bool {
-	cached, _ := ctx.Value(cachedMCPProjectionKey{}).(bool)
-	return cached
+	if cached, ok := ctx.Value(cachedMCPProjectionKey{}).(bool); ok {
+		return cached
+	}
+	return false
 }

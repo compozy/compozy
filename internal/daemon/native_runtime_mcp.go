@@ -53,7 +53,7 @@ func (n *daemonNativeTools) mcpList(
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
-		if name != "" && name != "default" {
+		if name != "" && name != daemonDefaultProfileName {
 			readReq.ProfileName = name
 			readReq.Scope = settingspkg.ScopeProfile
 		}

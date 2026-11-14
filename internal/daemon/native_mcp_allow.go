@@ -11,6 +11,12 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+const (
+	mcpApprovalRevoke  = "revoke"
+	mcpApprovalWaiting = "waiting"
+	mcpWaitingApproval = "waiting_approval"
+)
+
 func (n *daemonNativeTools) mcpAllow(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -25,7 +31,7 @@ func (n *daemonNativeTools) mcpAllow(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if input.Decision != "allow" && input.Decision != "revoke" {
+	if input.Decision != "allow" && input.Decision != mcpApprovalRevoke {
 		return toolspkg.ToolResult{}, toolspkg.NewValidationError(
 			"decision",
 			toolspkg.ReasonSchemaInvalid,
@@ -40,7 +46,7 @@ func (n *daemonNativeTools) mcpAllow(
 	if !ok {
 		return toolspkg.ToolResult{}, fmt.Errorf("daemon: MCP approvals are unavailable")
 	}
-	profile := "default"
+	profile := daemonDefaultProfileName
 	target := settingspkg.MCPAuthTargetRequest{
 		Scope:       settingspkg.ScopeProfile,
 		WorkspaceID: resolved.ID,
@@ -54,7 +60,7 @@ func (n *daemonNativeTools) mcpAllow(
 		target.Scope = settingspkg.ScopeProfile
 	}
 	target.ProfileName = profile
-	approval, err := service.SetMCPApproval(ctx, target, input.DefinitionDigest, input.Decision == "revoke")
+	approval, err := service.SetMCPApproval(ctx, target, input.DefinitionDigest, input.Decision == mcpApprovalRevoke)
 	if err != nil {
 		if approval, ok := errors.AsType[*settingspkg.MCPApprovalError](err); ok {
 			return toolspkg.ToolResult{}, toolspkg.NewToolError(
@@ -67,17 +73,17 @@ func (n *daemonNativeTools) mcpAllow(
 		return toolspkg.ToolResult{}, nativeHTTPStatusToolError(req.ToolID, err, core.StatusForSettingsError(err))
 	}
 	state := "allowed"
-	if input.Decision == "revoke" {
-		state = "waiting"
+	if input.Decision == mcpApprovalRevoke {
+		state = mcpApprovalWaiting
 	}
 	return structuredResult(
 		map[string]any{
 			"approval": map[string]any{
-				"server_name":  input.ServerName,
-				"workspace_id": resolved.ID,
-				"profile":      profile,
-				"state":        state,
-				"approved_at":  approval.ApprovedAt,
+				"server_name":                input.ServerName,
+				"workspace_id":               resolved.ID,
+				nativeProfileToolsProfileKey: profile,
+				"state":                      state,
+				"approved_at":                approval.ApprovedAt,
 			},
 		},
 		state+" "+input.ServerName,
