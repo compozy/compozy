@@ -179,6 +179,7 @@ import {
 } from "@/systems/profiles/stores/profile-view-store";
 
 import type { OsShellHandle } from "../../contexts/os-shell-context";
+import { TerminalWindowClose } from "../../lib/terminal-window-close";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import type { WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { useDesktopChrome } from "../use-desktop-chrome";
@@ -235,6 +236,16 @@ describe("useDesktopChrome", () => {
     const { result } = renderHook(() => useDesktopChrome("ws_a"), { wrapper: wrapper() });
 
     expect(useProfileSwitchWindowSweep).toHaveBeenLastCalledWith(result.current.shell, "ws_a");
+  });
+
+  it("Should hand the All projects partition to the terminal close guard", () => {
+    // #1712: the desktop controller names no terminal workspace under All projects;
+    // the guard must still know it is the aggregate, or unbound windows are trapped.
+    const guard = vi.spyOn(TerminalWindowClose.prototype, "guard");
+    renderHook(() => useDesktopChrome("global", null), { wrapper: wrapper() });
+
+    expect(guard).toHaveBeenLastCalledWith("global", expect.anything());
+    guard.mockRestore();
   });
 
   it("Should read no workspace overlay on the User partition", () => {
