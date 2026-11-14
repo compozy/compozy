@@ -6168,3 +6168,57 @@ path is policy-routed away from the main-table default device (Cloudflare WARP, 
 - **QA.** `docs/qa/scenarios/RT-connectivity-provider-route.md` records the policy-routed egress
   evidence and the verified private-tier walk: provider up/healthy, live advertised address, and
   a TLS `401 gateway_device_unauthenticated` at the pairing gate.
+
+## MCP and extension hot activation, runtime MCP inventory — 2026-11-14
+
+**Owning spec:** `.compozy/tasks/mcp-extension-hot-activation/_spec.md` (one PR, branch
+`feat/mcp-hot-activation`). Slices S1–S9 update only what they affect; slice evidence lives in the
+spec directory's `_s*-report.md` files.
+
+- **Native tools.** New `compozy__mcp_list` and `compozy__session_mcp_list` (read) and
+  `compozy__mcp_allow` and `compozy__mcp_import` (mutating, approval per permission mode), all in the
+  `compozy__mcp` toolset. `compozy__mcp_status.callable_discovery_note` points to
+  `compozy__session_mcp_list`. `compozy__session_prompt` can return `session_mcp_reload_failed`
+  (`retryable`, `client_message_id`, `provider_error`). Blocked calls carry repair messages
+  (`source_disabled` waiting/removed, `mcp_auth_required`).
+- **CLI/HTTP/UDS.** Additive: `compozy mcp list|allow|import`, `compozy session mcp`,
+  `compozy mcp auth login --digest`; `GET /api/settings/runtime-mcp-servers`,
+  `POST /api/settings/runtime-mcp-servers/{runtime}/{name}/import`,
+  `PUT|DELETE /api/settings/mcp-servers/{name}/approval`,
+  `GET /api/workspaces/{ws}/sessions/{id}/mcp`; auth begin `definition_digest`; Settings MCP items
+  gain `approval` and `callable_in_sessions`; single-session payload gains `mcp_summary`; events
+  `session.mcp_reloaded` and `session.mcp_changed`. Generated OpenAPI, TS/Go SDKs and CLI pages co-ship.
+- **Extensibility and hooks.** Extension manifests, SDK and bridge unchanged; enabling an extension
+  is the consent for its servers and tools. No new hook events; the two session events reach existing
+  session-event consumers. Agent or skill sidecars under a workspace root are workspace records.
+- **Config.** New `[providers.<id>] runtime_mcp = "load" | "off"` (live, next message; `off` only for
+  `claude`, `copilot`, `qwen-code`, else `runtime_mcp_unsupported`). `tools.policy.external_default`
+  keeps keys, values and default; its scope narrows to sources without consent. Behavior tightening:
+  unapproved project servers no longer start during discovery or probes, and under `ask` they are no
+  longer callable after a per-call prompt.
+- **Workspace data isolation.** Approvals key on (profile, workspace, source, definition digest)
+  and never cross projects or profiles. Session MCP reads and native list/allow/import resolve the
+  caller's workspace and profile first. Runtime inventory reads the operator home plus the selected
+  workspace root (Settings) or the session's own provider home and working directory (sessions);
+  no secret value leaves the daemon.
+- **User state.** Append-only migration 00200 (`mcp_server_approvals`, starts empty) and 00201
+  (idempotent lineage/instance-ceiling marker backfill). The boundary decoder for unmarked rows stays
+  one more release and is removed in the release after next (SD-013 user-state regime). Copy writes
+  Vault secrets and Settings files; runtime files are never written.
+- **Web.** Settings → MCP servers and Marketplace → MCPs group servers by runtime with a filter,
+  approval cell, Copy to CompozyOS dialog and runtime switch; Settings → Providers switch; MCP save
+  toast says open sessions use it from their next message. S8 adds the composer MCP control and the
+  transcript reload line.
+- **Docs and official skill.** `skills/compozy/` `SKILL.md` routing, `references/tools-and-skills.md`
+  (MCP Activation And Consent, Runtime MCP Inventory; removed the OAuth-only grant and "updates open
+  hosted sessions" promises), `references/native-tools.md`, `references/configuration.md`. Site:
+  new `docs/mcp/` section (overview, add a server, project servers, runtime servers); updated
+  `configuration/config-toml.mdx`, `configuration/mcp-json.mdx`, `extensions/install.mdx`.
+  Release note `.release-notes/mcp-hot-activation.md`.
+- **QA.** New scenarios mapping E2E-001–E2E-011: `RT-mcp-hot-activation-next-message`,
+  `RT-mcp-hot-activation-lineage`, `ET-mcp-signin-from-session-control`,
+  `ET-extension-hot-activation-next-message`, `ET-mcp-project-server-approval`,
+  `RT-mcp-hot-activation-pi-bridge`, `ET-runtime-mcp-inventory-copy`, `RT-runtime-mcp-switch`,
+  `ET-session-mcp-control-states`, `RT-mcp-reload-failure-recovery`, `ET-cli-mcp-runtime-verbs`.
+  QA impact notes on `ET-cli-mcp-authorize`, `ET-web-mcp-authorize`, `ET-web-mcp-authorize-manual`,
+  `ET-api-mcp-oauth-endpoints`, `ET-web-mcp-status-matrix`, `RT-mcp-stdio-session-reuse`.
