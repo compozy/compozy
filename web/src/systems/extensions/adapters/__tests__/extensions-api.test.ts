@@ -162,6 +162,7 @@ describe("extensions management mutations", () => {
     const request = {
       enable: false,
       ref: "dep-kit-ops",
+      replace: false,
       source: "curated" as const,
       version: "1.1.0",
     };
@@ -193,6 +194,7 @@ describe("extensions management mutations", () => {
     const error = await previewExtensionInstall({
       enable: false,
       ref: "dep-kit-ops",
+      replace: false,
       source: "curated",
     }).catch(reason => reason);
 

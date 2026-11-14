@@ -68,6 +68,7 @@ describe("marketplace acquisition cache boundaries", () => {
       result.current.install.mutate({
         enable: false,
         ref: "compozy/otel-bridge",
+        replace: false,
         source: "curated",
       })
     );
