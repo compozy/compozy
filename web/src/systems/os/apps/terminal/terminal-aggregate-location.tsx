@@ -99,6 +99,9 @@ export function TerminalAggregateLocation({
   // terminal has been created and shown in it.
   const create = useMutation({
     mutationKey: terminalAggregateCreateKey(windowId),
+    // The daemon is local: an offline browser must fail the create through
+    // onError, not park it pending and hold the window's close admission.
+    networkMode: "always",
     mutationFn: ({
       destination,
       identity,
