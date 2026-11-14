@@ -41,6 +41,56 @@ export interface MCPCopyToCompozyDialogProps {
 const NAME_TAKEN = "mcp_import_name_taken";
 const SOURCE_GONE = "mcp_server_not_found";
 
+function copyRequest(
+  scope: CopyScope,
+  name: string,
+  server: RuntimeMCPServer,
+  profile: string | null,
+  workspaceId: string | null
+): RuntimeMCPImportRequest {
+  return {
+    scope,
+    ...(name !== server.name ? { name } : {}),
+    ...(scope === "profile" && profile ? { profile } : {}),
+    ...(scope === "workspace" && workspaceId ? { workspace_id: workspaceId } : {}),
+  };
+}
+
+/** A gone source warns and blocks the copy; any failure other than a taken name is destructive. */
+function MCPCopyFailureAlert({ failure }: { failure: MCPCopyFailure | null }) {
+  if (!failure || failure.code === NAME_TAKEN) return null;
+  return (
+    <Alert role="alert" variant={failure.code === SOURCE_GONE ? "warning" : "destructive"}>
+      <AlertDescription>{failure.message}</AlertDescription>
+    </Alert>
+  );
+}
+
+function MCPCopyNotes({
+  server,
+  runtimeName,
+  canTurnOff,
+}: Pick<MCPCopyToCompozyDialogProps, "server" | "runtimeName" | "canTurnOff">) {
+  const keys = [...server.env_keys, ...server.header_keys];
+  return (
+    <ul className="flex flex-col gap-1.5 text-small-body text-muted-foreground">
+      {keys.length > 0 ? (
+        <li>
+          Values for <span className="font-mono">{keys.join(", ")}</span> are stored as CompozyOS
+          secrets.
+        </li>
+      ) : null}
+      {server.transport !== "stdio" ? (
+        <li>If it asks you to sign in, you'll sign in once in CompozyOS.</li>
+      ) : null}
+      <li>
+        {runtimeName} will still load its own copy.
+        {canTurnOff ? " You can turn its servers off for CompozyOS sessions." : ""}
+      </li>
+    </ul>
+  );
+}
+
 /**
  * Copy to CompozyOS: confirm where the copy lives and its name. Values move into CompozyOS secrets
  * daemon-side; the runtime's own file is never touched. A taken name keeps the dialog open with
@@ -59,20 +109,13 @@ export function MCPCopyToCompozyDialog({
 }: MCPCopyToCompozyDialogProps) {
   const [scope, setScope] = useState<CopyScope>("user");
   const [name, setName] = useState(server.name);
-  const keys = [...server.env_keys, ...server.header_keys];
-  const remote = server.transport !== "stdio";
   const nameTaken = failure?.code === NAME_TAKEN;
   const sourceGone = failure?.code === SOURCE_GONE;
-  const otherFailure = failure && !nameTaken && !sourceGone ? failure : null;
   const trimmed = name.trim();
+  const blocked = submitting || sourceGone || trimmed === "";
   const submit = () => {
-    if (submitting || sourceGone || trimmed === "") return;
-    onSubmit({
-      scope,
-      ...(trimmed !== server.name ? { name: trimmed } : {}),
-      ...(scope === "profile" && profile ? { profile } : {}),
-      ...(scope === "workspace" && workspaceId ? { workspace_id: workspaceId } : {}),
-    });
+    if (blocked) return;
+    onSubmit(copyRequest(scope, trimmed, server, profile, workspaceId));
   };
   return (
     <Dialog onOpenChange={next => (next || submitting ? undefined : onClose())} open>
@@ -95,16 +138,7 @@ export function MCPCopyToCompozyDialog({
           title={`Copy ${server.name} to CompozyOS`}
         />
         <EntityDialogBody className="flex flex-col gap-5">
-          {sourceGone ? (
-            <Alert role="alert" variant="warning">
-              <AlertDescription>{failure.message}</AlertDescription>
-            </Alert>
-          ) : null}
-          {otherFailure ? (
-            <Alert role="alert" variant="destructive">
-              <AlertDescription>{otherFailure.message}</AlertDescription>
-            </Alert>
-          ) : null}
+          <MCPCopyFailureAlert failure={failure} />
           <Field>
             <FieldLabel>Available in</FieldLabel>
             <PillGroup<CopyScope>
@@ -129,21 +163,9 @@ export function MCPCopyToCompozyDialog({
               onChange={event => setName(event.target.value)}
               value={name}
             />
-            {nameTaken ? <FieldError>{failure.message}. Pick another name.</FieldError> : null}
+            {nameTaken ? <FieldError>{failure?.message}. Pick another name.</FieldError> : null}
           </Field>
-          <ul className="flex flex-col gap-1.5 text-small-body text-muted-foreground">
-            {keys.length > 0 ? (
-              <li>
-                Values for <span className="font-mono">{keys.join(", ")}</span> are stored as
-                CompozyOS secrets.
-              </li>
-            ) : null}
-            {remote ? <li>If it asks you to sign in, you'll sign in once in CompozyOS.</li> : null}
-            <li>
-              {runtimeName} will still load its own copy.
-              {canTurnOff ? " You can turn its servers off for CompozyOS sessions." : ""}
-            </li>
-          </ul>
+          <MCPCopyNotes canTurnOff={canTurnOff} runtimeName={runtimeName} server={server} />
           <FieldDescription>Open sessions can use it from their next message.</FieldDescription>
         </EntityDialogBody>
         <EntityDialogFooter
@@ -151,7 +173,7 @@ export function MCPCopyToCompozyDialog({
           isSaving={submitting}
           onCancel={onClose}
           onPrimary={submit}
-          primaryDisabled={sourceGone || submitting || trimmed === ""}
+          primaryDisabled={blocked}
           primaryIcon={Copy}
           primaryLabel={submitting ? "Copying…" : "Copy to CompozyOS"}
           primaryTestId="settings-mcp-copy-submit"

@@ -63,67 +63,120 @@ export function MCPServersByRuntimeView(props: MCPServersByRuntimeViewProps) {
   const { compozy, runtimes, query } = props;
   if (compozy.state === "pending") return <MCPServersByRuntimeSkeleton />;
   if (compozy.state === "error" && compozy.servers.length === 0) {
-    return (
-      <Empty
-        action={
-          <Button onClick={compozy.onRetry} size="sm" type="button">
-            Try again
-          </Button>
-        }
-        cause={compozy.errorMessage}
-        data-testid="settings-page-mcp-error"
-        description="Check that CompozyOS is running, then try again."
-        framed
-        icon={AlertCircle}
-        title="Couldn't load MCP servers"
-        titleAs="h3"
-      />
-    );
+    return <MCPServersLoadError compozy={compozy} />;
   }
   const offered = runtimes.snapshots.filter(isRuntimeOffered);
   const searched = offered.map(snapshot => searchRuntimeSnapshot(snapshot, query));
-  const nothing =
-    compozy.servers.length === 0 && runtimes.state === "ready" && offered.length === 0;
-  if (nothing) {
-    return (
-      <Empty
-        action={
-          <Button
-            data-testid="settings-page-mcp-empty-create"
-            onClick={compozy.onCreate}
-            size="sm"
-            type="button"
-          >
-            <Plus aria-hidden="true" />
-            Add MCP server
-          </Button>
-        }
-        data-testid="settings-page-mcp-empty"
-        description="Servers you add here, the ones your extensions add, and the ones your coding agents load all show up in this list."
-        icon={Cable}
-        title="No MCP servers yet"
-      />
-    );
+  if (compozy.servers.length === 0 && runtimes.state === "ready" && offered.length === 0) {
+    return <MCPServersNothingYet onCreate={compozy.onCreate} />;
   }
-  const noMatch =
+  if (runtimes.state !== "pending" && matchesNothing(query, compozy.visibleServers, searched)) {
+    return <MCPServersNoMatch onClearQuery={props.onClearQuery} query={query} />;
+  }
+  return (
+    <MCPServersByRuntimeGroups {...props} hasRuntimes={offered.length > 0} searched={searched} />
+  );
+}
+
+function matchesNothing(
+  query: string,
+  visibleServers: readonly SettingsMCPServerEntry[],
+  searched: readonly RuntimeMCPSnapshot[]
+): boolean {
+  return (
     query.trim() !== "" &&
-    compozy.visibleServers.length === 0 &&
-    searched.every(snapshot => snapshot.servers.length === 0);
-  if (noMatch && runtimes.state !== "pending") {
-    return (
-      <Empty
-        action={
-          <Button onClick={props.onClearQuery} size="sm" type="button" variant="secondary">
-            Clear search
-          </Button>
-        }
-        data-testid="settings-page-mcp-query-empty"
-        description={`Nothing matches "${query}".`}
-        icon={SearchX}
-        title="No MCP servers match"
-      />
-    );
-  }
+    visibleServers.length === 0 &&
+    searched.every(snapshot => snapshot.servers.length === 0)
+  );
+}
+
+function MCPServersLoadError({ compozy }: Pick<MCPServersByRuntimeViewProps, "compozy">) {
+  return (
+    <Empty
+      action={
+        <Button onClick={compozy.onRetry} size="sm" type="button">
+          Try again
+        </Button>
+      }
+      cause={compozy.errorMessage}
+      data-testid="settings-page-mcp-error"
+      description="Check that CompozyOS is running, then try again."
+      framed
+      icon={AlertCircle}
+      title="Couldn't load MCP servers"
+      titleAs="h3"
+    />
+  );
+}
+
+function MCPServersNothingYet({ onCreate }: { onCreate: () => void }) {
+  return (
+    <Empty
+      action={
+        <Button
+          data-testid="settings-page-mcp-empty-create"
+          onClick={onCreate}
+          size="sm"
+          type="button"
+        >
+          <Plus aria-hidden="true" />
+          Add MCP server
+        </Button>
+      }
+      data-testid="settings-page-mcp-empty"
+      description="Servers you add here, the ones your extensions add, and the ones your coding agents load all show up in this list."
+      icon={Cable}
+      title="No MCP servers yet"
+    />
+  );
+}
+
+function MCPServersNoMatch({ query, onClearQuery }: { query: string; onClearQuery: () => void }) {
+  return (
+    <Empty
+      action={
+        <Button onClick={onClearQuery} size="sm" type="button" variant="secondary">
+          Clear search
+        </Button>
+      }
+      data-testid="settings-page-mcp-query-empty"
+      description={`Nothing matches "${query}".`}
+      icon={SearchX}
+      title="No MCP servers match"
+    />
+  );
+}
+
+function MCPRuntimesReadError({ runtimes }: Pick<MCPServersByRuntimeViewProps, "runtimes">) {
+  return (
+    <Empty
+      action={
+        <Button onClick={runtimes.onRetry} size="sm" type="button" variant="secondary">
+          Try again
+        </Button>
+      }
+      cause={runtimes.errorMessage}
+      data-testid="settings-mcp-runtime-error"
+      description="CompozyOS servers above are unaffected."
+      framed
+      icon={AlertCircle}
+      title="Couldn't read your coding agents' MCP servers"
+      titleAs="h3"
+    />
+  );
+}
+
+/** The populated layout: filter, the CompozyOS group, then the runtime groups the filter keeps. */
+function MCPServersByRuntimeGroups({
+  compozy,
+  runtimes,
+  hasRuntimes,
+  searched,
+  ...props
+}: MCPServersByRuntimeViewProps & {
+  hasRuntimes: boolean;
+  searched: readonly RuntimeMCPSnapshot[];
+}) {
   const options = runtimeFilterOptions(compozy.servers.length, runtimes.snapshots);
   const filter = resolveRuntimeFilter(props.filter, options);
   const showCompozy = filter === MCP_FILTER_ALL || filter === MCP_FILTER_COMPOZY;
@@ -134,27 +187,12 @@ export function MCPServersByRuntimeView(props: MCPServersByRuntimeViewProps) {
   );
   return (
     <div className="flex flex-col gap-4">
-      {offered.length > 0 ? (
+      {hasRuntimes ? (
         <MCPRuntimeFilter onChange={props.onFilterChange} options={options} value={filter} />
       ) : null}
       {showCompozy ? <CompozyGroup {...compozy} /> : null}
       {runtimes.state === "pending" && filter === MCP_FILTER_ALL ? <RuntimeGroupsSkeleton /> : null}
-      {runtimes.state === "error" ? (
-        <Empty
-          action={
-            <Button onClick={runtimes.onRetry} size="sm" type="button" variant="secondary">
-              Try again
-            </Button>
-          }
-          cause={runtimes.errorMessage}
-          data-testid="settings-mcp-runtime-error"
-          description="CompozyOS servers above are unaffected."
-          framed
-          icon={AlertCircle}
-          title="Couldn't read your coding agents' MCP servers"
-          titleAs="h3"
-        />
-      ) : null}
+      {runtimes.state === "error" ? <MCPRuntimesReadError runtimes={runtimes} /> : null}
       {groups.map(snapshot => (
         <MCPRuntimeGroup
           defaultExpanded={props.expandedGroups}

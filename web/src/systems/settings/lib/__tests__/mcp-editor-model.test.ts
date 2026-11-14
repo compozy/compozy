@@ -21,6 +21,12 @@ function stdioEntry(): SettingsMCPServerEntry {
   return {
     name: "github-local",
     transport: "stdio",
+    approval: {
+      required: false,
+      state: "not_required",
+      definition_digest: "sha256:manual-github-local",
+    },
+    callable_in_sessions: true,
     command: "npx",
     args: ["-y", "@modelcontextprotocol/server-github"],
     env_keys: ["LOG_LEVEL"],
@@ -42,6 +48,12 @@ function remoteEntry(): SettingsMCPServerEntry {
     name: "linear",
     transport: "http",
     url: "https://mcp.linear.app/mcp",
+    approval: {
+      required: false,
+      state: "not_required",
+      definition_digest: "sha256:manual-linear",
+    },
+    callable_in_sessions: true,
     auth: {
       client_id: "compozy-linear-public",
       client_secret_configured: false,
