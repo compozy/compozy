@@ -1507,7 +1507,8 @@ startup failure; failed or canceled probes change nothing. Agy models come only 
 concluding a new model is absent, and treat a missing-login diagnostic as a prompt to run the explicit operator sign-in, not a
 secret-binding or shell workaround. In Settings the provider shows `Sign-in unverified` until a
 live probe succeeds (the daemon keeps each native_cli provider's last live verdict from explicit
-probes and session pre-start checks, invalidated by a provider config change or daemon restart, and
+probes, session pre-start checks and the startup check, invalidated by a provider config change or daemon restart; a successful Usage
+collection drops a stale `needs_login` and re-checks once, and
 Settings, `provider list`, and `auth_status.last_probe_at` report it), and the runtime picker plus session attribution carry the exact selected
 model ID (on the verified 1.4.0 server the bare `gemini-4-argon` / `gemini-3.8-flash` IDs; effort is the first-class `thinking_level` option, not an ID suffix).
 

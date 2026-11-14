@@ -94,6 +94,67 @@ func TestAuthVerdicts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should drop only an older needs_login verdict when a sign-in is verified elsewhere", func(t *testing.T) {
+		t.Parallel()
+
+		env := []string{"HOME=/daemon"}
+		probed := time.Now()
+		verdicts := NewAuthVerdicts()
+		verdicts.Record("acme", provider, env, Classification{State: ProviderAuthStateNeedsLogin}, probed)
+		if verdicts.DropNeedsLogin("acme", probed.Add(-time.Second)) {
+			t.Fatal("DropNeedsLogin(proof older than the probe) dropped the newer verdict")
+		}
+		signedIn := probed.Add(time.Minute)
+		if !verdicts.DropNeedsLogin("acme", signedIn) {
+			t.Fatal("DropNeedsLogin(newer proof) kept the stale needs_login verdict")
+		}
+		applied, checkedAt := verdicts.Apply("acme", provider, env, fallback)
+		if applied != fallback || !checkedAt.IsZero() {
+			t.Fatalf("Apply after the drop = %q at %v, want the unverified fallback", applied.State, checkedAt)
+		}
+		verdicts.Record("acme", provider, env, Classification{State: ProviderAuthStateNeedsLogin}, probed)
+		if _, ok := verdicts.Lookup("acme", provider, env); ok {
+			t.Fatal("a probe that started before the sign-in proof recorded afterwards")
+		}
+		if verdicts.DropNeedsLogin("acme", signedIn.Add(time.Second)) {
+			t.Fatal("DropNeedsLogin scheduled another check for an already dropped verdict")
+		}
+		verdicts.Record("acme", provider, env, Classification{State: ProviderAuthStateNeedsLogin},
+			signedIn.Add(time.Second/2))
+		if _, ok := verdicts.Lookup("acme", provider, env); ok {
+			t.Fatal("a dropped verdict failed to fence a probe behind the newest sign-in proof")
+		}
+		verdicts.Record("acme", provider, env, authenticated, signedIn.Add(2*time.Second))
+		got, ok := verdicts.Lookup("acme", provider, env)
+		if !ok || got.Classification.State != ProviderAuthStateAuthenticated {
+			t.Fatalf("Lookup after the re-check = %#v, %v; want authenticated", got, ok)
+		}
+		if verdicts.DropNeedsLogin("acme", signedIn.Add(time.Hour)) {
+			t.Fatal("DropNeedsLogin dropped an authenticated verdict")
+		}
+	})
+
+	t.Run("Should fence a running needs_login probe behind a sign-in verified before it finished", func(t *testing.T) {
+		t.Parallel()
+
+		env := []string{"HOME=/daemon"}
+		probeStarted := time.Now()
+		verdicts := NewAuthVerdicts()
+		if verdicts.DropNeedsLogin("acme", probeStarted.Add(time.Second)) {
+			t.Fatal("DropNeedsLogin reported a drop with no stored verdict")
+		}
+		verdicts.Record("acme", provider, env, Classification{State: ProviderAuthStateNeedsLogin}, probeStarted)
+		if got, ok := verdicts.Lookup("acme", provider, env); ok {
+			t.Fatalf("Lookup = %q, want the outdated needs_login probe kept out", got.Classification.State)
+		}
+		verdicts.Record("acme", provider, env, Classification{State: ProviderAuthStateNeedsLogin},
+			probeStarted.Add(time.Minute))
+		if got, ok := verdicts.Lookup("acme", provider, env); !ok ||
+			got.Classification.State != ProviderAuthStateNeedsLogin {
+			t.Fatalf("Lookup after a later sign-out = %#v, %v; want needs_login", got, ok)
+		}
+	})
+
 	t.Run("Should distinguish USERPROFILE homes with platform key semantics", func(t *testing.T) {
 		t.Parallel()
 
