@@ -51,3 +51,10 @@ Steps:
 Pass: no process start before approval; every message matches `_dx.md` Errors.
 
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
+
+QA impact 2026-11-14 keyed digest consistency: for an OAuth project server, retain the
+`definition_digest` from the list response, then use that exact value for Allow and sign-in.
+Sign-in must pass the consent gate without a false definition-changed error. Restart the
+isolated daemon with the same home; the listed digest and stored approval must remain valid.
+Edit the definition afterwards and confirm the old digest is refused. Local execution was
+not performed for this repair under the operator's CI-only directive; integration owns this walk.

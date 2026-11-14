@@ -286,13 +286,12 @@ func (s settingsMCPConsent) RecordWorkspaceMCPWrite(
 func approvalTimestamp() time.Time { return time.Now().UTC() }
 
 func (s *bootState) mcpDefinitionDigest(server config.MCPServer) (string, error) {
-	var key []byte
-	if s != nil && s.mcpDigestKeys != nil {
-		var err error
-		key, err = s.mcpDigestKeys.Key()
-		if err != nil {
-			return "", err
-		}
+	if s == nil || s.mcpDigestKeys == nil {
+		return "", errors.New("daemon: MCP digest key provider is required")
+	}
+	key, err := s.mcpDigestKeys.Key()
+	if err != nil {
+		return "", err
 	}
 	return config.MCPDefinitionDigest(server, key)
 }

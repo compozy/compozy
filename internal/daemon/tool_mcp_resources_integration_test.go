@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 // Invariant: extension auth policy survives desired-resource persistence and boot reconstruction.
@@ -191,7 +192,7 @@ binding = { type = "url_query", name = "workspace" }
 		// Invariant: actual persisted/projected extension declarations reach Settings without copying them to manual config.
 		// Owner: publication-to-Settings integration; canonical tagged suite.
 		settingsAdapter := settingsMCPExtensionDefinitions{
-			state: &bootState{extensionMCP: db.ExtensionMCP, mcpServerCatalog: initialMCPServerCatalog},
+			state: &bootState{mcpDigestKeys: vault.NewMCPDigestKeyProvider(t.TempDir()), extensionMCP: db.ExtensionMCP, mcpServerCatalog: initialMCPServerCatalog},
 		}
 		settingsHome := testHomePaths(t)
 		settingsProfiles, err := profilepkg.NewManager(
@@ -206,7 +207,7 @@ binding = { type = "url_query", name = "workspace" }
 		if err != nil {
 			t.Fatal(err)
 		}
-		settingsAdapter.auth = &settingsRuntimeSurface{mcpAuthManager: authManager}
+		settingsAdapter.auth = &settingsRuntimeSurface{digestKey: testMCPDigestKey(t, settingsAdapter.state), mcpAuthManager: authManager}
 		for _, owner := range []string{"manual", "extension:" + manifest.Name} {
 			target := mcpauth.Target{Scope: mcpauth.ScopeUser, Owner: owner, ServerName: "remote"}
 			cfg, err := mcpauth.ServerConfigFromMCP(testutil.Context(t), target, compozyconfig.MCPServer{
@@ -380,6 +381,7 @@ binding = { type = "url_query", name = "workspace" }
 		// Owner: real publication/credential integration; canonical tagged suite.
 		executor, err := mcppkg.NewMCPCallExecutor(
 			newDaemonMCPServerResolver(settingsAdapter.state),
+			mcppkg.WithDefinitionDigestKey(testMCPDigestKey(t, settingsAdapter.state)),
 			mcppkg.WithTokenStore(db),
 		)
 		if err != nil {

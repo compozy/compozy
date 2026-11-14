@@ -197,6 +197,10 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		mcpAuthGeneration:   mcpauth.NewMutationGeneration(),
 		toolProjectionEpoch: mcppkg.NewProjectionEpoch(),
 	}
+	state.runtimeMCPInventory, err = newRuntimeMCPInventory(state.mcpDigestKeys)
+	if err != nil {
+		return fmt.Errorf("daemon: initialize MCP definition digests: %w", err)
+	}
 	cleanup := &bootCleanup{}
 	defer cleanup.run(ctx, &err)
 

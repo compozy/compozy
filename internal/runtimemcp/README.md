@@ -26,6 +26,13 @@ paths and plugin cache directories through its existing declaration watcher. Cac
 expire after 45 seconds. File changes invalidate entries; incomplete or unreadable snapshots
 retain the last successful activation digest rather than requesting a destructive reload.
 
+The daemon constructs its inventory with `NewReader` and the installation key from
+`<COMPOZY_HOME>/mcp-digest.key`, shared with approvals, consent and OAuth. A missing or
+unreadable key fails construction. Definition and activation digests use keyed HMAC-SHA-256;
+recreating the daemon with the same home preserves them. The zero-value `Reader` is only
+for standalone consumers without persisted identities: it uses a process-local random key,
+so its digests must never be stored or compared across processes.
+
 ## Safety and activation
 
 Every configuration file is acquired through `fileutil.ReadRegularFile` without following

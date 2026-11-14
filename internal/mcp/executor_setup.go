@@ -1,7 +1,9 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -25,6 +27,7 @@ type secretRefResolver interface {
 
 // CallExecutor lists and calls configured MCP servers through official MCP SDK clients.
 type CallExecutor struct {
+	digestKey      []byte
 	consent        func(context.Context, toolspkg.SourceRef, ResolvedServer) error
 	authNetwork    func(context.Context, mcpauth.ServerConfig) error
 	servers        ServerResolver
@@ -47,6 +50,10 @@ var _ toolspkg.MCPAuthStatusProvider = (*CallExecutor)(nil)
 
 // CallExecutorOption configures the daemon-owned MCP executor.
 type CallExecutorOption func(*CallExecutor)
+
+func WithDefinitionDigestKey(key []byte) CallExecutorOption {
+	return func(e *CallExecutor) { e.digestKey = bytes.Clone(key) }
+}
 
 func WithConsentCheck(check func(context.Context, toolspkg.SourceRef, ResolvedServer) error) CallExecutorOption {
 	return func(e *CallExecutor) { e.consent = check }
@@ -148,6 +155,9 @@ func NewMCPCallExecutor(
 		if opt != nil {
 			opt(executor)
 		}
+	}
+	if len(executor.digestKey) == 0 {
+		return nil, errors.New("mcp: definition digest key is required")
 	}
 	if executor.lookupSecret == nil {
 		executor.lookupSecret = func(string) string { return "" }

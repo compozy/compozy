@@ -64,9 +64,6 @@ type SessionManagerDeps struct {
 }
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
-	if state.runtimeMCPInventory == nil {
-		state.runtimeMCPInventory = newRuntimeMCPInventory(state.mcpDigestKeys)
-	}
 	reconciler := windowManagerSessionReconcilerDependency(state.windowManagers)
 	state.sessionWindowReconciler = reconciler
 	return SessionManagerDeps{

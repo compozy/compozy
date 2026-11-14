@@ -956,7 +956,7 @@ func TestOperatorConsentedMCPSourceGrants(t *testing.T) {
 		"logged-out": {Status: "needs_login"},
 	}}
 	state := func(status toolspkg.MCPAuthStatusProvider) *bootState {
-		return &bootState{mcpServerCatalog: catalog, mcpAuthStatus: status, profiles: profiles}
+		return &bootState{mcpDigestKeys: vault.NewMCPDigestKeyProvider(t.TempDir()), mcpServerCatalog: catalog, mcpAuthStatus: status, profiles: profiles}
 	}
 	scope := toolspkg.Scope{ProfileID: open.ID}
 	descriptor := toolspkg.Descriptor{
@@ -998,7 +998,7 @@ func TestOperatorConsentedMCPSourceGrants(t *testing.T) {
 			Owner: *extensionOwner("lab"), Spec: named("broken", true),
 		}})
 		grants, err := operatorConsentedSourceGrants(t.Context(),
-			&bootState{mcpServerCatalog: broken, mcpAuthStatus: authed}, scope)
+			&bootState{mcpDigestKeys: vault.NewMCPDigestKeyProvider(t.TempDir()), mcpServerCatalog: broken, mcpAuthStatus: authed}, scope)
 		if err != nil || len(grants) != 0 {
 			t.Fatalf("grants = %#v, %v", grants, err)
 		}
@@ -1099,6 +1099,7 @@ func TestDaemonMCPProviderRecordsExtensionLaunchFailures(t *testing.T) {
 			},
 		})
 		state := &bootState{
+			mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
 			mcpServerCatalog: catalog,
 			extensions: &fakeExtensionRuntime{getExt: &extensionpkg.Extension{
 				Info: extensionpkg.ExtensionInfo{Name: "kit", Checksum: "generation-a"},
@@ -1139,6 +1140,28 @@ func (r *mcpOverrideAuthRecorder) MCPAuthDeleteState(_ context.Context, target m
 // Owner: daemon consent repository and write boundary; canonical suite: MCP source resolver.
 func TestWorkspaceMCPConsent(t *testing.T) {
 	t.Parallel()
+	// Invariant: a durable installation identity preserves stored approval decisions; owner: daemon consent.
+	t.Run("Should retain definition identity and approvals across daemon states sharing a home", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		home := t.TempDir()
+		state.mcpDigestKeys = vault.NewMCPDigestKeyProvider(home)
+		first, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := (settingsMCPConsent{state: state}).ApproveMCP(t.Context(), req, first.DefinitionDigest, false); err != nil {
+			t.Fatal(err)
+		}
+		restarted := &bootState{
+			mcpDigestKeys: vault.NewMCPDigestKeyProvider(home), registry: state.registry, cfg: state.cfg,
+			profiles: state.profiles, workspaceResolver: state.workspaceResolver, mcpServerCatalog: state.mcpServerCatalog,
+		}
+		again, err := (settingsMCPConsent{state: restarted}).MCPConsent(t.Context(), req)
+		if err != nil || !again.Admitted || again.DefinitionDigest != first.DefinitionDigest {
+			t.Fatalf("restart changed consent: %+v %v", again, err)
+		}
+	})
 	// Invariant: a resource ID cannot substitute its declaring file after approval; owner: daemon execution gate.
 	t.Run("Should gate the exact resolved definition and source file", func(t *testing.T) {
 		t.Parallel()
@@ -1278,7 +1301,7 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		const ref = "vault:mcp/shared/stable"
 		req.Server.SecretEnv = map[string]string{"TOKEN": ref}
 		consent := settingsMCPConsent{state: state}
-		digest, err := compozyconfig.MCPDefinitionDigest(req.Server)
+		digest, err := state.mcpDefinitionDigest(req.Server)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1459,6 +1482,7 @@ func newMCPConsentFixture(t *testing.T) (*bootState, settingspkg.MCPConsentReque
 		},
 	)
 	return &bootState{
+		mcpDigestKeys:       vault.NewMCPDigestKeyProvider(home.HomeDir),
 		registry:            db,
 		cfg:                 compozyconfig.DefaultWithHome(home),
 		profiles:            profiles,
@@ -1580,6 +1604,7 @@ func TestMCPConsentDoesNotShareProfileTokens(t *testing.T) {
 	}
 	executor, err := mcppkg.NewMCPCallExecutor(
 		newDaemonMCPServerResolver(state),
+		mcppkg.WithDefinitionDigestKey(testMCPDigestKey(t, state)),
 		mcppkg.WithTokenStore(state.registry.(mcpauth.TokenStore)),
 	)
 	if err != nil {
@@ -1715,4 +1740,13 @@ func TestSettingsPublishedAgentMCPConsent(t *testing.T) {
 			t.Fatalf("same-name revoke left consent=%+v", item)
 		}
 	}
+}
+
+func testMCPDigestKey(t *testing.T, state *bootState) []byte {
+	t.Helper()
+	key, err := state.mcpDigestKeys.Key()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key
 }

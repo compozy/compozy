@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -81,6 +82,7 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 				Spec: server,
 			}})
 			state := &bootState{
+				mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
 				cfg:              compozyconfig.Config{},
 				registry:         globalDB,
 				mcpServerCatalog: catalog,

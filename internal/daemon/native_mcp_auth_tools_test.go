@@ -557,10 +557,27 @@ func (p *nativeMCPAuthStatusProvider) Status(
 
 func TestRuntimeMCPInventory(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject construction without a digest key provider", func(t *testing.T) {
+		t.Parallel()
+		if inventory, err := newRuntimeMCPInventory(nil); err == nil || inventory != nil {
+			t.Fatal("daemon inventory accepted a missing digest key provider")
+		}
+	})
+	t.Run("Should propagate an unreadable installation key at construction", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		if err := os.WriteFile(filepath.Join(home, "mcp-digest.key"), []byte("invalid"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if inventory, err := newRuntimeMCPInventory(vault.NewMCPDigestKeyProvider(home)); err == nil || inventory != nil {
+			t.Fatal("daemon inventory substituted an ephemeral key")
+		}
+	})
 	// Invariant: distinct context reads have bounded retention; owner: daemon inventory cache.
 	t.Run("Should evict old context snapshots at the cache limit", func(t *testing.T) {
 		t.Parallel()
-		inventory := newRuntimeMCPInventory()
+		inventory := newTestRuntimeMCPInventory(t)
 		root := t.TempDir()
 		for i := range runtimeMCPCacheLimit + 2 {
 			_, err := inventory.List(
@@ -594,7 +611,7 @@ func TestRuntimeMCPInventory(t *testing.T) {
 		if err := os.WriteFile(path, []byte(`{"mcpServers":{"old":{"command":"echo"}}}`), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		inventory := newRuntimeMCPInventory()
+		inventory := newTestRuntimeMCPInventory(t)
 		request := runtimemcp.Request{
 			Runtime: "claude",
 			Context: runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")},
@@ -652,7 +669,7 @@ func TestRuntimeMCPInventory(t *testing.T) {
 			t.Fatal(err)
 		}
 		settings := &nativeRuntimeMCPSettings{
-			inventory:   newRuntimeMCPInventory(),
+			inventory:   newTestRuntimeMCPInventory(t),
 			readContext: runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")},
 		}
 		registry := newDaemonNativeRegistry(
@@ -916,12 +933,42 @@ func TestRuntimeMCPCopy(t *testing.T) {
 			t,
 			`{"mcpServers":{"advos":{"type":"http","url":"https://example.test/mcp"}}}`,
 		)
-		result, err := fixture.importer.ImportRuntimeMCP(
+
+		request := runtimemcp.Request{Runtime: "claude", Context: fixture.readContext}
+		listed, err := fixture.inventory.List(t.Context(), request)
+		if err != nil || len(listed.Runtimes) != 1 || len(listed.Runtimes[0].Servers) != 1 {
+			t.Fatalf("runtime listing=%+v %v", listed, err)
+		}
+		previous := listed.Runtimes[0].Servers[0]
+		restarted, err := newRuntimeMCPInventory(vault.NewMCPDigestKeyProvider(fixture.home.HomeDir))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := restarted.Resolve(t.Context(), request, "advos")
+		if err != nil || resolved.Metadata().DefinitionDigest != previous.DefinitionDigest {
+			t.Fatalf("restart changed runtime definition: %v", err)
+		}
+		service, err := settingspkg.NewService(fixture.home, settingspkg.Dependencies{
+			RuntimeMCPInventory: restarted, ProfileResolver: fixture.profiles, AttentionWorkspaceMutes: fixture.db,
+			ProviderSecrets:   fixture.secrets,
+			RuntimeMCPContext: func() (runtimemcp.ReadContext, error) { return fixture.readContext, nil },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		importer, ok := service.(core.RuntimeMCPImporter)
+		if !ok {
+			t.Fatal("settings does not provide runtime import")
+		}
+		result, err := importer.ImportRuntimeMCP(
 			t.Context(),
 			settingspkg.RuntimeMCPImportRequest{Runtime: "claude", ServerName: "advos"},
 		)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if result.Source.DefinitionDigest != previous.DefinitionDigest {
+			t.Fatal("import did not retain the listed definition digest")
 		}
 		item := result.Mutation.MCPServer
 		if item == nil || item.Name != "advos" || item.Owner != "manual" || item.Scope != settingspkg.ScopeUser ||
@@ -1102,9 +1149,12 @@ func newRuntimeMCPCopyFixture(t *testing.T, source string) runtimeMCPCopyFixture
 	if err != nil {
 		t.Fatal(err)
 	}
-	inventory := newRuntimeMCPInventory()
-	readContext := runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")}
 	home := testHomePaths(t)
+	inventory, err := newRuntimeMCPInventory(vault.NewMCPDigestKeyProvider(home.HomeDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	readContext := runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")}
 	profiles, err := profilepkg.NewManager(profilepkg.WithStore(db), profilepkg.WithHomePaths(home))
 	if err != nil {
 		t.Fatal(err)
@@ -1466,4 +1516,13 @@ func newSessionMCPReadFixture(
 	}
 	manager.reader = model
 	return model, manager, executor, settings
+}
+
+func newTestRuntimeMCPInventory(t *testing.T) *runtimeMCPInventory {
+	t.Helper()
+	inventory, err := newRuntimeMCPInventory(vault.NewMCPDigestKeyProvider(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return inventory
 }

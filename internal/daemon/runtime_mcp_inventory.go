@@ -33,7 +33,7 @@ type runtimeMCPCacheEntry struct {
 }
 
 type runtimeMCPInventory struct {
-	keys     vault.KeyProvider
+	reader   runtimemcp.Reader
 	revision uint64
 	mu       sync.Mutex
 	cache    map[string]runtimeMCPCacheEntry
@@ -42,20 +42,19 @@ type runtimeMCPInventory struct {
 
 var _ settingspkg.RuntimeMCPInventory = (*runtimeMCPInventory)(nil)
 
-func newRuntimeMCPInventory(keys ...vault.KeyProvider) *runtimeMCPInventory {
-	s := &runtimeMCPInventory{cache: map[string]runtimeMCPCacheEntry{}, now: time.Now}
-	if len(keys) > 0 {
-		s.keys = keys[0]
+func newRuntimeMCPInventory(keys vault.KeyProvider) (*runtimeMCPInventory, error) {
+	if keys == nil {
+		return nil, errors.New("daemon: MCP digest key provider is required")
 	}
-	return s
-}
-
-func (s *runtimeMCPInventory) reader() (runtimemcp.Reader, error) {
-	if s.keys == nil {
-		return runtimemcp.Reader{}, nil
+	key, err := keys.Key()
+	if err != nil {
+		return nil, err
 	}
-	key, err := s.keys.Key()
-	return runtimemcp.Reader{DigestKey: key}, err
+	reader, err := runtimemcp.NewReader(key)
+	if err != nil {
+		return nil, err
+	}
+	return &runtimeMCPInventory{reader: reader, cache: map[string]runtimeMCPCacheEntry{}, now: time.Now}, nil
 }
 
 func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) (runtimemcp.Inventory, error) {
@@ -71,11 +70,7 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 	s.mu.Unlock()
 	before := captureRuntimeMCPFiles(cached.paths)
 	if !ok || !s.now().Before(cached.expires) || !sameRuntimeMCPStamps(cached.stamps, before) {
-		reader, err := s.reader()
-		if err != nil {
-			return runtimemcp.Inventory{}, err
-		}
-		inventory, paths, err := reader.List(ctx, req)
+		inventory, paths, err := s.reader.List(ctx, req)
 		if err != nil {
 			return runtimemcp.Inventory{}, err
 		}
@@ -84,7 +79,7 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 			before = after
 		} else if !slices.Equal(paths, cached.paths) {
 			before = after
-			inventory, paths, err = reader.List(ctx, req)
+			inventory, paths, err = s.reader.List(ctx, req)
 			if err != nil {
 				return runtimemcp.Inventory{}, err
 			}
@@ -263,11 +258,7 @@ func (s *runtimeMCPInventory) Resolve(
 		}
 	}
 	s.mu.Unlock()
-	reader, err := s.reader()
-	if err != nil {
-		return runtimemcp.ResolvedServer{}, err
-	}
-	return reader.Resolve(ctx, req, name, previous)
+	return s.reader.Resolve(ctx, req, name, previous)
 }
 
 var _ settingspkg.RuntimeMCPResolver = (*runtimeMCPInventory)(nil)

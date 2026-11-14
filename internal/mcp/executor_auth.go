@@ -231,10 +231,9 @@ func (e *CallExecutor) serverAuthConfig(
 	if cfg.ConsentScope == (mcpauth.ConsentScope{}) {
 		cfg.ConsentScope = mcpauth.ConsentScopeFromContext(ctx)
 	}
-	if digest, digestErr := compozyconfig.MCPDefinitionDigest(resolved.Server); digestErr == nil {
-		cfg.DefinitionDigest = digest
-	} else {
-		cfg.DefinitionDigest = ""
+	if err != nil {
+		return mcpauth.ServerConfig{}, err
 	}
+	cfg.DefinitionDigest, err = compozyconfig.MCPDefinitionDigest(resolved.Server, e.digestKey)
 	return cfg, err
 }

@@ -196,13 +196,12 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 	}
 	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, rendered, s.secretResolver)
 	cfg.ConsentScope = mcpauth.ConsentScopeFromContext(ctx)
-	if digest, digestErr := compozyconfig.MCPDefinitionDigest(server); digestErr == nil {
-		cfg.DefinitionDigest = digest
-	} else {
-		cfg.DefinitionDigest = ""
-	}
 	if err != nil {
 		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
+	}
+	cfg.DefinitionDigest, err = compozyconfig.MCPDefinitionDigest(server, s.digestKey)
+	if err != nil {
+		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: digest MCP auth definition: %w", err)
 	}
 	cfg.DisplayRemoteURL = rendered.URL
 	if len(secrets) > 0 {

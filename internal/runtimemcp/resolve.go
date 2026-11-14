@@ -28,7 +28,7 @@ func (r Reader) Resolve(ctx context.Context, req Request, name string, previous 
 			continue
 		}
 		label = descriptor.DisplayName
-		snapshot, _, entries := readDefinitions(ResolveContext(req.Context), descriptor, r.DigestKey)
+		snapshot, _, entries := readDefinitions(ResolveContext(req.Context), descriptor, r.digestKey())
 		if value, ok := entries[name]; ok && snapshot.ReadState == "ok" {
 			if previous != nil &&
 				(previous.DefinitionDigest != value.server.DefinitionDigest || previous.SourcePath != value.server.SourcePath) {
