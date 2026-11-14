@@ -222,7 +222,10 @@ selection must target that current window, including after another close/switch/
 Closed palettes must ignore focus publications rather than rebuilding their entity and
 ranking tree on each switch. The OS interaction-hook suite owns this subscription and
 reopening invariant; E2E-023 retains the 50 ms switch/convergence and 500 ms restore
-limits and the 11-tab fixture.
+limits and the 11-tab fixture. Runtime identity refreshes must not wake destination-only
+workspace readers or multiply their polling timers. Home-path labels and User session
+roots still follow the daemon home through the dedicated home-directory hook; the
+workspace hook suite owns this separation.
 
 QA impact 2026-11-13 (window-tabs-split S9): the topbar pager was replaced by the desktop
 indicators. On boot and during stream loss confirm the dots render, switching is
