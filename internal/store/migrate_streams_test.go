@@ -1444,7 +1444,7 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 		}
 	}
 	verify()
-	migration, err := fs.ReadFile(globalschema.Files, "migrations/00201_permission_intent.sql")
+	migration, err := fs.ReadFile(globalschema.Files, "migrations/00202_permission_intent.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -136,6 +136,103 @@ func reportTestMainError(format string, args ...any) {
 
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: upgrading repairs only stale deleted-child activity and preserves delegated history on reopen.
+	t.Run("Should repair deleted subagent activity across upgrade and reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path,
+			globalMigrationPrefixBefore(t, "00200_deleted_subagent_child_activity.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		now := store.FormatTimestamp(time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC))
+		if _, err := prior.ExecContext(ctx, `INSERT INTO workspaces
+			(id,root_dir,add_dirs,name,created_at,updated_at) VALUES ('ws-child-migration',?,'[]','child migration',?,?)`,
+			t.TempDir(), now, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := prior.ExecContext(ctx, `INSERT INTO sessions
+			(id,profile_id,agent_name,workspace_id,session_type,state,created_at,updated_at)
+			VALUES ('parent',?,'coder','ws-child-migration','user','active',?,?)`,
+			store.DefaultProfileID, now, now); err != nil {
+			t.Fatal(err)
+		}
+		cases := []struct {
+			id, origin, status, activity, want string
+			child                              any
+		}{
+			{"completed", "delegated", "completed", "working", "stopped", nil},
+			{"failed", "delegated", "failed", "working", "stopped", nil},
+			{"canceled", "delegated", "canceled", "idle", "stopped", nil},
+			{"interrupted", "delegated", "interrupted", "idle", "stopped", nil},
+			{"live", "delegated", "running", "working", "working", nil},
+			{"native", "provider_native", "completed", "working", "working", nil},
+			{"linked", "delegated", "completed", "working", "working", "parent"},
+			{"unknown", "delegated", "failed", "", "", nil},
+		}
+		for _, tc := range cases {
+			if _, err := prior.ExecContext(ctx, `INSERT INTO session_subagents
+				(id,workspace_id,parent_session_id,parent_turn_id,child_session_id,origin,idempotency_key,
+				request_fingerprint,title,task_chars,depth,status,work_state,result,settled_at,wake_policy,child_activity,created_at,updated_at)
+				VALUES (?,'ws-child-migration','parent','turn',?,?,?,'fingerprint','Task',0,1,?,'result_available','saved result',?,
+				'settled_only',?,?,?)`, tc.id, tc.child, tc.origin, tc.id, tc.status, now, tc.activity, now, now); err != nil {
+				t.Fatal(err)
+			}
+		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := target.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := bindTelemetryDestination(ctx, prior, target.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
+					t.Error(err)
+				}
+			})
+			for _, tc := range cases {
+				row, err := upgraded.GetSubagent(ctx, "ws-child-migration", tc.id)
+				if err != nil || row.ChildActivity.String() != tc.want || row.Status != tc.status ||
+					row.Result == nil || *row.Result != "saved result" || row.SettledAt == nil ||
+					store.FormatTimestamp(*row.SettledAt) != now || store.FormatTimestamp(row.UpdatedAt) != now {
+					t.Fatal(row, err)
+				}
+			}
+			status, err := store.Status(ctx, upgraded.DB(), MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			assertGlobalMigrationIntegrity(ctx, t, upgraded.DB())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	t.Run("Should keep request reads independent of an exhausted writer pool", func(t *testing.T) {
 		t.Parallel()
 		g := openTestGlobalDB(t)

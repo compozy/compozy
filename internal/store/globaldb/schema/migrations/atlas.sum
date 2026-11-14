@@ -1,4 +1,4 @@
-h1:7ZSvcIB6oCkddynwr3uym2w2nB3ycPtHUxodd2p8/mw=
+h1:NQC/NWPaIiYEqfjirRuvymHxGzp1ahuMYJbRPIRjgEs=
 00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=
 00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=
 00003_schema.sql h1:x8VmofWOLCS5ARICKEemtVqBU1zUxT7fJSwOeC8yV18=
@@ -198,5 +198,6 @@ h1:7ZSvcIB6oCkddynwr3uym2w2nB3ycPtHUxodd2p8/mw=
 00197_schema.sql h1:R1Lxj4YfETMAg++O6ULoiyfgWBR4nt31trYna96jI/Q=
 00198_schema.sql h1:ixokBGLXk3CZ9/4ojIPYDKNk5i7Ja0GhbQjTxHO1Vis=
 00199_schema.sql h1:dL7Q8KKwGlWe5TkVCrhX/OFggTTWns9LDdYLKIaXCdk=
-00200_schema.sql h1:yYo3RBLwSNhJSi4lsLuFu4M5t8j0eoUzc5R5Bv8FW8g=
-00201_permission_intent.sql h1:SEB321WUXoVe40WOOhC95kwVMu+OKz7PCbrNdpqwWLY=
+00200_deleted_subagent_child_activity.sql h1:o/aGcDVtOGL0cpfc/9FWRG2KugoJZVaqzL1Pkb/6wbw=
+00201_schema.sql h1:85VHYL3SR/8dU7zqcdeCfF8TvKlNBneMvfmlnjl+Yg0=
+00202_permission_intent.sql h1:iaBLCUx7HzuXnugNbxkswMaljUhMH5cmftTUIEERYjg=
