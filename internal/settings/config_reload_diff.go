@@ -42,6 +42,11 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	if current.Client.RequestTimeout != desired.Client.RequestTimeout {
 		changed = append(changed, "client.request_timeout")
 	}
+	// Log settings are restart-required, so they must appear in the diff: otherwise a
+	// live change next to a log change would report the whole reload as applied.
+	if current.Log != desired.Log {
+		changed = append(changed, "log.*")
+	}
 	changed = append(changed, diffProviderUsageSettings(current.ProviderUsage, desired.ProviderUsage)...)
 	if current.Subagents.ResultMaxChars != desired.Subagents.ResultMaxChars {
 		changed = append(changed, "subagents.result_max_chars")
