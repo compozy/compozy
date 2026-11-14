@@ -350,7 +350,7 @@ describe("TerminalAggregateLocation", () => {
     expect(screen.queryByTestId("terminal-launcher-new-ws-atlas/wt-feature")).toBeNull();
   });
 
-  it("Should show a created terminal and release the window while catalog refreshes stall", async () => {
+  it("Should show a created terminal, already in its cached catalog, while refreshes stall", async () => {
     // #1712 review: refreshing the lists must not gate showing the new terminal, nor keep
     // its creation pending — the close guard holds the window while it is.
     const terminal = { ...TERMINAL_FIXTURES[0], id: "term-new", workspace_id: "ws-atlas" };
@@ -363,6 +363,8 @@ describe("TerminalAggregateLocation", () => {
       staleTime: Number.POSITIVE_INFINITY,
     });
     const unsubscribe = stalled.subscribe(() => {});
+    const ownerCatalog = terminalKeys.catalog({ workspaceId: "ws-atlas", profileKey: "default" });
+    client.setQueryData(ownerCatalog, []);
 
     fireEvent.click(screen.getByTestId("terminal-launcher-new-ws-atlas"));
 
@@ -378,6 +380,8 @@ describe("TerminalAggregateLocation", () => {
     expect(client.getQueryState(terminalKeys.aggregate("", "default"))?.fetchStatus).toBe(
       "fetching"
     );
+    // The bound window's cached catalog already names it, before any read lands.
+    expect(client.getQueryData(ownerCatalog)).toEqual([terminal]);
     unsubscribe();
   });
 

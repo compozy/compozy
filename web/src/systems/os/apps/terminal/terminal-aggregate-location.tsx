@@ -7,6 +7,7 @@ import { Button, Empty, toast } from "@compozy/ui";
 import {
   createTerminal,
   TerminalAggregateSkeleton,
+  TERMINAL_ALL_PROFILES_KEY,
   TerminalNotFoundState,
   terminalKeys,
   type TerminalInfo,
@@ -116,17 +117,22 @@ export function TerminalAggregateLocation({
         identity
       ),
     onSuccess: async terminal => {
-      // The new terminal joins the All projects list and its owner's catalog.
+      // The bound window reads its owner's catalog: a cached list must already
+      // name the new terminal, or the window says it isn't here until a read lands.
+      const owner = windowBindingValue(ownerDataScope(terminal.workspace_id));
+      for (const profileKey of [profile, TERMINAL_ALL_PROFILES_KEY]) {
+        queryClient.setQueryData<TerminalInfo[]>(
+          terminalKeys.catalog({ workspaceId: owner, profileKey }),
+          current =>
+            current && !current.some(item => item.id === terminal.id)
+              ? [...current, terminal]
+              : current
+        );
+      }
       // Refreshed in the background: a stalled read must not keep the terminal
       // from showing, nor hold the window's close admission.
       void queryClient.invalidateQueries({ queryKey: [...terminalKeys.all(), "aggregate"] });
-      void queryClient.invalidateQueries({
-        queryKey: [
-          ...terminalKeys.all(),
-          "catalog",
-          windowBindingValue(ownerDataScope(terminal.workspace_id)),
-        ],
-      });
+      void queryClient.invalidateQueries({ queryKey: [...terminalKeys.all(), "catalog", owner] });
       await retargetBound(terminal.id, terminal.workspace_id);
     },
     onError: error =>
