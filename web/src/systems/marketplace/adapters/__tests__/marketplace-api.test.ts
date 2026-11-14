@@ -47,6 +47,7 @@ describe("marketplace acquisition transport", () => {
       enable: false,
       allow_unverified: true,
       ref: "review-pack",
+      replace: false,
       source: "curated",
       version: "2.0.0",
     };
@@ -64,6 +65,7 @@ describe("marketplace acquisition transport", () => {
     const extensionBody: Parameters<typeof installMarketplaceExtension>[0] = {
       enable: true,
       ref: "review-pack",
+      replace: false,
       source: "curated",
     };
     mockJsonResponse(
@@ -86,7 +88,13 @@ describe("marketplace acquisition transport", () => {
     ["refresh", () => refreshMarketplaceCatalog()],
     [
       "extension install",
-      () => installMarketplaceExtension({ enable: false, ref: "review-pack", source: "curated" }),
+      () =>
+        installMarketplaceExtension({
+          enable: false,
+          ref: "review-pack",
+          replace: false,
+          source: "curated",
+        }),
     ],
   ])("Should preserve typed daemon errors for %s failures", async (_label, request) => {
     mockJsonResponse({ error: "catalog mutation rejected" }, { status: 409 });
@@ -112,7 +120,12 @@ describe("marketplace acquisition transport", () => {
       { status: 409 }
     );
     await expect(
-      installMarketplaceExtension({ enable: false, ref: "review-pack", source: "curated" })
+      installMarketplaceExtension({
+        enable: false,
+        ref: "review-pack",
+        replace: false,
+        source: "curated",
+      })
     ).rejects.toMatchObject({
       status: 409,
       diagnosticCode: "extension_name_conflict",
@@ -130,7 +143,12 @@ describe("marketplace acquisition transport", () => {
     );
 
     await expect(
-      installMarketplaceExtension({ enable: false, ref: "/srv/hello", source: "local_path" })
+      installMarketplaceExtension({
+        enable: false,
+        ref: "/srv/hello",
+        replace: false,
+        source: "local_path",
+      })
     ).rejects.toMatchObject({
       diagnosticCode: "extension_checksum_unverified",
       status: 422,
@@ -145,6 +163,7 @@ describe("marketplace acquisition transport", () => {
       enable: false,
       source: "curated" as const,
       ref: "compozy/sentry",
+      replace: false,
       expected_digest: listedDigest,
       inputs: { token: { vault_ref: "vault:mcp/shared/TOKEN" }, region: { value: "eu" } },
     };
@@ -184,7 +203,12 @@ describe("marketplace acquisition transport", () => {
       { status: 422 }
     );
     await expect(
-      installMarketplaceExtension({ enable: false, source: "curated", ref: "compozy/kit" })
+      installMarketplaceExtension({
+        enable: false,
+        replace: false,
+        source: "curated",
+        ref: "compozy/kit",
+      })
     ).rejects.toHaveProperty("inputDefinitions", [definition]);
   });
 
@@ -217,7 +241,12 @@ describe("marketplace acquisition transport", () => {
       { status: 422 }
     );
     await expect(
-      installMarketplaceExtension({ enable: false, source: "curated", ref: "compozy/kit" })
+      installMarketplaceExtension({
+        enable: false,
+        replace: false,
+        source: "curated",
+        ref: "compozy/kit",
+      })
     ).rejects.toMatchObject({ inputDefinitions: undefined, requiredInputs: [definition.id] });
   });
 
@@ -227,7 +256,12 @@ describe("marketplace acquisition transport", () => {
       { status: 422 }
     );
     await expect(
-      installMarketplaceExtension({ enable: false, source: "curated", ref: "compozy/sentry" })
+      installMarketplaceExtension({
+        enable: false,
+        replace: false,
+        source: "curated",
+        ref: "compozy/sentry",
+      })
     ).rejects.toMatchObject({ inputId: "region", requiredInputs: undefined, status: 422 });
   });
 });

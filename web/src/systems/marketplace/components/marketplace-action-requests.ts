@@ -31,6 +31,8 @@ export function catalogInstallRequest(
     enable: true,
     expected_digest: entry.digest_sha256,
     ref: marketplaceEntrySlug(entry),
+    // Catalog Add never overwrites an installed package; it adds an attachment.
+    replace: false,
     source: entry.source_ref === "catalog:compozy" ? "curated" : "marketplace",
     version: entry.version,
   };
