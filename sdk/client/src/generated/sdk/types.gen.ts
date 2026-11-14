@@ -4149,6 +4149,10 @@ export type InstallExtensionRequest = {
   profile?: string;
   ref: string;
   /**
+   * Replace an installed extension of the same name. The previous version stays installed when the replacement fails. Replacing a package attached outside the caller's workspace requires operator authority.
+   */
+  replace?: boolean;
+  /**
    * Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.
    */
   scope?: "global" | "workspace";
@@ -13688,6 +13692,10 @@ export type InstallExtensionRequestWritable = {
    */
   profile?: string;
   ref: string;
+  /**
+   * Replace an installed extension of the same name. The previous version stays installed when the replacement fails. Replacing a package attached outside the caller's workspace requires operator authority.
+   */
+  replace?: boolean;
   /**
    * Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.
    */

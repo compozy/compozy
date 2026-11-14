@@ -12197,6 +12197,11 @@ export interface components {
       profile?: string;
       ref: string;
       /**
+       * @description Replace an installed extension of the same name. The previous version stays installed when the replacement fails. Replacing a package attached outside the caller's workspace requires operator authority.
+       * @default false
+       */
+      replace: boolean;
+      /**
        * @description Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.
        * @enum {string}
        */
