@@ -688,7 +688,11 @@ func TestSubagentLifecycle(t *testing.T) {
 				got.ChildActivity != store.SubagentChildActivityIdle {
 				t.Fatal(got)
 			}
-			if err := s.recordChildActivity(t.Context(), db.rows[row.ID], store.SubagentChildActivityWorking); err != nil {
+			if err := s.recordChildActivity(
+				t.Context(),
+				db.rows[row.ID],
+				store.SubagentChildActivityWorking,
+			); err != nil {
 				t.Fatal(err)
 			}
 			settled := db.rows[row.ID]

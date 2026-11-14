@@ -706,7 +706,8 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 				got, err := db.GetSubagent(ctx, workspace, "deleted")
 				if err != nil || got.ChildSessionID != nil || got.ChildActivity != store.SubagentChildActivityStopped ||
 					got.Status != status || got.Result == nil || *got.Result != *settled.Result ||
-					got.Error == nil || *got.Error != *settled.Error || got.SettledAt == nil || !got.SettledAt.Equal(*settled.SettledAt) {
+					got.Error == nil || *got.Error != *settled.Error ||
+					got.SettledAt == nil || !got.SettledAt.Equal(*settled.SettledAt) {
 					t.Fatal(got, err)
 				}
 				summaries, err := db.Summaries(ctx, []string{parent})
@@ -754,7 +755,8 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 			WHEN OLD.id = 'child' BEGIN SELECT RAISE(ABORT, 'forced delete failure'); END`); err != nil {
 			t.Fatal(err)
 		}
-		if err := db.DeleteSession(ctx, "child"); err == nil || !strings.Contains(err.Error(), "forced delete failure") {
+		if err := db.DeleteSession(ctx, "child"); err == nil ||
+			!strings.Contains(err.Error(), "forced delete failure") {
 			t.Fatalf("DeleteSession() error = %v, want forced delete failure", err)
 		}
 		got, err := db.GetSubagent(ctx, workspace, "delegation")
