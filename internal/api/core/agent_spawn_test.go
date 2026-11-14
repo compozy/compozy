@@ -37,8 +37,8 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 			}
 			return agentSpawnCallerInfo(), nil
 		}
-		manager.spawnFn = func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
-			got = opts
+		manager.spawnFn = func(_ context.Context, opts *session.SpawnOpts) (*session.Session, error) {
+			got = *opts
 			notifyCreator := opts.NotifyCreator
 			if !opts.NotifyCreatorSet {
 				notifyCreator = true
@@ -175,7 +175,7 @@ func TestBaseHandlersAgentSpawnStrictDecodeRejectsUnknownPermissionCategory(t *t
 		}
 		return agentSpawnCallerInfo(), nil
 	}
-	manager.spawnFn = func(context.Context, session.SpawnOpts) (*session.Session, error) {
+	manager.spawnFn = func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 		spawnCalls++
 		return nil, nil
 	}
@@ -208,7 +208,7 @@ func TestBaseHandlersAgentSpawnStrictDecodeRejectsUnknownPermissionCategory(t *t
 
 type spawnStubSessionManager struct {
 	apitestutil.StubSessionManager
-	spawnFn       func(context.Context, session.SpawnOpts) (*session.Session, error)
+	spawnFn       func(context.Context, *session.SpawnOpts) (*session.Session, error)
 	spawnPromptFn func(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error)
 	spawnWsFn     func(context.Context, string, string) (string, error)
 }
@@ -263,7 +263,7 @@ func (s *spawnWorktreeServiceStub) Remove(
 	return nil, nil
 }
 
-func (s *spawnStubSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error) {
+func (s *spawnStubSessionManager) Spawn(ctx context.Context, opts *session.SpawnOpts) (*session.Session, error) {
 	if s.spawnFn != nil {
 		return s.spawnFn(ctx, opts)
 	}
@@ -316,7 +316,7 @@ func agentSpawnCallerInfo() *session.Info {
 func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 	t.Parallel()
 
-	newManager := func(spawn func(session.SpawnOpts) (*session.Session, error)) *spawnStubSessionManager {
+	newManager := func(spawn func(*session.SpawnOpts) (*session.Session, error)) *spawnStubSessionManager {
 		manager := &spawnStubSessionManager{}
 		manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
 			if id != "sess-parent" {
@@ -324,7 +324,7 @@ func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 			}
 			return agentSpawnCallerInfo(), nil
 		}
-		manager.spawnFn = func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
+		manager.spawnFn = func(_ context.Context, opts *session.SpawnOpts) (*session.Session, error) {
 			return spawn(opts)
 		}
 		return manager
@@ -347,8 +347,8 @@ func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 		var got session.SpawnOpts
 		var prompt session.SpawnPromptRequest
 		ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
-			got = opts
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			got = *opts
 			return &session.Session{
 				ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: "ws-1", WorktreeID: opts.IsolatedWorktreeID,
 				Type: session.SessionTypeSpawned, State: session.StateActive,
@@ -403,8 +403,8 @@ func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 
 		var got session.SpawnOpts
 		ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
-			got = opts
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			got = *opts
 			return &session.Session{
 				ID: "sess-child", WorkspaceID: "ws-foreign", Type: session.SessionTypeSpawned,
 				State: session.StateActive,
@@ -450,7 +450,7 @@ func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 		t.Parallel()
 
 		ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
 			return &session.Session{
 				ID: "sess-child", WorkspaceID: "ws-1", WorktreeID: opts.IsolatedWorktreeID,
 				Type: session.SessionTypeSpawned, State: session.StateActive,
@@ -487,7 +487,7 @@ func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 		t.Parallel()
 
 		ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
 			return &session.Session{
 				ID: "sess-child", WorkspaceID: "ws-1", WorktreeID: opts.IsolatedWorktreeID,
 				Type: session.SessionTypeSpawned, State: session.StateActive,
@@ -510,7 +510,7 @@ func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 	t.Run("Should roll back the created worktree and name the refused field", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnPermissionError{
 				Field: "tools", Value: "shell", Rule: session.SpawnPermissionRuleSubset, Allowed: []string{"read"},
 			}

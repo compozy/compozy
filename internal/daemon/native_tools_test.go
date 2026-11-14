@@ -772,7 +772,7 @@ type nativeOrchestrationSessionManager struct {
 	requestStopFn  func(context.Context, string, session.StopCause, string) error
 	awaitStoppedFn func(context.Context, string) (session.StopOutcome, error)
 	waitFn         func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
-	spawnFn        func(context.Context, session.SpawnOpts) (*session.Session, error)
+	spawnFn        func(context.Context, *session.SpawnOpts) (*session.Session, error)
 	spawnPromptFn  func(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error)
 	spawnWsFn      func(context.Context, string, string) (string, error)
 }
@@ -1127,7 +1127,7 @@ func (m *nativeOrchestrationSessionManager) WaitForBadge(
 
 func (m *nativeOrchestrationSessionManager) Spawn(
 	ctx context.Context,
-	opts session.SpawnOpts,
+	opts *session.SpawnOpts,
 ) (*session.Session, error) {
 	return m.spawnFn(ctx, opts)
 }
@@ -1788,8 +1788,8 @@ func TestDaemonNativeTools(t *testing.T) {
 					Waited: 25 * time.Millisecond, Revision: 7,
 				}, nil
 			},
-			spawnFn: func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
-				spawnOpts = opts
+			spawnFn: func(_ context.Context, opts *session.SpawnOpts) (*session.Session, error) {
+				spawnOpts = *opts
 				return &session.Session{
 					ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: workspaceID,
 					State: session.StateActive, Type: session.SessionTypeSpawned,
@@ -2189,7 +2189,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+			spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 				return nil, errors.New("Spawn() must not run")
 			},
 		}
@@ -2250,7 +2250,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run across workspaces")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+			spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 				return nil, errors.New("Spawn() is not part of targeted cross-workspace calls")
 			},
 		}
@@ -2309,7 +2309,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run without workspace resolution")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+			spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 				return nil, errors.New("Spawn() must not run without workspace resolution")
 			},
 		}
@@ -16450,7 +16450,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	const workspaceID = "ws-orchestration"
 	const callerID = "sess-caller"
 	ttl := time.Date(2026, 8, 16, 18, 0, 0, 0, time.UTC)
-	newManager := func(spawn func(session.SpawnOpts) (*session.Session, error)) *nativeOrchestrationSessionManager {
+	newManager := func(spawn func(*session.SpawnOpts) (*session.Session, error)) *nativeOrchestrationSessionManager {
 		base := nativeTestSessionManager(workspaceID)
 		base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
 			if strings.TrimSpace(id) != callerID {
@@ -16463,10 +16463,12 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		}
 		return &nativeOrchestrationSessionManager{
 			StubSessionManager: *base,
-			spawnFn:            func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) { return spawn(opts) },
+			spawnFn: func(_ context.Context, opts *session.SpawnOpts) (*session.Session, error) {
+				return spawn(opts)
+			},
 		}
 	}
-	child := func(opts session.SpawnOpts) *session.Session {
+	child := func(opts *session.SpawnOpts) *session.Session {
 		return &session.Session{
 			ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: workspaceID, WorktreeID: opts.IsolatedWorktreeID,
 			State: session.StateActive, Type: session.SessionTypeSpawned,
@@ -16484,8 +16486,8 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		var spawnOpts session.SpawnOpts
 		var createOpts worktree.CreateOptions
 		var promptReq session.SpawnPromptRequest
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
-			spawnOpts = opts
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			spawnOpts = *opts
 			return child(opts), nil
 		})
 		manager.spawnWsFn = func(_ context.Context, parent string, ref string) (string, error) {
@@ -16560,7 +16562,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		t.Parallel()
 
 		removed := ""
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnPermissionError{
 				Field: "workspace_paths", Value: "/elsewhere", Rule: session.SpawnPermissionRuleSubset,
 			}
@@ -16611,8 +16613,8 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		const foreignID = "ws-compozy"
 		var spawnOpts session.SpawnOpts
 		deny := true
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
-			spawnOpts = opts
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			spawnOpts = *opts
 			return child(opts), nil
 		})
 		manager.spawnWsFn = func(_ context.Context, parent string, ref string) (string, error) {
@@ -16670,7 +16672,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should report an exhausted spawn budget with its cap and live count", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnLimitError{
 				Limit: session.SpawnLimitMaxChildren, Max: 5, Live: 5, Scope: callerID,
 			}
@@ -16695,7 +16697,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should keep the runtime override rule when a spawn passes model without provider", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("%w when model is set", session.ErrRuntimeOverrideProviderRequired)
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -16716,7 +16718,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should name the rejected runtime field instead of asking for a provider", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("%w: model \"gpt-test\" is not offered by claude", session.ErrInvalidRuntimeOverride)
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -16738,7 +16740,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should report a depth refusal with the subagent recovery instead of the child cap", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnDepthError{Parent: callerID, ChildDepth: 2, Max: 1}
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -16764,7 +16766,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 
 		removed := ""
 		hookFailure := true
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
 			if hookFailure {
 				return child(opts), errors.New("spawn.created hook failed")
 			}
@@ -16814,7 +16816,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should refuse worktree and new_worktree together before spawning", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			t.Fatal("Spawn() called for conflicting worktree selectors")
 			return nil, nil
 		})
@@ -18672,7 +18674,7 @@ func TestNativeSessionResultViews(t *testing.T) {
 						archived.ArchivedAt = &now
 						return &archived, nil
 					},
-					spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+					spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 						return &session.Session{
 							ID:            "sess-child",
 							AgentName:     "general",

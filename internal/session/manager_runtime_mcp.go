@@ -3,6 +3,7 @@ package session
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -18,14 +19,27 @@ type RuntimeMCPInventory interface {
 	List(context.Context, runtimemcp.Request) (runtimemcp.Inventory, error)
 }
 
-// WithRuntimeMCPInventory shares the daemon inventory cache with session admission.
 const (
 	runtimeMCPQwenCode = "qwen-code"
 	runtimeMCPOff      = "off"
 )
 
+// WithRuntimeMCPInventory shares the daemon inventory cache with session admission.
 func WithRuntimeMCPInventory(inventory RuntimeMCPInventory) Option {
 	return func(m *Manager) { m.runtimeMCPInventory = inventory }
+}
+
+// WithRuntimeMCPReader supplies a standalone reader with the installation's digest key.
+// Daemon managers use WithRuntimeMCPInventory to share their cached inventory instead.
+func WithRuntimeMCPReader(reader runtimemcp.Reader) Option {
+	return WithRuntimeMCPInventory(runtimeMCPReaderInventory{reader: reader})
+}
+
+type runtimeMCPReaderInventory struct{ reader runtimemcp.Reader }
+
+func (i runtimeMCPReaderInventory) List(ctx context.Context, request runtimemcp.Request) (runtimemcp.Inventory, error) {
+	inventory, _, err := i.reader.List(ctx, request)
+	return inventory, err
 }
 
 func runtimeMCPDescriptor(agent compozyconfig.ResolvedAgent) (runtimemcp.Descriptor, bool) {
@@ -50,13 +64,23 @@ func runtimeMCPNeedsDigest(descriptor runtimemcp.Descriptor, mode string) bool {
 }
 
 func (m *Manager) readRuntimeMCP(ctx context.Context, request runtimemcp.Request) (runtimemcp.Snapshot, error) {
-	var inventory runtimemcp.Inventory
-	var err error
-	if m.runtimeMCPInventory != nil {
-		inventory, err = m.runtimeMCPInventory.List(ctx, request)
-	} else {
-		inventory, _, err = (runtimemcp.Reader{}).List(ctx, request)
+	descriptors := runtimemcp.Descriptors()
+	index := slices.IndexFunc(descriptors, func(descriptor runtimemcp.Descriptor) bool {
+		return descriptor.Runtime == request.Runtime
+	})
+	if index < 0 {
+		// Session providers are extensible; only known runtimes have native inventory.
+		// In particular, an empty session provider must not request every runtime.
+		return runtimemcp.Snapshot{
+			Runtime: request.Runtime, DisplayName: request.Runtime, ReadState: "ok",
+			Servers: []runtimemcp.Server{},
+		}, nil
 	}
+	descriptor := descriptors[index]
+	if m.runtimeMCPInventory == nil {
+		return runtimemcp.Snapshot{}, errors.New("session: runtime MCP inventory is not configured")
+	}
+	inventory, err := m.runtimeMCPInventory.List(ctx, request)
 	if err != nil {
 		return runtimemcp.Snapshot{}, err
 	}
@@ -65,16 +89,9 @@ func (m *Manager) readRuntimeMCP(ctx context.Context, request runtimemcp.Request
 			return snapshot, nil
 		}
 	}
-	canDisable, displayName := false, ""
-	for _, descriptor := range runtimemcp.Descriptors() {
-		if descriptor.Runtime == request.Runtime {
-			canDisable, displayName = descriptor.CanDisableRuntimeMCP, descriptor.DisplayName
-			break
-		}
-	}
 	return runtimemcp.Snapshot{
-		Runtime: request.Runtime, DisplayName: displayName, ReadState: "ok",
-		RuntimeMCP:       runtimemcp.RuntimeMode{CanDisable: canDisable},
+		Runtime: request.Runtime, DisplayName: descriptor.DisplayName, ReadState: "ok",
+		RuntimeMCP:       runtimemcp.RuntimeMode{CanDisable: descriptor.CanDisableRuntimeMCP},
 		ActivationDigest: activationFingerprint("", request.Runtime, ""),
 	}, nil
 }

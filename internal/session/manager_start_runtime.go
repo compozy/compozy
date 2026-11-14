@@ -241,7 +241,7 @@ func (s *sessionStartSpec) startLogger(m *Manager) *slog.Logger {
 
 func (m *Manager) populateStartupInstanceIdentity(ctx context.Context, startupCtx *StartupPromptContext) error {
 	if startupCtx.InstanceID == "" {
-		current, err := m.Status(ctx, startupCtx.SessionID)
+		current, err := m.StoredStatus(ctx, startupCtx.SessionID)
 		if err != nil && !errors.Is(err, ErrSessionNotFound) {
 			return fmt.Errorf("session: resolve startup instance: %w", err)
 		}
@@ -254,7 +254,7 @@ func (m *Manager) populateStartupInstanceIdentity(ctx context.Context, startupCt
 		parentID := startupCtx.Lineage.ParentSessionID
 		for parentID != "" && !seen[parentID] {
 			seen[parentID] = true
-			parent, err := m.Status(ctx, parentID)
+			parent, err := m.StoredStatus(ctx, parentID)
 			if errors.Is(err, ErrSessionNotFound) {
 				break
 			}

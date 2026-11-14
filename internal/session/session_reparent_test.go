@@ -255,7 +255,7 @@ func TestManagerAdoptSession(t *testing.T) {
 		h := newSpawnReparentHarness(t)
 		ctx := testutil.Context(t)
 		parent := h.spawnParent(t)
-		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+		worker, err := h.manager.Spawn(ctx, &SpawnOpts{
 			ParentSessionID:  parent.ID,
 			AgentName:        "coder",
 			Name:             "worker",
@@ -332,7 +332,7 @@ func TestManagerAdoptSession(t *testing.T) {
 		catalog.GlobalDB = h.db
 		ctx := testutil.Context(t)
 		parent := h.spawnParent(t)
-		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+		worker, err := h.manager.Spawn(ctx, &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
 		})
 		if err != nil {
@@ -377,7 +377,7 @@ func TestManagerAdoptSession(t *testing.T) {
 		catalog.GlobalDB = h.db
 		ctx := testutil.Context(t)
 		parent := h.spawnParent(t)
-		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+		worker, err := h.manager.Spawn(ctx, &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
 		})
 		if err != nil {
@@ -415,7 +415,7 @@ func TestManagerAdoptSession(t *testing.T) {
 		ctx := testutil.Context(t)
 		parent := h.spawnParent(t)
 		t.Cleanup(func() { reportSessionStop(t, h.harness, parent.ID) })
-		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+		worker, err := h.manager.Spawn(ctx, &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
 		})
 		if err != nil {
@@ -719,7 +719,7 @@ func TestValidateReparentNodes(t *testing.T) {
 
 func (h *harness) spawnBoundWorker(t *testing.T, parent *Session) *Session {
 	t.Helper()
-	worker, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+	worker, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 		ParentSessionID:  parent.ID,
 		AgentName:        "coder",
 		Name:             "worker",

@@ -41,6 +41,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
@@ -4133,6 +4134,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 
 	manager, err := session.NewManager(
 		session.WithHomePaths(d.homePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(func() *integrationDriver {

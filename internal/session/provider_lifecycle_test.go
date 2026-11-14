@@ -1052,6 +1052,48 @@ func TestPromptMCPActivationDecision(t *testing.T) {
 // Invariant: equal tool counts do not hide changed advertised schemas; owner: session activation snapshot (UT-081).
 func TestMCPReadSnapshotCatalogChanges(t *testing.T) {
 	t.Parallel()
+	// Invariant: missing provider identity has no native inventory, while configured runtime aliases retain theirs.
+	// Owner: session MCP read context; canonical suite: provider lifecycle snapshots.
+	for _, tc := range []struct {
+		name, provider, runtime string
+	}{
+		{"empty provider", "", ""},
+		{"removed provider", "removed-acp", "removed-acp"},
+		{"native runtime alias", "custom-claude", "claude"},
+	} {
+		t.Run("Should resolve inventory for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			h, launcher := newActivationHarness(t)
+			active := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			if tc.provider == "custom-claude" {
+				provider, err := h.cfg.ResolveProvider("claude")
+				if err != nil {
+					t.Fatal(err)
+				}
+				provider.RuntimeProvider = "claude"
+				h.cfg.Providers[tc.provider] = provider
+				workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				workspace.Config = h.cfg
+				h.resolver.upsert(&workspace)
+			}
+			active.mu.Lock()
+			active.Provider = tc.provider
+			active.activation.runtimeRequest = nil
+			active.mu.Unlock()
+			result, err := h.manager.MCPReadSnapshot(t.Context(), active.ID, launcher.catalog)
+			if err != nil || result.Inventory.Runtime != tc.runtime || result.Inventory.ReadState != "ok" {
+				t.Fatalf("runtime snapshot = %+v, %v", result, err)
+			}
+			if tc.runtime != "claude" && (result.Inventory.DisplayName != tc.provider ||
+				len(result.Inventory.Servers) != 0 || result.Inventory.RuntimeMCP.CanDisable) {
+				t.Fatalf("provider without inventory acquired native servers: %+v", result.Inventory)
+			}
+		})
+	}
 	t.Run("Should identify only the server whose schema changed", func(t *testing.T) {
 		t.Parallel()
 		h, launcher := newActivationHarness(t)

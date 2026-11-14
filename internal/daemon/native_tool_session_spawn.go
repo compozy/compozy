@@ -19,7 +19,7 @@ import (
 const nativeSpawnRefusalMaxBytes = 2048
 
 type nativeSessionSpawner interface {
-	Spawn(context.Context, session.SpawnOpts) (*session.Session, error)
+	Spawn(context.Context, *session.SpawnOpts) (*session.Session, error)
 	ResolveSpawnWorkspace(context.Context, string, string) (string, error)
 	SendSpawnPrompt(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error)
 }
@@ -124,12 +124,12 @@ func (n *daemonNativeTools) resolveNativeSpawnPlacement(
 	return workspaceID, target, nil
 }
 
-func nativeSpawnOpts(input nativeSessionSpawnInput, parentID string, workspaceID string) session.SpawnOpts {
+func nativeSpawnOpts(input nativeSessionSpawnInput, parentID string, workspaceID string) *session.SpawnOpts {
 	autoStop := true
 	if input.AutoStopOnParent != nil {
 		autoStop = *input.AutoStopOnParent
 	}
-	return session.SpawnOpts{
+	return &session.SpawnOpts{
 		ParentSessionID:  parentID,
 		AgentName:        strings.TrimSpace(input.AgentName),
 		Provider:         strings.TrimSpace(input.Provider),

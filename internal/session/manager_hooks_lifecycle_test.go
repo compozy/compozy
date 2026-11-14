@@ -305,7 +305,7 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 		}
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 		parent := createSession(t, h)
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,

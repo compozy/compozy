@@ -49,28 +49,7 @@ func (m *Manager) sessionMCPServers(
 		if required {
 			return nil, fmt.Errorf("%w: hosted MCP launcher is not configured", ErrHostedMCPUnavailable)
 		}
-		spec.startLogger(m).Warn(
-			"session.mcp.hosted_mcp_unavailable",
-			"reason", "hosted_mcp_launcher_unavailable",
-			"resolved_agent_name", strings.TrimSpace(resolved.Name),
-			"resolved_provider", strings.TrimSpace(resolved.Provider),
-			"configured_mcp_servers", len(resolved.MCPServers),
-		)
-		servers, err := m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
-		if err == nil && m.mcpConsentFilter != nil {
-			servers, err = m.mcpConsentFilter(ctx, spec.profileID, spec.workspace.ID, servers)
-		}
-		if err != nil {
-			return nil, err
-		}
-		policy, err := m.effectiveStartAuthority(ctx, spec)
-		if err != nil {
-			return nil, err
-		}
-		servers = slices.DeleteFunc(servers, func(server compozyconfig.MCPServer) bool {
-			return !slices.Contains(policy.MCPServers, server.Name)
-		})
-		return servers, err
+		return m.directSessionMCPServers(ctx, spec, resolved, agentDef)
 	}
 	hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{
 		EagerTools:  true,
@@ -93,6 +72,36 @@ func (m *Manager) sessionMCPServers(
 		spec.checkInToolsStatus = "enabled"
 	}
 	return []compozyconfig.MCPServer{hosted}, nil
+}
+
+func (m *Manager) directSessionMCPServers(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	resolved compozyconfig.ResolvedAgent,
+	agentDef compozyconfig.AgentDef,
+) ([]compozyconfig.MCPServer, error) {
+	spec.startLogger(m).Warn(
+		"session.mcp.hosted_mcp_unavailable",
+		"reason", "hosted_mcp_launcher_unavailable",
+		"resolved_agent_name", strings.TrimSpace(resolved.Name),
+		"resolved_provider", strings.TrimSpace(resolved.Provider),
+		"configured_mcp_servers", len(resolved.MCPServers),
+	)
+	servers, err := m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
+	if err == nil && m.mcpConsentFilter != nil {
+		servers, err = m.mcpConsentFilter(ctx, spec.profileID, spec.workspace.ID, servers)
+	}
+	if err != nil {
+		return nil, err
+	}
+	policy, err := m.effectiveStartAuthority(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	servers = slices.DeleteFunc(servers, func(server compozyconfig.MCPServer) bool {
+		return !slices.Contains(policy.MCPServers, server.Name)
+	})
+	return servers, err
 }
 
 func sessionRequiresHostedMCP(spec *sessionStartSpec, resolved compozyconfig.ResolvedAgent) bool {

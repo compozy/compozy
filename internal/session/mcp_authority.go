@@ -80,3 +80,10 @@ func (m *Manager) decorateMCPAuthority(ctx context.Context, info *Info) {
 			"profile_id", info.ProfileID, "workspace_id", info.WorkspaceID, "error", err)
 	}
 }
+
+func (m *Manager) decorateMCPAuthorities(ctx context.Context, infos []*Info) {
+	ctx = m.mcpAuthorityReadContext(ctx)
+	for _, info := range infos {
+		m.decorateMCPAuthority(ctx, info)
+	}
+}

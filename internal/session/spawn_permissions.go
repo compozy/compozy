@@ -6,6 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -78,7 +81,7 @@ func policyFromHookPermissionSet(src *hookspkg.PermissionSet) store.SessionPermi
 	})
 }
 
-func spawnWorkspaceCreateRefs(parent *Info, opts SpawnOpts) (string, string) {
+func spawnWorkspaceCreateRefs(parent *Info, opts *SpawnOpts) (string, string) {
 	if workspaceID := strings.TrimSpace(opts.Workspace); workspaceID != "" {
 		return workspaceID, ""
 	}
@@ -162,4 +165,58 @@ func (m *Manager) validateEffectiveSpawnSubset(ctx context.Context, parent *Info
 		return err
 	}
 	return ValidatePermissionSubset(ceiling, child)
+}
+
+func normalizeSpawnOpts(opts *SpawnOpts) (SpawnOpts, error) {
+	if opts == nil {
+		return SpawnOpts{}, spawnValidation("spawn options are required")
+	}
+	normalized := *opts
+	normalized.ParentSessionID = strings.TrimSpace(normalized.ParentSessionID)
+	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
+	normalized.Provider = strings.TrimSpace(normalized.Provider)
+	normalized.Model = strings.TrimSpace(normalized.Model)
+	normalized.Command = strings.TrimSpace(normalized.Command)
+	normalized.SessionEnv = compozyconfig.MergeSessionEnv(nil, normalized.SessionEnv)
+	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
+	var err error
+	normalized.ACPOptions, err = acp.NormalizeSessionConfigOptionSelections(normalized.ACPOptions)
+	if err != nil {
+		return SpawnOpts{}, spawnValidation(err.Error())
+	}
+	if normalized.Speed != "" {
+		parsedSpeed, err := speedpkg.Parse(string(normalized.Speed))
+		if err != nil {
+			return SpawnOpts{}, spawnValidation(err.Error())
+		}
+		normalized.Speed = parsedSpeed
+	}
+	normalized.Name = strings.TrimSpace(normalized.Name)
+	normalized.Workspace = strings.TrimSpace(normalized.Workspace)
+	normalized.WorkspacePath = strings.TrimSpace(normalized.WorkspacePath)
+	normalized.PromptOverlay = strings.TrimSpace(normalized.PromptOverlay)
+	normalized.SpawnRole = normalizeSpawnRole(normalized.SpawnRole)
+	if IsInternalSpawnRole(normalized.SpawnRole) {
+		normalized.NotifyCreator = false
+		normalized.NotifyCreatorSet = true
+	} else if !normalized.NotifyCreatorSet {
+		normalized.NotifyCreator = true
+	}
+	normalized.PermissionPolicy = store.NormalizeSessionPermissionPolicy(normalized.PermissionPolicy)
+	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
+
+	switch {
+	case normalized.ParentSessionID == "":
+		return SpawnOpts{}, spawnValidation("parent_session_id is required")
+	case normalized.AgentName == "":
+		return SpawnOpts{}, spawnValidation("agent_name is required")
+	case normalized.SpawnRole == store.SubagentSpawnRole && normalized.TTL != 0:
+		return SpawnOpts{}, ErrSubagentCapabilityDenied
+	case normalized.TTL <= 0 && normalized.SpawnRole != store.SubagentSpawnRole:
+		return SpawnOpts{}, spawnValidation("ttl is required and must be positive")
+	case isCoordinatorSpawnRole(normalized.SpawnRole):
+		return SpawnOpts{}, spawnValidation("coordinator spawn role is not supported in MVP")
+	default:
+		return normalized, nil
+	}
 }

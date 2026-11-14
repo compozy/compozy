@@ -30,13 +30,32 @@ must expose their MCP inventory. `GET /api/workspaces/{ws}/sessions/{id}` return
 as a profile-scoped Settings overlay. The canonical real-daemon check is
 `TestDaemonSessionMCPReadSurfaces`; `TestSessionMCPReadModel` covers both scope selectors.
 
+Repeat the session-detail and `/mcp` reads with a custom ACP provider (the isolated `acpmock`
+provider is the automated fixture), with a configured CompozyOS MCP source, before and after its
+first prompt. Both return 200, session detail
+includes `mcp_summary`, and the MCP runtime section has an empty server list with the provider ID as
+its display name. Unsupported or empty session provider identity must not scan another runtime's
+native files. Explicit unknown runtime filters on the Settings inventory route still fail validation.
+The custom-provider branch of `TestDaemonSessionMCPReadSurfaces` verifies the HTTP behavior with a
+real daemon and ACP process; `TestRuntimeMCPStartup` and `TestMCPReadSnapshotCatalogChanges` cover the
+empty identity and configured native-runtime alias boundaries.
+
+For a known native runtime, compare its session inventory with Settings and copy one native server
+from the session popover. Restart the isolated daemon with the same `COMPOZY_HOME`: the definition
+digest must stay equal to the listed source, copying must still succeed, and the unchanged native
+configuration must not acquire a pending-reload marker. Session managers consume the daemon's keyed
+inventory; missing inventory wiring must fail instead of generating a new identity. The keyed
+identity boundary is covered by `TestRuntimeMCPStartup`.
+
 Steps:
 
 1. Session with: echo (ready), an OAuth server not signed in, the waiting `sentry` project fixture,
    and a broken stdio server. Open the control with Enter; Tab reaches every row action.
    Screenshot each state: Ready · N tools; Needs sign-in; Waiting for approval; Couldn't connect.
 2. Add a server: the trigger shows the pending dot and the header "Applies on your next message"
-   without reopening (driven by `session.mcp_changed`).
+   without reopening (driven by `session.mcp_changed`). Send a message to apply the change; after its
+   terminal output, immediately send another. Both messages complete normally, the reload outcome
+   remains in the durable session log, and the second message is not refused as already in progress.
 3. Spawn a child narrowed to `compozy` only; its control lists echo/sentry under "Not available in
    this session" with "Limited by the parent session", collapsed by default.
 4. Runtime section: "Loaded by Claude Code" rows and "Manage in Settings"; with runtime_mcp off,

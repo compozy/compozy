@@ -16,9 +16,10 @@ import (
 func (m *Manager) dispatchSpawnPreCreate(
 	ctx context.Context,
 	parent *Info,
-	opts SpawnOpts,
+	optsInput *SpawnOpts,
 	lineage *store.SessionLineage,
 ) (SpawnOpts, *store.SessionLineage, error) {
+	opts := *optsInput
 	parentPolicy, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, parent), parent.ID)
 	if err != nil {
 		return SpawnOpts{}, nil, err
@@ -69,28 +70,30 @@ func (m *Manager) dispatchSpawnPreCreate(
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSpawnPermissionDenied, reason)
 	}
 
-	if expectedSubagent != nil &&
-		(result.Subagent == nil || result.Subagent.Isolation != expectedSubagent.Isolation ||
-			result.Subagent.WorktreeID != expectedSubagent.WorktreeID) {
-		return SpawnOpts{}, nil, &SubagentError{
-			Code:    subagentCapabilityDeniedCode,
-			Message: "inherited worktree binding is immutable",
-			Err:     ErrSubagentCapabilityDenied,
-		}
-	}
-	if opts.SpawnRole == store.SubagentSpawnRole &&
-		(result.TTLSeconds != 0 || result.SpawnRole != store.SubagentSpawnRole) {
-		return SpawnOpts{}, nil, ErrSubagentCapabilityDenied
+	if err := validateSubagentSpawnHook(opts.SpawnRole, expectedSubagent, &result); err != nil {
+		return SpawnOpts{}, nil, err
 	}
 	opts.AgentName = strings.TrimSpace(result.AgentName)
 	opts.SpawnRole = normalizeSpawnRole(result.SpawnRole)
 	opts.TTL = time.Duration(result.TTLSeconds) * time.Second
-	previousPolicy := store.NormalizeSessionPermissionPolicy(opts.PermissionPolicy)
 	narrowed := policyFromHookPermissionSet(result.ChildPermissions)
 	if err := ValidatePermissionSubset(childPolicy, narrowed); err != nil {
 		return SpawnOpts{}, nil, err
 	}
-	opts.PermissionPolicy = previousPolicy
+	applySpawnHookPermissions(&opts, childPolicy, narrowed)
+	normalized, err := normalizeSpawnOpts(&opts)
+	if err != nil {
+		return SpawnOpts{}, nil, err
+	}
+	lineage, err = m.spawnLineage(ctx, parent, &normalized)
+	if err != nil {
+		return SpawnOpts{}, nil, err
+	}
+	return normalized, lineage, nil
+}
+
+func applySpawnHookPermissions(opts *SpawnOpts, childPolicy, narrowed store.SessionPermissionPolicy) {
+	opts.PermissionPolicy = store.NormalizeSessionPermissionPolicy(opts.PermissionPolicy)
 	opts.PermissionPolicy.Skills = narrowed.Skills
 	opts.PermissionPolicy.WorkspacePaths = narrowed.WorkspacePaths
 	if !slices.Equal(childPolicy.Tools, narrowed.Tools) {
@@ -102,15 +105,27 @@ func (m *Manager) dispatchSpawnPreCreate(
 		opts.PermissionPolicy.MCPServers = narrowed.MCPServers
 		opts.PermissionPolicy.MCPServersMode = store.PermissionList
 	}
-	normalized, err := normalizeSpawnOpts(opts)
-	if err != nil {
-		return SpawnOpts{}, nil, err
+}
+
+func validateSubagentSpawnHook(
+	role string,
+	expectedSubagent *hookspkg.SubagentSpawnPayload,
+	result *hookspkg.SpawnPreCreatePayload,
+) error {
+	if expectedSubagent != nil &&
+		(result.Subagent == nil || result.Subagent.Isolation != expectedSubagent.Isolation ||
+			result.Subagent.WorktreeID != expectedSubagent.WorktreeID) {
+		return &SubagentError{
+			Code:    subagentCapabilityDeniedCode,
+			Message: "inherited worktree binding is immutable",
+			Err:     ErrSubagentCapabilityDenied,
+		}
 	}
-	lineage, err = m.spawnLineage(ctx, parent, normalized)
-	if err != nil {
-		return SpawnOpts{}, nil, err
+	if role == store.SubagentSpawnRole &&
+		(result.TTLSeconds != 0 || result.SpawnRole != store.SubagentSpawnRole) {
+		return ErrSubagentCapabilityDenied
 	}
-	return normalized, lineage, nil
+	return nil
 }
 
 func (m *Manager) dispatchSpawnCreated(ctx context.Context, parent *Info, child *Info) error {

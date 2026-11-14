@@ -131,7 +131,7 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		opts.IsolatedWorktreeID = row.WorktreeState().ID
 		opts.Subagent.WorktreeID = row.WorktreeState().ID
 	}
-	return s.startDelegation(ctx, req, row, opts, finishFlight)
+	return s.startDelegation(ctx, req, row, &opts, finishFlight)
 }
 
 func subagentSpawnOptions(row store.SessionSubagent, target SubagentTarget,
@@ -165,7 +165,7 @@ func (s *subagentService) startDelegation(
 	ctx context.Context,
 	req SubagentRequest,
 	row store.SessionSubagent,
-	opts SpawnOpts,
+	opts *SpawnOpts,
 	finishFlight func(),
 ) (Subagent, error) {
 	id := row.ID

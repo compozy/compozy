@@ -89,7 +89,7 @@ var knownPermissionCategories = []permissionCategory{
 
 // Spawn creates a bounded child session after enforcing lineage, TTL, caps,
 // workspace bounds, and permission narrowing.
-func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
+func (m *Manager) Spawn(ctx context.Context, opts *SpawnOpts) (*Session, error) {
 	if m == nil {
 		return nil, errors.New("session: manager is required")
 	}
@@ -104,7 +104,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent, normalized)
+	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent, &normalized)
 	desiredID := ""
 	if normalized.SpawnRole == store.SubagentSpawnRole && normalized.IdempotencyKey != "" {
 		desiredID = subagentChildSessionID(parent.ID, normalized.IdempotencyKey)
@@ -153,7 +153,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 
 func (m *Manager) prepareSpawn(
 	ctx context.Context,
-	opts SpawnOpts,
+	opts *SpawnOpts,
 ) (SpawnOpts, *Info, *store.SessionLineage, error) {
 	normalized, err := normalizeSpawnOpts(opts)
 	if err != nil {
@@ -178,7 +178,7 @@ func (m *Manager) prepareSpawn(
 	if normalized.IsolatedWorktreeID != "" {
 		normalized.InheritedWorktreeID = normalized.IsolatedWorktreeID
 	}
-	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)
+	normalized, err = m.validateSpawnWorkspace(ctx, parent, &normalized)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
@@ -187,7 +187,7 @@ func (m *Manager) prepareSpawn(
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
-	lineage, err := m.spawnLineage(ctx, parent, normalized)
+	lineage, err := m.spawnLineage(ctx, parent, &normalized)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
@@ -196,14 +196,14 @@ func (m *Manager) prepareSpawn(
 	}
 
 	expectedWorktreeID := normalized.InheritedWorktreeID
-	normalized, lineage, err = m.dispatchSpawnPreCreate(ctx, parent, normalized, lineage)
+	normalized, lineage, err = m.dispatchSpawnPreCreate(ctx, parent, &normalized, lineage)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
 	if strings.TrimSpace(normalized.InheritedWorktreeID) != expectedWorktreeID {
 		return SpawnOpts{}, nil, nil, spawnValidation("inherited worktree binding is immutable")
 	}
-	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)
+	normalized, err = m.validateSpawnWorkspace(ctx, parent, &normalized)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
@@ -211,57 +211,6 @@ func (m *Manager) prepareSpawn(
 		return SpawnOpts{}, nil, nil, err
 	}
 	return normalized, parent, lineage, nil
-}
-
-func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
-	normalized := opts
-	normalized.ParentSessionID = strings.TrimSpace(normalized.ParentSessionID)
-	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
-	normalized.Provider = strings.TrimSpace(normalized.Provider)
-	normalized.Model = strings.TrimSpace(normalized.Model)
-	normalized.Command = strings.TrimSpace(normalized.Command)
-	normalized.SessionEnv = compozyconfig.MergeSessionEnv(nil, normalized.SessionEnv)
-	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
-	var err error
-	normalized.ACPOptions, err = acp.NormalizeSessionConfigOptionSelections(normalized.ACPOptions)
-	if err != nil {
-		return SpawnOpts{}, spawnValidation(err.Error())
-	}
-	if normalized.Speed != "" {
-		parsedSpeed, err := speedpkg.Parse(string(normalized.Speed))
-		if err != nil {
-			return SpawnOpts{}, spawnValidation(err.Error())
-		}
-		normalized.Speed = parsedSpeed
-	}
-	normalized.Name = strings.TrimSpace(normalized.Name)
-	normalized.Workspace = strings.TrimSpace(normalized.Workspace)
-	normalized.WorkspacePath = strings.TrimSpace(normalized.WorkspacePath)
-	normalized.PromptOverlay = strings.TrimSpace(normalized.PromptOverlay)
-	normalized.SpawnRole = normalizeSpawnRole(normalized.SpawnRole)
-	if IsInternalSpawnRole(normalized.SpawnRole) {
-		normalized.NotifyCreator = false
-		normalized.NotifyCreatorSet = true
-	} else if !normalized.NotifyCreatorSet {
-		normalized.NotifyCreator = true
-	}
-	normalized.PermissionPolicy = store.NormalizeSessionPermissionPolicy(normalized.PermissionPolicy)
-	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-
-	switch {
-	case normalized.ParentSessionID == "":
-		return SpawnOpts{}, spawnValidation("parent_session_id is required")
-	case normalized.AgentName == "":
-		return SpawnOpts{}, spawnValidation("agent_name is required")
-	case normalized.SpawnRole == store.SubagentSpawnRole && normalized.TTL != 0:
-		return SpawnOpts{}, ErrSubagentCapabilityDenied
-	case normalized.TTL <= 0 && normalized.SpawnRole != store.SubagentSpawnRole:
-		return SpawnOpts{}, spawnValidation("ttl is required and must be positive")
-	case isCoordinatorSpawnRole(normalized.SpawnRole):
-		return SpawnOpts{}, spawnValidation("coordinator spawn role is not supported in MVP")
-	default:
-		return normalized, nil
-	}
 }
 
 func (m *Manager) spawnParent(ctx context.Context, parentID string) (*Info, error) {
@@ -282,8 +231,9 @@ func (m *Manager) spawnParent(ctx context.Context, parentID string) (*Info, erro
 func (m *Manager) validateSpawnWorkspace(
 	ctx context.Context,
 	parent *Info,
-	opts SpawnOpts,
+	optsInput *SpawnOpts,
 ) (SpawnOpts, error) {
+	opts := *optsInput
 	if parent == nil {
 		return SpawnOpts{}, spawnValidation("parent session is required")
 	}
@@ -321,34 +271,8 @@ func (m *Manager) validateSpawnWorkspace(
 		}
 		targetWorkspaceID = resolvedID
 	}
-	parentWorkspaceID := strings.TrimSpace(parent.WorkspaceID)
-
-	if parentWorkspaceID != targetWorkspaceID {
-		policy := m.workspaceAccessPolicy()
-		if policy == nil {
-			return SpawnOpts{}, spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
-		}
-		decision, authorizeErr := policy.Authorize(ctx, workspaceaccess.Request{
-			Actor: workspaceaccess.ActorRef{
-				Kind:        workspaceaccess.ActorAgentSession,
-				SessionID:   strings.TrimSpace(parent.ID),
-				WorkspaceID: parentWorkspaceID,
-				AgentName:   strings.TrimSpace(parent.AgentName),
-			},
-			Target: workspaceaccess.ScopeTarget(targetWorkspaceID, parent.ProfileID),
-			Seam:   workspaceaccess.SeamSpawn,
-		})
-		if authorizeErr != nil {
-			return SpawnOpts{}, fmt.Errorf(
-				"%w: authorize child workspace %q: %w",
-				ErrSpawnValidation,
-				targetWorkspaceID,
-				authorizeErr,
-			)
-		}
-		if !decision.Allowed {
-			return SpawnOpts{}, spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
-		}
+	if err := m.authorizeSpawnWorkspace(ctx, parent, targetWorkspaceID); err != nil {
+		return SpawnOpts{}, err
 	}
 	opts.Workspace = targetWorkspaceID
 	if targetWorkspaceID == "" {
@@ -362,10 +286,43 @@ func (m *Manager) validateSpawnWorkspace(
 	return opts, nil
 }
 
+func (m *Manager) authorizeSpawnWorkspace(ctx context.Context, parent *Info, targetWorkspaceID string) error {
+	parentWorkspaceID := strings.TrimSpace(parent.WorkspaceID)
+
+	if parentWorkspaceID != targetWorkspaceID {
+		policy := m.workspaceAccessPolicy()
+		if policy == nil {
+			return spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
+		}
+		decision, authorizeErr := policy.Authorize(ctx, workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   strings.TrimSpace(parent.ID),
+				WorkspaceID: parentWorkspaceID,
+				AgentName:   strings.TrimSpace(parent.AgentName),
+			},
+			Target: workspaceaccess.ScopeTarget(targetWorkspaceID, parent.ProfileID),
+			Seam:   workspaceaccess.SeamSpawn,
+		})
+		if authorizeErr != nil {
+			return fmt.Errorf(
+				"%w: authorize child workspace %q: %w",
+				ErrSpawnValidation,
+				targetWorkspaceID,
+				authorizeErr,
+			)
+		}
+		if !decision.Allowed {
+			return spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
+		}
+	}
+	return nil
+}
+
 func (m *Manager) spawnLineage(
 	ctx context.Context,
 	parent *Info,
-	opts SpawnOpts,
+	opts *SpawnOpts,
 ) (*store.SessionLineage, error) {
 	parentLineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
 	if opts.SpawnRole == store.SubagentSpawnRole {
