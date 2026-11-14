@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 import { CodeBlock } from "../custom/code-block";
-import { StreamMarkdown } from "../custom/stream-markdown";
+import { StreamMarkdown, type StreamMarkdownProps } from "../custom/stream-markdown";
 import { FileHtmlPreview } from "./file-html-preview";
 import { imageDataUrl } from "./image-data-url";
 import { parseNotebook, type NotebookCell, type NotebookOutput } from "./notebook-model";
@@ -14,11 +14,24 @@ export interface FileNotebookPreviewProps extends Omit<React.ComponentProps<"div
   text: string;
   /** Rendered when the text is not a readable nbformat 4 notebook. */
   fallback?: React.ReactNode;
+  /** Link and image handling for markdown cells and outputs, such as the notebook's directory. */
+  markdown?: NotebookMarkdownProps;
 }
+
+export type NotebookMarkdownProps = Pick<
+  StreamMarkdownProps,
+  "components" | "localLinkComponent" | "linkBase"
+>;
 
 const OUTPUT_TEXT = "overflow-x-auto px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap";
 
-function CellOutput({ output }: { output: NotebookOutput }) {
+function CellOutput({
+  output,
+  markdown,
+}: {
+  output: NotebookOutput;
+  markdown: NotebookMarkdownProps | undefined;
+}) {
   switch (output.kind) {
     case "text":
       return (
@@ -43,7 +56,7 @@ function CellOutput({ output }: { output: NotebookOutput }) {
     }
     case "markdown":
       return (
-        <StreamMarkdown data-slot="file-notebook-output" className="px-3 py-2">
+        <StreamMarkdown {...markdown} data-slot="file-notebook-output" className="px-3 py-2">
           {output.text}
         </StreamMarkdown>
       );
@@ -70,11 +83,19 @@ function CellOutput({ output }: { output: NotebookOutput }) {
   }
 }
 
-function Cell({ cell, language }: { cell: NotebookCell; language: string }) {
+function Cell({
+  cell,
+  language,
+  markdown,
+}: {
+  cell: NotebookCell;
+  language: string;
+  markdown: NotebookMarkdownProps | undefined;
+}) {
   if (cell.kind === "markdown") {
     return (
       <div data-slot="file-notebook-cell" data-cell="markdown" className="px-[4.5rem]">
-        <StreamMarkdown>{cell.source}</StreamMarkdown>
+        <StreamMarkdown {...markdown}>{cell.source}</StreamMarkdown>
       </div>
     );
   }
@@ -103,7 +124,7 @@ function Cell({ cell, language }: { cell: NotebookCell; language: string }) {
         {cell.outputs.length > 0 ? (
           <div className="flex flex-col overflow-hidden rounded-sm border border-line-soft">
             {cell.outputs.map(output => (
-              <CellOutput key={output.id} output={output} />
+              <CellOutput key={output.id} output={output} markdown={markdown} />
             ))}
           </div>
         ) : null}
@@ -119,6 +140,7 @@ function Cell({ cell, language }: { cell: NotebookCell; language: string }) {
 function FileNotebookPreview({
   text,
   fallback = null,
+  markdown,
   className,
   ...props
 }: FileNotebookPreviewProps) {
@@ -133,7 +155,7 @@ function FileNotebookPreview({
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-4 py-6 pr-6 pl-2">
         {notebook.cells.map(cell => (
-          <Cell key={cell.id} cell={cell} language={notebook.language} />
+          <Cell key={cell.id} cell={cell} language={notebook.language} markdown={markdown} />
         ))}
       </div>
     </div>

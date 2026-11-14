@@ -7,7 +7,7 @@ import { createPdfWorker } from "@compozy/ui/lib/pdf-worker";
  * The PDF branch, loaded on demand: pdf.js and its worker stay out of the Files bundle until a
  * PDF opens.
  */
-export default function FilePdfView({
+export function FilePdfView({
   url,
   title,
   fallback,

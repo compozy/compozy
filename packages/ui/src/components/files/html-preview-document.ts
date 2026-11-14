@@ -7,6 +7,20 @@ const ASSET_ATTRIBUTES: ReadonlyArray<readonly [selector: string, attribute: str
 const STRIPPED =
   "script, noscript, iframe, frame, frameset, object, embed, applet, portal, base, meta[http-equiv], link[rel~='import'], link[rel~='prefetch'], link[rel~='preload'], form";
 const INLINE_HANDLER = /^on/i;
+const CSS_URL = /url\(\s*(['"]?)([^'")]*)\1\s*\)/gi;
+
+/** Rewrites the `url()` references of a style sheet or `style` attribute through `resolve`. */
+function rewriteCssUrls(css: string, baseUrl: string, resolve: (url: string) => string): string {
+  return css.replace(CSS_URL, (match, quote: string, value: string) => {
+    const trimmed = value.trim();
+    if (trimmed === "" || trimmed.startsWith("data:") || trimmed.startsWith("#")) return match;
+    try {
+      return `url(${quote}${resolve(new URL(trimmed, baseUrl).href)}${quote})`;
+    } catch {
+      return "none";
+    }
+  });
+}
 
 function originOf(url: string | undefined): string | null {
   if (!url) return null;
@@ -63,6 +77,14 @@ export function prepareHtmlPreview(
             element.removeAttribute(attribute);
           }
         }
+      }
+      // Backgrounds and fonts referenced from CSS take the same route as element sources.
+      for (const style of Array.from(document.querySelectorAll("style"))) {
+        style.textContent = rewriteCssUrls(style.textContent ?? "", baseUrl, resolveAssetUrl);
+      }
+      for (const element of Array.from(document.querySelectorAll("[style]"))) {
+        const css = element.getAttribute("style") ?? "";
+        element.setAttribute("style", rewriteCssUrls(css, baseUrl, resolveAssetUrl));
       }
       // `srcset` candidates would bypass the rewrite; `src` stays the image.
       document.querySelectorAll("[srcset]").forEach(node => node.removeAttribute("srcset"));

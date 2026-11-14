@@ -373,7 +373,12 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 				"cross-site": true, "same-site": true, "same-origin": false, "none": false, "": false,
 			} {
 				recorder := httptest.NewRecorder()
-				request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://127.0.0.1"+route, http.NoBody)
+				request := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					"http://127.0.0.1"+route,
+					http.NoBody,
+				)
 				request.Host = "127.0.0.1"
 				if site != "" {
 					request.Header.Set("Sec-Fetch-Site", site)

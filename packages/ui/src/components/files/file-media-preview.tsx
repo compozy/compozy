@@ -79,8 +79,10 @@ function FileMediaPreview({
       {...props}
     >
       {kind === "video" ? (
+        // react-doctor-disable-next-line react-doctor/media-has-caption -- a project file has no caption track to attach; the viewer plays the bytes as stored.
         <video {...shared} playsInline className="min-h-0 max-w-full rounded-sm bg-black" />
       ) : (
+        // react-doctor-disable-next-line react-doctor/media-has-caption -- a project file has no caption track to attach; the viewer plays the bytes as stored.
         <audio {...shared} className="w-full max-w-xl" />
       )}
       {caption.length > 0 ? (

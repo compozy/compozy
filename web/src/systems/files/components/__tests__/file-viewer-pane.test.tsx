@@ -96,18 +96,11 @@ describe("FileViewerPane", () => {
     expect(await screen.findByText("Sensitive file")).toBeInTheDocument();
   });
 
-  it.each([
-    [{ kind: "binary", size: 2_400_000 }, "Binary file", "2.3 MB · No preview"],
-    [
-      { kind: "image", size: 12 * 1024 * 1024, truncated: true },
-      "Image too large to preview",
-      "12 MB",
-    ],
-  ])("Should name a non-text file explicitly (%j)", async (body, title, detail) => {
-    stubContent(() => content({ path: "a.bin", ...body }));
+  it("Should name a non-text file explicitly", async () => {
+    stubContent(() => content({ path: "a.bin", kind: "binary", size: 2_400_000 }));
     renderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("a.bin")} />);
-    const state = (await screen.findByText(title)).closest("[data-slot='empty']");
-    expect(state).toHaveTextContent(detail);
+    const state = (await screen.findByText("Binary file")).closest("[data-slot='empty']");
+    expect(state).toHaveTextContent("2.3 MB · No preview");
   });
 
   it("Should show the truncation banner for text over the read cap", async () => {
@@ -389,9 +382,14 @@ describe("FileViewerPane", () => {
         <FileViewerPane root={workspaceRoot} target={fileViewerTarget("shots/big.png")} />
       );
       const image = await screen.findByRole("img", { name: "big.png" });
-      expect(new URL(image.getAttribute("src") ?? "").pathname).toBe(
-        "/api/workspaces/ws_1/worktrees/wt%201/files/raw/shots/big.png"
-      );
+      const first = new URL(image.getAttribute("src") ?? "");
+      expect(first.pathname).toBe("/api/workspaces/ws_1/worktrees/wt%201/files/raw/shots/big.png");
+      // An image the browser cannot load names the state; Refresh asks for the bytes again.
+      fireEvent.error(image);
+      expect(await screen.findByText("Image too large to preview")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+      const retried = await screen.findByRole("img", { name: "big.png" });
+      expect(retried.getAttribute("src")).not.toBe(first.href);
     });
   });
 

@@ -37,7 +37,9 @@ export interface FileViewerPaneProps {
   onOpenFile?: (path: string) => void;
 }
 
-const FilePdfView = lazy(() => import("./file-pdf-view"));
+const FilePdfView = lazy(() =>
+  import("./file-pdf-view").then(module => ({ default: module.FilePdfView }))
+);
 
 function basename(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1) || path;
@@ -156,6 +158,7 @@ function OpenFileView({
           root,
           line,
           path,
+          version: active.dataUpdatedAt,
           revealing: revealed && reveal.isPending,
           onReveal: () => setRevealed(true),
           onRetry: () => void active.refetch(),
@@ -170,10 +173,13 @@ function OpenFileView({
  * Video, audio and PDF stream from the raw-bytes route whatever the daemon classified them as
  * (an all-ASCII PDF reads as text); the binary state stays the fallback when playback fails.
  */
-function mediaBody(content: FileContentResponse, props: { root: FilesRootRef; path: string }) {
+function mediaBody(
+  content: FileContentResponse,
+  props: { root: FilesRootRef; path: string; version: number }
+) {
   const kind = mediaPreviewKind(props.path);
   if (kind === null) return null;
-  const url = rawFileUrl(props.root, props.path);
+  const url = rawFileUrl(props.root, props.path, props.version);
   const fallback = <FileViewerBinaryState size={content.size} />;
   if (kind === "pdf") {
     return (
@@ -200,6 +206,8 @@ function stateBody(
     root: FilesRootRef;
     line?: number;
     path: string;
+    /** When the content was last read; Refresh changes it, so raw-byte views load again. */
+    version: number;
     revealing: boolean;
     onReveal: () => void;
     onRetry: () => void;
@@ -252,7 +260,7 @@ function stateBody(
       // Past the inline cap the image streams from the raw-bytes route instead.
       return (
         <FileImagePreview
-          src={rawFileUrl(props.root, props.path)}
+          src={rawFileUrl(props.root, props.path, props.version)}
           alt={basename(props.path)}
           meta={formatFileSize(state.content.size)}
           fallback={<FileViewerImageTooLargeState size={state.content.size} />}

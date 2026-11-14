@@ -47,12 +47,29 @@ function extension(path: string): string {
   return dot <= 0 ? "" : name.slice(dot + 1).toLowerCase();
 }
 
+// Protocol-relative `//host/path` counts as an https link; any other scheme stays blocked.
+const EXTERNAL_LINK = /^(https?:|mailto:|\/\/)/i;
+
+/** An http(s), mailto or protocol-relative link, which opens outside the viewer. */
+export function isExternalLink(href: string): boolean {
+  return EXTERNAL_LINK.test(href);
+}
+
+/** Opens an external link in the browser, protocol-relative ones over https. */
+export function openExternalLink(href: string): void {
+  const target = href.startsWith("//") ? `https:${href}` : href;
+  window.open(target, "_blank", "noopener,noreferrer");
+}
+
+// Own keys only: `notes.constructor` must not find `Object.prototype.constructor`.
 export function textPreviewKind(path: string): TextPreviewKind | null {
-  return TEXT_PREVIEWS[extension(path)] ?? null;
+  const key = extension(path);
+  return Object.hasOwn(TEXT_PREVIEWS, key) ? (TEXT_PREVIEWS[key] ?? null) : null;
 }
 
 export function mediaPreviewKind(path: string): MediaPreviewKind | null {
-  return MEDIA_PREVIEWS[extension(path)] ?? null;
+  const key = extension(path);
+  return Object.hasOwn(MEDIA_PREVIEWS, key) ? (MEDIA_PREVIEWS[key] ?? null) : null;
 }
 
 function encodePath(path: string): string {
@@ -79,10 +96,12 @@ function rootPrefix(root: FilesRootRef): string {
  * session scope query does not survive that resolution, so callers rewrite asset URLs through
  * `rawAssetUrl`.
  */
-export function rawFileUrl(root: FilesRootRef, path: string): string {
+export function rawFileUrl(root: FilesRootRef, path: string, version?: number): string {
   const url = new URL(`${rootPrefix(root)}/files/raw/${encodePath(path)}`, window.location.origin);
   // Session reads look the session up across profiles, like every other session files read.
   if (root.kind === "session") url.searchParams.set("all_profiles", "true");
+  // A new version is a new URL, so media, PDF and image elements request the bytes again.
+  if (version) url.searchParams.set("v", String(version));
   return url.href;
 }
 
@@ -155,5 +174,8 @@ export function resolveRelativePath(fromPath: string, href: string): string | nu
 /** A URL resolved inside a previewed document, re-pointed at this root's raw route with its scope query. */
 export function rawAssetUrl(root: FilesRootRef, url: string): string {
   const path = pathFromRawUrl(root, url);
-  return path ? rawFileUrl(root, path) : url;
+  if (!path) return url;
+  // `diagram.svg#detail` keeps the fragment that selects part of the asset.
+  const hash = url.indexOf("#");
+  return hash < 0 ? rawFileUrl(root, path) : `${rawFileUrl(root, path)}${url.slice(hash)}`;
 }

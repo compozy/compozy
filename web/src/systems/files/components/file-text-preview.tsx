@@ -1,5 +1,5 @@
-import type { ComponentProps, MouseEvent, ReactNode } from "react";
-import { createContext, use, useMemo } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { createContext, use } from "react";
 
 import {
   delimiterForPath,
@@ -11,7 +11,10 @@ import {
 } from "@compozy/ui";
 
 import type { FilesRootRef } from "../adapters/files-api";
+import { type MarkdownLinkScope, useMarkdownLinkScope } from "../hooks/use-markdown-link-scope";
 import {
+  isExternalLink,
+  openExternalLink,
   pathFromRawUrl,
   rawAssetUrl,
   rawDirectoryUrl,
@@ -31,11 +34,6 @@ export interface FileTextPreviewProps {
 }
 
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
-const EXTERNAL = /^(https?:|mailto:)/i;
-
-function openExternal(url: string): void {
-  window.open(url, "_blank", "noopener,noreferrer");
-}
 
 /** YAML frontmatter shows as a fenced block above the prose instead of a stray rule and text. */
 function withFrontmatterBlock(text: string): string {
@@ -52,12 +50,6 @@ function Unreadable({ title }: { title: string }) {
       description="Switch to Source to see the file as written."
     />
   );
-}
-
-interface MarkdownLinkScope {
-  root: FilesRootRef;
-  path: string;
-  follow: (href: string, event: MouseEvent) => void;
 }
 
 const MarkdownLinkScopeContext = createContext<MarkdownLinkScope | null>(null);
@@ -107,26 +99,18 @@ function PreviewImage({ src, alt, title }: ComponentProps<"img">) {
   );
 }
 
-const PREVIEW_COMPONENTS = { a: PreviewAnchor, img: PreviewImage };
+type MarkdownComponents = NonNullable<ComponentProps<typeof StreamMarkdown>["components"]>;
+
+// Streamdown types every override with its loose element props; these read the standard ones.
+const PREVIEW_COMPONENTS = { a: PreviewAnchor, img: PreviewImage } as MarkdownComponents;
+
+function dirname(path: string): string {
+  const slash = path.lastIndexOf("/");
+  return slash < 0 ? "" : path.slice(0, slash);
+}
 
 function MarkdownPreview({ root, path, text, onOpenFile }: Omit<FileTextPreviewProps, "kind">) {
-  const scope = useMemo<MarkdownLinkScope>(
-    () => ({
-      root,
-      path,
-      follow: (href, event) => {
-        if (href.startsWith("#")) return;
-        event.preventDefault();
-        if (EXTERNAL.test(href)) {
-          openExternal(href);
-          return;
-        }
-        const target = resolveRelativePath(path, href);
-        if (target) onOpenFile?.(target);
-      },
-    }),
-    [root, path, onOpenFile]
-  );
+  const scope = useMarkdownLinkScope(root, path, onOpenFile);
   return (
     <div
       className="min-h-0 flex-1 overflow-auto bg-canvas"
@@ -137,11 +121,30 @@ function MarkdownPreview({ root, path, text, onOpenFile }: Omit<FileTextPreviewP
           className="mx-auto max-w-3xl px-8 py-6"
           components={PREVIEW_COMPONENTS}
           localLinkComponent={PreviewLocalLink}
+          linkBase={dirname(path)}
         >
           {withFrontmatterBlock(text)}
         </StreamMarkdown>
       </MarkdownLinkScopeContext>
     </div>
+  );
+}
+
+function NotebookPreview({ root, path, text, onOpenFile }: Omit<FileTextPreviewProps, "kind">) {
+  const scope = useMarkdownLinkScope(root, path, onOpenFile);
+  return (
+    <MarkdownLinkScopeContext value={scope}>
+      <FileNotebookPreview
+        text={text}
+        markdown={{
+          components: PREVIEW_COMPONENTS,
+          localLinkComponent: PreviewLocalLink,
+          linkBase: dirname(path),
+        }}
+        fallback={<Unreadable title="This notebook can't be rendered" />}
+        data-testid="file-viewer-notebook-preview"
+      />
+    </MarkdownLinkScopeContext>
   );
 }
 
@@ -169,7 +172,7 @@ export function FileTextPreview({ kind, root, path, text, onOpenFile }: FileText
           onLinkClick={url => {
             const target = pathFromRawUrl(root, url);
             if (target) onOpenFile?.(target);
-            else if (EXTERNAL.test(url)) openExternal(url);
+            else if (isExternalLink(url)) openExternalLink(url);
           }}
           data-testid="file-viewer-html-preview"
         />
@@ -184,12 +187,6 @@ export function FileTextPreview({ kind, root, path, text, onOpenFile }: FileText
         />
       );
     case "notebook":
-      return (
-        <FileNotebookPreview
-          text={text}
-          fallback={<Unreadable title="This notebook can't be rendered" />}
-          data-testid="file-viewer-notebook-preview"
-        />
-      );
+      return <NotebookPreview root={root} path={path} text={text} onOpenFile={onOpenFile} />;
   }
 }

@@ -348,6 +348,31 @@ describe("StreamMarkdown", () => {
     );
   });
 
+  // Invariant: with a link base, document-relative links and images resolve against the
+  // document's directory before safe mode, and links leaving the root stay blocked.
+  it("Should resolve document-relative links and images against the link base", () => {
+    function LocalLink({ href, children }: { href: string; children: React.ReactNode }) {
+      return (
+        <button type="button" data-href={href}>
+          {children}
+        </button>
+      );
+    }
+    const { container } = render(
+      <StreamMarkdown localLinkComponent={LocalLink} linkBase="docs/guide">
+        {"[a](setup.md#install) [b](../api/x.md) [c](#top) [d](../../../out.md) ![i](img/p.png)"}
+      </StreamMarkdown>
+    );
+    expect(screen.getByRole("link", { name: "a" })).toHaveAttribute(
+      "href",
+      "/docs/guide/setup.md#install"
+    );
+    expect(screen.getByRole("link", { name: "b" })).toHaveAttribute("href", "/docs/api/x.md");
+    expect(screen.getByRole("link", { name: "c" })).toHaveAttribute("href", "#top");
+    expect(container).toHaveTextContent("d [blocked]");
+    expect(screen.getByRole("img", { name: "i" })).toHaveAttribute("src", "/docs/guide/img/p.png");
+  });
+
   // UT-051. Invariant: links the safe mode blocks route to the caller's local-link component
   // with their authored href; external and script-capable destinations never do, and without
   // the component the blocked rendering is unchanged.

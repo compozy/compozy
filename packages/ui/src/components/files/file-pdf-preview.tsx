@@ -35,18 +35,30 @@ function PdfPage({
   width: number;
   aspect: number;
 }) {
-  const { frameRef, canvasRef, near, height } = usePdfPage(pdf, pageNumber, width, aspect);
+  const { frameRef, canvasRef, near, failed, text, height } = usePdfPage(
+    pdf,
+    pageNumber,
+    width,
+    aspect
+  );
+  // The drawn canvas is decorative; the page's extracted text is what assistive technology reads.
   return (
-    <div
+    <section
       ref={frameRef}
       data-slot="file-pdf-preview-page"
+      data-failed={failed || undefined}
       aria-label={`Page ${pageNumber}`}
-      role="img"
-      className="shrink-0 bg-white shadow-sm"
+      className="relative shrink-0 bg-white shadow-sm"
       style={{ width, height }}
     >
-      {near ? <canvas ref={canvasRef} className="block size-full" /> : null}
-    </div>
+      {near && !failed ? <canvas ref={canvasRef} aria-hidden className="block size-full" /> : null}
+      {failed ? (
+        <p className="flex size-full items-center justify-center text-xs text-muted-foreground">
+          {`Page ${pageNumber} couldn't be drawn`}
+        </p>
+      ) : null}
+      {text ? <p className="sr-only whitespace-pre-line">{text}</p> : null}
+    </section>
   );
 }
 
@@ -60,8 +72,8 @@ function FilePdfPreview({
   ...props
 }: FilePdfPreviewProps) {
   const load = usePdfDocument(url, workerFactory);
-  const scrollRef = React.useRef<HTMLDivElement | null>(null);
-  const available = useElementWidth(scrollRef) - PAGE_PADDING * 2;
+  const [scrollRef, measured] = useElementWidth();
+  const available = measured - PAGE_PADDING * 2;
   const width = Math.min(MAX_PAGE_WIDTH, Math.max(0, available));
   if (load.status === "error") return fallback;
   const pageNumbers =

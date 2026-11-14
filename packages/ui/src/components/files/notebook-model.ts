@@ -64,13 +64,14 @@ function displayOutput(data: Json): NotebookOutputBody | null {
   if (svg) return { kind: "image", mimeType: "image/svg+xml", data: utf8Base64(svg) };
   const markdown = joinSource(data["text/markdown"]);
   if (markdown) return { kind: "markdown", text: markdown };
+  // Rich HTML (a DataFrame table) wins over its `text/plain` repr, as in Jupyter.
+  const html = joinSource(data["text/html"]);
+  if (html) return { kind: "html", html };
   const plain = joinSource(data["text/plain"]);
   if (plain) return { kind: "text", text: stripAnsi(plain) };
   if (data["application/json"] !== undefined) {
     return { kind: "text", text: JSON.stringify(data["application/json"], null, 2) };
   }
-  const html = joinSource(data["text/html"]);
-  if (html) return { kind: "html", html };
   return null;
 }
 

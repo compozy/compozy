@@ -198,6 +198,9 @@ describe("delimited text", () => {
       ["a, b", 'say "hi"'],
       ["multi\nline", "x"],
     ]);
+    // A quoted empty field is a record, at the end of the text or alone.
+    expect(parseDelimited('h\n""', ",").rows).toEqual([[""]]);
+    expect(parseDelimited('""\n', ",")).toEqual({ header: [""], rows: [], columnCount: 1 });
   });
 
   it("Should pad ragged rows to the widest record and pick the delimiter by extension", () => {
@@ -244,6 +247,26 @@ describe("FileHtmlPreview", () => {
     expect(policy?.getAttribute("content")).toContain("script-src 'none'");
     expect(policy?.getAttribute("content")).toContain("img-src data: http://127.0.0.1:2323");
     expect(document.body.textContent).toContain("Hello");
+  });
+
+  it("Should route element and CSS asset URLs through the resolver, keeping data URLs", () => {
+    const base = "http://127.0.0.1:2323/api/workspaces/ws/files/raw/docs/";
+    const prepared = prepareHtmlPreview(
+      '<html><head><style>body { background: url("img/bg.png") } i { background: url(data:image/png;base64,AA) }</style></head>' +
+        '<body><img src="a.png" srcset="a@2x.png 2x"><p style="background-image: url(../b.png)">x</p></body></html>',
+      base,
+      url => `${url}?scoped`
+    );
+    const document = new DOMParser().parseFromString(prepared, "text/html");
+    expect(document.querySelector("img")?.getAttribute("src")).toBe(`${base}a.png?scoped`);
+    expect(document.querySelector("img")?.hasAttribute("srcset")).toBe(false);
+    expect(document.querySelector("style")?.textContent).toContain(
+      `url("${base}img/bg.png?scoped")`
+    );
+    expect(document.querySelector("style")?.textContent).toContain("url(data:image/png;base64,AA)");
+    expect(document.querySelector("p")?.getAttribute("style")).toContain(
+      "url(http://127.0.0.1:2323/api/workspaces/ws/files/raw/b.png?scoped)"
+    );
   });
 
   it("Should frame the document with a sandbox that never allows scripts", () => {
@@ -298,6 +321,25 @@ describe("notebooks", () => {
       { id: "cell-1-output-2", kind: "text", text: "42" },
       { id: "cell-1-output-3", kind: "error", name: "ValueError: bad", text: "ValueError: bad" },
     ]);
+    // A rich HTML repr (a DataFrame) wins over its plain-text summary.
+    const frame = parseNotebook(
+      JSON.stringify({
+        nbformat: 4,
+        cells: [
+          {
+            cell_type: "code",
+            source: "df",
+            outputs: [
+              {
+                output_type: "execute_result",
+                data: { "text/plain": "   a\n0  1", "text/html": "<table><td>1</td></table>" },
+              },
+            ],
+          },
+        ],
+      })
+    )?.cells[0];
+    expect(frame?.kind === "code" && frame.outputs[0]).toMatchObject({ kind: "html" });
     expect(parseNotebook('{"cells": [')).toBeNull();
     expect(parseNotebook('{"nbformat": 4}')).toBeNull();
   });

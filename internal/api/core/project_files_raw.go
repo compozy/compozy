@@ -63,8 +63,7 @@ func (h *BaseHandlers) closeProjectFileStream(file projectfiles.OpenedFile) {
 		return
 	}
 	// The descriptor error names the host path; keep only its cause.
-	var pathErr *fs.PathError
-	if errors.As(err, &pathErr) {
+	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
 		err = pathErr.Err
 	}
 	logger := slog.Default()

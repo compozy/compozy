@@ -82,8 +82,13 @@ func registryProjectFileBytesOperations() []OperationSpec {
 		params := append([]ParameterSpec{pathParam("workspace_id", "Workspace id")}, form.scope...)
 		params = append(params, pathParam("path", "Root-relative file path; its slashes are path segments"))
 		responses := []ResponseSpec{
-			{Status: 200, Description: "File bytes", Body: binaryResponse{}, ContentType: "*/*"},
-			{Status: 206, Description: "Requested byte range", Body: binaryResponse{}, ContentType: "*/*"},
+			{Status: 200, Description: "File bytes", Body: binaryResponse{}, ContentType: specBinaryContentType},
+			{
+				Status:      206,
+				Description: "Requested byte range",
+				Body:        binaryResponse{},
+				ContentType: specBinaryContentType,
+			},
 			{Status: 304, Description: "File unchanged since the supplied validator"},
 		}
 		for _, status := range []int{400, 403, 404, 409, 422, 500} {

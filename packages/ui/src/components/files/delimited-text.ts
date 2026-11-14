@@ -21,6 +21,8 @@ export function parseDelimited(text: string, delimiter: string): DelimitedTable 
   let record: string[] = [];
   let field = "";
   let quoted = false;
+  // A quoted field counts as content even when empty, so `""` alone still ends a record.
+  let started = false;
   let index = 0;
   const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   const endRecord = () => {
@@ -28,6 +30,7 @@ export function parseDelimited(text: string, delimiter: string): DelimitedTable 
     records.push(record);
     record = [];
     field = "";
+    started = false;
   };
   while (index < source.length) {
     const char = source[index];
@@ -47,6 +50,7 @@ export function parseDelimited(text: string, delimiter: string): DelimitedTable 
     }
     if (char === '"' && field === "") {
       quoted = true;
+      started = true;
     } else if (char === delimiter) {
       record.push(field);
       field = "";
@@ -58,7 +62,7 @@ export function parseDelimited(text: string, delimiter: string): DelimitedTable 
     }
     index += 1;
   }
-  if (field !== "" || record.length > 0) endRecord();
+  if (field !== "" || started || record.length > 0) endRecord();
   const columnCount = records.reduce((widest, row) => Math.max(widest, row.length), 0);
   const [header = [], ...rows] = records;
   return { header, rows, columnCount };
