@@ -32,6 +32,16 @@ not children and are not parked with it.
    sidebar Later toggle shows the count and the Later view lists the session with its reason,
    return date, and parked time; the board Later bar lists it per project and in All projects.
 
+## Keep browsing the Later and Archived views (#1706)
+
+1. With several sessions in Later, switch a session window's rail to the Later view and open one
+   of them. Expect the session opens and the rail stays on Later; open another Later session and
+   the rail still shows Later.
+2. Switch the rail to the Archived view and repeat. Expect the rail stays on Archived across each
+   open; choosing the active list again returns to the normal sessions.
+3. Expect the view is per window: a second session window keeps its own view, a new window starts
+   on the normal list, and a page reload returns every window to the normal list.
+
 ## Dialog: Markdown reason and date picker (#1086)
 
 1. Open Move to Later from a session row. Expect focus in the Reason editor; Bold, Italic,

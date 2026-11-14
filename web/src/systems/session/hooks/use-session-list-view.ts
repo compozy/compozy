@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 
 import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
@@ -143,8 +141,9 @@ export interface SessionListViewModel {
  * session remounts the window's content, so state held here would reset; held
  * in the rail, a selection, a focus change, or a reload never reopens a group
  * the operator closed. Only the operator's toggle opens or closes one.
- * The archive and Later stay deliberately transient — ways of looking at the
- * list right now, not preferences worth keeping.
+ * The shelf (active, archive, or Later) is per window for the same reason and
+ * survives a selection too (#1706), but stays deliberately transient — a way of
+ * looking at the list right now, not a preference worth keeping across a reload.
  */
 export function useSessionListView(
   options: {
@@ -168,7 +167,6 @@ export function useSessionListView(
     committedValue: remoteSearch,
     setDraftValue: setSearch,
   } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
-  const [shelf, setShelf] = useState<SessionListShelf>("active");
   const enabled = options.enabled ?? true;
   const searchSettled = search === remoteSearch;
   const scope = options.scope === undefined ? dataScope : options.scope;
@@ -178,6 +176,7 @@ export function useSessionListView(
   const pair = sessionListPair(scope, profile.params);
 
   const showAutomation = sidebar.showAutomation;
+  const shelf = sidebar.shelf;
   const groupFilters = sessionListGroupFiltersFor(
     remoteSearch,
     options.worktreeId,
@@ -269,7 +268,7 @@ export function useSessionListView(
     setShowEmptyProjects: sidebar.setShowEmptyProjects,
     showAutomation,
     setShowAutomation: sidebar.setShowAutomation,
-    setShelf,
+    setShelf: sidebar.setShelf,
     groups,
     groupsLoading: awaiting.groupsLoading,
     groupsError: grouping.error,

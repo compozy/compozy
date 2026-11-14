@@ -7,6 +7,7 @@ import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
 import type { SessionListGroupBy, SessionListSort } from "../lib/session-list-preferences";
+import { sessionListShelfStore, type SessionListShelf } from "../lib/session-list-shelf";
 import {
   mergeSessionSidebarPreferences,
   migrateSessionSidebarPreferences,
@@ -387,6 +388,9 @@ export interface UseSessionSidebarStateResult {
   /** "Show automation runs" (#1355); per window, never inherited. */
   showAutomation: boolean;
   setShowAutomation: (show: boolean) => void;
+  /** The list's shelf (active, archive, or Later); per window, kept across selections, never persisted. */
+  shelf: SessionListShelf;
+  setShelf: (shelf: SessionListShelf) => void;
   /** Rail width in pixels: the operator's choice in this window, else the default. */
   width: number;
   setWidth: (width: number) => void;
@@ -406,6 +410,10 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
   );
   const state = useSelector(sessionSidebarStore, snapshot =>
     resolveSessionSidebarScope(snapshot.context.byScope, scopeId)
+  );
+  const shelf = useSelector(
+    sessionListShelfStore,
+    snapshot => snapshot.context.byScope[scopeId] ?? "active"
   );
 
   useEffect(() => {
@@ -441,6 +449,9 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     showAutomation: state.showAutomation,
     setShowAutomation: (show: boolean) =>
       sessionSidebarStore.trigger.showAutomationChanged({ scopeId, show }),
+    shelf,
+    setShelf: (nextShelf: SessionListShelf) =>
+      sessionListShelfStore.trigger.shelfChanged({ scopeId, shelf: nextShelf }),
     width: state.width ?? SESSION_SIDEBAR_DEFAULT_WIDTH,
     setWidth: (nextWidth: number) =>
       sessionSidebarStore.trigger.widthChanged({ scopeId, width: nextWidth }),
