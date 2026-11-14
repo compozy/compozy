@@ -980,6 +980,198 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 	})
 }
 
+func archiveSessionRowForCleanupTest(t *testing.T, db *GlobalDB, id string, at time.Time) {
+	t.Helper()
+	if _, err := db.db.ExecContext(
+		t.Context(),
+		`UPDATE sessions SET archived_at = ? WHERE id = ?`,
+		store.FormatTimestamp(at),
+		id,
+	); err != nil {
+		t.Fatalf("archive session %q: %v", id, err)
+	}
+}
+
+func makeInstanceMainForCleanupTest(t *testing.T, db *GlobalDB, workspace, sessionID string, now time.Time) {
+	t.Helper()
+	if _, err := db.db.ExecContext(t.Context(), `INSERT INTO agent_instances
+		(id, profile_id, agent_name, workspace_id, state, main_session_id, created_by_kind, created_by_id,
+			created_at, updated_at)
+		VALUES (?, ?, 'keeper', ?, 'active', ?, 'operator', 'test', ?, ?)`,
+		"instance-"+sessionID, store.DefaultProfileID, workspace, sessionID,
+		store.FormatTimestamp(now), store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("insert agent instance for %q: %v", sessionID, err)
+	}
+}
+
+func cleanupSessionExists(t *testing.T, db *GlobalDB, id string) bool {
+	t.Helper()
+	var count int
+	if err := db.db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM sessions WHERE id = ?`, id).
+		Scan(&count); err != nil {
+		t.Fatalf("count session %q: %v", id, err)
+	}
+	return count == 1
+}
+
+func TestGlobalDBDeleteArchivedSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should delete an archived session in its owner's scope", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		archiveSessionRowForCleanupTest(t, db, parent, now)
+		err := db.DeleteArchivedSession(t.Context(), store.ArchivedSessionDelete{
+			SessionID: parent, ProfileID: store.DefaultProfileID, WorkspaceID: workspace,
+		})
+		if err != nil {
+			t.Fatalf("DeleteArchivedSession() error = %v", err)
+		}
+		if cleanupSessionExists(t, db, parent) {
+			t.Fatal("archived session still exists after delete")
+		}
+	})
+
+	t.Run("Should refuse a session that is not archived and keep it", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, _ := subagentFixture(t)
+		err := db.DeleteArchivedSession(t.Context(), store.ArchivedSessionDelete{
+			SessionID: parent, ProfileID: store.DefaultProfileID, WorkspaceID: workspace,
+		})
+		if !errors.Is(err, store.ErrSessionNotArchived) {
+			t.Fatalf("DeleteArchivedSession() error = %v, want ErrSessionNotArchived", err)
+		}
+		if !cleanupSessionExists(t, db, parent) {
+			t.Fatal("unarchived session was deleted")
+		}
+	})
+
+	t.Run("Should refuse an archived session outside the expected profile or workspace", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		archiveSessionRowForCleanupTest(t, db, parent, now)
+		other := registerWorkspaceForGlobalTests(t, db, "elsewhere", filepath.Join(t.TempDir(), "elsewhere"))
+		otherProfile := insertLayoutTestProfile(t.Context(), t, db)
+		for _, target := range []store.ArchivedSessionDelete{
+			{SessionID: parent, ProfileID: otherProfile, WorkspaceID: workspace},
+			{SessionID: parent, ProfileID: store.DefaultProfileID, WorkspaceID: other},
+		} {
+			if err := db.DeleteArchivedSession(t.Context(), target); !errors.Is(err, store.ErrSessionNotArchived) {
+				t.Fatalf("DeleteArchivedSession(%+v) error = %v, want ErrSessionNotArchived", target, err)
+			}
+		}
+		if !cleanupSessionExists(t, db, parent) {
+			t.Fatal("out-of-scope session was deleted")
+		}
+	})
+
+	t.Run("Should report a missing session as not found", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, _, _ := subagentFixture(t)
+		err := db.DeleteArchivedSession(t.Context(), store.ArchivedSessionDelete{
+			SessionID: "missing", ProfileID: store.DefaultProfileID, WorkspaceID: workspace,
+		})
+		if !errors.Is(err, store.ErrSessionNotFound) {
+			t.Fatalf("DeleteArchivedSession() error = %v, want ErrSessionNotFound", err)
+		}
+	})
+
+	t.Run("Should refuse an always-on agent's main session", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		archiveSessionRowForCleanupTest(t, db, parent, now)
+		makeInstanceMainForCleanupTest(t, db, workspace, parent, now)
+		err := db.DeleteArchivedSession(t.Context(), store.ArchivedSessionDelete{
+			SessionID: parent, ProfileID: store.DefaultProfileID, WorkspaceID: workspace,
+		})
+		if !errors.Is(err, store.ErrSessionIsInstanceMain) {
+			t.Fatalf("DeleteArchivedSession() error = %v, want ErrSessionIsInstanceMain", err)
+		}
+		if !cleanupSessionExists(t, db, parent) {
+			t.Fatal("instance main session was deleted")
+		}
+	})
+}
+
+func TestGlobalDBListSessionHistoryCleanupRows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should read archived sessions and the live children of archived parents in scope", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		registerSubagentSession(t, db, workspace, "archived-child", parent, "worker", now)
+		registerSubagentSession(t, db, workspace, "live-child", parent, "worker", now)
+		registerSubagentSession(t, db, workspace, "sub", parent, store.SubagentSpawnRole, now)
+		registerSubagentSession(t, db, workspace, "title", parent, "worker", now)
+		registerSubagentSession(t, db, workspace, "unrelated-live", "", "", now)
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET spawn_role = 'auto-title' WHERE id = 'title'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{parent, "archived-child", "sub", "title"} {
+			archiveSessionRowForCleanupTest(t, db, id, now)
+		}
+		other := registerWorkspaceForGlobalTests(t, db, "elsewhere", filepath.Join(t.TempDir(), "elsewhere"))
+		registerSubagentSession(t, db, other, "elsewhere-archived", "", "", now)
+		archiveSessionRowForCleanupTest(t, db, "elsewhere-archived", now)
+
+		rows, err := db.ListSessionHistoryCleanupRows(ctx, store.SessionHistoryCleanupQuery{
+			ProfileID: store.DefaultProfileID, WorkspaceID: workspace,
+		})
+		if err != nil {
+			t.Fatalf("ListSessionHistoryCleanupRows() error = %v", err)
+		}
+		got := make(map[string]store.SessionHistoryCleanupRow, len(rows))
+		for _, row := range rows {
+			got[row.ID] = row
+		}
+		for _, id := range []string{parent, "archived-child", "live-child", "sub"} {
+			if _, ok := got[id]; !ok {
+				t.Fatalf("rows = %v, missing %q", rows, id)
+			}
+		}
+		if len(got) != 4 {
+			t.Fatalf("rows = %v, want only the 4 in-scope history rows", rows)
+		}
+		if row := got["live-child"]; row.ArchivedAt != nil || row.ParentSessionID != parent {
+			t.Fatalf("live child row = %+v, want unarchived under %q", row, parent)
+		}
+		if row := got["sub"]; row.SpawnRole != store.SubagentSpawnRole || row.ArchivedAt == nil {
+			t.Fatalf("subagent row = %+v", row)
+		}
+
+		all, err := db.ListSessionHistoryCleanupRows(ctx, store.SessionHistoryCleanupQuery{
+			ProfileID: store.DefaultProfileID, AllWorkspaces: true,
+		})
+		if err != nil || len(all) != 5 {
+			t.Fatalf("all workspaces rows = %v, %v, want 5", all, err)
+		}
+		foreign, err := db.ListSessionHistoryCleanupRows(ctx, store.SessionHistoryCleanupQuery{
+			ProfileID: insertLayoutTestProfile(ctx, t, db), AllWorkspaces: true,
+		})
+		if err != nil || len(foreign) != 0 {
+			t.Fatalf("another profile's rows = %v, %v, want none", foreign, err)
+		}
+	})
+
+	t.Run("Should mark an always-on agent's main session", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		archiveSessionRowForCleanupTest(t, db, parent, now)
+		makeInstanceMainForCleanupTest(t, db, workspace, parent, now)
+		rows, err := db.ListSessionHistoryCleanupRows(t.Context(), store.SessionHistoryCleanupQuery{
+			ProfileID: store.DefaultProfileID, WorkspaceID: workspace,
+		})
+		if err != nil || len(rows) != 1 || !rows[0].InstanceMain {
+			t.Fatalf("rows = %+v, %v, want the main session marked", rows, err)
+		}
+	})
+}
+
 func TestGlobalDBSessionCascadeMigration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should upgrade the immutable bridge prefix before cascading session history", func(t *testing.T) {

@@ -3242,6 +3242,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/history-cleanup": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the selected profile's running or most recent archived-history cleanup */
+    get: operations["getSessionHistoryCleanup"];
+    put?: never;
+    /** Preview (dry_run) or start the background deletion of archived sessions archived before a cutoff: whole threads, or only their child sessions or subagents */
+    post: operations["planSessionHistoryCleanup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/history-cleanup/stop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Stop the selected profile's running cleanup; sessions already deleted stay deleted */
+    post: operations["stopSessionHistoryCleanup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}": {
     parameters: {
       query?: never;
@@ -16055,6 +16090,82 @@ export interface components {
     };
     SessionHealthResponse: {
       health: components["schemas"]["SessionHealthPayload"];
+    };
+    SessionHistoryCleanupChoices: {
+      children: number;
+      everything: number;
+      subagents: number;
+    };
+    SessionHistoryCleanupCounts: {
+      children: number;
+      sessions: number;
+      subagents: number;
+      total: number;
+    };
+    SessionHistoryCleanupFailure: {
+      code: string;
+      message: string;
+      session_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionHistoryCleanupPlan: {
+      /** Format: date-time */
+      archived_before?: string | null;
+      choices: components["schemas"]["SessionHistoryCleanupChoices"];
+      counts: components["schemas"]["SessionHistoryCleanupCounts"];
+      kept_live: number;
+      threads: number;
+      workspaces: components["schemas"]["SessionHistoryCleanupWorkspace"][];
+    };
+    SessionHistoryCleanupPreviewResponse: {
+      plan: components["schemas"]["SessionHistoryCleanupPlan"];
+    };
+    SessionHistoryCleanupRequest: {
+      all_workspaces?: boolean;
+      /** Format: date-time */
+      archived_before?: string | null;
+      delete: components["schemas"]["SessionHistoryCleanupSelection"];
+      dry_run?: boolean;
+      older_than_days?: number | null;
+      session_ids?: string[];
+      workspace_id?: string;
+    };
+    SessionHistoryCleanupRun: {
+      all_workspaces?: boolean;
+      /** Format: date-time */
+      archived_before?: string | null;
+      delete: components["schemas"]["SessionHistoryCleanupSelection"];
+      deleted: number;
+      done: number;
+      failed_threads: number;
+      failures: components["schemas"]["SessionHistoryCleanupFailure"][];
+      /** Format: date-time */
+      finished_at?: string | null;
+      id: string;
+      profile_id: string;
+      skipped: number;
+      /** Format: date-time */
+      started_at: string;
+      state: string;
+      total: number;
+      workspace_id?: string;
+    };
+    SessionHistoryCleanupRunResponse: {
+      run: components["schemas"]["SessionHistoryCleanupRun"] | null;
+    };
+    SessionHistoryCleanupSelection: {
+      children: boolean;
+      everything: boolean;
+      subagents: boolean;
+    };
+    SessionHistoryCleanupStartResponse: {
+      plan: components["schemas"]["SessionHistoryCleanupPlan"];
+      run: components["schemas"]["SessionHistoryCleanupRun"];
+    };
+    SessionHistoryCleanupWorkspace: {
+      total: number;
+      workspace_id: string;
     };
     SessionHistoryResponse: {
       history: components["schemas"]["TurnHistoryPayload"][];
@@ -39563,6 +39674,197 @@ export interface operations {
         };
       };
       /** @description Session catalog facets are unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionHistoryCleanup: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionHistoryCleanupRunResponse"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  planSessionHistoryCleanup: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionHistoryCleanupRequest"];
+      };
+    };
+    responses: {
+      /** @description Dry run: the sessions the cleanup would delete */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionHistoryCleanupPreviewResponse"];
+        };
+      };
+      /** @description Accepted: the cleanup runs in the background; follow it with getSessionHistoryCleanup */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionHistoryCleanupStartResponse"];
+        };
+      };
+      /** @description Invalid cleanup request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description A cleanup is already running for this profile */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  stopSessionHistoryCleanup: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionHistoryCleanupRunResponse"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description No cleanup is running for this profile */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
       503: {
         headers: {
           [name: string]: unknown;

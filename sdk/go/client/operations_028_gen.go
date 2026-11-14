@@ -9,6 +9,84 @@ import (
 	"strings"
 )
 
+// PutAgentMemory Replace memory with a digest check (experimental) Experimental: pin the exact SDK version.
+func (c *Client) PutAgentMemory(ctx context.Context, params PutAgentMemoryParams, body AgentMemoryWriteRequest) (*AgentMemoryDocument, error) {
+	path := "/api/agents/{name}/memory"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemoryDocument
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutAgentSoulParams carries the path, query, and header parameters.
+type PutAgentSoulParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// PutAgentSoul Create or replace SOUL.md through managed authoring
+func (c *Client) PutAgentSoul(ctx context.Context, params PutAgentSoulParams, body AgentSoulPutByPathRequest) (*AgentSoulMutationResponse, error) {
+	path := "/api/agents/{name}/soul"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulMutationResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutLoopAnnotationsParams carries the path, query, and header parameters.
+type PutLoopAnnotationsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+}
+
+// PutLoopAnnotations Replace Loop editor annotations
+func (c *Client) PutLoopAnnotations(ctx context.Context, params PutLoopAnnotationsParams, body PutLoopAnnotationsRequest) (*LoopAnnotationsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/annotations"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopAnnotationsResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutLoopConfigParams carries the path, query, and header parameters.
+type PutLoopConfigParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+}
+
 // PutLoopConfig Replace Loop config override
 func (c *Client) PutLoopConfig(ctx context.Context, params PutLoopConfigParams, body PutLoopConfigRequest) (*LoopConfigResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loops/{name}/config"
@@ -368,81 +446,4 @@ func (c *Client) ReadSessionAttachmentBytes(ctx context.Context, params ReadSess
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ReadSessionFileBytesParams carries the path, query, and header parameters.
-type ReadSessionFileBytesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Path        string  `url:"path"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ReadSessionFileBytes Stream session file bytes
-func (c *Client) ReadSessionFileBytes(ctx context.Context, params ReadSessionFileBytesParams) (*[]byte, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{path}", url.PathEscape(params.Path))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadSessionFileContentParams carries the path, query, and header parameters.
-type ReadSessionFileContentParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Path        string  `url:"path"`
-	Reveal      *bool   `url:"reveal"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ReadSessionFileContent Read project file content
-func (c *Client) ReadSessionFileContent(ctx context.Context, params ReadSessionFileContentParams) (*FileContentResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	query.Set("path", params.Path)
-	if params.Reveal != nil {
-		query.Set("reveal", strconv.FormatBool(*params.Reveal))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileContentResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadTaskRunResultParams carries the path, query, and header parameters.
-type ReadTaskRunResultParams struct {
-	ID          string  `url:"id"`
-	Offset      *int    `url:"offset"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

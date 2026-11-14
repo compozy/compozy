@@ -2587,6 +2587,21 @@
     "single_result_reason": "minimal"
   },
   {
+    "tool_id": "compozy__session_cleanup",
+    "native_name": "session_cleanup",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "8ea6665aeaeb4df7adde05b5bcf346a92b1195c69a8ecb4f0a8dd61bde584972",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
+  },
+  {
     "tool_id": "compozy__session_compact",
     "native_name": "session_compact",
     "toolsets": [

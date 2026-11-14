@@ -9,6 +9,94 @@ import (
 	"strings"
 )
 
+// SearchAgentMemory Search agent notes and accessible sessions (experimental) Experimental: pin the exact SDK version.
+func (c *Client) SearchAgentMemory(ctx context.Context, params SearchAgentMemoryParams, body AgentMemorySearchRequest) (*AgentMemorySearchResponse, error) {
+	path := "/api/agents/{name}/memory/search"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemorySearchResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SearchFileContentsParams carries the path, query, and header parameters.
+type SearchFileContentsParams struct {
+	WorkspaceID   string    `url:"workspace_id"`
+	WorktreeID    *string   `url:"worktree_id"`
+	Q             string    `url:"q"`
+	Regex         *bool     `url:"regex"`
+	CaseSensitive *bool     `url:"case_sensitive"`
+	WholeWord     *bool     `url:"whole_word"`
+	Include       *[]string `url:"include"`
+	Exclude       *[]string `url:"exclude"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
+// SearchFileContents Search project file contents
+func (c *Client) SearchFileContents(ctx context.Context, params SearchFileContentsParams) (*FileSearchResponse, error) {
+	path := "/api/workspaces/{workspace_id}/files/search"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.WorktreeID != nil {
+		query.Set("worktree_id", *params.WorktreeID)
+	}
+	query.Set("q", params.Q)
+	if params.Regex != nil {
+		query.Set("regex", strconv.FormatBool(*params.Regex))
+	}
+	if params.CaseSensitive != nil {
+		query.Set("case_sensitive", strconv.FormatBool(*params.CaseSensitive))
+	}
+	if params.WholeWord != nil {
+		query.Set("whole_word", strconv.FormatBool(*params.WholeWord))
+	}
+	if params.Include != nil {
+		for _, value := range *params.Include {
+			query.Add("include", value)
+		}
+	}
+	if params.Exclude != nil {
+		for _, value := range *params.Exclude {
+			query.Add("exclude", value)
+		}
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileSearchResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SearchGlobalSessionTranscriptParams carries the path, query, and header parameters.
+type SearchGlobalSessionTranscriptParams struct {
+	SessionID   string  `url:"session_id"`
+	Q           string  `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // SearchGlobalSessionTranscript Search retained transcript messages with bounded literal matches for a Global session
 func (c *Client) SearchGlobalSessionTranscript(ctx context.Context, params SearchGlobalSessionTranscriptParams) (*SearchResult, error) {
 	path := "/api/sessions/{session_id}/transcript/search"
@@ -351,92 +439,4 @@ type SetSessionRuntimeParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
-}
-
-// SetSessionRuntime Select the default runtime for future prompts
-func (c *Client) SetSessionRuntime(ctx context.Context, params SetSessionRuntimeParams, body SetSessionRuntimeRequest) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetSettingsProviderEnabledParams carries the path, query, and header parameters.
-type SetSettingsProviderEnabledParams struct {
-	Name string `url:"name"`
-}
-
-// SetSettingsProviderEnabled Enable or disable one provider
-func (c *Client) SetSettingsProviderEnabled(ctx context.Context, params SetSettingsProviderEnabledParams, body SetSettingsProviderEnabledRequest) (*SettingsProviderEnabledResponse, error) {
-	path := "/api/settings/providers/{name}/enabled"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out SettingsProviderEnabledResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetTaskExecutionProfileParams carries the path, query, and header parameters.
-type SetTaskExecutionProfileParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// SetTaskExecutionProfile Replace one task execution profile
-func (c *Client) SetTaskExecutionProfile(ctx context.Context, params SetTaskExecutionProfileParams, body ExecutionProfile) (*TaskExecutionProfileResponse, error) {
-	path := "/api/tasks/{id}/execution-profile"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskExecutionProfileResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetTaskWorktreePolicyParams carries the path, query, and header parameters.
-type SetTaskWorktreePolicyParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// SetTaskWorktreePolicy Set one task worktree policy
-func (c *Client) SetTaskWorktreePolicy(ctx context.Context, params SetTaskWorktreePolicyParams, body WorktreePolicy) (*TaskExecutionProfileResponse, error) {
-	path := "/api/tasks/{id}/execution-profile/worktree"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskExecutionProfileResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetToolApprovalGrantParams carries the path, query, and header parameters.
-type SetToolApprovalGrantParams struct {
-	WorkspaceID string `url:"workspace_id"`
 }

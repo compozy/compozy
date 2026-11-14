@@ -246,6 +246,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__resources_snapshot":            expectedNativeEntry("Reading", " ", false, "📚", "auto"),
 		"compozy__session_approve":               expectedNativeEntry("Approving", " ", false, "💬", "auto"),
 		"compozy__session_archive":               expectedNativeEntry("Archiving", " ", false, "💬", "auto"),
+		"compozy__session_cleanup":               expectedNativeEntry("Cleaning up", " ", false, "💬", "auto"),
 		"compozy__session_clarify_answer":        expectedNativeEntry("Answering", " ", false, "💬", "auto"),
 		"compozy__session_create":                expectedNativeEntry("Creating", " ", false, "💬", "auto"),
 		"compozy__session_describe":              expectedNativeEntry("Reading", " ", false, "💬", "auto"),

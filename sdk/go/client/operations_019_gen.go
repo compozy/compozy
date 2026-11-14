@@ -9,6 +9,30 @@ import (
 	"strings"
 )
 
+// ListAutomationSuggestionsParams carries the path, query, and header parameters.
+type ListAutomationSuggestionsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Status      *string `url:"status"`
+}
+
+// ListAutomationSuggestions List consent-first automation suggestions for one workspace
+func (c *Client) ListAutomationSuggestions(ctx context.Context, params ListAutomationSuggestionsParams) (*AutomationSuggestionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/automation/suggestions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AutomationSuggestionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAutomationSuggestionsAggregateParams carries the path, query, and header parameters.
 type ListAutomationSuggestionsAggregateParams struct {
 	AllWorkspaces *bool     `url:"all_workspaces"`

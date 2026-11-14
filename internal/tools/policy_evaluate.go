@@ -72,8 +72,7 @@ func (e *EffectivePolicyEvaluator) evaluateCallContext(
 	if requiresSourceApproval {
 		requireApproval(&decision, e.inputs.ApprovalAvailable)
 	}
-	if e.inputs.CheckIn == nil &&
-		(e.permissionMode() != PermissionModeApproveReads || !isInstanceSelfServiceCall(d, input)) {
+	if e.inputs.CheckIn == nil && !e.inputSkipsPermissionCeiling(d, input) {
 		e.applyPermissionCeiling(d, &decision)
 	}
 	if e.inputs.CheckIn != nil {

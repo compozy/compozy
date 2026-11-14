@@ -47,6 +47,13 @@ DELETE FROM sessions WHERE workspace_id = sqlc.arg(workspace_id);
 -- name: DeleteSession :execrows
 DELETE FROM sessions WHERE id = sqlc.arg(id);
 
+-- name: DeleteArchivedSession :execrows
+DELETE FROM sessions
+WHERE id = sqlc.arg(id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND profile_id = sqlc.arg(profile_id)
+  AND archived_at IS NOT NULL;
+
 -- name: DeleteWorkspace :execrows
 DELETE FROM workspaces WHERE id = sqlc.arg(id);
 
