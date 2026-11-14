@@ -2958,6 +2958,11 @@ func TestDaemonExtensionInstallReplaceAuthority(t *testing.T) {
 			"ws-install", workspaceRoot, "Replace workspace", stamp, stamp); err != nil {
 			t.Fatal(err)
 		}
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO workspaces
+			(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			"ws-other", t.TempDir(), "Foreign workspace", stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
 		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry: registry, Profiles: deps.ProfileManager, HomePaths: deps.HomePaths,
 			Logger: discardLogger(),
@@ -3069,6 +3074,89 @@ func TestDaemonExtensionInstallReplaceAuthority(t *testing.T) {
 		want := extensionpkg.InstallationScope{WorkspaceID: "ws-install"}
 		if len(attachments) != 1 || attachments[0].Scope != want {
 			t.Fatalf("workspace attachments = %#v, want %v", attachments, want)
+		}
+	})
+
+	// The early check fails fast but the commit repeats it under the lifecycle lock: an
+	// attachment enrolled between preparation and commit must not lose its code to a
+	// caller that does not own it.
+	t.Run("Should recheck replacement authority inside the commit lock", func(t *testing.T) {
+		t.Parallel()
+		service, registry, packageDir := newReplaceService(t)
+		installFixture(t, service, "ws-install", writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0"), false)
+		before, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		beforeChecksum, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		actor := workspaceCaller(t)
+		request := contract.InstallExtensionRequest{
+			Source:  contract.InstallExtensionSourceLocalPath,
+			Ref:     writeNativeLocalExtensionFixture(t, "tool-ext", "2.0.0"),
+			Replace: true, AllowUnverified: true,
+		}
+		target, err := service.resolveExtensionScope(
+			t.Context(), request.Scope, request.WorkspaceID, request.Profile, actor,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prepared, err := service.prepareExtensionInstall(t.Context(), request, actor, "session-replace", target)
+		if err != nil {
+			t.Fatalf("prepare error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := prepared.Close(); closeErr != nil {
+				t.Fatalf("prepared.Close() error = %v", closeErr)
+			}
+		})
+
+		// A concurrent AttachInstallation lands after the early authorization cleared the
+		// caller and before the replacement takes the lifecycle lock.
+		foreign := extensionpkg.InstallationScope{WorkspaceID: "ws-other"}
+		if err := registry.AttachInstallation(t.Context(), "tool-ext", foreign); err != nil {
+			t.Fatal(err)
+		}
+		commit := func() error {
+			return service.lifecycle.withInstances(
+				t.Context(), extensionMutationKeys([]string{prepared.name}, prepared.target), prepared.commit,
+			)
+		}
+		if err := commit(); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("commit under the lock error = %v, want permission denied", err)
+		}
+
+		after, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.Version != before.Version || after.Checksum != before.Checksum {
+			t.Fatalf("package changed under a refused replacement: before=%+v after=%+v", before, after)
+		}
+		afterChecksum, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if afterChecksum != beforeChecksum {
+			t.Fatalf("package files changed under a refused replacement: before=%s after=%s", beforeChecksum, afterChecksum)
+		}
+
+		if err := registry.DetachInstallation(t.Context(), "tool-ext", foreign); err != nil {
+			t.Fatal(err)
+		}
+		if err := commit(); err != nil {
+			t.Fatalf("commit after the foreign attachment detached error = %v", err)
+		}
+		installed, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if installed.Version != "2.0.0" {
+			t.Fatalf("replacement version = %q, want 2.0.0", installed.Version)
 		}
 	})
 
