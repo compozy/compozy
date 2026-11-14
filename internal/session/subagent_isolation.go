@@ -8,6 +8,9 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// subagentRecoveredInterrupted is the terminal summary of a delegation the daemon never saw settle.
+const subagentRecoveredInterrupted = "delegation interrupted"
+
 func (s *subagentService) provisionIsolation(
 	ctx context.Context,
 	req SubagentRequest,
@@ -220,7 +223,7 @@ func (s *subagentService) failIsolatedDelegation(
 			summary = "worktree_retained: " + summary
 		}
 		unlock := s.lock(row.ParentSessionID)
-		settled, changed, err := s.store.FinalizeSubagent(
+		settled, changed, err := s.finalizeSubagentWithRetry(
 			cleanup,
 			store.SubagentFinalize{
 				ID:        row.ID,
@@ -231,14 +234,21 @@ func (s *subagentService) failIsolatedDelegation(
 			},
 		)
 		if err == nil && changed {
-			s.publishTerminal(cleanup, settled)
+			// The retries may have spent the whole cleanup budget; publishing on a
+			// dead context skips the parent catalog upsert.
+			publishCtx, publishCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+			s.publishTerminal(publishCtx, settled)
+			publishCancel()
 		}
 		unlock()
 		cleanupErr = errors.Join(cleanupErr, err)
 	}
 	// Failed calls stop their child even when admitted work requires retaining its checkout.
 	if retained && row.ChildSessionID != nil {
-		stopErr := s.runtime.Stop(cleanup, *row.ChildSessionID)
+		// The terminal write above may have consumed the cleanup budget on retries.
+		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+		defer stopCancel()
+		stopErr := s.runtime.Stop(stopCtx, *row.ChildSessionID)
 		if !errors.Is(stopErr, ErrSessionNotActive) && !errors.Is(stopErr, ErrSessionNotFound) {
 			cleanupErr = errors.Join(cleanupErr, stopErr)
 		}
@@ -281,13 +291,34 @@ func (s *subagentService) recoverIsolation(ctx context.Context, row store.Sessio
 			return s.recoverChild(ctx, row)
 		}
 	}
-	summary := "delegation interrupted"
+	summary := subagentRecoveredInterrupted
 	if retained {
 		summary = "worktree_retained"
 	}
+	return s.settleRecoveredIsolation(ctx, row, summary)
+}
+
+// settleRecoveredIsolation is the shared tail of boot recovery and of the
+// orphaned fallback: settle the row and wake the parent through an ordinary
+// wake. It never touches the checkout, so a failed rollback can settle the row
+// while the worktree cleanup keeps retrying from disk.
+// markWorktreeCleanupPending makes the checkout discoverable by
+// recoverIsolationCleanup, which only selects rows marked pending. It owns a
+// bounded context because the recovery context may already be expiring.
+func (s *subagentService) markWorktreeCleanupPending(ctx context.Context, id string) error {
+	markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	return s.store.SetSubagentWorktreeCleanup(markCtx, id, "pending")
+}
+
+func (s *subagentService) settleRecoveredIsolation(
+	ctx context.Context,
+	row store.SessionSubagent,
+	summary string,
+) error {
 	unlock := s.lock(row.ParentSessionID)
 	defer unlock()
-	failed, changed, err := s.store.FinalizeSubagent(
+	failed, changed, err := s.finalizeSubagentWithRetry(
 		ctx,
 		store.SubagentFinalize{
 			ID:        row.ID,
