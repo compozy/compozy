@@ -200,7 +200,7 @@ function useCleanupPreview({
     counts: plan?.choices ?? NO_COUNTS,
     counting: previewable && (preview.isFetching || preview.isPlaceholderData),
     previewError: preview.error ? errorText(preview.error, "The count failed.") : null,
-    cutoff: plan?.archived_before,
+    cutoff: plan?.archived_before ?? undefined,
   };
 }
 
