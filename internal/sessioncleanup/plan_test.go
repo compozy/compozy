@@ -139,8 +139,13 @@ func TestBuildPlan(t *testing.T) {
 			t.Fatalf("orphan Delete = %v, want its own thread", got)
 		}
 		// A subagent still under its live parent stays with that parent.
-		if len(plan.Threads) != 1 {
-			t.Fatalf("threads = %+v, want only the orphan", plan.Threads)
+		if len(plan.Threads) != 1 || plan.Counts.Subagents != 1 || plan.Counts.Sessions != 0 {
+			t.Fatalf("plan = %+v, want only the orphan, counted as a subagent", plan)
+		}
+		subagentsOnly := everythingRequest()
+		subagentsOnly.Selection = Selection{Subagents: true}
+		if got := BuildPlan(rows, subagentsOnly).Counts.Subagents; got != 1 {
+			t.Fatalf("subagents-only Subagents = %d, want the orphan", got)
 		}
 	})
 

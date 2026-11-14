@@ -261,10 +261,17 @@ func planThread(root *cleanupNode, selection Selection) (Thread, int) {
 			}
 		}
 	}
-	walk(root, selection.Everything)
-	if selection.Everything {
+	// A subagent heads a thread only when its parent is gone; it is still a
+	// subagent, so Subagents alone takes it, and it counts as one.
+	rootGoes := selection.Everything || (root.subagent() && selection.Subagents)
+	walk(root, rootGoes)
+	if rootGoes {
 		thread.Delete = append(thread.Delete, root.row.ID)
-		thread.Counts.Sessions++
+		if root.subagent() {
+			thread.Counts.Subagents++
+		} else {
+			thread.Counts.Sessions++
+		}
 	}
 	return thread, kept
 }
