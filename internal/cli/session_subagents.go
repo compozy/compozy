@@ -40,13 +40,13 @@ func newSessionSubagentsCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.PersistentFlags().
-		String(workspaceSkillSource, "", "Override workspace (ID, name, or path); fast path for show/cancel "+
+		String(workspaceSkillSource, "", "Override workspace (ID, name, or path); fast path for show/cancel/delete "+
 			"that avoids searching across workspaces")
 	cmd.Flags().StringVar(&query.Origin, "origin", "", "Filter by delegated or provider_native origin")
 	cmd.Flags().StringVar(&query.Status, automationStatusKey, "", "Filter by comma-separated statuses")
 	cmd.Flags().IntVar(&query.Limit, "limit", 50, "Subagents per page (1-200)")
 	cmd.Flags().StringVar(&query.Cursor, "cursor", "", "Continue from an opaque next_cursor")
-	cmd.AddCommand(newSubagentShowCommand(deps), newSubagentCancelCommand(deps))
+	cmd.AddCommand(newSubagentShowCommand(deps), newSubagentCancelCommand(deps), newSubagentDeleteCommand(deps))
 	return cmd
 }
 
@@ -98,6 +98,37 @@ func newSubagentCancelCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Reason for cancellation")
 	return cmd
+}
+
+func newSubagentDeleteCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <subagent-id>",
+		Short: "Delete a delegated subagent and its child session",
+		Long: "Delete a delegated subagent permanently, together with its child session's " +
+			"transcript and history. Provider-native subagents follow the parent turn and are refused.",
+		Args: exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, workspaceID, err := subagentCommandClient(cmd, deps)
+			if err != nil {
+				return err
+			}
+			id := strings.TrimSpace(args[0])
+			row, err := client.GetSubagent(cmd.Context(), workspaceID, id)
+			if err != nil {
+				return err
+			}
+			if err := client.DeleteSubagent(cmd.Context(), row.WorkspaceID, id); err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, subagentOutput(row, func() (string, error) {
+				if row.ChildSessionID != nil {
+					return fmt.Sprintf("Deleted subagent %s (%s) and child session %s.\n",
+						id, row.Title, *row.ChildSessionID), nil
+				}
+				return fmt.Sprintf("Deleted subagent %s (%s).\n", id, row.Title), nil
+			}))
+		},
+	}
 }
 
 func subagentCommandClient(cmd *cobra.Command, deps commandDeps) (sessionSubagentsClient, string, error) {

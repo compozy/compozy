@@ -5149,12 +5149,16 @@ func TestSubagentCommands(t *testing.T) {
 	}{
 		{"list table", []string{"parent"}, "ID", false},
 		{"list JSON", []string{"parent", "--json"}, `"next_cursor":null`, false},
-		{"show workspace help", []string{"show", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
-		{"cancel workspace help", []string{"cancel", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
+		{"show workspace help", []string{"show", "--help"}, "fast path for show/cancel/delete that avoids searching across workspaces", false},
+		{"cancel workspace help", []string{"cancel", "--help"}, "fast path for show/cancel/delete that avoids searching across workspaces", false},
 		{"show result", []string{"show", "sub-1"}, "Result\nRecommendation", false},
 		{"show JSON", []string{"show", "sub-1", "--json"}, `"subagent_id":"sub-1"`, false},
 		{"cancel", []string{"cancel", "sub-1", "--reason", "done"}, "Cancel requested for sub-1 (Review).", false},
 		{"cancel JSON", []string{"cancel", "sub-1", "--json"}, `"status":"cancel_requested"`, false},
+		{"delete", []string{"delete", "sub-1"}, "Deleted subagent sub-1 (Review).", false},
+		{"delete JSON", []string{"delete", "sub-1", "--json"}, `"subagent_id":"sub-1"`, false},
+		{"delete native", []string{"delete", "native"}, "subagent_not_deletable", true},
+		{"delete missing", []string{"delete", "missing"}, "subagent_not_found: subagent missing not found", true},
 		{"invalid limit", []string{"parent", "--limit", "0"}, "--limit must be between 1 and 200", true},
 		{"missing session", []string{"missing"}, "session_not_found", true},
 		{"missing subagent", []string{"show", "missing"}, "subagent_not_found: subagent missing not found", true},
@@ -5178,6 +5182,12 @@ func TestSubagentCommands(t *testing.T) {
 			if exitCode != 0 || !strings.Contains(stdout, tc.want) {
 				t.Fatalf("output=%s exit=%d stderr=%s, want %q", stdout, exitCode, stderr, tc.want)
 			}
+			if strings.HasPrefix(tc.name, "delete") {
+				if len(client.deleted) != 1 || client.deleted[0].WorkspaceID != "ws-subagents" ||
+					client.deleted[0].ID != "sub-1" {
+					t.Fatalf("deleted calls = %+v", client.deleted)
+				}
+			}
 			if tc.name == "list table" {
 				for _, column := range []string{"TITLE", "RUNTIME", "STATUS", "ELAPSED", "codex/gpt-6.1-sol", "7s"} {
 					if !strings.Contains(stdout, column) {
@@ -5200,7 +5210,15 @@ func TestSubagentCommands(t *testing.T) {
 	})
 }
 
-type subagentCommandStub struct{ DaemonClient }
+type subagentDeleteCall struct {
+	WorkspaceID string
+	ID          string
+}
+
+type subagentCommandStub struct {
+	DaemonClient
+	deleted []subagentDeleteCall
+}
 
 var _ sessionSubagentsClient = (*subagentCommandStub)(nil)
 
@@ -5230,14 +5248,25 @@ func (s *subagentCommandStub) CancelSubagent(
 ) (contract.SubagentCancelPayload, error) {
 	return contract.SubagentCancelPayload{SubagentID: id, Status: "cancel_requested"}, nil
 }
+
+func (s *subagentCommandStub) DeleteSubagent(_ context.Context, workspaceID, id string) error {
+	if id == "native" {
+		return errors.New(
+			"subagent_not_deletable: provider-native subagents cannot be deleted; stop the parent turn instead",
+		)
+	}
+	s.deleted = append(s.deleted, subagentDeleteCall{WorkspaceID: workspaceID, ID: id})
+	return nil
+}
 func subagentCLIRecord() contract.SubagentPayload {
 	return contract.SubagentPayload{
-		SubagentID: "sub-1",
-		Title:      "Review",
-		Status:     "running",
-		Runtime:    contract.SubagentRuntimePayload{Provider: "codex", Model: "gpt-6.1-sol"},
-		StartedAt:  new(fixedTestNow.Add(-7 * time.Second)),
-		Result:     new("Recommendation"),
+		SubagentID:  "sub-1",
+		WorkspaceID: "ws-subagents",
+		Title:       "Review",
+		Status:      "running",
+		Runtime:     contract.SubagentRuntimePayload{Provider: "codex", Model: "gpt-6.1-sol"},
+		StartedAt:   new(fixedTestNow.Add(-7 * time.Second)),
+		Result:      new("Recommendation"),
 	}
 }
 

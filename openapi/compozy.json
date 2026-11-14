@@ -37158,6 +37158,21 @@
         ],
         "type": "object"
       },
+      "SubagentRemovedEvent": {
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "subagent_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "subagent_id"
+        ],
+        "type": "object"
+      },
       "SubagentRuntimePayload": {
         "properties": {
           "agent": {
@@ -75788,6 +75803,9 @@
                       "$ref": "#/components/schemas/SubagentUpdatedEvent"
                     },
                     {
+                      "$ref": "#/components/schemas/SubagentRemovedEvent"
+                    },
+                    {
                       "$ref": "#/components/schemas/SessionUsageChangedPayload"
                     },
                     {
@@ -105281,6 +105299,9 @@
                       "$ref": "#/components/schemas/SubagentUpdatedEvent"
                     },
                     {
+                      "$ref": "#/components/schemas/SubagentRemovedEvent"
+                    },
+                    {
                       "$ref": "#/components/schemas/SessionUsageChangedPayload"
                     },
                     {
@@ -106776,6 +106797,111 @@
       }
     },
     "/api/workspaces/{workspace_id}/subagents/{subagent_id}": {
+      "delete": {
+        "operationId": "deleteSubagent",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subagent id",
+            "in": "path",
+            "name": "subagent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Capability denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session or subagent not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Subagent is provider-native and follows its parent turn"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Subagents unavailable"
+          }
+        },
+        "summary": "Delete a delegated subagent and its child session",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
       "get": {
         "operationId": "getSubagent",
         "parameters": [

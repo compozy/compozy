@@ -22,6 +22,7 @@ type memorySubagents struct {
 	rows               map[string]store.SessionSubagent
 	wakes              map[string]store.SessionSubagentWake
 	writes             int
+	finalizeCalls      int
 	rewrites           map[string]string
 	orphans            []string
 	committedAdmission bool
@@ -72,6 +73,17 @@ func (d *memorySubagents) DeleteReserved(_ context.Context, id string) error {
 	if row.Status == store.SubagentStatusQueued && row.ChildSessionID == nil {
 		delete(d.rows, id)
 	}
+	return nil
+}
+
+func (d *memorySubagents) DeleteSubagent(_ context.Context, workspaceID, id string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row, ok := d.rows[id]
+	if !ok || (workspaceID != "" && row.WorkspaceID != workspaceID) {
+		return store.ErrSubagentNotFound
+	}
+	delete(d.rows, id)
 	return nil
 }
 func (d *memorySubagents) GetSubagent(_ context.Context, ws, id string) (store.SessionSubagent, error) {
@@ -189,6 +201,7 @@ func (d *memorySubagents) FinalizeSubagent(
 ) (store.SessionSubagent, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.finalizeCalls++
 	row, ok := d.rows[in.ID]
 	if !ok {
 		return row, false, store.ErrSubagentNotFound
@@ -443,6 +456,7 @@ type subagentTestRuntime struct {
 	permissionLimit                 *SubagentPermissionLimit
 	permissionLimitErr              error
 	stopDescendants                 func(context.Context, string) error
+	deleteSettles                   func(context.Context, string) error
 	inputStatuses                   map[string]string
 	errorResume                     error
 	mu                              sync.Mutex
@@ -450,12 +464,14 @@ type subagentTestRuntime struct {
 	spawned                         []SpawnOpts
 	admitted                        map[string]string
 	stopped                         []string
+	deleted                         []string
 	results                         map[string]string
 	turnErrors                      map[string]string
 	queues                          map[string]string
 	publishes                       []string
 	settles                         int
 	spawnErr, errorAdmit, errorStop error
+	errorDelete                     error
 	steer                           acp.SteerResult
 	steerErr                        error
 	spawnBlock                      chan struct{}
@@ -563,6 +579,24 @@ func (r *subagentTestRuntime) Result(_ context.Context, id string) (subagentTurn
 	return subagentTurnResult{Text: r.results[id], Error: r.turnErrors[id]}, nil
 }
 
+// DeleteSession mirrors the production boundary: a session delete settles the
+// session through the manager callbacks before the history is gone.
+func (r *subagentTestRuntime) DeleteSession(ctx context.Context, id string) error {
+	if r.deleteSettles != nil {
+		if err := r.deleteSettles(ctx, id); err != nil {
+			return err
+		}
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.errorDelete != nil {
+		return r.errorDelete
+	}
+	r.deleted = append(r.deleted, id)
+	delete(r.snapshots, id)
+	return nil
+}
+
 func (r *subagentTestRuntime) QueueWake(
 	_ context.Context,
 	wake store.SessionSubagentWake,
@@ -648,6 +682,7 @@ func newSubagentTestService(t *testing.T) (*subagentService, *memorySubagents, *
 		return fmt.Sprintf("wake-%d", next), nil
 	}
 	runtime.stopDescendants = s.OnParentStopped
+	runtime.deleteSettles = s.OnChildSettled
 	s.launch = func(f func()) { wg.Go(f) }
 	t.Cleanup(func() { cancel(); wg.Wait() })
 	return s, db, runtime

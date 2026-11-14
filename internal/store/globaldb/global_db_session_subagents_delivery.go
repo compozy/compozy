@@ -144,6 +144,32 @@ func (g *SessionRepo) DeleteReserved(ctx context.Context, id string) error {
 	return nil
 }
 
+// DeleteSubagent removes one workspace-scoped row in any status. The caller owns
+// the child session's removal; this only retires the roster record.
+func (g *SessionRepo) DeleteSubagent(ctx context.Context, workspaceID, id string) error {
+	if err := g.checkReady(ctx, "delete subagent"); err != nil {
+		return err
+	}
+	n, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.DeleteSubagent",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeleteSubagent(
+				ctx,
+				sqlcgen.DeleteSubagentParams{WorkspaceID: workspaceID, ID: id},
+			)
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return store.ErrSubagentNotFound
+	}
+	return nil
+}
+
 // HasPendingSubagentWake retains the wait through terminal publication and wake delivery.
 func (g *SessionRepo) HasPendingSubagentWake(ctx context.Context, workspaceID, parentID string) (bool, error) {
 	if err := g.checkReady(ctx, "read pending subagent wake"); err != nil {

@@ -156,3 +156,15 @@ and modifier-click splitting with both sessions visible; no timeouts were increa
 
 Focused verification: E2E-004 completed the full drawer, parent return and
 modifier-click journey on the production bundle (2026-10-29).
+
+QA impact 2026-11-14 (subagent row menu): subagent rows in the sessions rail now carry the row menu.
+Right-click or Shift+F10 opens `Copy ▸` (`Copy subagent ID`, `Copy title`), `Stop subagent` on a live
+delegated row, and `Delete subagent` on a delegated row; a provider-native row offers Copy only, and a
+settled row offers no Stop. Delete asks for confirmation ("Delete subagent", naming the title and the
+permanent loss of the subagent and its session transcript/history), answers the delete route in the
+parent's profile, and the rail drops the row and its branch entry; a failure keeps the dialog open with
+the reason and the row in place. Left click still opens the child. Automated owners: the `SessionList
+subagents` cases in `session-list.test.tsx` (menu shape, confirmation delete, stop), the
+`SubagentDeleteDialog` cases in `subagent-components.test.tsx`, the `deleteSubagent` adapter case, and
+the `subagent_removed` stream case in `use-session-live-tail.test.tsx`. Live walk pending; verdict
+unchanged.

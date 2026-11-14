@@ -1,0 +1,48 @@
+---
+title: "compozy session subagents delete"
+description: "Delete a delegated subagent and its child session"
+---
+
+## compozy session subagents delete
+
+Delete a delegated subagent and its child session
+
+### Synopsis
+
+Delete a delegated subagent permanently, together with its child session's transcript and history. Provider-native subagents follow the parent turn and are refused.
+
+```
+compozy session subagents delete <subagent-id> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for delete
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --profile string     Act as a profile for this command
+      --workspace string   Override workspace (ID, name, or path); fast path for show/cancel/delete that avoids searching across workspaces
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session subagents delete <subagent-id> -o json
+```

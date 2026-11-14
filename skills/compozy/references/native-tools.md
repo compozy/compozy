@@ -427,8 +427,10 @@ with the original brief, prior findings, and open objections instead of promptin
 subagent may delegate its own subagents. Subagents share your workspace and worktree, so give
 concurrent subagents disjoint files or read-only tasks. Stopping your session cancels every live
 subagent depth-first; interrupting a turn keeps its subagents running, but their results no longer wake
-you. CLI and HTTP/UDS fallback for reads and cancel: `compozy session subagents <session-id>`,
-`compozy session subagents show|cancel <subagent-id>`.
+you. CLI and HTTP/UDS fallback for reads, cancel and delete: `compozy session subagents <session-id>`,
+`compozy session subagents show|cancel|delete <subagent-id>`. A delete permanently removes a delegated
+subagent and its child session transcript/history; provider-native rows refuse with
+`subagent_not_deletable`.
 
 `compozy__session_stop` stops another same-workspace session and is destructive/approval-gated. It is
 idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another

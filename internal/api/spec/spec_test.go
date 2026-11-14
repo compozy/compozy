@@ -625,6 +625,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive", method: http.MethodPost},
 					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}", method: http.MethodPatch},
 					{path: "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/subagents/{subagent_id}", method: http.MethodDelete},
 				}
 				for _, endpoint := range profileMutations {
 					operation := operationFor(t, doc, endpoint.path, endpoint.method)
@@ -3433,6 +3434,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addCheckInToolSchemaFields(baseline)
 		addSessionCatalogExcludeRootParameter(baseline, current)
 		addDaemonReadinessSchema(t, baseline, current)
+		addSubagentRemovedStreamEvent(t, baseline, current)
 		// #1644: session payloads name the parent a continued child is listed under.
 		if addSessionTreeParentSchema(baseline) == 0 {
 			t.Fatal("approved tree_parent_session_id addition: no historical session schemas found")
@@ -5101,6 +5103,37 @@ func correctProviderSettingsCommandAuthorship(t *testing.T, baseline map[string]
 	addInherited(provider["fallback"].(map[string]any)["properties"].(map[string]any)["settings"])
 }
 
+// addSubagentRemovedStreamEvent records the parent stream's deleted-subagent event, which
+// follows subagent_updated so a client can drop a row it can no longer read.
+func addSubagentRemovedStreamEvent(t *testing.T, baseline, current map[string]any) {
+	t.Helper()
+	newSchemas := current["components"].(map[string]any)["schemas"].(map[string]any)
+	event, ok := newSchemas["SubagentRemovedEvent"].(map[string]any)
+	if !ok {
+		t.Fatal("approved subagent_removed event: no current component schema")
+	}
+	oldSchemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	if _, exists := oldSchemas["SubagentRemovedEvent"]; exists {
+		t.Fatal("approved subagent_removed event: component already in the historical baseline")
+	}
+	oldSchemas["SubagentRemovedEvent"] = event
+	streamSchema := func(document map[string]any, path string) map[string]any {
+		operation := document["paths"].(map[string]any)[path].(map[string]any)["get"].(map[string]any)
+		return operation["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)[specContentTypeEventStream].(map[string]any)["schema"].(map[string]any)
+	}
+	for _, path := range []string{
+		"/api/sessions/{session_id}/stream",
+		"/api/workspaces/{workspace_id}/sessions/{session_id}/stream",
+	} {
+		oldSchema, newSchema := streamSchema(baseline, path), streamSchema(current, path)
+		oldVariants, newVariants := oldSchema["anyOf"].([]any), newSchema["anyOf"].([]any)
+		if len(newVariants) != len(oldVariants)+1 {
+			t.Fatalf("%s: stream variants = %d, want %d", path, len(newVariants), len(oldVariants)+1)
+		}
+		oldSchema["anyOf"] = slices.Insert(oldVariants, 2, newVariants[2])
+	}
+}
+
 func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	// The old pseudo-envelope described fields that the SSE writer never puts on the wire.
@@ -5135,8 +5168,8 @@ func TestSessionStreamRawFrameContract(t *testing.T) {
 				200,
 				specContentTypeEventStream,
 			)
-			if len(schema.AnyOf) != 10 {
-				t.Fatalf("%s frame alternatives = %d, want 10", path, len(schema.AnyOf))
+			if len(schema.AnyOf) != 11 {
+				t.Fatalf("%s frame alternatives = %d, want 11", path, len(schema.AnyOf))
 			}
 			snapshot := streamVariantSchema(t, schema, "TranscriptSnapshotPayload")
 			frame := map[string]any{

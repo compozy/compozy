@@ -12,6 +12,7 @@ import { AgentIdentityProvider } from "@/systems/agent/components/agent-identity
 import { SessionInspectorSubagentsSection } from "../session-inspector-subagents-section";
 import { SubagentCard } from "../subagent-card";
 import { SubagentComposerControl } from "../subagent-composer-control";
+import { SubagentDeleteDialog } from "../subagent-delete-dialog";
 import { SubagentOriginDivider } from "../subagent-origin-divider";
 import { SubagentWaitingBanner } from "../subagent-waiting-banner";
 import type { SubagentStatus, SubagentView, SubagentWorktreeView } from "../types";
@@ -904,5 +905,88 @@ describe("Isolated subagent worktree facts (UT-070, UT-071, UT-072)", () => {
     const shared = screen.getByRole("button", { name: "Open Review retry config" });
     expect(shared.querySelector('[data-slot="subagent-branch"]')).toBeNull();
     expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+});
+
+// Invariant: the delete confirmation names the subagent and the permanent loss (its child
+// session transcript/history), blocks every dismissal while the request runs, and keeps the
+// failure on screen so the operator can read why the row stayed. Owning layer: this dialog.
+describe("SubagentDeleteDialog", () => {
+  it("Should name the subagent and what permanent removal takes", () => {
+    render(
+      <SubagentDeleteDialog
+        open
+        subagent={subagent({ title: "Audit payment webhooks for retry safety" })}
+        isDeleting={false}
+        failure={null}
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Delete subagent" })).toBeInTheDocument();
+    const dialog = screen.getByTestId("subagent-delete-dialog");
+    expect(dialog).toHaveTextContent("Audit payment webhooks for retry safety");
+    expect(dialog).toHaveTextContent("session transcript and history");
+    expect(screen.getByTestId("subagent-delete-dialog-confirm")).toHaveTextContent(
+      "Delete subagent"
+    );
+  });
+
+  it("Should block dismissal and say Deleting while the request runs", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <SubagentDeleteDialog
+        open
+        subagent={subagent()}
+        isDeleting
+        failure={null}
+        onOpenChange={onOpenChange}
+        onConfirm={vi.fn()}
+      />
+    );
+
+    const confirm = screen.getByTestId("subagent-delete-dialog-confirm");
+    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveTextContent("Deleting");
+    expect(screen.getByTestId("subagent-delete-dialog-cancel")).toBeDisabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false, expect.anything());
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("Should allow normal dismissal before deletion starts", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <SubagentDeleteDialog
+        open
+        subagent={subagent()}
+        isDeleting={false}
+        failure={null}
+        onOpenChange={onOpenChange}
+        onConfirm={vi.fn()}
+      />
+    );
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("Should keep a failed delete open with the reason", () => {
+    render(
+      <SubagentDeleteDialog
+        open
+        subagent={subagent()}
+        isDeleting={false}
+        failure="Provider-native subagents follow their parent turn"
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't delete: Provider-native subagents follow their parent turn"
+    );
+    expect(screen.getByTestId("subagent-delete-dialog")).toBeVisible();
   });
 });

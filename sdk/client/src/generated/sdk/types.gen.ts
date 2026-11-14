@@ -42760,6 +42760,65 @@ export type ForkSessionToWorktreeResponses = {
 export type ForkSessionToWorktreeResponse =
   ForkSessionToWorktreeResponses[keyof ForkSessionToWorktreeResponses];
 
+export type DeleteSubagentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Subagent id
+     */
+    subagent_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/subagents/{subagent_id}";
+};
+
+export type DeleteSubagentErrors = {
+  /**
+   * Invalid request
+   */
+  400: ErrorPayload;
+  /**
+   * Capability denied
+   */
+  403: ErrorPayload;
+  /**
+   * Session or subagent not found
+   */
+  404: ErrorPayload;
+  /**
+   * Subagent is provider-native and follows its parent turn
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Subagents unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DeleteSubagentError = DeleteSubagentErrors[keyof DeleteSubagentErrors];
+
+export type DeleteSubagentResponses = {
+  /**
+   * No Content
+   */
+  204: void;
+};
+
+export type DeleteSubagentResponse = DeleteSubagentResponses[keyof DeleteSubagentResponses];
+
 export type GetSubagentData = {
   body?: never;
   path: {

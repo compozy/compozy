@@ -256,6 +256,15 @@ func (f StreamSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, err
 	return &out, nil
 }
 
+// AsSubagentRemovedEvent decodes this payload as SubagentRemovedEvent.
+func (f StreamSessionFrame) AsSubagentRemovedEvent() (*SubagentRemovedEvent, error) {
+	var out SubagentRemovedEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
 func (f StreamSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
 	var out SessionUsageChangedPayload

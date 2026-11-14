@@ -19,7 +19,7 @@ compozy session subagents <session-id> [flags]
       --limit int          Subagents per page (1-200) (default 50)
       --origin string      Filter by delegated or provider_native origin
       --status string      Filter by comma-separated statuses
-      --workspace string   Override workspace (ID, name, or path); fast path for show/cancel that avoids searching across workspaces
+      --workspace string   Override workspace (ID, name, or path); fast path for show/cancel/delete that avoids searching across workspaces
 ```
 
 ### Options inherited from parent commands
@@ -49,7 +49,8 @@ compozy session subagents <session-id> -o json
 
 ## Subcommands
 
-| Command                                                                | Description                    |
-| ---------------------------------------------------------------------- | ------------------------------ |
-| [compozy session subagents cancel](/docs/cli/session/subagents/cancel) | Cancel a delegated subagent    |
-| [compozy session subagents show](/docs/cli/session/subagents/show)     | Show a subagent and its result |
+| Command                                                                | Description                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------- |
+| [compozy session subagents cancel](/docs/cli/session/subagents/cancel) | Cancel a delegated subagent                       |
+| [compozy session subagents delete](/docs/cli/session/subagents/delete) | Delete a delegated subagent and its child session |
+| [compozy session subagents show](/docs/cli/session/subagents/show)     | Show a subagent and its result                    |

@@ -413,6 +413,12 @@ type SubagentPullRequestPayload struct {
 	State  string `json:"state"`
 }
 
+// SubagentRemovedEvent is a daemon API value.
+type SubagentRemovedEvent struct {
+	SessionID  string `json:"session_id"`
+	SubagentID string `json:"subagent_id"`
+}
+
 // SubagentRuntimePayload is a daemon API value.
 type SubagentRuntimePayload struct {
 	Agent           string `json:"agent"`

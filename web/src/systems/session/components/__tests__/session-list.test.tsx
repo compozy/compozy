@@ -1630,6 +1630,212 @@ describe("SessionList subagents", () => {
     expect(await screen.findByTestId("session-row-archive-parent")).toBeInTheDocument();
     expect(screen.getByTestId("session-row-later-parent")).toBeInTheDocument();
   });
+
+  // Invariant: a subagent row is a row, not a link: right-click and Shift+F10 open its own
+  // verbs, while left click still opens the child session. Owner: rail's subagent branch.
+  it("Should open a subagent row's menu from a right-click and from Shift+F10", async () => {
+    const user = userEvent.setup();
+    vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(1, 2));
+    const { onSelect } = renderList({
+      sessions: [row("parent", summary(1, 1))],
+      subagentThreadIds: ["parent"],
+    });
+
+    const open = await screen.findByRole("button", {
+      name: "Open Subagent 1 · claude · Coder",
+    });
+    fireEvent.contextMenu(open);
+    expect(await screen.findByRole("menuitem", { name: "Copy" })).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-subagent-menu-sub-1-stop")).toBeVisible();
+    expect(onSelect).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+
+    open.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-copy")).toBeVisible();
+    expect(onSelect).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+
+    fireEvent.click(open);
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "child-1", agent_name: "coder" })
+    );
+  });
+
+  // Invariant: provider-native rows follow the parent turn and a settled row cannot stop, so
+  // neither gets Stop; only a delegated row offers Delete. Owner: rail's subagent row menu.
+  it("Should offer Stop and Delete only on the rows that can take them", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          subagents: [
+            wireSubagent(1, "running"),
+            { ...wireSubagent(2, "completed"), settled_at: "2026-10-08T12:30:00Z" },
+            { ...wireSubagent(3, "running"), origin: "provider_native" },
+          ],
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    );
+    renderList({ sessions: [row("parent", summary(1, 3))], subagentThreadIds: ["parent"] });
+
+    const user = userEvent.setup();
+    const close = async () => {
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    };
+    const openMenu = async (testId: string) => {
+      fireEvent.contextMenu(await screen.findByTestId(testId));
+      expect(await screen.findByRole("menuitem", { name: "Copy" })).toBeVisible();
+    };
+
+    await openMenu("session-sidebar-subagent-menu-sub-1");
+    expect(screen.getByRole("menuitem", { name: "Stop subagent" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Delete subagent" })).toBeVisible();
+    await close();
+
+    await openMenu("session-sidebar-subagent-menu-sub-2");
+    expect(screen.queryByRole("menuitem", { name: "Stop subagent" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Delete subagent" })).toBeVisible();
+    await close();
+
+    await openMenu("session-sidebar-subagent-menu-sub-3");
+    expect(screen.queryByRole("menuitem", { name: "Stop subagent" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Delete subagent" })).not.toBeInTheDocument();
+    await close();
+  });
+
+  // Invariant: Delete confirms, then permanently removes the delegated row and its child
+  // session in the parent's profile; the rail's branch drops the row on the same answer.
+  // Owner: rail's subagent actions + branch; canonical suite: this sidebar suite.
+  it("Should delete a delegated subagent after its confirmation", async () => {
+    const user = userEvent.setup();
+    let rows = [wireSubagent(1, "running")];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.method === "DELETE") {
+        const subagentId = new URL(request.url).pathname.split("/").at(-1);
+        rows = rows.filter(item => item.subagent_id !== subagentId);
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify({ subagents: rows }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.mocked(globalThis.fetch).mockImplementation(fetcher);
+    renderList({ sessions: [row("parent", summary(1, 1))], subagentThreadIds: ["parent"] });
+
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    const open = await within(branch).findByRole("button", {
+      name: "Open Subagent 1 · claude · Coder",
+    });
+    fireEvent.contextMenu(open);
+    await user.click(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-delete"));
+
+    expect(await screen.findByRole("dialog", { name: "Delete subagent" })).toBeVisible();
+    await user.click(screen.getByTestId("subagent-delete-dialog-confirm"));
+
+    await waitFor(() => {
+      const request = fetcher.mock.calls
+        .map(([input]) => input as Request)
+        .find(item => item.method === "DELETE");
+      expect(request).toBeDefined();
+      const url = new URL(request!.url);
+      expect(url.pathname).toBe(
+        `/api/workspaces/${primarySessionFixture.workspace_id}/subagents/sub-1`
+      );
+      expect(url.searchParams.get("profile")).toBe("default");
+    });
+    await waitFor(() => expect(within(branch).queryByText("Subagent 1")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Delete subagent" })).not.toBeInTheDocument()
+    );
+  });
+
+  // Invariant: the confirmation owns its host's lifetime, not the branch's. The catalog stream
+  // reports the deletion (the parent's summary falls to zero, so the rail unmounts the branch)
+  // before the DELETE answers; the pending dialog must survive, then close on its answer while
+  // the row stays gone. Owner: SessionList's subagent-actions host above the threads.
+  it("Should keep the delete confirmation mounted while the parent's branch disappears", async () => {
+    const user = userEvent.setup();
+    let releaseDelete: (response: Response) => void = () => undefined;
+    const deleteAnswer = new Promise<Response>(resolve => {
+      releaseDelete = resolve;
+    });
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      if ((input as Request).method === "DELETE") return deleteAnswer;
+      return subagentPage(1, 2);
+    });
+    vi.mocked(globalThis.fetch).mockImplementation(fetcher);
+    const { update } = renderList({
+      sessions: [row("parent", summary(1, 1))],
+      subagentThreadIds: ["parent"],
+    });
+
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    fireEvent.contextMenu(await within(branch).findByTestId("session-sidebar-subagent-menu-sub-1"));
+    await user.click(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-delete"));
+    await user.click(await screen.findByTestId("subagent-delete-dialog-confirm"));
+    await waitFor(() =>
+      expect(fetcher.mock.calls.some(([input]) => (input as Request).method === "DELETE")).toBe(
+        true
+      )
+    );
+
+    update([row("parent", summary(0, 0))]);
+
+    expect(screen.queryByTestId("session-sidebar-subagents-parent")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Delete subagent" })).toBeVisible();
+    const confirm = screen.getByTestId("subagent-delete-dialog-confirm");
+    expect(confirm).toHaveTextContent("Deleting");
+    expect(confirm).toBeDisabled();
+
+    await act(async () => {
+      releaseDelete(new Response(null, { status: 204 }));
+      await deleteAnswer;
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Delete subagent" })).not.toBeInTheDocument()
+    );
+    expect(screen.queryByTestId("session-sidebar-subagents-parent")).not.toBeInTheDocument();
+    expect(screen.queryByText("Subagent 1")).not.toBeInTheDocument();
+  });
+
+  it("Should stop a live delegated subagent from its row menu", async () => {
+    const user = userEvent.setup();
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.method === "POST") {
+        return new Response(JSON.stringify({ subagent_id: "sub-1", status: "cancel_requested" }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return subagentPage(1, 2);
+    });
+    vi.mocked(globalThis.fetch).mockImplementation(fetcher);
+    renderList({ sessions: [row("parent", summary(1, 1))], subagentThreadIds: ["parent"] });
+
+    const open = await screen.findByRole("button", {
+      name: "Open Subagent 1 · claude · Coder",
+    });
+    fireEvent.contextMenu(open);
+    await user.click(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-stop"));
+
+    await waitFor(() => {
+      const request = fetcher.mock.calls
+        .map(([input]) => input as Request)
+        .find(item => item.method === "POST");
+      expect(request).toBeDefined();
+      const url = new URL(request!.url);
+      expect(url.pathname).toBe(
+        `/api/workspaces/${primarySessionFixture.workspace_id}/subagents/sub-1/cancel`
+      );
+      expect(url.searchParams.get("profile")).toBe("default");
+    });
+  });
 });
 
 // Invariant (#1076): Later mirrors the archive — one toolbar toggle beside Archive, mutually
