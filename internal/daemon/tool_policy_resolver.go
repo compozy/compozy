@@ -84,11 +84,15 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 }
 
 func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyResolver, error) {
+	var workspaceResolver nativeToolPolicyWorkspaceResolver
+	if state.workspaceResolver != nil {
+		workspaceResolver = state.workspaceResolver
+	}
 	resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
 		Config:            &state.cfg,
 		ApprovalGrants:    state.deps.ApprovalGrants,
 		Sessions:          state.sessions,
-		WorkspaceResolver: state.workspaceResolver,
+		WorkspaceResolver: workspaceResolver,
 		ProfileNames:      state.profiles,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
@@ -146,7 +150,8 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if resolvedScope.AgentName != "" &&
 		workspaceaccess.ActorKind(resolvedScope.ActorKind) != workspaceaccess.ActorDaemon {
 		if err := r.applyAgentToolPolicy(&inputs, resolvedScope.AgentName, resolvedWorkspace, cfg); err != nil {
-			if inputs.Session.Enforced && errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			if inputs.Session.Enforced && info != nil && info.Lineage != nil &&
+				errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
 				applySessionPermissionLevel(&inputs, info)
 				return inputs, nil
 			}

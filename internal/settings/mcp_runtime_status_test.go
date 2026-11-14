@@ -51,7 +51,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\nurl = \"https://example.test/mcp\"\n")
 		workspaceRoot := t.TempDir()
 		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName),
-			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\n")
+			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\nurl = \"\"\n")
 		auth := &recordingMCPAuthRuntime{statusErr: errors.New("invalid remote must not reach auth")}
 		runtime := &fakeMCPRuntimeProvider{statuses: map[string]MCPServerRuntimeStatus{
 			"broken": {Configured: true, State: MCPServerRuntimeStateConfigError, Probe: MCPServerProbeSkipped},

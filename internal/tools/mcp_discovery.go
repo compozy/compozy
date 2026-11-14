@@ -53,6 +53,7 @@ func (p *MCPProvider) forgetDiscovered(retire func(SourceRef) bool) {
 	p.discovered.Range(func(key, _ any) bool {
 		if retire(key.(SourceRef)) {
 			p.discovered.Delete(key)
+			p.discoveryFailures.Delete(key)
 		}
 		return true
 	})

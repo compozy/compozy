@@ -72,6 +72,9 @@ func (e *EffectivePolicyEvaluator) evaluateCallContext(
 	if requiresSourceApproval {
 		requireApproval(&decision, e.inputs.ApprovalAvailable)
 	}
+	if d.ID == ToolIDMCPAllow {
+		requireApproval(&decision, e.inputs.ApprovalAvailable)
+	}
 	if e.inputs.CheckIn == nil &&
 		(e.permissionMode() != PermissionModeApproveReads || !isInstanceSelfServiceCall(d, input)) {
 		e.applyPermissionCeiling(d, &decision)

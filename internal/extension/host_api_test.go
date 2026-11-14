@@ -5142,6 +5142,7 @@ Review the workspace changes carefully.
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	sessions.SetMCPAuthorityResolver(hostAPITestMCPAuthority{sessions: sessions})
 	source.manager = sessions
 
 	skillsRegistry := skillspkg.NewRegistry(
@@ -5600,6 +5601,8 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session.NewManager(without observer) error = %v", err)
 	}
+
+	sessions.SetMCPAuthorityResolver(hostAPITestMCPAuthority{sessions: sessions})
 
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(e.registry),
@@ -6230,4 +6233,27 @@ func TestHostAPIHiddenTriage(t *testing.T) {
 			assertRPCErrorCode(t, err, HostAPINotFoundCode)
 		}
 	})
+}
+
+// The host API fixture declares no external MCP sources.
+type hostAPITestMCPAuthority struct{ sessions *session.Manager }
+
+var _ session.MCPAuthorityResolver = hostAPITestMCPAuthority{}
+
+func (r hostAPITestMCPAuthority) EffectiveMCPAuthority(
+	ctx context.Context,
+	id string,
+) (store.SessionPermissionPolicy, error) {
+	info := session.MCPAuthoritySession(ctx, id)
+	if info == nil {
+		var err error
+		info, err = r.sessions.StoredStatus(ctx, id)
+		if err != nil {
+			return store.SessionPermissionPolicy{}, err
+		}
+	}
+	lineage := store.NormalizeSessionLineage(id, info.Lineage)
+	policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+	policy.MCPServers = store.BoundMCPServers(policy, nil)
+	return policy, nil
 }

@@ -69,14 +69,20 @@ func (r *nativeToolPolicyResolver) admittedMCPNames(
 			names = append(names, server.Name)
 		}
 	}
+	resources := map[string]string{}
 	if r.mcpResourceNames != nil {
-		resources := r.mcpResourceNames()
-		for _, grant := range inputs.AllowSources {
-			if grant.Kind == toolspkg.SourceMCP {
-				if name := resources[grant.ResourceID]; name != "" {
-					names = append(names, name)
-				}
-			}
+		resources = r.mcpResourceNames()
+	}
+	for _, grant := range inputs.AllowSources {
+		if grant.Kind != toolspkg.SourceMCP {
+			continue
+		}
+		name := resources[grant.ResourceID]
+		if grant.ResourceID == "" {
+			name = grant.Owner
+		}
+		if name != "" {
+			names = append(names, name)
 		}
 	}
 	return names

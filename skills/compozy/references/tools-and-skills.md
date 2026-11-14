@@ -268,7 +268,8 @@ if that record fails, the write returns a warning and the server stays waiting.
 
 - Approve with `compozy mcp allow <server> --workspace <ws>` (the CLI reads the current definition and
   sends its digest), `--digest <d>` to pin the definition you inspected, or `compozy__mcp_allow`
-  with `definition_digest` from `compozy__mcp_list`. Revoke with `--revoke` / `decision: "revoke"`;
+  with `definition_digest` from `compozy__mcp_list`. The native tool always requires operator
+  approval, including in `approve-all`; an agent cannot grant itself consent. Revoke with `--revoke` / `decision: "revoke"`;
   the tools stop working on the next call. The HTTP/UDS route is
   `PUT|DELETE /api/settings/mcp-servers/{name}/approval`.
 - An approval binds one (profile, workspace, server name) and one definition digest. Any change to

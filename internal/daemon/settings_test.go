@@ -1740,9 +1740,9 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 		map[string]any{
 			"mcpServers": map[string]any{
 				"sentry": map[string]any{
-					"type": "http",
-					"url":  req.Server.URL,
-					"auth": map[string]any{"registration": "auto"},
+					"transport": "http",
+					"url":       req.Server.URL,
+					"auth":      map[string]any{"registration": "auto"},
 				},
 			},
 		},
@@ -1787,11 +1787,12 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 	service, err := settingspkg.NewService(
 		testHomePaths(t),
 		settingspkg.Dependencies{
-			WorkspaceResolver: state.workspaceResolver,
-			ProfileResolver:   state.profiles,
-			MCPConsent:        settingsMCPConsent{state: state},
-			MCPAuth:           surface,
-			MCPRuntime:        surface,
+			WorkspaceResolver:       state.workspaceResolver,
+			ProfileResolver:         state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent:              settingsMCPConsent{state: state},
+			MCPAuth:                 surface,
+			MCPRuntime:              surface,
 		},
 	)
 	if err != nil {

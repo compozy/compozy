@@ -976,7 +976,11 @@ func (l *activationHostedLauncher) setCatalog(servers ...string) {
 
 func newActivationHarness(t *testing.T) (*harness, *activationHostedLauncher) {
 	t.Helper()
-	h := newHostedMCPHarness(t)
+	admissions := openManagerInputQueueStore(t)
+	h := newHostedMCPHarness(t,
+		WithSessionCatalog(admissions), WithEventLedger(admissions), WithSessionPromptAdmissionStore(admissions),
+	)
+	registerManagerInputQueueWorkspace(t, admissions, h)
 	launcher := &activationHostedLauncher{recordingHostedMCPLauncher: h.manager.hostedMCP.(*recordingHostedMCPLauncher)}
 	launcher.setCatalog()
 	h.manager.hostedMCP = launcher
@@ -1278,7 +1282,7 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 		_, err := h.manager.SendPrompt(
 			t.Context(),
 			active.ID,
-			SendPromptOpts{Message: "wait for old writer", MessageID: "fenced"},
+			SendPromptOpts{Message: "wait for old writer", MessageID: "fenced", IdempotencyKey: "fenced"},
 		)
 		h.driver.stopHook = nil
 		if !errors.Is(err, ErrStopVerificationFailed) || len(h.driver.startCalls) != 1 {
@@ -1399,7 +1403,7 @@ func TestPromptRuntimeMCPActivation(t *testing.T) {
 		{"copilot", "off", ".copilot/mcp-config.json", true, false},
 		{"copilot", "load", ".copilot/mcp-config.json", false, false},
 		{"claude", "load", ".claude.json", true, false},
-		{"qwen", "off", ".qwen/settings.json", true, false},
+		{"qwen-code", "off", ".qwen/settings.json", true, false},
 		{"claude", "load", ".claude.json", true, true},
 	} {
 		t.Run(

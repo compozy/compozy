@@ -1381,8 +1381,8 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 			archived = "2026-11-01T00:00:00Z"
 		}
 		if _, err := db.ExecContext(ctx, `INSERT INTO sessions
-			(id,profile_id,agent_name,workspace_id,state,session_type,lineage_kind,permission_policy_json,archived_at,created_at,updated_at)
-			VALUES (?, ?,'coder','','stopped',?,?,?,?, '2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')`,
+			(id,profile_id,agent_name,scope,workspace_id,state,session_type,lineage_kind,permission_policy_json,archived_at,created_at,updated_at)
+			VALUES (?, ?,'coder','global','','stopped',?,?,?,?, '2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')`,
 			fixture.id, store.DefaultProfileID, fixture.typ, fixture.kind, fixture.raw, archived); err != nil {
 			t.Fatal(err)
 		}

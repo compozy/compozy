@@ -852,6 +852,23 @@ func (s mcpGrantAuthStatus) Status(
 func TestOperatorConsentedMCPSourceGrants(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: admitted config sources without resource IDs retain their logical server names.
+	// Owner: daemon MCP authority; canonical suite: operator-consented source grants.
+	t.Run("Should retain consented config names without catalog resource identities", func(t *testing.T) {
+		t.Parallel()
+		resolver := &nativeToolPolicyResolver{mcpResourceNames: func() map[string]string {
+			return map[string]string{"record": "catalog-name"}
+		}}
+		names := resolver.admittedMCPNames(toolspkg.PolicyInputs{AllowSources: []toolspkg.SourceGrant{
+			{Kind: toolspkg.SourceMCP, Owner: "config-name"},
+			{Kind: toolspkg.SourceMCP, Owner: "runtime-name", ResourceID: "record"},
+			{Kind: toolspkg.SourceMCP, Owner: "unknown-record", ResourceID: "unknown"},
+		}}, nil)
+		if !slices.Equal(names, []string{"config-name", "catalog-name"}) {
+			t.Fatalf("admitted names = %v", names)
+		}
+	})
+
 	db := openDaemonTestGlobalDB(t)
 	profiles, err := profilepkg.NewManager(profilepkg.WithStore(db),
 		profilepkg.WithHomePaths(testHomePaths(t)), profilepkg.WithLogger(discardLogger()))
@@ -1539,9 +1556,10 @@ func TestSettingsPublishedAgentMCPConsent(t *testing.T) {
 	service, err := settingspkg.NewService(
 		testHomePaths(t),
 		settingspkg.Dependencies{
-			WorkspaceResolver: state.workspaceResolver,
-			ProfileResolver:   state.profiles,
-			MCPConsent:        settingsMCPConsent{state: state},
+			WorkspaceResolver:       state.workspaceResolver,
+			ProfileResolver:         state.profiles,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			MCPConsent:              settingsMCPConsent{state: state},
 		},
 	)
 	if err != nil {

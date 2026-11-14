@@ -24,6 +24,12 @@ provider CLIs signed in through the lab's provider homes. Echo fixture: a Stream
 server exposing an `echo` tool (for example `npx -y @modelcontextprotocol/server-everything`).
 Capture every command with timestamp and output, plus a screenshot of each Web state named below.
 
+Backend regression prerequisite: in the default profile, both a User session and a project session
+must expose their MCP inventory. `GET /api/workspaces/{ws}/sessions/{id}` returns 200 with
+`mcp_summary` for the project session; reading MCP state must not request the reserved default profile
+as a profile-scoped Settings overlay. The canonical real-daemon check is
+`TestDaemonSessionMCPReadSurfaces`; `TestSessionMCPReadModel` covers both scope selectors.
+
 Steps:
 
 1. Session with: echo (ready), an OAuth server not signed in, the waiting `sentry` project fixture,
