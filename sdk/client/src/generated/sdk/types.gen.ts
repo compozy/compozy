@@ -7979,7 +7979,7 @@ export type SessionLinkedWorkSummary = {
 
 export type SessionMCP = {
   attention: number;
-  compozy: Array<MCPServerRow>;
+  compozy_servers: Array<MCPServerRow>;
   last_reload?: MCPReloadRecord | null;
   pending_reload: boolean;
   runtime: string;

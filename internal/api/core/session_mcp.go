@@ -39,7 +39,7 @@ func (h *BaseHandlers) withSessionMCPSummary(ctx context.Context, payload *contr
 	if err != nil {
 		return err
 	}
-	if len(result.Compozy)+len(result.RuntimeServers.Servers) > 0 {
+	if len(result.CompozyServers)+len(result.RuntimeServers.Servers) > 0 {
 		payload.MCPSummary = &result.MCPSummary
 	}
 	return nil

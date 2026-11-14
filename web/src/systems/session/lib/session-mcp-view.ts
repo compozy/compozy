@@ -82,12 +82,12 @@ export function sessionMCPControlView(data: SessionMCPResponse): SessionMCPContr
   const runtimeName = data.runtime_display_name || data.runtime;
   const needsYou = (row: SessionMCPServerRow) =>
     sessionMCPStateView(row.state, runtimeName).action !== undefined;
-  const available = data.compozy.filter(row => row.state !== "not_available");
+  const available = data.compozy_servers.filter(row => row.state !== "not_available");
   return {
     runtimeId: data.runtime,
     runtimeName,
     compozy: [...available.filter(needsYou), ...available.filter(row => !needsYou(row))],
-    unavailable: data.compozy.filter(row => row.state === "not_available"),
+    unavailable: data.compozy_servers.filter(row => row.state === "not_available"),
     runtimeServers: data.runtime_servers.servers,
     reloadFailed: data.last_reload?.outcome === "failed",
   };

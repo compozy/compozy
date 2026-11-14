@@ -1032,7 +1032,7 @@ func TestSessionMCPReadModel(t *testing.T) {
 				t.Fatalf("read discovered or probed: %d -> %d, %+v", before, executor.discoveries, settings.lastRequest)
 			}
 			rows := map[string]session.MCPServerRow{}
-			for _, row := range result.Compozy {
+			for _, row := range result.CompozyServers {
 				rows[row.Name] = row
 			}
 			switch {

@@ -16318,7 +16318,7 @@ export interface components {
     };
     SessionMCP: {
       attention: number;
-      compozy: components["schemas"]["MCPServerRow"][];
+      compozy_servers: components["schemas"]["MCPServerRow"][];
       last_reload?: components["schemas"]["MCPReloadRecord"] | null;
       pending_reload: boolean;
       runtime: string;

@@ -266,7 +266,7 @@ func TestMCPListCommand(t *testing.T) {
 		if err := json.Unmarshal([]byte(runtimeJSON), &expected); err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(actual.Runtimes, expected.Runtimes) || len(actual.Compozy) != 1 || actual.Compozy[0].Name != "manual" {
+		if !reflect.DeepEqual(actual.Runtimes, expected.Runtimes) || len(actual.CompozyServers) != 1 || actual.CompozyServers[0].Name != "manual" {
 			t.Fatalf("payload=%+v", actual)
 		}
 	})

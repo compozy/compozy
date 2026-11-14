@@ -354,7 +354,7 @@ type SessionMCP struct {
 	Attention          int               `json:"attention"`
 	PendingReload      bool              `json:"pending_reload"`
 	LastReload         *MCPReloadRecord  `json:"last_reload,omitempty"`
-	Compozy            []MCPServerRow    `json:"compozy"`
+	CompozyServers     []MCPServerRow    `json:"compozy_servers"`
 	RuntimeServers     SessionRuntimeMCP `json:"runtime_servers"`
 }
 

@@ -52,7 +52,7 @@ func newMCPListCommand(deps commandDeps) *cobra.Command {
 			}
 			workspace = resolution.ID
 		}
-		result := contract.MCPListResponse{Compozy: []contract.SettingsMCPServerItemPayload{}, Runtimes: []runtimemcp.Snapshot{}}
+		result := contract.MCPListResponse{CompozyServers: []contract.SettingsMCPServerItemPayload{}, Runtimes: []runtimemcp.Snapshot{}}
 		if !compozyOnly {
 			reader, ok := client.(runtimeMCPClient)
 			if !ok {
@@ -73,7 +73,7 @@ func newMCPListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result.Compozy = collection.MCPServers
+			result.CompozyServers = collection.MCPServers
 		}
 		return writeCommandOutput(cmd, mcpListBundle(result))
 	}
@@ -89,9 +89,9 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 		jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
 		human: func() (string, error) {
 			var out strings.Builder
-			if len(result.Compozy) > 0 {
-				fmt.Fprintf(&out, "COMPOZYOS · %d servers\n", len(result.Compozy))
-				for _, s := range result.Compozy {
+			if len(result.CompozyServers) > 0 {
+				fmt.Fprintf(&out, "COMPOZYOS · %d servers\n", len(result.CompozyServers))
+				for _, s := range result.CompozyServers {
 					fmt.Fprintf(&out, "  %-24s %-10s %-8s\n", s.Name, s.Scope, s.Transport)
 				}
 			}
@@ -118,7 +118,7 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 			return out.String(), nil
 		}, toon: func() (string, error) {
 			rows := [][]string{}
-			for _, s := range result.Compozy {
+			for _, s := range result.CompozyServers {
 				rows = append(rows, []string{"compozy", s.Name, string(s.Scope), s.Transport, "", ""})
 			}
 			for _, group := range result.Runtimes {

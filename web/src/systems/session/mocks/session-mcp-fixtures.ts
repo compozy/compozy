@@ -63,7 +63,7 @@ export function sessionMCPFixture(input: SessionMCPFixtureInput = {}): SessionMC
     attention: compozy.filter(row => ATTENTION_STATES.has(row.state)).length,
     pending_reload: input.pendingReload ?? false,
     last_reload: input.lastReload ?? null,
-    compozy,
+    compozy_servers: compozy,
     runtime_servers: {
       runtime_mcp: input.runtimeMCP ?? "load",
       servers: input.runtimeServers ?? RUNTIME_SERVERS,

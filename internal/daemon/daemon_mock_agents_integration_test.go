@@ -4527,7 +4527,7 @@ func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
 			t.Fatalf("surface bodies differ: HTTP=%+v native=%+v CLI=%+v", httpBody, nativeBody, cliBody)
 		}
 		states := map[string]string{}
-		for _, row := range httpBody.Compozy {
+		for _, row := range httpBody.CompozyServers {
 			states[row.Name] = row.State
 		}
 		if states["linear"] != "ready" || states["sentry"] != "ready" || states["waiting"] != "waiting_approval" {
@@ -4650,8 +4650,8 @@ func assertSessionMCPConsentReadParity(
 	if state == "ready" && httpBody.PendingReload {
 		wantState = "applies_next_message"
 	}
-	if !reflect.DeepEqual(httpBody, nativeBody) || len(httpBody.Compozy) != 1 ||
-		httpBody.Compozy[0].State != wantState {
+	if !reflect.DeepEqual(httpBody, nativeBody) || len(httpBody.CompozyServers) != 1 ||
+		httpBody.CompozyServers[0].State != wantState {
 		t.Fatalf("MCP bodies: HTTP=%+v native=%+v want=%s", httpBody, nativeBody, state)
 	}
 }

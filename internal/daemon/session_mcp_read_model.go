@@ -87,12 +87,12 @@ func composeSessionMCP(
 ) session.SessionMCP {
 	result := session.SessionMCP{SessionID: id, Runtime: runtime.Inventory.Runtime,
 		RuntimeDisplayName: cmp.Or(runtime.Inventory.DisplayName, runtime.Inventory.Runtime), LastReload: runtime.LastReload,
-		MCPSummary: session.MCPSummary{PendingReload: runtime.Pending}, Compozy: []session.MCPServerRow{},
+		MCPSummary: session.MCPSummary{PendingReload: runtime.Pending}, CompozyServers: []session.MCPServerRow{},
 		RuntimeServers: session.SessionRuntimeMCP{RuntimeMCP: runtime.Mode, Servers: []session.RuntimeMCPRow{}},
 	}
 	for _, item := range items {
 		row := sessionMCPRow(item, allowed, callable, diagnostics, runtime)
-		result.Compozy = append(result.Compozy, row)
+		result.CompozyServers = append(result.CompozyServers, row)
 		switch row.State {
 		case "ready", "applies_next_message":
 			result.Usable++
@@ -100,7 +100,7 @@ func composeSessionMCP(
 			result.Attention++
 		}
 	}
-	slices.SortFunc(result.Compozy, func(a, b session.MCPServerRow) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(result.CompozyServers, func(a, b session.MCPServerRow) int { return strings.Compare(a.Name, b.Name) })
 	for _, server := range runtime.Inventory.Servers {
 		state := "loaded_by_runtime"
 		if runtime.Mode == "off" && runtime.Inventory.RuntimeMCP.CanDisable {

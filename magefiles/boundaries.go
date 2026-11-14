@@ -214,6 +214,8 @@ func Boundaries() error {
 			"github.com/compozy/compozy/internal/config":      {},
 			"github.com/compozy/compozy/internal/providerenv": {},
 			"github.com/compozy/compozy/internal/fileutil":    {},
+			"github.com/compozy/compozy/internal/mcppolicy":   {},
+			"github.com/kballard/go-shellquote":               {},
 			"github.com/pelletier/go-toml/v2":                 {},
 		}},
 		{importer: "internal/redact", allowed: map[string]struct{}{}},

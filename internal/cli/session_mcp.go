@@ -69,7 +69,7 @@ func sessionMCPBundle(result contract.SessionMCPResponse) outputBundle {
 				result.Runtime,
 				result.Usable,
 			)
-			for _, server := range result.Compozy {
+			for _, server := range result.CompozyServers {
 				fmt.Fprintf(
 					&out,
 					"  %-24s %-28s %d tools\n",

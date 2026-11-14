@@ -42,13 +42,13 @@ func (h *BaseHandlers) ListRuntimeMCPServers(c *gin.Context) {
 func MCPList(ctx context.Context, settings SettingsService, req settingspkg.CollectionRequest, runtime string, includeRuntimes bool) (contract.MCPListResponse, error) {
 	req.Collection = settingspkg.CollectionMCPServers
 	req.SkipRuntimeStatus = true
-	result := contract.MCPListResponse{Compozy: []contract.SettingsMCPServerItemPayload{}, Runtimes: []runtimemcp.Snapshot{}}
+	result := contract.MCPListResponse{CompozyServers: []contract.SettingsMCPServerItemPayload{}, Runtimes: []runtimemcp.Snapshot{}}
 	if runtime == "" || !includeRuntimes {
 		collection, err := settings.ListCollection(ctx, req)
 		if err != nil {
 			return result, err
 		}
-		result.Compozy = settingsMCPServerItemPayloads(collection.MCPServers)
+		result.CompozyServers = settingsMCPServerItemPayloads(collection.MCPServers)
 	}
 	if includeRuntimes {
 		reader, ok := settings.(RuntimeMCPReader)

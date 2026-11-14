@@ -8000,7 +8000,7 @@ func TestSessionMCPDetailAndScope(t *testing.T) {
 				},
 			}
 			if count > 0 {
-				reader.result.Compozy = []session.MCPServerRow{{Name: "linear", State: "needs_sign_in"}}
+				reader.result.CompozyServers = []session.MCPServerRow{{Name: "linear", State: "needs_sign_in"}}
 			}
 			fixture.Handlers.Sessions = reader
 			fixture.Engine.GET("/workspaces/:workspace_id/sessions/:session_id/mcp", fixture.Handlers.GetSessionMCP)

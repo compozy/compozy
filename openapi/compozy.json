@@ -28684,7 +28684,7 @@
           "attention": {
             "type": "integer"
           },
-          "compozy": {
+          "compozy_servers": {
             "items": {
               "$ref": "#/components/schemas/MCPServerRow"
             },
@@ -28724,7 +28724,7 @@
         },
         "required": [
           "attention",
-          "compozy",
+          "compozy_servers",
           "pending_reload",
           "runtime",
           "runtime_display_name",
