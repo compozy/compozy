@@ -114,16 +114,16 @@ export function TerminalAggregateLocation({
       ),
     onSuccess: async terminal => {
       // The new terminal joins the All projects list and its owner's catalog.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: [...terminalKeys.all(), "aggregate"] }),
-        queryClient.invalidateQueries({
-          queryKey: [
-            ...terminalKeys.all(),
-            "catalog",
-            windowBindingValue(ownerDataScope(terminal.workspace_id)),
-          ],
-        }),
-      ]);
+      // Refreshed in the background: a stalled read must not keep the terminal
+      // from showing, nor hold the window's close admission.
+      void queryClient.invalidateQueries({ queryKey: [...terminalKeys.all(), "aggregate"] });
+      void queryClient.invalidateQueries({
+        queryKey: [
+          ...terminalKeys.all(),
+          "catalog",
+          windowBindingValue(ownerDataScope(terminal.workspace_id)),
+        ],
+      });
       await retargetBound(terminal.id, terminal.workspace_id);
     },
     onError: error =>
