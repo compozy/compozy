@@ -25,7 +25,8 @@
 // seeds new windows with the last choice, and an entry stored before it existed
 // reads as off.
 // The list's shelf (active, archive, or Later; #1706) is per window and survives the remount a
-// session selection causes, but is never persisted: a reload and a new window start active.
+// session selection causes, but is never persisted: a reload and a new window start active; a
+// closed window's shelf is pruned with its rail entry.
 // Boundary IN: useSessionSidebarState + its persisted store + window.localStorage.
 // Boundary OUT: SessionSidebar layout, topbar toggle chrome, the session list query.
 
@@ -42,15 +43,17 @@ const PARTITION_B = "ws_b\u0000default";
 /** A reload: fresh store and fresh scope context from the same module graph. */
 async function loadFreshSidebarState() {
   vi.resetModules();
-  const [sidebar, view, order, { WindowScopeContext }, query] = await Promise.all([
+  const [sidebar, view, order, { WindowScopeContext }, query, shelf] = await Promise.all([
     import("../use-session-sidebar-state"),
     import("../use-session-window-view-state"),
     import("../use-session-window-order"),
     import("@/hooks/use-window-scope"),
     import("@tanstack/react-query"),
+    import("../../lib/session-list-shelf"),
   ]);
   return {
     ...sidebar,
+    sessionListShelfStore: shelf.sessionListShelfStore,
     ...view,
     ...order,
     WindowScopeContext,
@@ -592,6 +595,8 @@ describe("useSessionSidebarState", () => {
     act(() => {
       one.result.current.toggleFolder("sfold-a");
       two.current.toggleFolder("sfold-b");
+      one.result.current.setShelf("archive");
+      two.current.setShelf("later");
     });
 
     act(() => {
@@ -606,6 +611,10 @@ describe("useSessionSidebarState", () => {
     const byScope = sidebar.sessionSidebarStore.getSnapshot().context.byScope;
     expect(Object.keys(byScope).sort()).toEqual(["shell", WINDOW_TWO].sort());
     expect(byScope[WINDOW_TWO]?.collapsedFolders).toEqual({ "sfold-b": true });
+    // A closed window's shelf goes with it; a live window keeps its own.
+    expect(sidebar.sessionListShelfStore.getSnapshot().context.byScope).toEqual({
+      [WINDOW_TWO]: "later",
+    });
   });
 
   it("Should drop a window closed after a reload that preceded any other gesture", async () => {

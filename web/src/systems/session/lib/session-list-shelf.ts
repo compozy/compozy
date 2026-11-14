@@ -45,5 +45,12 @@ export const sessionListShelfStore = createStore({
       if ((context.byScope[event.scopeId] ?? "active") === event.shelf) return context;
       return { byScope: { ...context.byScope, [event.scopeId]: event.shelf } };
     },
+    /** Closed windows, as `pruneSessionSidebarScopes` resolves them for one partition. */
+    scopesReleased: (context, event: { scopeIds: readonly string[] }) => {
+      if (!event.scopeIds.some(scopeId => Object.hasOwn(context.byScope, scopeId))) return context;
+      const byScope = { ...context.byScope };
+      for (const scopeId of event.scopeIds) delete byScope[scopeId];
+      return { byScope };
+    },
   },
 });

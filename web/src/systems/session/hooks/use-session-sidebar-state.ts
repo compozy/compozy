@@ -308,7 +308,13 @@ export function pruneSessionSidebarScopes(
   partition: string,
   liveScopeIds: readonly string[]
 ): void {
+  const live = new Set(liveScopeIds);
+  const closed = Object.entries(sessionSidebarStore.getSnapshot().context.partitionByScope)
+    .filter(([scopeId, owner]) => owner === partition && !live.has(scopeId))
+    .map(([scopeId]) => scopeId);
   sessionSidebarStore.trigger.scopesPruned({ partition, liveScopeIds });
+  // A closed window's shelf goes with its rail entry.
+  if (closed.length > 0) sessionListShelfStore.trigger.scopesReleased({ scopeIds: closed });
   persistSessionSidebarPrune(partition, liveScopeIds);
 }
 
