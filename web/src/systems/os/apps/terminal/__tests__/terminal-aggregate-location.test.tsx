@@ -363,7 +363,11 @@ describe("TerminalAggregateLocation", () => {
       staleTime: Number.POSITIVE_INFINITY,
     });
     const unsubscribe = stalled.subscribe(() => {});
-    const ownerCatalog = terminalKeys.catalog({ workspaceId: "ws-atlas", profileKey: "default" });
+    // Filed under the profile that owns it, not the launcher's lens ("default").
+    const ownerCatalog = terminalKeys.catalog({
+      workspaceId: "ws-atlas",
+      profileKey: terminal.profile_name,
+    });
     client.setQueryData(ownerCatalog, []);
 
     fireEvent.click(screen.getByTestId("terminal-launcher-new-ws-atlas"));
