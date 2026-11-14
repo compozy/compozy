@@ -138,7 +138,7 @@ func TestManualMCPPersistsEncryptedSecretAndExecutorResolvesIt(t *testing.T) {
 		if installed.MCPServer == nil {
 			t.Fatal("manual MCP result has no server")
 		}
-		assertMCPSecretKeys(t, *installed.MCPServer, "CATALOG_TOKEN")
+		assertMCPSecretKeys(t, installed.MCPServer, "CATALOG_TOKEN")
 		ref := "vault:mcp/user/catalog-helper/env/CATALOG_TOKEN"
 		record, err := store.GetVaultSecret(ctx, ref)
 		if err != nil {

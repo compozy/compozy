@@ -710,7 +710,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		executor := newTestMCPExecutor(t, replacement, WithTokenStore(store))
 		resolved := ResolvedServer{Server: replacement, Target: target}
-		if got := executor.authorizationHeader(t.Context(), resolved); got != "" {
+		if got := executor.authorizationHeader(t.Context(), &resolved); got != "" {
 			t.Fatalf("authorizationHeader(replacement) = %q, want empty", got)
 		}
 		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
@@ -2579,7 +2579,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			return ""
 		}))
 		resolved := ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
-		client, err := executor.openClient(ctx, resolved, "")
+		client, err := executor.openClient(ctx, &resolved, "")
 		if err != nil {
 			t.Fatalf("openClient() error = %v", err)
 		}
@@ -3055,7 +3055,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		}
 		executor := newTestMCPExecutor(t, server, withAuthService(fakeAuth))
 		resolved := ResolvedServer{Server: server, Target: userMCPExecutorTarget("secure")}
-		if err := executor.ensureAuthorized(testContext(t), resolved); err != nil {
+		if err := executor.ensureAuthorized(testContext(t), &resolved); err != nil {
 			t.Fatalf("ensureAuthorized(refresh success) error = %v", err)
 		}
 		if got, want := fakeAuth.refreshCallCount(), 1; got != want {
@@ -3077,7 +3077,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			},
 		}
 		executor = newTestMCPExecutor(t, server, withAuthService(invalidAuth))
-		err := executor.ensureAuthorized(testContext(t), resolved)
+		err := executor.ensureAuthorized(testContext(t), &resolved)
 		requireReason(t, err, toolspkg.ReasonMCPAuthInvalid)
 	})
 
@@ -3105,12 +3105,12 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			Server: compozyconfig.MCPServer{Name: "github"},
 			Target: userMCPExecutorTarget("github"),
 		}
-		if got := executor.authorizationHeader(testContext(t), resolved); got != "" {
+		if got := executor.authorizationHeader(testContext(t), &resolved); got != "" {
 			t.Fatalf("authorizationHeader(non-bearer) = %q, want empty", got)
 		}
 		if got := (&CallExecutor{}).authorizationHeader(
 			testContext(t),
-			resolved,
+			&resolved,
 		); got != "" {
 			t.Fatalf("authorizationHeader(nil store) = %q, want empty", got)
 		}
@@ -3180,11 +3180,11 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 				}
 				executor := newTestMCPExecutor(t, server, WithTokenStore(store))
 				resolved := ResolvedServer{Server: server, Target: target}
-				if got := executor.authorizationHeader(t.Context(), resolved); got != fixture.want {
+				if got := executor.authorizationHeader(t.Context(), &resolved); got != fixture.want {
 					t.Fatalf("authorizationHeader() = %q, want %q", got, fixture.want)
 				}
 				if fixture.reason != "" {
-					requireReason(t, executor.ensureAuthorized(t.Context(), resolved), fixture.reason)
+					requireReason(t, executor.ensureAuthorized(t.Context(), &resolved), fixture.reason)
 				}
 			})
 		}
@@ -4149,7 +4149,7 @@ func TestCheckInReadOnlyOverride(t *testing.T) {
 				}
 				descriptors, err := executor.descriptorsFromTools(
 					toolspkg.SourceRef{},
-					ResolvedServer{ReadOnlyOverrideOrigin: new(tc.origin), Server: compozyconfig.MCPServer{
+					&ResolvedServer{ReadOnlyOverrideOrigin: new(tc.origin), Server: compozyconfig.MCPServer{
 						Name:          "fixture",
 						Owner:         tc.owner,
 						CatalogEntry:  tc.catalog,

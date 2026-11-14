@@ -150,8 +150,7 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if resolvedScope.AgentName != "" &&
 		workspaceaccess.ActorKind(resolvedScope.ActorKind) != workspaceaccess.ActorDaemon {
 		if err := r.applyAgentToolPolicy(&inputs, resolvedScope.AgentName, resolvedWorkspace, cfg); err != nil {
-			if inputs.Session.Enforced && info != nil && info.Lineage != nil &&
-				errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			if retainMissingAgentPolicy(&inputs, info, err) {
 				applySessionPermissionLevel(&inputs, info)
 				return inputs, nil
 			}
@@ -491,4 +490,9 @@ func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
 		}
 	}
 	return nil
+}
+
+func retainMissingAgentPolicy(inputs *toolspkg.PolicyInputs, info *session.Info, err error) bool {
+	return inputs.Session.Enforced && info != nil && info.Lineage != nil &&
+		errors.Is(err, workspacepkg.ErrAgentNotAvailable)
 }

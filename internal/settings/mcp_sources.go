@@ -92,7 +92,7 @@ func (s *service) loadGlobalMCPSources(
 func (s *service) loadProfileMCPSources(
 	sources map[string][]mcpSourceEntry,
 	workspaceID string,
-	workspaceRoot string,
+	_ string,
 	profileName string,
 ) error {
 	profileConfigTarget, err := compozyconfig.ResolveConfigWriteTarget(

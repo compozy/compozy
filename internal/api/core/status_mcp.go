@@ -30,13 +30,13 @@ func (h *BaseHandlers) mcpServerStatusPayloads(
 		return nil, err
 	}
 	payloads := make([]contract.MCPServerStatusPayload, 0, len(envelope.MCPServers))
-	for _, server := range envelope.MCPServers {
-		payloads = append(payloads, mcpServerStatusPayload(server))
+	for i := range envelope.MCPServers {
+		payloads = append(payloads, mcpServerStatusPayload(&envelope.MCPServers[i]))
 	}
 	return payloads, nil
 }
 
-func mcpServerStatusPayload(server settingspkg.MCPServerItem) contract.MCPServerStatusPayload {
+func mcpServerStatusPayload(server *settingspkg.MCPServerItem) contract.MCPServerStatusPayload {
 	payload := contract.MCPServerStatusPayload{
 		Name:          strings.TrimSpace(server.Name),
 		Scope:         strings.TrimSpace(string(server.Scope)),

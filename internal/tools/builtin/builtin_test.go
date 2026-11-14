@@ -3889,7 +3889,6 @@ func TestBuiltinEditLevelAutoApprovals(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 // TestAgentKindToolText verifies canonical kind enums and current descriptor text.

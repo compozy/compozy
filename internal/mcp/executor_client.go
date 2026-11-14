@@ -32,7 +32,7 @@ const maxAuthorizationChallengeDrainBytes = int64(64 << 10)
 
 func (e *CallExecutor) openClient(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	authorizationHeader string,
 ) (*managedMCPClient, error) {
 	server := resolved.Server
@@ -50,7 +50,9 @@ func (e *CallExecutor) openClient(
 			registerMCPRequestSecret(ctx, secret)
 		}
 		server = rendered
-		resolved.Server = server
+		renderedResolved := *resolved
+		renderedResolved.Server = server
+		resolved = &renderedResolved
 	}
 	transport := server.EffectiveTransport()
 	switch transport {
@@ -120,7 +122,7 @@ func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.
 	return session, nil
 }
 
-func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved ResolvedServer) (*managedMCPClient, error) {
+func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved *ResolvedServer) (*managedMCPClient, error) {
 	spec, err := e.mcpStdioSpec(ctx, resolved.Server, resolved.Target)
 	if err != nil {
 		return nil, err
@@ -164,7 +166,7 @@ func releaseMCPClient(client *managedMCPClient, callErr error) error {
 
 func (e *CallExecutor) httpClientWithAuthorization(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	authorizationHeader string,
 ) (*http.Client, error) {
 	client := e.httpClientForServer(resolved)
@@ -237,7 +239,7 @@ func (e *CallExecutor) resolveMCPRequestHeaders(
 	return headers, nil
 }
 
-func (e *CallExecutor) httpClientForServer(resolved ResolvedServer) *http.Client {
+func (e *CallExecutor) httpClientForServer(resolved *ResolvedServer) *http.Client {
 	if strings.TrimSpace(resolved.Server.CatalogEntry) != "" {
 		return securehttp.NewClient(securehttp.WithTimeout(e.timeout)).HTTPClient()
 	}

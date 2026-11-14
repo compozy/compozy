@@ -119,16 +119,8 @@ func (n *daemonNativeTools) agentCreate(
 	}
 	payload := core.AgentPayloadFromEntryWithConfig(&entry, &created.RuntimeConfig)
 	result, resultErr := agentRecordViews.result(req.View, payload)
-	if len(created.Warnings) > 0 {
-		result.Preview += "; " + strings.Join(created.Warnings, "; ")
-		warnings, err := json.Marshal(created.Warnings)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		if result.Metadata == nil {
-			result.Metadata = make(map[string]json.RawMessage)
-		}
-		result.Metadata["warnings"] = warnings
+	if err := addAgentCreateWarnings(&result, created.Warnings); err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	return result, resultErr
 }
@@ -339,4 +331,19 @@ func (n *daemonNativeTools) rollbackNativeAgentCreateWithMCP(
 		return rollbackErr
 	}
 	return errors.Join(rollbackErr, core.RollbackAgentMCPSecretValues(ctx, n.deps.Vault, agent, inputs))
+}
+
+func addAgentCreateWarnings(result *toolspkg.ToolResult, warnings []string) error {
+	if len(warnings) > 0 {
+		result.Preview += "; " + strings.Join(warnings, "; ")
+		encoded, err := json.Marshal(warnings)
+		if err != nil {
+			return err
+		}
+		if result.Metadata == nil {
+			result.Metadata = make(map[string]json.RawMessage)
+		}
+		result.Metadata["warnings"] = encoded
+	}
+	return nil
 }

@@ -42,7 +42,7 @@ func (f ServerResolverFunc) ResolveMCPServer(
 	return f(ctx, source, definitionOwner)
 }
 
-func (r ResolvedServer) overrideOrigin() toolspkg.MCPReadOnlyOverrideOrigin {
+func (r *ResolvedServer) overrideOrigin() toolspkg.MCPReadOnlyOverrideOrigin {
 	if r.ReadOnlyOverrideOrigin == nil {
 		return ""
 	}

@@ -87,17 +87,7 @@ func writeAgentDefinitionWithMCP(
 		}
 	}
 	written := []string{}
-	rollback := func() error {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		defer cancel()
-		var err error
-		for _, ref := range written {
-			if deleteErr := secrets.DeleteSecret(cleanupCtx, ref); !errors.Is(deleteErr, vault.ErrSecretNotFound) {
-				err = errors.Join(err, deleteErr)
-			}
-		}
-		return err
-	}
+	rollback := func() error { return rollbackAgentMCPRefs(ctx, secrets, written) }
 	for i, input := range inputs {
 		server := &servers[i]
 		if server.Reference && len(input.SecretHeaderValues)+len(input.SecretEnvValues) > 0 {
@@ -229,4 +219,16 @@ func (h *BaseHandlers) rollbackCreatedAgentWithMCP(
 		return rollbackErr
 	}
 	return errors.Join(rollbackErr, RollbackAgentMCPSecretValues(ctx, h.Vault, agent, inputs))
+}
+
+func rollbackAgentMCPRefs(ctx context.Context, secrets VaultService, written []string) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	var err error
+	for _, ref := range written {
+		if deleteErr := secrets.DeleteSecret(cleanupCtx, ref); !errors.Is(deleteErr, vault.ErrSecretNotFound) {
+			err = errors.Join(err, deleteErr)
+		}
+	}
+	return err
 }

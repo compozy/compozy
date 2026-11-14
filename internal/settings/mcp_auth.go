@@ -122,21 +122,8 @@ func (s *service) BeginMCPAuth(
 			errors.New("settings: MCP auth approved_scopes require approve_scope_escalation = true"),
 		)
 	}
-	if s.mcpConsent != nil {
-		consent := consentRequestForTarget(target, server)
-		consent.ProfileName = req.ProfileName
-		decision, consentErr := s.mcpConsent.MCPConsent(ctx, consent)
-		if consentErr != nil {
-			return mcpauth.BeginResult{}, consentErr
-		}
-		if !decision.Admitted {
-			if req.DefinitionDigest == "" {
-				return mcpauth.BeginResult{}, s.waitingMCPApprovalError(ctx, req.MCPAuthTargetRequest)
-			}
-			if _, consentErr = s.mcpConsent.ApproveMCP(ctx, consent, req.DefinitionDigest, false); consentErr != nil {
-				return mcpauth.BeginResult{}, consentErr
-			}
-		}
+	if err := s.approveMCPAuthBegin(ctx, req, target, server); err != nil {
+		return mcpauth.BeginResult{}, err
 	}
 	callbackURL := strings.TrimSpace(req.CallbackURL)
 	var result mcpauth.BeginResult
@@ -467,4 +454,26 @@ func mcpAuthTargetForSource(entry mcpSourceEntry) (mcpauth.Target, error) {
 		return mcpauth.Target{}, fmt.Errorf("settings: invalid MCP auth target: %w", err)
 	}
 	return target, nil
+}
+
+func (s *service) approveMCPAuthBegin(
+	ctx context.Context, req MCPAuthBeginRequest, target mcpauth.Target, server compozyconfig.MCPServer,
+) error {
+	if s.mcpConsent != nil {
+		consent := consentRequestForTarget(target, server)
+		consent.ProfileName = req.ProfileName
+		decision, consentErr := s.mcpConsent.MCPConsent(ctx, consent)
+		if consentErr != nil {
+			return consentErr
+		}
+		if !decision.Admitted {
+			if req.DefinitionDigest == "" {
+				return s.waitingMCPApprovalError(ctx, req.MCPAuthTargetRequest)
+			}
+			if _, consentErr = s.mcpConsent.ApproveMCP(ctx, consent, req.DefinitionDigest, false); consentErr != nil {
+				return consentErr
+			}
+		}
+	}
+	return nil
 }

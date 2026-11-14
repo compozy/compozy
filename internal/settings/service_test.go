@@ -3368,7 +3368,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("ListCollection(MCP refs) error = %v", err)
 		}
 		item := findMCPItem(t, envelope.MCPServers, "github")
-		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
+		assertMCPSecretKeys(t, &item, "GITHUB_TOKEN")
 		if item.Auth.ClientSecretRef != "" {
 			t.Fatalf("settings read exposed OAuth client secret ref %q", item.Auth.ClientSecretRef)
 		}
@@ -3393,7 +3393,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if got, want := item.Command, "npx-updated"; got != want {
 			t.Fatalf("preserved MCP command = %q, want %q", got, want)
 		}
-		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
+		assertMCPSecretKeys(t, &item, "GITHUB_TOKEN")
 		if got, want := secretStore.plaintext["vault:mcp/user/github/env/GITHUB_TOKEN"], "ghp-secret"; got != want {
 			t.Fatalf("preserved MCP secret plaintext = %q, want %q", got, want)
 		}
@@ -5315,16 +5315,16 @@ func findHookItem(t *testing.T, items []HookItem, name string) HookItem {
 
 func findMCPItem(t *testing.T, items []MCPServerItem, name string) MCPServerItem {
 	t.Helper()
-	for _, item := range items {
-		if item.Name == name {
-			return item
+	for i := range items {
+		if items[i].Name == name {
+			return items[i]
 		}
 	}
 	t.Fatalf("MCP item %q not found in %#v", name, items)
 	return MCPServerItem{}
 }
 
-func assertMCPSecretKeys(t *testing.T, item MCPServerItem, expected ...string) {
+func assertMCPSecretKeys(t *testing.T, item *MCPServerItem, expected ...string) {
 	t.Helper()
 	if !reflect.DeepEqual(item.SecretEnvKeys, expected) {
 		t.Fatalf("MCP secret env keys = %#v, want %#v", item.SecretEnvKeys, expected)

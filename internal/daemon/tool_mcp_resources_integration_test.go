@@ -202,7 +202,7 @@ binding = { type = "url_query", name = "workspace" }
 		if err != nil {
 			t.Fatal(err)
 		}
-		authManager, err := newSettingsMCPAuthManagerWithConfig(db, nil, nil, nil, compozyconfig.MCPOAuthConfig{})
+		authManager, err := newSettingsMCPAuthManagerWithConfig(db, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
