@@ -146,8 +146,17 @@ func (s *subagentService) rewriteDeletedWake(ctx context.Context, parent string)
 // deadlock. A session that is already gone counts as deleted.
 func (s *subagentService) deleteChildSession(ctx context.Context, child string) error {
 	release := s.suppressChildSettlement(child)
-	defer release()
-	return s.runtime.DeleteSession(ctx, child)
+	err := s.runtime.DeleteSession(ctx, child)
+	release()
+	if err != nil {
+		// The manager may have stopped the child before failing to stage or commit its
+		// history. Replay the settlement the suppression skipped so the retained row
+		// does not keep its parent waiting for a stopped child.
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+		defer cancel()
+		s.logError(ctx, "delete_child_reconcile", s.OnChildSettled(cleanup, child))
+	}
+	return err
 }
 
 // suppressChildSettlement keeps settlement suppressed until every overlapping

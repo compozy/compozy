@@ -148,6 +148,26 @@ func TestSubagentDelete(t *testing.T) {
 			t.Fatal("retry kept the row")
 		}
 	})
+	t.Run("Should reconcile a stopped child when its delete fails", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		child := *row.ChildSessionID
+		runtime.snapshots[child] = subagentSnapshot{
+			Info: &Info{ID: child, WorkspaceID: "ws", State: StateStopped},
+		}
+		runtime.errorDelete = errors.New("catalog delete failed")
+		finalizes := db.finalizeCalls
+		if err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID); err == nil {
+			t.Fatal("expected the child delete to fail")
+		}
+		if _, ok := db.rows[row.ID]; !ok {
+			t.Fatal("failed delete removed the roster row")
+		}
+		if db.finalizeCalls == finalizes {
+			t.Fatal("failed delete did not reconcile the stopped child")
+		}
+	})
 	t.Run("Should delete a delegation that has no child session yet", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)
