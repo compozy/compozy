@@ -1491,22 +1491,6 @@ func TestConfigureRuntime(t *testing.T) {
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "high")
 	})
 
-	// Invariant: an unconfirmed readback is retried while the provider snapshot settles.
-	t.Run("Should confirm a reasoning effort after one unconfirmed readback", func(t *testing.T) {
-		t.Parallel()
-		driver := New()
-		proc := startHelperProcess(t, driver, "config_options_confirm_on_retry", "", StartOpts{})
-		defer stopProcess(t, driver, proc)
-		if err := driver.ConfigureRuntime(
-			testutil.Context(t),
-			proc,
-			RuntimeConfig{ReasoningEffort: "high"},
-		); err != nil {
-			t.Fatalf("ConfigureRuntime() error = %v, want provider-confirmed reasoning effort", err)
-		}
-		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
-	})
-
 	// Invariant: a confirmation that arrives as a later notification settles the
 	// bind without a second set request.
 	t.Run("Should accept a late config_option_update without resending", func(t *testing.T) {

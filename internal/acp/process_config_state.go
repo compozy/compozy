@@ -49,6 +49,7 @@ func (p *AgentProcess) setConfigOptionCurrent(optionID string, current string) {
 		if strings.TrimSpace(p.caps.ConfigOptions[index].ID) == id {
 			p.caps.ConfigOptions[index].CurrentValueID = value
 			p.configRevision++
+			p.notifyConfigChangedLocked()
 			return
 		}
 	}

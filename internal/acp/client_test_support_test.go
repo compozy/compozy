@@ -489,7 +489,6 @@ type helperACPAgent struct {
 	filePath               string
 	configOptionsMu        sync.Mutex
 	configOptions          []acpsdk.SessionConfigOption
-	setConfigCalls         int
 	providerFailurePrompts atomic.Uint64
 }
 
@@ -690,7 +689,6 @@ func (a *helperACPAgent) NewSession(
 	if a.scenario == "config_options" || a.scenario == "stall_config" ||
 		a.scenario == "stall_last_config" || a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
-		a.scenario == "config_options_confirm_on_retry" ||
 		a.scenario == "config_options_late_update" ||
 		a.scenario == "config_options_stale_update" ||
 		a.scenario == "config_options_reject_speed" ||
@@ -1177,14 +1175,6 @@ func (a *helperACPAgent) SetSessionConfigOption(
 			})
 		}()
 		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
-	}
-	if a.scenario == "config_options_confirm_on_retry" {
-		// Mimic a provider that applies the value only after the first response,
-		// so the first readback is stale and the retry observes the new current.
-		a.setConfigCalls++
-		if a.setConfigCalls == 1 {
-			return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
-		}
 	}
 	if a.scenario == "config_options_unconfirmed" || a.scenario == "triage_config_unconfirmed" {
 		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil

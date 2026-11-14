@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode"
@@ -84,35 +85,38 @@ func (d *Driver) applySessionSpeed(
 		return false, nil
 	}
 
-	request, err := match.request(acpsdk.SessionId(process.SessionID))
-	if err != nil {
-		return true, fmt.Errorf("acp: build speed config request: %w", err)
-	}
-	response, err := process.sendControlRequest[acpsdk.SetSessionConfigOptionResponse](ctx,
-		acpsdk.AgentMethodSessionSetConfigOption,
-		request,
-	)
-	if err != nil {
-		process.setSpeedResolution(&speedpkg.Resolution{
-			Requested: parsed,
-			Status:    speedpkg.ResolutionRejected,
-			Reason:    speedpkg.ReasonProviderRejected,
-		})
-		return true, rejectedSpeedNegotiation(parsed, match.option.ID, err)
-	}
-	revision := process.configRevisionAfterResponse()
-	options = process.setConfigOptionsResponse(sessionConfigOptionsFromSDK(response.ConfigOptions), revision)
-	if !match.confirmed(options) {
-		process.setSpeedResolution(&speedpkg.Resolution{
-			Requested: parsed,
-			Status:    speedpkg.ResolutionRejected,
-			Reason:    speedpkg.ReasonProviderRejected,
-		})
-		return true, rejectedSpeedNegotiation(
-			parsed,
-			match.option.ID,
-			fmt.Errorf("provider response did not confirm the requested speed: %w", errConfigOptionUnconfirmed),
+	// The shared confirmation wait covers a provider that publishes the applied
+	// speed in a config_option_update after the response.
+	apply := func(ctx context.Context) error {
+		request, err := match.request(acpsdk.SessionId(process.SessionID))
+		if err != nil {
+			return fmt.Errorf("acp: build speed config request: %w", err)
+		}
+		response, err := process.sendControlRequest[acpsdk.SetSessionConfigOptionResponse](ctx,
+			acpsdk.AgentMethodSessionSetConfigOption,
+			request,
 		)
+		if err != nil {
+			return err
+		}
+		revision := process.configRevisionAfterResponse()
+		process.setConfigOptionsResponse(sessionConfigOptionsFromSDK(response.ConfigOptions), revision)
+		return nil
+	}
+	confirmed := func() bool {
+		options, _ := process.configOptionsSnapshot()
+		return match.confirmed(options)
+	}
+	if err := d.applyConfigOption(ctx, process, apply, confirmed); err != nil {
+		process.setSpeedResolution(&speedpkg.Resolution{
+			Requested: parsed,
+			Status:    speedpkg.ResolutionRejected,
+			Reason:    speedpkg.ReasonProviderRejected,
+		})
+		if errors.Is(err, errConfigOptionUnconfirmed) {
+			err = fmt.Errorf("provider response did not confirm the requested speed: %w", err)
+		}
+		return true, rejectedSpeedNegotiation(parsed, match.option.ID, err)
 	}
 	process.setSpeedResolution(&speedpkg.Resolution{
 		Requested: parsed,

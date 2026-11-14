@@ -70,6 +70,7 @@ type Driver struct {
 	permissionWait         time.Duration
 	permissionWaitResolver PermissionWaitResolver
 	processRecordTimeout   time.Duration
+	configSettleBudget     time.Duration
 	launcher               Launcher
 	toolHost               ToolHost
 	processRegistry        *toolruntime.Registry
@@ -191,6 +192,7 @@ func New(opts ...Option) *Driver {
 		promptDrainWait:      defaultPromptDrain,
 		permissionWait:       defaultPermissionWait,
 		processRecordTimeout: defaultProcessRecordTimeout,
+		configSettleBudget:   defaultConfigSettleBudget,
 	}
 	for _, opt := range opts {
 		if opt != nil {
