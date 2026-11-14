@@ -33,7 +33,8 @@ func waitForDaemonStop(
 		nil,
 		"cli: daemon did not stop before timeout",
 		func(_ context.Context, _ pollEvent) (DaemonStatus, bool, error) {
-			if _, running, err := daemonInfo(runtime.HomePaths, deps); err == nil && !running {
+			// Discovery is withdrawn before the database and logger finish closing.
+			if !deps.processAlive(info.PID) {
 				return daemonStatusWithState(runtime, info, "stopped"), true, nil
 			}
 			return DaemonStatus{}, false, nil

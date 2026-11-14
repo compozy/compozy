@@ -341,6 +341,53 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 		}
 	})
 
+	// Invariant: withdrawing discovery does not prove the signaled process has finished writing.
+	// Owner: CLI daemon lifecycle; canonical suite: daemon_wait_test.go.
+	t.Run("Should wait for process exit after discovery is removed or replaced", func(t *testing.T) {
+		t.Parallel()
+		for _, replacement := range []bool{false, true} {
+			name := "Should wait after discovery removal"
+			if replacement {
+				name = "Should wait after discovery replacement"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				deps := newTestDeps(t, &stubClient{}).withDefaults()
+				deps.pollInterval = time.Millisecond
+				info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+				deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+					if replacement {
+						return compozydaemon.Info{PID: 43, StartedAt: fixedTestNow.Add(time.Second)}, nil
+					}
+					return compozydaemon.Info{}, os.ErrNotExist
+				}
+				aliveChecks := 0
+				deps.processAlive = func(pid int) bool {
+					if pid != info.PID {
+						t.Fatalf("processAlive() PID = %d, want original PID %d", pid, info.PID)
+					}
+					aliveChecks++
+					return aliveChecks < 3
+				}
+				runtime, err := loadRuntimeContext(deps)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+				defer cancel()
+				status, err := waitForDaemonStop(ctx, deps, runtime, info)
+				if err != nil || status.Status != "stopped" || status.PID != info.PID || aliveChecks != 3 {
+					t.Fatalf(
+						"waitForDaemonStop() = %#v, %v; process probes = %d, want stopped after exit",
+						status,
+						err,
+						aliveChecks,
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("Should outlive the daemon graceful shutdown budget", func(t *testing.T) {
 		t.Parallel()
 
@@ -845,6 +892,7 @@ func TestDaemonClockDrift(t *testing.T) {
 				return true, nil
 			}
 			signaled := false
+			deps.processAlive = func(int) bool { return !signaled }
 			deps.signalProcess = func(pid int, signal syscall.Signal) error {
 				if pid != info.PID || signal != syscall.SIGTERM {
 					t.Fatalf("signal = %d, %v", pid, signal)
