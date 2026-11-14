@@ -10,7 +10,9 @@ const USER_SCOPE_NAME = "User";
 
 /**
  * The Archived list's "Clean up history" (#1717): the footer verb and its dialog, bound to the
- * daemon. It needs one profile and a settled scope: under All profiles there is nothing to show.
+ * daemon. Only the archive shelf shows them, but the run is watched on every shelf, so a cleanup
+ * that ends while the list shows Active or Later still announces its end. It needs one profile and
+ * a settled scope: under All profiles there is nothing to show.
  */
 export function ArchivedCleanup({
   view,
@@ -18,7 +20,12 @@ export function ArchivedCleanup({
 }: {
   view: Pick<
     SessionListViewModel,
-    "archivedCount" | "allProjects" | "focusedWorkspaceId" | "focusedScopeName" | "scopeLabel"
+    | "shelf"
+    | "archivedCount"
+    | "allProjects"
+    | "focusedWorkspaceId"
+    | "focusedScopeName"
+    | "scopeLabel"
   >;
   testIdPrefix: string;
 }) {
@@ -36,6 +43,7 @@ export function ArchivedCleanup({
       scope={scope}
       scopeName={view.allProjects ? ALL_PROJECTS : view.focusedScopeName}
       testIdPrefix={testIdPrefix}
+      visible={view.shelf === "archive"}
     />
   );
 }
@@ -46,12 +54,15 @@ function ConnectedArchivedCleanup({
   scopeName,
   archivedCount,
   testIdPrefix,
+  visible,
 }: {
   profile: string;
   scope: CleanupScope;
   scopeName: string;
   archivedCount?: number;
   testIdPrefix: string;
+  /** The archive shelf is showing; elsewhere only the run's end is announced. */
+  visible: boolean;
 }) {
   const { registeredWorkspaces } = useActiveWorkspace();
   const names = new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]));
@@ -61,6 +72,7 @@ function ConnectedArchivedCleanup({
     projectName: id =>
       id === "" || id === USER_SCOPE_SELECTOR ? USER_SCOPE_NAME : (names.get(id) ?? id),
   });
+  if (!visible) return null;
   return (
     <>
       <ArchivedCleanupFooter

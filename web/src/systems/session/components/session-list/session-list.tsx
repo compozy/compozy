@@ -246,9 +246,7 @@ export function SessionList({
           />
         ) : null}
         <SessionListTotals totals={view.totals} testIdPrefix={testIdPrefix} />
-        {view.shelf === "archive" ? (
-          <ArchivedCleanup view={view} testIdPrefix={testIdPrefix} />
-        ) : null}
+        <ArchivedCleanup view={view} testIdPrefix={testIdPrefix} />
         {bulk.folderMove ? (
           <SessionListSelectionFolders folders={bulk.folderMove} active={bulk.active} />
         ) : null}

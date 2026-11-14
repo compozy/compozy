@@ -124,4 +124,3 @@ describe("ArchivedCleanupDialog", () => {
     expect(props.onRetry).toHaveBeenCalledOnce();
   });
 });
-

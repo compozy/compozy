@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { createStoreLogic } from "@xstate/store";
+import { useSelector, useStore } from "@xstate/store-react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { toast } from "@compozy/ui";
 
 import {
@@ -77,6 +79,39 @@ function retryRequest(run: SessionHistoryCleanupRun): SessionHistoryCleanupReque
   return request;
 }
 
+interface CleanupDialogState {
+  open: boolean;
+  options: CleanupOptions;
+  /** A finished run whose outcome was seen: the dialog shows its form again. */
+  dismissedRunId: string | null;
+}
+
+const cleanupDialogLogic = createStoreLogic({
+  context: (): CleanupDialogState => ({
+    open: false,
+    options: DEFAULT_CLEANUP_OPTIONS,
+    dismissedRunId: null,
+  }),
+  on: {
+    opened: context => ({ ...context, open: true }),
+    closed: (context, event: { finishedRunId: string | null }) => ({
+      ...context,
+      open: false,
+      dismissedRunId: event.finishedRunId ?? context.dismissedRunId,
+    }),
+    optionsChanged: (context, event: { options: CleanupOptions }) => ({
+      ...context,
+      options: event.options,
+    }),
+    /** A run that ended with nothing left to retry closes the dialog; its end was announced. */
+    runSettled: (context, event: { runId: string }) => ({
+      ...context,
+      open: false,
+      dismissedRunId: event.runId,
+    }),
+  },
+});
+
 /**
  * "Clean up history" for one profile's Archived list (#1717): the dialog's checks and range, the
  * daemon's dry run as the live count, and the profile's background run. The run outlives the
@@ -87,32 +122,86 @@ export function useArchivedCleanup({
   scope,
   projectName,
 }: ArchivedCleanupInput): ArchivedCleanupModel {
-  const queryClient = useQueryClient();
-  const [open, setOpenState] = useState(false);
-  const [options, setOptions] = useState<CleanupOptions>(DEFAULT_CLEANUP_OPTIONS);
-  // A finished run's outcome shows once; closing it returns the dialog to its form.
-  const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
-  const runKey = sessionKeys.historyCleanupRun(profile);
+  const store = useStore(cleanupDialogLogic);
+  const { open, options, dismissedRunId } = useSelector(store, snapshot => snapshot.context);
   const run = useQuery(sessionHistoryCleanupRunOptions(profile)).data ?? null;
-  const running = run?.state === "running";
-  const phase =
-    running || run?.id !== dismissedRunId ? cleanupPhase(run) : { kind: "form" as const };
-  const shownOptions = running && run ? runCleanupOptions(run) : options;
-
-  // Each check's own count does not depend on the checks, so with none checked the dry run
-  // still counts Everything for the range; the preview itself then says to choose something.
-  const unchecked = nothingChecked(options.what);
-  const previewOptions = unchecked ? { ...options, what: DEFAULT_CLEANUP_OPTIONS.what } : options;
-  const preview = useQuery({
-    ...sessionHistoryCleanupPreviewOptions(profile, cleanupRequest(previewOptions, scope)),
-    enabled: open && phase.kind === "form" && cleanupPreviewable(previewOptions),
+  const active = run?.state === "running" ? run : null;
+  const phase = active || run?.id !== dismissedRunId ? cleanupPhase(run) : FORM_PHASE;
+  const preview = useCleanupPreview({
+    profile,
+    scope,
+    options,
+    enabled: open && phase.kind === "form",
+    projectName,
   });
-  const plan = cleanupPreviewable(previewOptions) ? preview.data : undefined;
-  const impact =
-    unchecked || !cleanupPreviewable(options)
-      ? EMPTY_CLEANUP_IMPACT
-      : plan && cleanupImpactFromPlan(plan, projectName);
+  const { start, stop } = useCleanupRunMutations(profile);
 
+  useRunEndAnnouncement(run, projectName, runId => store.trigger.runSettled({ runId }));
+
+  const setOpen = (next: boolean) => {
+    if (next) store.trigger.opened();
+    else store.trigger.closed({ finishedRunId: run && !active ? run.id : null });
+  };
+
+  return {
+    open,
+    setOpen,
+    options: active ? runCleanupOptions(active) : options,
+    setOptions: next => store.trigger.optionsChanged({ options: next }),
+    ...preview,
+    impact: active ? undefined : preview.impact,
+    phase,
+    starting: start.isPending,
+    progress: active ? { done: active.done, total: active.total } : null,
+    confirm: () => start.mutate(cleanupRequest(options, scope)),
+    retry: () => {
+      if (run) start.mutate(retryRequest(run));
+    },
+    stop: () => stop.mutate(),
+  };
+}
+
+const FORM_PHASE: CleanupPhase = { kind: "form" };
+
+/**
+ * The live count behind the dialog: the daemon's dry run for the current choices. Each check's
+ * own count does not depend on the checks, so with none checked the dry run still counts
+ * Everything for the range; the preview itself then says to choose something.
+ */
+function useCleanupPreview({
+  profile,
+  scope,
+  options,
+  enabled,
+  projectName,
+}: {
+  profile: string;
+  scope: CleanupScope;
+  options: CleanupOptions;
+  enabled: boolean;
+  projectName: (workspaceId: string) => string;
+}): Pick<ArchivedCleanupModel, "impact" | "counts" | "counting" | "previewError"> {
+  const unchecked = nothingChecked(options.what);
+  const counted = unchecked ? { ...options, what: DEFAULT_CLEANUP_OPTIONS.what } : options;
+  const previewable = cleanupPreviewable(counted);
+  const preview = useQuery({
+    ...sessionHistoryCleanupPreviewOptions(profile, cleanupRequest(counted, scope)),
+    enabled: enabled && previewable,
+  });
+  const plan = previewable ? preview.data : undefined;
+  const shown = !unchecked && cleanupPreviewable(options);
+  return {
+    impact: shown ? plan && cleanupImpactFromPlan(plan, projectName) : EMPTY_CLEANUP_IMPACT,
+    counts: plan?.choices ?? NO_COUNTS,
+    counting: previewable && (preview.isFetching || preview.isPlaceholderData),
+    previewError: preview.error ? errorText(preview.error, "The count failed.") : null,
+  };
+}
+
+/** Starting and stopping the profile's run; each answer becomes the run read at once. */
+function useCleanupRunMutations(profile: string) {
+  const queryClient = useQueryClient();
+  const runKey = sessionKeys.historyCleanupRun(profile);
   const start = useMutation({
     mutationFn: (request: SessionHistoryCleanupRequest) =>
       startSessionHistoryCleanup(profile, request),
@@ -123,74 +212,43 @@ export function useArchivedCleanup({
       void queryClient.invalidateQueries({ queryKey: runKey });
     },
   });
-  const stopRun = useMutation({
+  const stop = useMutation({
     mutationFn: () => stopSessionHistoryCleanup(profile),
     onSuccess: stopped => queryClient.setQueryData(runKey, stopped),
     onError: error => toast.error(errorText(error, "Couldn’t stop cleaning up history")),
   });
-
-  useRunEndAnnouncement(run, projectName, () => {
-    setOpenState(false);
-    setDismissedRunId(run?.id ?? null);
-  });
-
-  const setOpen = (next: boolean) => {
-    setOpenState(next);
-    if (!next && run && !running) setDismissedRunId(run.id);
-  };
-
-  return {
-    open,
-    setOpen,
-    options: shownOptions,
-    setOptions,
-    impact: running ? undefined : impact,
-    counts: plan?.choices ?? NO_COUNTS,
-    counting:
-      cleanupPreviewable(previewOptions) && (preview.isFetching || preview.isPlaceholderData),
-    previewError: preview.error ? errorText(preview.error, "The count failed.") : null,
-    phase,
-    starting: start.isPending,
-    progress: running && run ? { done: run.done, total: run.total } : null,
-    confirm: () => start.mutate(cleanupRequest(options, scope)),
-    retry: () => {
-      if (run) start.mutate(retryRequest(run));
-    },
-    stop: () => stopRun.mutate(),
-  };
+  return { start, stop };
 }
 
 /**
- * Announces how a run this window watched ended: completed and stopped runs close the dialog with
- * a toast; a run that kept sessions says so, and the dialog shows which on its next open.
+ * Announces how a run this window watched ended: a completed run, and a stopped one with nothing to
+ * retry, close the dialog with a toast; a run that kept sessions stays on its outcome, so the
+ * dialog lists them and offers Try again on its next open.
  */
 function useRunEndAnnouncement(
   run: SessionHistoryCleanupRun | null,
   projectName: (workspaceId: string) => string,
-  onSettled: () => void
+  onSettled: (runId: string) => void
 ) {
   const watched = useRef<string | null>(null);
   const announce = useEffectEvent((ended: SessionHistoryCleanupRun) => {
-    switch (ended.state) {
-      case "completed":
-        // The run's own scope: the list may show another project by the time it ends.
-        toast.success(
-          deletedSentence(
-            ended.deleted,
-            ended.all_workspaces ? ALL_PROJECTS : projectName(ended.workspace_id ?? "")
-          )
-        );
-        onSettled();
-        return;
-      case "stopped":
-        toast(stoppedSentence(ended));
-        onSettled();
-        return;
-      default:
-        toast.error("Some sessions weren’t deleted", {
-          description: "Open Clean up history to see which, and try them again.",
-        });
+    if (ended.state === "completed") {
+      // The run's own scope: the list may show another project by the time it ends.
+      toast.success(
+        deletedSentence(
+          ended.deleted,
+          ended.all_workspaces ? ALL_PROJECTS : projectName(ended.workspace_id ?? "")
+        )
+      );
+    } else if (ended.state === "stopped") {
+      toast.message(stoppedSentence(ended));
+    } else {
+      toast.error("Some sessions weren’t deleted", {
+        description: "Open Clean up history to see which, and try them again.",
+      });
     }
+    // Only an outcome with nothing to list or retry closes the dialog.
+    if (cleanupPhase(ended).kind === "form") onSettled(ended.id);
   });
   useEffect(() => {
     if (!run) return;
