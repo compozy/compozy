@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   ArtifactCollector,
   type BrowserRouteState,
+  maskHashedAssetNames,
   mirrorBrowserScreenshotForQA,
   persistBrowserArtifacts,
   resolveBrowserArtifactPath,
@@ -140,5 +141,36 @@ describe("artifact collector", () => {
       path: "browser_transport_snapshots.json",
       media_type: "application/json",
     });
+  });
+});
+
+describe("maskHashedAssetNames", () => {
+  // The bare-word credential markers the hardening leak checks scan for.
+  const credentialMarker = /pkce|oauth/i;
+
+  it("masks a random asset hash that spells a credential marker", () => {
+    const network = JSON.stringify([
+      { url: "http://127.0.0.1:4321/assets/-home-preload-P3pkcEIj.js", status: 200 },
+      { url: "http://127.0.0.1:4321/assets/index-xOAuThq_.css?v=1", status: 200 },
+    ]);
+
+    const masked = maskHashedAssetNames(network);
+
+    expect(network).toMatch(credentialMarker);
+    expect(masked).not.toMatch(credentialMarker);
+    expect(masked).toContain("/assets/-home-preload-<hash>.js");
+    expect(masked).toContain("/assets/index-<hash>.css?v=1");
+  });
+
+  it("keeps real credential markers and asset names visible", () => {
+    const payloads = [
+      "GET /callback?pkce_verifier=abc123def456",
+      '{"oauth_token":"secret-value"}',
+      "http://127.0.0.1:4321/assets/oauth-callback-AbCdEfGh.js",
+    ];
+
+    for (const payload of payloads) {
+      expect(maskHashedAssetNames(payload)).toMatch(credentialMarker);
+    }
   });
 });

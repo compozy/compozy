@@ -8,6 +8,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { maskHashedAssetNames } from "../fixtures/artifacts";
 import { appWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import {
   sessionLifecycleSelectors,
@@ -1377,10 +1378,12 @@ async function assertNoSensitiveLeak(
     await readFile(runtime.artifactCollector.artifactPath("browser_api_snapshots"), "utf8"),
   ];
   for (const payload of artifactPayloads) {
-    expect(payload).not.toMatch(sensitivePattern);
+    expect(maskHashedAssetNames(payload)).not.toMatch(sensitivePattern);
   }
   if (runtime.paths?.daemonLog) {
-    expect(await readFile(runtime.paths.daemonLog, "utf8")).not.toMatch(sensitivePattern);
+    expect(maskHashedAssetNames(await readFile(runtime.paths.daemonLog, "utf8"))).not.toMatch(
+      sensitivePattern
+    );
   }
 }
 
