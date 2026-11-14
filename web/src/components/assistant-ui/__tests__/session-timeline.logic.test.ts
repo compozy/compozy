@@ -1603,6 +1603,29 @@ describe("marker clustering", () => {
       expect(row.count).toBe(1);
     }
   });
+
+  it("Should keep a refused MCP reload and its successful retry as separate rows", () => {
+    // Both events carry the turn before the refused message: the refusal added no user message.
+    const reload = (id: string, outcome: string, timestamp: string): SessionTimelinePart => ({
+      kind: "data",
+      id,
+      name: "data-compozy-event",
+      data: { type: "session.mcp_reloaded", raw: { outcome, runtime: "Claude Code" } },
+      turnId: "turn-1",
+      timestamp,
+      state: "done",
+    });
+
+    const rows = deriveSessionRows([
+      reload("r1", "failed", "2026-07-07T12:00:00Z"),
+      reload("r2", "applied", "2026-07-07T12:00:05Z"),
+    ]);
+
+    expect(rows.map(row => (row.kind === "data" ? [row.part.id, row.count] : row.kind))).toEqual([
+      ["r1", 1],
+      ["r2", 1],
+    ]);
+  });
 });
 
 // Suite extension: subagent projection (`_uiux.md` S1, S2, S6, S8). Invariant: card-owned tool

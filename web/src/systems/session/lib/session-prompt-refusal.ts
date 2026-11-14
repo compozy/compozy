@@ -56,9 +56,14 @@ function bounded(reason: string): string {
   return `${reason.slice(0, MAX_REFUSAL_REASON_LENGTH - 1)}…`;
 }
 
-// The daemon's sentence already ends by saying the message wasn't sent; the notice says it once.
+// The daemon's sentence ends by saying the message wasn't sent, then names its error code in
+// parentheses. The notice says "not sent" once and never shows the code (it is in `code`).
 function mcpReloadReason(reason: string): string {
-  return bounded(reason.replace(/\.?\s*Your message wasn't sent\.?$/i, ""));
+  return bounded(
+    reason
+      .replace(/\s*\(session_mcp_reload_failed\)\.?$/, "")
+      .replace(/\.?\s*Your message wasn't sent\.?$/i, "")
+  );
 }
 
 /** Converts missing attachment diagnostics into recovery guidance for a retained draft. */
