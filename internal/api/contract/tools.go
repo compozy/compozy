@@ -226,6 +226,10 @@ type ToolsetResponse struct {
 
 // ToolErrorPayload is the structured error envelope for tool registry routes.
 type ToolErrorPayload struct {
+	Retryable       bool   `json:"retryable,omitzero"`
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	ProviderError   string `json:"provider_error,omitempty"`
+
 	Code          tools.ErrorCode            `json:"code"`
 	Message       string                     `json:"message"`
 	ToolID        tools.ToolID               `json:"tool_id,omitempty"`

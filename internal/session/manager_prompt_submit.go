@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -73,7 +74,7 @@ func (m *Manager) submitProfiledPromptRequest(
 	req promptRequest,
 	session *Session,
 ) (_ <-chan acp.AgentEvent, err error) {
-	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx, false)
+	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(withActivationAdmission(ctx), false)
 	proc, err := session.beginExclusivePromptSetupForRequest(req, cancelPromptExecution)
 	if err != nil {
 		cancelPromptExecution()
@@ -81,6 +82,11 @@ func (m *Manager) submitProfiledPromptRequest(
 	}
 	promptExecutionCtx, turnTrace := startPromptTurnTrace(promptExecutionCtx, session, req)
 	defer turnTrace.failSetup(session, &err)
+	defer func() {
+		if refusal, ok := errors.AsType[*MCPReloadError](err); ok {
+			refusal.ClientMessageID = req.messageID
+		}
+	}()
 	slotReserved := true
 	stateOwned := true
 	defer func() {

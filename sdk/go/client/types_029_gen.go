@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// ToolPayload is a daemon API value.
+type ToolPayload struct {
+	Descriptor   ToolDescriptorPayload     `json:"descriptor"`
+	Availability ToolAvailabilityPayload   `json:"availability"`
+	Decision     ToolPolicyDecisionPayload `json:"decision"`
+}
+
 // ToolPolicyDecisionPayload is a daemon API value.
 type ToolPolicyDecisionPayload struct {
 	VisibleToOperator    bool         `json:"visible_to_operator"`

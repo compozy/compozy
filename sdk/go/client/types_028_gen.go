@@ -402,13 +402,16 @@ type ToolDescriptorPayload struct {
 
 // ToolErrorPayload is a daemon API value.
 type ToolErrorPayload struct {
-	Code          ErrorCode                  `json:"code"`
-	Message       string                     `json:"message"`
-	ToolID        ToolID                     `json:"tool_id,omitempty"`
-	ReasonCodes   []ReasonCode               `json:"reason_codes,omitempty"`
-	Layer         string                     `json:"layer,omitempty"`
-	Details       map[string]json.RawMessage `json:"details,omitempty"`
-	PartialResult *ToolResult                `json:"partial_result,omitzero"`
+	Retryable       bool                       `json:"retryable,omitzero"`
+	ClientMessageID string                     `json:"client_message_id,omitempty"`
+	ProviderError   string                     `json:"provider_error,omitempty"`
+	Code            ErrorCode                  `json:"code"`
+	Message         string                     `json:"message"`
+	ToolID          ToolID                     `json:"tool_id,omitempty"`
+	ReasonCodes     []ReasonCode               `json:"reason_codes,omitempty"`
+	Layer           string                     `json:"layer,omitempty"`
+	Details         map[string]json.RawMessage `json:"details,omitempty"`
+	PartialResult   *ToolResult                `json:"partial_result,omitzero"`
 }
 
 // ToolErrorResponse is a daemon API value.
@@ -440,11 +443,4 @@ type ToolInvokeResponse struct {
 	Truncated  bool                   `json:"truncated"`
 	DurationMS int64                  `json:"duration_ms"`
 	Events     []ToolCallEventPayload `json:"events"`
-}
-
-// ToolPayload is a daemon API value.
-type ToolPayload struct {
-	Descriptor   ToolDescriptorPayload     `json:"descriptor"`
-	Availability ToolAvailabilityPayload   `json:"availability"`
-	Decision     ToolPolicyDecisionPayload `json:"decision"`
 }

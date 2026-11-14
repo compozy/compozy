@@ -3,10 +3,13 @@ package session
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -15,6 +18,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -927,4 +931,366 @@ func TestRuntimeChangeAdmission(t *testing.T) {
 			t.Fatalf("runtimeChangeAdmission(unbound) = %v, want runtime change", got)
 		}
 	})
+}
+
+// activationHostedLauncher exercises the production advertised-catalog seam at the launcher I/O boundary.
+type activationHostedLauncher struct {
+	*recordingHostedMCPLauncher
+	catalog tools.AdvertisedCatalog
+	served  string
+}
+
+func (l *activationHostedLauncher) ActivationCatalog(context.Context, string) (tools.AdvertisedCatalog, string, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return tools.AdvertisedCatalog{Digest: l.catalog.Digest, Servers: maps.Clone(l.catalog.Servers)}, l.served, nil
+}
+func (l *activationHostedLauncher) BoundActivationCatalog(string) (tools.AdvertisedCatalog, bool) {
+	catalog, _, _ := l.ActivationCatalog(context.Background(), "")
+	return catalog, true
+}
+func (l *activationHostedLauncher) setCatalog(servers ...string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	views := make([]tools.ToolView, 0, len(servers))
+	for _, name := range servers {
+		views = append(views, tools.ToolView{Descriptor: tools.Descriptor{
+			ID: tools.ToolID("mcp__" + name + "__echo"), InputSchemaDigest: "object",
+			Source: tools.SourceRef{Kind: tools.SourceMCP, Owner: name, RawServerName: name, RawToolName: "echo"},
+		}})
+	}
+	l.catalog = tools.NewAdvertisedCatalog(views)
+	l.toolDigest = l.catalog.Digest
+}
+
+func newActivationHarness(t *testing.T) (*harness, *activationHostedLauncher) {
+	t.Helper()
+	h := newHostedMCPHarness(t)
+	launcher := &activationHostedLauncher{recordingHostedMCPLauncher: h.manager.hostedMCP.(*recordingHostedMCPLauncher)}
+	launcher.setCatalog()
+	h.manager.hostedMCP = launcher
+	return h, launcher
+}
+
+// Invariant: one admission compares the advertised catalog using its host's refresh capability.
+// Owner: session prompt admission; canonical suite: provider lifecycle (UT-020/UT-028/UT-029/UT-039/UT-113).
+func TestPromptMCPActivationDecision(t *testing.T) {
+	t.Parallel()
+	for _, host := range []struct {
+		name   string
+		reload bool
+	}{{"cached", true}, {"claude", false}} {
+		t.Run("Should compare the entitled catalog on "+host.name, func(t *testing.T) {
+			t.Parallel()
+			h, launcher := newActivationHarness(t)
+			launcher.setCatalog("echo")
+			active := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			active.mu.Lock()
+			active.hostedMCPRequiresReload = host.reload
+			active.mu.Unlock()
+			launcher.served = launcher.catalog.Digest
+			if changed, _ := h.manager.needsActivationReload(t.Context(), active); changed {
+				t.Fatal("unchanged catalog reloaded")
+			}
+			// Health leaves the advertised catalog unchanged; the registry owns health normalization.
+			for range 3 {
+				if changed, _ := h.manager.needsActivationReload(t.Context(), active); changed {
+					t.Fatal("health-only refresh reloaded")
+				}
+			}
+			launcher.setCatalog("echo", "branas")
+			wantReason := "fingerprint"
+			if !host.reload {
+				wantReason = "served_stale"
+			}
+			if changed, reason := h.manager.needsActivationReload(t.Context(), active); !changed || reason != wantReason {
+				t.Fatalf("added tool reload = %v, %s", changed, reason)
+			}
+			if !host.reload {
+				launcher.served = launcher.catalog.Digest
+				if changed, _ := h.manager.needsActivationReload(t.Context(), active); changed {
+					t.Fatal("current served report reloaded")
+				}
+				launcher.served = ""
+				if changed, _ := h.manager.needsActivationReload(t.Context(), active); !changed {
+					t.Fatal("missing served report did not reload")
+				}
+			}
+			launcher.setCatalog("echo")
+			launcher.served = launcher.catalog.Digest
+			if changed, _ := h.manager.needsActivationReload(t.Context(), active); changed {
+				t.Fatal("enable then disable reloaded")
+			}
+			launcher.setCatalog() // auth loss or removal withdraws the catalog.
+			if changed, _ := h.manager.needsActivationReload(t.Context(), active); !changed {
+				t.Fatal("withdrawn entitlement did not reload")
+			}
+		})
+	}
+}
+
+// Invariant: reload releases its writer, keeps history, records its outcome, and attempts at most once per prompt.
+// Owner: session lifecycle; canonical suite: provider lifecycle (UT-021/UT-022/UT-023/UT-024/UT-024b/UT-025).
+func TestPromptMCPActivationLifecycle(t *testing.T) {
+	t.Parallel()
+	for _, outcome := range []string{"applied", "replayed", "failed"} {
+		t.Run("Should record "+outcome+" before accepting the prompt", func(t *testing.T) {
+			t.Parallel()
+			h, launcher := newActivationHarness(t)
+			active := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			history, err := h.manager.Prompt(t.Context(), active.ID, "preserve this history")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, history)
+			previous := active.processHandle()
+			original := active.activation.boundDigest
+			oldHistory := countActivationEvents(readStoredEvents(t, active), acp.EventTypeUserMessage)
+			launcher.setCatalog("intermediate")
+			launcher.setCatalog("branas-dashboard")
+			attempts := 0
+			fail := outcome == "failed"
+			h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+				attempts++
+				if !isProcessDone(previous) {
+					return nil, errors.New("second native writer")
+				}
+				if countActivationEvents(readStoredEvents(t, active), acp.EventTypeUserMessage) != oldHistory {
+					t.Error("prompt accepted before reload completed")
+				}
+				if fail {
+					return nil, errors.New("provider launch fault")
+				}
+				if outcome == "replayed" && opts.ResumeSessionID != "" {
+					return nil, acp.ErrLoadSessionFailed
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, firstTrimmedNonEmpty(opts.ResumeSessionID, "acp-replayed")), nil
+			}
+			opts := SendPromptOpts{Message: "use new tools", MessageID: "message-reload", IdempotencyKey: "reload-send"}
+			sent, err := h.manager.SendPrompt(t.Context(), active.ID, opts)
+			if outcome == "failed" {
+				refusal, ok := errors.AsType[*MCPReloadError](err)
+				if !ok || refusal.ClientMessageID != opts.MessageID {
+					t.Fatalf("reload refusal = %v", err)
+				}
+				if active.activation.boundDigest != original {
+					t.Fatal("failed attempt advanced fingerprint")
+				}
+				if attempts != 1 || countActivationEvents(readStoredEvents(t, active), acp.EventTypeUserMessage) != oldHistory {
+					t.Fatal("failed prompt was accepted or retried")
+				}
+				failed := storedEventByType(t, readStoredEvents(t, active), EventTypeMCPReloaded)
+				var event struct {
+					Outcome string
+					Added   []string
+				}
+				if err := json.Unmarshal([]byte(failed.Content), &event); err != nil {
+					t.Fatal(err)
+				}
+				if event.Outcome != "failed" || !slices.Equal(event.Added, []string{"branas-dashboard"}) {
+					t.Fatalf("failed event = %+v", event)
+				}
+				fail = false
+				sent, err = h.manager.SendPrompt(t.Context(), active.ID, opts)
+				if attempts != 2 {
+					t.Fatalf("retry starts = %d, want one per send", attempts)
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, sent.Events)
+			events := readStoredEvents(t, active)
+			reloads := make([]store.SessionEvent, 0)
+			for _, event := range events {
+				if event.Type == EventTypeMCPReloaded {
+					reloads = append(reloads, event)
+				}
+			}
+			expected := 1
+			if outcome == "failed" {
+				expected = 2
+			}
+			if len(reloads) != expected {
+				t.Fatalf("reload events = %d", len(reloads))
+			}
+			var event struct {
+				Outcome        string
+				Added, Removed []string
+				Reason         string
+			}
+			if err := json.Unmarshal([]byte(reloads[len(reloads)-1].Content), &event); err != nil {
+				t.Fatal(err)
+			}
+			wantOutcome := outcome
+			if outcome == "failed" {
+				wantOutcome = "applied"
+			}
+			if event.Outcome != wantOutcome || !slices.Equal(event.Added, []string{"branas-dashboard"}) || len(event.Removed) != 0 || event.Reason != "fingerprint" {
+				t.Fatalf("reload event = %+v", event)
+			}
+			if active.activation.boundDigest == original {
+				t.Fatal("successful bind did not advance fingerprint")
+			}
+			if countActivationEvents(events, acp.EventTypeUserMessage) != oldHistory+1 {
+				t.Fatal("reload changed transcript history")
+			}
+			starts := attempts
+			h.driver.startHook = nil
+			next, err := h.manager.Prompt(t.Context(), active.ID, "unchanged catalog")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, next)
+			if countActivationEvents(readStoredEvents(t, active), EventTypeMCPReloaded) != expected {
+				t.Fatalf("unchanged catalog reloaded after %d starts", starts)
+			}
+		})
+	}
+	t.Run("Should defer catalog changes until the active turn finishes", func(t *testing.T) {
+		t.Parallel()
+		h, launcher := newActivationHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		stream := make(chan acp.AgentEvent, 2)
+		turnID := ""
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			turnID = req.TurnID
+			stream <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "working"}
+			return stream, nil
+		}
+		events, err := h.manager.Prompt(t.Context(), active.ID, "start")
+		if err != nil {
+			t.Fatal(err)
+		}
+		launcher.setCatalog("branas")
+		if len(h.driver.startCalls) != 1 || countActivationEvents(readStoredEvents(t, active), EventTypeMCPReloaded) != 0 {
+			t.Fatal("mid-turn reload")
+		}
+		stream <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turnID, PromptStopReason: acp.PromptStopReasonEndTurn}
+		close(stream)
+		collectEvents(t, events)
+		h.driver.promptHook = nil
+		next, err := h.manager.Prompt(t.Context(), active.ID, "next")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, next)
+		if len(h.driver.startCalls) != 2 {
+			t.Fatal("next prompt did not reload")
+		}
+	})
+	t.Run("Should refuse a replacement until the old writer exit is verified", func(t *testing.T) {
+		t.Parallel()
+		h, launcher := newActivationHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		launcher.setCatalog("echo")
+		h.driver.stopHook = func(*fakeProcess) error { return nil }
+		_, err := h.manager.SendPrompt(t.Context(), active.ID, SendPromptOpts{Message: "wait for old writer", MessageID: "fenced"})
+		h.driver.stopHook = nil
+		if !errors.Is(err, ErrStopVerificationFailed) || len(h.driver.startCalls) != 1 {
+			t.Fatalf("unverified stop launched a second writer: %v", err)
+		}
+		if countActivationEvents(readStoredEvents(t, active), acp.EventTypeUserMessage) != 0 {
+			t.Fatal("unverified stop accepted a prompt")
+		}
+	})
+	t.Run("Should bind stopped sessions fresh without a reload event", func(t *testing.T) {
+		t.Parallel()
+		h, launcher := newActivationHarness(t)
+		active := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		launcher.setCatalog("branas")
+		resumed, err := h.manager.Resume(t.Context(), active.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		if countActivationEvents(readStoredEvents(t, resumed), EventTypeMCPReloaded) != 0 {
+			t.Fatal("resume emitted reload event")
+		}
+	})
+	// Invariant: Pi reload materializes a fresh bridge before the driver can perform session/load.
+	// Owner: session launch; canonical suite: provider lifecycle.
+	t.Run("Should write Pi bridge configuration before loading the replacement session", func(t *testing.T) {
+		t.Parallel()
+		h, launcher := newActivationHarness(t)
+		resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved.Agents = []compozyconfig.AgentDef{{Name: "coder", Provider: "pi", Model: "claude-opus-4-7", Prompt: "Use the session tools."}}
+		h.resolver.upsert(&resolved)
+		var previous *AgentProcess
+		firstPath := ""
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			path := envValue(opts.Env, piBridgeConfigEnv)
+			config := readProviderJSON[piBridgeConfig](t, path)
+			if len(config.Servers) != 1 || len(opts.MCPServers) != 0 {
+				t.Fatal("Pi did not own the hosted bridge")
+			}
+			if sequence == 1 {
+				firstPath = path
+			} else {
+				if path == firstPath || previous == nil || !isProcessDone(previous) || opts.ResumeSessionID != previous.SessionID {
+					t.Fatal("Pi load reused stale bridge state or an active writer")
+				}
+				env, ok := config.Servers[0].Config["env"].(map[string]any)
+				if !ok || env["REVISION"] != "second" {
+					t.Fatal("Pi load did not receive the new hosted configuration")
+				}
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-pi-activation"), nil
+		}
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		previous = active.processHandle()
+		launcher.mu.Lock()
+		launcher.server.Env = map[string]string{"REVISION": "second"}
+		launcher.mu.Unlock()
+		launcher.setCatalog("echo")
+		events, err := h.manager.Prompt(t.Context(), active.ID, "load new Pi tools")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		if len(h.driver.startCalls) != 2 {
+			t.Fatal("Pi did not reload once")
+		}
+	})
+	t.Run("Should check the catalog once even when hooks reacquire admission", func(t *testing.T) {
+		t.Parallel()
+		h, launcher := newActivationHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		ctx := withActivationAdmission(t.Context())
+		launcher.setCatalog("first")
+		first, err := h.manager.ensurePromptRuntime(ctx, active, nil, active.processHandle())
+		if err != nil {
+			t.Fatal(err)
+		}
+		launcher.setCatalog("second")
+		second, err := h.manager.ensurePromptRuntime(ctx, active, nil, first)
+		if err != nil || second != first || len(h.driver.startCalls) != 2 {
+			t.Fatalf("reacquired admission started another runtime: %v", err)
+		}
+		if countActivationEvents(readStoredEvents(t, active), EventTypeMCPReloaded) != 1 {
+			t.Fatal("admission recorded more than one attempt")
+		}
+	})
+}
+
+func countActivationEvents(events []store.SessionEvent, kind string) int {
+	count := 0
+	for _, event := range events {
+		if event.Type == kind {
+			count++
+		}
+	}
+	return count
 }

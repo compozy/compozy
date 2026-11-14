@@ -23,6 +23,13 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if refusal, ok := errors.AsType[*session.MCPReloadError](err); ok {
+		payload.Code = session.MCPReloadFailedCode
+		payload.Retryable = true
+		payload.ClientMessageID = refusal.ClientMessageID
+		payload.ProviderError = diagnosticspkg.RedactAndBound(refusal.Cause.Error(), 2048)
+		return payload
+	}
 	if failure, ok := errors.AsType[*runtimemcp.ImportError](err); ok {
 		payload.Code = failure.Code
 		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(failure.Message))

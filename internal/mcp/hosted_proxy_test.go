@@ -1210,6 +1210,7 @@ func requireHostedToolMetaString(t *testing.T, meta sdkmcp.Meta, field string) s
 }
 
 type hostedProxyClientStub struct {
+	served       []HostedServedRequest
 	streamErrors chan error
 	streamClosed chan struct{}
 	mu           sync.Mutex
@@ -1867,4 +1868,52 @@ func TestHostedExternalOutputContracts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (c *hostedProxyClientStub) ReportHostedMCPServed(_ context.Context, req HostedServedRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.served = append(c.served, req)
+	return nil
+}
+
+// Invariant: tools/list reports the revision actually served, not a later daemon projection.
+// Owner: bind-scoped hosted proxy; canonical suite: hosted proxy tests (UT-039/UT-113).
+func TestHostedProxyServedCatalogReceipt(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report only a successfully served catalog revision", func(t *testing.T) {
+		t.Parallel()
+		client := newHostedProxyClientStub(HostedBindResponse{})
+		server := newHostedProxyTestServer()
+		catalog := new(hostedProxyCatalog)
+		server.AddReceivingMiddleware(catalog.middleware(client, "bind-revision"))
+		view := hostedToolView("mcp__echo__ping")
+		view.Descriptor.Source = tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", RawToolName: "ping"}
+		first := HostedProjectionResponse{Tools: []tools.ToolView{view}, Catalog: tools.NewAdvertisedCatalog([]tools.ToolView{view})}
+		catalog.apply(server, client, "bind-revision", first)
+		session := connectHostedProxyClient(t, server)
+		if _, err := session.ListTools(t.Context(), nil); err != nil {
+			t.Fatal(err)
+		}
+		// Health withdraws execution temporarily, while the entitled revision stays the same.
+		catalog.apply(server, client, "bind-revision", HostedProjectionResponse{Catalog: first.Catalog})
+		if _, err := session.ListTools(t.Context(), nil); err != nil {
+			t.Fatal(err)
+		}
+		removed := tools.NewAdvertisedCatalog(nil)
+		catalog.apply(server, client, "bind-revision", HostedProjectionResponse{Catalog: removed})
+		client.mu.Lock()
+		if len(client.served) != 2 || client.served[0].Digest != first.Catalog.Digest || client.served[1].Digest != first.Catalog.Digest {
+			t.Fatal("reported an unserved or health-only revision")
+		}
+		client.mu.Unlock()
+		if _, err := session.ListTools(t.Context(), nil); err != nil {
+			t.Fatal(err)
+		}
+		client.mu.Lock()
+		defer client.mu.Unlock()
+		if len(client.served) != 3 || client.served[2].Digest != removed.Digest || client.served[2].BindID != "bind-revision" {
+			t.Fatalf("served receipts = %+v", client.served)
+		}
+	})
 }

@@ -43,6 +43,7 @@ func (s *HostedService) bindLaunch(
 		return nil, ErrHostedNonceExpired
 	}
 	launch.established = true
+	launch.everBound = true
 	launch.bindID = bindID
 	record := &hostedBindRecord{
 		initialDeadline: launch.expiresAt,
@@ -120,8 +121,9 @@ func hostedProjectionResponse(views []tools.ToolView, memo *hostedProjectionDige
 		return strings.Compare(left.Descriptor.ID.String(), right.Descriptor.ID.String())
 	})
 	return HostedProjectionResponse{
-		Tools:  sorted,
-		Digest: memo.digestFor(sorted),
+		Catalog: tools.NewAdvertisedCatalog(sorted),
+		Tools:   sorted,
+		Digest:  memo.digestFor(sorted),
 	}
 }
 

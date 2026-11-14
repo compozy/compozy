@@ -158,3 +158,17 @@ func (l hostedMCPLauncherAdapter) WaitForBindToolDigest(ctx context.Context, ses
 func (l hostedMCPLauncherAdapter) InitialToolDigest(sessionID string) (string, bool) {
 	return l.service.InitialToolDigest(sessionID)
 }
+
+func (l hostedMCPLauncherAdapter) ActivationCatalog(
+	ctx context.Context, sessionID string,
+) (toolspkg.AdvertisedCatalog, string, error) {
+	catalog, served, err := l.service.ActivationCatalog(ctx, sessionID)
+	if errors.Is(err, mcppkg.ErrHostedBindNotFound) {
+		err = session.ErrHostedMCPBindMissing
+	}
+	return catalog, served, err
+}
+
+func (l hostedMCPLauncherAdapter) BoundActivationCatalog(sessionID string) (toolspkg.AdvertisedCatalog, bool) {
+	return l.service.BoundActivationCatalog(sessionID)
+}
