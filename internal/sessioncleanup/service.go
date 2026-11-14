@@ -140,6 +140,11 @@ func (s *Service) Preview(ctx context.Context, request Request) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
+	// Any time counts up to the instant it reports, so a start pinned to that
+	// instant deletes exactly what this preview counted.
+	if request.ArchivedBefore == nil {
+		request.ArchivedBefore = &countedAt
+	}
 	plan := BuildPlan(rows, request)
 	plan.CountedAt = countedAt
 	return plan, nil

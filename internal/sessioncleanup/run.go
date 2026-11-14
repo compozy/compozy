@@ -154,19 +154,38 @@ func failureCode(err error) FailureCode {
 	return FailureDeleteFailed
 }
 
-// failureMessage reports the root cause a person can act on ("operation not
+// failureMessage reports the root causes a person can act on ("operation not
 // permitted", "database is locked"); the wrapping context names daemon paths
 // and stays in the daemon log.
 func failureMessage(err error) string {
 	if errors.Is(err, store.ErrSessionIsInstanceMain) {
 		return "It is an always-on agent's main session."
 	}
-	for next := errors.Unwrap(err); next != nil; next = errors.Unwrap(next) {
-		err = next
-	}
-	message := strings.TrimSpace(err.Error())
-	if message == "" {
+	causes := rootCauses(err, nil)
+	if len(causes) == 0 {
 		return "It couldn't be deleted."
 	}
-	return message
+	return strings.Join(causes, "; ")
+}
+
+// rootCauses collects the innermost message of every branch, so a delete and
+// its rollback that both failed (an errors.Join) report both causes and no paths.
+func rootCauses(err error, causes []string) []string {
+	switch wrapped := err.(type) {
+	case interface{ Unwrap() []error }:
+		for _, branch := range wrapped.Unwrap() {
+			if branch != nil {
+				causes = rootCauses(branch, causes)
+			}
+		}
+		return causes
+	case interface{ Unwrap() error }:
+		if next := wrapped.Unwrap(); next != nil {
+			return rootCauses(next, causes)
+		}
+	}
+	if message := strings.TrimSpace(err.Error()); message != "" && !slices.Contains(causes, message) {
+		causes = append(causes, message)
+	}
+	return causes
 }

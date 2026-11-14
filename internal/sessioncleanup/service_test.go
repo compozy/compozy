@@ -199,6 +199,23 @@ func TestServiceStart(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report every root cause of a delete and its rollback, without paths", func(t *testing.T) {
+		t.Parallel()
+		failed := errors.Join(
+			fmt.Errorf("session: stage %q: %w", "/var/folders/x/sess_a", errors.New("operation not permitted")),
+			fmt.Errorf("session: roll back %q: %w", "/var/folders/x/sess_a", errors.New("database is locked")),
+		)
+		deleter := &fakeDeleter{results: map[string]error{"a": failed}}
+		h := newServiceHarness(t, []store.SessionHistoryCleanupRow{archivedRow("a", "", 10)}, deleter)
+		if _, _, err := h.service.Start(context.Background(), serviceRequest()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		run := h.waitForSettled(t)
+		if len(run.Failures) != 1 || run.Failures[0].Message != "operation not permitted; database is locked" {
+			t.Fatalf("Failures = %+v, want both root causes and no paths", run.Failures)
+		}
+	})
+
 	t.Run("Should fail the run when nothing could be deleted", func(t *testing.T) {
 		t.Parallel()
 		rows := []store.SessionHistoryCleanupRow{archivedRow("a", "", 10)}
