@@ -392,8 +392,8 @@ describe("desktop chrome projection subscriptions", () => {
       instanceKey: "session:attention",
     };
     const desktops = [
-      { id: "desktop:main", name: "Main", order: 0, tabs: [], activeTabId: null },
-      { id: "desktop:other", name: "Other", order: 1, tabs: [], activeTabId: null },
+      { id: "desktop:main", name: "Main", order: 0, tabs: [], activeTabId: "" },
+      { id: "desktop:other", name: "Other", order: 1, tabs: [], activeTabId: "" },
     ];
     shell.setRuntimeState({ desktops, windows: { [primary.id]: primary } });
     const row: OsSessionAttentionRow = {
