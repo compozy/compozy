@@ -100,6 +100,8 @@ export interface SessionComposerProps {
   runtimeControl?: ReactNode;
   environmentControl?: ReactNode;
   contextControl?: ReactNode;
+  /** After the context ring: the MCP servers this session can use. */
+  mcpControl?: ReactNode;
   /** After the context ring, before the attach button: this session's subagents. */
   subagentControl?: ReactNode;
   /** Beside the attach button: the monitors still waiting to wake this session. */
@@ -343,6 +345,7 @@ function SessionComposerControls() {
       busyInputSteerDelivery={meta.busyInputSteerDelivery}
       environmentControl={meta.environmentControl}
       contextControl={meta.contextControl}
+      mcpControl={meta.mcpControl}
       subagentControl={meta.subagentControl}
       monitorControl={meta.monitorControl}
       processControl={meta.processControl}

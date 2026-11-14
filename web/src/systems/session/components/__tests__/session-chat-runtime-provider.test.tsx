@@ -2268,6 +2268,48 @@ describe("SessionChatRuntimeProvider", () => {
     }
   );
 
+  // UT-W10 (spec mcp-extension-hot-activation, Rule 9): a reload that could not start the runtime
+  // refuses the prompt before acceptance (`409 session_mcp_reload_failed`), so that message's draft
+  // comes back to the composer and sending it again retries. An ambiguous 5xx stays unconfirmed:
+  // "Should retain a prompt answered with a 5xx as pending-ack instead of restoring the draft".
+  // Owning layer: chat-runtime send recovery. Canonical suite: this file.
+  it("UT-W10: Should restore the draft when an MCP reload refuses the prompt", async () => {
+    const answer = createDeferred<Response>();
+    promptResponsePromise = answer.promise;
+    const unconfirmed: string[] = [];
+    const user = userEvent.setup();
+    renderSessionThread({
+      includeToaster: true,
+      onUnconfirmedSend: messageId => unconfirmed.push(messageId),
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Check Sentry now");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    answer.resolve(
+      jsonResponse(
+        {
+          error:
+            "Couldn't start Claude Code with the new MCP servers: exit status 1. Your message wasn't sent.",
+          code: "session_mcp_reload_failed",
+          retryable: true,
+          client_message_id: lastPromptMessageID,
+          provider_error: "exit status 1",
+        },
+        { status: 409 }
+      )
+    );
+
+    expect(
+      await screen.findByText(
+        "Message not sent: Couldn't start Claude Code with the new MCP servers: exit status 1. Your draft was kept."
+      )
+    ).toBeInTheDocument();
+    await waitFor(() => expect(composerText()).toBe("Check Sentry now"));
+    expect(unconfirmed).toEqual([]);
+  });
+
   it("Should name the daemon's reason when it refuses a prompt", async () => {
     promptResponsePromise = Promise.resolve(
       jsonResponse({ error: "session is archived" }, { status: 409 })

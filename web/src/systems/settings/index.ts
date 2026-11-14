@@ -366,7 +366,8 @@ export {
   useSettingsProvider,
   useSettingsProviders,
 } from "./hooks/use-settings-collections";
-export { isMCPApprovalWaiting } from "./lib/mcp-runtime-view-model";
+export { isMCPApprovalWaiting, mcpApprovalTarget } from "./lib/mcp-runtime-view-model";
+export { useAllowMCPServer } from "./hooks/use-mcp-runtime-mutations";
 
 // Hooks -- mutations
 export {
