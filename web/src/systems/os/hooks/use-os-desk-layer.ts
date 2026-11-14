@@ -64,6 +64,19 @@ export interface DeskTabPanes {
   hosts: WindowPaneHosts;
 }
 
+/** Keep a retained split tree outside sibling windows' focus and topology updates. */
+export function useDeskTabWindows(tab: LayoutTab): Readonly<Record<string, OsWindow>> {
+  const memberIds = descendantWindowIds(tab.root);
+  return useDesktop(state => {
+    const members: Record<string, OsWindow> = {};
+    for (const id of memberIds) {
+      const win = state.windows[id];
+      if (win !== undefined) members[id] = win;
+    }
+    return members;
+  }, shallowEqual);
+}
+
 /**
  * The tabs a desktop keeps mounted and one pane for every window in them, keyed by window, never
  * by tab or split position: the pane renders into the window's host (`WindowPaneHosts`) and the

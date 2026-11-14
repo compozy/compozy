@@ -43,7 +43,7 @@ import {
   useCurrentWindowLiveDataEnabled,
   useWindowLiveDataEnabled,
 } from "../use-window-live-data-enabled";
-import { useOsDeskLayer, useVisitedTabs } from "../use-os-desk-layer";
+import { useDeskTabWindows, useOsDeskLayer, useVisitedTabs } from "../use-os-desk-layer";
 import { KeyboardFocusHandoff } from "../../lib/keyboard-focus-handoff";
 import { WindowPaneHosts } from "../../lib/window-pane-hosts";
 import { useOsShortcuts } from "../use-os-shortcuts";
@@ -58,7 +58,7 @@ import { useDesktopCardDrag } from "../use-desktop-card-drag";
 import { windowManagerStore } from "../../stores/window-manager-store";
 import { osTabDragStore } from "../../stores/os-tab-drag-store";
 import { useOsSplitSeam } from "../use-os-split-seam";
-import { useOsTabDragStart } from "../use-os-tab-drag";
+import { useOsTabDrag, useOsTabDragStart } from "../use-os-tab-drag";
 import { TAB_DRAG_EXIT_PX } from "../../lib/drop-edge";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 import { applySeamPreviewToTab, seamWeightDelta } from "../../lib/seam-preview";
@@ -380,18 +380,22 @@ describe("document reduced motion", () => {
   });
 });
 
-// Invariant: shell metadata ignores geometry, while window membership, attention,
-// and an opened overview immediately reflect the latest authoritative projection.
+// Invariant: shell metadata ignores geometry and the pager ignores tab topology, while
+// destinations, window membership, attention and an opened overview reflect authoritative state.
 // Owning layer: OS projection subscriptions; canonical suite: OS interaction hooks.
 describe("desktop chrome projection subscriptions", () => {
-  it("Should ignore geometry and publish window membership and desktop attention", () => {
+  it("Should isolate tab topology and geometry from desktop destinations and attention", () => {
     const shell = createShell();
     const primary: OsWindow = {
       ...shell.state.windows["window:primary"]!,
       app: "session",
       instanceKey: "session:attention",
     };
-    shell.setRuntimeState({ windows: { [primary.id]: primary } });
+    const desktops = [
+      { id: "desktop:main", name: "Main", order: 0, tabs: [], activeTabId: "" },
+      { id: "desktop:other", name: "Other", order: 1, tabs: [], activeTabId: "" },
+    ];
+    shell.setRuntimeState({ desktops, windows: { [primary.id]: primary } });
     const row: OsSessionAttentionRow = {
       kind: "session",
       id: primary.instanceKey!,
@@ -420,6 +424,30 @@ describe("desktop chrome projection subscriptions", () => {
     expect(renders).toBe(initialRenders);
     expect(result.current.chrome.windowIds).toEqual([primary.id]);
     expect([...result.current.pager.needsYouDesktopIds]).toEqual(["desktop:main"]);
+
+    // A peer changing this desktop's tabs cannot change the destination dots.
+    const changedTabs = {
+      ...desktops[0]!,
+      tabs: [
+        {
+          id: primary.tabId,
+          pinned: false,
+          root: leafNode(primary.id),
+        },
+      ],
+      activeTabId: primary.tabId,
+    };
+    act(() => shell.setRuntimeState({ desktops: [changedTabs, desktops[1]!] }));
+    expect(renders).toBe(initialRenders);
+    act(() =>
+      shell.setRuntimeState({
+        desktops: [desktops[1]!, { ...changedTabs, name: "Renamed" }],
+      })
+    );
+    expect(result.current.pager.desktops).toEqual([
+      { id: "desktop:other", name: "Other" },
+      { id: "desktop:main", name: "Renamed" },
+    ]);
 
     act(() =>
       shell.setRuntimeState({
@@ -1314,6 +1342,41 @@ function DeskLayerHarness() {
 }
 
 describe("useOsDeskLayer", () => {
+  // Invariant: a retained tab ignores sibling-only updates but observes its own member changes,
+  // removal and topology. Owning layer: desk projection subscriptions; canonical suite: OS hooks.
+  it("Should subscribe only to the windows in the retained tab", () => {
+    const shell = createShell();
+    const primary = shell.state.windows["window:primary"]!;
+    const peer = shell.state.windows["window:peer"]!;
+    const tab: LayoutTab = { id: "tab:primary", pinned: false, root: leafNode(primary.id) };
+    let renders = 0;
+    const { result, rerender } = renderHook(
+      ({ currentTab }) => {
+        renders += 1;
+        return useDeskTabWindows(currentTab);
+      },
+      { wrapper: shell.wrapper, initialProps: { currentTab: tab } }
+    );
+    const initialRenders = renders;
+    const changedPeer = { ...peer, shown: !peer.shown };
+
+    act(() => {
+      shell.setRuntimeState({ windows: { [primary.id]: primary, [peer.id]: changedPeer } });
+    });
+    expect(renders).toBe(initialRenders);
+    expect(result.current).toEqual({ [primary.id]: primary });
+
+    const changedPrimary = { ...primary, route: { pathname: "/tasks/updated", search: {} } };
+    act(() => {
+      shell.setRuntimeState({ windows: { [primary.id]: changedPrimary, [peer.id]: changedPeer } });
+    });
+    expect(result.current[primary.id]).toBe(changedPrimary);
+    act(() => shell.setRuntimeState({ windows: { [peer.id]: changedPeer } }));
+    expect(result.current).toEqual({});
+    rerender({ currentTab: { ...tab, root: leafNode(peer.id) } });
+    expect(result.current).toEqual({ [peer.id]: changedPeer });
+  });
+
   it("Should wait for layout configuration before exposing restored desktops", () => {
     const shell = createShell();
     const desktop = {
@@ -2487,6 +2550,7 @@ function HeadDragHarness({ windowId, onBack }: { windowId: string; onBack: () =>
 // Invariant: a tab or window-head drag sends its one command on release and always tears down,
 // even when that command throws; a press that stays below the drag threshold, or starts on a
 // control inside the head, is a plain click on that control.
+// Below-threshold clicks also leave the drag view idle and do not read drop geometry.
 // Owning layer: the pointer-to-drag-store wiring in useOsTabDragStart; the gesture rules
 // themselves are owned by the drag store suite.
 describe("useOsTabDragStart pointer gestures", () => {
@@ -2497,59 +2561,79 @@ describe("useOsTabDragStart pointer gestures", () => {
     });
   });
 
-  it("Should dispatch the reorder a released tab drag emits, fenced to the press revision", async () => {
-    const shell = createShell();
-    const windows = Object.fromEntries(
-      ["a", "b", "c"].map(name => [
-        `window:${name}`,
-        windowFixture(`window:${name}`, { tabId: `tab:${name}`, nodeId: `leaf:window:${name}` }),
-      ])
-    );
-    shell.setRuntimeState({
-      windows,
-      desktops: [
-        desktopWith(
-          ["a", "b", "c"].map(name => ({ id: `tab:${name}`, root: leafNode(`window:${name}`) }))
-        ),
-      ],
-      activeTabIds: { "desktop:main": "tab:a" },
-    });
-    render(<TabBarDragHarness tabIds={["tab:a", "tab:b", "tab:c"]} />, { wrapper: shell.wrapper });
-    screen.getByTestId("bar").getBoundingClientRect = () => new DOMRect(0, 0, 300, 30);
-    const tabs = ["tab:a", "tab:b", "tab:c"].map((tabId, index) => {
-      const tab = stubPointerCapture(screen.getByRole("button", { name: tabId }));
-      tab.getBoundingClientRect = () => new DOMRect(index * 100, 0, 100, 30);
-      return tab;
-    });
+  it.each([true, false])(
+    "Should dispatch a reorder fenced to the press revision (move event: %s)",
+    async moved => {
+      const shell = createShell();
+      const windows = Object.fromEntries(
+        ["a", "b", "c"].map(name => [
+          `window:${name}`,
+          windowFixture(`window:${name}`, { tabId: `tab:${name}`, nodeId: `leaf:window:${name}` }),
+        ])
+      );
+      shell.setRuntimeState({
+        windows,
+        desktops: [
+          desktopWith(
+            ["a", "b", "c"].map(name => ({ id: `tab:${name}`, root: leafNode(`window:${name}`) }))
+          ),
+        ],
+        activeTabIds: { "desktop:main": "tab:a" },
+      });
+      render(<TabBarDragHarness tabIds={["tab:a", "tab:b", "tab:c"]} />, {
+        wrapper: shell.wrapper,
+      });
+      screen.getByTestId("bar").getBoundingClientRect = () => new DOMRect(0, 0, 300, 30);
+      const tabs = ["tab:a", "tab:b", "tab:c"].map((tabId, index) => {
+        const tab = stubPointerCapture(screen.getByRole("button", { name: tabId }));
+        tab.getBoundingClientRect = () => new DOMRect(index * 100, 0, 100, 30);
+        return tab;
+      });
 
-    fireEvent.pointerDown(tabs[0]!, { button: 0, pointerId: 1, clientX: 50, clientY: 15 });
-    fireEvent.pointerMove(window, { pointerId: 1, clientX: 260, clientY: 15 });
-    expect(osTabDragStore.getSnapshot().context.phase).toBe("dragging");
-    fireEvent.pointerUp(window, { pointerId: 1, clientX: 260, clientY: 15 });
+      fireEvent.pointerDown(tabs[0]!, { button: 0, pointerId: 1, clientX: 50, clientY: 15 });
+      if (moved) {
+        fireEvent.pointerMove(window, { pointerId: 1, clientX: 260, clientY: 15 });
+        expect(osTabDragStore.getSnapshot().context.phase).toBe("dragging");
+      }
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 260, clientY: 15 });
 
-    // Moved past the last tab: the tab lands at the end of the bar, in one command.
-    expect(shell.controller.reorderTab).toHaveBeenCalledExactlyOnceWith("window:a", 2, {
-      expectedRevision: SNAPSHOT.revision,
-      rebase: { windowId: "window:a" },
-    });
-    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
-    expect(tabs[0]!.setPointerCapture).toHaveBeenCalledOnce();
-    // The reorder settled, so the bar shows the daemon's order again.
-    await waitFor(() => expect(osTabDragStore.getSnapshot().context.settling).toBeNull());
-  });
+      // Moved past the last tab: the tab lands at the end of the bar, in one command.
+      expect(shell.controller.reorderTab).toHaveBeenCalledExactlyOnceWith("window:a", 2, {
+        expectedRevision: SNAPSHOT.revision,
+        rebase: { windowId: "window:a" },
+      });
+      expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+      expect(tabs[0]!.setPointerCapture).toHaveBeenCalledOnce();
+      // The reorder settled, so the bar shows the daemon's order again.
+      await waitFor(() => expect(osTabDragStore.getSnapshot().context.settling).toBeNull());
+    }
+  );
 
   it("Should not capture a head press that never becomes a drag", () => {
     const shell = renderSplitHead();
     const head = stubPointerCapture(screen.getByTestId("head"));
+    render(<div data-desktop-drop-target="desktop:other" />);
+    const geometry = vi.spyOn(Element.prototype, "getBoundingClientRect");
+    const renders = vi.fn();
+    const { result } = renderHook(() => {
+      const drag = useOsTabDrag();
+      renders(drag);
+      return drag;
+    });
+    const initialRenders = renders.mock.calls.length;
 
     fireEvent.pointerDown(head, { button: 0, pointerId: 3, clientX: 10, clientY: 10 });
     expect(osTabDragStore.getSnapshot().context.phase).toBe("pressed");
+    fireEvent.pointerMove(window, { pointerId: 3, clientX: 11, clientY: 10 });
     fireEvent.pointerUp(window, { pointerId: 3, clientX: 12, clientY: 10 });
 
     // Capturing at press would route the click to the head instead of what is under it.
     expect(head.setPointerCapture).not.toHaveBeenCalled();
     expect(shell.controller.moveWindow).not.toHaveBeenCalled();
     expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    expect(result.current).toBeNull();
+    expect(renders).toHaveBeenCalledTimes(initialRenders);
+    expect(geometry).not.toHaveBeenCalled();
   });
 
   it("Should never arm a drag from a control inside the head, even when the press moves", () => {

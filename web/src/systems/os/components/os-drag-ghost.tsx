@@ -34,8 +34,8 @@ export function OsDragGhost({
   const windows = useDesktop(state => state.windows);
   const desktops = useDesktop(state => state.desktops);
   const focusOrder = useDesktop(state => state.client?.focusOrder);
-  const session = drag.session;
-  if (drag.phase !== "dragging" || session === null || drag.pointer === null) return null;
+  const session = drag?.session;
+  if (drag === null || session == null || drag.pointer === null) return null;
   const { source } = session;
   let members: OsWindow[];
   if (source.kind === "tab") {

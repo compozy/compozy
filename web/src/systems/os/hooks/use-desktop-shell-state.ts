@@ -1,6 +1,7 @@
 import { shallowEqual } from "@xstate/store";
 
 import type { OsAttentionRow } from "../lib/attention-model";
+import type { LayoutDesktop } from "../lib/window-manager-types";
 import { desktopIdsNeedingYou } from "../lib/desktop-pager-attention";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
@@ -18,12 +19,31 @@ export function useDesktopShellState() {
   return { ...appearance, windowIds };
 }
 
-/** Geometry cannot change the pager's destinations or attention indicators. */
+type DesktopDestination = Pick<LayoutDesktop, "id" | "name">;
+
+function sameDestinations(
+  left: readonly DesktopDestination[] | undefined,
+  right: readonly DesktopDestination[]
+) {
+  return (
+    left !== undefined &&
+    left.length === right.length &&
+    left.every((desktop, index) => {
+      const next = right[index];
+      return next !== undefined && desktop.id === next.id && desktop.name === next.name;
+    })
+  );
+}
+
+/** Tab topology and geometry cannot change the pager's destinations or attention indicators. */
 export function useDesktopPager(needsYou: readonly OsAttentionRow[]) {
+  const desktops = useDesktop(
+    state => state.desktops.map(({ id, name }) => ({ id, name })),
+    sameDestinations
+  );
   const navigation = useDesktop(
     state => ({
       activeDesktopId: state.activeDesktopId,
-      desktops: state.desktops,
       canSwitchDesktop: windowManagerCommandsAvailable(state),
     }),
     shallowEqual
@@ -32,7 +52,7 @@ export function useDesktopPager(needsYou: readonly OsAttentionRow[]) {
     state => desktopIdsNeedingYou(state.windows, needsYou),
     sameDesktopIds
   );
-  return { ...navigation, needsYouDesktopIds };
+  return { ...navigation, desktops, needsYouDesktopIds };
 }
 
 function sameDesktopIds(left: ReadonlySet<string> | undefined, right: ReadonlySet<string>) {

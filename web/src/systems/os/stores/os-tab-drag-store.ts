@@ -13,6 +13,10 @@ import type {
 
 /** Pointer travel before a press becomes a drag; below it a press stays a click. */
 export const DRAG_START_PX = 5;
+/** Shared by the gesture hit test and the store so clicks never prepare drop geometry. */
+export function isDragMovement(origin: PixelPoint, point: PixelPoint): boolean {
+  return distance(origin, point) >= DRAG_START_PX;
+}
 /** Pointer travel that restarts a head's dwell over a tab. */
 const DWELL_SLOP_PX = 4;
 
@@ -378,7 +382,7 @@ export function createOsTabDragStore() {
         enqueue
       ) => {
         if (state.phase === "idle" || state.origin === null || state.session === null) return;
-        if (state.phase === "pressed" && distance(state.origin, event.point) < DRAG_START_PX) {
+        if (state.phase === "pressed" && !isDragMovement(state.origin, event.point)) {
           return;
         }
         const moving: TabDragState = { ...state, phase: "dragging", pointer: event.point };

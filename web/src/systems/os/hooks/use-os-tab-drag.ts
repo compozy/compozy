@@ -13,6 +13,7 @@ import type {
   WindowId,
 } from "../lib/window-manager-types";
 import {
+  isDragMovement,
   osTabDragStore,
   type TabDragIntent,
   type TabDragSession,
@@ -284,6 +285,8 @@ function trackGesture(
   let captured = false;
 
   const update = () => {
+    const { phase, origin } = osTabDragStore.getSnapshot().context;
+    if (phase === "pressed" && origin !== null && !isDragMovement(origin, point)) return;
     const state = manager.getState();
     osTabDragStore.trigger.moved({
       point,
@@ -451,9 +454,11 @@ export function useOsTabDragStart() {
   };
 }
 
-/** The drag's view for the bar, the content and the ghost. */
+/** Only an actual drag affects content or the ghost; an armed press stays a plain click. */
 export function useOsTabDrag() {
-  return useSelector(osTabDragStore, snapshot => snapshot.context);
+  return useSelector(osTabDragStore, snapshot =>
+    snapshot.context.phase === "dragging" ? snapshot.context : null
+  );
 }
 
 /** The desktop a tab or window head is dragged from, while a drag is under way; else null. */
