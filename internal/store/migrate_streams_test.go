@@ -1396,8 +1396,8 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// This prefix upgrades straight from the pre-feature schema, including S1's tail after integration.
-	if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 201)); err != nil {
+	// This prefix upgrades straight from the pre-feature schema through the marker backfill (00202).
+	if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 202)); err != nil {
 		t.Fatal(err)
 	}
 	before := map[string]string{}
