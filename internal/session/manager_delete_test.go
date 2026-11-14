@@ -203,6 +203,7 @@ func TestManagerDelete(t *testing.T) {
 				defer cancel()
 			}
 			deleteDone := make(chan error, 1)
+			started := time.Now()
 			go func() { deleteDone <- h.manager.Delete(deleteCtx, session.ID) }()
 			select {
 			case err := <-deleteDone:
@@ -211,6 +212,12 @@ func TestManagerDelete(t *testing.T) {
 				}
 			case <-testutil.Context(t).Done():
 				t.Fatal("Delete() did not finish with a held read lease")
+			}
+			if test.callerTimeout == 0 {
+				limit := test.quiesceTimeout + testutil.Scaled(t, time.Second)
+				if elapsed := time.Since(started); elapsed > limit {
+					t.Fatalf("Delete() took %v, want configured reader wait within %v", elapsed, limit)
+				}
 			}
 			if test.callerTimeout == 0 && deleteCtx.Err() != nil {
 				t.Fatalf("quiescence timeout canceled caller context: %v", deleteCtx.Err())
