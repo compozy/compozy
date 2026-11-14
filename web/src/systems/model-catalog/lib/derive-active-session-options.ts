@@ -1,4 +1,4 @@
-import type { OperationResponse } from "@/lib/api-contract";
+import { isReasoningEffort, type OperationResponse } from "@/lib/api-contract";
 
 import { isKnownAvailabilityState, type ProviderModelPayload } from "../types";
 
@@ -145,24 +145,30 @@ function buildReasoningOptions(
     if (values.length === 0) {
       return [];
     }
-    return values.map<ReasoningOption>(value => ({
-      value: value.value,
-      label: value.label?.trim() || value.value,
-      source: "acp",
-    }));
+    // The selected model still caps live values: ACP presence never widens the
+    // model's advertised levels. A silent catalog leaves the ACP list alone.
+    const matched = findSelectedModel(catalog, selectedModel);
+    const advertised = matched ? advertisedEfforts(matched) : [];
+    const allowed = new Set<string>(advertised);
+    const options: ReasoningOption[] = [];
+    for (const value of values) {
+      if (allowed.size > 0 && !allowed.has(value.value)) continue;
+      options.push({
+        value: value.value,
+        label: value.label?.trim() || value.value,
+        source: "acp",
+      });
+    }
+    return options;
   }
-  const targetModel = selectedModel?.trim();
-  if (!targetModel) {
-    return [];
-  }
-  const matched = catalog.find(model => model.model_id === targetModel);
+  const matched = findSelectedModel(catalog, selectedModel);
   if (!matched) {
     return [];
   }
   if (matched.supports_reasoning === false) {
     return [];
   }
-  const efforts = matched.reasoning_efforts ?? [];
+  const efforts = advertisedEfforts(matched);
   if (efforts.length === 0) {
     return [];
   }
@@ -172,6 +178,19 @@ function buildReasoningOptions(
     label: effort,
     source,
   }));
+}
+
+function findSelectedModel(
+  catalog: ProviderModelPayload[],
+  selectedModel: string | null
+): ProviderModelPayload | undefined {
+  const targetModel = selectedModel?.trim();
+  return targetModel ? catalog.find(model => model.model_id === targetModel) : undefined;
+}
+
+/** Canonical effort identifiers the catalog row advertises, malformed values dropped. */
+function advertisedEfforts(model: ProviderModelPayload): string[] {
+  return (model.reasoning_efforts ?? []).filter(isReasoningEffort);
 }
 
 function pickDefaultReasoning(

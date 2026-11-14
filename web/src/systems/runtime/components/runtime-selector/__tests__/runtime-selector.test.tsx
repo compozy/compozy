@@ -678,6 +678,34 @@ describe("RuntimeSelector reasoning slider", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("Should expose exactly the model's advertised levels when a provider offers more", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "capped", reasoning_effort: "" },
+      models: [model("capped", { name: "Capped", efforts: ["low", "high", "max"] })],
+    });
+
+    await openSelector(user);
+
+    // The slider renders `efforts` untouched: three advertised levels → range
+    // 0..2 with low/max at the edges, so no medium stop can appear.
+    const track = sliderTrack();
+    expect(track).toHaveAttribute("aria-valuemin", "0");
+    expect(track).toHaveAttribute("aria-valuemax", "2");
+    fireEvent.keyDown(track, { key: "Home" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "capped",
+      reasoning_effort: "low",
+    });
+    fireEvent.keyDown(track, { key: "End" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "capped",
+      reasoning_effort: "max",
+    });
+  });
+
   it("Should reflect an explicit wire value on the slider", async () => {
     const user = userEvent.setup();
     renderSelector({

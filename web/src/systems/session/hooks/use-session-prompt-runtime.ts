@@ -21,6 +21,7 @@ import {
 } from "@/systems/agent";
 import {
   providerNeedsAuth,
+  restrictReasoningEfforts,
   type RuntimeCatalogProvider,
   useRuntimeModelCatalog,
 } from "@/systems/model-catalog";
@@ -307,7 +308,7 @@ function promptRuntimeDefaults(
   };
 }
 
-/** Overlay acknowledged options only on their effective model, respecting provider policy and matrices. */
+/** Overlay acknowledged options only on their effective model, respecting provider policy, the model's advertised effort ceiling, and matrices. */
 function sessionModelCapabilities(
   models: RuntimeModelOption[],
   runtime: SessionRuntimePayload | undefined
@@ -323,11 +324,10 @@ function sessionModelCapabilities(
         option.id === "reasoning_effort")
   );
   // ACP config_options is a complete snapshot: removing thought_level revokes stale levels.
-  const effortSet = new Set<string>();
+  const acpEfforts: string[] = [];
   for (const value of reasoning?.values ?? []) {
-    if (value.value !== "default" && isReasoningEffort(value.value)) effortSet.add(value.value);
+    if (value.value !== "default" && isReasoningEffort(value.value)) acpEfforts.push(value.value);
   }
-  const efforts = [...effortSet];
   return models.map<RuntimeModelOption>(model => {
     // Catalog eligibility enforces the provider apply strategy and explicit matrices.
     // Live options belong only to the effective model, never pending prompt intent.
@@ -339,12 +339,15 @@ function sessionModelCapabilities(
       model.configurations
     )
       return model;
+    // The model's advertised levels cap the live list: ACP can narrow (or, when
+    // the catalog is silent, introduce) levels but never advertise one the model
+    // does not honor.
+    const efforts = restrictReasoningEfforts(model.efforts, acpEfforts);
+    const current = reasoning?.current_value_id ?? "";
     return {
       ...model,
       efforts,
-      default_effort: effortSet.has(reasoning?.current_value_id ?? "")
-        ? reasoning?.current_value_id
-        : "",
+      default_effort: isReasoningEffort(current) && efforts.includes(current) ? current : "",
       reasoning_source: "acp",
       reasoning_known: true,
     };
