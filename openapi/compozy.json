@@ -28180,6 +28180,312 @@
         ],
         "type": "object"
       },
+      "SessionHistoryCleanupChoices": {
+        "properties": {
+          "children": {
+            "type": "integer"
+          },
+          "everything": {
+            "type": "integer"
+          },
+          "subagents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "children",
+          "everything",
+          "subagents"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupCounts": {
+        "properties": {
+          "children": {
+            "type": "integer"
+          },
+          "sessions": {
+            "type": "integer"
+          },
+          "subagents": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "children",
+          "sessions",
+          "subagents",
+          "total"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupFailure": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "session_id",
+          "title",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupPlan": {
+        "properties": {
+          "archived_before": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "choices": {
+            "$ref": "#/components/schemas/SessionHistoryCleanupChoices"
+          },
+          "counted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/SessionHistoryCleanupCounts"
+          },
+          "kept_live": {
+            "type": "integer"
+          },
+          "threads": {
+            "type": "integer"
+          },
+          "workspaces": {
+            "items": {
+              "$ref": "#/components/schemas/SessionHistoryCleanupWorkspace"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "choices",
+          "counted_at",
+          "counts",
+          "kept_live",
+          "threads",
+          "workspaces"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupPreviewResponse": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/SessionHistoryCleanupPlan"
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupRequest": {
+        "properties": {
+          "all_workspaces": {
+            "type": "boolean"
+          },
+          "archived_before": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "counted_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "delete": {
+            "$ref": "#/components/schemas/SessionHistoryCleanupSelection"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "older_than_days": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "session_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "delete"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupRun": {
+        "properties": {
+          "all_workspaces": {
+            "type": "boolean"
+          },
+          "archived_before": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "counted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "delete": {
+            "$ref": "#/components/schemas/SessionHistoryCleanupSelection"
+          },
+          "deleted": {
+            "type": "integer"
+          },
+          "done": {
+            "type": "integer"
+          },
+          "failed_threads": {
+            "type": "integer"
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/SessionHistoryCleanupFailure"
+            },
+            "type": "array"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "profile_id": {
+            "type": "string"
+          },
+          "skipped": {
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "counted_at",
+          "delete",
+          "deleted",
+          "done",
+          "failed_threads",
+          "failures",
+          "id",
+          "profile_id",
+          "skipped",
+          "started_at",
+          "state",
+          "total"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupRunResponse": {
+        "properties": {
+          "run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionHistoryCleanupRun"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "run"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupSelection": {
+        "properties": {
+          "children": {
+            "type": "boolean"
+          },
+          "everything": {
+            "type": "boolean"
+          },
+          "subagents": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "children",
+          "everything",
+          "subagents"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupStartResponse": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/SessionHistoryCleanupPlan"
+          },
+          "run": {
+            "$ref": "#/components/schemas/SessionHistoryCleanupRun"
+          }
+        },
+        "required": [
+          "plan",
+          "run"
+        ],
+        "type": "object"
+      },
+      "SessionHistoryCleanupWorkspace": {
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "total",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
       "SessionHistoryResponse": {
         "properties": {
           "history": {
@@ -75628,6 +75934,253 @@
           "sessions"
         ],
         "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/sessions/history-cleanup": {
+      "get": {
+        "operationId": "getSessionHistoryCleanup",
+        "parameters": [
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionHistoryCleanupRunResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent identity is denied"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Get the selected profile's running or most recent archived-history cleanup",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "planSessionHistoryCleanup",
+        "parameters": [
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionHistoryCleanupRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionHistoryCleanupPreviewResponse"
+                }
+              }
+            },
+            "description": "Dry run: the sessions the cleanup would delete"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionHistoryCleanupStartResponse"
+                }
+              }
+            },
+            "description": "Accepted: the cleanup runs in the background; follow it with getSessionHistoryCleanup"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid cleanup request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent identity is denied"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "A cleanup is already running for this profile"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Preview (dry_run) or start the background deletion of archived sessions archived before a cutoff: whole threads, or only their child sessions or subagents",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/sessions/history-cleanup/stop": {
+      "post": {
+        "operationId": "stopSessionHistoryCleanup",
+        "parameters": [
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionHistoryCleanupRunResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent identity is denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "No cleanup is running for this profile"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Stop the selected profile's running cleanup; sessions already deleted stay deleted",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"

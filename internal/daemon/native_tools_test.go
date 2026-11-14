@@ -50,6 +50,7 @@ import (
 	"github.com/compozy/compozy/internal/projectfiles/changes"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/sessioncleanup"
 	"github.com/compozy/compozy/internal/sessionprocess"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
@@ -16440,6 +16441,210 @@ func TestNativeWorkspaceLayoutTools(t *testing.T) {
 		}
 		if !slices.Equal(sessions.calls, []string{"layout"}) {
 			t.Fatalf("layout calls = %#v, want one layout read", sessions.calls)
+		}
+	})
+}
+
+// nativeCleanupSessions records the history-cleanup requests the native tool
+// hands the session manager.
+type nativeCleanupSessions struct {
+	apitest.StubSessionManager
+	previews []sessioncleanup.Request
+	starts   []sessioncleanup.Request
+	// run is the profile's current run; stops counts StopHistoryCleanup calls.
+	run   *sessioncleanup.Run
+	stops int
+}
+
+var _ core.SessionHistoryCleanupManager = (*nativeCleanupSessions)(nil)
+
+func (s *nativeCleanupSessions) PreviewHistoryCleanup(
+	_ context.Context,
+	request sessioncleanup.Request,
+) (sessioncleanup.Plan, error) {
+	s.previews = append(s.previews, request)
+	return sessioncleanup.Plan{}, nil
+}
+
+func (s *nativeCleanupSessions) StartHistoryCleanup(
+	_ context.Context,
+	request sessioncleanup.Request,
+) (sessioncleanup.Run, sessioncleanup.Plan, error) {
+	s.starts = append(s.starts, request)
+	return sessioncleanup.Run{ID: "run-1", State: sessioncleanup.RunRunning}, sessioncleanup.Plan{}, nil
+}
+
+func (s *nativeCleanupSessions) HistoryCleanupRun(string) (sessioncleanup.Run, bool, error) {
+	if s.run == nil {
+		return sessioncleanup.Run{}, false, nil
+	}
+	return *s.run, true, nil
+}
+
+func (s *nativeCleanupSessions) StopHistoryCleanup(
+	_ context.Context,
+	_ string,
+	runID string,
+) (sessioncleanup.Run, error) {
+	if s.run == nil || s.run.State != sessioncleanup.RunRunning || s.run.ID != runID {
+		return sessioncleanup.Run{}, sessioncleanup.ErrNoActiveRun
+	}
+	s.stops++
+	s.run.State = sessioncleanup.RunStopped
+	return *s.run, nil
+}
+
+// Invariant (#1717): compozy__session_cleanup reaches every workspace only for
+// the operator or a session with unrestricted workspace access, and an empty
+// request previews Everything archived 7+ days ago in the caller's workspace
+// without starting a run. Status and stop reach the profile's run only for a
+// caller that could have started it, so a workspace-bound agent never reads or
+// stops another project's cleanup. Owner: the daemon native tool's request resolution.
+func TestNativeSessionCleanupTool(t *testing.T) {
+	t.Parallel()
+
+	agent := toolspkg.Scope{WorkspaceID: "ws-1", SessionID: "sess-agent", AgentName: "coder"}
+	newRegistry := func(t *testing.T, access string) (*nativeCleanupSessions, *toolspkg.RuntimeRegistry) {
+		t.Helper()
+		sessions := &nativeCleanupSessions{}
+		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", State: session.StateActive,
+				EffectiveWorkspaceAccess: access,
+			}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		return sessions, registry
+	}
+	call := func(
+		t *testing.T,
+		registry *toolspkg.RuntimeRegistry,
+		scope toolspkg.Scope,
+		input string,
+	) (toolspkg.ToolResult, error) {
+		t.Helper()
+		return registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionCleanup, Input: json.RawMessage(input),
+		})
+	}
+
+	t.Run("Should deny all workspaces to an agent session without unrestricted access", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		_, err := call(t, registry, agent, `{"all_workspaces":true}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if len(sessions.previews) != 0 || len(sessions.starts) != 0 {
+			t.Fatalf(
+				"cleanup calls after denial = previews %#v starts %#v, want none",
+				sessions.previews,
+				sessions.starts,
+			)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		access string
+		scope  toolspkg.Scope
+	}{
+		{name: "an unrestricted agent session", access: workspaceaccess.Unrestricted, scope: agent},
+		{name: "the operator", scope: toolspkg.Scope{Operator: true}},
+	} {
+		t.Run("Should reach all workspaces for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			sessions, registry := newRegistry(t, tc.access)
+			if _, err := call(t, registry, tc.scope, `{"all_workspaces":true}`); err != nil {
+				t.Fatalf("session_cleanup all_workspaces error = %v", err)
+			}
+			if len(sessions.previews) != 1 || !sessions.previews[0].Scope.AllWorkspaces ||
+				sessions.previews[0].Scope.WorkspaceID != "" {
+				t.Fatalf("previews = %#v, want one across all workspaces", sessions.previews)
+			}
+			if len(sessions.starts) != 0 {
+				t.Fatalf("starts = %#v, want none for a dry run", sessions.starts)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name     string
+		runScope sessioncleanup.Scope
+	}{
+		{
+			name:     "another workspace",
+			runScope: sessioncleanup.Scope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-2"},
+		},
+		{
+			name:     "every workspace",
+			runScope: sessioncleanup.Scope{ProfileID: store.DefaultProfileID, AllWorkspaces: true},
+		},
+	} {
+		name := "Should hide and keep running a cleanup across " + tc.name + " from a workspace-bound agent"
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			sessions, registry := newRegistry(t, "")
+			sessions.run = &sessioncleanup.Run{ID: "run-1", Scope: tc.runScope, State: sessioncleanup.RunRunning}
+			for _, action := range []string{toolspkg.SessionCleanupActionStatus, toolspkg.SessionCleanupActionStop} {
+				_, err := call(t, registry, agent, `{"action":"`+action+`"}`)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+			}
+			if sessions.stops != 0 || sessions.run.State != sessioncleanup.RunRunning {
+				t.Fatalf("stops = %d, run state = %q, want the run left running", sessions.stops, sessions.run.State)
+			}
+		})
+	}
+
+	t.Run("Should read and stop a cleanup in the caller's own workspace", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		sessions.run = &sessioncleanup.Run{
+			ID:    "run-1",
+			Scope: sessioncleanup.Scope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1"},
+			State: sessioncleanup.RunRunning,
+		}
+		result, err := call(t, registry, agent, `{"action":"status"}`)
+		if err != nil {
+			t.Fatalf("session_cleanup status error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"id":"run-1"`))
+		if _, err := call(t, registry, agent, `{"action":"stop"}`); err != nil {
+			t.Fatalf("session_cleanup stop error = %v", err)
+		}
+		if sessions.stops != 1 {
+			t.Fatalf("stops = %d, want 1", sessions.stops)
+		}
+	})
+
+	t.Run("Should preview Everything archived 7+ days ago in the caller's workspace by default", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		before := time.Now().UTC()
+		result, err := call(t, registry, agent, `{}`)
+		after := time.Now().UTC()
+		if err != nil {
+			t.Fatalf("session_cleanup default error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"dry_run":true`))
+		if len(sessions.starts) != 0 {
+			t.Fatalf("starts = %#v, want none for the default dry run", sessions.starts)
+		}
+		if len(sessions.previews) != 1 {
+			t.Fatalf("previews = %#v, want one", sessions.previews)
+		}
+		request := sessions.previews[0]
+		wantScope := sessioncleanup.Scope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1"}
+		wantSelection := sessioncleanup.Selection{Everything: true, Children: true, Subagents: true}
+		if request.Scope != wantScope || request.Selection != wantSelection {
+			t.Fatalf("request scope/selection = %+v / %+v, want %+v / %+v",
+				request.Scope, request.Selection, wantScope, wantSelection)
+		}
+		week := 7 * 24 * time.Hour
+		if request.ArchivedBefore == nil ||
+			request.ArchivedBefore.Before(before.Add(-week)) || request.ArchivedBefore.After(after.Add(-week)) {
+			t.Fatalf("ArchivedBefore = %v, want 7 days before the call", request.ArchivedBefore)
 		}
 	})
 }

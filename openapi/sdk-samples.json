@@ -1506,6 +1506,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "getSessionHistoryCleanup": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionHistoryCleanup();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionHistoryCleanup(ctx, client.GetSessionHistoryCleanupParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
         "getSessionMCP": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionMCP({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionMCP(ctx, client.GetSessionMCPParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2710,6 +2717,13 @@
             "resource": "cmdPalette",
             "app_access": "denied"
         },
+        "planSessionHistoryCleanup": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.planSessionHistoryCleanup({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PlanSessionHistoryCleanup(ctx, client.PlanSessionHistoryCleanupParams{}, client.SessionHistoryCleanupRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
         "prepareProfileArchive": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.profiles.prepareProfileArchive({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PrepareProfileArchive(ctx, client.PrepareProfileArchiveParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -3612,6 +3626,13 @@
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"
+        },
+        "stopSessionHistoryCleanup": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.stopSessionHistoryCleanup();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.StopSessionHistoryCleanup(ctx, client.StopSessionHistoryCleanupParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
         },
         "streamCmdPalette": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nfor await (const frame of compozy.events(\"streamCmdPalette\", { query: { \"workspace\": \"workspace\" } })) {\n  console.log(frame);\n}",

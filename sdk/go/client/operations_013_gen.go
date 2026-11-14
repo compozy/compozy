@@ -366,6 +366,28 @@ func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistory
 	return &out, nil
 }
 
+// GetSessionHistoryCleanupParams carries the path, query, and header parameters.
+type GetSessionHistoryCleanupParams struct {
+	Profile *string `url:"profile"`
+}
+
+// GetSessionHistoryCleanup Get the selected profile's running or most recent archived-history cleanup
+func (c *Client) GetSessionHistoryCleanup(ctx context.Context, params GetSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
+	path := "/api/sessions/history-cleanup"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionHistoryCleanupRunResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSessionMCPParams carries the path, query, and header parameters.
 type GetSessionMCPParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -422,13 +444,4 @@ func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerPara
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSessionRecapParams carries the path, query, and header parameters.
-type GetSessionRecapParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

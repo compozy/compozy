@@ -6,8 +6,112 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// ReadWorktreeFileBytes Stream worktree file bytes
+func (c *Client) ReadWorktreeFileBytes(ctx context.Context, params ReadWorktreeFileBytesParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/files/raw/{path}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	path = strings.ReplaceAll(path, "{path}", url.PathEscape(params.Path))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RecordCmdPaletteUsageParams carries the path, query, and header parameters.
+type RecordCmdPaletteUsageParams struct {
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// RecordCmdPaletteUsage Record command palette usage
+func (c *Client) RecordCmdPaletteUsage(ctx context.Context, params RecordCmdPaletteUsageParams, body CmdPaletteUsageRequest) error {
+	path := "/api/cmd-palette/usage"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
+// RecoverTaskParams carries the path, query, and header parameters.
+type RecoverTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// RecoverTask Recover one task from needs_attention
+func (c *Client) RecoverTask(ctx context.Context, params RecoverTaskParams, body RecoverTaskRequest) (*TaskResponse, error) {
+	path := "/api/tasks/{id}/recover"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RecoverTaskRunParams carries the path, query, and header parameters.
+type RecoverTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// RecoverTaskRun Recover one needs_attention task run
+func (c *Client) RecoverTaskRun(ctx context.Context, params RecoverTaskRunParams, body RecoverTaskRunRequest) (*RetryTaskRunResponse, error) {
+	path := "/api/runs/{id}/recover"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RetryTaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RedeemGatewayPairing Redeem a one-time gateway pairing artifact
+func (c *Client) RedeemGatewayPairing(ctx context.Context, body GatewayPairingRedeemRequest) (*GatewayIssuedCredentialPayload, error) {
+	path := "/api/gateway/pairings/redeem"
+	var out GatewayIssuedCredentialPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // RefreshMarketplaceCatalog Refresh the extension catalog
 func (c *Client) RefreshMarketplaceCatalog(ctx context.Context) (*MarketplaceRefreshResponse, error) {
@@ -338,110 +442,4 @@ func (c *Client) RemoveAgentMemory(ctx context.Context, params RemoveAgentMemory
 type RemoveDiscoveredWorktreeParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// RemoveDiscoveredWorktree Remove a discovered worktree
-func (c *Client) RemoveDiscoveredWorktree(ctx context.Context, params RemoveDiscoveredWorktreeParams, body RemoveDiscoveredWorktreeRequest) error {
-	path := "/api/workspaces/{workspace_id}/worktrees/discovered/remove"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
-}
-
-// RemoveExtensionParams carries the path, query, and header parameters.
-type RemoveExtensionParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// RemoveExtension Remove one managed extension
-func (c *Client) RemoveExtension(ctx context.Context, params RemoveExtensionParams) (*ExtensionRemoveResponse, error) {
-	path := "/api/extensions/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionRemoveResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RemoveMarketplaceSourceParams carries the path, query, and header parameters.
-type RemoveMarketplaceSourceParams struct {
-	Name string `url:"name"`
-}
-
-// RemoveMarketplaceSource Remove a custom source without removing installed extensions Experimental: pin the exact SDK version.
-func (c *Client) RemoveMarketplaceSource(ctx context.Context, params RemoveMarketplaceSourceParams) error {
-	path := "/api/marketplace/sources/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// RemoveSessionWorkLinkParams carries the path, query, and header parameters.
-type RemoveSessionWorkLinkParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RemoveSessionWorkLink Unlink session work
-func (c *Client) RemoveSessionWorkLink(ctx context.Context, params RemoveSessionWorkLinkParams, body SessionWorkLinkRequest) (*SessionLinkedWorkResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/links"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionLinkedWorkResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RemoveTaskDependencyParams carries the path, query, and header parameters.
-type RemoveTaskDependencyParams struct {
-	ID          string  `url:"id"`
-	DependsOnID string  `url:"depends_on_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RemoveTaskDependency Remove one task dependency
-func (c *Client) RemoveTaskDependency(ctx context.Context, params RemoveTaskDependencyParams) (*TaskDetailResponse, error) {
-	path := "/api/tasks/{id}/dependencies/{depends_on_id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{depends_on_id}", url.PathEscape(params.DependsOnID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskDetailResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

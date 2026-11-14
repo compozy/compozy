@@ -4,6 +4,78 @@ package client
 
 import "time"
 
+// SettingsHookDeclarationPayload is a daemon API value.
+type SettingsHookDeclarationPayload struct {
+	Name         string            `json:"name"`
+	Event        HookEvent         `json:"event"`
+	Mode         HookMode          `json:"mode,omitempty"`
+	Required     bool              `json:"required,omitzero"`
+	Enabled      *bool             `json:"enabled,omitzero"`
+	Priority     int               `json:"priority,omitzero"`
+	Timeout      string            `json:"timeout,omitempty"`
+	Matcher      HookMatcher       `json:"matcher"`
+	ExecutorKind HookExecutorKind  `json:"executor_kind,omitempty"`
+	Command      string            `json:"command,omitempty"`
+	Args         []string          `json:"args,omitempty"`
+	Env          map[string]string `json:"env,omitempty"`
+	SecretEnv    map[string]string `json:"secret_env,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+}
+
+// SettingsHookItemPayload is a daemon API value.
+type SettingsHookItemPayload struct {
+	Name           string                         `json:"name"`
+	Declaration    SettingsHookDeclarationPayload `json:"declaration"`
+	SourceMetadata SettingsSourceMetadataPayload  `json:"source_metadata"`
+}
+
+// SettingsHooksExtensionsResponse is a daemon API value.
+type SettingsHooksExtensionsResponse struct {
+	Section         SettingsSectionName                 `json:"section"`
+	Scope           SettingsUserScopeKind               `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind             `json:"available_scopes"`
+	Hooks           []SettingsHookItemPayload           `json:"hooks,omitempty"`
+	Config          SettingsExtensionsConfigPayload     `json:"config"`
+	Installed       []SettingsInstalledExtensionPayload `json:"installed,omitempty"`
+	TransportParity SettingsTransportParityPayload      `json:"transport_parity"`
+}
+
+// SettingsHooksResponse is a daemon API value.
+type SettingsHooksResponse struct {
+	Collection      SettingsCollectionName     `json:"collection"`
+	Scope           SettingsLayeredScopeKind   `json:"scope"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Profile         string                     `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
+	Hooks           []SettingsHookItemPayload  `json:"hooks"`
+}
+
+// SettingsInstalledExtensionPaletteCommandPayload is a daemon API value.
+type SettingsInstalledExtensionPaletteCommandPayload struct {
+	ID             string   `json:"id"`
+	Title          string   `json:"title"`
+	Bindings       []string `json:"bindings"`
+	DefaultBinding string   `json:"default_binding,omitempty"`
+	DefaultDormant bool     `json:"default_dormant"`
+	ConflictWith   string   `json:"conflict_with,omitempty"`
+	Available      bool     `json:"available"`
+	Reason         string   `json:"reason,omitempty"`
+}
+
+// SettingsInstalledExtensionPalettePayload is a daemon API value.
+type SettingsInstalledExtensionPalettePayload struct {
+	Commands []SettingsInstalledExtensionPaletteCommandPayload `json:"commands"`
+	Views    []SettingsInstalledExtensionPaletteViewPayload    `json:"views"`
+}
+
+// SettingsInstalledExtensionPaletteViewPayload is a daemon API value.
+type SettingsInstalledExtensionPaletteViewPayload struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+}
+
 // SettingsInstalledExtensionPayload is a daemon API value.
 type SettingsInstalledExtensionPayload struct {
 	Name          string                                    `json:"name"`
@@ -353,97 +425,4 @@ type SettingsProviderItemPayload struct {
 	AuthStatus       *SettingsProviderAuthStatusPayload        `json:"auth_status,omitzero"`
 	SourceMetadata   SettingsSourceMetadataPayload             `json:"source_metadata"`
 	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitzero"`
-}
-
-// SettingsProviderModelPayload is a daemon API value.
-type SettingsProviderModelPayload struct {
-	ID                       string   `json:"id"`
-	DisplayName              string   `json:"display_name,omitempty"`
-	ContextWindow            *int64   `json:"context_window,omitzero"`
-	MaxInputTokens           *int64   `json:"max_input_tokens,omitzero"`
-	MaxOutputTokens          *int64   `json:"max_output_tokens,omitzero"`
-	SupportsTools            *bool    `json:"supports_tools,omitzero"`
-	SupportsReasoning        *bool    `json:"supports_reasoning,omitzero"`
-	ReasoningEfforts         []Effort `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort   Effort   `json:"default_reasoning_effort,omitempty"`
-	DefaultSpeed             Speed    `json:"default_speed,omitempty"`
-	CostInputPerMillion      *float64 `json:"cost_input_per_million,omitzero"`
-	CostOutputPerMillion     *float64 `json:"cost_output_per_million,omitzero"`
-	CostCacheReadPerMillion  *float64 `json:"cost_cache_read_per_million,omitzero"`
-	CostCacheWritePerMillion *float64 `json:"cost_cache_write_per_million,omitzero"`
-	CostReasoningPerMillion  *float64 `json:"cost_reasoning_per_million,omitzero"`
-	Deprecated               *bool    `json:"deprecated,omitzero"`
-	Hidden                   *bool    `json:"hidden,omitzero"`
-	Featured                 *bool    `json:"featured,omitzero"`
-	ReleaseDate              string   `json:"release_date,omitempty"`
-}
-
-// SettingsProviderModelsDiscoveryPayload is a daemon API value.
-type SettingsProviderModelsDiscoveryPayload struct {
-	Enabled  *bool  `json:"enabled,omitzero"`
-	Command  string `json:"command,omitempty"`
-	Endpoint string `json:"endpoint,omitempty"`
-	Timeout  string `json:"timeout,omitempty"`
-}
-
-// SettingsProviderModelsPayload is a daemon API value.
-type SettingsProviderModelsPayload struct {
-	Default   string                                  `json:"default,omitempty"`
-	Curated   []SettingsProviderModelPayload          `json:"curated,omitempty"`
-	Discovery *SettingsProviderModelsDiscoveryPayload `json:"discovery,omitzero"`
-	Reasoning *SettingsProviderReasoningPayload       `json:"reasoning,omitzero"`
-}
-
-// SettingsProviderReasoningPayload is a daemon API value.
-type SettingsProviderReasoningPayload struct {
-	Apply string `json:"apply"`
-}
-
-// SettingsProviderResponse is a daemon API value.
-type SettingsProviderResponse struct {
-	Provider SettingsProviderItemPayload `json:"provider"`
-}
-
-// SettingsProviderSecretWritePayload is a daemon API value.
-type SettingsProviderSecretWritePayload struct {
-	Name      string `json:"name,omitempty"`
-	SecretRef string `json:"secret_ref"`
-	Kind      string `json:"kind,omitempty"`
-	Value     string `json:"value"`
-}
-
-// SettingsProviderSettingsPayload is a daemon API value.
-type SettingsProviderSettingsPayload struct {
-	SessionEnv        map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
-	AutoCompactWindow *int                                    `json:"auto_compact_window,omitempty"`
-	SteerCapability   SteerCapability                         `json:"steer_capability,omitempty"`
-	Command           string                                  `json:"command,omitempty"`
-	CommandInherited  bool                                    `json:"command_inherited,omitempty"`
-	DisplayName       string                                  `json:"display_name,omitempty"`
-	Enabled           bool                                    `json:"enabled"`
-	Models            *SettingsProviderModelsPayload          `json:"models,omitzero"`
-	Harness           string                                  `json:"harness,omitempty"`
-	RuntimeProvider   string                                  `json:"runtime_provider,omitempty"`
-	Transport         string                                  `json:"transport,omitempty"`
-	BaseURL           string                                  `json:"base_url,omitempty"`
-	AuthMode          string                                  `json:"auth_mode,omitempty"`
-	EnvPolicy         string                                  `json:"env_policy,omitempty"`
-	RuntimeMCP        string                                  `json:"runtime_mcp,omitempty"`
-	HomePolicy        string                                  `json:"home_policy,omitempty"`
-	AuthStatusCmd     string                                  `json:"auth_status_command,omitempty"`
-	AuthACPMethod     string                                  `json:"auth_acp_method,omitempty"`
-	CredentialSlots   []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
-}
-
-// SettingsProviderUsagePayload is a daemon API value.
-type SettingsProviderUsagePayload struct {
-	Enabled         bool                                            `json:"enabled"`
-	RefreshInterval string                                          `json:"refresh_interval"`
-	Providers       map[string]SettingsProviderUsageProviderPayload `json:"providers"`
-}
-
-// SettingsProviderUsageProviderPayload is a daemon API value.
-type SettingsProviderUsageProviderPayload struct {
-	Enabled        *bool `json:"enabled,omitempty"`
-	KeychainAccess *bool `json:"keychain_access,omitempty"`
 }

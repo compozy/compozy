@@ -225,6 +225,54 @@ func TestManagerDelete(t *testing.T) {
 		}
 	})
 
+	// Invariant (#1717): the archived-only delete removes a session only while it
+	// is archived and still owned by the expected profile and workspace; any other
+	// target is refused before anything stops and the session stays.
+	// Owner: session deletion over the real global catalog.
+	t.Run("Should delete an archived session only inside its owner's scope", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		live := createSession(t, h.harness)
+		archived := createSession(t, h.harness)
+		if err := h.manager.Stop(t.Context(), archived.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, archived.ID); err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+		info, err := h.manager.Status(t.Context(), archived.ID)
+		if err != nil || info.ArchivedAt == nil {
+			t.Fatalf("Status(archived) = %+v, error = %v, want archived", info, err)
+		}
+		owner := store.ArchivedSessionDelete{
+			SessionID: archived.ID, ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+		}
+
+		refused := []store.ArchivedSessionDelete{
+			{SessionID: live.ID, ProfileID: owner.ProfileID, WorkspaceID: owner.WorkspaceID},
+			{SessionID: archived.ID, ProfileID: "other-profile", WorkspaceID: owner.WorkspaceID},
+			{SessionID: archived.ID, ProfileID: owner.ProfileID, WorkspaceID: "ws-other"},
+		}
+		for _, target := range refused {
+			if err := h.manager.DeleteArchived(t.Context(), target); !errors.Is(err, store.ErrSessionNotArchived) {
+				t.Fatalf("DeleteArchived(%+v) error = %v, want ErrSessionNotArchived", target, err)
+			}
+			if _, err := h.manager.Status(t.Context(), target.SessionID); err != nil {
+				t.Fatalf("Status(%s) after refused delete = %v, want it kept", target.SessionID, err)
+			}
+		}
+
+		if err := h.manager.DeleteArchived(t.Context(), owner); err != nil {
+			t.Fatalf("DeleteArchived(owner) error = %v", err)
+		}
+		if _, err := h.manager.Status(t.Context(), archived.ID); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("Status(archived) after delete = %v, want not found", err)
+		}
+		if _, err := h.manager.Status(t.Context(), live.ID); err != nil {
+			t.Fatalf("Status(live) after archived delete = %v, want reachable", err)
+		}
+	})
+
 	// Invariant: failed Goal settlement preserves stopped history and attachments for a safe retry.
 	// Owner: session deletion; canonical manager lifecycle suite with the Goal I/O boundary injected.
 	for _, restart := range []bool{false, true} {

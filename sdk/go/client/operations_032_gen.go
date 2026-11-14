@@ -8,6 +8,109 @@ import (
 	"strings"
 )
 
+// ReplaceSessionInput Replace queued session input atomically
+func (c *Client) ReplaceSessionInput(ctx context.Context, params ReplaceSessionInputParams, body ReplaceSessionInputRequest) (*SessionInputResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{queue_entry_id}", url.PathEscape(params.QueueEntryID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionInputResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReplaceWindowManagerLayoutParams carries the path, query, and header parameters.
+type ReplaceWindowManagerLayoutParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ReplaceWindowManagerLayout Replace one declarative window layout
+func (c *Client) ReplaceWindowManagerLayout(ctx context.Context, params ReplaceWindowManagerLayoutParams, body WindowManagerLayoutReplaceRequest) (*WindowManagerResult, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerResult
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RequestTaskRunReviewParams carries the path, query, and header parameters.
+type RequestTaskRunReviewParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// RequestTaskRunReview Request review for one terminal task run
+func (c *Client) RequestTaskRunReview(ctx context.Context, params RequestTaskRunReviewParams, body RunReviewRequest) (*TaskRunReviewRequestResponse, error) {
+	path := "/api/task-runs/{id}/reviews"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunReviewRequestResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RequeueLoopNodeParams carries the path, query, and header parameters.
+type RequeueLoopNodeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	NodeID      string  `url:"node_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RequeueLoopNode Requeue one Loop node
+func (c *Client) RequeueLoopNode(ctx context.Context, params RequeueLoopNodeParams, body LoopNodeMutationRequest) (*LoopMutationResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/requeue"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopMutationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RerunLoopRunParams carries the path, query, and header parameters.
+type RerunLoopRunParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	Profile     *string `url:"profile"`
+}
+
 // RerunLoopRun Rerun a Loop from one settled node
 func (c *Client) RerunLoopRun(ctx context.Context, params RerunLoopRunParams, body RerunLoopRequest) (*RerunLoopResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/rerun"
@@ -331,104 +434,4 @@ type RevokeAgentHeartbeatScriptParams struct {
 	Script      string  `url:"script"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// RevokeAgentHeartbeatScript Revoke a source script approval (operator only)
-func (c *Client) RevokeAgentHeartbeatScript(ctx context.Context, params RevokeAgentHeartbeatScriptParams) error {
-	path := "/api/agents/{name}/heartbeat/scripts/{script}/approve"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	path = strings.ReplaceAll(path, "{script}", url.PathEscape(params.Script))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// RevokeAppTokenParams carries the path, query, and header parameters.
-type RevokeAppTokenParams struct {
-	AppTokenID string `url:"app_token_id"`
-}
-
-// RevokeAppToken Revoke an app token and cancel its active streams Experimental: pin the exact SDK version.
-func (c *Client) RevokeAppToken(ctx context.Context, params RevokeAppTokenParams) (*AppTokenRevokeResponse, error) {
-	path := "/api/app-tokens/{app_token_id}"
-	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
-	var out AppTokenRevokeResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RevokeGatewayDeviceParams carries the path, query, and header parameters.
-type RevokeGatewayDeviceParams struct {
-	ID string `url:"id"`
-}
-
-// RevokeGatewayDevice Revoke one paired gateway device and its live streams
-func (c *Client) RevokeGatewayDevice(ctx context.Context, params RevokeGatewayDeviceParams) (*GatewayRevokePayload, error) {
-	path := "/api/gateway/devices/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out GatewayRevokePayload
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RevokeToolApprovalGrantParams carries the path, query, and header parameters.
-type RevokeToolApprovalGrantParams struct {
-	ID          string `url:"id"`
-	WorkspaceID string `url:"workspace_id"`
-}
-
-// RevokeToolApprovalGrant Revoke one remembered native-tool approval decision in one workspace
-func (c *Client) RevokeToolApprovalGrant(ctx context.Context, params RevokeToolApprovalGrantParams) error {
-	path := "/api/tool-approval-grants/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace_id", params.WorkspaceID)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// RewindSessionConversationParams carries the path, query, and header parameters.
-type RewindSessionConversationParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RewindSessionConversation Rewind a conversation before one durable user message
-func (c *Client) RewindSessionConversation(ctx context.Context, params RewindSessionConversationParams, body SessionConversationRewindRequest) (*SessionConversationRewindResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/rewind"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionConversationRewindResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RollbackAgentHeartbeatParams carries the path, query, and header parameters.
-type RollbackAgentHeartbeatParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
 }

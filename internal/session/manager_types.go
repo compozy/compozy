@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/session/inputqueue"
+	"github.com/compozy/compozy/internal/sessioncleanup"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -201,6 +202,9 @@ type Manager struct {
 	streamEvents            *sessionEventBroadcaster
 	catalogEventsMu         sync.Mutex
 	catalogEvents           *sessionCatalogBroadcaster
+	historyCleanupMu        sync.Mutex
+	historyCleanup          *sessioncleanup.Service
+	historyCleanupClosed    bool
 	attentionPublished      map[string]store.SessionAttention
 	attentionCommitMu       sync.Mutex
 	attentionCommitLocks    map[string]*attentionCommitLock

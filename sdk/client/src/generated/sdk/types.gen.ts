@@ -7856,6 +7856,91 @@ export type SessionHealthResponse = {
   health: SessionHealthPayload;
 };
 
+export type SessionHistoryCleanupChoices = {
+  children: number;
+  everything: number;
+  subagents: number;
+};
+
+export type SessionHistoryCleanupCounts = {
+  children: number;
+  sessions: number;
+  subagents: number;
+  total: number;
+};
+
+export type SessionHistoryCleanupFailure = {
+  code: string;
+  message: string;
+  session_id: string;
+  title: string;
+  workspace_id: string;
+};
+
+export type SessionHistoryCleanupPlan = {
+  archived_before?: string | null;
+  choices: SessionHistoryCleanupChoices;
+  counted_at: string;
+  counts: SessionHistoryCleanupCounts;
+  kept_live: number;
+  threads: number;
+  workspaces: Array<SessionHistoryCleanupWorkspace>;
+};
+
+export type SessionHistoryCleanupPreviewResponse = {
+  plan: SessionHistoryCleanupPlan;
+};
+
+export type SessionHistoryCleanupRequest = {
+  all_workspaces?: boolean;
+  archived_before?: string | null;
+  counted_at?: string | null;
+  delete: SessionHistoryCleanupSelection;
+  dry_run?: boolean;
+  older_than_days?: number | null;
+  session_ids?: Array<string>;
+  workspace_id?: string;
+};
+
+export type SessionHistoryCleanupRun = {
+  all_workspaces?: boolean;
+  archived_before?: string | null;
+  counted_at: string;
+  delete: SessionHistoryCleanupSelection;
+  deleted: number;
+  done: number;
+  failed_threads: number;
+  failures: Array<SessionHistoryCleanupFailure>;
+  finished_at?: string | null;
+  id: string;
+  profile_id: string;
+  skipped: number;
+  started_at: string;
+  state: string;
+  total: number;
+  workspace_id?: string;
+};
+
+export type SessionHistoryCleanupRunResponse = {
+  run: SessionHistoryCleanupRun | null;
+};
+
+export type SessionHistoryCleanupSelection = {
+  children: boolean;
+  everything: boolean;
+  subagents: boolean;
+};
+
+export type SessionHistoryCleanupStartResponse = {
+  plan: SessionHistoryCleanupPlan;
+  run: SessionHistoryCleanupRun;
+};
+
+export type SessionHistoryCleanupWorkspace = {
+  total: number;
+  workspace_id: string;
+};
+
 export type SessionHistoryResponse = {
   history: Array<TurnHistoryPayload>;
 };
@@ -26615,6 +26700,145 @@ export type ListSessionFacetsResponses = {
 
 export type ListSessionFacetsResponse =
   ListSessionFacetsResponses[keyof ListSessionFacetsResponses];
+
+export type GetSessionHistoryCleanupData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/history-cleanup";
+};
+
+export type GetSessionHistoryCleanupErrors = {
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type GetSessionHistoryCleanupError =
+  GetSessionHistoryCleanupErrors[keyof GetSessionHistoryCleanupErrors];
+
+export type GetSessionHistoryCleanupResponses = {
+  /**
+   * OK
+   */
+  200: SessionHistoryCleanupRunResponse;
+};
+
+export type GetSessionHistoryCleanupResponse =
+  GetSessionHistoryCleanupResponses[keyof GetSessionHistoryCleanupResponses];
+
+export type PlanSessionHistoryCleanupData = {
+  /**
+   * JSON request body
+   */
+  body: SessionHistoryCleanupRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/history-cleanup";
+};
+
+export type PlanSessionHistoryCleanupErrors = {
+  /**
+   * Invalid cleanup request
+   */
+  400: ErrorPayload;
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * A cleanup is already running for this profile
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type PlanSessionHistoryCleanupError =
+  PlanSessionHistoryCleanupErrors[keyof PlanSessionHistoryCleanupErrors];
+
+export type PlanSessionHistoryCleanupResponses = {
+  /**
+   * Dry run: the sessions the cleanup would delete
+   */
+  200: SessionHistoryCleanupPreviewResponse;
+  /**
+   * Accepted: the cleanup runs in the background; follow it with getSessionHistoryCleanup
+   */
+  202: SessionHistoryCleanupStartResponse;
+};
+
+export type PlanSessionHistoryCleanupResponse =
+  PlanSessionHistoryCleanupResponses[keyof PlanSessionHistoryCleanupResponses];
+
+export type StopSessionHistoryCleanupData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/history-cleanup/stop";
+};
+
+export type StopSessionHistoryCleanupErrors = {
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * No cleanup is running for this profile
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type StopSessionHistoryCleanupError =
+  StopSessionHistoryCleanupErrors[keyof StopSessionHistoryCleanupErrors];
+
+export type StopSessionHistoryCleanupResponses = {
+  /**
+   * OK
+   */
+  200: SessionHistoryCleanupRunResponse;
+};
+
+export type StopSessionHistoryCleanupResponse =
+  StopSessionHistoryCleanupResponses[keyof StopSessionHistoryCleanupResponses];
 
 export type GetSessionByIDData = {
   body?: never;

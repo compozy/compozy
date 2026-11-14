@@ -4,9 +4,9 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
@@ -289,6 +289,70 @@ func (c *Client) PinCmdPaletteCommand(ctx context.Context, params PinCmdPaletteC
 	return &out, nil
 }
 
+// PlanSessionHistoryCleanupParams carries the path, query, and header parameters.
+type PlanSessionHistoryCleanupParams struct {
+	Profile *string `url:"profile"`
+}
+
+// PlanSessionHistoryCleanupFrame preserves each response payload; select its variant using the event name or HTTP status.
+type PlanSessionHistoryCleanupFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
+var _ json.Unmarshaler = (*PlanSessionHistoryCleanupFrame)(nil)
+
+var _ json.Marshaler = PlanSessionHistoryCleanupFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *PlanSessionHistoryCleanupFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f PlanSessionHistoryCleanupFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+func (f *PlanSessionHistoryCleanupFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsSessionHistoryCleanupPreviewResponse decodes this payload as SessionHistoryCleanupPreviewResponse.
+func (f PlanSessionHistoryCleanupFrame) AsSessionHistoryCleanupPreviewResponse() (*SessionHistoryCleanupPreviewResponse, error) {
+	var out SessionHistoryCleanupPreviewResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionHistoryCleanupStartResponse decodes this payload as SessionHistoryCleanupStartResponse.
+func (f PlanSessionHistoryCleanupFrame) AsSessionHistoryCleanupStartResponse() (*SessionHistoryCleanupStartResponse, error) {
+	var out SessionHistoryCleanupStartResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PlanSessionHistoryCleanup Preview (dry_run) or start the background deletion of archived sessions archived before a cutoff: whole threads, or only their child sessions or subagents
+func (c *Client) PlanSessionHistoryCleanup(ctx context.Context, params PlanSessionHistoryCleanupParams, body SessionHistoryCleanupRequest) (*PlanSessionHistoryCleanupFrame, error) {
+	path := "/api/sessions/history-cleanup"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out PlanSessionHistoryCleanupFrame
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PrepareProfileArchiveParams carries the path, query, and header parameters.
 type PrepareProfileArchiveParams struct {
 	Name string `url:"name"`
@@ -366,81 +430,4 @@ type PreviewExtensionEnableParams struct {
 	Name        string  `url:"name"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// PreviewExtensionEnable Preview one extension enablement change
-func (c *Client) PreviewExtensionEnable(ctx context.Context, params PreviewExtensionEnableParams) (*ExtensionEnablePreviewPayload, error) {
-	path := "/api/extensions/{name}/preview"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionEnablePreviewPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PreviewExtensionInstallParams carries the path, query, and header parameters.
-type PreviewExtensionInstallParams struct {
-	Profile *string `url:"profile"`
-}
-
-// PreviewExtensionInstall Preview an extension install without changing state
-func (c *Client) PreviewExtensionInstall(ctx context.Context, params PreviewExtensionInstallParams, body InstallExtensionRequest) (*ExtensionInstallPreviewPayload, error) {
-	path := "/api/extensions/preview-install"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionInstallPreviewPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PreviewSessionDeriveParams carries the path, query, and header parameters.
-type PreviewSessionDeriveParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	MessageID   *string `url:"message_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// PreviewSessionDerive Preview what a continue or fork of a session would carry
-func (c *Client) PreviewSessionDerive(ctx context.Context, params PreviewSessionDeriveParams) (*SessionDerivePreviewResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.MessageID != nil {
-		query.Set("message_id", *params.MessageID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionDerivePreviewResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

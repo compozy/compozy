@@ -52,6 +52,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionAttachmentsCommand(deps))
 	cmd.AddCommand(newSessionEventsCommand(deps))
 	cmd.AddCommand(newSessionHistoryCommand(deps))
+	cmd.AddCommand(newSessionCleanupCommand(deps))
 	cmd.AddCommand(newSessionSearchCommand(deps))
 	cmd.AddCommand(newSessionOutlineCommand(deps))
 	cmd.AddCommand(newSessionRuntimeCommand(deps))

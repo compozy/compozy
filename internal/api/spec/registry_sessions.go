@@ -3,7 +3,7 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func registrySessionOperations() []OperationSpec {
-	return []OperationSpec{
+	return append([]OperationSpec{
 		createSessionOperationSpec(),
 		refreshSessionPullRequestOperation(),
 		sessionWorkCandidatesOperation(),
@@ -55,7 +55,7 @@ func registrySessionOperations() []OperationSpec {
 		globalSessionHistoryOperation(listSessionEventsOperationSpec()),
 		globalSessionHistoryOperation(getSessionHistoryOperationSpec()),
 		approveSessionOperationSpec(),
-	}
+	}, sessionHistoryCleanupOperations()...)
 }
 
 // renameSessionOperationSpec describes renaming within the selected session owner profile.

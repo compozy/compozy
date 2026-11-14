@@ -4,6 +4,80 @@ package client
 
 import "time"
 
+// WindowManagerSnapshot is a daemon API value.
+type WindowManagerSnapshot struct {
+	Version          uint32                         `json:"version"`
+	WorkspaceID      WindowmanagerWorkspaceID       `json:"workspace_id"`
+	Revision         WindowManagerRevision          `json:"revision"`
+	Desktops         []WindowManagerDesktop         `json:"desktops"`
+	Windows          map[string]WindowManagerWindow `json:"windows"`
+	Migration        *MigrationStatus               `json:"migration,omitzero"`
+	ClosedEntryCount int                            `json:"closed_entry_count"`
+	Overrides        WorkspaceConfig                `json:"overrides"`
+	UpdatedAt        time.Time                      `json:"updated_at"`
+}
+
+// WindowManagerTab is a daemon API value.
+type WindowManagerTab struct {
+	ID     TabID                   `json:"id"`
+	Pinned bool                    `json:"pinned"`
+	Root   WindowManagerLayoutNode `json:"root"`
+}
+
+// WindowManagerWindow is a daemon API value.
+type WindowManagerWindow struct {
+	ID          WindowID      `json:"id"`
+	App         string        `json:"app"`
+	InstanceKey *string       `json:"instance_key,omitzero"`
+	Route       RouteIntent   `json:"route"`
+	NavStack    []RouteIntent `json:"nav_stack"`
+	DesktopID   DesktopID     `json:"desktop_id"`
+	TabID       TabID         `json:"tab_id"`
+}
+
+// WindowmanagerClientID is a daemon API value.
+type WindowmanagerClientID string
+
+// WindowmanagerNodeID is a daemon API value.
+type WindowmanagerNodeID string
+
+// WindowmanagerWorkspaceID is a daemon API value.
+type WindowmanagerWorkspaceID string
+
+// WorkCandidate is a daemon API value.
+type WorkCandidate struct {
+	Repository     string `json:"repository"`
+	HeadRepository string `json:"head_repository,omitempty"`
+	Branch         string `json:"branch"`
+	PRNumber       int    `json:"pr_number,omitempty"`
+	Title          string `json:"title,omitempty"`
+	URL            string `json:"url,omitempty"`
+	State          string `json:"state,omitempty"`
+}
+
+// WorkCandidates is a daemon API value.
+type WorkCandidates struct {
+	Items               []WorkCandidate `json:"items"`
+	HasMore             bool            `json:"has_more"`
+	SupportsPRDiscovery bool            `json:"supports_pr_discovery"`
+	Repository          string          `json:"repository,omitempty"`
+}
+
+// WorkSignal is a daemon API value.
+type WorkSignal struct {
+	HeldReason     string         `json:"held_reason,omitempty"`
+	HeldInstanceID string         `json:"held_instance_id,omitempty"`
+	Kind           WorkSignalKind `json:"kind"`
+	Since          time.Time      `json:"since"`
+	Ref            string         `json:"ref,omitempty"`
+}
+
+// WorkSignalKind is a daemon API value.
+type WorkSignalKind string
+
+// WorkerMode is a daemon API value.
+type WorkerMode string
+
 // WorkerProfile is a daemon API value.
 type WorkerProfile struct {
 	Mode                  WorkerMode           `json:"mode"`
