@@ -142,8 +142,13 @@ func TestProviderAuthStartup(t *testing.T) {
 			}
 			// Known providers sort before the startup probes, so startup skips them first.
 			for _, name := range []string{"a1", "a2", "a3"} {
-				f.verdicts.Record(name, configs[name], nil,
-					providers.Classification{State: providers.ProviderAuthStateNeedsLogin}, time.Now().Add(-time.Second))
+				f.verdicts.Record(
+					name,
+					configs[name],
+					nil,
+					providers.Classification{State: providers.ProviderAuthStateNeedsLogin},
+					time.Now().Add(-time.Second),
+				)
 			}
 			cfg := startupConfig(configs)
 			done := make(chan struct{})
