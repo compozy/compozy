@@ -293,6 +293,13 @@ function RuntimeActivityMarker({
   );
 }
 
+/** Fallback copy for the daemon restart events when the event carries no text. */
+const RESTART_FALLBACK_TEXT: ReadonlyMap<string, string> = new Map([
+  ["session.restart_interrupted", "Interrupted by CompozyOS restart."],
+  ["session.restart_resumed", "Resumed after CompozyOS restart."],
+  ["session.restart_skipped", "Automatic continuation paused. Review this session."],
+]);
+
 /**
  * Runtime events as one-line markers — the calm replacement for the old tinted
  * Alert cards. Tone lives in the 12px glyph; raw kind strings never reach the
@@ -311,19 +318,11 @@ export function RuntimeActivityNotice({
     const reload = parseMCPReloadEvent(event);
     return reload ? <SessionMCPReloadMarker reload={reload} /> : null;
   }
-  if (
-    event.type === "session.restart_interrupted" ||
-    event.type === "session.restart_resumed" ||
-    event.type === "session.restart_skipped"
-  ) {
+  const restartText = RESTART_FALLBACK_TEXT.get(event.type);
+  if (restartText !== undefined) {
     return (
       <Marker role="status" tone="neutral" icon={<Info />}>
-        {event.text?.trim() ||
-          (event.type === "session.restart_interrupted"
-            ? "Interrupted by CompozyOS restart."
-            : event.type === "session.restart_resumed"
-              ? "Resumed after CompozyOS restart."
-              : "Automatic continuation paused. Review this session.")}
+        {event.text?.trim() || restartText}
       </Marker>
     );
   }
@@ -344,8 +343,27 @@ export function RuntimeActivityNotice({
     return <RuntimeActivityMarker event={event} count={count} detail={detail} meta={meta} />;
   }
 
-  const title = event.text?.trim() || "Warning";
+  return (
+    <RuntimeWarningMarker
+      title={event.text?.trim() || "Warning"}
+      count={count}
+      detail={detail}
+      meta={meta}
+    />
+  );
+}
 
+function RuntimeWarningMarker({
+  title,
+  count,
+  detail,
+  meta,
+}: {
+  title: string;
+  count: number;
+  detail: string;
+  meta: string | null;
+}) {
   return (
     <Marker
       role="alert"

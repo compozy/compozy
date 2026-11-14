@@ -17,14 +17,11 @@ import {
   Time,
 } from "@compozy/ui";
 
-import { useCheckProviderSignIn } from "../hooks/use-check-provider-sign-in";
-import { providerAuthStateLabel, providerAuthSummary } from "../lib/provider-copy";
-import { providerCanDisableRuntimeMCP } from "../lib/mcp-runtime-view-model";
-import { getProviderStateView } from "../lib/provider-state";
+import { providerAuthStateLabel } from "../lib/provider-copy";
+import { providerShowsLogin } from "../lib/provider-state";
 import type { SettingsProviderEntry } from "../types";
-import { MCPRuntimeModeSwitch } from "./mcp-runtime-mode-switch";
 import { ProviderLoginDescriptorView } from "./provider-login-descriptor";
-import { ProviderStatusLabel } from "./provider-status-label";
+import { ProviderStatusSummary } from "./provider-status-summary";
 import { SettingsAdvancedFold } from "./settings-advanced-fold";
 import { SettingsSourceBadge } from "./settings-source-badge";
 import {
@@ -52,86 +49,10 @@ interface ProviderInspectViewProps {
  * I do?", with the raw configuration behind a closed "Technical details" fold.
  */
 export function ProviderInspectView({ provider, onAction }: ProviderInspectViewProps) {
-  const state = getProviderStateView(provider);
-  const ready = state.label === "installed";
-  const defaultModel = provider.settings.models?.default ?? null;
-  const showLogin = state.label === "needs-sign-in" && Boolean(provider.auth_status?.login);
-  const checkSignIn = useCheckProviderSignIn();
-  const checksInPlace = state.cta.intent === "check";
-  const checkedAt = provider.auth_status?.last_probe_at;
-  const runAction = checksInPlace ? () => checkSignIn.mutate(provider.name) : onAction;
-  const displayName = provider.settings.display_name?.trim() || provider.name;
-
+  const showLogin = providerShowsLogin(provider);
   return (
     <div className="flex flex-col gap-5">
-      <section
-        className="flex flex-col gap-3 rounded-lg bg-sunken p-4"
-        data-testid="provider-detail-summary"
-      >
-        <div className="flex flex-col gap-1">
-          <ProviderStatusLabel
-            data-testid="provider-detail-summary-status"
-            label={state.display}
-            tone={state.tone}
-          />
-          {state.hint ? (
-            <p className="text-small-body text-muted-foreground">{state.hint}</p>
-          ) : null}
-          {checkedAt ? (
-            <p
-              className="text-small-body text-muted-foreground"
-              data-testid="provider-detail-checked-at"
-            >
-              Checked <Time iso={checkedAt} mode="relative" />
-            </p>
-          ) : null}
-          {checkSignIn.error ? (
-            <p className="text-small-body text-destructive" role="alert">
-              {checkSignIn.error.message}
-            </p>
-          ) : null}
-        </div>
-        <MetadataList>
-          <MetadataListRow label="Sign-in">{providerAuthSummary(provider)}</MetadataListRow>
-          {defaultModel ? (
-            <MetadataListRow label="Default model">
-              <span className="text-fg" data-testid="inspect-default-model">
-                {defaultModel}
-              </span>
-            </MetadataListRow>
-          ) : null}
-        </MetadataList>
-        {providerCanDisableRuntimeMCP(provider.name) ? (
-          <MCPRuntimeModeSwitch
-            className="items-start"
-            data-testid="provider-detail-runtime-mcp"
-            label={`Use ${displayName}'s own MCP servers in CompozyOS sessions`}
-            mode={provider.settings.runtime_mcp ?? "load"}
-            provider={provider.name}
-            runtimeName={displayName}
-          />
-        ) : null}
-        {showLogin && provider.auth_status?.login ? (
-          <ProviderLoginDescriptorView
-            login={provider.auth_status.login}
-            testId="inspect-login-descriptor"
-          />
-        ) : null}
-        {!ready && runAction ? (
-          <Button
-            className="w-fit"
-            data-testid="provider-detail-summary-action"
-            disabled={checkSignIn.isPending}
-            onClick={runAction}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            {checkSignIn.isPending ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
-            {state.cta.label}
-          </Button>
-        ) : null}
-      </section>
+      <ProviderStatusSummary onAction={onAction} provider={provider} />
 
       <SettingsAdvancedFold bare data-testid="provider-detail-technical" label="Technical details">
         <ProviderTechnicalDetails provider={provider} showLogin={!showLogin} />
