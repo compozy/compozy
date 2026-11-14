@@ -291,7 +291,7 @@ describe("FileHtmlPreview", () => {
   it("Should quote resolved CSS URLs whose path holds apostrophes and parentheses", () => {
     const base = "http://127.0.0.1:2323/raw/O'Reilly (1)/";
     const prepared = prepareHtmlPreview(
-      "<html><head><style>a { background: url('img/a(2).png') } b { background: url(c.png) }</style></head><body></body></html>",
+      "<html><head><style>a { background: url('img/a(2).png') } b { background: url( c.png ) }</style></head><body></body></html>",
       base,
       url => url
     );

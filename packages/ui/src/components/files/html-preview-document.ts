@@ -8,8 +8,9 @@ const STRIPPED =
   "script, noscript, iframe, frame, frameset, object, embed, applet, portal, base, meta[http-equiv], link[rel~='import'], link[rel~='prefetch'], link[rel~='preload'], form";
 const INLINE_HANDLER = /^on/i;
 // A quoted value runs to its closing quote; an unquoted one stops at quotes, parentheses and
-// whitespace, as in the CSS grammar, so unclosed `url(` tokens cannot make the scan quadratic.
-const CSS_URL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^'"()\s]*))\s*\)/gi;
+// whitespace, as in the CSS grammar. Both whitespace runs are atomic (`(?=(\s*))\1`), so an
+// unclosed `url(` cannot re-split the same whitespace and the scan stays linear.
+const CSS_URL = /url\((?=(\s*))\1(?:"([^"]*)"|'([^']*)'|([^'"()\s]*))(?=(\s*))\5\)/gi;
 
 /** Serializes a URL as a double-quoted CSS string. */
 function cssString(value: string): string {
@@ -20,7 +21,13 @@ function cssString(value: string): string {
 function rewriteCssUrls(css: string, baseUrl: string, resolve: (url: string) => string): string {
   return css.replace(
     CSS_URL,
-    (match, double: string | undefined, single: string | undefined, bare: string | undefined) => {
+    (
+      match,
+      _lead: string,
+      double: string | undefined,
+      single: string | undefined,
+      bare: string | undefined
+    ) => {
       const trimmed = (double ?? single ?? bare ?? "").trim();
       if (trimmed === "" || trimmed.startsWith("data:") || trimmed.startsWith("#")) return match;
       try {
