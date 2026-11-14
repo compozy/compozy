@@ -504,6 +504,38 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should replace a local extension through the native contract", func(t *testing.T) {
+		t.Parallel()
+		deps, extensions, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		first := writeNativeLocalExtensionFixture(t, "native-replace", "1.0.0")
+		if _, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"source":"local_path","ref":%q,"allow_unverified":true}`, first,
+			)),
+		}); err != nil {
+			t.Fatalf("Registry.Call(extensions_install) error = %v", err)
+		}
+
+		second := writeNativeLocalExtensionFixture(t, "native-replace", "2.0.0")
+		if _, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"source":"local_path","ref":%q,"allow_unverified":true,"replace":true}`, second,
+			)),
+		}); err != nil {
+			t.Fatalf("Registry.Call(extensions_install replace) error = %v", err)
+		}
+		installed, err := extensions.Get("native-replace")
+		if err != nil {
+			t.Fatalf("extension registry Get(replace) error = %v", err)
+		}
+		if installed.Version != "2.0.0" {
+			t.Fatalf("replacement version = %q, want 2.0.0", installed.Version)
+		}
+	})
+
 	t.Run("Should install local extension sources through managed install", func(t *testing.T) {
 		t.Parallel()
 

@@ -50,6 +50,7 @@ type extensionInstallInput struct {
 	Version              string                          `json:"version"`
 	Asset                string                          `json:"asset"`
 	AllowUnverified      bool                            `json:"allow_unverified"`
+	Replace              bool                            `json:"replace"`
 	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest"`
 }
 
@@ -58,7 +59,8 @@ func (i extensionInstallInput) request() contract.InstallExtensionRequest {
 		Enable: i.Enable, Scope: i.Scope, WorkspaceID: i.Workspace, Profile: i.Profile,
 		Inputs: i.Inputs, ExpectedDigest: i.ExpectedDigest,
 		Source: i.Source, Ref: i.Ref, Version: i.Version, Asset: i.Asset,
-		AllowUnverified: i.AllowUnverified, ConfirmGatewayDigest: i.ConfirmGatewayDigest,
+		AllowUnverified: i.AllowUnverified, Replace: i.Replace,
+		ConfirmGatewayDigest: i.ConfirmGatewayDigest,
 	}
 }
 

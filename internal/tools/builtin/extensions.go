@@ -310,6 +310,8 @@ const extensionInstallInputSchema = `{
 		"inputs":` + extensionValuesInputSchema + `,
 		"expected_digest":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"},
 		"allow_unverified":{"type":"boolean"},
+		"replace":{"type":"boolean","default":false,
+			"description":"Replace the installed local extension; a failed replacement keeps the previous version."},
 		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false

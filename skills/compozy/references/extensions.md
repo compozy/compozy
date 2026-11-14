@@ -281,6 +281,19 @@ A different classified `(source_ref, entry_id)` returns `extension_name_conflict
 display names do not participate in identity. Only an operator may associate an unclassified managed
 installation with a catalog entry. Publication failure restores the old package and selected input cell.
 
+A local bundle replaces the installed package of the same name with
+`compozy extension install <path> --replace`, `POST /api/extensions` with
+`{"source": "local_path", "replace": true}`, or `compozy__extensions_install {replace: true}`. The
+replacement runs through the same transaction as a published reinstall: the previous directory,
+registry record, gateway confirmation, and selected input cell stay available until reload and the
+returned status step both succeed, so a failure after publication restores the previous version
+instead of leaving the extension uninstalled. `replace` applies to `local_path` only; published
+sources already replace implicitly. It never converts a marketplace-owned name — that returns
+`extension_name_conflict` with `installed_origin`, so local bytes cannot silently inherit or drop
+marketplace provenance or update tracking — and a bundled package is refused with `extension_exists`.
+A replacement also does not enroll a new attachment: the target scope must already resolve, and only
+an operator may replace a package attached outside the caller's own workspace.
+
 For a configured plugin source, `compozy extension install team/tool --allow-unverified --yes`
 selects the source index and pins the listed digest before preview and installation. Existing curated
 acquisition refs keep priority if the same spelling collides; `marketplace:team/tool` explicitly selects

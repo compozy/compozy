@@ -24,6 +24,7 @@ type marketplaceUpdateCommitInput struct {
 	rollbackCandidate MarketplaceUpdateRollback
 	reload            MutationReload
 	afterReload       MutationReload
+	persistRecord     func() error
 }
 
 // Both update and reinstall publish one already validated artifact through this transaction.
@@ -71,16 +72,7 @@ func commitMarketplaceUpdateCandidate(
 	input *marketplaceUpdateCommitInput,
 ) (string, error) {
 	remoteVersion := firstNonEmpty(input.result.Version, input.latestVersion, input.manifest.Version)
-	if err := installMarketplaceExtensionUpdateRecord(
-		input.registry,
-		input.manifest,
-		input.installDir,
-		input.result.Checksum,
-		input.slug,
-		input.registryName,
-		remoteVersion,
-		input.provenance,
-	); err != nil {
+	if err := input.persistInstallRecord(); err != nil {
 		return "", errors.Join(err, input.change.Rollback())
 	}
 	if input.commitCandidate != nil {
@@ -96,6 +88,24 @@ func commitMarketplaceUpdateCandidate(
 		return "", err
 	}
 	return remoteVersion, nil
+}
+
+// persistInstallRecord persists the published row, defaulting to marketplace-specific metadata.
+// A local replacement supplies its own record so provenance and update tracking stay local.
+func (input *marketplaceUpdateCommitInput) persistInstallRecord() error {
+	if input.persistRecord != nil {
+		return input.persistRecord()
+	}
+	return installMarketplaceExtensionUpdateRecord(
+		input.registry,
+		input.manifest,
+		input.installDir,
+		input.result.Checksum,
+		input.slug,
+		input.registryName,
+		firstNonEmpty(input.result.Version, input.latestVersion, input.manifest.Version),
+		input.provenance,
+	)
 }
 
 func reloadMarketplaceExtensionUpdate(ctx context.Context, input *marketplaceUpdateCommitInput) error {

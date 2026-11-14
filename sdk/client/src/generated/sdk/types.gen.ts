@@ -4149,7 +4149,7 @@ export type InstallExtensionRequest = {
   profile?: string;
   ref: string;
   /**
-   * Replace an installed extension of the same name. The previous version stays installed when the replacement fails. Replacing a package attached outside the caller's workspace requires operator authority.
+   * Replace the installed extension of the same name. Applies to local_path installs only, since published sources replace implicitly. The previous version stays installed when the replacement fails, and a marketplace-owned name is refused with extension_name_conflict. Replacing a package attached outside the caller's workspace requires operator authority.
    */
   replace?: boolean;
   /**
@@ -13693,7 +13693,7 @@ export type InstallExtensionRequestWritable = {
   profile?: string;
   ref: string;
   /**
-   * Replace an installed extension of the same name. The previous version stays installed when the replacement fails. Replacing a package attached outside the caller's workspace requires operator authority.
+   * Replace the installed extension of the same name. Applies to local_path installs only, since published sources replace implicitly. The previous version stays installed when the replacement fails, and a marketplace-owned name is refused with extension_name_conflict. Replacing a package attached outside the caller's workspace requires operator authority.
    */
   replace?: boolean;
   /**

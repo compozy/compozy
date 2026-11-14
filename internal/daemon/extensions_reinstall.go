@@ -19,6 +19,13 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 	if err := prepared.published.ValidateReinstall(installed); err != nil {
 		return err
 	}
+	if normalizedInstallSource(request.Source) == contract.InstallExtensionSourceLocalPath {
+		// A local bundle rewrites the name-keyed package every attachment resolves, so the
+		// authority check that ran at preparation is repeated under the package lock.
+		if err := s.authorizeExtensionReplace(ctx, installed.Name, actor); err != nil {
+			return err
+		}
+	}
 	if !actor.Scope.Operator && installed.Provenance.SourceRef == "" && prepared.published.Origin().SourceRef != "" {
 		return taskpkg.ErrPermissionDenied
 	}
@@ -33,7 +40,7 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 	confirmed := s.configureUpdateGatewayGate(&update, request.ConfirmGatewayDigest, actor)
 	s.configureUpdateProfileGate(ctx, &update, actor)
 	plans := s.configureUpdateInputGate(ctx, &update, request.Inputs, prepared.target)
-	if attach {
+	if attach && prepared.enrollAttachment {
 		s.configureReinstallAttachment(ctx, &update, prepared.target.scope)
 	}
 	_, needsConfirmation, err := candidateGatewayConfirmationRequirement(installed, prepared.manifest)

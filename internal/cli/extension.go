@@ -51,12 +51,8 @@ type preparedExtensionInstall struct {
 }
 
 type localExtensionRegistry interface {
-	Install(manifest *extensionpkg.Manifest, path string, checksum string, opts ...extensionpkg.InstallOption) error
-	List() ([]extensionpkg.ExtensionInfo, error)
-	Get(name string) (*extensionpkg.ExtensionInfo, error)
+	extensionpkg.LifecycleRegistry
 	Enable(name string) error
-	Disable(name string) error
-	Uninstall(name string) error
 }
 
 func newExtensionCommand(deps commandDeps) *cobra.Command {
@@ -164,7 +160,8 @@ func (f *extensionInstallFlags) register(cmd *cobra.Command) {
 		&f.replace,
 		"replace",
 		false,
-		"Replace an installed extension of the same name; a failed replacement keeps the previous version",
+		"Replace the installed extension of the same name; local paths only, since published sources replace "+
+			"implicitly. A failed replacement keeps the previous version",
 	)
 	f.inputs.register(cmd)
 	cmd.Flags().StringVar(&f.scope, "scope", "", "Install globally or in one workspace: global, workspace")

@@ -15,7 +15,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 )
 
-var _ managedInstallRegistry = (*recordingManagedInstallRegistry)(nil)
+var _ LifecycleRegistry = (*recordingManagedInstallRegistry)(nil)
 
 // Invariant: install planning names only declarations that will be created,
 // carries their credential asks, and apply binds pre-existing profiles without
@@ -176,6 +176,18 @@ func (s managedInstallRegistryStub) Get(name string) (*ExtensionInfo, error) {
 		return s.getFn(name)
 	}
 	return nil, ErrExtensionNotFound
+}
+
+func (s managedInstallRegistryStub) List() ([]ExtensionInfo, error) {
+	return nil, nil
+}
+
+func (s managedInstallRegistryStub) Disable(string) error { return nil }
+
+func (s managedInstallRegistryStub) Uninstall(string) error { return nil }
+
+func (s managedInstallRegistryStub) RestoreGatewayConfirmation(InstanceKey, GatewayConfirmation) error {
+	return nil
 }
 
 func (s managedInstallRegistryStub) Install(
@@ -1226,6 +1238,227 @@ func TestInstallLocalManagedReplace(t *testing.T) {
 	})
 }
 
+// Invariant: a local replacement publishes through the published reinstall transaction,
+// so the previous directory stays available until the caller's completion step succeeds
+// and a marketplace-owned name is never rewritten as a local bundle.
+// Owner: extension managed-install replacement transaction.
+// Canonical suite: TestInstallLocalManagedReplaceTransaction.
+func TestInstallLocalManagedReplaceTransaction(t *testing.T) {
+	t.Parallel()
+
+	newHome := func(t *testing.T) compozyconfig.HomePaths {
+		t.Helper()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		return homePaths
+	}
+	prepareReplacement := func(
+		t *testing.T, homePaths compozyconfig.HomePaths, registry *replaceManagedInstallRegistry, name string,
+	) *PreparedLocalManagedInstall {
+		t.Helper()
+		sourceDir := writeReplaceFixture(t, name, "2.0.0")
+		checksum, err := ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+		}
+		prepared, err := PrepareLocalManagedInstall(
+			homePaths,
+			registry,
+			&Manifest{Name: name, Version: "2.0.0"},
+			sourceDir,
+			checksum,
+			WithInstallReplaceExisting(),
+		)
+		if err != nil {
+			t.Fatalf("PrepareLocalManagedInstall() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := prepared.Close(); closeErr != nil {
+				t.Errorf("prepared.Close() error = %v", closeErr)
+			}
+		})
+		return prepared
+	}
+
+	t.Run("Should keep the staged backup until the completion step succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newHome(t)
+		registry := &replaceManagedInstallRegistry{}
+		name := "replace-transaction-ext"
+		firstChecksum := installReplaceFixture(t, homePaths, registry, name, "1.0.0")
+		prepared := prepareReplacement(t, homePaths, registry, name)
+		installed, err := registry.Get(name)
+		if err != nil {
+			t.Fatalf("registry.Get() error = %v", err)
+		}
+
+		completeErr := errors.New("completion failed")
+		_, err = prepared.Reinstall(
+			t.Context(),
+			installed,
+			nil,
+			nil,
+			nil,
+			nil,
+			func(context.Context) error {
+				if !hasManagedInstallBackup(t, homePaths, name) {
+					t.Error("backup directory was removed before the completion step")
+				}
+				return completeErr
+			},
+		)
+		if !errors.Is(err, completeErr) {
+			t.Fatalf("Reinstall() error = %v, want %v", err, completeErr)
+		}
+
+		finalDir := ManagedInstallPath(homePaths, name)
+		installedChecksum, err := ComputeDirectoryChecksum(finalDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(restored) error = %v", err)
+		}
+		if installedChecksum != firstChecksum {
+			t.Fatalf("restored checksum = %q, want previous %q", installedChecksum, firstChecksum)
+		}
+		manifest, err := LoadManifest(finalDir)
+		if err != nil {
+			t.Fatalf("LoadManifest(restored) error = %v", err)
+		}
+		if manifest.Version != "1.0.0" {
+			t.Fatalf("restored manifest version = %q, want 1.0.0", manifest.Version)
+		}
+		if registry.info == nil || registry.info.Version != "1.0.0" {
+			t.Fatalf("registry record after completion failure = %#v, want version 1.0.0", registry.info)
+		}
+		assertNoManagedInstallBackups(t, homePaths, name)
+	})
+
+	t.Run("Should drop the staged backup after a clean replacement", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newHome(t)
+		registry := &replaceManagedInstallRegistry{}
+		name := "replace-transaction-clean-ext"
+		installReplaceFixture(t, homePaths, registry, name, "1.0.0")
+		prepared := prepareReplacement(t, homePaths, registry, name)
+		installed, err := registry.Get(name)
+		if err != nil {
+			t.Fatalf("registry.Get() error = %v", err)
+		}
+
+		completed := false
+		if _, err := prepared.Reinstall(
+			t.Context(),
+			installed,
+			nil,
+			nil,
+			nil,
+			nil,
+			func(context.Context) error {
+				completed = true
+				return nil
+			},
+		); err != nil {
+			t.Fatalf("Reinstall() error = %v", err)
+		}
+		if !completed {
+			t.Fatal("completion step did not run")
+		}
+		manifest, err := LoadManifest(ManagedInstallPath(homePaths, name))
+		if err != nil {
+			t.Fatalf("LoadManifest(replaced) error = %v", err)
+		}
+		if manifest.Version != "2.0.0" {
+			t.Fatalf("replaced manifest version = %q, want 2.0.0", manifest.Version)
+		}
+		assertNoManagedInstallBackups(t, homePaths, name)
+	})
+
+	t.Run("Should refuse to replace a marketplace-owned name with a local bundle", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newHome(t)
+		name := "replace-marketplace-ext"
+		registry := &replaceManagedInstallRegistry{info: &ExtensionInfo{
+			Name: name, Version: "1.0.0",
+			ManifestPath: filepath.Join(ManagedInstallPath(homePaths, name), manifestTOMLFileName),
+			Checksum:     "marketplace-checksum",
+			Source:       SourceMarketplace,
+			Enabled:      true,
+			Provenance: ExtensionProvenance{
+				InstalledFrom: ExtensionInstalledFromMarketplace,
+				SourceRef:     "acme/tool-ext",
+				EntryID:       "entry-tool-ext",
+				SourceName:    "curated",
+			},
+		}}
+		sourceDir := writeReplaceFixture(t, name, "2.0.0")
+		checksum, err := ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+		}
+
+		err = InstallLocalManaged(
+			homePaths, registry, &Manifest{Name: name, Version: "2.0.0"}, sourceDir, checksum,
+			WithInstallReplaceExisting(),
+		)
+		if !errors.Is(err, ErrExtensionNameConflict) {
+			t.Fatalf("InstallLocalManaged(marketplace replace) error = %v, want ErrExtensionNameConflict", err)
+		}
+		if registry.info.Source != SourceMarketplace || registry.info.Version != "1.0.0" {
+			t.Fatalf("marketplace record rewritten: %#v", registry.info)
+		}
+		if !strings.EqualFold(registry.info.Provenance.SourceRef, "acme/tool-ext") {
+			t.Fatalf("marketplace provenance rewritten: %#v", registry.info.Provenance)
+		}
+	})
+
+	t.Run("Should refuse to replace a bundled package with a local bundle", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newHome(t)
+		name := "replace-bundled-ext"
+		registry := &replaceManagedInstallRegistry{info: &ExtensionInfo{
+			Name: name, Version: "1.0.0",
+			ManifestPath: filepath.Join(ManagedInstallPath(homePaths, name), manifestTOMLFileName),
+			Checksum:     "bundled-checksum",
+			Source:       SourceBundled,
+			Enabled:      true,
+		}}
+		sourceDir := writeReplaceFixture(t, name, "2.0.0")
+		checksum, err := ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+		}
+
+		err = InstallLocalManaged(
+			homePaths, registry, &Manifest{Name: name, Version: "2.0.0"}, sourceDir, checksum,
+			WithInstallReplaceExisting(),
+		)
+		if !errors.Is(err, ErrExtensionExists) {
+			t.Fatalf("InstallLocalManaged(bundled replace) error = %v, want ErrExtensionExists", err)
+		}
+	})
+}
+
+func hasManagedInstallBackup(t *testing.T, homePaths compozyconfig.HomePaths, name string) bool {
+	t.Helper()
+
+	entries, err := os.ReadDir(ManagedInstallRoot(homePaths))
+	if err != nil {
+		t.Fatalf("os.ReadDir(managed root) error = %v", err)
+	}
+	found := false
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), name+managedInstallBackupMarker) {
+			found = true
+		}
+	}
+	return found
+}
+
 func installReplaceFixture(
 	t *testing.T,
 	homePaths compozyconfig.HomePaths,
@@ -1296,6 +1529,21 @@ func (r *replaceManagedInstallRegistry) Get(string) (*ExtensionInfo, error) {
 	return r.info, nil
 }
 
+func (r *replaceManagedInstallRegistry) List() ([]ExtensionInfo, error) {
+	if r.info == nil {
+		return nil, nil
+	}
+	return []ExtensionInfo{*r.info}, nil
+}
+
+func (r *replaceManagedInstallRegistry) Disable(string) error { return nil }
+
+func (r *replaceManagedInstallRegistry) Uninstall(string) error { return nil }
+
+func (r *replaceManagedInstallRegistry) RestoreGatewayConfirmation(InstanceKey, GatewayConfirmation) error {
+	return nil
+}
+
 func (r *replaceManagedInstallRegistry) Install(
 	manifest *Manifest,
 	path string,
@@ -1314,6 +1562,8 @@ func (r *replaceManagedInstallRegistry) Install(
 		Version:      manifest.Version,
 		ManifestPath: filepath.Join(path, manifestTOMLFileName),
 		Checksum:     checksum,
+		Source:       SourceUser,
+		Enabled:      true,
 	}
 	return nil
 }
@@ -1425,6 +1675,16 @@ type recordingManagedInstallRegistry struct {
 
 func (*recordingManagedInstallRegistry) Get(string) (*ExtensionInfo, error) {
 	return nil, ErrExtensionNotFound
+}
+
+func (*recordingManagedInstallRegistry) List() ([]ExtensionInfo, error) { return nil, nil }
+
+func (*recordingManagedInstallRegistry) Disable(string) error { return nil }
+
+func (*recordingManagedInstallRegistry) Uninstall(string) error { return nil }
+
+func (*recordingManagedInstallRegistry) RestoreGatewayConfirmation(InstanceKey, GatewayConfirmation) error {
+	return nil
 }
 
 func (r *recordingManagedInstallRegistry) Install(

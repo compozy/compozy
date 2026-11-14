@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,11 +21,6 @@ const invalidManagedInstallName = "_invalid-extension-name"
 type installPackageManifest struct {
 	Dependencies         map[string]string `json:"dependencies"`
 	OptionalDependencies map[string]string `json:"optionalDependencies"`
-}
-
-type managedInstallRegistry interface {
-	Get(name string) (*ExtensionInfo, error)
-	Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error
 }
 
 // ManagedInstallRoot returns the Compozy-managed root directory for installed extensions.
@@ -112,11 +108,11 @@ func NewManagedInstallStagingDir(homePaths compozyconfig.HomePaths) (string, err
 }
 
 // InstallLocalManaged copies one local extension into the managed install root and persists the registry record there.
-// With WithInstallReplaceExisting the installed version is staged as a backup first, so any failure after the
-// published directory changes restores the previous installation instead of leaving the extension absent.
+// With WithInstallReplaceExisting an installed extension is replaced through the same transaction published sources
+// use: the previous directory and registry record survive until every post-commit step succeeds.
 func InstallLocalManaged(
 	homePaths compozyconfig.HomePaths,
-	registry managedInstallRegistry,
+	registry LifecycleRegistry,
 	manifest *Manifest,
 	sourceDir string,
 	checksum string,
@@ -125,148 +121,88 @@ func InstallLocalManaged(
 	installConfig := installConfig{}
 	applyInstallOptions(&installConfig, opts...)
 
-	normalizedChecksum, err := validateManagedInstallInput(
+	if err := validateManagedInstallInput(
 		registry,
 		manifest,
 		checksum,
 		installConfig.replaceExisting,
-	)
+	); err != nil {
+		return err
+	}
+	prepared, err := PrepareLocalManagedInstall(homePaths, registry, manifest, sourceDir, checksum, opts...)
 	if err != nil {
 		return err
 	}
-	finalDir, err := ManagedInstallPathChecked(homePaths, manifest.Name)
-	if err != nil {
-		return err
-	}
-
-	if err := verifyManagedInstallSource(sourceDir, normalizedChecksum); err != nil {
-		return err
-	}
-
-	stagingDir, err := NewManagedInstallStagingDir(homePaths)
-	if err != nil {
-		return err
-	}
-
-	cleanupStaging := true
 	defer func() {
-		if !cleanupStaging {
-			return
-		}
-		if removeErr := os.RemoveAll(stagingDir); removeErr != nil {
-			err = errors.Join(
-				err,
-				fmt.Errorf("extension: remove managed install staging dir %q: %w", stagingDir, removeErr),
-			)
+		if closeErr := prepared.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
 		}
 	}()
-
-	if err := copyInstallTree(sourceDir, stagingDir); err != nil {
-		return err
-	}
-	if err := observeManagedInstallBoundary(installConfig.boundaryObserver, managedInstallBoundaryStaged); err != nil {
-		return err
+	if !installConfig.replaceExisting {
+		return prepared.Commit()
 	}
 
-	published, err := publishManagedInstall(
-		registry,
-		manifest,
-		stagingDir,
-		finalDir,
-		installConfig,
-		opts,
+	installed, getErr := registry.Get(manifest.Name)
+	switch {
+	case errors.Is(getErr, ErrExtensionNotFound):
+		return prepared.Commit()
+	case getErr != nil:
+		return getErr
+	}
+	warnings, reinstallErr := prepared.Reinstall(
+		context.Background(),
+		installed,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
 	)
-	if published {
-		cleanupStaging = false
-	}
-	return err
-}
-
-// publishManagedInstall publishes the staged tree at finalDir and persists its registry
-// row. When the installed version was staged aside, any failure restores it instead of
-// leaving the extension absent. The bool reports whether the staged tree was consumed.
-func publishManagedInstall(
-	registry managedInstallRegistry,
-	manifest *Manifest,
-	stagingDir string,
-	finalDir string,
-	installConfig installConfig,
-	opts []InstallOption,
-) (published bool, err error) {
-	change, err := stageManagedInstallBackup(finalDir, installConfig.replaceExisting)
-	if err != nil {
-		return false, err
-	}
-	restoreInstall := func(baseErr error, contextSuffix string) error {
-		if !installConfig.replaceExisting {
-			return removeManagedInstallOnError(finalDir, baseErr, contextSuffix)
-		}
-		if rollbackErr := change.Rollback(); rollbackErr != nil {
-			return errors.Join(baseErr, rollbackErr)
-		}
-		return baseErr
-	}
-
-	moveResult, err := registrypkg.MoveInstalledDir(stagingDir, finalDir, installConfig.replaceExisting)
-	if err != nil {
-		moveErr := fmt.Errorf(
-			"extension: move local extension %q into managed install path: %w",
-			manifest.Name,
-			err,
-		)
-		if installConfig.replaceExisting {
-			return false, restoreInstall(moveErr, "")
-		}
-		return false, moveErr
-	}
-	logLocalInstallCleanupDiagnostics(moveResult.CleanupDiagnostics)
-	if err := observeManagedInstallBoundary(
-		installConfig.boundaryObserver,
-		managedInstallBoundaryFinalMoved,
-	); err != nil {
-		return true, restoreInstall(err, "after final move interruption")
-	}
-
-	installedChecksum, err := ComputeDirectoryChecksum(finalDir)
-	if err != nil {
-		return true, restoreInstall(
-			fmt.Errorf("extension: compute installed checksum %q: %w", finalDir, err),
-			"after checksum error",
-		)
-	}
-
-	installOpts := opts
-	if installConfig.replaceExisting {
-		installOpts = append(append([]InstallOption(nil), opts...), WithInstallReplaceExisting())
-	}
-	if err := registry.Install(manifest, finalDir, installedChecksum, installOpts...); err != nil {
-		return true, restoreInstall(
-			fmt.Errorf("extension: persist managed extension %q: %w", manifest.Name, err),
-			"",
-		)
-	}
-
-	if err := change.Commit(); err != nil {
+	for _, warning := range warnings {
 		slog.Warn(
-			"managed extension install backup cleanup degraded",
+			"managed extension local reinstall cleanup degraded",
 			"extension", manifest.Name,
-			"error", err,
+			"code", warning.Code,
 		)
 	}
-	return true, nil
+	return reinstallErr
 }
 
-// stageManagedInstallBackup moves the installed version aside before a replacement publishes.
-// ReconcileManagedExtensionArtifacts restores the same backup when the process dies mid-replace.
-func stageManagedInstallBackup(
-	finalDir string,
+// validateManagedInstallInput fails fast on a duplicate name before the bundle is staged.
+func validateManagedInstallInput(
+	registry LifecycleRegistry,
+	manifest *Manifest,
+	checksum string,
 	replaceExisting bool,
-) (*stagedExtensionDirChange, error) {
-	change := &stagedExtensionDirChange{targetDir: finalDir}
-	if !replaceExisting {
-		return change, nil
+) error {
+	if registry == nil {
+		return errors.New("extension: registry is required")
 	}
-	return stageExtensionDirRemoval(finalDir)
+	if _, err := normalizeManagedInstallChecksum(manifest, checksum); err != nil {
+		return err
+	}
+	if _, err := registry.Get(manifest.Name); err == nil {
+		if !replaceExisting {
+			return &ExtensionExistsError{Name: manifest.Name}
+		}
+	} else if !errors.Is(err, ErrExtensionNotFound) {
+		return err
+	}
+	return nil
+}
+
+func normalizeManagedInstallChecksum(manifest *Manifest, checksum string) (string, error) {
+	if manifest == nil {
+		return "", errors.New("extension: manifest is required")
+	}
+	if _, err := validateManagedInstallName(manifest.Name); err != nil {
+		return "", err
+	}
+	normalizedChecksum := strings.ToLower(strings.TrimSpace(checksum))
+	if normalizedChecksum == "" {
+		return "", errors.New("extension: checksum is required")
+	}
+	return normalizedChecksum, nil
 }
 
 func verifyManagedInstallSource(sourceDir string, expectedChecksum string) error {
@@ -304,38 +240,6 @@ func logLocalInstallCleanupDiagnostics(diagnostics []registrypkg.CleanupDiagnost
 			"install_source", "local",
 		)
 	}
-}
-
-func validateManagedInstallInput(
-	registry managedInstallRegistry,
-	manifest *Manifest,
-	checksum string,
-	replaceExisting bool,
-) (string, error) {
-	if registry == nil {
-		return "", errors.New("extension: registry is required")
-	}
-	if manifest == nil {
-		return "", errors.New("extension: manifest is required")
-	}
-	if _, err := validateManagedInstallName(manifest.Name); err != nil {
-		return "", err
-	}
-
-	normalizedChecksum := strings.ToLower(strings.TrimSpace(checksum))
-	if normalizedChecksum == "" {
-		return "", errors.New("extension: checksum is required")
-	}
-
-	if _, err := registry.Get(manifest.Name); err == nil {
-		if !replaceExisting {
-			return "", &ExtensionExistsError{Name: manifest.Name}
-		}
-	} else if !errors.Is(err, ErrExtensionNotFound) {
-		return "", err
-	}
-
-	return normalizedChecksum, nil
 }
 
 func validateManagedInstallName(name string) (string, error) {
