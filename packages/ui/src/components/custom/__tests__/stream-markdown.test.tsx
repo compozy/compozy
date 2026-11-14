@@ -371,6 +371,13 @@ describe("StreamMarkdown", () => {
     expect(screen.getByRole("link", { name: "c" })).toHaveAttribute("href", "#top");
     expect(container).toHaveTextContent("d [blocked]");
     expect(screen.getByRole("img", { name: "i" })).toHaveAttribute("src", "/docs/guide/img/p.png");
+
+    // A `#` or `?` in a directory name stays part of the path.
+    render(<StreamMarkdown linkBase="docs/topic#1?">{"[next](next.md)"}</StreamMarkdown>);
+    expect(screen.getByRole("link", { name: "next" })).toHaveAttribute(
+      "href",
+      "/docs/topic%231%3F/next.md"
+    );
   });
 
   // UT-051. Invariant: links the safe mode blocks route to the caller's local-link component

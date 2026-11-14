@@ -24,7 +24,12 @@ export function resolveDocumentRelativeUrl(base: string, href: string): string |
   const suffixAt = trimmed.search(/[?#]/);
   const pathPart = suffixAt < 0 ? trimmed : trimmed.slice(0, suffixAt);
   const suffix = suffixAt < 0 ? "" : trimmed.slice(suffixAt);
-  const segments = base.split("/").filter(segment => segment !== "" && segment !== ".");
+  // The base is a file-system path; its segments are encoded so `#` or `?` in a directory name
+  // stays part of the path. The authored href is already URL text.
+  const segments = base
+    .split("/")
+    .filter(segment => segment !== "" && segment !== ".")
+    .map(encodeURIComponent);
   for (const segment of pathPart.split("/")) {
     if (segment === "" || segment === ".") continue;
     if (segment === "..") {
