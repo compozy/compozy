@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -122,7 +123,34 @@ func TestMCPDefinitionDigest(t *testing.T) {
 			t.Fatalf("installation-independent digest: %v", err)
 		}
 	})
-	digest, err := MCPDefinitionDigest(original)
+
+	t.Run("Should reject a missing installation key", func(t *testing.T) {
+		t.Parallel()
+		if digest, err := MCPDefinitionDigest(original, nil); err == nil || digest != "" {
+			t.Fatalf("missing key produced digest %q: %v", digest, err)
+		}
+	})
+	t.Run("Should keep literal credentials out of the digest", func(t *testing.T) {
+		t.Parallel()
+		server := cloneMCPServer(original)
+		server.URL = "https://example.com/mcp?token=private-query-token"
+		server.Env = map[string]string{"TOKEN": "private-env-token"}
+		server.Headers = map[string]string{"Authorization": "Bearer private-header-token"}
+		digest, err := MCPDefinitionDigest(server, []byte("installation one"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := hex.DecodeString(digest)
+		if err != nil || len(decoded) != 32 {
+			t.Fatalf("invalid digest %q: %v", digest, err)
+		}
+		for _, secret := range []string{"private-query-token", "private-env-token", "private-header-token"} {
+			if strings.Contains(digest, secret) {
+				t.Fatal("digest exposed a literal credential")
+			}
+		}
+	})
+	digest, err := MCPDefinitionDigest(original, []byte("installation one"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +174,7 @@ func TestMCPDefinitionDigest(t *testing.T) {
 			t.Parallel()
 			changed := cloneMCPServer(original)
 			tc.change(&changed)
-			got, err := MCPDefinitionDigest(changed)
+			got, err := MCPDefinitionDigest(changed, []byte("installation one"))
 			if err != nil || got == digest {
 				t.Fatalf("digest=%q, err=%v", got, err)
 			}
@@ -156,7 +184,7 @@ func TestMCPDefinitionDigest(t *testing.T) {
 	changed.Name = "other"
 	changed.RuntimeName = "allocated"
 	changed.DefinitionSource = "/other/file"
-	got, err := MCPDefinitionDigest(changed)
+	got, err := MCPDefinitionDigest(changed, []byte("installation one"))
 	if err != nil || got != digest {
 		t.Fatalf("allocation changed digest: %q %v", got, err)
 	}

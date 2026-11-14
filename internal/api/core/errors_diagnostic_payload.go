@@ -30,28 +30,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		payload.ProviderError = diagnosticspkg.RedactAndBound(refusal.Cause.Error(), 2048)
 		return payload
 	}
-	if failure, ok := errors.AsType[*runtimemcp.ImportError](err); ok {
-		payload.Code = failure.Code
-		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(failure.Message))
-	}
-	if approval, ok := errors.AsType[*settingspkg.MCPApprovalError](err); ok {
-		payload.Code = approval.Code
-	}
-	if cause, ok := errors.AsType[*source.Error](err); ok {
-		payload.Code = string(cause.Code)
-	}
-	for code, target := range map[string]error{
-		"session_superseded":         store.ErrSessionSuperseded,
-		"agent_kind_immutable":       compozyconfig.ErrAgentKindImmutable,
-		"agent_kind_invalid":         compozyconfig.ErrAgentKindInvalid,
-		"agent_display_name_invalid": compozyconfig.ErrAgentDisplayNameInvalid,
-		"agent_description_invalid":  compozyconfig.ErrAgentDescriptionInvalid,
-		"agent_appearance_invalid":   compozyconfig.ErrAgentAppearanceInvalid,
-	} {
-		if errors.Is(err, target) {
-			payload.Code = code
-		}
-	}
+	enrichDefinitionError(&payload, err)
 	enrichWorkspaceLifecycleError(&payload, err)
 	if errors.Is(err, workspace.ErrWorkspaceRootMissing) {
 		payload.Code = workspaceRootMissingCode
@@ -315,5 +294,30 @@ func enrichProviderEnabledError(payload *contract.ErrorPayload, err error) {
 		payload.Code = contract.CodeProviderDisabled
 	case errors.Is(err, compozyconfig.ErrProviderDefaultDisableRejected):
 		payload.Code = contract.CodeProviderDefaultDisableRejected
+	}
+}
+
+func enrichDefinitionError(payload *contract.ErrorPayload, err error) {
+	if failure, ok := errors.AsType[*runtimemcp.ImportError](err); ok {
+		payload.Code = failure.Code
+		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(failure.Message))
+	}
+	if approval, ok := errors.AsType[*settingspkg.MCPApprovalError](err); ok {
+		payload.Code = approval.Code
+	}
+	if cause, ok := errors.AsType[*source.Error](err); ok {
+		payload.Code = string(cause.Code)
+	}
+	for code, target := range map[string]error{
+		"session_superseded":         store.ErrSessionSuperseded,
+		"agent_kind_immutable":       compozyconfig.ErrAgentKindImmutable,
+		"agent_kind_invalid":         compozyconfig.ErrAgentKindInvalid,
+		"agent_display_name_invalid": compozyconfig.ErrAgentDisplayNameInvalid,
+		"agent_description_invalid":  compozyconfig.ErrAgentDescriptionInvalid,
+		"agent_appearance_invalid":   compozyconfig.ErrAgentAppearanceInvalid,
+	} {
+		if errors.Is(err, target) {
+			payload.Code = code
+		}
 	}
 }

@@ -95,14 +95,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 			return settingspkg.MCPServerRuntimeStatus{}, fmt.Errorf("daemon: record MCP runtime recovery: %w", err)
 		}
 	}
-	return settingspkg.MCPServerRuntimeStatus{
-		Configured:      true,
-		Initialized:     true,
-		State:           settingspkg.MCPServerRuntimeStateReady,
-		Probe:           settingspkg.MCPServerProbeSucceeded,
-		ToolCount:       len(tools),
-		ProtocolVersion: strings.TrimSpace(protocolVersion),
-	}, nil
+	return readyMCPRuntimeStatus(len(tools), protocolVersion), nil
 }
 
 func (s *settingsRuntimeSurface) newMCPProbeExecutor(
@@ -128,6 +121,7 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 			}
 			return resolved, nil
 		}),
+		mcppkg.WithDefinitionDigestKey(s.digestKey),
 		mcppkg.WithRuntimeHealthRegistry(s.mcpHealthRegistry),
 		mcppkg.WithConsentCheck(
 			func(ctx context.Context, _ toolspkg.SourceRef, resolved mcppkg.ResolvedServer) error {
@@ -311,4 +305,15 @@ func runtimeStatusFromMCPProbeError(err error) settingspkg.MCPServerRuntimeStatu
 		status.State = settingspkg.MCPServerRuntimeStateRuntimeUnavailable
 	}
 	return status
+}
+
+func readyMCPRuntimeStatus(toolCount int, protocolVersion string) settingspkg.MCPServerRuntimeStatus {
+	return settingspkg.MCPServerRuntimeStatus{
+		Configured:      true,
+		Initialized:     true,
+		State:           settingspkg.MCPServerRuntimeStateReady,
+		Probe:           settingspkg.MCPServerProbeSucceeded,
+		ToolCount:       toolCount,
+		ProtocolVersion: strings.TrimSpace(protocolVersion),
+	}
 }

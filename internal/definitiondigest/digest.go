@@ -2,21 +2,18 @@ package definitiondigest
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"sync"
+	"errors"
 )
 
-var ephemeralKey = sync.OnceValue(func() []byte { return []byte(rand.Text()) })
-
-// Sum uses an installation key, or a process-local key for readers without persistent state.
-func Sum(data, key []byte) string {
+// Sum requires an installation key for identities that can outlive a process.
+func Sum(data, key []byte) (string, error) {
 	if len(key) == 0 {
-		key = ephemeralKey()
+		return "", errors.New("MCP definition digest key is required")
 	}
 	mac := hmac.New(sha256.New, key)
 	mac.Write([]byte("compozy:mcp-definition:v1\x00"))
 	mac.Write(data)
-	return hex.EncodeToString(mac.Sum(nil))
+	return hex.EncodeToString(mac.Sum(nil)), nil
 }

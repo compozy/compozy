@@ -20,10 +20,7 @@ func (d *Daemon) bootToolRegistry(
 	if state == nil {
 		return errors.New("daemon: tool registry state is required")
 	}
-	if state.mcpServerCatalog == nil {
-		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
-	}
-	bindToolProjectionCatalogInvalidation(state)
+	initializeToolProjectionCatalog(state)
 	if err := d.bootToolArtifacts(ctx, state, cleanup); err != nil {
 		return err
 	}
@@ -117,4 +114,11 @@ func optionalDaemonSessionProfileResolver(
 		return nil
 	}
 	return daemonSessionProfileResolver(sessions, unavailableMessage)
+}
+
+func initializeToolProjectionCatalog(state *bootState) {
+	if state.mcpServerCatalog == nil {
+		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
+	}
+	bindToolProjectionCatalogInvalidation(state)
 }

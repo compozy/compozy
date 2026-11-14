@@ -1,16 +1,36 @@
 package runtimemcp
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
 var ErrInvalidRuntime = errors.New("invalid_runtime")
 
 type Reader struct{ DigestKey []byte }
+
+func NewReader(key []byte) (Reader, error) {
+	if len(key) == 0 {
+		return Reader{}, errors.New("runtime MCP inventory digest key is required")
+	}
+	return Reader{DigestKey: bytes.Clone(key)}, nil
+}
+
+var standaloneDigestKey = sync.OnceValue(func() []byte { return []byte(rand.Text()) })
+
+// A zero Reader is process-local; persistent daemon inventory must use NewReader.
+func (r Reader) digestKey() []byte {
+	if len(r.DigestKey) == 0 {
+		return standaloneDigestKey()
+	}
+	return r.DigestKey
+}
 
 func (r Reader) List(ctx context.Context, req Request) (Inventory, []string, error) {
 	req.Context = ResolveContext(req.Context)
@@ -28,7 +48,7 @@ func (r Reader) List(ctx context.Context, req Request) (Inventory, []string, err
 		if req.Runtime != "" && req.Runtime != d.Runtime {
 			continue
 		}
-		snapshot, files := read(req.Context, d, r.DigestKey)
+		snapshot, files := read(req.Context, d, r.digestKey())
 		paths = append(paths, files...)
 		if mode := req.Modes[d.Runtime]; mode != "" {
 			snapshot.RuntimeMCP.Mode = mode

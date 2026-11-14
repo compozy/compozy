@@ -12,21 +12,11 @@ import (
 )
 
 func newSettingsMCPAuthManagerWithConfig(
-	store mcpauth.TokenStore,
-	notifier mcpauth.LifecycleNotifier,
-	registrations mcpauth.RegistrationStore,
-	secretResolver mcpauth.SecretRefResolver,
-	oauthConfig compozyconfig.MCPOAuthConfig,
-	generation ...*mcpauth.MutationGeneration,
+	store mcpauth.TokenStore, registrations mcpauth.RegistrationStore,
 ) (*mcpauth.Manager, error) {
 	return newSettingsMCPAuthManagerWithAuthorization(
-		store,
-		notifier,
-		registrations,
-		secretResolver,
-		oauthConfig,
-		nil,
-		generation...)
+		store, nil, registrations, nil, compozyconfig.MCPOAuthConfig{}, nil,
+	)
 }
 
 func newSettingsMCPAuthManagerWithAuthorization(
@@ -206,13 +196,12 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 	}
 	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, rendered, s.secretResolver)
 	cfg.ConsentScope = mcpauth.ConsentScopeFromContext(ctx)
-	if digest, digestErr := compozyconfig.MCPDefinitionDigest(server); digestErr == nil {
-		cfg.DefinitionDigest = digest
-	} else {
-		cfg.DefinitionDigest = ""
-	}
 	if err != nil {
 		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
+	}
+	cfg.DefinitionDigest, err = compozyconfig.MCPDefinitionDigest(server, s.digestKey)
+	if err != nil {
+		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: digest MCP auth definition: %w", err)
 	}
 	cfg.DisplayRemoteURL = rendered.URL
 	if len(secrets) > 0 {

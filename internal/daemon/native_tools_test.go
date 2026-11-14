@@ -12125,7 +12125,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		cfg := testConfig(t, testHomePaths(t))
 		cfg.Tools.Policy.ExternalDefault = "enabled"
 		catalog := newResourceCatalog(cloneDaemonMCPServer)
-		state := &bootState{cfg: cfg, mcpServerCatalog: catalog}
+		state := &bootState{mcpDigestKeys: vault.NewMCPDigestKeyProvider(t.TempDir()), cfg: cfg, mcpServerCatalog: catalog}
 		resolver, err := newNativeToolPolicyResolverForBoot(state)
 		if err != nil {
 			t.Fatal(err)

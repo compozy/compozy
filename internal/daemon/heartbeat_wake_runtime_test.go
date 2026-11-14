@@ -2959,6 +2959,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 						}, nil
 					},
 				),
+				mcppkg.WithDefinitionDigestKey([]byte("test installation key")),
 				mcppkg.WithHTTPClient(remote.Client()),
 			)
 			if err != nil {

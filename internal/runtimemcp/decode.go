@@ -54,7 +54,7 @@ func names(value any) []string {
 func keys(value any) []string              { return slices.Sorted(maps.Keys(obj(value))) }
 func contains(value any, name string) bool { return slices.Contains(names(value), name) }
 
-func digest(value any, key ...[]byte) string {
+func digest(value any, key []byte) string {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return ""
@@ -68,11 +68,11 @@ func digest(value any, key ...[]byte) string {
 	if err != nil {
 		return ""
 	}
-	var digestKey []byte
-	if len(key) > 0 {
-		digestKey = key[0]
+	valueDigest, err := definitiondigest.Sum(data, key)
+	if err != nil {
+		return ""
 	}
-	return definitiondigest.Sum(data, digestKey)
+	return valueDigest
 }
 
 func decodeServers(runtime string, doc object) (object, error) {
@@ -100,7 +100,7 @@ func checkedObject(value any) (object, error) {
 	return m, nil
 }
 
-func describeServer(runtime, name, scope, path, label string, definition object, key ...[]byte) (Server, error) {
+func describeServer(runtime, name, scope, path, label string, definition object, key []byte) (Server, error) {
 	if runtime == runtimeCodex && has(definition, fieldCommand) && has(definition, fieldURL) {
 		return Server{}, errors.New("conflicting MCP transports")
 	}
@@ -159,7 +159,7 @@ func describeServer(runtime, name, scope, path, label string, definition object,
 	s.HeaderKeys = slices.Compact(s.HeaderKeys)
 	s.CopyBlockedReason = copyBlocked(s, definition)
 	s.Copyable = s.CopyBlockedReason == ""
-	s.DefinitionDigest = digest(definition, key...)
+	s.DefinitionDigest = digest(definition, key)
 	return s, nil
 }
 

@@ -68,6 +68,7 @@ func TestMCPCallExecutor(t *testing.T) {
 						resolutions++
 						return ResolvedServer{Server: current, Target: userMCPExecutorTarget("fixture")}, nil
 					}),
+					WithDefinitionDigestKey([]byte("test installation key")),
 					WithConsentCheck(func(_ context.Context, _ toolspkg.SourceRef, resolved ResolvedServer) error {
 						checks++
 						if resolved.Server.URL != approved.URL {
@@ -644,6 +645,7 @@ func TestMCPCallExecutor(t *testing.T) {
 			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 				return ResolvedServer{Server: server, Target: target}, nil
 			}),
+			WithDefinitionDigestKey([]byte("test installation key")),
 			WithTokenStore(store),
 			WithHTTPClient(oauthFixture.Server.Client()),
 			WithSecretResolver(secretRefResolverFunc(func(_ context.Context, ref string) (string, error) {
@@ -710,7 +712,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		executor := newTestMCPExecutor(t, replacement, WithTokenStore(store))
 		resolved := ResolvedServer{Server: replacement, Target: target}
-		if got := executor.authorizationHeader(t.Context(), resolved); got != "" {
+		if got := executor.authorizationHeader(t.Context(), &resolved); got != "" {
 			t.Fatalf("authorizationHeader(replacement) = %q, want empty", got)
 		}
 		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
@@ -786,7 +788,8 @@ func TestMCPCallExecutor(t *testing.T) {
 				return ResolvedServer{}, errors.New("unexpected MCP resource")
 			}
 		})
-		executor, err := NewMCPCallExecutor(resolver, WithTokenStore(store))
+		executor, err := NewMCPCallExecutor(resolver,
+			WithDefinitionDigestKey([]byte("test installation key")), WithTokenStore(store))
 		if err != nil {
 			t.Fatalf("NewMCPCallExecutor() error = %v", err)
 		}
@@ -2216,6 +2219,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 					Server: server, Target: userMCPExecutorTarget(server.Name), HealthKey: healthKey,
 				}, nil
 			}),
+			WithDefinitionDigestKey([]byte("test installation key")),
 			WithRuntimeHealthRegistry(registry),
 		)
 		if err != nil {
@@ -2252,6 +2256,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 					Server: server, Target: userMCPExecutorTarget(server.Name), HealthKey: healthKey,
 				}, nil
 			}),
+			WithDefinitionDigestKey([]byte("test installation key")),
 			WithRuntimeHealthRegistry(registry),
 			WithDataDirCreator(func(string) error { return errors.New("injected data directory failure") }),
 		)
@@ -2300,6 +2305,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 					Server: resolved, Target: userMCPExecutorTarget(resolved.Name), HealthKey: healthKey,
 				}, nil
 			}),
+			WithDefinitionDigestKey([]byte("test installation key")),
 			WithRuntimeHealthRegistry(registry),
 		)
 		if err != nil {
@@ -2347,6 +2353,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 					Server: resolved, Target: userMCPExecutorTarget(resolved.Name), HealthKey: healthKey,
 				}, nil
 			}),
+			WithDefinitionDigestKey([]byte("test installation key")),
 			WithRuntimeHealthRegistry(health),
 		)
 		if err != nil {
@@ -2579,7 +2586,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			return ""
 		}))
 		resolved := ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
-		client, err := executor.openClient(ctx, resolved, "")
+		client, err := executor.openClient(ctx, &resolved, "")
 		if err != nil {
 			t.Fatalf("openClient() error = %v", err)
 		}
@@ -2802,6 +2809,35 @@ func TestMCPStdioHelperProcess(t *testing.T) {
 }
 
 func TestMCPCallExecutorHelpers(t *testing.T) {
+	t.Run("Should reject construction without an installation digest key", func(t *testing.T) {
+		t.Parallel()
+		resolver := ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
+			return ResolvedServer{}, nil
+		})
+		if executor, err := NewMCPCallExecutor(resolver); err == nil || executor != nil {
+			t.Fatal("executor accepted a missing digest key")
+		}
+	})
+	t.Run("Should bind auth to the installation digest of the unresolved definition", func(t *testing.T) {
+		t.Parallel()
+		key := []byte("installation auth key")
+		server := compozyconfig.MCPServer{
+			Name: "remote", Transport: "http", URL: "https://example.com/${TENANT}",
+			InputValues: map[string]compozyconfig.MCPInputValue{"TENANT": {Value: "private-tenant"}},
+		}
+		executor := newTestMCPExecutor(t, server, WithDefinitionDigestKey(key))
+		cfg, err := executor.serverAuthConfig(t.Context(), ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := compozyconfig.MCPDefinitionDigest(server, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.DefinitionDigest != expected || cfg.RemoteURL != "https://example.com/private-tenant" {
+			t.Fatalf("auth definition identity differs: %+v", cfg)
+		}
+	})
 	t.Run("Should preserve the explicit definition owner through auth diagnostics", func(t *testing.T) {
 		t.Parallel()
 		server := compozyconfig.MCPServer{Name: "github", Owner: "extension:bundle", Command: "test-mcp"}
@@ -3055,7 +3091,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		}
 		executor := newTestMCPExecutor(t, server, withAuthService(fakeAuth))
 		resolved := ResolvedServer{Server: server, Target: userMCPExecutorTarget("secure")}
-		if err := executor.ensureAuthorized(testContext(t), resolved); err != nil {
+		if err := executor.ensureAuthorized(testContext(t), &resolved); err != nil {
 			t.Fatalf("ensureAuthorized(refresh success) error = %v", err)
 		}
 		if got, want := fakeAuth.refreshCallCount(), 1; got != want {
@@ -3077,7 +3113,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			},
 		}
 		executor = newTestMCPExecutor(t, server, withAuthService(invalidAuth))
-		err := executor.ensureAuthorized(testContext(t), resolved)
+		err := executor.ensureAuthorized(testContext(t), &resolved)
 		requireReason(t, err, toolspkg.ReasonMCPAuthInvalid)
 	})
 
@@ -3105,12 +3141,12 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			Server: compozyconfig.MCPServer{Name: "github"},
 			Target: userMCPExecutorTarget("github"),
 		}
-		if got := executor.authorizationHeader(testContext(t), resolved); got != "" {
+		if got := executor.authorizationHeader(testContext(t), &resolved); got != "" {
 			t.Fatalf("authorizationHeader(non-bearer) = %q, want empty", got)
 		}
 		if got := (&CallExecutor{}).authorizationHeader(
 			testContext(t),
-			resolved,
+			&resolved,
 		); got != "" {
 			t.Fatalf("authorizationHeader(nil store) = %q, want empty", got)
 		}
@@ -3180,11 +3216,11 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 				}
 				executor := newTestMCPExecutor(t, server, WithTokenStore(store))
 				resolved := ResolvedServer{Server: server, Target: target}
-				if got := executor.authorizationHeader(t.Context(), resolved); got != fixture.want {
+				if got := executor.authorizationHeader(t.Context(), &resolved); got != fixture.want {
 					t.Fatalf("authorizationHeader() = %q, want %q", got, fixture.want)
 				}
 				if fixture.reason != "" {
-					requireReason(t, executor.ensureAuthorized(t.Context(), resolved), fixture.reason)
+					requireReason(t, executor.ensureAuthorized(t.Context(), &resolved), fixture.reason)
 				}
 			})
 		}
@@ -3661,6 +3697,7 @@ func newTestMCPExecutor(
 ) *CallExecutor {
 	t.Helper()
 
+	options = append([]CallExecutorOption{WithDefinitionDigestKey([]byte("test installation key"))}, options...)
 	executor, err := NewMCPCallExecutor(
 		ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
 			return ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}, nil
@@ -4149,7 +4186,7 @@ func TestCheckInReadOnlyOverride(t *testing.T) {
 				}
 				descriptors, err := executor.descriptorsFromTools(
 					toolspkg.SourceRef{},
-					ResolvedServer{ReadOnlyOverrideOrigin: new(tc.origin), Server: compozyconfig.MCPServer{
+					&ResolvedServer{ReadOnlyOverrideOrigin: new(tc.origin), Server: compozyconfig.MCPServer{
 						Name:          "fixture",
 						Owner:         tc.owner,
 						CatalogEntry:  tc.catalog,

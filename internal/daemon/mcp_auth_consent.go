@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/compozy/internal/config"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -72,7 +71,7 @@ func authorizeMCPAuthNetwork(ctx context.Context, state *bootState, cfg mcpauth.
 	if !decision.Admitted {
 		return waitingDaemonMCPApprovalError(ctx, state, target.ServerName, source.WorkspaceID)
 	}
-	digest, err := config.MCPDefinitionDigest(resolved.Server)
+	digest, err := state.mcpDefinitionDigest(resolved.Server)
 	if err != nil {
 		return err
 	}

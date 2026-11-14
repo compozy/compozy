@@ -38,7 +38,7 @@ func (r *reader) applyCursorApprovals(entries map[string]entry) {
 // Cursor 2026.09.26 hashes JSON.stringify({path: projectRoot, server: parsedServer}).
 // Its schema establishes field order; nested header/env order comes from the file.
 // Definitions needing process-environment expansion stay pending rather than claiming a grant.
-func cursorApprovalKey(root, name string, item entry, key ...[]byte) string {
+func cursorApprovalKey(root, name string, item entry, key []byte) string {
 	data, err := readRuntimeFile(item.server.SourcePath)
 	if err != nil {
 		return ""
@@ -50,7 +50,7 @@ func cursorApprovalKey(root, name string, item entry, key ...[]byte) string {
 		return ""
 	}
 	definition := doc.Servers[name]
-	if definition == nil || digest(definition, key...) != item.server.DefinitionDigest {
+	if definition == nil || digest(definition, key) != item.server.DefinitionDigest {
 		return ""
 	}
 	fields := []string{fieldType, fieldCommand, fieldArgs, fieldEnv, "cwd"}

@@ -39,15 +39,7 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	if o.EnvPolicy != nil {
 		dst.EnvPolicy = *o.EnvPolicy
 	}
-	if o.RuntimeMCP != nil {
-		dst.RuntimeMCP = *o.RuntimeMCP
-	}
-	if o.HomePolicy != nil {
-		dst.HomePolicy = *o.HomePolicy
-	}
-	if o.NoneSecurity != nil {
-		dst.NoneSecurity = *o.NoneSecurity
-	}
+	o.applyRuntimePolicy(dst)
 	if o.AuthStatusCmd != nil {
 		dst.AuthStatusCmd = *o.AuthStatusCmd
 	}
@@ -134,4 +126,16 @@ func applyProviderCredentialOverlays(overlays []providerCredentialOverlay) []Pro
 		slots = append(slots, slot)
 	}
 	return slots
+}
+
+func (o providerOverlay) applyRuntimePolicy(dst *ProviderConfig) {
+	if o.RuntimeMCP != nil {
+		dst.RuntimeMCP = *o.RuntimeMCP
+	}
+	if o.HomePolicy != nil {
+		dst.HomePolicy = *o.HomePolicy
+	}
+	if o.NoneSecurity != nil {
+		dst.NoneSecurity = *o.NoneSecurity
+	}
 }
