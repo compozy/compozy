@@ -691,6 +691,7 @@ func TestInstallPreparedExtensionDetectsChecksumMismatch(t *testing.T) {
 		prepared,
 		fixedTestNow,
 		true,
+		false,
 	); err == nil ||
 		!errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) {
 		t.Fatalf("installPreparedExtension(checksum mismatch) error = %v, want ErrExtensionChecksumMismatch", err)
@@ -1753,6 +1754,90 @@ func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, comp
 		return cfg, nil
 	}
 	return deps, homePaths
+}
+
+func TestExtensionInstallReplaceReplacesInstalledVersion(t *testing.T) {
+	t.Parallel()
+
+	deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
+	dir := writeExtensionFixture(t, "cli-replace-ext", extensionFixtureOptions{})
+	if _, _, err := executeRootCommand(
+		t, deps, "extension", "install", dir, "--allow-unverified", "--yes", "-o", "json",
+	); err != nil {
+		t.Fatalf("extension install error = %v", err)
+	}
+	first := getInstalledExtension(t, homePaths, "cli-replace-ext")
+
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("fixture v2"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(README.md) error = %v", err)
+	}
+	_, _, err := executeRootCommand(
+		t, deps, "extension", "install", dir, "--allow-unverified", "--yes", "-o", "json",
+	)
+	if !errors.Is(err, extensionpkg.ErrExtensionExists) {
+		t.Fatalf("extension install duplicate error = %v, want ErrExtensionExists", err)
+	}
+
+	if _, _, err := executeRootCommand(
+		t, deps, "extension", "install", dir, "--replace", "--allow-unverified", "--yes", "-o", "json",
+	); err != nil {
+		t.Fatalf("extension install --replace error = %v", err)
+	}
+	second := getInstalledExtension(t, homePaths, "cli-replace-ext")
+	if second.Checksum == first.Checksum {
+		t.Fatalf("replaced checksum = %q, want a new checksum", second.Checksum)
+	}
+	wantChecksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+	}
+	if second.Checksum != wantChecksum {
+		t.Fatalf("recorded checksum = %q, want %q", second.Checksum, wantChecksum)
+	}
+	if _, err := extensionpkg.LoadManifest(extensionpkg.ManagedInstallPath(homePaths, "cli-replace-ext")); err != nil {
+		t.Fatalf("LoadManifest(replaced) error = %v", err)
+	}
+	entries, err := os.ReadDir(extensionpkg.ManagedInstallRoot(homePaths))
+	if err != nil {
+		t.Fatalf("os.ReadDir(managed root) error = %v", err)
+	}
+	for _, entry := range entries {
+		if strings.Contains(entry.Name(), ".compozy-backup-") {
+			t.Fatalf("leftover managed install backup %q", entry.Name())
+		}
+	}
+}
+
+func TestExtensionInstallReplaceFlagReachesDaemon(t *testing.T) {
+	t.Parallel()
+
+	var captured InstallExtensionRequest
+	deps, _ := newExtensionLocalDeps(t, &stubClient{
+		installExtensionFn: func(_ context.Context, request InstallExtensionRequest) (ExtensionRecord, error) {
+			captured = request
+			return ExtensionRecord{
+				Name:          "replace-flag-ext",
+				Version:       "0.1.0",
+				Source:        string(contract.InstallExtensionSourceLocalPath),
+				State:         "active",
+				DaemonRunning: true,
+			}, nil
+		},
+	})
+	markExtensionDaemonRunning(&deps)
+	dir := writeExtensionFixture(t, "replace-flag-ext", extensionFixtureOptions{})
+
+	if _, _, err := executeRootCommand(
+		t, deps, "extension", "install", dir, "--replace", "--allow-unverified", "--yes", "-o", "json",
+	); err != nil {
+		t.Fatalf("extension install --replace error = %v", err)
+	}
+	if !captured.Replace {
+		t.Fatal("InstallExtension request replace = false, want true")
+	}
+	if captured.Source != contract.InstallExtensionSourceLocalPath || captured.Ref != dir {
+		t.Fatalf("InstallExtension request = %#v, want local path %q", captured, dir)
+	}
 }
 
 func writeExtensionFixture(t *testing.T, name string, opts extensionFixtureOptions) string {

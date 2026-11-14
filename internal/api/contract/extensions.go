@@ -33,6 +33,7 @@ type InstallExtensionRequest struct {
 	Version              string                          `json:"version,omitempty"`
 	Asset                string                          `json:"asset,omitempty"`
 	AllowUnverified      bool                            `json:"allow_unverified,omitzero"`
+	Replace              bool                            `json:"replace,omitzero"`
 	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest,omitempty"`
 }
 

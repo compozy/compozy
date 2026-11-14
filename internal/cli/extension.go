@@ -131,84 +131,109 @@ func newExtensionListCommand(deps commandDeps) *cobra.Command {
 	return command
 }
 
-func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
-	var scope, workspaceRef string
-	var inputs extensionInputFlags
-	var version string
-	var asset string
-	var allowUnverified bool
-	var enable bool
-	var yes bool
-	var confirmGatewayDigest string
+type extensionInstallFlags struct {
+	scope                string
+	workspaceRef         string
+	inputs               extensionInputFlags
+	version              string
+	asset                string
+	confirmGatewayDigest string
+	allowUnverified      bool
+	enable               bool
+	replace              bool
+	yes                  bool
+}
 
+func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
+	flags := &extensionInstallFlags{}
 	cmd := &cobra.Command{
 		Use:   "install <source>",
 		Short: "Install an extension from curated, GitHub, git, or a local path",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			plan, err := parseExtensionInstallPlan(args[0], version, asset, allowUnverified)
-			if err != nil {
-				return err
-			}
-			selected, err := resolveExtensionCLIScope(cmd, deps, scope, workspaceRef)
-			if err != nil {
-				return err
-			}
-			for index := range plan.Attempts {
-				plan.Attempts[index].Enable = enable
-				plan.Attempts[index].Scope = selected.scope
-				plan.Attempts[index].WorkspaceID = selected.workspaceID
-				plan.Attempts[index].Profile = selected.profile
-				plan.Attempts[index].ConfirmGatewayDigest = strings.TrimSpace(confirmGatewayDigest)
-			}
-			plan, err = resolvePluginInstallPlan(cmd.Context(), deps, plan)
-			if err != nil {
-				return err
-			}
-			plan, preview, err := prepareExtensionCLIInputs(cmd.Context(), deps, plan, inputs)
-			if err != nil {
-				return err
-			}
-			if preview == nil || plan.Attempts[0].Source == contract.InstallExtensionSourceLocalPath {
-				preview, err = previewExtensionInstallPlan(cmd.Context(), cmd, deps, plan)
-				if err != nil {
-					return err
-				}
-			}
-			if err := writeExtensionInstallPreview(cmd, preview); err != nil {
-				return err
-			}
-			if err := confirmExtensionUnverifiedInstall(cmd, allowUnverified, yes); err != nil {
-				return err
-			}
-			item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
-			if err != nil {
-				return err
-			}
-			report := extensionInstallValidationReport(deps, plan, &item)
-			return writeCommandOutput(cmd, extensionInstallResultBundle(&item, report, enable))
+			return runExtensionInstall(cmd, deps, args[0], flags)
 		},
 	}
-	cmd.Flags().BoolVar(&enable, "enable", false, "Enable after install; activation failures retain the package")
-	inputs.register(cmd)
-	cmd.Flags().StringVar(&scope, "scope", "", "Install globally or in one workspace: global, workspace")
-	cmd.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
-	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")
-	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
+	flags.register(cmd)
+	return cmd
+}
+
+func (f *extensionInstallFlags) register(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&f.enable, "enable", false, "Enable after install; activation failures retain the package")
 	cmd.Flags().BoolVar(
-		&allowUnverified,
+		&f.replace,
+		"replace",
+		false,
+		"Replace an installed extension of the same name; a failed replacement keeps the previous version",
+	)
+	f.inputs.register(cmd)
+	cmd.Flags().StringVar(&f.scope, "scope", "", "Install globally or in one workspace: global, workspace")
+	cmd.Flags().StringVar(&f.workspaceRef, workspaceFlagName, "", "Override workspace context")
+	cmd.Flags().StringVar(&f.version, versionKey, "", "Install a specific registry version")
+	cmd.Flags().StringVar(&f.asset, "asset", "", "Select a specific registry asset when multiple archives exist")
+	cmd.Flags().BoolVar(
+		&f.allowUnverified,
 		"allow-unverified",
 		false,
 		"Allow install when the extension checksum is not registry-verified",
 	)
-	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
+	cmd.Flags().BoolVar(&f.yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
 	cmd.Flags().StringVar(
-		&confirmGatewayDigest,
+		&f.confirmGatewayDigest,
 		extensionConfirmGatewayFlagName,
 		"",
 		"Confirm the candidate extension gateway requirement digest",
 	)
-	return cmd
+}
+
+func runExtensionInstall(
+	cmd *cobra.Command,
+	deps commandDeps,
+	source string,
+	f *extensionInstallFlags,
+) error {
+	plan, err := parseExtensionInstallPlan(source, f.version, f.asset, f.allowUnverified)
+	if err != nil {
+		return err
+	}
+	selected, err := resolveExtensionCLIScope(cmd, deps, f.scope, f.workspaceRef)
+	if err != nil {
+		return err
+	}
+	for index := range plan.Attempts {
+		plan.Attempts[index].Enable = f.enable
+		plan.Attempts[index].Replace = f.replace
+		plan.Attempts[index].Scope = selected.scope
+		plan.Attempts[index].WorkspaceID = selected.workspaceID
+		plan.Attempts[index].Profile = selected.profile
+		plan.Attempts[index].ConfirmGatewayDigest = strings.TrimSpace(f.confirmGatewayDigest)
+	}
+	plan, err = resolvePluginInstallPlan(cmd.Context(), deps, plan)
+	if err != nil {
+		return err
+	}
+	plan, preview, err := prepareExtensionCLIInputs(cmd.Context(), deps, plan, f.inputs)
+	if err != nil {
+		return err
+	}
+	if preview == nil || plan.Attempts[0].Source == contract.InstallExtensionSourceLocalPath {
+		preview, err = previewExtensionInstallPlan(cmd.Context(), cmd, deps, plan)
+		if err != nil {
+			return err
+		}
+	}
+	if err := writeExtensionInstallPreview(cmd, preview); err != nil {
+		return err
+	}
+	if err := confirmExtensionUnverifiedInstall(cmd, f.allowUnverified, f.yes); err != nil {
+		return err
+	}
+	item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
+	if err != nil {
+		return err
+	}
+	report := extensionInstallValidationReport(deps, plan, &item)
+	return writeCommandOutput(cmd, extensionInstallResultBundle(&item, report, f.enable))
 }
 
 // newExtensionRemoveCommand resolves the selected profile before choosing the removal transport.

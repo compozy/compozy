@@ -78,6 +78,11 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
+	if req.Replace {
+		if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor); err != nil {
+			return preparedDaemonExtensionInstall{}, err
+		}
+	}
 	cfg := s.marketplaceConfig()
 	if err := extensionpkg.ValidateUnverifiedSideLoad(
 		manifest.Name,
@@ -96,17 +101,31 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	}
 	provenance := extensionpkg.LocalPathProvenance(manifest, req.Ref, checksum, s.now(), req.AllowUnverified)
 	provenance.InstalledBy = installedBy
+	installOpts := []extensionpkg.InstallOption{
+		extensionpkg.WithInstallProvenance(provenance),
+		extensionpkg.WithInstallScope(target.scope),
+	}
+	if req.Replace {
+		installOpts = append(installOpts, extensionpkg.WithInstallReplaceExisting())
+	}
 	return preparedDaemonExtensionInstall{
 		name: manifest.Name, manifest: manifest, digest: checksum, target: target,
 		commit: func() error {
+			// The early check only fails fast; the commit repeats it under the lifecycle
+			// lock so an attachment enrolled meanwhile cannot be overwritten by a caller
+			// that does not own it.
+			if req.Replace {
+				if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor); err != nil {
+					return err
+				}
+			}
 			return extensionpkg.InstallLocalManaged(
 				s.homePaths,
 				s.registry,
 				manifest,
 				req.Ref,
 				checksum,
-				extensionpkg.WithInstallProvenance(provenance),
-				extensionpkg.WithInstallScope(target.scope),
+				installOpts...,
 			)
 		},
 	}, nil

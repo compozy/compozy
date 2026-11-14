@@ -62,6 +62,7 @@ func installExtension(
 				prepared,
 				deps.now(),
 				request.AllowUnverified,
+				request.Replace,
 			); err != nil {
 				return ExtensionRecord{}, err
 			}
