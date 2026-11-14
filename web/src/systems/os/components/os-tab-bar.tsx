@@ -297,7 +297,7 @@ export function OsTabBar({ className }: OsTabBarProps) {
         onTabPointerDown={startTabDrag}
         className={className}
       />
-      <OsDragGhost sessionOf={sessionLookup(bar.sessionById)} />
+      <OsDragGhost />
     </>
   );
 }
