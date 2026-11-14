@@ -15,8 +15,9 @@ func sessionCleanupDescriptor() toolspkg.Descriptor {
 			"dry_run=false starts the delete in the daemon's background and needs approval; follow it with "+
 			"action=status and end it early with action=stop (what it deleted stays deleted). Only archived "+
 			"sessions are deleted; worktrees stay, as with a single delete. The range defaults to threads "+
-			"archived more than 7 days ago; delete defaults to everything (whole threads). Retry failed threads "+
-			"with session_ids set to their session_id.",
+			"archived more than 7 days ago; delete defaults to everything (whole threads). To delete no more "+
+			"than a preview counted, send its plan.counted_at as counted_at. Retry failed threads with "+
+			"session_ids set to their session_id.",
 		sessionCleanupInputSchema,
 		toolspkg.RiskDestructive,
 		false,
@@ -71,6 +72,11 @@ const sessionCleanupInputSchema = `{
 			"maxItems":1000,
 			"items":{"type":"string"},
 			"description":"Limit the cleanup to these archived main sessions, as a retry of failed threads does."
+		},
+		"counted_at":{
+			"type":"string",
+			"format":"date-time",
+			"description":"The plan.counted_at of the preview being confirmed; sessions archived after it stay."
 		},
 		"dry_run":{
 			"type":"boolean",

@@ -16113,6 +16113,8 @@ export interface components {
       /** Format: date-time */
       archived_before?: string | null;
       choices: components["schemas"]["SessionHistoryCleanupChoices"];
+      /** Format: date-time */
+      counted_at: string;
       counts: components["schemas"]["SessionHistoryCleanupCounts"];
       kept_live: number;
       threads: number;
@@ -16125,6 +16127,8 @@ export interface components {
       all_workspaces?: boolean;
       /** Format: date-time */
       archived_before?: string | null;
+      /** Format: date-time */
+      counted_at?: string | null;
       delete: components["schemas"]["SessionHistoryCleanupSelection"];
       dry_run?: boolean;
       older_than_days?: number | null;

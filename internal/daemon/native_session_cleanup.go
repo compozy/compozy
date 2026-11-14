@@ -30,6 +30,7 @@ type sessionCleanupInput struct {
 	ArchivedBefore *time.Time                              `json:"archived_before,omitempty"`
 	AnyTime        bool                                    `json:"any_time,omitempty"`
 	SessionIDs     []string                                `json:"session_ids,omitempty"`
+	CountedAt      *time.Time                              `json:"counted_at,omitempty"`
 	DryRun         *bool                                   `json:"dry_run,omitempty"`
 }
 
@@ -189,6 +190,10 @@ func (n *daemonNativeTools) sessionCleanupRequest(
 		return request, nativeInputError(id, err)
 	}
 	request.ArchivedBefore = cutoff
+	if input.CountedAt != nil {
+		countedAt := input.CountedAt.UTC()
+		request.CountedAt = &countedAt
+	}
 	return request, nil
 }
 

@@ -43,6 +43,10 @@ type Request struct {
 	ArchivedBefore *time.Time
 	// RootIDs, when set, narrows the picked threads to these main sessions (a retry).
 	RootIDs []string
+	// CountedAt, when set, is the instant of the dry run being confirmed: a
+	// session archived after it is planned as still in the list, so the cleanup
+	// deletes no more than that dry run counted.
+	CountedAt *time.Time
 }
 
 // Counts is how many sessions a cleanup deletes, by kind.
@@ -83,8 +87,9 @@ type Thread struct {
 
 // Plan is the dry run of one cleanup.
 type Plan struct {
-	// CountedAt is when the plan read the archive: nothing archived later is in
-	// it, so a start pinned to it deletes no more than the plan counted.
+	// CountedAt is the instant the plan counted up to: a session archived later
+	// is planned as still in the list, so a start sent with it deletes no more
+	// than the plan counted.
 	CountedAt time.Time
 	Counts    Counts
 	// KeptLive counts child sessions still in the session list or in Later that

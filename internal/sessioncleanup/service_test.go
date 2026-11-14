@@ -148,6 +148,30 @@ func TestServiceStart(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep what was archived after the confirmed count", func(t *testing.T) {
+		t.Parallel()
+		rows := []store.SessionHistoryCleanupRow{
+			archivedRow("root", "", 10),
+			// Archived after the count: then still in the list, so it stays.
+			archivedRow("child", "root", 1),
+			archivedRow("late", "", 1),
+		}
+		h := newServiceHarness(t, rows, &fakeDeleter{})
+		request := serviceRequest()
+		request.CountedAt = daysAgo(5)
+		started, plan, err := h.service.Start(context.Background(), request)
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		if started.Total != 1 || plan.KeptLive != 1 || !plan.CountedAt.Equal(*request.CountedAt) {
+			t.Fatalf("Start() = run %+v plan %+v, want only root, child kept", started, plan)
+		}
+		h.waitForSettled(t)
+		if got := h.deleter.deletedIDs(); !slices.Equal(got, []string{"root"}) {
+			t.Fatalf("deleted = %v, want only the session the count saw archived", got)
+		}
+	})
+
 	t.Run("Should count a session restored meanwhile as skipped", func(t *testing.T) {
 		t.Parallel()
 		rows := []store.SessionHistoryCleanupRow{archivedRow("root", "", 10), archivedRow("child", "root", 10)}

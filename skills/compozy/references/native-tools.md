@@ -545,6 +545,7 @@ the daemon's background, a few archived sessions at a time; `action: "status"` f
 `action: "stop"` ends it early (deleted sessions stay deleted). The range defaults to threads
 archived more than 7 days ago (`older_than_days`, `archived_before`, or `any_time`); `delete`
 defaults to everything, or narrows to `children` and `subagents` while keeping main sessions.
+To delete no more than a preview counted, send its `plan.counted_at` as `counted_at`.
 It defaults to the caller's workspace; `all_workspaces` needs unrestricted workspace access.
 Worktrees stay, as with a single delete. Retry failed threads with `session_ids`. The CLI fallback is
 `compozy session cleanup [--yes]`, with `status` and `stop` subcommands. `compozy__session_later` moves a session to Later: it stops the session and

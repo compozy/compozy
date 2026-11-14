@@ -24,6 +24,7 @@ import {
   runInScope,
   stoppedSentence,
   type CleanupChoiceCounts,
+  type CleanupCount,
   type CleanupImpact,
   type CleanupOptions,
   type CleanupPhase,
@@ -130,7 +131,7 @@ export function useArchivedCleanup({
   // A finished run's outcome shows in its own scope until seen; progress shows everywhere.
   const ended = run && !active && run.id !== dismissedRunId && runInScope(run, scope) ? run : null;
   const phase = cleanupPhase(active ?? ended);
-  const { cutoff, ...preview } = useCleanupPreview({
+  const { count, ...preview } = useCleanupPreview({
     profile,
     scope,
     options,
@@ -157,7 +158,7 @@ export function useArchivedCleanup({
     phase,
     starting: start.isPending,
     progress: active ? { done: active.done, total: active.total } : null,
-    confirm: () => start.mutate(confirmedRequest(options, scope, cutoff)),
+    confirm: () => start.mutate(confirmedRequest(options, scope, count)),
     retry: () => {
       if (ended) start.mutate(retryRequest(ended));
     },
@@ -183,11 +184,8 @@ function useCleanupPreview({
   enabled: boolean;
   projectName: (workspaceId: string) => string;
 }): Pick<ArchivedCleanupModel, "impact" | "counts" | "counting" | "previewError"> & {
-  /**
-   * What the dry run counted up to, on the daemon's clock: its resolved cutoff, or for Any time
-   * the instant it read the archive. Confirming pins the range to it.
-   */
-  cutoff?: string;
+  /** What the dry run counted up to, on the daemon's clock; confirming is fenced to it. */
+  count?: CleanupCount;
 } {
   const unchecked = nothingChecked(options.what);
   const counted = unchecked ? { ...options, what: DEFAULT_CLEANUP_OPTIONS.what } : options;
@@ -203,7 +201,10 @@ function useCleanupPreview({
     counts: plan?.choices,
     counting: previewable && (preview.isFetching || preview.isPlaceholderData),
     previewError: preview.error ? errorText(preview.error, "The count failed.") : null,
-    cutoff: plan?.archived_before ?? undefined,
+    count: plan && {
+      archivedBefore: plan.archived_before ?? undefined,
+      countedAt: plan.counted_at,
+    },
   };
 }
 

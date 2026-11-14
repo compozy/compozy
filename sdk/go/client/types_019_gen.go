@@ -186,6 +186,7 @@ type SessionHistoryCleanupFailure struct {
 // SessionHistoryCleanupPlan is a daemon API value.
 type SessionHistoryCleanupPlan struct {
 	ArchivedBefore *time.Time                       `json:"archived_before,omitempty"`
+	CountedAt      time.Time                        `json:"counted_at"`
 	Counts         SessionHistoryCleanupCounts      `json:"counts"`
 	KeptLive       int                              `json:"kept_live"`
 	Choices        SessionHistoryCleanupChoices     `json:"choices"`
@@ -206,6 +207,7 @@ type SessionHistoryCleanupRequest struct {
 	OlderThanDays  *int                           `json:"older_than_days,omitempty"`
 	ArchivedBefore *time.Time                     `json:"archived_before,omitempty"`
 	SessionIDs     []string                       `json:"session_ids,omitempty"`
+	CountedAt      *time.Time                     `json:"counted_at,omitempty"`
 	DryRun         bool                           `json:"dry_run,omitempty"`
 }
 

@@ -26,6 +26,9 @@ type SessionHistoryCleanupRequest struct {
 	ArchivedBefore *time.Time `json:"archived_before,omitempty"`
 	// SessionIDs narrows the picked threads to these archived main sessions, as a retry does.
 	SessionIDs []string `json:"session_ids,omitempty"`
+	// CountedAt is the counted_at of the dry run being confirmed: a session
+	// archived after it stays, so the cleanup deletes no more than that dry run counted.
+	CountedAt *time.Time `json:"counted_at,omitempty"`
 	// DryRun previews the cleanup and deletes nothing.
 	DryRun bool `json:"dry_run,omitempty"`
 }
@@ -54,8 +57,11 @@ type SessionHistoryCleanupWorkspace struct {
 // SessionHistoryCleanupPlan is the dry run of one cleanup. Every count is a
 // number of sessions: a child session and a subagent are sessions too.
 type SessionHistoryCleanupPlan struct {
-	ArchivedBefore *time.Time                  `json:"archived_before,omitempty"`
-	Counts         SessionHistoryCleanupCounts `json:"counts"`
+	ArchivedBefore *time.Time `json:"archived_before,omitempty"`
+	// CountedAt is when the plan read the archive, on the daemon's clock; send
+	// it back as counted_at to start no more than this plan counted.
+	CountedAt time.Time                   `json:"counted_at"`
+	Counts    SessionHistoryCleanupCounts `json:"counts"`
 	// KeptLive counts child sessions still in the session list or in Later that
 	// the selection would otherwise delete; they and everything under them stay.
 	KeptLive   int                              `json:"kept_live"`

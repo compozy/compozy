@@ -68,22 +68,26 @@ describe("cleanupRequest", () => {
 });
 
 describe("confirmedRequest", () => {
-  it("Should pin a relative range and Any time to the dry run's cutoff, and keep a picked day", () => {
-    const cutoff = "2026-11-07T12:00:00Z";
-    expect(confirmedRequest(DEFAULT_CLEANUP_OPTIONS, { workspaceId: "ws-1" }, cutoff)).toEqual({
+  it("Should fence every range to the dry run's count and pin a relative range to its cutoff", () => {
+    const count = { archivedBefore: "2026-11-07T12:00:00Z", countedAt: "2026-11-14T12:00:00Z" };
+    expect(confirmedRequest(DEFAULT_CLEANUP_OPTIONS, { workspaceId: "ws-1" }, count)).toEqual({
       workspace_id: "ws-1",
       delete: { everything: true, children: true, subagents: true },
-      archived_before: cutoff,
+      archived_before: count.archivedBefore,
+      counted_at: count.countedAt,
     });
     const anyTime = { ...DEFAULT_CLEANUP_OPTIONS, range: "all" as const };
-    expect(confirmedRequest(anyTime, { workspaceId: "ws-1" }, cutoff)).toEqual({
+    expect(
+      confirmedRequest(anyTime, { workspaceId: "ws-1" }, { countedAt: count.countedAt })
+    ).toEqual({
       ...cleanupRequest(anyTime, { workspaceId: "ws-1" }),
-      archived_before: cutoff,
+      counted_at: count.countedAt,
     });
     const day = { ...DEFAULT_CLEANUP_OPTIONS, range: "before" as const, before: new Date(0) };
-    expect(confirmedRequest(day, { workspaceId: "ws-1" }, cutoff)).toEqual(
-      cleanupRequest(day, { workspaceId: "ws-1" })
-    );
+    expect(confirmedRequest(day, { workspaceId: "ws-1" }, count)).toEqual({
+      ...cleanupRequest(day, { workspaceId: "ws-1" }),
+      counted_at: count.countedAt,
+    });
   });
 });
 

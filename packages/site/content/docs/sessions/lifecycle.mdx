@@ -948,6 +948,8 @@ Only archived sessions are deleted:
 
 - A child session that is still in your session list or in Later stays, along with everything
   under it.
+- A session archived after the count stays, so the cleanup never deletes more than the dialog
+  showed.
 - A session restored after the cleanup started is skipped.
 - An always-on agent's main session is never deleted.
 - Worktrees stay, as they do when you remove one session.
@@ -967,7 +969,8 @@ compozy session cleanup stop
 ```
 
 Over HTTP and UDS, `POST /api/sessions/history-cleanup` previews with `dry_run: true` and otherwise
-starts the run (`202`). `GET /api/sessions/history-cleanup` reads the profile's running or latest
+starts the run (`202`). A preview returns `counted_at`; send it back with the start to delete no
+more than that preview counted. `GET /api/sessions/history-cleanup` reads the profile's running or latest
 run, and `POST /api/sessions/history-cleanup/stop` stops it. Each profile runs one cleanup at a
 time; a second start returns `409`. These routes are operator-only. Agents use
 `compozy__session_cleanup`: it previews unless `dry_run` is `false`, and deleting needs approval.

@@ -27976,6 +27976,10 @@
           "choices": {
             "$ref": "#/components/schemas/SessionHistoryCleanupChoices"
           },
+          "counted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
           "counts": {
             "$ref": "#/components/schemas/SessionHistoryCleanupCounts"
           },
@@ -27994,6 +27998,7 @@
         },
         "required": [
           "choices",
+          "counted_at",
           "counts",
           "kept_live",
           "threads",
@@ -28018,6 +28023,11 @@
             "type": "boolean"
           },
           "archived_before": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "counted_at": {
             "format": "date-time",
             "nullable": true,
             "type": "string"

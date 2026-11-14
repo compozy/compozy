@@ -131,7 +131,7 @@ func TestBaseHandlersPlanSessionHistoryCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("Should report the instant an Any time dry run counted up to", func(t *testing.T) {
+	t.Run("Should report the instant a dry run counted up to and fence a start to it", func(t *testing.T) {
 		t.Parallel()
 		manager := &historyCleanupStubManager{}
 		recorder := performHistoryCleanup(t, manager, historyCleanupBody(`,"dry_run":true`), false)
@@ -142,12 +142,18 @@ func TestBaseHandlersPlanSessionHistoryCleanup(t *testing.T) {
 		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 			t.Fatalf("decode preview: %v", err)
 		}
-		if len(manager.previews) != 1 || manager.previews[0].ArchivedBefore != nil {
-			t.Fatalf("previews = %+v, want one over every archived thread", manager.previews)
+		// The daemon's clock, so a start sent with it deletes only what was counted.
+		if response.Plan.ArchivedBefore != nil || !response.Plan.CountedAt.Equal(historyCleanupNow) {
+			t.Fatalf("plan = %+v, want no cutoff, counted at %v", response.Plan, historyCleanupNow)
 		}
-		// The daemon's clock, so a start pinned to it deletes only what was counted.
-		if response.Plan.ArchivedBefore == nil || !response.Plan.ArchivedBefore.Equal(historyCleanupNow) {
-			t.Fatalf("plan cutoff = %v, want the count's instant %v", response.Plan.ArchivedBefore, historyCleanupNow)
+		counted := response.Plan.CountedAt.Format(time.RFC3339Nano)
+		recorder = performHistoryCleanup(t, manager, historyCleanupBody(`,"counted_at":"`+counted+`"`), false)
+		if recorder.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+		}
+		if len(manager.starts) != 1 || manager.starts[0].CountedAt == nil ||
+			!manager.starts[0].CountedAt.Equal(historyCleanupNow) {
+			t.Fatalf("starts = %+v, want one fenced to the dry run's count", manager.starts)
 		}
 	})
 

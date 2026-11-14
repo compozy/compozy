@@ -104,21 +104,30 @@ export function cleanupRequest(
   }
 }
 
+/** What a dry run counted up to, on the daemon's clock. */
+export interface CleanupCount {
+  /** The range's resolved cutoff; absent for Any time. */
+  archivedBefore?: string;
+  /** The instant the dry run read the archive. */
+  countedAt: string;
+}
+
 /**
- * The start request for what the dialog counted: a relative range, and Any time, are pinned to
- * the cutoff the dry run counted up to, so a session archived after the count can't join the run.
- * A picked day is already a fixed cutoff.
+ * The start request for what the dialog counted. It is fenced to the dry run's count, so a session
+ * archived after it stays even when its main session goes; a relative range is pinned to the
+ * cutoff the dry run resolved. A picked day is already a fixed cutoff.
  */
 export function confirmedRequest(
   options: CleanupOptions,
   scope: CleanupScope,
-  previewCutoff: string | undefined
+  count: CleanupCount | undefined
 ): SessionHistoryCleanupRequest {
   const request = cleanupRequest(options, scope);
-  if (options.range === "before" || !previewCutoff) return request;
-  const pinned: SessionHistoryCleanupRequest = { ...request, archived_before: previewCutoff };
-  delete pinned.older_than_days;
-  return pinned;
+  if (!count) return request;
+  const fenced: SessionHistoryCleanupRequest = { ...request, counted_at: count.countedAt };
+  if (options.range === "before" || options.range === "all" || !count.archivedBefore) return fenced;
+  delete fenced.older_than_days;
+  return { ...fenced, archived_before: count.archivedBefore };
 }
 
 /** The run cleaned the list's own scope: the same project, or All projects. */

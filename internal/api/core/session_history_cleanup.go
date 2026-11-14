@@ -144,6 +144,10 @@ func (h *BaseHandlers) historyCleanupRequest(
 		},
 		RootIDs: body.SessionIDs,
 	}
+	if body.CountedAt != nil {
+		countedAt := body.CountedAt.UTC()
+		request.CountedAt = &countedAt
+	}
 	workspaceRef := strings.TrimSpace(body.WorkspaceID)
 	if (workspaceRef != "") == body.AllWorkspaces {
 		return request, http.StatusBadRequest, errors.New("choose exactly one workspace_id or all_workspaces")
@@ -203,14 +207,7 @@ func statusForHistoryCleanupError(err error) int {
 }
 
 // HistoryCleanupPlanPayload maps a plan to its wire shape.
-//
-// A plan with no cutoff (Any time) reports the instant it counted up to, on
-// the daemon's clock, so a client can pin its start to exactly what it showed.
 func HistoryCleanupPlanPayload(plan sessioncleanup.Plan, archivedBefore *time.Time) contract.SessionHistoryCleanupPlan {
-	if archivedBefore == nil && !plan.CountedAt.IsZero() {
-		countedAt := plan.CountedAt.UTC()
-		archivedBefore = &countedAt
-	}
 	workspaces := make([]contract.SessionHistoryCleanupWorkspace, 0, len(plan.Workspaces))
 	for _, item := range plan.Workspaces {
 		workspaces = append(workspaces, contract.SessionHistoryCleanupWorkspace{
@@ -220,6 +217,7 @@ func HistoryCleanupPlanPayload(plan sessioncleanup.Plan, archivedBefore *time.Ti
 	}
 	return contract.SessionHistoryCleanupPlan{
 		ArchivedBefore: archivedBefore,
+		CountedAt:      plan.CountedAt.UTC(),
 		Counts: contract.SessionHistoryCleanupCounts{
 			Sessions:  plan.Counts.Sessions,
 			Children:  plan.Counts.Children,

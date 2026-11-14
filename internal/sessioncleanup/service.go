@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -132,6 +133,9 @@ func (s *Service) Preview(ctx context.Context, request Request) (Plan, error) {
 		return Plan{}, err
 	}
 	countedAt := s.now()
+	if request.CountedAt != nil && request.CountedAt.Before(countedAt) {
+		countedAt = *request.CountedAt
+	}
 	rows, err := s.lister.ListSessionHistoryCleanupRows(ctx, store.SessionHistoryCleanupQuery{
 		ProfileID:     request.Scope.ProfileID,
 		WorkspaceID:   request.Scope.WorkspaceID,
@@ -140,14 +144,22 @@ func (s *Service) Preview(ctx context.Context, request Request) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	// Any time counts up to the instant it reports, so a start pinned to that
-	// instant deletes exactly what this preview counted.
-	if request.ArchivedBefore == nil {
-		request.ArchivedBefore = &countedAt
-	}
-	plan := BuildPlan(rows, request)
+	plan := BuildPlan(archivedAsOf(rows, countedAt), request)
 	plan.CountedAt = countedAt
 	return plan, nil
+}
+
+// archivedAsOf plans the archive as it stood at the count: a session archived
+// after it is still in the list then, so it stays with everything under it,
+// whether it would head a thread or follow its main session.
+func archivedAsOf(rows []store.SessionHistoryCleanupRow, countedAt time.Time) []store.SessionHistoryCleanupRow {
+	rows = slices.Clone(rows)
+	for i := range rows {
+		if rows[i].ArchivedAt != nil && rows[i].ArchivedAt.After(countedAt) {
+			rows[i].ArchivedAt = nil
+		}
+	}
+	return rows
 }
 
 // Start plans a cleanup and deletes it in the background. The plan is frozen:

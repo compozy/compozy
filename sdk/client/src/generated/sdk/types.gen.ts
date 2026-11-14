@@ -7801,6 +7801,7 @@ export type SessionHistoryCleanupFailure = {
 export type SessionHistoryCleanupPlan = {
   archived_before?: string | null;
   choices: SessionHistoryCleanupChoices;
+  counted_at: string;
   counts: SessionHistoryCleanupCounts;
   kept_live: number;
   threads: number;
@@ -7814,6 +7815,7 @@ export type SessionHistoryCleanupPreviewResponse = {
 export type SessionHistoryCleanupRequest = {
   all_workspaces?: boolean;
   archived_before?: string | null;
+  counted_at?: string | null;
   delete: SessionHistoryCleanupSelection;
   dry_run?: boolean;
   older_than_days?: number | null;
