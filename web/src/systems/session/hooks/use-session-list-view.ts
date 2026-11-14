@@ -27,6 +27,7 @@ import { useSessionCatalog } from "./use-session-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import {
   useSessionListGroups,
+  useSessionListArchivedCount,
   useSessionListLaterCount,
   useSessionListTotals,
   type SessionListTotals,
@@ -77,6 +78,8 @@ export interface SessionListViewModel {
   shelf: SessionListShelf;
   /** Sessions parked in Later across the list's scope; `undefined` until counted. */
   laterCount?: number;
+  /** Archived sessions across the list's scope, counted on the archive shelf only. */
+  archivedCount?: number;
   setSort: (sort: SessionListSort) => void;
   setGroupBy: (groupBy: SessionListGroupBy) => void;
   /** Project grouping also lists projects with no sessions in view (#1085); per window. */
@@ -108,6 +111,8 @@ export interface SessionListViewModel {
   scopeLabel: string | null;
   /** The list's one concrete scope: a workspace id or `@user`; `null` under All projects. */
   focusedWorkspaceId: string | null;
+  /** The list spans every project (and User scope). */
+  allProjects?: boolean;
   focusedScopeName: string;
   /** Resolves a row's owner tag. Only called while `aggregate` is true. */
   ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
@@ -239,6 +244,12 @@ export function useSessionListView(
     worktreeId: options.worktreeId,
     enabled,
   });
+  // The cleanup covers the whole scope, so its count ignores the worktree filter.
+  const archivedCount = useSessionListArchivedCount({
+    scope,
+    lens: profile.params,
+    enabled: enabled && shelf === "archive",
+  });
   const awaiting = awaitingReads(
     flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
     grouping.loading,
@@ -272,6 +283,7 @@ export function useSessionListView(
     newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth, groupBy),
     shelf,
     laterCount,
+    archivedCount,
     setSort: preferences.setSort,
     setGroupBy: preferences.setGroupBy,
     showEmptyProjects: sidebar.showEmptyProjects,
@@ -298,6 +310,7 @@ export function useSessionListView(
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
     focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
+    allProjects: breadth.allProjects,
     focusedScopeName: focusedScopeName(scope, workspaces),
     ownerOf: profile.ownerOf,
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,

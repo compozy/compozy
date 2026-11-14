@@ -9,7 +9,7 @@ import {
   TreeBranchNode,
 } from "@compozy/ui";
 
-import type { CleanupWhat } from "./archived-cleanup-model";
+import type { CleanupChoiceCounts, CleanupWhat } from "../../lib/archived-cleanup-model";
 
 export function CountBadge({ count }: { count: number }) {
   return (
@@ -66,7 +66,7 @@ export function WhatChecks({
   onChange,
 }: {
   what: CleanupWhat;
-  counts: Record<keyof CleanupWhat, number>;
+  counts: CleanupChoiceCounts;
   disabled: boolean;
   onChange: (next: Partial<CleanupWhat>) => void;
 }) {

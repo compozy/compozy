@@ -754,6 +754,34 @@ describe("useSessionCatalogStreams", () => {
     );
   });
 
+  // #1717: a history cleanup's progress names only its profile; the run rereads, the lists wait
+  // for the per-session `deleted` events.
+  it("Should reread the history cleanup run on its progress without waking the lists", () => {
+    const queryClient = createQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    renderHook(() => useSessionCatalogStreams({ eventSourceFactory: factory }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    act(() => {
+      source.emit("session_catalog_changed", {
+        kind: "history_cleanup",
+        profile_id: "default",
+        profile_name: "default",
+        workspace_id: "",
+        session_id: "",
+      });
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.historyCleanup() });
+    expect(invalidate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
+      expect.anything()
+    );
+  });
+
   it("Should bound catalog reads under continuous lifecycle activity and stop pending wakes on unmount", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();

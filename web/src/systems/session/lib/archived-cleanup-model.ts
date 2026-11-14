@@ -1,11 +1,14 @@
 /**
- * The decisions behind "Clean up history" (#1717), as pure functions over the archive the dialog
- * previews. The prototype computes the preview from fixtures; the implementation reads the same
- * numbers from the daemon's dry run, so the copy below is the contract either way.
+ * The decisions behind "Clean up history" (#1717), as pure functions over the daemon's dry run.
  *
  * Every number the dialog shows counts sessions removed: a child session and a subagent are
  * sessions too, so "Everything" is always at least as large as either of its parts.
  */
+import type {
+  SessionHistoryCleanupPlan,
+  SessionHistoryCleanupRequest,
+  SessionHistoryCleanupRun,
+} from "../adapters/session-history-cleanup-api";
 
 /**
  * What goes, as checks. `everything` deletes each picked main session with all it holds, so it
@@ -23,24 +26,6 @@ export interface CleanupWhat {
  * archived before a chosen day, or any. Recent history stays unless the person picks Any time.
  */
 export type CleanupRange = "7" | "15" | "30" | "before" | "all";
-
-/**
- * One row of the Archived list: an archived main session, with what hangs under it. Child
- * sessions and subagents follow their main session's archive date, never their own.
- */
-export interface ArchivedThread {
-  id: string;
-  title: string;
-  project: string;
-  /** Days since the main session was archived. */
-  archivedDaysAgo: number;
-  /** Archived child sessions under it (any depth). */
-  children: number;
-  /** Subagent sessions anywhere in its tree. */
-  subagents: number;
-  /** Child sessions still in the session list or in Later: never deleted. */
-  liveChildren: number;
-}
 
 export interface CleanupOptions {
   what: CleanupWhat;
@@ -75,6 +60,8 @@ export interface CleanupImpact {
   projects: readonly CleanupProjectImpact[];
 }
 
+export type CleanupChoiceCounts = Record<keyof CleanupWhat, number>;
+
 /** Above this many sessions the person types the count to confirm. */
 export const TYPED_CONFIRM_THRESHOLD = 100;
 
@@ -87,91 +74,84 @@ export const CLEANUP_RANGE_ITEMS: readonly { value: CleanupRange; label: string 
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const RANGE_DAYS = [7, 15, 30] as const;
 
-/** Whole days between `day` and now. */
-function daysAgo(day: Date, now: number): number {
-  return Math.floor((now - day.getTime()) / DAY_MS);
-}
+/** The list's scope the cleanup runs in: one workspace (or `@user`), or every one. */
+export type CleanupScope = { workspaceId: string } | { allWorkspaces: true };
 
-function inRange(thread: ArchivedThread, options: CleanupOptions, now: number): boolean {
+/** The dry-run and start body for the checks, the range, and the list's scope. */
+export function cleanupRequest(
+  options: CleanupOptions,
+  scope: CleanupScope,
+  sessionIds?: readonly string[]
+): SessionHistoryCleanupRequest {
+  const request: SessionHistoryCleanupRequest = {
+    ...("allWorkspaces" in scope ? { all_workspaces: true } : { workspace_id: scope.workspaceId }),
+    delete: options.what.everything
+      ? { everything: true, children: true, subagents: true }
+      : { ...options.what },
+  };
+  if (sessionIds && sessionIds.length > 0) request.session_ids = [...sessionIds];
   switch (options.range) {
     case "all":
-      return true;
+      return request;
     case "before":
-      return options.before !== null && thread.archivedDaysAgo > daysAgo(options.before, now);
+      return options.before
+        ? { ...request, archived_before: options.before.toISOString() }
+        : request;
     default:
-      return thread.archivedDaysAgo >= Number(options.range);
+      return { ...request, older_than_days: Number(options.range) };
   }
 }
 
-/** What one thread loses under the checks. */
-function threadImpact(thread: ArchivedThread, what: CleanupWhat) {
-  if (what.everything) {
-    return { sessions: 1, children: thread.children, subagents: thread.subagents };
-  }
-  return {
-    sessions: 0,
-    // A child session goes with its own subagents; they are counted with the child.
-    children: what.children ? thread.children : 0,
-    subagents: what.subagents ? thread.subagents : 0,
-  };
+/** The run's own checks and range, so a dialog reopened mid-run shows what is being deleted. */
+export function runCleanupOptions(run: SessionHistoryCleanupRun): CleanupOptions {
+  const what = run.delete.everything
+    ? { everything: true, children: true, subagents: true }
+    : { ...run.delete };
+  if (!run.archived_before) return { what, range: "all", before: null };
+  const before = new Date(run.archived_before);
+  const days = Math.round((new Date(run.started_at).getTime() - before.getTime()) / DAY_MS);
+  const preset = RANGE_DAYS.find(value => value === days);
+  return preset
+    ? { what, range: String(preset) as CleanupRange, before: null }
+    : { what, range: "before", before };
 }
 
-export function cleanupImpact(
-  threads: readonly ArchivedThread[],
-  options: CleanupOptions,
-  now = Date.now()
+/** The dry run as the dialog's impact; projects are named, busiest first. */
+export function cleanupImpactFromPlan(
+  plan: SessionHistoryCleanupPlan,
+  projectName: (workspaceId: string) => string
 ): CleanupImpact {
-  let sessions = 0;
-  let children = 0;
-  let subagents = 0;
-  let keptLive = 0;
-  const byProject = new Map<string, number>();
-  for (const thread of threads) {
-    if (!inRange(thread, options, now)) continue;
-    const impact = threadImpact(thread, options.what);
-    const deleted = impact.sessions + impact.children + impact.subagents;
-    if (deleted === 0) continue;
-    sessions += impact.sessions;
-    children += impact.children;
-    subagents += impact.subagents;
-    if (options.what.everything || options.what.children) keptLive += thread.liveChildren;
-    byProject.set(thread.project, (byProject.get(thread.project) ?? 0) + deleted);
-  }
-  const projects = [...byProject]
-    .map(([project, count]) => ({ project, sessions: count }))
-    .sort((a, b) => b.sessions - a.sessions || a.project.localeCompare(b.project));
   return {
-    sessions,
-    children,
-    subagents,
-    total: sessions + children + subagents,
-    keptLive,
-    projects,
+    sessions: plan.counts.sessions,
+    children: plan.counts.children,
+    subagents: plan.counts.subagents,
+    total: plan.counts.total,
+    keptLive: plan.kept_live,
+    projects: plan.workspaces.map(item => ({
+      project: projectName(item.workspace_id),
+      sessions: item.total,
+    })),
   };
 }
 
-/** Each check's own count in the chosen range: sessions it alone would remove. */
-export function cleanupChoiceCounts(
-  threads: readonly ArchivedThread[],
-  options: CleanupOptions,
-  now = Date.now()
-): Record<keyof CleanupWhat, number> {
-  const only = (what: Partial<CleanupWhat>) =>
-    cleanupImpact(
-      threads,
-      { ...options, what: { everything: false, children: false, subagents: false, ...what } },
-      now
-    ).total;
-  return {
-    everything: only({ everything: true }),
-    children: only({ children: true }),
-    subagents: only({ subagents: true }),
-  };
-}
+export const EMPTY_CLEANUP_IMPACT: CleanupImpact = {
+  sessions: 0,
+  children: 0,
+  subagents: 0,
+  total: 0,
+  keptLive: 0,
+  projects: [],
+};
 
 export function nothingChecked(what: CleanupWhat): boolean {
   return !what.everything && !what.children && !what.subagents;
+}
+
+/** Whether the options can be previewed at all: something checked, and a day when one is due. */
+export function cleanupPreviewable(options: CleanupOptions): boolean {
+  return !nothingChecked(options.what) && (options.range !== "before" || options.before !== null);
 }
 
 export function plural(count: number, one: string, many: string): string {
@@ -211,7 +191,7 @@ export function rangeKeeps(options: CleanupOptions): string {
 }
 
 /** The primary action carries the same number as the headline, so it doubles as confirmation. */
-export function cleanupActionLabel(impact: CleanupImpact): string {
+export function cleanupActionLabel(impact: Pick<CleanupImpact, "total">): string {
   return `Delete ${plural(impact.total, "session", "sessions")}`;
 }
 
@@ -256,29 +236,72 @@ export function emptyReason(options: CleanupOptions): string {
   return range ? `No session archived${range} has ${has}.` : `No archived session has ${has}.`;
 }
 
-/** The Archived list after a run: Everything removes rows; the other checks thin them. */
-export function cleanupRemaining(
-  threads: readonly ArchivedThread[],
-  options: CleanupOptions,
-  now = Date.now()
-): ArchivedThread[] {
-  if (options.what.everything) return threads.filter(thread => !inRange(thread, options, now));
-  return threads.map(thread => {
-    if (!inRange(thread, options, now)) return thread;
-    return {
-      ...thread,
-      children: options.what.children ? 0 : thread.children,
-      subagents: options.what.subagents ? 0 : thread.subagents,
-    };
-  });
+/** The success toast: what went, in one sentence. */
+export function deletedSentence(deleted: number, scopeName: string): string {
+  return `Deleted ${plural(deleted, "session", "sessions")} from ${scopeName}.`;
 }
 
-/** The success toast: what went, in one sentence. */
-export function deletedSentence(impact: CleanupImpact, scopeName: string): string {
-  return `Deleted ${plural(impact.total, "session", "sessions")} from ${scopeName}.`;
+/** The toast after a stop: what went before it stopped. */
+export function stoppedSentence(run: Pick<SessionHistoryCleanupRun, "deleted" | "total">): string {
+  return `Stopped after deleting ${run.deleted.toLocaleString()} of ${plural(run.total, "session", "sessions")}.`;
 }
 
 /** The typed confirmation matches when its digits spell the count, separators aside. */
 export function typedMatches(value: string, total: number): boolean {
   return value.replace(/\D/g, "") === String(total);
+}
+
+/** Where the run is: choosing, deleting, or how a failed run ended. Success closes the dialog. */
+export type CleanupPhase =
+  | { kind: "form" }
+  | { kind: "deleting"; done: number; total: number }
+  | {
+      kind: "partial";
+      /** Sessions the run set out to delete, and how many went. */
+      total: number;
+      deleted: number;
+      /** Every thread that kept sessions; `failed` lists the first 100 of them. */
+      failedThreads: number;
+      failed: readonly CleanupFailure[];
+    }
+  | { kind: "failed"; reason: string };
+
+export interface CleanupFailure {
+  sessionId: string;
+  title: string;
+  reason: string;
+}
+
+/**
+ * The dialog's phase for the profile's latest run. A finished run only shows when it kept
+ * sessions it meant to delete, stopped or not; otherwise it ended in a toast and the dialog
+ * returns to its form.
+ */
+export function cleanupPhase(run: SessionHistoryCleanupRun | null | undefined): CleanupPhase {
+  if (!run) return { kind: "form" };
+  switch (run.state) {
+    case "running":
+      return { kind: "deleting", done: run.done, total: run.total };
+    case "partial":
+    case "stopped":
+      if (run.failures.length === 0) return { kind: "form" };
+      return {
+        kind: "partial",
+        total: run.total,
+        deleted: run.deleted,
+        failedThreads: Math.max(run.failed_threads, run.failures.length),
+        failed: run.failures.map(failure => ({
+          sessionId: failure.session_id,
+          title: failure.title || failure.session_id,
+          reason: failure.message,
+        })),
+      };
+    case "failed":
+      return {
+        kind: "failed",
+        reason: run.failures[0]?.message ?? "The sessions couldn’t be deleted.",
+      };
+    default:
+      return { kind: "form" };
+  }
 }

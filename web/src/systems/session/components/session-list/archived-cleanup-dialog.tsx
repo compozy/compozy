@@ -27,36 +27,21 @@ import {
 
 import {
   CLEANUP_RANGE_ITEMS,
-  DEFAULT_CLEANUP_OPTIONS,
   TYPED_CONFIRM_THRESHOLD,
   cleanupActionLabel,
-  cleanupChoiceCounts,
   cleanupDetail,
   cleanupHeadline,
-  cleanupImpact,
   emptyReason,
   formatCleanupDay,
-  rangeKeeps,
   plural,
-  type ArchivedThread,
+  rangeKeeps,
+  typedMatches,
+  type CleanupChoiceCounts,
   type CleanupImpact,
   type CleanupOptions,
-  typedMatches,
-} from "./archived-cleanup-model";
+  type CleanupPhase,
+} from "../../lib/archived-cleanup-model";
 import { CountBadge, TypedConfirm, WhatChecks } from "./archived-cleanup-fields";
-
-/** Where the run is: choosing, deleting, or how a failed run ended. Success closes the dialog. */
-export type CleanupPhase =
-  | { kind: "form" }
-  | { kind: "deleting"; done: number }
-  | {
-      kind: "partial";
-      /** Main sessions the run set out to delete, and how many went. */
-      total: number;
-      deleted: number;
-      failed: readonly { title: string; reason: string }[];
-    }
-  | { kind: "failed"; reason: string };
 
 export interface ArchivedCleanupDialogProps {
   open: boolean;
@@ -65,11 +50,23 @@ export interface ArchivedCleanupDialogProps {
   scopeName: string;
   /** All projects: the preview breaks the count down per project. */
   acrossProjects?: boolean;
-  /** The archive in the list's scope; the implementation reads the dry run instead. */
-  archive: readonly ArchivedThread[];
-  initialOptions?: Partial<CleanupOptions>;
+  options: CleanupOptions;
+  onOptionsChange: (options: CleanupOptions) => void;
+  /** The daemon's dry run for `options`; `undefined` while the first one loads. */
+  impact?: CleanupImpact;
+  /** Each check's own count in the chosen range. */
+  counts: CleanupChoiceCounts;
+  /**
+   * A dry run for the current choices is in flight: the count on screen may be the previous
+   * choice's, so the action waits for the new one.
+   */
+  counting?: boolean;
+  /** The dry run failed; the preview says so and the action stays off. */
+  previewError?: string | null;
   phase: CleanupPhase;
-  onConfirm: (options: CleanupOptions) => void;
+  /** The start request is in flight. */
+  starting?: boolean;
+  onConfirm: () => void;
   onRetry?: () => void;
   /** Stops a running cleanup after the sessions in flight; what went stays gone. */
   onStop?: () => void;
@@ -102,12 +99,31 @@ function ProjectBreakdown({ impact }: { impact: CleanupImpact }) {
 function ImpactPreview({
   options,
   impact,
+  error,
   acrossProjects,
 }: {
   options: CleanupOptions;
-  impact: CleanupImpact;
+  impact?: CleanupImpact;
+  error?: string | null;
   acrossProjects: boolean;
 }) {
+  if (error) {
+    return (
+      <Alert data-testid="archived-cleanup-preview" role="status" variant="destructive">
+        <Info />
+        <AlertTitle>Couldn’t count archived sessions</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
+  if (!impact) {
+    return (
+      <Alert data-testid="archived-cleanup-preview" role="status">
+        <Spinner />
+        <AlertTitle>Counting archived sessions…</AlertTitle>
+      </Alert>
+    );
+  }
   if (impact.total === 0) {
     return (
       <Alert data-testid="archived-cleanup-preview" role="status">
@@ -149,36 +165,36 @@ function DeletingProgress({ done, total }: { done: number; total: number }) {
 }
 
 function CleanupForm({
-  archive,
   scopeName,
   acrossProjects,
-  initialOptions,
+  options,
+  onOptionsChange,
+  impact,
+  counts,
+  counting,
+  previewError,
   phase,
+  starting,
   onCancel,
   onConfirm,
   onStop,
-}: {
-  archive: readonly ArchivedThread[];
-  scopeName: string;
+}: Omit<ArchivedCleanupDialogProps, "open" | "onOpenChange" | "phase" | "onRetry"> & {
   acrossProjects: boolean;
-  initialOptions?: Partial<CleanupOptions>;
   phase: Extract<CleanupPhase, { kind: "form" | "deleting" }>;
   onCancel: () => void;
-  onConfirm: (options: CleanupOptions) => void;
-  onStop?: () => void;
 }) {
-  const [options, setOptions] = useState<CleanupOptions>(() => ({
-    ...DEFAULT_CLEANUP_OPTIONS,
-    ...initialOptions,
-  }));
   const [typed, setTyped] = useState("");
   const deleting = phase.kind === "deleting";
-  const impact = cleanupImpact(archive, options);
-  const counts = cleanupChoiceCounts(archive, options);
-  const needsTyping = impact.total > TYPED_CONFIRM_THRESHOLD;
-  const ready = impact.total > 0 && (!needsTyping || typedMatches(typed, impact.total));
-  const update = (next: Partial<CleanupOptions>) =>
-    setOptions(current => ({ ...current, ...next }));
+  const locked = deleting || starting === true;
+  const total = impact?.total ?? 0;
+  const needsTyping = total > TYPED_CONFIRM_THRESHOLD;
+  const ready =
+    !locked &&
+    !counting &&
+    !previewError &&
+    total > 0 &&
+    (!needsTyping || typedMatches(typed, total));
+  const update = (next: Partial<CleanupOptions>) => onOptionsChange({ ...options, ...next });
 
   return (
     <form
@@ -186,7 +202,7 @@ function CleanupForm({
       noValidate
       onSubmit={event => {
         event.preventDefault();
-        if (!deleting && ready) onConfirm(options);
+        if (ready) onConfirm();
       }}
     >
       <DialogHeader>
@@ -203,7 +219,7 @@ function CleanupForm({
         </FieldLegend>
         <WhatChecks
           counts={counts}
-          disabled={deleting}
+          disabled={locked}
           onChange={next => update({ what: { ...options.what, ...next } })}
           what={options.what}
         />
@@ -216,7 +232,7 @@ function CleanupForm({
           data-testid="archived-cleanup-range"
           items={CLEANUP_RANGE_ITEMS.map(item => ({
             ...item,
-            disabled: deleting,
+            disabled: locked,
             testId: `archived-cleanup-range-${item.value}`,
           }))}
           onChange={range => update({ range })}
@@ -228,7 +244,7 @@ function CleanupForm({
             className="mt-1"
             data-testid="archived-cleanup-before"
             defaultTime={[0, 0]}
-            disabled={deleting}
+            disabled={locked}
             formatValue={day => `Before ${formatCleanupDay(day)}`}
             id="archived-cleanup-before"
             onValueChange={before => update({ before })}
@@ -242,15 +258,18 @@ function CleanupForm({
       </Field>
       {deleting ? (
         <Field>
-          <DeletingProgress done={phase.done} total={impact.total} />
+          <DeletingProgress done={phase.done} total={phase.total} />
           <FieldDescription>It keeps going if you close this.</FieldDescription>
         </Field>
       ) : (
         <>
-          <ImpactPreview acrossProjects={acrossProjects} impact={impact} options={options} />
-          {needsTyping ? (
-            <TypedConfirm onChange={setTyped} total={impact.total} value={typed} />
-          ) : null}
+          <ImpactPreview
+            acrossProjects={acrossProjects}
+            error={previewError}
+            impact={impact}
+            options={options}
+          />
+          {needsTyping ? <TypedConfirm onChange={setTyped} total={total} value={typed} /> : null}
         </>
       )}
       <DialogFooter className="gap-2">
@@ -290,8 +309,12 @@ function CleanupForm({
               type="submit"
               variant="destructive"
             >
-              <Trash2 className="size-3" />
-              {impact.total === 0 ? "Delete" : cleanupActionLabel(impact)}
+              {starting || counting ? (
+                <Spinner className="size-3" />
+              ) : (
+                <Trash2 className="size-3" />
+              )}
+              {total === 0 ? "Delete" : cleanupActionLabel({ total })}
             </Button>
           </>
         )}
@@ -326,6 +349,55 @@ function CleanupOutcome({
   );
 }
 
+function PartialOutcome({
+  phase,
+  starting,
+  onClose,
+  onRetry,
+}: {
+  phase: Extract<CleanupPhase, { kind: "partial" }>;
+  starting?: boolean;
+  onClose: () => void;
+  onRetry?: () => void;
+}) {
+  const failed = phase.failedThreads;
+  const listed = phase.failed.length;
+  return (
+    <CleanupOutcome
+      actions={
+        <>
+          <Button onClick={onClose} variant="ghost">
+            Close
+          </Button>
+          <Button
+            data-testid="archived-cleanup-retry"
+            disabled={starting}
+            onClick={onRetry}
+            variant="destructive"
+          >
+            {starting ? <Spinner className="size-3" /> : <RotateCcw className="size-3" />}
+            Try {listed} again
+          </Button>
+        </>
+      }
+      description={`Deleted ${phase.deleted.toLocaleString()} of ${plural(phase.total, "session", "sessions")}. ${plural(failed, "archived session stays", "archived sessions stay")} in Archived with everything under ${failed === 1 ? "it" : "them"}.`}
+      title="Some sessions weren’t deleted"
+    >
+      <ul
+        className="flex max-h-60 flex-col gap-1.5 overflow-y-auto rounded-lg bg-surface-2 px-3.5 py-3"
+        data-testid="archived-cleanup-failures"
+      >
+        {phase.failed.map(item => (
+          <li className="flex min-w-0 flex-col gap-0.5" key={item.sessionId}>
+            <span className="truncate text-small-body text-fg">{item.title}</span>
+            <span className="text-meta text-destructive">{item.reason}</span>
+          </li>
+        ))}
+      </ul>
+    </CleanupOutcome>
+  );
+}
+
 /**
  * "Clean up history" for the Archived list: what to delete, from when, and a live count of what
  * goes. The count-bearing destructive action confirms; past 100 sessions the person types the
@@ -334,50 +406,23 @@ function CleanupOutcome({
 export function ArchivedCleanupDialog({
   open,
   onOpenChange,
-  scopeName,
   acrossProjects = false,
-  archive,
-  initialOptions,
   phase,
-  onConfirm,
   onRetry,
-  onStop,
+  ...form
 }: ArchivedCleanupDialogProps) {
   const close = () => onOpenChange(false);
   const body = (() => {
     switch (phase.kind) {
-      case "partial": {
-        const failed = phase.failed.length;
+      case "partial":
         return (
-          <CleanupOutcome
-            actions={
-              <>
-                <Button onClick={close} variant="ghost">
-                  Close
-                </Button>
-                <Button onClick={onRetry} variant="destructive">
-                  <RotateCcw className="size-3" />
-                  Try {failed} again
-                </Button>
-              </>
-            }
-            description={`Deleted ${phase.deleted.toLocaleString()} of ${plural(phase.total, "session", "sessions")}. ${plural(failed, "archived session stays", "archived sessions stay")} in Archived with everything under ${failed === 1 ? "it" : "them"}.`}
-            title="Some sessions weren’t deleted"
-          >
-            <ul
-              className="flex flex-col gap-1.5 rounded-lg bg-surface-2 px-3.5 py-3"
-              data-testid="archived-cleanup-failures"
-            >
-              {phase.failed.map(item => (
-                <li className="flex min-w-0 flex-col gap-0.5" key={item.title}>
-                  <span className="truncate text-small-body text-fg">{item.title}</span>
-                  <span className="text-meta text-destructive">{item.reason}</span>
-                </li>
-              ))}
-            </ul>
-          </CleanupOutcome>
+          <PartialOutcome
+            onClose={close}
+            onRetry={onRetry}
+            phase={phase}
+            starting={form.starting}
+          />
         );
-      }
       case "failed":
         return (
           <CleanupOutcome
@@ -386,7 +431,12 @@ export function ArchivedCleanupDialog({
                 <Button onClick={close} variant="ghost">
                   Cancel
                 </Button>
-                <Button onClick={onRetry} variant="destructive">
+                <Button
+                  data-testid="archived-cleanup-retry"
+                  disabled={form.starting}
+                  onClick={onRetry}
+                  variant="destructive"
+                >
                   <RotateCcw className="size-3" />
                   Try again
                 </Button>
@@ -398,16 +448,7 @@ export function ArchivedCleanupDialog({
         );
       default:
         return (
-          <CleanupForm
-            acrossProjects={acrossProjects}
-            archive={archive}
-            initialOptions={initialOptions}
-            onCancel={close}
-            onConfirm={onConfirm}
-            onStop={onStop}
-            phase={phase}
-            scopeName={scopeName}
-          />
+          <CleanupForm {...form} acrossProjects={acrossProjects} onCancel={close} phase={phase} />
         );
     }
   })();
