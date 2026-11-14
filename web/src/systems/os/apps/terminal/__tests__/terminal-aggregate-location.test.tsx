@@ -8,14 +8,15 @@
 // reads as gone, with the launcher one secondary action away.
 // Boundary IN: TerminalAggregateLocation's launcher states.
 // Boundary OUT: catalog streaming and window retargeting (use-terminal-window-controller-state.test.ts).
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { createTerminal } from "@/systems/terminal";
+import { createTerminal, terminalKeys } from "@/systems/terminal";
 import { TERMINAL_FIXTURES } from "@/systems/terminal/mocks/terminal-fixtures";
 
+import { terminalWindowCreateKey } from "../../../lib/terminal-window-close";
 import { TerminalAggregateLocation } from "../terminal-aggregate-location";
 
 vi.mock("@/systems/terminal", async importOriginal => ({
@@ -58,7 +59,7 @@ function renderLocation(
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   });
-  return { ...view, props };
+  return { ...view, props, client };
 }
 
 describe("TerminalAggregateLocation", () => {
@@ -347,6 +348,37 @@ describe("TerminalAggregateLocation", () => {
     });
 
     expect(screen.queryByTestId("terminal-launcher-new-ws-atlas/wt-feature")).toBeNull();
+  });
+
+  it("Should show a created terminal and release the window while catalog refreshes stall", async () => {
+    // #1712 review: refreshing the lists must not gate showing the new terminal, nor keep
+    // its creation pending — the close guard holds the window while it is.
+    const terminal = { ...TERMINAL_FIXTURES[0], id: "term-new", workspace_id: "ws-atlas" };
+    vi.mocked(createTerminal).mockResolvedValueOnce(terminal);
+    const { props, client } = renderLocation({}, { data: [], isPending: false });
+    const stalled = new QueryObserver(client, {
+      queryKey: terminalKeys.aggregate("", "default"),
+      queryFn: () => new Promise<never>(() => {}),
+      initialData: [],
+      staleTime: Number.POSITIVE_INFINITY,
+    });
+    const unsubscribe = stalled.subscribe(() => {});
+
+    fireEvent.click(screen.getByTestId("terminal-launcher-new-ws-atlas"));
+
+    await waitFor(() =>
+      expect(props.coordinator.userRetarget).toHaveBeenCalledWith(
+        "win-1",
+        expect.objectContaining({ instanceKey: "term-new" })
+      )
+    );
+    await waitFor(() =>
+      expect(client.isMutating({ mutationKey: terminalWindowCreateKey("win-1") })).toBe(0)
+    );
+    expect(client.getQueryState(terminalKeys.aggregate("", "default"))?.fetchStatus).toBe(
+      "fetching"
+    );
+    unsubscribe();
   });
 
   it("Should open a worktree row's terminal in that worktree and bind the window to its project", async () => {
