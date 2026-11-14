@@ -61,7 +61,7 @@ func readSessionAttachmentBytesOperationSpec() OperationSpec {
 				Status:      200,
 				Description: "Attachment bytes",
 				Body:        binaryResponse{},
-				ContentType: "*/*",
+				ContentType: specBinaryContentType,
 			},
 			{Status: 400, Description: "Invalid attachment id", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},

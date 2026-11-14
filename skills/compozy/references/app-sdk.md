@@ -104,6 +104,16 @@ files (`.env`, keys, credentials, and in-root symlinks to them) as `sensitive: t
 reveal. User-scope sessions return `409 root_unavailable`, and sessions or workspaces outside the
 token's profile read scope return `404`.
 
+Raw file bytes are app-access reads too: `readFileBytes`
+(`/api/workspaces/{workspace_id}/files/raw/{path}`), `readWorktreeFileBytes`
+(`.../worktrees/{worktree_id}/files/raw/{path}`), and `readSessionFileBytes`
+(`.../sessions/{session_id}/files/raw/{path}`). The root-relative path is the URL suffix, so a
+document's relative assets resolve in the same root. They support `Range` and `If-None-Match`, type
+content by extension only (HTML, JS, and XML download as `application/octet-stream`), send a
+sandboxing `Content-Security-Policy`, and always refuse sensitive files with `403 sensitive_file`.
+Over HTTP, a browser request whose `Sec-Fetch-Site` is `cross-site` or `same-site` is refused unless
+it carries an app token, so an app reads bytes with an authenticated `fetch`, not a bare `<img src>`.
+
 Revocation rejects authentication with `app_token_revoked` and closes its open streams within five
 seconds. A foreign browser can read that 401 only while another active token still allows its origin.
 If revocation removes the last grant, preflight is denied and responses lack the CORS grant; browser

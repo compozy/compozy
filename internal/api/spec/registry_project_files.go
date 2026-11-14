@@ -58,3 +58,60 @@ func registryProjectFileOperations() []OperationSpec {
 	}
 	return operations
 }
+
+// registryProjectFileBytesOperations documents raw file streams. The file path is a trailing
+// path suffix, so relative assets of a previewed document resolve inside the same root.
+func registryProjectFileBytesOperations() []OperationSpec {
+	const workspace = "/api/workspaces/{workspace_id}"
+	forms := []struct {
+		route, id, summary string
+		scope              []ParameterSpec
+	}{
+		{workspace, "readFileBytes", "Stream project file bytes", nil},
+		{
+			workspace + "/worktrees/{worktree_id}", "readWorktreeFileBytes", "Stream worktree file bytes",
+			[]ParameterSpec{pathParam("worktree_id", "Worktree id")},
+		},
+		{
+			workspace + "/sessions/{session_id}", "readSessionFileBytes", "Stream session file bytes",
+			[]ParameterSpec{pathParam("session_id", "Session id")},
+		},
+	}
+	operations := make([]OperationSpec, 0, len(forms))
+	for _, form := range forms {
+		params := append([]ParameterSpec{pathParam("workspace_id", "Workspace id")}, form.scope...)
+		params = append(params, pathParam("path", "Root-relative file path; its slashes are path segments"))
+		responses := []ResponseSpec{
+			{Status: 200, Description: "File bytes", Body: binaryResponse{}, ContentType: specBinaryContentType},
+			{
+				Status:      206,
+				Description: "Requested byte range",
+				Body:        binaryResponse{},
+				ContentType: specBinaryContentType,
+			},
+			{Status: 304, Description: "File unchanged since the supplied validator"},
+		}
+		for _, status := range []int{400, 403, 404, 409, 422, 500} {
+			responses = append(
+				responses,
+				ResponseSpec{Status: status, Description: "File operation failed", Body: contract.ErrorPayload{}},
+			)
+		}
+		responses = append(responses, ResponseSpec{Status: 416, Description: "Requested range not satisfiable"})
+		operations = append(
+			operations,
+			OperationSpec{
+				Method:      httpMethodGet,
+				Path:        form.route + "/files/raw/{path}",
+				OperationID: form.id,
+				Summary:     form.summary,
+				AppAccess:   AppAccessAllowed,
+				Tags:        []string{specWorkspacesKey},
+				Transports:  []Transport{TransportHTTP, TransportUDS},
+				Parameters:  withProfileScope(params...),
+				Responses:   responses,
+			},
+		)
+	}
+	return operations
+}

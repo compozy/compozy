@@ -29,6 +29,7 @@ func ExpectedWorktreeRouteKeys() []string {
 		"GET /api/workspaces/:workspace_id/worktrees",
 		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id",
 		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/exit",
+		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/files/raw/*path",
 		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/status",
 		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/stream",
 		"GET /api/worktrees/catalog-stream",

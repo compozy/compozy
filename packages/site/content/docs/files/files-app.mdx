@@ -49,3 +49,9 @@ The window reads the project form of the file routes, such as
 `GET /api/workspaces/{workspace_id}/files/entries` and
 `GET /api/workspaces/{workspace_id}/files/content`, with `worktree_id` for a worktree root. See the
 [Workspaces API reference](/docs/api/workspaces).
+
+Previews load a file's bytes from `GET /api/workspaces/{workspace_id}/files/raw/{path}`, or
+`/worktrees/{worktree_id}/files/raw/{path}` for a worktree. The file path stays part of the URL, so
+an image a Markdown or HTML file links as `./img.png` loads from the same folder. These routes
+answer byte ranges, so video and audio can seek, and they refuse sensitive files with
+`403 sensitive_file`.

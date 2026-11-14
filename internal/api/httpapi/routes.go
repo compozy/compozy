@@ -66,6 +66,12 @@ func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaces.GET("/:workspace_id/files/find", handlers.FindFiles)
 	workspaces.GET("/:workspace_id/files/search", handlers.SearchFileContents)
 	workspaces.GET("/:workspace_id/files/content", handlers.ReadFileContent)
+	workspaces.GET("/:workspace_id/files/raw/*path", sameOriginFetchGuard, handlers.ReadFileBytes)
+	workspaces.GET(
+		"/:workspace_id/worktrees/:worktree_id/files/raw/*path",
+		sameOriginFetchGuard,
+		handlers.ReadWorktreeFileBytes,
+	)
 	workspaces.PATCH("/:workspace_id", handlers.UpdateWorkspace)
 	workspaces.DELETE("/:workspace_id", handlers.DeleteWorkspace)
 	workspaces.POST("/:workspace_id/archive", handlers.ArchiveWorkspace)

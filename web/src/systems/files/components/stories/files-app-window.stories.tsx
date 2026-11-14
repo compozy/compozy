@@ -99,3 +99,79 @@ export const Narrow: Story = {
 };
 
 export const NarrowLight: Story = { ...Narrow, globals: { theme: "light" } };
+
+/** #1605: Markdown opens rendered, with Source / Preview / Split in the viewer header. */
+export const MarkdownPreview: Story = {
+  tags: ["play-fn"],
+  beforeEach: () => placeFile("docs/guide.md"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const preview = await canvas.findByTestId("file-viewer-markdown-preview");
+    await waitFor(() =>
+      expect(within(preview).getByRole("heading", { name: "File explorer" })).toBeVisible()
+    );
+    expect(preview.querySelector("table")).not.toBeNull();
+    expect(canvas.getByTestId("file-viewer-mode-preview")).toHaveAttribute("aria-pressed", "true");
+  },
+};
+
+export const MarkdownSplit: Story = {
+  tags: ["play-fn"],
+  beforeEach: () => placeFile("docs/guide.md"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    (await canvas.findByTestId("file-viewer-mode-split")).click();
+    await waitFor(() => expect(canvas.getByTestId("file-viewer-split")).toBeVisible());
+    expect(canvas.getByTestId("file-viewer-text")).toBeVisible();
+    (await canvas.findByTestId("file-viewer-mode-preview")).click();
+  },
+};
+
+export const CsvPreview: Story = {
+  beforeEach: () => placeFile("docs/people.csv"),
+};
+
+export const LargeCsvPreview: Story = {
+  beforeEach: () => placeFile("docs/metrics.csv"),
+};
+
+export const PdfPreview: Story = {
+  tags: ["play-fn"],
+  beforeEach: () => placeFile("docs/report.pdf"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const pdf = await canvas.findByTestId("file-viewer-pdf", undefined, { timeout: 10_000 });
+    await waitFor(() => expect(pdf).toHaveAttribute("data-page-count", "2"), { timeout: 10_000 });
+  },
+};
+
+export const VideoPreview: Story = {
+  tags: ["play-fn"],
+  beforeEach: () => placeFile("docs/demo.webm"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const video = await canvas.findByTestId("file-viewer-video");
+    await waitFor(() => expect(video).toHaveTextContent("0:03"), { timeout: 10_000 });
+  },
+};
+
+export const AudioPreview: Story = {
+  beforeEach: () => placeFile("docs/chime.mp3"),
+};
+
+export const LargeImagePreview: Story = {
+  beforeEach: () => placeFile("docs/skyline.png"),
+};
+
+export const HtmlPreview: Story = {
+  beforeEach: () => placeFile("docs/page.html"),
+};
+
+export const NotebookPreview: Story = {
+  beforeEach: () => placeFile("docs/analysis.ipynb"),
+};
+
+export const MarkdownPreviewLight: Story = {
+  ...MarkdownPreview,
+  globals: { theme: "light" },
+};

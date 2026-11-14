@@ -6,10 +6,12 @@ import { cn } from "../../lib/utils";
 import { imageDataUrl } from "./image-data-url";
 
 export interface FileImagePreviewProps extends Omit<React.ComponentProps<"figure">, "children"> {
-  /** Base64 image bytes. */
-  data: string;
-  /** png, jpeg, gif, webp, or svg+xml; anything else renders `fallback`. */
-  mimeType: string;
+  /** Base64 image bytes; ignored when `src` is set. */
+  data?: string;
+  /** png, jpeg, gif, webp, or svg+xml; anything else renders `fallback`. Ignored when `src` is set. */
+  mimeType?: string;
+  /** Same-origin URL of the image, for files too large to inline as `data`. */
+  src?: string;
   alt: string;
   /** Rendered when the type is not previewable or the payload is invalid. */
   fallback?: React.ReactNode;
@@ -24,18 +26,20 @@ interface ImageSize {
 
 /** Centered image preview that never inlines SVG markup, captioned with its dimensions. */
 function FileImagePreview({
-  data,
-  mimeType,
+  data = "",
+  mimeType = "",
+  src: url,
   alt,
   fallback = null,
   meta,
   className,
   ...props
 }: FileImagePreviewProps) {
-  const src = imageDataUrl(mimeType, data);
+  const src = url ?? imageDataUrl(mimeType, data);
+  const [failed, setFailed] = React.useState<string | null>(null);
   // Dimensions come from the decoded image, so they are known only once it loads.
   const [size, setSize] = React.useState<{ src: string; size: ImageSize } | null>(null);
-  if (!src) return fallback;
+  if (!src || failed === src) return fallback;
   const loaded = size?.src === src ? size.size : null;
   const caption = [loaded ? `${loaded.width} × ${loaded.height}` : null, meta].filter(
     part => part !== null && part !== undefined && part !== ""
@@ -58,6 +62,7 @@ function FileImagePreview({
             setSize({ src, size: { width: image.naturalWidth, height: image.naturalHeight } });
           }
         }}
+        onError={() => setFailed(src)}
         className="min-h-0 max-w-full object-contain"
       />
       {caption.length > 0 ? (

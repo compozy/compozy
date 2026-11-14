@@ -35,6 +35,7 @@ func buildOperationRegistry() []OperationSpec {
 		registryProfileOperations(),
 		registryWorkspaceOperations(),
 		registryProjectFileOperations(),
+		registryProjectFileBytesOperations(),
 		registryProjectSearchOperations(),
 		registryProjectChangeOperations(),
 		registryWorktreeOperations(),

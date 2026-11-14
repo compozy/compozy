@@ -323,7 +323,8 @@
             "files": [
                 "web/src/components/assistant-ui/hooks/use-thread-scroll-controller.ts",
                 "web/src/systems/os/hooks/use-palette-grid-virtualizer.ts",
-                "web/src/systems/files/hooks/use-files-search-results.ts"
+                "web/src/systems/files/hooks/use-files-search-results.ts",
+                "packages/ui/src/components/files/hooks/use-table-virtualizer.ts"
             ],
             "rules": {
                 "react/incompatible-library": "off"

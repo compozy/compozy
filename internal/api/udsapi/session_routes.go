@@ -124,6 +124,7 @@ func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers
 	workspaceSessions.GET("/:session_id/files/find", handlers.FindSessionFiles)
 	workspaceSessions.GET("/:session_id/files/search", handlers.SearchSessionFileContents)
 	workspaceSessions.GET("/:session_id/files/content", handlers.ReadSessionFileContent)
+	workspaceSessions.GET("/:session_id/files/raw/*path", handlers.ReadSessionFileBytes)
 	workspaceSessions.GET("/:session_id/changes", handlers.GetSessionChanges)
 	workspaceSessions.GET("/:session_id/changes/patches", handlers.GetSessionChangePatches)
 	workspaceSessions.GET("/:session_id/changes/contents", handlers.GetSessionChangeContents)

@@ -117,6 +117,8 @@ func TestWorkspaceSessionProfileFenceHTTPUDSTransportParity(t *testing.T) {
 		{"session find foreign read", http.MethodGet, route + "/files/find?q=aa&profile=default", "", http.StatusNotFound},
 		{"session search foreign read", http.MethodGet, route + "/files/search?q=aa&profile=default", "", http.StatusNotFound},
 		{"file content foreign read", http.MethodGet, route + "/files/content?path=a&profile=default", "", http.StatusNotFound},
+		{"workspace raw bytes foreign worktree read", http.MethodGet, "/api/workspaces/ws-public/worktrees/foreign/files/raw/a?profile=default", "", http.StatusNotFound},
+		{"session raw bytes foreign read", http.MethodGet, route + "/files/raw/a?profile=default", "", http.StatusNotFound},
 		{"changes summary foreign read", http.MethodGet, route + "/changes?profile=default", "", http.StatusNotFound},
 		{"changes patches foreign read", http.MethodGet, route + "/changes/patches?profile=default", "", http.StatusNotFound},
 		{"changes contents foreign read", http.MethodGet, route + "/changes/contents?profile=default", "", http.StatusNotFound},

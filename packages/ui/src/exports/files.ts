@@ -34,3 +34,23 @@ export {
   CodeHighlightPoolProvider,
   type CodeHighlightPoolProviderProps,
 } from "../components/files/code-highlight-pool";
+export {
+  FileTablePreview,
+  type FileTablePreviewProps,
+} from "../components/files/file-table-preview";
+export {
+  delimiterForPath,
+  parseDelimited,
+  type DelimitedTable,
+} from "../components/files/delimited-text";
+export { FileHtmlPreview, type FileHtmlPreviewProps } from "../components/files/file-html-preview";
+export { prepareHtmlPreview } from "../components/files/html-preview-document";
+export {
+  FileMediaPreview,
+  type FileMediaPreviewProps,
+} from "../components/files/file-media-preview";
+export { FilePdfPreview, type FilePdfPreviewProps } from "../components/files/file-pdf-preview";
+export {
+  FileNotebookPreview,
+  type FileNotebookPreviewProps,
+} from "../components/files/file-notebook-preview";
