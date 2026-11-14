@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -150,6 +151,39 @@ func (s *daemonExtensionService) applyManifestInstallScope(
 	}
 	request.Scope = defaultScope
 	return s.resolveExtensionScope(ctx, request.Scope, request.WorkspaceID, request.Profile, actor)
+}
+
+// A replacement rewrites the single name-keyed package every attachment resolves, so a
+// caller outside operator authority may only replace a package attached to its own workspace.
+func (s *daemonExtensionService) authorizeExtensionReplace(
+	ctx context.Context, name string, actor taskpkg.ActorContext,
+) error {
+	if actor.Scope.Operator {
+		return nil
+	}
+	if _, err := s.registry.Get(name); err != nil {
+		if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			return nil
+		}
+		return err
+	}
+	workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
+	if workspaceID == "" {
+		return taskpkg.ErrPermissionDenied
+	}
+	attachments, err := s.registry.Installations(ctx, name)
+	if err != nil {
+		return err
+	}
+	if len(attachments) == 0 {
+		return taskpkg.ErrPermissionDenied
+	}
+	for _, attachment := range attachments {
+		if strings.TrimSpace(attachment.Scope.WorkspaceID) != workspaceID {
+			return taskpkg.ErrPermissionDenied
+		}
+	}
+	return nil
 }
 
 func extensionMutationKeys(names []string, target extensionMutationTarget) []extensionpkg.InstanceKey {
