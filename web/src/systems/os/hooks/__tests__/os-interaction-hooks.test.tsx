@@ -432,7 +432,7 @@ describe("desktop chrome projection subscriptions", () => {
         {
           id: primary.tabId,
           pinned: false,
-          root: { id: primary.nodeId, kind: "leaf" as const, windowId: primary.id },
+          root: leafNode(primary.id),
         },
       ],
       activeTabId: primary.tabId,
