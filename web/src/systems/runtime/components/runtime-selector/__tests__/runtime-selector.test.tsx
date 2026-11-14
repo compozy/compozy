@@ -418,6 +418,30 @@ describe("RuntimeSelector reasoning reset-on-switch", () => {
     });
   });
 
+  it("Should not fall back to a configuration coordinate outside the advertised ceiling", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "with-medium", reasoning_effort: "medium" },
+      models: [
+        model("with-medium", { name: "With Medium", efforts: ["low", "medium", "high"] }),
+        model("disjoint", {
+          name: "Disjoint",
+          efforts: ["low"],
+          configurations: [{ reasoning_effort: "medium" }],
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.click(row("disjoint"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "disjoint",
+      reasoning_effort: "",
+    });
+  });
+
   it("Should keep the current reasoning_effort when the picked model still supports it", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({

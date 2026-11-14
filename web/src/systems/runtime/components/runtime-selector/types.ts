@@ -99,16 +99,18 @@ export interface RuntimeModelConfiguration {
   thinking?: boolean | null;
 }
 
-/** Whether the model can honor this effort under its advertised ceiling. */
+/**
+ * Whether the model can honor this effort. `efforts` is already the final
+ * selectable set (catalog ceiling intersected with any configuration matrix),
+ * so an empty list means no effort is selectable — never fall back to the
+ * matrix, where a hidden coordinate would survive normalization.
+ */
 export function modelSupportsReasoningEffort(
   model: RuntimeModelOption | undefined,
   effort: ReasoningEffort
 ): boolean {
   if (!model) return false;
-  // `efforts` is the selectable set after the catalog/config intersection; it is the ceiling.
-  if (model.efforts.length > 0) return model.efforts.includes(effort);
-  if (!model.configurations || model.configurations.length === 0) return false;
-  return model.configurations.some(configuration => configuration.reasoning_effort === effort);
+  return model.efforts.includes(effort);
 }
 
 /**
