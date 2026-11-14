@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -112,45 +113,65 @@ func TestProviderAuthStartup(t *testing.T) {
 		}
 	})
 
-	t.Run("Should run at most two status commands at a time", func(t *testing.T) {
+	t.Run("Should share the two-command limit between startup and sign-in re-checks", func(t *testing.T) {
 		t.Parallel()
-		var active, peak atomic.Int32
-		started := make(chan struct{}, 8)
-		gate := make(chan struct{})
-		f := newStartupProbeFixture(func(context.Context, providers.ProviderAuthCommandSpec) (
-			providers.ProviderAuthCommandResult, error,
-		) {
-			now := active.Add(1)
-			for {
-				prev := peak.Load()
-				if now <= prev || peak.CompareAndSwap(prev, now) {
-					break
+		synctest.Test(t, func(t *testing.T) {
+			var active, peak atomic.Int32
+			started := make(chan struct{}, 8)
+			gate := make(chan struct{})
+			release := sync.OnceFunc(func() { close(gate) })
+			defer release()
+			f := newStartupProbeFixture(func(context.Context, providers.ProviderAuthCommandSpec) (
+				providers.ProviderAuthCommandResult, error,
+			) {
+				now := active.Add(1)
+				for {
+					prev := peak.Load()
+					if now <= prev || peak.CompareAndSwap(prev, now) {
+						break
+					}
+				}
+				started <- struct{}{}
+				<-gate
+				active.Add(-1)
+				return providers.ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
+			}, "p1", "p2", "p3", "p4", "p5", "a1", "a2", "a3")
+			configs := map[string]compozyconfig.ProviderConfig{}
+			for name := range f.installed {
+				configs[name] = nativeStatusProvider(name)
+			}
+			// Known providers sort before the startup probes, so startup skips them first.
+			for _, name := range []string{"a1", "a2", "a3"} {
+				f.verdicts.Record(name, configs[name], nil,
+					providers.Classification{State: providers.ProviderAuthStateNeedsLogin}, time.Now().Add(-time.Second))
+			}
+			cfg := startupConfig(configs)
+			done := make(chan struct{})
+			go func() { f.runWith(t.Context(), cfg); close(done) }()
+			<-started
+			<-started
+			worker := newOwnedWorkerGroup(nil)
+			for _, name := range []string{"a1", "a2", "a3"} {
+				f.check.recheck(t.Context(), worker, name)
+			}
+			// All goroutines settle while two startup commands occupy the shared slots.
+			synctest.Wait()
+			if got := active.Load(); got != 2 {
+				t.Fatalf("active status commands with re-checks queued = %d, want 2", got)
+			}
+			release()
+			<-done
+			<-worker.Stop()
+			if got := peak.Load(); got > 2 {
+				t.Fatalf("peak concurrent status commands = %d, want at most 2", got)
+			}
+			for name, provider := range configs {
+				verdict, ok := f.verdicts.Lookup(name, provider, nil)
+				if !ok || verdict.Classification.State != providers.ProviderAuthStateAuthenticated {
+					t.Fatalf("%s verdict = %#v, %v; want authenticated", name, verdict, ok)
 				}
 			}
-			started <- struct{}{}
-			<-gate
-			active.Add(-1)
-			return providers.ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
-		}, "p1", "p2", "p3", "p4", "p5")
-		configs := map[string]compozyconfig.ProviderConfig{}
-		for name := range f.installed {
-			configs[name] = nativeStatusProvider(name)
-		}
-		cfg := startupConfig(configs)
-		done := make(chan struct{})
-		go func() { f.runWith(t.Context(), cfg); close(done) }()
-		<-started
-		<-started
-		close(gate)
-		<-done
-		if got := peak.Load(); got > 2 {
-			t.Fatalf("peak concurrent status commands = %d, want at most 2", got)
-		}
-		for name, provider := range configs {
-			if _, ok := f.verdicts.Lookup(name, provider, nil); !ok {
-				t.Fatalf("%s verdict missing", name)
-			}
-		}
+		})
 	})
 
 	t.Run("Should skip providers the startup check does not own", func(t *testing.T) {

@@ -116,7 +116,15 @@ func TestAuthVerdicts(t *testing.T) {
 		if _, ok := verdicts.Lookup("acme", provider, env); ok {
 			t.Fatal("a probe that started before the sign-in proof recorded afterwards")
 		}
-		verdicts.Record("acme", provider, env, authenticated, signedIn.Add(time.Second))
+		if verdicts.DropNeedsLogin("acme", signedIn.Add(time.Second)) {
+			t.Fatal("DropNeedsLogin scheduled another check for an already dropped verdict")
+		}
+		verdicts.Record("acme", provider, env, Classification{State: ProviderAuthStateNeedsLogin},
+			signedIn.Add(time.Second/2))
+		if _, ok := verdicts.Lookup("acme", provider, env); ok {
+			t.Fatal("a dropped verdict failed to fence a probe behind the newest sign-in proof")
+		}
+		verdicts.Record("acme", provider, env, authenticated, signedIn.Add(2*time.Second))
 		got, ok := verdicts.Lookup("acme", provider, env)
 		if !ok || got.Classification.State != ProviderAuthStateAuthenticated {
 			t.Fatalf("Lookup after the re-check = %#v, %v; want authenticated", got, ok)
