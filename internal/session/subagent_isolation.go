@@ -298,10 +298,6 @@ func (s *subagentService) recoverIsolation(ctx context.Context, row store.Sessio
 	return s.settleRecoveredIsolation(ctx, row, summary)
 }
 
-// settleRecoveredIsolation is the shared tail of boot recovery and of the
-// orphaned fallback: settle the row and wake the parent through an ordinary
-// wake. It never touches the checkout, so a failed rollback can settle the row
-// while the worktree cleanup keeps retrying from disk.
 // markWorktreeCleanupPending makes the checkout discoverable by
 // recoverIsolationCleanup, which only selects rows marked pending. It owns a
 // bounded context because the recovery context may already be expiring.
@@ -311,6 +307,11 @@ func (s *subagentService) markWorktreeCleanupPending(ctx context.Context, id str
 	return s.store.SetSubagentWorktreeCleanup(markCtx, id, "pending")
 }
 
+// settleRecoveredIsolation is the shared tail of boot recovery and of the
+// orphaned fallback: settle the row and wake the parent through an ordinary
+// wake. It never touches the checkout, so a failed rollback can settle the row
+// while the worktree cleanup keeps retrying from disk. The post-write tail owns
+// a bounded context because the finalize retries may have spent the caller's.
 func (s *subagentService) settleRecoveredIsolation(
 	ctx context.Context,
 	row store.SessionSubagent,
@@ -330,16 +331,20 @@ func (s *subagentService) settleRecoveredIsolation(
 	if err != nil {
 		return err
 	}
+	// The retry may outlive the caller: publishing, upgrading and planning on a
+	// dead context would drop the parent wake after the row is already terminal.
+	tailCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	if changed {
-		s.publishTerminal(ctx, failed)
+		s.publishTerminal(tailCtx, failed)
 	}
 	if failed.WakePolicy != store.SubagentWakePolicyAlways {
-		failed, err = s.store.UpgradeWakePolicy(ctx, row.ID)
+		failed, err = s.store.UpgradeWakePolicy(tailCtx, row.ID)
 		if err != nil {
 			return err
 		}
 	}
-	return s.planDelivery(ctx, failed)
+	return s.planDelivery(tailCtx, failed)
 }
 func (s *subagentService) recoverIsolationCleanup(ctx context.Context) error {
 	rows, err := s.store.ListSubagentWorktreeCleanupPending(ctx)

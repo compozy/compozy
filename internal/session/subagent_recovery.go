@@ -77,30 +77,11 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 			// reservation and the settlement was lost. Nothing can resume it, so settle
 			// the row instead of leaving it running for the life of the daemon. Isolated
 			// rows keep their own path, which also releases the worktree and wakes the
-			// parent; failDelegation returns the original cause for them.
+			// parent.
 			if row.Isolation == SubagentIsolationWorktree {
-				// A failed rollback must not keep the row running until the next boot:
-				// settle it and wake the parent anyway. The checkout stays queued for
-				// recoverIsolationCleanup, which retries the rollback from disk.
-				if err := s.recoverIsolation(ctx, row); err != nil {
-					s.recoveryResult(ctx, row.ID, "orphaned_isolation_compensation", err)
-					// The cleanup recovery only selects rows marked pending, so the
-					// marker has to be durable before the row becomes terminal.
-					// When it cannot be written, keep the row running for the next
-					// boot instead of finalizing a checkout nobody will collect.
-					if markErr := s.markWorktreeCleanupPending(ctx, row.ID); markErr != nil {
-						s.recoveryResult(ctx, row.ID, "orphaned_isolation_cleanup_marker", markErr)
-						continue
-					}
-					s.recoveryResult(
-						ctx,
-						row.ID,
-						"orphaned_isolation",
-						s.settleRecoveredIsolation(ctx, row, subagentRecoveredInterrupted),
-					)
-					continue
+				if err := s.recoverOrphanedIsolation(ctx, row); err != nil {
+					s.recoveryResult(ctx, row.ID, "orphaned_isolation", err)
 				}
-				s.recoveryResult(ctx, row.ID, "orphaned_isolation", nil)
 				continue
 			}
 			s.recoveryResult(ctx, row.ID, "orphaned_delegation", s.failRecovered(ctx, row, ""))
@@ -111,6 +92,26 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 			continue
 		}
 		s.recoveryResult(ctx, row.ID, "child_reconciled", s.recoverChild(ctx, row))
+	}
+	return nil
+}
+
+// recoverOrphanedIsolation settles an isolated row whose start never linked a
+// child. A failed rollback must not keep the row running until the next boot:
+// the row still settles and the parent still wakes, while the checkout stays
+// queued for recoverIsolationCleanup, which retries the rollback from disk.
+func (s *subagentService) recoverOrphanedIsolation(ctx context.Context, row store.SessionSubagent) error {
+	if err := s.recoverIsolation(ctx, row); err != nil {
+		s.recoveryResult(ctx, row.ID, "orphaned_isolation_compensation", err)
+		// The cleanup recovery only selects rows marked pending, so the marker has
+		// to be durable before the row becomes terminal. When it cannot be written,
+		// keep the row running for the next boot instead of finalizing a checkout
+		// nobody will collect.
+		if markErr := s.markWorktreeCleanupPending(ctx, row.ID); markErr != nil {
+			s.recoveryResult(ctx, row.ID, "orphaned_isolation_cleanup_marker", markErr)
+			return nil
+		}
+		return s.settleRecoveredIsolation(ctx, row, subagentRecoveredInterrupted)
 	}
 	return nil
 }
