@@ -30,6 +30,11 @@ func (g *SessionRepo) DeleteSession(ctx context.Context, sessionID string) error
 		if main {
 			return store.ErrSessionIsInstanceMain
 		}
+		if err := queries.StopDeletedSubagentChildActivity(ctx, sqlcgen.StopDeletedSubagentChildActivityParams{
+			ChildID: sql.NullString{String: target, Valid: true}, Now: store.FormatTimestamp(deletedAt),
+		}); err != nil {
+			return fmt.Errorf("store: stop deleted subagent child activity %q: %w", target, err)
+		}
 		affected, err := queries.DeleteSession(ctx, target)
 		if err != nil {
 			return fmt.Errorf("store: delete session %q: %w", target, err)

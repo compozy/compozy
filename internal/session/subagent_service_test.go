@@ -684,9 +684,20 @@ func TestSubagentLifecycle(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
 			row := requireSubagent(t, s, subagentTestRequest())
 			settleTestChild(t, s, runtime, &row)
+			if got := db.rows[row.ID]; got.Status != store.SubagentStatusCompleted ||
+				got.ChildActivity != store.SubagentChildActivityIdle {
+				t.Fatal(got)
+			}
+			if err := s.recordChildActivity(
+				t.Context(),
+				db.rows[row.ID],
+				store.SubagentChildActivityWorking,
+			); err != nil {
+				t.Fatal(err)
+			}
 			settled := db.rows[row.ID]
 			if settled.Status != store.SubagentStatusCompleted ||
-				settled.ChildActivity != store.SubagentChildActivityIdle {
+				settled.ChildActivity != store.SubagentChildActivityWorking {
 				t.Fatal(settled)
 			}
 			updates, cancel, err := s.SubscribeSubagentUpdates(t.Context(), "parent")

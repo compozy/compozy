@@ -29,8 +29,12 @@ WHERE id = sqlc.arg(id) AND origin = 'delegated' AND child_activity <> sqlc.arg(
 UPDATE session_subagents SET child_activity = 'stopped', updated_at = sqlc.arg(now)
 WHERE origin = 'delegated' AND child_activity IN ('working','idle')
  AND status IN ('completed','failed','canceled','interrupted')
- AND child_session_id IN (SELECT id FROM sessions WHERE state = 'stopped')
+ AND (child_session_id IS NULL OR child_session_id IN (SELECT id FROM sessions WHERE state = 'stopped'))
 RETURNING *;
+
+-- name: StopDeletedSubagentChildActivity :exec
+UPDATE session_subagents SET child_activity = 'stopped', updated_at = sqlc.arg(now)
+WHERE origin = 'delegated' AND child_session_id = sqlc.arg(child_id) AND child_activity <> 'stopped';
 
 -- name: ListSubagentsByParent :many
 SELECT * FROM session_subagents

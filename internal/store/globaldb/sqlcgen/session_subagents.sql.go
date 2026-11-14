@@ -1867,7 +1867,7 @@ const reconcileStoppedSubagentChildActivity = `-- name: ReconcileStoppedSubagent
 UPDATE session_subagents SET child_activity = 'stopped', updated_at = ?1
 WHERE origin = 'delegated' AND child_activity IN ('working','idle')
  AND status IN ('completed','failed','canceled','interrupted')
- AND child_session_id IN (SELECT id FROM sessions WHERE state = 'stopped')
+ AND (child_session_id IS NULL OR child_session_id IN (SELECT id FROM sessions WHERE state = 'stopped'))
 RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number, child_activity, usage_total_tokens, usage_tool_uses
 `
 
@@ -2303,6 +2303,21 @@ func (q *Queries) SettleSubagentWakeRows(ctx context.Context, arg SettleSubagent
 		return nil, err
 	}
 	return items, nil
+}
+
+const stopDeletedSubagentChildActivity = `-- name: StopDeletedSubagentChildActivity :exec
+UPDATE session_subagents SET child_activity = 'stopped', updated_at = ?1
+WHERE origin = 'delegated' AND child_session_id = ?2 AND child_activity <> 'stopped'
+`
+
+type StopDeletedSubagentChildActivityParams struct {
+	Now     string         `json:"now"`
+	ChildID sql.NullString `json:"child_id"`
+}
+
+func (q *Queries) StopDeletedSubagentChildActivity(ctx context.Context, arg StopDeletedSubagentChildActivityParams) error {
+	_, err := q.db.ExecContext(ctx, stopDeletedSubagentChildActivity, arg.Now, arg.ChildID)
+	return err
 }
 
 const subagentSummaries = `-- name: SubagentSummaries :many

@@ -238,3 +238,14 @@ https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1474/66b6a3741/01-capp
 was not re-walked.
 
 qa-impact: 2026-11-13 (#1644) — a continuation of a child session (for example one stopped by a daemon restart and continued by its orchestrator) now nests in the original parent's thread beside its predecessor, through repeated continuations; continuations of top-level sessions and forks stay top-level rows. The catalog resolves the parent server-side (`tree_parent_session_id`). Flag only.
+
+qa-impact: 2026-11-14 — Deleted delegated children (#1708)
+
+After a completed or failed delegated child resumes work, delete that child session. Re-read the
+parent's subagent summary and urgency-ordered roster: the deleted child must not count as resumed
+or show Working; a failed delegation remains counted as failed, and completed/canceled/interrupted
+rows sort with settled work rather than ahead of queued work. Other children keep their activity.
+Reopen a database from before the fix with stale working/idle activity and no child link; verify the
+same result without losing its saved outcome. Automated owners: the globaldb subagent state and
+open/upgrade suites, plus the session service's deleted-child activity case. Local scenario execution
+is deferred to CI under the parallel-dispatch operator restriction.
