@@ -57,6 +57,9 @@ func (m *Manager) sessionMCPServers(
 			"configured_mcp_servers", len(resolved.MCPServers),
 		)
 		servers, err := m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
+		if err == nil && m.mcpConsentFilter != nil {
+			servers, err = m.mcpConsentFilter(ctx, spec.profileID, spec.workspace.ID, servers)
+		}
 		if err != nil {
 			return nil, err
 		}

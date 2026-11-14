@@ -206,6 +206,7 @@ func loadAgentDefFromDirectoryWithMigration(
 	if err != nil {
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", agentPath, err)
 	}
+	stampAgentMCPDefinitionSources(&agent, agentPath)
 	migratePersistedAgentKind(directory, agentPath, original, contents, publishMigration)
 	if err := mergeAgentMCPSidecarFromDirectory(
 		directory,

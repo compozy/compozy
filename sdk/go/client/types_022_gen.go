@@ -4,6 +4,40 @@ package client
 
 import "time"
 
+// SettingsMCPAuthStatusPayload is a daemon API value.
+type SettingsMCPAuthStatusPayload struct {
+	ServerName   string     `json:"server_name"`
+	Owner        string     `json:"owner"`
+	Scope        string     `json:"scope"`
+	WorkspaceID  string     `json:"workspace_id,omitempty"`
+	Profile      string     `json:"profile,omitempty"`
+	Status       string     `json:"status"`
+	RemoteURL    string     `json:"remote_url,omitempty"`
+	AuthType     string     `json:"auth_type,omitempty"`
+	ClientID     string     `json:"client_id,omitempty"`
+	Issuer       string     `json:"issuer,omitempty"`
+	Scopes       []string   `json:"scopes,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	UpdatedAt    *time.Time `json:"updated_at,omitempty"`
+	Refreshable  bool       `json:"refreshable"`
+	TokenPresent bool       `json:"token_present"`
+	Diagnostic   string     `json:"diagnostic,omitempty"`
+	Inherited    bool       `json:"inherited,omitempty"`
+}
+
+// SettingsMCPExtensionOverridePayload is a daemon API value.
+type SettingsMCPExtensionOverridePayload struct {
+	Env     map[string]string `json:"env,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	URL     string            `json:"url,omitempty"`
+}
+
+// SettingsMCPSecretPreservationPayload is a daemon API value.
+type SettingsMCPSecretPreservationPayload struct {
+	SecretEnv         []string `json:"secret_env,omitempty"`
+	OAuthClientSecret bool     `json:"oauth_client_secret,omitzero"`
+}
+
 // SettingsMCPSecretValuesPayload is a daemon API value.
 type SettingsMCPSecretValuesPayload struct {
 	SecretEnv         map[string]string `json:"secret_env,omitempty"`
@@ -12,27 +46,29 @@ type SettingsMCPSecretValuesPayload struct {
 
 // SettingsMCPServerItemPayload is a daemon API value.
 type SettingsMCPServerItemPayload struct {
-	ReadOnlyTools     []string                               `json:"read_only_tools,omitempty"`
-	HeadersConfigured bool                                   `json:"headers_configured,omitzero"`
-	Owner             string                                 `json:"owner,omitempty"`
-	RuntimeName       string                                 `json:"runtime_name,omitempty"`
-	Override          *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
-	Name              string                                 `json:"name"`
-	Transport         string                                 `json:"transport"`
-	Command           string                                 `json:"command,omitempty"`
-	Args              []string                               `json:"args,omitempty"`
-	EnvKeys           []string                               `json:"env_keys,omitempty"`
-	SecretEnvKeys     []string                               `json:"secret_env_keys,omitempty"`
-	URL               string                                 `json:"url,omitempty"`
-	Auth              *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
-	AuthStatus        *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
-	RuntimeStatus     *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
-	Scope             SettingsScopeKind                      `json:"scope"`
-	WorkspaceID       string                                 `json:"workspace_id,omitempty"`
-	Profile           string                                 `json:"profile,omitempty"`
-	CatalogEntry      string                                 `json:"catalog_entry,omitempty"`
-	CatalogVersion    string                                 `json:"catalog_version,omitempty"`
-	SourceMetadata    SettingsSourceMetadataPayload          `json:"source_metadata"`
+	Approval           SettingsMCPApprovalStatePayload        `json:"approval"`
+	CallableInSessions bool                                   `json:"callable_in_sessions"`
+	ReadOnlyTools      []string                               `json:"read_only_tools,omitempty"`
+	HeadersConfigured  bool                                   `json:"headers_configured,omitzero"`
+	Owner              string                                 `json:"owner,omitempty"`
+	RuntimeName        string                                 `json:"runtime_name,omitempty"`
+	Override           *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
+	Name               string                                 `json:"name"`
+	Transport          string                                 `json:"transport"`
+	Command            string                                 `json:"command,omitempty"`
+	Args               []string                               `json:"args,omitempty"`
+	EnvKeys            []string                               `json:"env_keys,omitempty"`
+	SecretEnvKeys      []string                               `json:"secret_env_keys,omitempty"`
+	URL                string                                 `json:"url,omitempty"`
+	Auth               *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
+	AuthStatus         *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
+	RuntimeStatus      *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
+	Scope              SettingsScopeKind                      `json:"scope"`
+	WorkspaceID        string                                 `json:"workspace_id,omitempty"`
+	Profile            string                                 `json:"profile,omitempty"`
+	CatalogEntry       string                                 `json:"catalog_entry,omitempty"`
+	CatalogVersion     string                                 `json:"catalog_version,omitempty"`
+	SourceMetadata     SettingsSourceMetadataPayload          `json:"source_metadata"`
 }
 
 // SettingsMCPServerPayload is a daemon API value.
@@ -405,44 +441,4 @@ type SettingsShellAppearancePayload struct {
 	MonoFont      *string                     `json:"mono_font,omitempty"`
 	TextSize      *SettingsShellTextSize      `json:"text_size,omitempty"`
 	LetterSpacing *SettingsShellLetterSpacing `json:"letter_spacing,omitempty"`
-}
-
-// SettingsShellLegacyScopePayload is a daemon API value.
-type SettingsShellLegacyScopePayload struct {
-	Value    SettingsShellSessionScope `json:"value"`
-	Explicit bool                      `json:"explicit"`
-	Revision uint64                    `json:"revision"`
-}
-
-// SettingsShellLetterSpacing is a daemon API value.
-type SettingsShellLetterSpacing string
-
-// SettingsShellMutationResponse is a daemon API value.
-type SettingsShellMutationResponse struct {
-	Section          SettingsApplyTargetName         `json:"section,omitempty"`
-	Scope            SettingsScopeKind               `json:"scope,omitempty"`
-	WriteTarget      SettingsWriteTargetKind         `json:"write_target,omitempty"`
-	WorkspaceID      string                          `json:"workspace_id,omitempty"`
-	Profile          string                          `json:"profile,omitempty"`
-	AgentName        string                          `json:"agent_name,omitempty"`
-	Applied          bool                            `json:"applied"`
-	Lifecycle        SettingsApplyLifecycle          `json:"lifecycle"`
-	ApplyRecordID    string                          `json:"apply_record_id"`
-	ActiveGeneration int64                           `json:"active_generation"`
-	ActiveConfigHash string                          `json:"active_config_hash"`
-	NextAction       SettingsApplyNextAction         `json:"next_action"`
-	RestartRequired  bool                            `json:"restart_required,omitzero"`
-	RestartScope     string                          `json:"restart_scope,omitempty"`
-	Warnings         []string                        `json:"warnings,omitempty"`
-	PartialFailures  []SettingsApplyFailurePayload   `json:"partial_failures,omitempty"`
-	Skipped          bool                            `json:"skipped,omitzero"`
-	SkippedReason    string                          `json:"skipped_reason,omitempty"`
-	Config           SettingsShellPayload            `json:"config"`
-	LegacyScope      SettingsShellLegacyScopePayload `json:"legacy_scope"`
-}
-
-// SettingsShellPayload is a daemon API value.
-type SettingsShellPayload struct {
-	Sessions   SettingsShellSessionsPayload    `json:"sessions"`
-	Appearance *SettingsShellAppearancePayload `json:"appearance,omitempty"`
 }

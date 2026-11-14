@@ -40,6 +40,7 @@ func (f MCPSourceListerFunc) ListMCPSources(ctx context.Context) ([]SourceRef, e
 
 // MCPProvider adapts daemon-owned MCP discovery and calls into registry descriptors.
 type MCPProvider struct {
+	consent         func(context.Context, SourceRef, string) (bool, error)
 	discoveryBudget time.Duration
 	source          SourceRef
 	sources         MCPSourceLister

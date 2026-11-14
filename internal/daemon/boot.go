@@ -136,6 +136,7 @@ type bootState struct {
 	extensionEnvBindings  extensionpkg.EnvBindingStore
 	extensionInputs       extensioninput.Store
 	extensionMCP          extensionmcp.Store
+	mcpApprovals          mcpApprovalCache
 	mcpAuthGeneration     *mcpauth.MutationGeneration
 	mcpAuthStatus         toolspkg.MCPAuthStatusProvider
 	mcpRuntimeHealth      *mcppkg.RuntimeHealthRegistry

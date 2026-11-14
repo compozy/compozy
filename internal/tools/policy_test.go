@@ -770,3 +770,60 @@ func TestCheckInPolicy(t *testing.T) {
 		}
 	})
 }
+
+// Invariant (UT-035/038/094): ask remains per-call for consented external sources,
+// dynamic tools never become enabled, and a session ceiling excludes MCP approval mutations.
+// Owner: tool policy; canonical suite: TestMCPConsentPolicy.
+func TestMCPConsentPolicy(t *testing.T) {
+	t.Parallel()
+	for _, external := range []ExternalDefault{ExternalDefaultDisabled, ExternalDefaultAsk, ExternalDefaultEnabled} {
+		t.Run(string(external), func(t *testing.T) {
+			t.Parallel()
+			descriptor := mcpDescriptor("mcp__remote__read", "remote", "read")
+			inputs := DefaultPolicyInputs()
+			inputs.SystemPermissionMode = PermissionModeApproveAll
+			inputs.ExternalDefault = external
+			inputs.ApprovalAvailable = true
+			inputs.AllowSources = []SourceGrant{{Kind: SourceMCP, Owner: "remote"}}
+			evaluator, err := NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, []ToolID{descriptor.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(t.Context(), Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if external == ExternalDefaultAsk {
+				requireDecisionReason(t, decision, ReasonApprovalRequired)
+			} else if !decision.Callable {
+				t.Fatalf("consented source denied: %+v", decision)
+			}
+			descriptor.Source.Kind = SourceDynamic
+			decision, err = evaluator.Evaluate(t.Context(), Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable {
+				t.Fatal("dynamic source became callable")
+			}
+			requireDecisionReason(t, decision, ReasonSourceDisabled)
+		})
+	}
+	descriptor := validDescriptor()
+	descriptor.ID = ToolIDMCPAllow
+	inputs := DefaultPolicyInputs()
+	inputs.SystemPermissionMode = PermissionModeApproveAll
+	inputs.Session = SessionToolPolicy{Enforced: true, Tools: []ToolID{"compozy__mcp_list"}}
+	evaluator, err := NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, []ToolID{descriptor.ID, "compozy__mcp_list"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision, err := evaluator.Evaluate(t.Context(), Scope{}, descriptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Callable {
+		t.Fatal("restricted session can mutate MCP approvals")
+	}
+	requireDecisionReason(t, decision, ReasonSessionDenied)
+}

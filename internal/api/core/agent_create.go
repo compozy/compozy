@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -18,6 +19,7 @@ type CreatedAgentDefinition struct {
 	Agent         compozyconfig.AgentDef
 	RuntimeConfig compozyconfig.Config
 	WorkspaceID   string
+	Warnings      []string
 }
 
 // CreateAgentFromRequest validates and persists one AGENT.md definition from a
@@ -32,6 +34,7 @@ func CreateAgentFromRequest(
 	transportName string,
 	profileName string,
 	vault VaultService,
+	recorders ...settingspkg.WorkspaceMCPApprovalRecorder,
 ) (CreatedAgentDefinition, error) {
 	if err := compozyconfig.ValidateAgentAppearance(req.Agent.Appearance); err != nil {
 		return CreatedAgentDefinition{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
@@ -49,7 +52,12 @@ func CreateAgentFromRequest(
 	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
 		return CreatedAgentDefinition{}, err
 	}
-	agent, err := writeAgentDefinitionWithMCP(ctx, vault, target.Path, draft, false, req.Agent.MCPServers)
+	var warnings []string
+	approval := AgentMCPApprovalContext{WorkspaceID: target.WorkspaceID, ProfileName: profileName, Warnings: &warnings}
+	if len(recorders) > 0 {
+		approval.Recorder = recorders[0]
+	}
+	agent, err := writeAgentDefinitionWithMCP(ctx, vault, target.Path, draft, false, req.Agent.MCPServers, approval)
 	if err != nil {
 		return CreatedAgentDefinition{}, err
 	}
@@ -57,6 +65,7 @@ func CreateAgentFromRequest(
 		Agent:         agent,
 		RuntimeConfig: target.Config,
 		WorkspaceID:   target.WorkspaceID,
+		Warnings:      warnings,
 	}, nil
 }
 

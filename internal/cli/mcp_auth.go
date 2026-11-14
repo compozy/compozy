@@ -23,6 +23,7 @@ const (
 )
 
 type mcpAuthCommandOptions struct {
+	digest                 string
 	owner                  string
 	scope                  string
 	workspaceID            string
@@ -93,6 +94,7 @@ func newMCPAuthorizationCommand(deps commandDeps, use string, short string) *cob
 		},
 	}
 	addMCPAuthTargetFlags(cmd, &opts)
+	cmd.Flags().StringVar(&opts.digest, "digest", "", "Approve the current workspace definition before sign-in")
 	cmd.Flags().BoolVar(&opts.manual, "manual", false, "Paste the full authorization redirect URL")
 	cmd.Flags().StringArrayVar(
 		&opts.approvedScopes,

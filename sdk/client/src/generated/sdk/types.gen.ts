@@ -673,6 +673,7 @@ export type AgentProbeHealthPayload = {
 
 export type AgentResponse = {
   agent: AgentPayload;
+  warnings?: Array<string>;
 };
 
 export type AgentSessionMetricsPayload = {
@@ -9002,9 +9003,34 @@ export type SettingsLogTailCapabilityPayload = {
   transport?: "sse";
 };
 
+export type SettingsMCPApprovalPayload = {
+  approved_at?: string;
+  profile: string;
+  server_name: string;
+  state: string;
+  workspace_id: string;
+};
+
+export type SettingsMCPApprovalRequest = {
+  definition_digest: string;
+  profile?: string;
+  workspace_id: string;
+};
+
+export type SettingsMCPApprovalResponse = {
+  approval: SettingsMCPApprovalPayload;
+};
+
+export type SettingsMCPApprovalStatePayload = {
+  definition_digest: string;
+  required: boolean;
+  state: string;
+};
+
 export type SettingsMCPAuthBeginRequest = {
   approve_scope_escalation?: boolean;
   approved_scopes?: Array<string>;
+  definition_digest?: string;
   mode: "automatic" | "manual";
 };
 
@@ -9079,9 +9105,11 @@ export type SettingsMCPSecretValuesPayload = {
 };
 
 export type SettingsMCPServerItemPayload = {
+  approval: SettingsMCPApprovalStatePayload;
   args?: Array<string>;
   auth?: SettingsMCPAuthConfigViewPayload | null;
   auth_status?: SettingsMCPAuthStatusPayload | null;
+  callable_in_sessions: boolean;
   catalog_entry?: string;
   catalog_version?: string;
   command?: string;
@@ -23033,6 +23061,10 @@ export type CompleteMCPAuthCallbackErrors = {
    */
   403: ErrorPayload;
   /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
    * MCP OAuth callback runtime is unavailable
    */
   503: string;
@@ -28018,6 +28050,106 @@ export type PutSettingsMCPServerResponses = {
 export type PutSettingsMCPServerResponse =
   PutSettingsMCPServerResponses[keyof PutSettingsMCPServerResponses];
 
+export type DeleteSettingsMCPApprovalData = {
+  body?: never;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query: {
+    /**
+     * Workspace ID
+     */
+    workspace_id: string;
+    /**
+     * Profile name
+     */
+    profile?: string;
+  };
+  url: "/api/settings/mcp-servers/{name}/approval";
+};
+
+export type DeleteSettingsMCPApprovalErrors = {
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Approval not required
+   */
+  409: ErrorPayload;
+};
+
+export type DeleteSettingsMCPApprovalError =
+  DeleteSettingsMCPApprovalErrors[keyof DeleteSettingsMCPApprovalErrors];
+
+export type DeleteSettingsMCPApprovalResponses = {
+  /**
+   * Revoked
+   */
+  204: void;
+};
+
+export type DeleteSettingsMCPApprovalResponse =
+  DeleteSettingsMCPApprovalResponses[keyof DeleteSettingsMCPApprovalResponses];
+
+export type PutSettingsMCPApprovalData = {
+  /**
+   * JSON request body
+   */
+  body: SettingsMCPApprovalRequest;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query?: never;
+  url: "/api/settings/mcp-servers/{name}/approval";
+};
+
+export type PutSettingsMCPApprovalErrors = {
+  /**
+   * Invalid MCP OAuth request or session
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * MCP OAuth runtime is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PutSettingsMCPApprovalError =
+  PutSettingsMCPApprovalErrors[keyof PutSettingsMCPApprovalErrors];
+
+export type PutSettingsMCPApprovalResponses = {
+  /**
+   * OK
+   */
+  200: SettingsMCPApprovalResponse;
+};
+
+export type PutSettingsMCPApprovalResponse =
+  PutSettingsMCPApprovalResponses[keyof PutSettingsMCPApprovalResponses];
+
 export type BeginSettingsMCPAuthData = {
   /**
    * JSON request body
@@ -28063,6 +28195,10 @@ export type BeginSettingsMCPAuthErrors = {
    * MCP server or workspace not found
    */
   404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */
@@ -28132,6 +28268,10 @@ export type ExchangeSettingsMCPAuthErrors = {
    */
   404: ErrorPayload;
   /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
@@ -28197,6 +28337,10 @@ export type LogoutSettingsMCPAuthErrors = {
    */
   404: ErrorPayload;
   /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
@@ -28261,6 +28405,10 @@ export type GetSettingsMCPAuthStatusErrors = {
    * MCP server or workspace not found
    */
   404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */

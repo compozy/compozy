@@ -14,6 +14,7 @@ const (
 
 // SettingsMCPAuthBeginRequest selects automatic or manual callback delivery.
 type SettingsMCPAuthBeginRequest struct {
+	DefinitionDigest       string                   `json:"definition_digest,omitempty"`
 	Mode                   SettingsMCPAuthBeginMode `json:"mode"`
 	ApprovedScopes         []string                 `json:"approved_scopes,omitempty"`
 	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitzero"`

@@ -9,6 +9,22 @@ import (
 	"strings"
 )
 
+// DisableGatewayProvider Disable one named connectivity provider for a gateway tier
+func (c *Client) DisableGatewayProvider(ctx context.Context, params DisableGatewayProviderParams) (*GatewayStatusPayload, error) {
+	path := "/api/gateway/providers/{name}/disable"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("tier", params.Tier)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out GatewayStatusPayload
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DisableSkillParams carries the path, query, and header parameters.
 type DisableSkillParams struct {
 	Name      string  `url:"name"`
@@ -415,30 +431,6 @@ func (c *Client) ExecTerminal(ctx context.Context, params ExecTerminalParams, bo
 
 // ExecuteWindowManagerCommandParams carries the path, query, and header parameters.
 type ExecuteWindowManagerCommandParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ExecuteWindowManagerCommand Execute one semantic window-manager command
-func (c *Client) ExecuteWindowManagerCommand(ctx context.Context, params ExecuteWindowManagerCommandParams, body WindowManagerCommandRequest) (*WindowManagerResult, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/commands"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WindowManagerResult
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExportWindowManagerLayoutParams carries the path, query, and header parameters.
-type ExportWindowManagerLayoutParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 }

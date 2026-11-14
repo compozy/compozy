@@ -1621,6 +1621,7 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__mcp_auth_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__mcp_allow", risk: toolspkg.RiskMutating, readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__mcp_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__monitor_cancel", risk: toolspkg.RiskMutating,
@@ -3616,7 +3617,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expand(mcp) error = %v", err)
 		}
-		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPList, toolspkg.ToolIDMCPStatus}; !slices.Equal(mcp, want) {
+		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPAllow, toolspkg.ToolIDMCPList, toolspkg.ToolIDMCPStatus}; !slices.Equal(mcp, want) {
 			t.Fatalf("mcp expansion = %#v, want %#v", mcp, want)
 		}
 

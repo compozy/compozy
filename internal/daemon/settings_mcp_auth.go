@@ -19,11 +19,20 @@ func newSettingsMCPAuthManagerWithConfig(
 	oauthConfig compozyconfig.MCPOAuthConfig,
 	generation ...*mcpauth.MutationGeneration,
 ) (*mcpauth.Manager, error) {
+	return newSettingsMCPAuthManagerWithAuthorization(store, notifier, registrations, secretResolver, oauthConfig, nil, generation...)
+}
+
+func newSettingsMCPAuthManagerWithAuthorization(
+	store mcpauth.TokenStore, notifier mcpauth.LifecycleNotifier, registrations mcpauth.RegistrationStore,
+	secretResolver mcpauth.SecretRefResolver, oauthConfig compozyconfig.MCPOAuthConfig,
+	authorize func(context.Context, mcpauth.ServerConfig) error, generation ...*mcpauth.MutationGeneration,
+) (*mcpauth.Manager, error) {
 	if store == nil {
 		return nil, nil
 	}
 	serviceOptions := []mcpauth.ServiceOption{
 		mcpauth.WithClientMetadataURL(oauthConfig.ClientMetadataURL),
+		mcpauth.WithNetworkAuthorization(authorize),
 		mcpauth.WithRegistrationStore(registrations),
 		mcpauth.WithSecretRefResolver(secretResolver),
 		mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))),
@@ -70,6 +79,9 @@ func (s *settingsRuntimeSurface) MCPAuthBegin(
 	server compozyconfig.MCPServer,
 	callbackURL string,
 ) (mcpauth.BeginResult, error) {
+	if err := s.requireMCPConsent(ctx, target, server); err != nil {
+		return mcpauth.BeginResult{}, err
+	}
 	if s.mcpAuthManager == nil {
 		return mcpauth.BeginResult{}, errors.New("daemon: MCP auth manager is unavailable")
 	}
@@ -88,6 +100,9 @@ func (s *settingsRuntimeSurface) MCPAuthBeginStepUp(
 	approvedScopes []string,
 	approved bool,
 ) (mcpauth.BeginResult, error) {
+	if err := s.requireMCPConsent(ctx, target, server); err != nil {
+		return mcpauth.BeginResult{}, err
+	}
 	if s.mcpAuthManager == nil {
 		return mcpauth.BeginResult{}, errors.New("daemon: MCP auth manager is unavailable")
 	}
@@ -159,6 +174,9 @@ func (s *settingsRuntimeSurface) MCPAuthLogout(
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (mcpauth.Status, error) {
+	if err := s.requireMCPConsent(ctx, target, server); err != nil {
+		return mcpauth.Status{}, err
+	}
 	if s.mcpAuthManager == nil {
 		return mcpauth.Status{}, errors.New("daemon: MCP auth manager is unavailable")
 	}
@@ -184,6 +202,8 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth inputs: %w", err)
 	}
 	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, rendered, s.secretResolver)
+	cfg.ConsentScope = mcpauth.ConsentScopeFromContext(ctx)
+	cfg.DefinitionDigest, _ = compozyconfig.MCPDefinitionDigest(server)
 	if err != nil {
 		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
 	}

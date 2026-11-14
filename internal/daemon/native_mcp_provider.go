@@ -15,7 +15,12 @@ func (d *Daemon) newDaemonMCPToolProvider(
 		return nil, nil, nil
 	}
 	resolver := newDaemonMCPServerResolver(state)
-	var options []mcppkg.CallExecutorOption
+	options := []mcppkg.CallExecutorOption{mcppkg.WithConsentCheck(func(ctx context.Context, source toolspkg.SourceRef) error {
+		return requireMCPSourceConsent(ctx, state, source)
+	})}
+	options = append(options, mcppkg.WithAuthNetworkAuthorization(func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+		return authorizeMCPAuthNetwork(ctx, state, cfg)
+	}))
 	if d != nil && d.getenv != nil {
 		options = append(options, mcppkg.WithSecretLookup(d.getenv))
 	}
@@ -47,6 +52,10 @@ func (d *Daemon) newDaemonMCPToolProvider(
 		executor,
 		executor,
 		toolspkg.WithMCPDeadEntityService(state.deadEntities),
+		toolspkg.WithMCPConsent(func(ctx context.Context, source toolspkg.SourceRef, profileID string) (bool, error) {
+			decision, err := mcpSourceConsent(ctx, state, toolspkg.Scope{ProfileID: profileID, WorkspaceID: source.WorkspaceID}, source)
+			return decision.Admitted, err
+		}),
 		toolspkg.WithMCPDiscoveryBudget(
 			min(state.cfg.MCP.StatusProbeTimeout, state.cfg.Tools.HostedMCP.BindNonceTTL()/2),
 		),

@@ -112,6 +112,9 @@ func builtinNativeAuthProvider(name string) bool {
 }
 
 func mergeMCPServerInto(merged *MCPServer, override MCPServer) {
+	if override.DefinitionSource != "" {
+		merged.DefinitionSource = override.DefinitionSource
+	}
 	if strings.TrimSpace(override.Name) != "" {
 		merged.Name = override.Name
 	}

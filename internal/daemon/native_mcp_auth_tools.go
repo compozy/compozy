@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/core"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/store"
 
@@ -55,6 +56,7 @@ func (n *daemonNativeTools) mcpAuthToolBindings(
 	authAvailability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDMCPAllow: {call: n.mcpAllow, availability: n.dependencyAvailability(func() bool { _, ok := n.settingsService().(core.MCPSettingsApproval); return ok })},
 		toolspkg.ToolIDMCPStatus: {
 			call:         n.mcpStatus,
 			availability: statusAvailability,

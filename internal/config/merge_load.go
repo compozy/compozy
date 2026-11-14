@@ -76,6 +76,15 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	if err != nil {
 		return overlay, FileError{Op: "decode", Path: source, Err: err}
 	}
+	for i := range overlay.MCPServers {
+		overlay.MCPServers[i].definitionSource = source
+	}
+	for name, provider := range overlay.Providers {
+		for i := range provider.MCPServers {
+			provider.MCPServers[i].definitionSource = source
+		}
+		overlay.Providers[name] = provider
+	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
 		undecoded = withoutRetiredProviderFullAccessKeys(withoutDynamicLoopInputKeys(undecoded))

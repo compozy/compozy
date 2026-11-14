@@ -326,6 +326,22 @@ func (c *Client) PutSettingsHook(ctx context.Context, params PutSettingsHookPara
 	return &out, nil
 }
 
+// PutSettingsMCPApprovalParams carries the path, query, and header parameters.
+type PutSettingsMCPApprovalParams struct {
+	Name string `url:"name"`
+}
+
+// PutSettingsMCPApproval Approve an exact workspace MCP definition
+func (c *Client) PutSettingsMCPApproval(ctx context.Context, params PutSettingsMCPApprovalParams, body SettingsMCPApprovalRequest) (*SettingsMCPApprovalResponse, error) {
+	path := "/api/settings/mcp-servers/{name}/approval"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsMCPApprovalResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PutSettingsMCPServerParams carries the path, query, and header parameters.
 type PutSettingsMCPServerParams struct {
 	Name        string  `url:"name"`

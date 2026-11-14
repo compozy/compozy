@@ -64,6 +64,7 @@ func settingsMCPAuthOperations() []OperationSpec {
 			},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Authorization completed", Body: "", ContentType: specContentTypeHTML},
+				{Status: 409, Description: "MCP server waiting for approval or definition changed", Body: contract.ErrorPayload{}},
 				{Status: 400, Description: "Authorization failed", Body: "", ContentType: specContentTypeHTML},
 				{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 				{
@@ -95,6 +96,7 @@ func settingsMCPAuthParameters() []ParameterSpec {
 func settingsMCPAuthResponses(success any) []ResponseSpec {
 	return []ResponseSpec{
 		{Status: 200, Description: "OK", Body: success},
+		{Status: 409, Description: "MCP server waiting for approval or definition changed", Body: contract.ErrorPayload{}},
 		{Status: 400, Description: "Invalid MCP OAuth request or session", Body: contract.ErrorPayload{}},
 		{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 		{Status: 404, Description: settingsMCPNotFoundDescription, Body: contract.ErrorPayload{}},

@@ -97,7 +97,7 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		ExtensionRegistry: extensionRegistryDependency(state.registry),
 		ApprovalAvailable: true,
 		MCPSourceGrants: func(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.SourceGrant, error) {
-			return operatorAuthorizedMCPSourceGrants(ctx, state, scope)
+			return operatorConsentedSourceGrants(ctx, state, scope)
 		},
 		MCPResourceNames: func() map[string]string { return mcpResourceLogicalNames(state) },
 	})

@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	jsonv2 "encoding/json/v2"
 	"errors"
@@ -866,11 +867,8 @@ func TestDaemonHostedMCPLiveAuthRefresh(t *testing.T) {
 		var status compozycontract.SettingsMCPAuthStatusPayload
 		workspaceConfig := filepath.Join(harness.WorkspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
 		writeMCPDeclarationFile(t, workspaceConfig, "[tools.policy]\nexternal_default = \"disabled\"\n")
-		assertListed(false)
-		assertListedFor(freshClient, false)
-		if result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: toolID}); err == nil && !result.IsError {
-			t.Fatal("disabled source remained callable")
-		}
+		assertListed(true)
+		assertListedFor(freshClient, true)
 		writeMCPDeclarationFile(t, workspaceConfig, "[tools.policy]\nexternal_default = \"enabled\"\n")
 		assertListed(true)
 		assertListedFor(freshClient, true)
@@ -3278,6 +3276,196 @@ func TestDaemonRuntimeMCPInventory(t *testing.T) {
 		}
 		if requests.Load() != 0 {
 			t.Fatal("CLI connected to runtime server")
+		}
+	})
+}
+
+// Invariant (IT-007): an externally authored project definition cannot start or
+// enter discovery until approved; revocation withdraws it. Owner: daemon execution gate.
+func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+	t.Run("Should gate Settings session launch hosted discovery and calls", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		marker := filepath.Join(t.TempDir(), "mcp-starts")
+		server := compozyconfig.MCPServer{Name: "sentry", Command: os.Args[0], Args: []string{"-test.run=^TestMCPConsentStdioHelperProcess$"}, Env: map[string]string{"COMPOZY_TEST_DAEMON_EXTENSION_HELPER": "1", "COMPOZY_TEST_CONSENT_STARTS": marker}}
+		data, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"sentry": map[string]any{"command": server.Command, "args": server.Args, "env": server.Env}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{FixturePath: mockFixturePath(t, "hosted_native_tools_fixture.json"), FixtureAgent: "hosted-native", AgentName: "mock-consent"}},
+			Workspace:  e2etest.WorkspaceSeedOptions{Root: root, Files: map[string]string{filepath.Join(compozyconfig.DirName, compozyconfig.MCPJSONName): string(data)}},
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultDisabled
+			}},
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+		defer cancel()
+		query := "?scope=workspace&workspace_id=" + url.QueryEscape(harness.WorkspaceID)
+		var listing struct {
+			MCPServers []compozycontract.SettingsMCPServerItemPayload `json:"mcp_servers"`
+		}
+		if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/mcp-servers"+query, nil, &listing); err != nil {
+			t.Fatal(err)
+		}
+		if len(listing.MCPServers) != 1 || listing.MCPServers[0].Approval.State != "waiting" || listing.MCPServers[0].CallableInSessions {
+			t.Fatalf("waiting listing=%+v", listing.MCPServers)
+		}
+		createBoundFixtureBackedSession(t, ctx, harness, "mock-consent", "waiting")
+		if starts, err := os.ReadFile(marker); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("waiting record started: %q %v", starts, err)
+		}
+		var approval compozycontract.SettingsMCPApprovalResponse
+		if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/mcp-servers/sentry/approval", compozycontract.SettingsMCPApprovalRequest{WorkspaceID: harness.WorkspaceID, Profile: "default", DefinitionDigest: listing.MCPServers[0].Approval.DefinitionDigest}, &approval); err != nil {
+			t.Fatal(err)
+		}
+		if approval.Approval.State != "allowed" {
+			t.Fatalf("approval=%+v", approval)
+		}
+		createBoundFixtureBackedSession(t, ctx, harness, "mock-consent", "allowed")
+		registration, ok := harness.MockAgentRegistration("mock-consent")
+		if !ok {
+			t.Fatal("missing mock registration")
+		}
+		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := startHostedMCPClient(t, ctx, requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerLatest), &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}})
+		defer func() {
+			if err := client.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		assertListed := func(want bool) {
+			t.Helper()
+			waitForRuntimeCondition(t, "consented MCP listing", 15*time.Second, func() bool {
+				found := false
+				for tool, err := range client.Tools(ctx, nil) {
+					if err != nil {
+						return false
+					}
+					if tool.Name == "mcp__sentry__echo" {
+						found = true
+					}
+				}
+				return found == want
+			})
+		}
+		assertListed(true)
+		result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: "mcp__sentry__echo", Arguments: map[string]any{"message": "consent"}})
+		if err != nil || result.IsError {
+			t.Fatalf("allowed call=%+v %v", result, err)
+		}
+		before, err := os.ReadFile(marker)
+		if err != nil || len(before) == 0 {
+			t.Fatalf("allowed server did not start: %q %v", before, err)
+		}
+		if err := harness.HTTPJSON(ctx, http.MethodDelete, "/api/settings/mcp-servers/sentry/approval?workspace_id="+url.QueryEscape(harness.WorkspaceID)+"&profile=default", nil, nil); err != nil {
+			t.Fatal(err)
+		}
+		assertListed(false)
+		result, err = client.CallTool(ctx, &sdkmcp.CallToolParams{Name: "mcp__sentry__echo", Arguments: map[string]any{"message": "revoked"}})
+		if err == nil && !result.IsError {
+			t.Fatal("revoked source remained callable")
+		}
+		after, err := os.ReadFile(marker)
+		if err != nil || string(after) != string(before) {
+			t.Fatalf("revoked record started again: %q %v", after, err)
+		}
+		// The same definition authored through Settings records consent after the durable file write.
+		var mutation struct {
+			Warnings []string `json:"warnings"`
+		}
+		if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/mcp-servers/sentry"+query, compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{Name: "sentry", Command: server.Command, Args: server.Args, Env: server.Env}}, &mutation); err != nil {
+			t.Fatal(err)
+		}
+		if len(mutation.Warnings) != 0 {
+			t.Fatalf("Settings approval warnings=%v", mutation.Warnings)
+		}
+		assertListed(true)
+	})
+}
+
+func TestMCPConsentStdioHelperProcess(t *testing.T) {
+	path := os.Getenv("COMPOZY_TEST_CONSENT_STARTS")
+	if os.Getenv("COMPOZY_TEST_DAEMON_EXTENSION_HELPER") != "1" || path == "" {
+		return
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err == nil {
+		_, err = file.WriteString("start\n")
+		err = errors.Join(err, file.Close())
+	}
+	if err == nil {
+		err = mcpfixture.MustNew(mcpfixture.ProfileModern2026).RunStdio(context.Background(), os.Stdin, os.Stdout)
+	}
+	if err != nil {
+		os.Exit(2)
+	}
+	os.Exit(0)
+}
+
+// Invariant (IT-013): failed approval persistence leaves the authored definition
+// waiting across a real daemon restart. Owner: Settings file/SQLite commit boundary.
+func TestDaemonWorkspaceMCPApprovalWriteFailure(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve the file warning and waiting state after restart", func(t *testing.T) {
+		t.Parallel()
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultDisabled
+		}}})
+		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+		defer cancel()
+		databaseURL := url.URL{Scheme: "file", Path: harness.HomePaths.DatabaseFile, RawQuery: "mode=rw"}
+		db, err := sql.Open("sqlite", databaseURL.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		_, err = db.ExecContext(ctx, `CREATE TRIGGER fail_mcp_approval BEFORE INSERT ON mcp_server_approvals BEGIN SELECT RAISE(FAIL, 'injected approval failure'); END;`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query := "?scope=workspace&workspace_id=" + url.QueryEscape(harness.WorkspaceID)
+		var mutation struct {
+			Warnings []string `json:"warnings"`
+		}
+		if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/mcp-servers/sentry"+query, compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{Name: "sentry", Command: "must-never-start-without-consent"}}, &mutation); err != nil {
+			t.Fatal(err)
+		}
+		if len(mutation.Warnings) == 0 || !strings.Contains(strings.Join(mutation.Warnings, " "), "waiting for approval") {
+			t.Fatalf("missing approval warning: %+v", mutation)
+		}
+		path := filepath.Join(harness.WorkspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName)
+		before, err := os.ReadFile(path)
+		if err != nil || !strings.Contains(string(before), "must-never-start-without-consent") {
+			t.Fatalf("file not committed: %s %v", before, err)
+		}
+		assertWaiting := func() {
+			t.Helper()
+			var listing struct {
+				MCPServers []compozycontract.SettingsMCPServerItemPayload `json:"mcp_servers"`
+			}
+			if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/mcp-servers"+query, nil, &listing); err != nil {
+				t.Fatal(err)
+			}
+			if len(listing.MCPServers) != 1 || listing.MCPServers[0].Approval.State != "waiting" || listing.MCPServers[0].CallableInSessions {
+				t.Fatalf("failure admitted definition: %+v", listing.MCPServers)
+			}
+		}
+		assertWaiting()
+		harness.Restart(t)
+		assertWaiting()
+		after, err := os.ReadFile(path)
+		if err != nil || string(before) != string(after) {
+			t.Fatalf("restart changed committed file: %s %v", after, err)
 		}
 	})
 }

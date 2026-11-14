@@ -2336,6 +2336,12 @@
         "properties": {
           "agent": {
             "$ref": "#/components/schemas/AgentPayload"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -32239,6 +32245,81 @@
         ],
         "type": "object"
       },
+      "SettingsMCPApprovalPayload": {
+        "properties": {
+          "approved_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile",
+          "server_name",
+          "state",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SettingsMCPApprovalRequest": {
+        "properties": {
+          "definition_digest": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition_digest",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SettingsMCPApprovalResponse": {
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/SettingsMCPApprovalPayload"
+          }
+        },
+        "required": [
+          "approval"
+        ],
+        "type": "object"
+      },
+      "SettingsMCPApprovalStatePayload": {
+        "properties": {
+          "definition_digest": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition_digest",
+          "required",
+          "state"
+        ],
+        "type": "object"
+      },
       "SettingsMCPAuthBeginRequest": {
         "properties": {
           "approve_scope_escalation": {
@@ -32249,6 +32330,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "definition_digest": {
+            "type": "string"
           },
           "mode": {
             "enum": [
@@ -32476,6 +32560,9 @@
       },
       "SettingsMCPServerItemPayload": {
         "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/SettingsMCPApprovalStatePayload"
+          },
           "args": {
             "items": {
               "type": "string"
@@ -32507,6 +32594,9 @@
                 "nullable": true
               }
             ]
+          },
+          "callable_in_sessions": {
+            "type": "boolean"
           },
           "catalog_entry": {
             "type": "string"
@@ -32599,6 +32689,8 @@
           }
         },
         "required": [
+          "approval",
+          "callable_in_sessions",
           "name",
           "scope",
           "source_metadata",
@@ -68282,6 +68374,16 @@
             },
             "description": "Forbidden"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
+          },
           "503": {
             "content": {
               "text/html": {
@@ -78141,6 +78243,179 @@
         ]
       }
     },
+    "/api/settings/mcp-servers/{name}/approval": {
+      "delete": {
+        "operationId": "deleteSettingsMCPApproval",
+        "parameters": [
+          {
+            "description": "Configured MCP server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace ID",
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Profile name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Approval not required"
+          }
+        },
+        "summary": "Revoke workspace MCP consent",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "put": {
+        "operationId": "putSettingsMCPApproval",
+        "parameters": [
+          {
+            "description": "Configured MCP server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsMCPApprovalRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsMCPApprovalResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid MCP OAuth request or session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP OAuth runtime is unavailable"
+          }
+        },
+        "summary": "Approve an exact workspace MCP definition",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/settings/mcp-servers/{name}/auth/begin": {
       "post": {
         "operationId": "beginSettingsMCPAuth",
@@ -78244,6 +78519,16 @@
               }
             },
             "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
           },
           "500": {
             "content": {
@@ -78381,6 +78666,16 @@
             },
             "description": "MCP server or workspace not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -78506,6 +78801,16 @@
             },
             "description": "MCP server or workspace not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -78630,6 +78935,16 @@
               }
             },
             "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
           },
           "500": {
             "content": {

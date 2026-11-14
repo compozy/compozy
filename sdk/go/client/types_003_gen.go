@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// AgentSoulRevisionAction is a daemon API value.
+type AgentSoulRevisionAction string
+
 // AgentSoulRevisionPayload is a daemon API value.
 type AgentSoulRevisionPayload struct {
 	ID             string                             `json:"id"`
@@ -445,6 +448,3 @@ type AutonomyMatcher struct {
 
 // Axis is a daemon API value.
 type Axis string
-
-// BackendKind is a daemon API value.
-type BackendKind string

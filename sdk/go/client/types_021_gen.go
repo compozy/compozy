@@ -370,11 +370,40 @@ type SettingsLogTailEventPayload struct {
 	Line string `json:"line"`
 }
 
+// SettingsMCPApprovalPayload is a daemon API value.
+type SettingsMCPApprovalPayload struct {
+	ServerName  string    `json:"server_name"`
+	WorkspaceID string    `json:"workspace_id"`
+	Profile     string    `json:"profile"`
+	State       string    `json:"state"`
+	ApprovedAt  time.Time `json:"approved_at,omitzero"`
+}
+
+// SettingsMCPApprovalRequest is a daemon API value.
+type SettingsMCPApprovalRequest struct {
+	WorkspaceID      string `json:"workspace_id"`
+	Profile          string `json:"profile,omitempty"`
+	DefinitionDigest string `json:"definition_digest"`
+}
+
+// SettingsMCPApprovalResponse is a daemon API value.
+type SettingsMCPApprovalResponse struct {
+	Approval SettingsMCPApprovalPayload `json:"approval"`
+}
+
+// SettingsMCPApprovalStatePayload is a daemon API value.
+type SettingsMCPApprovalStatePayload struct {
+	Required         bool   `json:"required"`
+	State            string `json:"state"`
+	DefinitionDigest string `json:"definition_digest"`
+}
+
 // SettingsMCPAuthBeginMode is a daemon API value.
 type SettingsMCPAuthBeginMode string
 
 // SettingsMCPAuthBeginRequest is a daemon API value.
 type SettingsMCPAuthBeginRequest struct {
+	DefinitionDigest       string                   `json:"definition_digest,omitempty"`
 	Mode                   SettingsMCPAuthBeginMode `json:"mode"`
 	ApprovedScopes         []string                 `json:"approved_scopes,omitempty"`
 	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitzero"`
@@ -410,38 +439,4 @@ type SettingsMCPAuthConfigViewPayload struct {
 // SettingsMCPAuthExchangeRequest is a daemon API value.
 type SettingsMCPAuthExchangeRequest struct {
 	RedirectURL string `json:"redirect_url"`
-}
-
-// SettingsMCPAuthStatusPayload is a daemon API value.
-type SettingsMCPAuthStatusPayload struct {
-	ServerName   string     `json:"server_name"`
-	Owner        string     `json:"owner"`
-	Scope        string     `json:"scope"`
-	WorkspaceID  string     `json:"workspace_id,omitempty"`
-	Profile      string     `json:"profile,omitempty"`
-	Status       string     `json:"status"`
-	RemoteURL    string     `json:"remote_url,omitempty"`
-	AuthType     string     `json:"auth_type,omitempty"`
-	ClientID     string     `json:"client_id,omitempty"`
-	Issuer       string     `json:"issuer,omitempty"`
-	Scopes       []string   `json:"scopes,omitempty"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	UpdatedAt    *time.Time `json:"updated_at,omitempty"`
-	Refreshable  bool       `json:"refreshable"`
-	TokenPresent bool       `json:"token_present"`
-	Diagnostic   string     `json:"diagnostic,omitempty"`
-	Inherited    bool       `json:"inherited,omitempty"`
-}
-
-// SettingsMCPExtensionOverridePayload is a daemon API value.
-type SettingsMCPExtensionOverridePayload struct {
-	Env     map[string]string `json:"env,omitempty"`
-	Headers map[string]string `json:"headers,omitempty"`
-	URL     string            `json:"url,omitempty"`
-}
-
-// SettingsMCPSecretPreservationPayload is a daemon API value.
-type SettingsMCPSecretPreservationPayload struct {
-	SecretEnv         []string `json:"secret_env,omitempty"`
-	OAuthClientSecret bool     `json:"oauth_client_secret,omitzero"`
 }

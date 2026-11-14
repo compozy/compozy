@@ -57,9 +57,34 @@ func (s *service) putMCPServer(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	mutationOutcome, err := s.commitMCPServerDefinition(
-		ctx, scope, workspaceID, profileName, root, name, target, sources, normalized,
-	)
+	mutationOutcome := mcpDefinitionMutationUnchanged
+	var approvalWarning string
+	commit := func() error {
+		var commitErr error
+		mutationOutcome, commitErr = s.commitMCPServerDefinition(ctx, scope, workspaceID, profileName, root, name, target, sources, normalized)
+		return commitErr
+	}
+	if workspaceID != "" && s.workspaceMCPApprovals != nil {
+		approvalWarning, err = s.workspaceMCPApprovals.RecordWorkspaceMCPWrite(ctx, WorkspaceMCPWrite{
+			ProfileName: profileName, WorkspaceID: workspaceID, SourceID: target.Path(), Server: normalized, Write: commit,
+			ReadCommitted: func() (compozyconfig.MCPServer, error) {
+				_, current, readErr := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
+				if readErr != nil {
+					return compozyconfig.MCPServer{}, readErr
+				}
+				entry, ok := mcpSourceForTarget(name, target.Kind(), current)
+				if !ok {
+					return compozyconfig.MCPServer{}, fmt.Errorf("settings: committed MCP definition is unavailable")
+				}
+				return entry.Server, nil
+			},
+		})
+	} else {
+		err = commit()
+		if err == nil && workspaceID != "" {
+			approvalWarning = "MCP server saved but approval is unavailable; waiting for approval"
+		}
+	}
 	if err != nil {
 		var rollbackErr error
 		if mutationOutcome != mcpDefinitionMutationCommitted {
@@ -86,7 +111,22 @@ func (s *service) putMCPServer(
 	result.ProfileName = profileName
 	result = mutationResultAtPath(result, target.Path())
 	result.Warnings = append(result.Warnings, cleanupWarnings...)
+	if approvalWarning != "" {
+		result.Warnings = append(result.Warnings, approvalWarning)
+	}
+	normalized.DefinitionSource = target.Path()
 	result.MCPServer = new(committedMCPServerItem(normalized, scope, workspaceID, profileName, target.Kind(), sources))
+	if s.mcpConsent != nil {
+		_, committed, readErr := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
+		if readErr == nil {
+			if entry, ok := mcpSourceForTarget(name, target.Kind(), committed); ok {
+				readErr = s.populateMCPServerStatuses(ctx, result.MCPServer, entry, true)
+			}
+		}
+		if readErr != nil {
+			result.Warnings = append(result.Warnings, "MCP server saved but consent status could not be loaded")
+		}
+	}
 	return result, nil
 }
 

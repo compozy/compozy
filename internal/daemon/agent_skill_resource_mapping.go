@@ -163,7 +163,7 @@ func appendSkillResources(
 				sourceKey: source.prefix + "/skill/" + identity + "/mcp_server/" + serverName,
 				scope:     scope,
 				owner:     source.owner,
-				spec:      mcpServerFromSkillDecl(server),
+				spec:      skillMCPServerWithSource(server, skill.FilePath),
 			})
 		}
 	}
@@ -264,4 +264,10 @@ func sidecarRecordSortKey[T any](record resources.Record[T]) string {
 		string(record.Owner.Kind.Normalize()) + "\x00" +
 		strings.TrimSpace(record.Owner.ID) + "\x00" +
 		strings.TrimSpace(record.ID)
+}
+
+func skillMCPServerWithSource(decl skillspkg.MCPServerDecl, path string) compozyconfig.MCPServer {
+	server := mcpServerFromSkillDecl(decl)
+	server.DefinitionSource = path
+	return server
 }

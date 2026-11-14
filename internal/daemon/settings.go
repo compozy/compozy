@@ -20,6 +20,7 @@ import (
 )
 
 type settingsRuntimeSurface struct {
+	state             *bootState
 	config            compozyconfig.Config
 	startedAt         time.Time
 	sessions          SessionManager
@@ -62,7 +63,7 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 
 	now, pid, info := settingsRuntimeFunctions(d)
 	mcpAuthStore, mcpAuthRegistrations, secretResolver, secretRefs := settingsMCPAuthDependencies(state)
-	mcpAuthManager, err := newSettingsMCPAuthManagerWithConfig(
+	mcpAuthManager, err := newSettingsMCPAuthManagerWithAuthorization(
 		mcpAuthStore,
 		&daemonMCPAuthNotifier{
 			writer: state.registry,
@@ -72,6 +73,9 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		mcpAuthRegistrations,
 		secretResolver,
 		state.cfg.MCP.OAuth,
+		func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+			return authorizeMCPAuthNetwork(ctx, state, cfg)
+		},
 		state.mcpAuthGeneration,
 	)
 	if err != nil {
@@ -83,6 +87,7 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 	}
 
 	return &settingsRuntimeSurface{
+		state:             state,
 		config:            state.cfg,
 		startedAt:         state.startedAt,
 		sessions:          state.sessions,

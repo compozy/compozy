@@ -29,6 +29,8 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/procutil"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/resources"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
@@ -1712,4 +1714,121 @@ func TestDaemonMCPCloneInputs(t *testing.T) {
 			t.Fatalf("clone rendering failed: %v", err)
 		}
 	})
+}
+
+// Invariant (UT-110/037): no OAuth/probe network call precedes digest-bound consent;
+// passive status remains readable. Owner: daemon Settings auth boundary; canonical suite: settings.
+func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
+	t.Parallel()
+	state, req := newMCPConsentFixture(t)
+	var requests atomic.Int64
+	var unapproved atomic.Bool
+	listener := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		decision, err := (settingsMCPConsent{state: state}).MCPConsent(r.Context(), req)
+		if err != nil || !decision.Admitted {
+			unapproved.Store(true)
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer listener.Close()
+	req.Server.Command = ""
+	req.Server.Transport = "http"
+	req.Server.URL = listener.URL + "/mcp"
+	req.Server.Auth = compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationAuto}
+	encoded, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"sentry": map[string]any{"type": "http", "url": req.Server.URL, "auth": map[string]any{"registration": "auto"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(req.Server.DefinitionSource, encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Use the canonical parser's normalized definition in both publisher and Settings.
+	servers, err := compozyconfig.LoadMCPServersJSONFile(req.Server.DefinitionSource)
+	if err != nil || len(servers) != 1 {
+		t.Fatalf("servers=%+v %v", servers, err)
+	}
+	req.Server = servers[0]
+	state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{{ID: "workspace-server", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID}, Spec: req.Server}})
+	tokens := state.registry.(mcpauth.TokenStore)
+	manager, err := newSettingsMCPAuthManagerWithAuthorization(tokens, nil, nil, nil, compozyconfig.MCPOAuthConfig{}, func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+		return authorizeMCPAuthNetwork(ctx, state, cfg)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	surface := &settingsRuntimeSurface{state: state, mcpAuthManager: manager, mcpAuthStore: tokens}
+	service, err := settingspkg.NewService(testHomePaths(t), settingspkg.Dependencies{WorkspaceResolver: state.workspaceResolver, ProfileResolver: state.profiles, MCPConsent: settingsMCPConsent{state: state}, MCPAuth: surface, MCPRuntime: surface})
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: "sentry"}
+	if _, err = service.GetMCPAuthStatus(t.Context(), target); err != nil {
+		t.Fatalf("passive status blocked: %v", err)
+	}
+	if status, err := surface.MCPServerRuntimeStatus(t.Context(), mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "sentry"}, req.Server); err != nil || status.Probe != settingspkg.MCPServerProbeSkipped {
+		t.Fatalf("waiting probe=%+v %v", status, err)
+	}
+	digest, err := compozyconfig.MCPDefinitionDigest(req.Server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ digest, code string }{{"", "mcp_server_waiting_approval"}, {"stale", "mcp_approval_definition_changed"}} {
+		_, err := service.BeginMCPAuth(t.Context(), settingspkg.MCPAuthBeginRequest{MCPAuthTargetRequest: target, DefinitionDigest: tc.digest, CallbackURL: "http://127.0.0.1:7777/callback"})
+		approvalErr, ok := errors.AsType[*settingspkg.MCPApprovalError](err)
+		if !ok || approvalErr.Code != tc.code || requests.Load() != 0 {
+			t.Fatalf("begin digest=%q error=%v requests=%d", tc.digest, err, requests.Load())
+		}
+	}
+	_, _ = service.BeginMCPAuth(t.Context(), settingspkg.MCPAuthBeginRequest{MCPAuthTargetRequest: target, DefinitionDigest: digest, CallbackURL: "http://127.0.0.1:7777/callback"})
+	if requests.Load() == 0 || unapproved.Load() {
+		t.Fatalf("requests=%d unapproved=%t", requests.Load(), unapproved.Load())
+	}
+	if _, err = (settingsMCPConsent{state: state}).ApproveMCP(t.Context(), req, "", true); err != nil {
+		t.Fatal(err)
+	}
+	before := requests.Load()
+	cfg, err := surface.mcpAuthServerConfig(t.Context(), mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "sentry"}, req.Server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err == nil || requests.Load() != before {
+		t.Fatalf("continued auth escaped revoke: %v", err)
+	}
+}
+
+// Invariant: OAuth credential ownership does not select the approval profile.
+// Owner: daemon auth consent boundary; canonical Settings auth suite.
+func TestMCPAuthNetworkUsesActiveConsentProfile(t *testing.T) {
+	t.Parallel()
+	state, req := newMCPConsentFixture(t)
+	work, err := state.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	consent := settingsMCPConsent{state: state}
+	digest, err := compozyconfig.MCPDefinitionDigest(req.Server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := consent.ApproveMCP(t.Context(), req, digest, false); err != nil {
+		t.Fatal(err)
+	}
+	cfg := mcpauth.ServerConfig{Target: mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: req.Server.Name}, DefinitionDigest: digest, ConsentScope: mcpauth.ConsentScope{ProfileID: work.ID, WorkspaceID: req.WorkspaceID}}
+	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err == nil {
+		t.Fatal("default profile consent leaked to work")
+	}
+	req.ProfileName = "work"
+	if _, err := consent.ApproveMCP(t.Context(), req, digest, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := consent.ApproveMCP(t.Context(), req, "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err == nil {
+		t.Fatal("work OAuth remained authorized after revoke")
+	}
 }

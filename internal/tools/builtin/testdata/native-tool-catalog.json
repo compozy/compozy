@@ -2224,6 +2224,19 @@
     "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__mcp_allow",
+    "native_name": "mcp_allow",
+    "toolsets": [
+      "compozy__mcp"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9676d1eeff4b6635ea3fc3ea1f16226b40d0dabc06448b85ff6f9776ef302da3",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__mcp_auth_status",
     "native_name": "mcp_auth_status",
     "toolsets": [

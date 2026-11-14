@@ -183,6 +183,8 @@ type MCPDefinitionRetirer interface {
 type Dependencies struct {
 	RuntimeMCPInventory         RuntimeMCPInventory
 	RuntimeMCPContext           func() (runtimemcp.ReadContext, error)
+	MCPConsent                  MCPConsentProvider
+	WorkspaceMCPApprovals       WorkspaceMCPApprovalRecorder
 	ShellScopeRevisions         ShellScopeRevisionStore
 	WorkspaceResolver           WorkspaceResolver
 	ProfileResolver             ProfileResolver
@@ -222,6 +224,8 @@ type ShellScopeRevisionStore interface {
 type service struct {
 	runtimeMCP                  RuntimeMCPInventory
 	runtimeMCPContext           func() (runtimemcp.ReadContext, error)
+	mcpConsent                  MCPConsentProvider
+	workspaceMCPApprovals       WorkspaceMCPApprovalRecorder
 	shellScopeRevisions         ShellScopeRevisionStore
 	shellMu                     sync.Mutex
 	homePaths                   compozyconfig.HomePaths
@@ -306,6 +310,8 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		transportParity:             deps.TransportParity,
 		cmdPalette:                  deps.CmdPalette,
 		mcpAuth:                     deps.MCPAuth,
+		mcpConsent:                  deps.MCPConsent,
+		workspaceMCPApprovals:       deps.WorkspaceMCPApprovals,
 		mcpRuntime:                  deps.MCPRuntime,
 		mcpExtensions:               deps.MCPExtensions,
 		mcpExtensionManagement:      deps.MCPExtensionManagement,

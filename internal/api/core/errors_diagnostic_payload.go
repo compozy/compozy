@@ -22,6 +22,9 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if approval, ok := errors.AsType[*settingspkg.MCPApprovalError](err); ok {
+		payload.Code = approval.Code
+	}
 	if cause, ok := errors.AsType[*source.Error](err); ok {
 		payload.Code = string(cause.Code)
 	}

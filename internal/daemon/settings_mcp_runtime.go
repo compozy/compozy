@@ -26,6 +26,12 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	server compozyconfig.MCPServer,
 ) (settingspkg.MCPServerRuntimeStatus, error) {
 	status := settingspkg.MCPServerRuntimeStatus{Configured: true}
+	if err := s.requireMCPConsent(ctx, target, server); err != nil {
+		status.State = "waiting_approval"
+		status.Probe = settingspkg.MCPServerProbeSkipped
+		status.Reason = "waiting_approval"
+		return status, nil
+	}
 	key, tracked := settingsMCPDeadEntityKey(target, server.EffectiveRuntimeName())
 	if suppressed, err := s.suppressedMCPRuntimeStatus(ctx, key, tracked); err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, err
@@ -123,6 +129,13 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 			return resolved, nil
 		}),
 		mcppkg.WithRuntimeHealthRegistry(s.mcpHealthRegistry),
+		mcppkg.WithConsentCheck(func(ctx context.Context, _ toolspkg.SourceRef) error { return s.requireMCPConsent(ctx, target, server) }),
+		mcppkg.WithAuthNetworkAuthorization(func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+			if s.state == nil {
+				return nil
+			}
+			return authorizeMCPAuthNetwork(ctx, s.state, cfg)
+		}),
 		mcppkg.WithTokenStore(s.mcpAuthStore),
 		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
 		mcppkg.WithSecretLookup(s.lookupSecret),
