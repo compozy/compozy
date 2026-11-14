@@ -111,6 +111,14 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	return preparedDaemonExtensionInstall{
 		name: manifest.Name, manifest: manifest, digest: checksum, target: target,
 		commit: func() error {
+			// The early check only fails fast; the commit repeats it under the lifecycle
+			// lock so an attachment enrolled meanwhile cannot be overwritten by a caller
+			// that does not own it.
+			if req.Replace {
+				if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor); err != nil {
+					return err
+				}
+			}
 			return extensionpkg.InstallLocalManaged(
 				s.homePaths,
 				s.registry,
