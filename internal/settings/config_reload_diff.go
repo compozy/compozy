@@ -39,6 +39,9 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	if current.UserScope.WorkDir != desired.UserScope.WorkDir {
 		changed = append(changed, "user_scope.work_dir")
 	}
+	if current.Client.RequestTimeout != desired.Client.RequestTimeout {
+		changed = append(changed, "client.request_timeout")
+	}
 	changed = append(changed, diffProviderUsageSettings(current.ProviderUsage, desired.ProviderUsage)...)
 	if current.Subagents.ResultMaxChars != desired.Subagents.ResultMaxChars {
 		changed = append(changed, "subagents.result_max_chars")
