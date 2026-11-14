@@ -1485,7 +1485,50 @@ func TestConfigureRuntime(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "did not confirm") || !IsConfigurationRejection(err) {
 			t.Fatalf("error = %v, want unconfirmed configuration rejection", err)
 		}
+		if strings.Contains(err.Error(), "valid choices") {
+			t.Fatalf("error = %v, claims the requested value is absent from the advertised choices", err)
+		}
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "high")
+	})
+
+	// Invariant: an unconfirmed readback is retried while the provider snapshot settles.
+	t.Run("Should confirm a reasoning effort after one unconfirmed readback", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "config_options_confirm_on_retry", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		if err := driver.ConfigureRuntime(
+			testutil.Context(t),
+			proc,
+			RuntimeConfig{ReasoningEffort: "high"},
+		); err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v, want provider-confirmed reasoning effort", err)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
+	})
+
+	// Invariant: a confirmation that arrives as a later notification settles the
+	// bind without a second set request.
+	t.Run("Should accept a late config_option_update without resending", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "late-update.jsonl")
+		proc := startHelperProcess(t, driver, "config_options_late_update", "", StartOpts{
+			Env: helperEnvWithCapture("config_options_late_update", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+		if err := driver.ConfigureRuntime(
+			testutil.Context(t),
+			proc,
+			RuntimeConfig{ReasoningEffort: "high"},
+		); err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v, want the late confirmation accepted", err)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
+		requests := captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption)
+		if len(requests) != 1 {
+			t.Fatalf("set_config_option requests = %d, want 1: the late notification must confirm", len(requests))
+		}
 	})
 
 	// Invariant: a notification sent before the provider's response cannot discard that confirmation.
