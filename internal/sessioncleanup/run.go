@@ -54,7 +54,9 @@ type Run struct {
 	Scope          Scope
 	Selection      Selection
 	ArchivedBefore *time.Time
-	State          RunState
+	// CountedAt is the plan's count: nothing archived later is in the run.
+	CountedAt time.Time
+	State     RunState
 	// Total is every session the run planned to delete.
 	Total int
 	// Deleted counts sessions removed (or already gone).

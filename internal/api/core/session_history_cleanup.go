@@ -144,10 +144,6 @@ func (h *BaseHandlers) historyCleanupRequest(
 		},
 		RootIDs: body.SessionIDs,
 	}
-	if body.CountedAt != nil {
-		countedAt := body.CountedAt.UTC()
-		request.CountedAt = &countedAt
-	}
 	workspaceRef := strings.TrimSpace(body.WorkspaceID)
 	if (workspaceRef != "") == body.AllWorkspaces {
 		return request, http.StatusBadRequest, errors.New("choose exactly one workspace_id or all_workspaces")
@@ -161,6 +157,12 @@ func (h *BaseHandlers) historyCleanupRequest(
 			return request, StatusForWorkspaceError(err), err
 		}
 		request.Scope.WorkspaceID = workspaceID
+	}
+	// A confirmed count fixes the range where the dry run resolved it.
+	if body.CountedAt != nil {
+		countedAt := body.CountedAt.UTC()
+		request.CountedAt = &countedAt
+		now = countedAt
 	}
 	cutoff, err := historyCleanupCutoff(body, now)
 	if err != nil {
@@ -258,6 +260,7 @@ func HistoryCleanupRunPayload(run sessioncleanup.Run) contract.SessionHistoryCle
 			Subagents:  run.Selection.Subagents,
 		},
 		ArchivedBefore: run.ArchivedBefore,
+		CountedAt:      run.CountedAt.UTC(),
 		State:          string(run.State),
 		Total:          run.Total,
 		Done:           run.Done(),

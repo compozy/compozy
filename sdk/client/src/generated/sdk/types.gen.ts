@@ -7826,6 +7826,7 @@ export type SessionHistoryCleanupRequest = {
 export type SessionHistoryCleanupRun = {
   all_workspaces?: boolean;
   archived_before?: string | null;
+  counted_at: string;
   delete: SessionHistoryCleanupSelection;
   deleted: number;
   done: number;

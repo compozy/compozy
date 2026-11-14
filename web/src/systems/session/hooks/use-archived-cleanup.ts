@@ -70,11 +70,14 @@ function errorText(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-/** A retry repeats the run's own scope, checks, and cutoff, limited to the threads that failed. */
+/**
+ * A retry repeats the run's own scope, checks, cutoff, and count, limited to the threads that
+ * failed, so nothing archived after the confirmed count joins it.
+ */
 function retryRequest(run: SessionHistoryCleanupRun): SessionHistoryCleanupRequest {
   const request: SessionHistoryCleanupRequest = run.all_workspaces
-    ? { all_workspaces: true, delete: run.delete }
-    : { workspace_id: run.workspace_id, delete: run.delete };
+    ? { all_workspaces: true, delete: run.delete, counted_at: run.counted_at }
+    : { workspace_id: run.workspace_id, delete: run.delete, counted_at: run.counted_at };
   if (run.archived_before) request.archived_before = run.archived_before;
   const ids = run.failures.map(failure => failure.session_id);
   if (ids.length > 0) request.session_ids = ids;

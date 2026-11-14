@@ -16139,6 +16139,8 @@ export interface components {
       all_workspaces?: boolean;
       /** Format: date-time */
       archived_before?: string | null;
+      /** Format: date-time */
+      counted_at: string;
       delete: components["schemas"]["SessionHistoryCleanupSelection"];
       deleted: number;
       done: number;

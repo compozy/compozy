@@ -163,7 +163,8 @@ func TestServiceStart(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
-		if started.Total != 1 || plan.KeptLive != 1 || !plan.CountedAt.Equal(*request.CountedAt) {
+		if started.Total != 1 || plan.KeptLive != 1 || !plan.CountedAt.Equal(*request.CountedAt) ||
+			!started.CountedAt.Equal(plan.CountedAt) {
 			t.Fatalf("Start() = run %+v plan %+v, want only root, child kept", started, plan)
 		}
 		h.waitForSettled(t)

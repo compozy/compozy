@@ -32,6 +32,7 @@ function cleanupRun(overrides: Partial<SessionHistoryCleanupRun> = {}): SessionH
     skipped: 4,
     failed_threads: 0,
     failures: [],
+    counted_at: "2026-11-14T12:00:00Z",
     started_at: "2026-11-14T12:00:00Z",
     ...overrides,
   };

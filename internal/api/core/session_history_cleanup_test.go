@@ -146,14 +146,19 @@ func TestBaseHandlersPlanSessionHistoryCleanup(t *testing.T) {
 		if response.Plan.ArchivedBefore != nil || !response.Plan.CountedAt.Equal(historyCleanupNow) {
 			t.Fatalf("plan = %+v, want no cutoff, counted at %v", response.Plan, historyCleanupNow)
 		}
-		counted := response.Plan.CountedAt.Format(time.RFC3339Nano)
-		recorder = performHistoryCleanup(t, manager, historyCleanupBody(`,"counted_at":"`+counted+`"`), false)
+		// Approved an hour after the count: the range still resolves where the count did.
+		counted := historyCleanupNow.Add(-time.Hour)
+		body := historyCleanupBody(`,"older_than_days":7,"counted_at":"` + counted.Format(time.RFC3339Nano) + `"`)
+		recorder = performHistoryCleanup(t, manager, body, false)
 		if recorder.Code != http.StatusAccepted {
 			t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 		}
 		if len(manager.starts) != 1 || manager.starts[0].CountedAt == nil ||
-			!manager.starts[0].CountedAt.Equal(historyCleanupNow) {
+			!manager.starts[0].CountedAt.Equal(counted) {
 			t.Fatalf("starts = %+v, want one fenced to the dry run's count", manager.starts)
+		}
+		if want := counted.Add(-7 * 24 * time.Hour); !manager.starts[0].ArchivedBefore.Equal(want) {
+			t.Fatalf("cutoff = %v, want 7 days before the count %v", manager.starts[0].ArchivedBefore, want)
 		}
 	})
 

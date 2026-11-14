@@ -28067,6 +28067,10 @@
             "nullable": true,
             "type": "string"
           },
+          "counted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
           "delete": {
             "$ref": "#/components/schemas/SessionHistoryCleanupSelection"
           },
@@ -28114,6 +28118,7 @@
           }
         },
         "required": [
+          "counted_at",
           "delete",
           "deleted",
           "done",

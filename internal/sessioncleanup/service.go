@@ -191,6 +191,7 @@ func (s *Service) Start(ctx context.Context, request Request) (Run, Plan, error)
 			Scope:          request.Scope,
 			Selection:      request.Selection,
 			ArchivedBefore: request.ArchivedBefore,
+			CountedAt:      plan.CountedAt,
 			State:          RunRunning,
 			Total:          plan.Counts.Total(),
 			StartedAt:      s.now(),

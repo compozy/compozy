@@ -219,6 +219,7 @@ type SessionHistoryCleanupRun struct {
 	AllWorkspaces  bool                           `json:"all_workspaces,omitempty"`
 	Delete         SessionHistoryCleanupSelection `json:"delete"`
 	ArchivedBefore *time.Time                     `json:"archived_before,omitempty"`
+	CountedAt      time.Time                      `json:"counted_at"`
 	State          string                         `json:"state"`
 	Total          int                            `json:"total"`
 	Done           int                            `json:"done"`

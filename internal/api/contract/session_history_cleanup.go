@@ -90,7 +90,9 @@ type SessionHistoryCleanupRun struct {
 	AllWorkspaces  bool                           `json:"all_workspaces,omitempty"`
 	Delete         SessionHistoryCleanupSelection `json:"delete"`
 	ArchivedBefore *time.Time                     `json:"archived_before,omitempty"`
-	State          string                         `json:"state"`
+	// CountedAt is the count the run was fenced to; a retry sends it back as counted_at.
+	CountedAt time.Time `json:"counted_at"`
+	State     string    `json:"state"`
 	// Total is every session the run planned to delete; done is how many it settled.
 	Total   int `json:"total"`
 	Done    int `json:"done"`
