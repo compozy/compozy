@@ -2573,6 +2573,28 @@ describe("SessionList folders and manual order", () => {
     expect(layout.reorderSessions).not.toHaveBeenCalled();
   });
 
+  // Invariant (#1724): in a folder list's scroll column the paging row follows the rows and the
+  // root zone keeps its content height, so a long page never squeezes its rows under the pager.
+  // jsdom has no layout; the ArchivedPaged contract story shows the rendered geometry.
+  it("Should keep the paging row after the last row of a long folder list", () => {
+    renderList({
+      sessions: layoutRows,
+      view: {
+        ...view,
+        shelf: "archive",
+        layout: fakeLayout(),
+        catalog: sessionListCatalogFixture({ sessions: layoutRows, next: true, previous: true }),
+      },
+    });
+    const root = screen.getByTestId("session-sidebar-root");
+    const pager = screen.getByRole("button", { name: "Next sessions" }).parentElement!;
+    expect(screen.getByRole("button", { name: "Previous sessions" }).parentElement).toBe(pager);
+    expect(root.parentElement).toBe(pager.parentElement);
+    expect(root.compareDocumentPosition(pager) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(root).toContainElement(screen.getByTestId("session-sidebar-session-r2"));
+    expect(root).toHaveClass("shrink-0");
+  });
+
   it("Should open the row menu from the keyboard and move a session into a folder", async () => {
     // A keyboard-opened menu is driven by keys; the pointer check would only see its guard layer.
     const user = userEvent.setup({ pointerEventsCheck: 0 });

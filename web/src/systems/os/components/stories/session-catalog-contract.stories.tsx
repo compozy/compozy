@@ -87,7 +87,9 @@ type CatalogState =
   | "manual-note"
   | "list-failure"
   | "aggregate"
-  | "empty-scoped";
+  | "empty-scoped"
+  | "archived-paged"
+  | "grouped-paged";
 
 const MARKETING: SessionOwner = {
   profile_id: "01J9MARKETING00000000000000",
@@ -109,6 +111,51 @@ const STORY_SESSIONS = [
   session("session-release", "Release gate", "workspace-infra"),
   session("session-notes", "Weekly notes", ""),
 ];
+
+/**
+ * A long Archived page with a next page after it (#1724): more threads than the sidebar shows,
+ * every other one with its spawned child unfolded under it.
+ */
+function archivedSession(id: string, title: string, parentId?: string): SessionPayload {
+  const archived: SessionPayload = {
+    ...session(id, title, "workspace-compozy"),
+    state: "stopped",
+    badge: "stopped",
+    archived_at: "2026-08-17T12:00:00Z",
+  };
+  if (!parentId) return archived;
+  return {
+    ...archived,
+    lineage: {
+      parent_session_id: parentId,
+      root_session_id: parentId,
+      spawn_depth: 1,
+      spawn_role: "worker",
+      auto_stop_on_parent: false,
+      notify_creator: false,
+      permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+    },
+  };
+}
+
+const ARCHIVED_PAGE = Array.from({ length: 8 }, (_, index) => {
+  const id = `session-archived-${index}`;
+  const root = archivedSession(id, `Archived slice ${index + 1}`);
+  return index % 2 === 0 ? [root, archivedSession(`${id}-child`, "Port the worker", id)] : [root];
+}).flat();
+
+/** One (project, profile) pair's folder layout: its list renders as folder sections. */
+const ARCHIVED_LAYOUT: NonNullable<SessionListViewModel["layout"]> = {
+  folders: [],
+  createFolder: fn(),
+  renameFolder: fn(),
+  deleteFolder: fn(),
+  moveFolder: fn(),
+  reorderFolders: fn(),
+  moveSession: fn(),
+  moveSessions: fn(),
+  reorderSessions: fn(),
+};
 
 const badgeOf = (row: SessionPayload) => workspaceBadgeIdentity(row.workspace_id, WORKSPACE_NAMES);
 
@@ -151,7 +198,7 @@ const PROJECT_GROUPS = [
 ];
 
 /** Each group body reads its own page; `failWorkspace` makes one group unreachable. */
-function catalogHandler(failWorkspace?: string) {
+function catalogHandler(failWorkspace?: string, hasMore = false) {
   return compozyApiMock.get("/api/sessions", ({ request }) => {
     const url = new URL(request.url);
     const selector = url.searchParams.get("workspace_id");
@@ -159,13 +206,19 @@ function catalogHandler(failWorkspace?: string) {
       return HttpResponse.json({ error: "unreachable" }, { status: 503 });
     }
     const profile = url.searchParams.get("profile");
-    const sessions = STORY_SESSIONS.filter(row => {
+    const rows = hasMore ? ARCHIVED_PAGE : STORY_SESSIONS;
+    const sessions = rows.filter(row => {
       if (selector && row.workspace_id !== (selector === "@user" ? "" : selector)) return false;
       return !profile || row.profile_name === profile;
     });
     return HttpResponse.json({
       sessions,
-      page: { has_more: false, limit: 100, total: sessions.length },
+      page: {
+        has_more: hasMore,
+        limit: 100,
+        total: sessions.length,
+        ...(hasMore ? { next_cursor: "story-page-2" } : {}),
+      },
     });
   });
 }
@@ -209,6 +262,22 @@ function storyView(state: CatalogState): SessionListViewModel {
       return { ...view, sortNote: SESSION_LIST_MANUAL_SORT_NOTE };
     case "aggregate":
       return { ...view, aggregate: true, scopeLabel: null };
+    case "archived-paged":
+      return {
+        ...view,
+        shelf: "archive",
+        layout: ARCHIVED_LAYOUT,
+        catalog: sessionListCatalogFixture({ sessions: ARCHIVED_PAGE, next: true }),
+      };
+    case "grouped-paged":
+      return {
+        ...view,
+        catalog: undefined,
+        shelf: "archive",
+        storedGroupBy: "project",
+        groupBy: "project",
+        groups: [projectGroup("workspace-compozy", { total: 28, working: 0, needsYou: 0 })],
+      };
     default:
       return view;
   }
@@ -216,6 +285,8 @@ function storyView(state: CatalogState): SessionListViewModel {
 
 function storySessions(state: CatalogState): SessionPayload[] {
   switch (state) {
+    case "archived-paged":
+      return ARCHIVED_PAGE;
     case "all-projects":
       return STORY_SESSIONS.filter(row => row.profile_name === "default");
     case "aggregate":
@@ -323,4 +394,22 @@ export const AggregateProfiles: Story = {
 /** A scoped empty catalog says which active profile has no sessions. */
 export const ScopedProfileEmpty: Story = {
   args: { state: "empty-scoped" },
+};
+
+/** A long Archived page keeps Next sessions on its own line after the last row (#1724). */
+export const ArchivedPaged: Story = {
+  args: { state: "archived-paged" },
+  play: async ({ canvasElement }) => {
+    within(canvasElement).getByRole("button", { name: "Next sessions" }).scrollIntoView();
+  },
+};
+
+/** A grouped page with more rows keeps its pager below the group's last row (#1724). */
+export const GroupedPaged: Story = {
+  args: { state: "grouped-paged" },
+  parameters: storybookMswParameters({ session: [catalogHandler(undefined, true)] }),
+  play: async ({ canvasElement }) => {
+    const next = await within(canvasElement).findByRole("button", { name: "Next sessions" });
+    next.scrollIntoView();
+  },
 };
