@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// RenameProfileResponse is a daemon API value.
+type RenameProfileResponse struct {
+	Renamed           bool                       `json:"renamed"`
+	RepoResults       []ProfileRepoRenameOutcome `json:"repo_results"`
+	DormantPlacements []ProfilePlacement         `json:"dormant_placements"`
+}
+
+// RenameSessionFolderRequest is a daemon API value.
+type RenameSessionFolderRequest struct {
+	Name string `json:"name"`
+}
+
+// RenameSessionRequest is a daemon API value.
+type RenameSessionRequest struct {
+	Name string `json:"name"`
+}
+
+// RenameWorkspaceFolderRequest is a daemon API value.
+type RenameWorkspaceFolderRequest struct {
+	Name string `json:"name"`
+}
+
 // ReorderSessionFoldersRequest is a daemon API value.
 type ReorderSessionFoldersRequest struct {
 	FolderIDs []string `json:"folder_ids"`
@@ -421,28 +443,4 @@ type Row struct {
 	Actions     []RowAction       `json:"actions,omitempty"`
 	Requires    map[string]string `json:"requires,omitempty"`
 	Fallback    string            `json:"fallback,omitempty"`
-}
-
-// RowAction is a daemon API value.
-type RowAction struct {
-	Title        string            `json:"title"`
-	Icon         string            `json:"icon,omitempty"`
-	Section      string            `json:"section,omitempty"`
-	Primary      bool              `json:"primary,omitempty"`
-	Destructive  bool              `json:"destructive,omitempty"`
-	Confirmation *Confirmation     `json:"confirmation,omitempty"`
-	Shortcut     string            `json:"shortcut,omitempty"`
-	Action       *Action           `json:"action,omitempty"`
-	Handler      string            `json:"handler,omitempty"`
-	SubmitForm   bool              `json:"submit_form,omitempty"`
-	Requires     map[string]string `json:"requires,omitempty"`
-	Fallback     string            `json:"fallback,omitempty"`
-}
-
-// RunArtifact is a daemon API value.
-type RunArtifact struct {
-	Name         string               `json:"name"`
-	Output       string               `json:"output,omitempty"`
-	Ref          string               `json:"ref,omitempty"`
-	Availability ArtifactAvailability `json:"availability"`
 }

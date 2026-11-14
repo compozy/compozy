@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// ProviderListResponse is a daemon API value.
+type ProviderListResponse struct {
+	Providers []ProviderSummaryPayload `json:"providers"`
+}
+
+// ProviderLoginDescriptorPayload is a daemon API value.
+type ProviderLoginDescriptorPayload struct {
+	Configured        bool                      `json:"configured"`
+	Source            ProviderLoginSource       `json:"source,omitempty"`
+	Executable        string                    `json:"executable,omitempty"`
+	Presence          ProviderLoginPresence     `json:"presence"`
+	RecommendedAction ProviderRecommendedAction `json:"recommended_action,omitempty"`
+}
+
+// ProviderLoginPresence is a daemon API value.
+type ProviderLoginPresence string
+
+// ProviderLoginSource is a daemon API value.
+type ProviderLoginSource string
+
 // ProviderModelConfigurationPayload is a daemon API value.
 type ProviderModelConfigurationPayload struct {
 	ReasoningEffort *Effort `json:"reasoning_effort,omitempty"`
@@ -424,26 +444,4 @@ type RenameProfileRequest struct {
 	NewName      string   `json:"new_name"`
 	Repos        []string `json:"repos,omitempty"`
 	PlanRevision string   `json:"plan_revision"`
-}
-
-// RenameProfileResponse is a daemon API value.
-type RenameProfileResponse struct {
-	Renamed           bool                       `json:"renamed"`
-	RepoResults       []ProfileRepoRenameOutcome `json:"repo_results"`
-	DormantPlacements []ProfilePlacement         `json:"dormant_placements"`
-}
-
-// RenameSessionFolderRequest is a daemon API value.
-type RenameSessionFolderRequest struct {
-	Name string `json:"name"`
-}
-
-// RenameSessionRequest is a daemon API value.
-type RenameSessionRequest struct {
-	Name string `json:"name"`
-}
-
-// RenameWorkspaceFolderRequest is a daemon API value.
-type RenameWorkspaceFolderRequest struct {
-	Name string `json:"name"`
 }

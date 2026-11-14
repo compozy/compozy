@@ -198,6 +198,19 @@ type LoopsResponse struct {
 	Page   CountedCursorPagePayload  `json:"page"`
 }
 
+// MCP is a daemon API value.
+type MCP struct {
+	SessionID          string           `json:"session_id"`
+	Runtime            string           `json:"runtime"`
+	RuntimeDisplayName string           `json:"runtime_display_name"`
+	Usable             int              `json:"usable"`
+	Attention          int              `json:"attention"`
+	PendingReload      bool             `json:"pending_reload"`
+	LastReload         *MCPReloadRecord `json:"last_reload,omitempty"`
+	CompozyServers     []MCPServerRow   `json:"compozy_servers"`
+	RuntimeServers     RuntimeMCP       `json:"runtime_servers"`
+}
+
 // MCPAuthSummary is a daemon API value.
 type MCPAuthSummary struct {
 	Method       string   `json:"method"`
@@ -428,19 +441,4 @@ type MarketplaceSourcePayload struct {
 	Owner        string           `json:"owner,omitempty"`
 	Stability    string           `json:"stability"`
 	Diagnostics  []DiagnosticItem `json:"diagnostics"`
-}
-
-// MarketplaceSourcePreviewPayload is a daemon API value.
-type MarketplaceSourcePreviewPayload struct {
-	Name         string           `json:"name"`
-	Owner        string           `json:"owner,omitempty"`
-	DocumentPath string           `json:"document_path"`
-	Plugins      int              `json:"plugins"`
-	Installable  int              `json:"installable"`
-	Diagnostics  []DiagnosticItem `json:"diagnostics"`
-}
-
-// MarketplaceSourceResponse is a daemon API value.
-type MarketplaceSourceResponse struct {
-	Source MarketplaceSourcePayload `json:"source"`
 }

@@ -375,7 +375,7 @@ type GetSessionMCPParams struct {
 }
 
 // GetSessionMCP Read session MCP availability without discovery
-func (c *Client) GetSessionMCP(ctx context.Context, params GetSessionMCPParams) (*SessionMCP, error) {
+func (c *Client) GetSessionMCP(ctx context.Context, params GetSessionMCPParams) (*MCP, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
@@ -389,7 +389,7 @@ func (c *Client) GetSessionMCP(ctx context.Context, params GetSessionMCPParams) 
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SessionMCP
+	var out MCP
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

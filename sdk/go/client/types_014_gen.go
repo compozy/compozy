@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// OverviewAttentionItemPayload is a daemon API value.
+type OverviewAttentionItemPayload struct {
+	NotificationID string    `json:"notification_id,omitempty"`
+	Kind           string    `json:"kind"`
+	Title          string    `json:"title"`
+	Detail         string    `json:"detail,omitempty"`
+	TaskID         string    `json:"task_id,omitempty"`
+	RunID          string    `json:"run_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	WorkspaceID    string    `json:"workspace_id"`
+	OccurredAt     time.Time `json:"occurred_at"`
+	Actions        []string  `json:"actions"`
+}
+
+// OverviewAttentionPayload is a daemon API value.
+type OverviewAttentionPayload struct {
+	Snapshot string                         `json:"snapshot,omitempty"`
+	Total    int                            `json:"total"`
+	ByKind   map[string]int                 `json:"by_kind"`
+	Items    []OverviewAttentionItemPayload `json:"items"`
+}
+
 // OverviewLongestSessionPayload is a daemon API value.
 type OverviewLongestSessionPayload struct {
 	SessionID       string `json:"session_id"`
@@ -425,23 +447,3 @@ type ProviderErrorDiagnostic struct {
 
 // ProviderFailureAction is a daemon API value.
 type ProviderFailureAction string
-
-// ProviderListResponse is a daemon API value.
-type ProviderListResponse struct {
-	Providers []ProviderSummaryPayload `json:"providers"`
-}
-
-// ProviderLoginDescriptorPayload is a daemon API value.
-type ProviderLoginDescriptorPayload struct {
-	Configured        bool                      `json:"configured"`
-	Source            ProviderLoginSource       `json:"source,omitempty"`
-	Executable        string                    `json:"executable,omitempty"`
-	Presence          ProviderLoginPresence     `json:"presence"`
-	RecommendedAction ProviderRecommendedAction `json:"recommended_action,omitempty"`
-}
-
-// ProviderLoginPresence is a daemon API value.
-type ProviderLoginPresence string
-
-// ProviderLoginSource is a daemon API value.
-type ProviderLoginSource string
