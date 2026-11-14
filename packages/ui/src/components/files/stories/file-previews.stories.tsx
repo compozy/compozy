@@ -50,21 +50,35 @@ const NOTEBOOK = JSON.stringify({
   ],
 });
 
-// The minimal "Hello, world!" PDF from the pdf.js examples.
+// A two-page PDF (Helvetica, text near the top of each page).
 const PDF_BASE64 =
-  "JVBERi0xLjcKCjEgMCBvYmogICUgZW50cnkgcG9pbnQKPDwKICAvVHlwZSAvQ2F0YWxvZwog" +
-  "IC9QYWdlcyAyIDAgUgo+PgplbmRvYmoKCjIgMCBvYmoKPDwKICAvVHlwZSAvUGFnZXMKICAv" +
-  "TWVkaWFCb3ggWyAwIDAgMjAwIDIwMCBdCiAgL0NvdW50IDEKICAvS2lkcyBbIDMgMCBSIF0K" +
-  "Pj4KZW5kb2JqCgozIDAgb2JqCjw8CiAgL1R5cGUgL1BhZ2UKICAvUGFyZW50IDIgMCBSCiAg" +
-  "L1Jlc291cmNlcyA8PAogICAgL0ZvbnQgPDwKICAgICAgL0YxIDQgMCBSIAogICAgPj4KICA+" +
-  "PgogIC9Db250ZW50cyA1IDAgUgo+PgplbmRvYmoKCjQgMCBvYmoKPDwKICAvVHlwZSAvRm9u" +
-  "dAogIC9TdWJ0eXBlIC9UeXBlMQogIC9CYXNlRm9udCAvVGltZXMtUm9tYW4KPj4KZW5kb2Jq" +
-  "Cgo1IDAgb2JqICAlIHBhZ2UgY29udGVudAo8PAogIC9MZW5ndGggNDQKPj4Kc3RyZWFtCkJU" +
-  "CjcwIDUwIFRECi9GMSAxMiBUZgooSGVsbG8sIHdvcmxkISkgVGoKRVQKZW5kc3RyZWFtCmVu" +
-  "ZG9iagoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDEwIDAwMDAwIG4g" +
-  "CjAwMDAwMDAwNzkgMDAwMDAgbiAKMDAwMDAwMDE3MyAwMDAwMCBuIAowMDAwMDAwMzAxIDAw" +
-  "MDAwIG4gCjAwMDAwMDAzODAgMDAwMDAgbiAKdHJhaWxlcgo8PAogIC9TaXplIDYKICAvUm9v" +
-  "dCAxIDAgUgo+PgpzdGFydHhyZWYKNDkyCiUlRU9G";
+  "JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIg" +
+  "Pj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA0IDAgUl0g" +
+  "L0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAg" +
+  "UiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA1" +
+  "IDAgUiAvRjIgNiAwIFIgPj4gPj4gL0NvbnRlbnRzIDcgMCBSID4+CmVuZG9iago0IDAgb2Jq" +
+  "Cjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0g" +
+  "L1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgL0YyIDYgMCBSID4+ID4+IC9Db250" +
+  "ZW50cyA4IDAgUiA+PgplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAv" +
+  "VHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCjYgMCBvYmoKPDwgL1R5cGUg" +
+  "L0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhLUJvbGQgPj4KZW5k" +
+  "b2JqCjcgMCBvYmoKPDwgL0xlbmd0aCAzMjggL0ZpbHRlciAvRmxhdGVEZWNvZGUgPj4Kc3Ry" +
+  "ZWFtCnicfZJBU8IwEIXv/op31JmKbYVSPaKiB5lhaMd7SrYQCE0nSan66w1pYXQUDzubtq/f" +
+  "vreTSY6baYx4iLzEOMb4NkTOcbkgScwQNNVK2yvkGzzlF5ODOkIU9eok7dRTIcmg1rQX1N4j" +
+  "U41eUoB59wKs4shqKSxKpTFjestVWwV4yN6Cs+hk6NEv+ew1QKUsFUptjYM+TgPsBScVgDVc" +
+  "KI+XTK8IYsdWZAY/mDGiY7gkTjumWK2lK2vOTg+76dcnt24TFSdt0Aq7dg+SWbEnSFFtjXfw" +
+  "1+xvxFGa9kSX2v+Qu65qqsAcwCXStmFSfBKHZYWk8yRXHemwm5Mv4UAwDlyod29SNRZmqUVt" +
+  "/3E1SnqWW6vpWahdEhQfXfd5a14ONr8wd6dtecj8II+gSsRHYThIcazFs/vY+ksWhthhNAz9" +
+  "SSL7Ap3ctcQKZW5kc3RyZWFtCmVuZG9iago4IDAgb2JqCjw8IC9MZW5ndGggMTQ5IC9GaWx0" +
+  "ZXIgL0ZsYXRlRGVjb2RlID4+CnN0cmVhbQp4nF2OQQ6CMBBF957iL3UhthUFl5KoW4O9QA1F" +
+  "apA2pVi9vRXsxsX8/Jm8vEzBsToysBS8RsaQrQl4hfneGNlV6rUAv+PAZ8WXo6D0x23zieON" +
+  "hBV+eX072cPqwUn00j7DUqs2pFeuQSm6W7gPxmjrkj/nLion41kElEHXYBEkSY445QkUfnyV" +
+  "EDywScnYWlw+ayY19wplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1" +
+  "MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMDY0IDAwMDAwIG4gCjAwMDAwMDAx" +
+  "MjcgMDAwMDAgbiAKMDAwMDAwMDI2MyAwMDAwMCBuIAowMDAwMDAwMzk5IDAwMDAwIG4gCjAw" +
+  "MDAwMDA0NjkgMDAwMDAgbiAKMDAwMDAwMDU0NCAwMDAwMCBuIAowMDAwMDAwOTQ0IDAwMDAw" +
+  "IG4gCnRyYWlsZXIKPDwgL1NpemUgOSAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMTE2NQol" +
+  "JUVPRgo=";
 
 function Frame({ children }: { children: ReactNode }) {
   return <div className="flex h-[420px] flex-col">{children}</div>;
@@ -129,7 +143,7 @@ export const Pdf: Story = {
     <FilePdfPreview
       url={`data:application/pdf;base64,${PDF_BASE64}`}
       workerFactory={createPdfWorker}
-      title="hello.pdf"
+      title="report.pdf"
     />
   ),
   play: async ({ canvasElement }) => {
@@ -139,7 +153,7 @@ export const Pdf: Story = {
           canvasElement
             .querySelector('[data-slot="file-pdf-preview"]')
             ?.getAttribute("data-page-count")
-        ).toBe("1"),
+        ).toBe("2"),
       { timeout: 10_000 }
     );
   },

@@ -131,6 +131,20 @@ export const CsvPreview: Story = {
   beforeEach: () => placeFile("docs/people.csv"),
 };
 
+export const LargeCsvPreview: Story = {
+  beforeEach: () => placeFile("docs/metrics.csv"),
+};
+
+export const PdfPreview: Story = {
+  tags: ["play-fn"],
+  beforeEach: () => placeFile("docs/report.pdf"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const pdf = await canvas.findByTestId("file-viewer-pdf", undefined, { timeout: 10_000 });
+    await waitFor(() => expect(pdf).toHaveAttribute("data-page-count", "2"), { timeout: 10_000 });
+  },
+};
+
 export const HtmlPreview: Story = {
   beforeEach: () => placeFile("docs/page.html"),
 };

@@ -28,6 +28,8 @@ export const fileListingsFixture: Record<string, FileEntry[]> = {
     { name: "empty", path: "docs/empty", kind: "directory" },
     { name: "guide.md", path: "docs/guide.md", kind: "file", size: 612 },
     { name: "people.csv", path: "docs/people.csv", kind: "file", size: 96 },
+    { name: "metrics.csv", path: "docs/metrics.csv", kind: "file", size: 96_000 },
+    { name: "report.pdf", path: "docs/report.pdf", kind: "file", size: 1_409 },
     { name: "page.html", path: "docs/page.html", kind: "file", size: 240 },
     { name: "analysis.ipynb", path: "docs/analysis.ipynb", kind: "file", size: 820 },
     { name: "logo.png", path: "docs/logo.png", kind: "file", size: 68 },
@@ -95,6 +97,47 @@ export const GUIDE_MD = [
 const PEOPLE_CSV =
   'id,name,role\n1,Ada Lovelace,Analyst\n2,Linus Torvalds,Kernel\n3,"Hopper, Grace",Compilers\n';
 
+// 2,000 records, so the table preview has to virtualize its rows.
+const METRICS_CSV = [
+  "id,name,team,started,note",
+  ...Array.from({ length: 2_000 }, (_, index) => {
+    const id = index + 1;
+    const team = ["Core", "Web", "Infra"][index % 3];
+    const month = String((index % 12) + 1).padStart(2, "0");
+    return `${id},Person ${id},${team},2026-${month}-01,"Row ${id}, quoted"`;
+  }),
+].join("\n");
+
+// A two-page PDF (Helvetica, text near the top of each page) for the PDF preview.
+const REPORT_PDF =
+  "JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIg" +
+  "Pj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA0IDAgUl0g" +
+  "L0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAg" +
+  "UiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA1" +
+  "IDAgUiAvRjIgNiAwIFIgPj4gPj4gL0NvbnRlbnRzIDcgMCBSID4+CmVuZG9iago0IDAgb2Jq" +
+  "Cjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0g" +
+  "L1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgL0YyIDYgMCBSID4+ID4+IC9Db250" +
+  "ZW50cyA4IDAgUiA+PgplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAv" +
+  "VHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCjYgMCBvYmoKPDwgL1R5cGUg" +
+  "L0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhLUJvbGQgPj4KZW5k" +
+  "b2JqCjcgMCBvYmoKPDwgL0xlbmd0aCAzMjggL0ZpbHRlciAvRmxhdGVEZWNvZGUgPj4Kc3Ry" +
+  "ZWFtCnicfZJBU8IwEIXv/op31JmKbYVSPaKiB5lhaMd7SrYQCE0nSan66w1pYXQUDzubtq/f" +
+  "vreTSY6baYx4iLzEOMb4NkTOcbkgScwQNNVK2yvkGzzlF5ODOkIU9eok7dRTIcmg1rQX1N4j" +
+  "U41eUoB59wKs4shqKSxKpTFjestVWwV4yN6Cs+hk6NEv+ew1QKUsFUptjYM+TgPsBScVgDVc" +
+  "KI+XTK8IYsdWZAY/mDGiY7gkTjumWK2lK2vOTg+76dcnt24TFSdt0Aq7dg+SWbEnSFFtjXfw" +
+  "1+xvxFGa9kSX2v+Qu65qqsAcwCXStmFSfBKHZYWk8yRXHemwm5Mv4UAwDlyod29SNRZmqUVt" +
+  "/3E1SnqWW6vpWahdEhQfXfd5a14ONr8wd6dtecj8II+gSsRHYThIcazFs/vY+ksWhthhNAz9" +
+  "SSL7Ap3ctcQKZW5kc3RyZWFtCmVuZG9iago4IDAgb2JqCjw8IC9MZW5ndGggMTQ5IC9GaWx0" +
+  "ZXIgL0ZsYXRlRGVjb2RlID4+CnN0cmVhbQp4nF2OQQ6CMBBF957iL3UhthUFl5KoW4O9QA1F" +
+  "apA2pVi9vRXsxsX8/Jm8vEzBsToysBS8RsaQrQl4hfneGNlV6rUAv+PAZ8WXo6D0x23zieON" +
+  "hBV+eX072cPqwUn00j7DUqs2pFeuQSm6W7gPxmjrkj/nLion41kElEHXYBEkSY445QkUfnyV" +
+  "EDywScnYWlw+ayY19wplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1" +
+  "MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMDY0IDAwMDAwIG4gCjAwMDAwMDAx" +
+  "MjcgMDAwMDAgbiAKMDAwMDAwMDI2MyAwMDAwMCBuIAowMDAwMDAwMzk5IDAwMDAwIG4gCjAw" +
+  "MDAwMDA0NjkgMDAwMDAgbiAKMDAwMDAwMDU0NCAwMDAwMCBuIAowMDAwMDAwOTQ0IDAwMDAw" +
+  "IG4gCnRyYWlsZXIKPDwgL1NpemUgOSAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMTE2NQol" +
+  "JUVPRgo=";
+
 const PAGE_HTML =
   "<!doctype html><html><head><style>body{font:14px system-ui;padding:24px}h1{color:#0a7}</style></head>" +
   '<body><h1>Static page</h1><p>Rendered without scripts.</p><script>document.body.textContent="ran"</script></body></html>';
@@ -156,6 +199,10 @@ export function fileContentFixture(path: string, reveal: boolean): FileContentRe
       return content(path, { size: PAGE_HTML.length, text: PAGE_HTML, revision: "r-html" });
     case "docs/analysis.ipynb":
       return content(path, { size: ANALYSIS_IPYNB.length, text: ANALYSIS_IPYNB, revision: "r-nb" });
+    case "docs/metrics.csv":
+      return content(path, { size: METRICS_CSV.length, text: METRICS_CSV, revision: "r-metrics" });
+    case "docs/report.pdf":
+      return content(path, { kind: "binary", size: 1_409 });
     case "docs/diagram.bin":
       return content(path, { kind: "binary", size: 2_411_724 });
     default:
@@ -205,6 +252,10 @@ const workspaceRawFileHandler = http.get(
     const prefix = "/files/raw/";
     const pathname = new URL(request.url).pathname;
     const path = decodeURIComponent(pathname.slice(pathname.indexOf(prefix) + prefix.length));
+    if (path === "docs/report.pdf") {
+      const bytes = Uint8Array.from(atob(REPORT_PDF), char => char.charCodeAt(0));
+      return new HttpResponse(bytes, { headers: { "Content-Type": "application/pdf" } });
+    }
     const body = fileContentFixture(path, false);
     if (body?.kind === "image" && body.image_base64) {
       const bytes = Uint8Array.from(atob(body.image_base64), char => char.charCodeAt(0));
