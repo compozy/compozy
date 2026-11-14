@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { AlertCircle } from "@compozy/ui/icons";
@@ -8,6 +8,7 @@ import {
   createTerminal,
   TerminalAggregateSkeleton,
   TerminalNotFoundState,
+  terminalKeys,
   type TerminalInfo,
   type TerminalViewerIdentity,
 } from "@/systems/terminal";
@@ -66,6 +67,7 @@ export function TerminalAggregateLocation({
   readOnly,
   viewer,
 }: TerminalAggregateLocationProps) {
+  const queryClient = useQueryClient();
   const [launcherShown, setLauncherShown] = useState(false);
   const terminals = catalog.data ?? [];
   const destinations = terminalLauncherDestinations(workspaces, worktrees, profile);
@@ -110,7 +112,20 @@ export function TerminalAggregateLocation({
         { profile },
         identity
       ),
-    onSuccess: terminal => retargetBound(terminal.id, terminal.workspace_id),
+    onSuccess: async terminal => {
+      // The new terminal joins the All projects list and its owner's catalog.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [...terminalKeys.all(), "aggregate"] }),
+        queryClient.invalidateQueries({
+          queryKey: [
+            ...terminalKeys.all(),
+            "catalog",
+            windowBindingValue(ownerDataScope(terminal.workspace_id)),
+          ],
+        }),
+      ]);
+      await retargetBound(terminal.id, terminal.workspace_id);
+    },
     onError: error =>
       toast.error(error instanceof Error ? error.message : "Failed to open terminal"),
   });

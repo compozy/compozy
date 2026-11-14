@@ -54,7 +54,9 @@ function renderLocation(
   };
   const client = new QueryClient();
   const view = render(<TerminalAggregateLocation {...props} />, {
-    wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
   });
   return { ...view, props };
 }
