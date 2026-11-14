@@ -1079,6 +1079,25 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
 }
 
+func TestRuntimeModelSwitchDoesNotWaitForTheCatalog(t *testing.T) {
+	t.Parallel()
+
+	// The catalog wait exists for the fresh startup bind only. A runtime switch or an
+	// inspection holds the runtime config lock, so a budget there would stall the
+	// session for a provider that never publishes a late catalog.
+	driver := newTestDriverWithCatalogBudget(t, 30*time.Second)
+	proc := startHelperProcess(t, driver, "config_options", "", StartOpts{})
+	defer stopProcess(t, driver, proc)
+
+	started := time.Now()
+	if err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{Model: "not-advertised"}); err == nil {
+		t.Fatal("ConfigureRuntime() error = nil, want model_unavailable")
+	}
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("ConfigureRuntime() waited %s outside the startup bind", elapsed)
+	}
+}
+
 func TestStartWaitsForModelCatalogPublishedAfterSessionNew(t *testing.T) {
 	t.Parallel()
 
@@ -2721,6 +2740,7 @@ func TestHermesDiscoveryModelIsReadOnlyForModernACP(t *testing.T) {
 			t.Context(),
 			process,
 			"openrouter:grok-4.6",
+			false,
 		)
 		if applied {
 			t.Fatal("applySessionModel() applied = true, want false for discovery-only model")

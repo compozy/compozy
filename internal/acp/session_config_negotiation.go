@@ -9,7 +9,6 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -93,6 +92,7 @@ func (d *Driver) applySessionModel(
 	ctx context.Context,
 	process *AgentProcess,
 	preferredModel string,
+	waitForCatalog bool,
 ) (bool, error) {
 	if ctx == nil || process == nil || process.conn == nil {
 		return false, nil
@@ -102,7 +102,7 @@ func (d *Driver) applySessionModel(
 		return false, nil
 	}
 
-	option, err := d.awaitSessionModelOption(ctx, process, modelID)
+	option, err := d.awaitSessionModelOption(ctx, process, modelID, waitForCatalog)
 	if err != nil {
 		return false, err
 	}
@@ -132,13 +132,15 @@ func (d *Driver) applySessionModel(
 	return true, nil
 }
 
-// awaitSessionModelOption reads the model option from the current snapshot and, when the
-// advertised catalog does not carry the value yet, waits for the config_option_update that
-// providers such as opencode publish only after session/new.
+// awaitSessionModelOption reads the model option from the current snapshot. During the
+// fresh startup bind the provider may still be publishing its catalog in a later
+// config_option_update, so that caller waits for a newer revision; runtime switches and
+// inspection pass waitForCatalog false and reject against the snapshot they have.
 func (d *Driver) awaitSessionModelOption(
 	ctx context.Context,
 	process *AgentProcess,
 	modelID string,
+	waitForCatalog bool,
 ) (SessionConfigOption, error) {
 	options := process.CapsSnapshot().ConfigOptions
 	option, ok := ModelConfigOption(options)
@@ -148,35 +150,32 @@ func (d *Driver) awaitSessionModelOption(
 	if configOptionAllowsValue(option, modelID) {
 		return option, nil
 	}
-	if option.ReadOnly {
+	if !waitForCatalog || option.ReadOnly {
 		// Discovery-only options never gain writable values after session/new.
 		return SessionConfigOption{}, ValidateModelConfigValue(options, modelID)
 	}
 
 	budget := defaultModelCatalogBudget
-	if d != nil && d.modelCatalogWait > 0 {
-		budget = d.modelCatalogWait
+	if d != nil && d.modelCatalogBudget > 0 {
+		budget = d.modelCatalogBudget
 	}
 	deadline := time.Now().Add(budget)
-	backoff := modelCatalogFirstBackoff
 	for {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			break
 		}
-		if backoff > remaining {
-			backoff = remaining
-		}
-		if err := waitForCatalogUpdate(ctx, process, backoff); err != nil {
+		since, _ := process.configRevisionAndChange()
+		if err := waitForConfigRevision(ctx, process, since, remaining); err != nil {
+			if errors.Is(err, errConfigSettleTimeout) {
+				break
+			}
 			return SessionConfigOption{}, err
 		}
 		options = process.CapsSnapshot().ConfigOptions
 		if announced, found := ModelConfigOption(options); found &&
 			configOptionAllowsValue(announced, modelID) {
 			return announced, nil
-		}
-		if backoff < modelCatalogMaxBackoff {
-			backoff = min(backoff*2, modelCatalogMaxBackoff)
 		}
 	}
 
@@ -188,41 +187,6 @@ func (d *Driver) awaitSessionModelOption(
 		return option, nil
 	}
 	return SessionConfigOption{}, ValidateModelConfigValue(options, modelID)
-}
-
-func waitForCatalogUpdate(ctx context.Context, process *AgentProcess, wait time.Duration) error {
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
-	var exited <-chan struct{}
-	if process != nil {
-		exited = process.Done()
-	}
-	select {
-	case <-timer.C:
-		return nil
-	case <-exited:
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("acp: wait for session model catalog: %w", err)
-		}
-		return catalogWaitProcessExitError(process)
-	case <-ctx.Done():
-		return fmt.Errorf("acp: wait for session model catalog: %w", ctx.Err())
-	}
-}
-
-// catalogWaitProcessExitError reports a provider that died before it could publish
-// the catalog. The announcement can never arrive, so the wait fails fast instead
-// of spending the readiness budget and blaming the model with model_unavailable.
-func catalogWaitProcessExitError(process *AgentProcess) error {
-	cause := errProcessExited
-	if waitErr := process.Wait(); waitErr != nil {
-		cause = errors.Join(cause, waitErr)
-	}
-	return WrapFailure(
-		store.FailureProcess,
-		"ACP subprocess exited while waiting for the model catalog",
-		fmt.Errorf("acp: wait for session model catalog: %w", cause),
-	)
 }
 
 // ValidateModelConfigValue verifies that modelID is an exact advertised ACP model value.

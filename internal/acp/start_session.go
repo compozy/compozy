@@ -214,7 +214,7 @@ func (d *Driver) applyStartupSessionModel(ctx context.Context, process *AgentPro
 			return false, nil
 		}
 	}
-	return d.applySessionModel(ctx, process, opts.PreferredModel)
+	return d.applySessionModel(ctx, process, opts.PreferredModel, true)
 }
 
 // providerSignInRequiredFailure classifies an ACP authentication-required

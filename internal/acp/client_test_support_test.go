@@ -134,9 +134,7 @@ func stopProcess(t *testing.T, driver *Driver, proc *AgentProcess) {
 
 func newTestDriverWithCatalogBudget(t *testing.T, budget time.Duration, opts ...Option) *Driver {
 	t.Helper()
-	driver := New(opts...)
-	driver.modelCatalogWait = budget
-	return driver
+	return New(append([]Option{WithModelCatalogBudget(budget)}, opts...)...)
 }
 
 type failingToolRuntimeStore struct {
