@@ -225,6 +225,25 @@ describe("delimited text", () => {
   });
 });
 
+describe("FileTablePreview virtualization", () => {
+  // Invariant: under the React Compiler, the rows in view render once the scroll container
+  // has a size; the virtualizer's output is never frozen at its first, unmeasured render.
+  it("Should render the rows in view once the container is measured", async () => {
+    // TanStack Virtual sizes the viewport from the scroll element's client box.
+    vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(280);
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(800);
+    const text = ["id,name", ...Array.from({ length: 500 }, (_, i) => `${i},row ${i}`)].join("\n");
+    const { container } = render(<FileTablePreview text={text} delimiter="," />);
+    await waitFor(() =>
+      expect(
+        container.querySelectorAll('[data-slot="file-table-preview-row"]').length
+      ).toBeGreaterThan(0)
+    );
+    const rendered = container.querySelectorAll('[data-slot="file-table-preview-row"]').length;
+    expect(rendered).toBeLessThan(500);
+  });
+});
+
 describe("FileHtmlPreview", () => {
   it("Should strip scripts, handlers, frames and forms and pin a no-script CSP and base", () => {
     const html =

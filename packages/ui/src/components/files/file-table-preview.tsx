@@ -17,7 +17,8 @@ export interface FileTablePreviewProps extends Omit<React.ComponentProps<"div">,
 
 const ROW_HEIGHT = 28;
 const SAMPLE_ROWS = 200;
-const CHAR_WIDTH = 7;
+// A `text-xs` monospace glyph is about 7.2px wide; the estimate rounds up so short cells never clip.
+const CHAR_WIDTH = 7.5;
 const MIN_COLUMN = 64;
 const MAX_COLUMN = 320;
 const CELL = "truncate border-r border-b border-line-soft px-2 leading-7";
@@ -30,7 +31,7 @@ function columnWidths(header: readonly string[], rows: readonly string[][], coun
     for (const row of rows.slice(0, SAMPLE_ROWS)) {
       chars = Math.max(chars, (row[column] ?? "").length);
     }
-    widths.push(Math.min(MAX_COLUMN, Math.max(MIN_COLUMN, chars * CHAR_WIDTH + 16)));
+    widths.push(Math.min(MAX_COLUMN, Math.max(MIN_COLUMN, Math.ceil(chars * CHAR_WIDTH) + 18)));
   }
   return widths;
 }
@@ -52,11 +53,10 @@ function FileTablePreview({
     [table]
   );
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
-  const virtualizer = useTableVirtualizer(table.rows.length, scrollRef, ROW_HEIGHT);
+  const { items, totalSize } = useTableVirtualizer(table.rows.length, scrollRef, ROW_HEIGHT);
   if (table.columnCount === 0) return empty;
-  const gutter = Math.max(40, String(table.rows.length).length * CHAR_WIDTH + 20);
+  const gutter = Math.max(40, Math.ceil(String(table.rows.length).length * CHAR_WIDTH) + 20);
   const template = `${gutter}px ${widths.map(width => `${width}px`).join(" ")}`;
-  const items = virtualizer.getVirtualItems();
   const columns = Array.from({ length: table.columnCount }, (_, column) => column);
   return (
     <div
@@ -88,7 +88,7 @@ function FileTablePreview({
             ))}
           </tr>
         </thead>
-        <tbody className="relative grid" style={{ height: virtualizer.getTotalSize() }}>
+        <tbody className="relative grid" style={{ height: totalSize }}>
           {items.map(item => {
             const row = table.rows[item.index] ?? [];
             return (
