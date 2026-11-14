@@ -120,7 +120,9 @@ export function TerminalAggregateLocation({
       // The bound window reads its owner's catalog: a cached list must already
       // name the new terminal, or the window says it isn't here until a read lands.
       const owner = windowBindingValue(ownerDataScope(terminal.workspace_id));
-      for (const profileKey of [profile, TERMINAL_ALL_PROFILES_KEY]) {
+      // The profile the daemon says owns it: a profile switch mid-create must not
+      // file it under the new lens.
+      for (const profileKey of [terminal.profile_name || profile, TERMINAL_ALL_PROFILES_KEY]) {
         queryClient.setQueryData<TerminalInfo[]>(
           terminalKeys.catalog({ workspaceId: owner, profileKey }),
           current =>
