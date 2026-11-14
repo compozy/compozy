@@ -605,6 +605,21 @@ describe("SessionWindow", () => {
     );
   });
 
+  // Invariant: a retained delete target never crosses the window's data scope; a scope switch
+  // during the request falls back to the normal resolution instead of showing another project.
+  // Owner: OS session-window controller; canonical suite: SessionWindow.
+  it("Should not retain a deletion target outside the window's current scope", () => {
+    workspace.dataScope = { kind: "user" };
+    lifecycleState.deleteDialog.isDeleting = true;
+    deletionPending = true;
+    queryState.data = undefined;
+    render(<SessionWindow windowId="session:sess-1" />);
+
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "sess-1", session: undefined, workspaceId: "" })
+    );
+  });
+
   // Invariant: the delete confirmation belongs to the window, above the content/empty branch,
   // so its target leaving the body never unmounts the dialog mid-request. Owner: session-window
   // lifecycle host; canonical suite: SessionWindow.

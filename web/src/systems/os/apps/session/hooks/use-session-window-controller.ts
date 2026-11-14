@@ -9,7 +9,12 @@ import {
   useSessionPresence,
   type SessionPayload,
 } from "@/systems/session";
-import { useWindowDataWorkspace } from "@/systems/workspace";
+import {
+  ownerDataScope,
+  sameDataScope,
+  useWindowDataWorkspace,
+  type FocusedDataScope,
+} from "@/systems/workspace";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
 import { useSessionWindowResolution } from "./use-session-window-resolution";
@@ -52,6 +57,7 @@ export function useSessionWindowController(
     resolvedSession: resolution.session,
     sessionId,
     deletingSessions: options.deletingSessions,
+    focusedScope,
     workspaceId: resolution.workspaceId,
     isLoading: resolution.isLoading,
     error: resolution.error,
@@ -109,6 +115,7 @@ function sessionDeletionRetention({
   resolvedSession,
   sessionId,
   deletingSessions,
+  focusedScope,
   workspaceId,
   isLoading,
   error,
@@ -119,13 +126,18 @@ function sessionDeletionRetention({
   resolvedSession: SessionPayload | undefined;
   sessionId: string | null;
   deletingSessions: readonly SessionPayload[] | null | undefined;
+  focusedScope: FocusedDataScope | null;
   workspaceId: string | null;
   isLoading: boolean;
   error: Error | null;
 }) {
   const operatorDeleted = deletedByOperator || remotelyGone;
-  const retained =
+  const candidate =
     shownSession === undefined ? retainedDeletionTarget(sessionId, deletingSessions) : undefined;
+  // The same scope rule the resolution applies: a window never retains a session from
+  // another project/User scope just because its delete was confirmed before a scope switch.
+  const retained =
+    candidate && deletionTargetInScope(candidate, focusedScope) ? candidate : undefined;
   const retainingSession = retained !== undefined;
   return {
     operatorDeleted,
@@ -138,6 +150,12 @@ function sessionDeletionRetention({
     isLoading: retainingSession ? false : isLoading,
     error: retainingSession ? null : error,
   };
+}
+
+/** Whether a retained delete target still belongs to the window's current data scope. */
+function deletionTargetInScope(target: SessionPayload, focusedScope: FocusedDataScope | null) {
+  if (focusedScope === null) return true;
+  return sameDataScope(ownerDataScope(target.workspace_id?.trim() ?? ""), focusedScope);
 }
 
 /** The session a delete this window confirmed is removing, while it matches the window. */

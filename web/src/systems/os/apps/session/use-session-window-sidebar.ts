@@ -2,6 +2,7 @@ import { useDataScope, useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
+import { requestSessionDelete } from "../../lib/session-delete-request";
 import type { SessionWindowLifecycle } from "./session-window-lifecycle-context";
 import {
   useSessionWindowOpenSession,
@@ -117,6 +118,46 @@ export function useSessionWindowSidebar({
     onSelectSession,
     openSession,
     onNewSession: options => openForAgent("", options),
-    sessionActions: lifecycle.actions,
+    sessionActions: hostedDeleteActions(lifecycle.actions),
+  };
+}
+
+type DeleteManySelection = Parameters<
+  NonNullable<SessionLifecycleActionHandlers["onDeleteMany"]>
+>[1];
+
+/**
+ * The rail's deletes belong to the shell, whose lifecycle host outlives this window: the daemon
+ * reconciles a deleted session's window before the DELETE answers, so a dialog owned by the window
+ * would leave with it. Without a shell host (tests, stories) the window keeps its own confirmation.
+ */
+function hostedDeleteActions(
+  actions: SessionLifecycleActionHandlers
+): SessionLifecycleActionHandlers {
+  const onDeleteMany = actions.onDeleteMany;
+  return {
+    ...actions,
+    onDelete: session => {
+      if (requestSessionDelete({ sessions: [session], bulk: false })) return;
+      actions.onDelete(session);
+    },
+    ...(onDeleteMany
+      ? {
+          onDeleteMany: (
+            sessions: readonly SessionPayload[],
+            onSelectionChange?: DeleteManySelection
+          ) => {
+            if (
+              requestSessionDelete({
+                sessions,
+                bulk: true,
+                ...(onSelectionChange ? { onSelectionChange } : {}),
+              })
+            )
+              return;
+            onDeleteMany(sessions, onSelectionChange);
+          },
+        }
+      : {}),
   };
 }

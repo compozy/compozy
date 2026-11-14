@@ -15,6 +15,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { subagentRevealStore } from "@/systems/session/lib/subagent-navigation";
+import { subscribeSessionDeleteRequests } from "../../../lib/session-delete-request";
 import type { SessionPayload } from "@/systems/session";
 
 const {
@@ -27,8 +28,13 @@ const {
   useScopedWorktreeFilter,
   scopes,
   presentation,
+  lifecycleActions,
 } = vi.hoisted(() => ({
   presentation: { value: "window" as "window" | "board-drawer" },
+  lifecycleActions: {
+    onDelete: vi.fn(),
+    onDeleteMany: vi.fn(),
+  },
   scopes: {
     destination: { kind: "project", workspaceId: "workspace-1" } as unknown,
     window: { kind: "project", workspaceId: "workspace-1" } as unknown,
@@ -84,7 +90,7 @@ vi.mock("@/systems/session", async () => ({
   sessionListSortParam: (sort: string) => sort,
   useSessionCreateActions: () => ({ openForAgent: vi.fn() }),
   useSessionLifecycleActions: () => ({
-    actions: {},
+    actions: lifecycleActions,
     deleteDialog: { open: false },
     renameDialog: { open: false },
     laterDialog: { open: false },
@@ -312,6 +318,40 @@ describe("useSessionWindowSidebar", () => {
     } finally {
       Reflect.deleteProperty(document, "startViewTransition");
     }
+  });
+
+  // Invariant: the rail's delete confirmation is hosted by the shell, which outlives the
+  // window the daemon reconciles before the DELETE answers; without a host the window keeps it.
+  // Owner: session-window sidebar delete delegation; canonical suite: this hook's suite.
+  it("Should hand a rail delete to a mounted shell host and keep the local one otherwise", () => {
+    const target = session("workspace-1");
+    const listener = vi.fn();
+    const unsubscribe = subscribeSessionDeleteRequests(listener);
+    try {
+      const { result } = renderHook(() =>
+        useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-current" })
+      );
+      act(() => result.current.sessionActions.onDelete(target));
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ sessions: [target], bulk: false });
+      expect(lifecycleActions.onDelete).not.toHaveBeenCalled();
+
+      const onSelectionChange = vi.fn();
+      act(() => result.current.sessionActions.onDeleteMany?.([target], onSelectionChange));
+      expect(listener).toHaveBeenLastCalledWith({
+        sessions: [target],
+        bulk: true,
+        onSelectionChange,
+      });
+      expect(lifecycleActions.onDeleteMany).not.toHaveBeenCalled();
+    } finally {
+      unsubscribe();
+    }
+
+    const { result } = renderHook(() =>
+      useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-current" })
+    );
+    act(() => result.current.sessionActions.onDelete(target));
+    expect(lifecycleActions.onDelete).toHaveBeenCalledWith(target);
   });
 
   it("Should never read the rail over the board", () => {

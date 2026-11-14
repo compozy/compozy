@@ -6,6 +6,7 @@ import {
 } from "@/systems/workspace";
 
 import { useSessionListLifecycleActions } from "../hooks/use-session-list-lifecycle-actions";
+import { useHostedSessionDeleteRequests } from "../hooks/use-hosted-session-delete-requests";
 
 import { OsSessionsDialogHost } from "./sessions-modal";
 
@@ -32,6 +33,9 @@ export function DesktopSessionDialogs({
   onNewSession,
 }: DesktopSessionDialogsProps) {
   const lifecycle = useSessionListLifecycleActions();
+  // The shell outlives every session window: the rail asks it to confirm deletes, so the dialog
+  // survives the window reconciliation the daemon runs before the DELETE returns.
+  useHostedSessionDeleteRequests(lifecycle.actions);
   return (
     <OsSessionsDialogHost
       open={open}
