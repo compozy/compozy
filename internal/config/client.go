@@ -30,15 +30,25 @@ func DefaultClientConfig() ClientConfig {
 	return ClientConfig{RequestTimeout: DefaultClientRequestTimeout}
 }
 
+// ClientRequestTimeoutError reports an out-of-range client.request_timeout, so a
+// caller can tell an invalid setting from an unrelated configuration failure.
+type ClientRequestTimeoutError struct {
+	Value time.Duration
+}
+
+func (e *ClientRequestTimeoutError) Error() string {
+	return fmt.Sprintf(
+		"client.request_timeout must be between %s and %s, got %s",
+		MinClientRequestTimeout,
+		MaxClientRequestTimeout,
+		e.Value,
+	)
+}
+
 // Validate reports whether the client settings are usable.
 func (c ClientConfig) Validate() error {
 	if c.RequestTimeout < MinClientRequestTimeout || c.RequestTimeout > MaxClientRequestTimeout {
-		return fmt.Errorf(
-			"client.request_timeout must be between %s and %s, got %s",
-			MinClientRequestTimeout,
-			MaxClientRequestTimeout,
-			c.RequestTimeout,
-		)
+		return &ClientRequestTimeoutError{Value: c.RequestTimeout}
 	}
 	return nil
 }

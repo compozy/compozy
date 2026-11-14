@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,8 +24,16 @@ func resolveClientRequestTimeout(
 ) (time.Duration, error) {
 	timeout := defaultUnixSocketClientTimeout
 	if loadConfig != nil {
-		if cfg, err := loadConfig(); err == nil && cfg.Client.RequestTimeout > 0 {
-			timeout = cfg.Client.RequestTimeout
+		cfg, err := loadConfig()
+		switch {
+		case err == nil:
+			if cfg.Client.RequestTimeout > 0 {
+				timeout = cfg.Client.RequestTimeout
+			}
+		case isClientRequestTimeoutConfigError(err):
+			// An out-of-range setting is an operator mistake, not a reason to run
+			// with a budget they never asked for.
+			return 0, err
 		}
 	}
 	if getenv != nil {
@@ -41,4 +50,9 @@ func resolveClientRequestTimeout(
 		}
 	}
 	return min(max(timeout, compozyconfig.MinClientRequestTimeout), compozyconfig.MaxClientRequestTimeout), nil
+}
+
+func isClientRequestTimeoutConfigError(err error) bool {
+	_, ok := errors.AsType[*compozyconfig.ClientRequestTimeoutError](err)
+	return ok
 }

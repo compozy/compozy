@@ -22,6 +22,7 @@ func (d commandDeps) withDefaults() commandDeps {
 	d = d.withRuntimeDefaults()
 	d = d.withBootstrapDefaults()
 	d = d.withTimingDefaults()
+	d = d.withMCPRunnerDefaults()
 	return d
 }
 
@@ -95,12 +96,18 @@ func (d commandDeps) withGatewayRuntimeDefaults() commandDeps {
 }
 
 func (d commandDeps) withMCPRuntimeDefaults() commandDeps {
+	return d.withProviderAuthDefaults()
+}
+
+// withMCPRunnerDefaults installs the MCP runner last: its closure captures the
+// whole dependency set, so every other default has to exist first.
+func (d commandDeps) withMCPRunnerDefaults() commandDeps {
 	if d.runMCPServe == nil {
 		d.runMCPServe = func(ctx context.Context, opts mcpServeOptions) error {
 			return runMCPServe(ctx, d, opts)
 		}
 	}
-	return d.withProviderAuthDefaults()
+	return d
 }
 
 func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {

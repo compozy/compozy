@@ -2,6 +2,8 @@ package cli
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,12 +26,11 @@ func TestResolveClientRequestTimeout(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		getenv      func(string) string
-		loadConfig  func() (compozyconfig.Config, error)
-		want        time.Duration
-		wantErr     bool
-		wantClamped time.Duration
+		name            string
+		getenv          func(string) string
+		loadConfig      func() (compozyconfig.Config, error)
+		want            time.Duration
+		wantErrContains string
 	}{
 		{
 			name:       "Should fall back to the default without config or env",
@@ -70,16 +71,27 @@ func TestResolveClientRequestTimeout(t *testing.T) {
 			want:       compozyconfig.MaxClientRequestTimeout,
 		},
 		{
-			name:       "Should reject an unparsable environment value",
-			getenv:     env("soon"),
-			loadConfig: staticConfig(0),
-			wantErr:    true,
+			name:            "Should reject an unparsable environment value",
+			getenv:          env("soon"),
+			loadConfig:      staticConfig(0),
+			wantErrContains: "parse COMPOZY_CLIENT_TIMEOUT",
 		},
 		{
-			name:       "Should reject a non-positive environment value",
-			getenv:     env("-1m"),
-			loadConfig: staticConfig(0),
-			wantErr:    true,
+			name:            "Should reject a non-positive environment value",
+			getenv:          env("-1m"),
+			loadConfig:      staticConfig(0),
+			wantErrContains: "must be positive",
+		},
+		{
+			name:   "Should surface an out-of-range config value instead of the default",
+			getenv: env(""),
+			loadConfig: func() (compozyconfig.Config, error) {
+				return compozyconfig.Config{}, fmt.Errorf(
+					"load config: %w",
+					&compozyconfig.ClientRequestTimeoutError{Value: time.Second},
+				)
+			},
+			wantErrContains: "client.request_timeout",
 		},
 	}
 
@@ -87,9 +99,13 @@ func TestResolveClientRequestTimeout(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := resolveClientRequestTimeout(tt.getenv, tt.loadConfig)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("resolveClientRequestTimeout() error = nil, want a parse rejection")
+			if tt.wantErrContains != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf(
+						"resolveClientRequestTimeout() error = %v, want it to contain %q",
+						err,
+						tt.wantErrContains,
+					)
 				}
 				return
 			}
