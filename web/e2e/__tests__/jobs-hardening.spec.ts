@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
+import { maskHashedAssetNames } from "../fixtures/artifacts";
 import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import { automationOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
@@ -816,12 +817,15 @@ async function assertNoJobSensitiveLeak(
   const networkPath = runtime.artifactCollector.artifactPath("browser_network");
   const routeStatePath = runtime.artifactCollector.artifactPath("browser_route_state");
   const apiSnapshotPath = runtime.artifactCollector.artifactPath("browser_api_snapshots");
-  await expect(readFileIfExists(consolePath)).resolves.not.toMatch(sensitivePattern);
-  await expect(readFileIfExists(networkPath)).resolves.not.toMatch(sensitivePattern);
-  await expect(readFileIfExists(routeStatePath)).resolves.not.toMatch(sensitivePattern);
-  await expect(readFileIfExists(apiSnapshotPath)).resolves.not.toMatch(sensitivePattern);
+  for (const artifactPath of [consolePath, networkPath, routeStatePath, apiSnapshotPath]) {
+    expect(maskHashedAssetNames(await readFileIfExists(artifactPath))).not.toMatch(
+      sensitivePattern
+    );
+  }
   if (runtime.paths?.daemonLog) {
-    await expect(readFileIfExists(runtime.paths.daemonLog)).resolves.not.toMatch(sensitivePattern);
+    expect(maskHashedAssetNames(await readFileIfExists(runtime.paths.daemonLog))).not.toMatch(
+      sensitivePattern
+    );
   }
 }
 
