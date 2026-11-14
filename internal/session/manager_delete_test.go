@@ -154,6 +154,99 @@ func (f sessionWindowReconcilerFunc) ReconcileDeletedSession(
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
+	// Invariant: a stuck reader bounds deletion without losing history or blocking retry.
+	// Owner: session deletion; canonical Manager suite over the real read-only pool and SQLite.
+	for _, test := range []struct {
+		name           string
+		quiesceTimeout time.Duration
+		callerTimeout  time.Duration
+	}{
+		{
+			name:           "Should bound deletion without a caller deadline and allow retry",
+			quiesceTimeout: 20 * time.Millisecond,
+		},
+		{
+			name:           "Should honor an earlier caller deadline while waiting for readers",
+			quiesceTimeout: time.Hour,
+			callerTimeout:  500 * time.Millisecond,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			catalog := newRecordingSessionCatalog()
+			h := newHarness(
+				t,
+				WithSessionCatalog(catalog),
+				withDefaultQueryStoreRuntime(),
+				WithQueryQuiesceTimeout(test.quiesceTimeout),
+			)
+			shutdownQueryStoreRuntimeForTest(t, h.manager)
+			session := createSession(t, h)
+			if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+			attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "keep-me")
+			owner := testSessionDBOwner(session.ID, session.WorkspaceID)
+			reader, err := h.manager.queryStoreRuntime.Open(t.Context(), owner, session.DBPath())
+			if err != nil {
+				t.Fatalf("Open(stored reader) error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := reader.Close(testutil.Context(t)); err != nil {
+					t.Errorf("Close(stored reader cleanup) error = %v", err)
+				}
+			})
+			deleteCtx := context.WithoutCancel(t.Context())
+			if test.callerTimeout > 0 {
+				var cancel context.CancelFunc
+				deleteCtx, cancel = context.WithTimeout(deleteCtx, test.callerTimeout)
+				defer cancel()
+			}
+			deleteDone := make(chan error, 1)
+			go func() { deleteDone <- h.manager.Delete(deleteCtx, session.ID) }()
+			select {
+			case err := <-deleteDone:
+				if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), session.ID) {
+					t.Fatalf("Delete() error = %v, want per-session deadline error", err)
+				}
+			case <-testutil.Context(t).Done():
+				t.Fatal("Delete() did not finish with a held read lease")
+			}
+			if test.callerTimeout == 0 && deleteCtx.Err() != nil {
+				t.Fatalf("quiescence timeout canceled caller context: %v", deleteCtx.Err())
+			}
+			if _, ok := catalog.get(session.ID); !ok {
+				t.Fatal("quiescence timeout removed the catalog row")
+			}
+			if _, err := os.Stat(session.DBPath()); err != nil {
+				t.Fatalf("Stat(preserved database) error = %v", err)
+			}
+			if payload, err := os.ReadFile(attachmentPath); err != nil || string(payload) != "keep-me" {
+				t.Fatalf("ReadFile(preserved attachment) = %q, %v", payload, err)
+			}
+			assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+			probe, err := h.manager.queryStoreRuntime.Open(t.Context(), owner, session.DBPath())
+			if err != nil {
+				t.Fatalf("Open(after quiescence timeout) error = %v", err)
+			}
+			if err := probe.Close(t.Context()); err != nil {
+				t.Fatalf("Close(probe) error = %v", err)
+			}
+			if err := reader.Close(t.Context()); err != nil {
+				t.Fatalf("Close(stored reader) error = %v", err)
+			}
+			if err := h.manager.Delete(t.Context(), session.ID); err != nil {
+				t.Fatalf("Delete(retry) error = %v", err)
+			}
+			if _, ok := catalog.get(session.ID); ok {
+				t.Fatal("retry retained the deleted catalog row")
+			}
+			if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("Stat(after retry) error = %v, want not found", err)
+			}
+		})
+	}
+
 	// Invariant: with the opt-in the tree goes deepest first, so a failure leaves
 	// what remains reachable from the root; without it only the target goes.
 	t.Run("Should delete descendants deepest first, then the root", func(t *testing.T) {
@@ -859,6 +952,7 @@ func TestManagerDelete(t *testing.T) {
 					t,
 					WithSessionCatalog(catalog),
 					withDefaultQueryStoreRuntime(),
+					WithQueryQuiesceTimeout(100*time.Millisecond),
 				)
 				shutdownQueryStoreRuntimeForTest(t, h.manager)
 				session := createSession(t, h)
@@ -874,7 +968,15 @@ func TestManagerDelete(t *testing.T) {
 					return nil
 				}})
 				deleteErr := errors.New("catalog delete failed")
-				catalog.deleteErr = deleteErr
+				// A slow catalog failure must leave rollback alive past the reader-wait budget.
+				catalog.deleteHook = func(ctx context.Context, _ string) error {
+					select {
+					case <-time.After(200 * time.Millisecond):
+						return deleteErr
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}
 
 				err := h.manager.Delete(testutil.Context(t), session.ID)
 				if !errors.Is(err, deleteErr) {

@@ -226,7 +226,14 @@ func (m *Manager) quiesceSessionQueries(
 	if m.queryStoreRuntime == nil {
 		return func() {}, nil
 	}
-	return m.queryStoreRuntime.Quiesce(ctx, owner, store.SessionDBFile(sessionDir))
+	timeout := m.queryQuiesceTimeout
+	if timeout <= 0 {
+		timeout = defaultLifecycleTimeout
+	}
+	// Keep staging and rollback on the caller's original lifetime.
+	quiesceCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return m.queryStoreRuntime.Quiesce(quiesceCtx, owner, store.SessionDBFile(sessionDir))
 }
 
 func stopSessionBeforeDelete(

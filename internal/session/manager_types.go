@@ -282,6 +282,7 @@ type Manager struct {
 	openQueryStore               QueryStoreOpener
 	queryStoreExplicit           bool
 	queryStoreRuntime            *queryStoreRuntime
+	queryQuiesceTimeout          time.Duration
 	assembler                    PromptAssembler
 	supervision                  compozyconfig.SessionSupervisionConfig
 	stopConfig                   compozyconfig.SessionStopConfig
