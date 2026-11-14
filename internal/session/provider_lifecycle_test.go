@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"os"
@@ -1293,4 +1294,134 @@ func countActivationEvents(events []store.SessionEvent, kind string) int {
 		}
 	}
 	return count
+}
+
+// Invariant: runtime changes reload once at admission using the accepted route.
+// Owner: session lifecycle; canonical suite: provider lifecycle (UT-074).
+func TestPromptRuntimeMCPActivation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		provider, mode, path string
+		reload, direct       bool
+	}{
+		{"copilot", "off", ".copilot/mcp-config.json", true, false},
+		{"copilot", "load", ".copilot/mcp-config.json", false, false},
+		{"claude", "load", ".claude.json", true, false},
+		{"qwen", "off", ".qwen/settings.json", true, false},
+		{"claude", "load", ".claude.json", true, true},
+	} {
+		t.Run(fmt.Sprintf("Should reconcile %s inventory with %s and direct %t [UT-074]", tc.provider, tc.mode, tc.direct), func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			path := filepath.Join(root, tc.path)
+			writeRuntimeMCPFixture(t, path, `{"mcpServers":{"initial":{"command":"echo"}}}`)
+			h, launcher := newActivationHarness(t)
+			if tc.direct {
+				h.manager.hostedMCP = nil
+			}
+			h.manager.runtimeMCPInventory = runtimeMCPFileInventory{systemRoot: t.TempDir()}
+			provider, err := h.cfg.ResolveProvider(tc.provider)
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider.Command = "HOME=" + root + " accepted-driver --acp"
+			provider.RuntimeMCP = tc.mode
+			h.cfg.Providers[tc.provider] = provider
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspace.Config = h.cfg
+			h.resolver.upsert(&workspace)
+			active, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: tc.provider}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			if tc.provider == "claude" && !tc.direct {
+				active.mu.Lock()
+				active.hostedMCPRequiresReload = false
+				active.mu.Unlock()
+			}
+			launcher.served = launcher.catalog.Digest
+			before := active.processHandle()
+			bound := active.activation.boundDigest
+			runtimeDigest := active.activation.runtimeDigest
+			if changed, reason := h.manager.needsActivationReload(t.Context(), active); changed {
+				t.Fatalf("unchanged inventory reloaded: %s", reason)
+			}
+			writeRuntimeMCPFixture(t, path, `{"mcpServers":{"initial":{"command":"echo"},"added later":{"command":"echo"}}}`)
+			changed, reason := h.manager.needsActivationReload(t.Context(), active)
+			if changed != tc.reload || changed && reason != "runtime_inventory" {
+				t.Fatalf("inventory reload = %v, %s", changed, reason)
+			}
+			provider.Command = "unaccepted-driver"
+			workspace.Config.Providers[tc.provider] = provider
+			h.resolver.upsert(&workspace)
+			events, err := h.manager.Prompt(t.Context(), active.ID, "next message")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if tc.reload {
+				if active.processHandle() == before || len(h.driver.startCalls) != 2 ||
+					active.activation.runtimeDigest == runtimeDigest || !tc.direct && active.activation.boundDigest == bound {
+					t.Fatal("inventory change did not rebind exactly once")
+				}
+				launch := h.driver.startCalls[1]
+				parsed, err := compozyconfig.ParseLaunchCommand(launch.Command)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if parsed.Executable != "accepted-driver" || parsed.Args[0] != "--acp" {
+					t.Fatalf("lost accepted command: %s", launch.Command)
+				}
+				if tc.mode == "off" && !slices.Contains(parsed.Args, "added later") {
+					t.Fatalf("new server was not disabled: %s", launch.Command)
+				}
+				if active.activation.lastReload == nil || active.activation.lastReload.Reason != "runtime_inventory" {
+					t.Fatalf("reload record = %+v", active.activation.lastReload)
+				}
+			} else if active.processHandle() != before || len(h.driver.startCalls) != 1 {
+				t.Fatal("native hot reload caused a process restart")
+			}
+			if changed, reason := h.manager.needsActivationReload(t.Context(), active); changed {
+				t.Fatalf("bound inventory reloaded again: %s", reason)
+			}
+			writeRuntimeMCPFixture(t, path, `{`)
+			if changed, reason := h.manager.needsActivationReload(t.Context(), active); changed {
+				t.Fatalf("unreadable inventory requested reload: %s", reason)
+			}
+		})
+	}
+	t.Run("Should reload a Claude switch even with a current served catalog", func(t *testing.T) {
+		t.Parallel()
+		h, launcher := newActivationHarness(t)
+		h.manager.runtimeMCPInventory = runtimeMCPFileInventory{systemRoot: t.TempDir()}
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		active.mu.Lock()
+		active.hostedMCPRequiresReload = false
+		active.mu.Unlock()
+		launcher.served = launcher.catalog.Digest
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := workspace.Config.Providers["claude"]
+		provider.RuntimeMCP = "off"
+		workspace.Config.Providers["claude"] = provider
+		h.resolver.upsert(&workspace)
+		if changed, reason := h.manager.needsActivationReload(t.Context(), active); !changed || reason != "runtime_mcp" {
+			t.Fatalf("mode reload = %v, %s", changed, reason)
+		}
+		events, err := h.manager.Prompt(t.Context(), active.ID, "switch mode")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		if len(h.driver.startCalls) != 2 || !h.driver.startCalls[1].IsolateProviderMCP || active.activation.runtimeMCP != "off" {
+			t.Fatal("switch was not applied on the next launch")
+		}
+	})
 }

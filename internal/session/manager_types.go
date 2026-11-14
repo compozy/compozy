@@ -259,6 +259,7 @@ type Manager struct {
 	mcpResolver                  MCPResolver
 	mcpConsentFilter             MCPConsentFilter
 	hostedMCP                    HostedMCPLauncher
+	runtimeMCPInventory          RuntimeMCPInventory
 	soulStore                    SoulSnapshotStore
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore

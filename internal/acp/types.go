@@ -125,6 +125,8 @@ type StartOpts struct {
 	// connectors, so the session sees only the servers CompozyOS passes and governs.
 	// It keeps auto-memory, which LeanEnvironment also turns off.
 	IsolateProviderMCP bool
+	// ManagedProviderMCP suppresses strict MCP configuration when machine policy owns the servers.
+	ManagedProviderMCP bool
 	// ShellWaitGuard marks a session that can call compozy__terminal_exec and
 	// compozy__monitor_create, so a provider hook may refuse a foreground shell
 	// wait and redirect it. It stays false when policy withholds either tool.

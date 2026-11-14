@@ -51,6 +51,7 @@ type SessionManagerDeps struct {
 	ProcessRegistry         *toolruntime.Registry
 	Terminals               acp.TerminalHost
 	HostedMCP               session.HostedMCPLauncher
+	RuntimeMCPInventory     session.RuntimeMCPInventory
 	ProviderSecrets         session.ProviderSecretResolver
 	ProfileNames            session.ProfileNameResolver
 	ModelCatalog            modelcatalog.Service
@@ -63,6 +64,9 @@ type SessionManagerDeps struct {
 }
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
+	if state.runtimeMCPInventory == nil {
+		state.runtimeMCPInventory = newRuntimeMCPInventory()
+	}
 	reconciler := windowManagerSessionReconcilerDependency(state.windowManagers)
 	state.sessionWindowReconciler = reconciler
 	return SessionManagerDeps{
@@ -117,6 +121,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		ProcessRegistry:         state.processRegistry,
 		Terminals:               state.terminals,
 		HostedMCP:               hostedMCPLauncher(state.hostedMCP),
+		RuntimeMCPInventory:     state.runtimeMCPInventory,
 		ProviderSecrets:         sessionProviderVaultDependency(state.providerVault),
 		ProfileNames:            state.profiles,
 		ModelCatalog:            state.modelCatalog,

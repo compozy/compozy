@@ -36,7 +36,8 @@ runtime switch in its inventory group.
 `Server.ActivationDigest` additionally includes runtime enablement, approval and source
 identity. Snapshot activation digests include the effective rows and managed-switch
 availability, but exclude unrelated configuration fields. Activation digests are not
-serialized. S5 consumes them to reconcile runtime loading.
+serialized. Session admission compares them before the hosted-catalog refresh decision for
+runtimes without native hot reload and for per-name `off` implementations.
 
 Cursor approval keys follow the installed 2026.09.26 implementation: SHA-256 of
 `JSON.stringify({path: projectRoot, server: parsedServer})`, truncated to 16 hexadecimal
@@ -56,7 +57,27 @@ Automatic target selection, workspace approval recording and commit-aware secret
 Copying never changes native runtime files or transfers runtime OAuth credentials.
 
 The inventory API is `GET /api/settings/runtime-mcp-servers` on HTTP and UDS. The CLI is
-`compozy mcp list`; the native tool is `compozy__mcp_list`. Launch wiring belongs to S5 and
-session read-model integration to S6. The shared specification's Impact Analysis owns the
-cross-surface audit; generated OpenAPI, Go/TypeScript clients, native catalog and CLI docs
-ship with this slice. End-to-end UI scenarios and release QA remain with S9.
+`compozy mcp list`; the native tool is `compozy__mcp_list`. Session read-model integration
+belongs to S6. The shared specification's Impact Analysis owns the cross-surface audit;
+generated OpenAPI, Go/TypeScript clients, native catalog and CLI docs ship with the inventory. End-to-end UI scenarios and release QA remain with S9.
+
+## Session launch switch
+
+The session manager shares the daemon inventory cache and captures the accepted launch's
+provider home, environment, CWD and worktree context. Each launch rereads that context after
+command resolution. `runtime_mcp = "off"` enables Claude bridge strict MCP configuration and
+turns off claude.ai connectors. A managed Claude policy keeps the stored value valid but
+suppresses strict configuration; its inventory note explains the unavailable switch.
+Existing always-on isolation remains enabled even with `runtime_mcp = "load"`.
+
+Copilot adds `--disable-builtin-mcps`; Copilot and Qwen append one
+`--disable-mcp-server <name>` for every server in the session inventory. These arguments
+are derived anew from the accepted command on each launch, including reloads. An unreadable
+per-name inventory refuses an `off` launch rather than silently loading unknown servers.
+
+A mode change or an applicable activation-digest change reloads at the next prompt, even
+when the hosted proxy has already served the current tool catalog. Copilot in `load` keeps
+its native hot reload. Unreadable inventory during admission retains the bound digest.
+Sessions without a hosted MCP binding retain the same runtime reconciliation state.
+The shared specification owns cross-surface impact tracking; S9 owns the consolidated
+QA scenarios, official skill, site documentation and runtime flag verification.

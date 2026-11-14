@@ -18,10 +18,12 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -1152,4 +1154,119 @@ func TestSessionLeanEnvironment(t *testing.T) {
 			t.Fatal("incorrect provider MCP isolation default")
 		}
 	})
+}
+
+// Invariant: launch switches preserve isolation and use the session inventory.
+// Owner: session startup; canonical suite: manager start (UT-070, UT-071, UT-073, UT-075).
+func TestRuntimeMCPStartup(t *testing.T) {
+	t.Parallel()
+	for _, provider := range []string{"claude", "copilot", "qwen"} {
+		t.Run("Should disable native servers for "+provider, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			systemRoot := t.TempDir()
+			writeRuntimeMCPFixture(t, filepath.Join(root, ".copilot/mcp-config.json"), `{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo","enabled":false}}}`)
+			writeRuntimeMCPFixture(t, filepath.Join(root, ".qwen/settings.json"), `{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo"}}}`)
+			cfg := runtimeMCPTestConfig(t)
+			cfg.Providers[provider] = compozyconfig.ProviderConfig{RuntimeMCP: "off"}
+			runtime := &sessionStartRuntime{agent: compozyconfig.ResolvedAgent{Provider: provider, Harness: compozyconfig.ProviderHarnessACP}}
+			manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: systemRoot}}
+			spec := &sessionStartSpec{cwd: root, workspace: workspaceForRuntimeMCP(root, cfg)}
+			opts, err := manager.prepareRuntimeMCPStartup(t.Context(), spec, runtime, acp.StartOpts{Command: "accepted-driver --acp", Cwd: root, Env: []string{"HOME=" + root}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if runtime.activationDigest == "" || runtime.activationRequest.Context.Home != root || runtime.activationRequest.Context.CWD != root {
+				t.Fatalf("activation context = %+v", runtime)
+			}
+			if provider == "claude" {
+				if !opts.IsolateProviderMCP || opts.ManagedProviderMCP {
+					t.Fatalf("Claude launch = %+v", opts)
+				}
+				return
+			}
+			parsed, err := compozyconfig.ParseLaunchCommand(opts.Command)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"--acp"}
+			if provider == "copilot" {
+				want = append(want, "--disable-builtin-mcps")
+			}
+			want = append(want, "--disable-mcp-server", "native one", "--disable-mcp-server", "native-two")
+			if parsed.Executable != "accepted-driver" || !slices.Equal(parsed.Args, want) {
+				t.Fatalf("launch = %+v, want args %v", parsed, want)
+			}
+		})
+	}
+	t.Run("Should keep always-on isolation with runtime MCP load [UT-073]", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		cfg := runtimeMCPTestConfig(t)
+		spec := &sessionStartSpec{workspace: workspaceForRuntimeMCP(h.workspace, cfg), cwd: h.workspace, sessionType: SessionTypeUser}
+		active := &Session{agentDef: compozyconfig.AgentDef{Kind: compozyconfig.AgentKindAlwaysOn}}
+		resolved := compozyconfig.ResolvedAgent{Provider: "claude", Command: "accepted-driver", Harness: compozyconfig.ProviderHarnessACP}
+		opts, err := h.manager.sessionStartOpts(spec, active, resolved, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts.Env = []string{"HOME=" + t.TempDir()}
+		h.manager.runtimeMCPInventory = runtimeMCPFileInventory{systemRoot: t.TempDir()}
+		opts, err = h.manager.prepareRuntimeMCPStartup(t.Context(), spec, &sessionStartRuntime{agent: resolved}, opts)
+		if err != nil || !opts.IsolateProviderMCP {
+			t.Fatalf("always-on isolation = %v, %v", opts.IsolateProviderMCP, err)
+		}
+	})
+	t.Run("Should leave stored off inert under managed Claude policy [UT-075]", func(t *testing.T) {
+		t.Parallel()
+		root, systemRoot := t.TempDir(), t.TempDir()
+		writeRuntimeMCPFixture(t, filepath.Join(systemRoot, "ClaudeCode/managed-mcp.json"), `{"mcpServers":{"managed":{"command":"echo"}}}`)
+		cfg := runtimeMCPTestConfig(t)
+		cfg.Providers["claude"] = compozyconfig.ProviderConfig{RuntimeMCP: "off"}
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: systemRoot}}
+		spec := &sessionStartSpec{workspace: workspaceForRuntimeMCP(root, cfg)}
+		runtime := &sessionStartRuntime{agent: compozyconfig.ResolvedAgent{Provider: "claude"}}
+		opts, err := manager.prepareRuntimeMCPStartup(t.Context(), spec, runtime, acp.StartOpts{Command: "accepted-driver", Cwd: root, Env: []string{"HOME=" + root}})
+		if err != nil || opts.IsolateProviderMCP || !opts.ManagedProviderMCP || runtime.activationMode != "off" {
+			t.Fatalf("managed launch = %+v, %v", opts, err)
+		}
+		snapshot, err := manager.readRuntimeMCP(t.Context(), *runtime.activationRequest)
+		if err != nil || snapshot.RuntimeMCP.CanDisable || len(snapshot.Notes) < 2 {
+			t.Fatalf("managed inventory = %+v, %v", snapshot, err)
+		}
+	})
+}
+
+type runtimeMCPFileInventory struct{ systemRoot string }
+
+var _ RuntimeMCPInventory = runtimeMCPFileInventory{}
+
+func (i runtimeMCPFileInventory) List(ctx context.Context, req runtimemcp.Request) (runtimemcp.Inventory, error) {
+	req.Context.SystemRoot = i.systemRoot
+	result, _, err := (runtimemcp.Reader{}).List(ctx, req)
+	return result, err
+}
+func writeRuntimeMCPFixture(t *testing.T, path, contents string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+func workspaceForRuntimeMCP(root string, cfg compozyconfig.Config) workspacepkg.ResolvedWorkspace {
+	return workspacepkg.ResolvedWorkspace{RootDir: root, Config: cfg}
+}
+
+func runtimeMCPTestConfig(t *testing.T) compozyconfig.Config {
+	t.Helper()
+	home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return compozyconfig.DefaultWithHome(home)
 }
