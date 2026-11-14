@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.0 - 2026-11-14
+
+### Bug Fixes
+
+- Download the recorded desktop release when the update feed is unreachable (#1643)
+- Keep continued child sessions in their parent's session tree (#1647)
+- Read the Claude Keychain login past a stale macOS credential file (#1648)
+- Promote synthetic wakes with live ACP defaults (#1650)
+- Count only closing PR references as issue-triage coverage
+- Repair the three web unit tests red on main after tabs and splits (#1672)
+- Reopen a window beside its former nested split branch (#1670)
+- Bound the composer terminal quote with inner scroll and collapse (#1684)
+- Acknowledge layout upgrade notices atomically and toast them once (#1671)
+- Make worktree removal responsive and recoverable (#1668)
+- Keep pane scroll positions across more tab and split moves (#1674)
+- Keep unsaved agent edits when a window command takes the editor away (#1676)
+- Resolve native tool supervision follow-ups (#1679)
+- Coalesce seam key repeat, admit tab-wide balance by fit, keep drags through own commands (#1675)
+- Settle the window-manager follow-ups from the tabs-and-splits delivery (#1677)
+- Keep one history entry per open-or-focus and carry the keyboard with own focus changes (#1678)
+
+### Features
+
+- Add a Move under parent picker for session organization (#1646)
+- Group CompozyOS menus into submenus with List and Kanban parity (#1652)
+- Replace floating windows with tabs and splits in the CompozyOS window manager (#1640)
+- **BREAKING:** replace floating windows with tabs and splits in the CompozyOS window manager (#1640)
+- Swap split windows from the Window menu, the palette, and shortcuts (#1673)
+- Preview Markdown, tables, HTML, notebooks, PDF and media in the CompozyOS Files viewer (#1694)
+
+### Performance Improvements
+
+- Reuse the session writer's transcript encode buffer across appends (#1634)
+- Read only triage rows in the periodic triage session sweep (#1636)
+- Reload skill watcher config only after its files change (#1627)
+- Share hosted MCP projection discovery across session streams (#1629)
+- Keep tab clicks outside drag geometry and isolate retained tabs (#1685)
+
+### Testing
+
+- Isolate the telemetry benchmark receiver process (#1639)
+- Assert exact agent terminal window identity in E2E and fix helper fallback (#1669)
+- Synchronize flaky runtime and browser assertions (#1662)
+- Drive the webhook Copy submenu from the keyboard (#1683)
+- Assert the unsaved guard dialog contract after Keep editing cancels a Discard (#1691)
+
 ## 0.6.2 - 2026-11-13
 
 ### Bug Fixes
@@ -1496,6 +1542,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.7.0]: https://github.com/compozy/compozy/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/compozy/compozy/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/compozy/compozy/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/compozy/compozy/compare/v0.5.5...v0.6.0
