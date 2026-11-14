@@ -16080,7 +16080,8 @@ func TestNativeSessionCleanupTool(t *testing.T) {
 		sessions := &nativeCleanupSessions{}
 		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
 			return &session.Info{
-				ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", EffectiveWorkspaceAccess: access,
+				ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", State: session.StateActive,
+				EffectiveWorkspaceAccess: access,
 			}, nil
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
