@@ -456,7 +456,9 @@ func TestCreateConditionalStartupFailureRetention(t *testing.T) {
 									continue
 								}
 								stagedPath = filepath.Join(h.homePaths.SessionsDir, entry.Name())
-								committedName := strings.Replace(entry.Name(), sessionDeleteStagedPrefix, sessionDeleteCommittedPrefix, 1)
+								committedName := strings.Replace(
+									entry.Name(), sessionDeleteStagedPrefix, sessionDeleteCommittedPrefix, 1,
+								)
 								// A nonempty destination makes the real commit rename fail.
 								committedPath := filepath.Join(h.homePaths.SessionsDir, committedName)
 								if err := os.Mkdir(committedPath, 0o700); err != nil {
