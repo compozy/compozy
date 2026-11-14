@@ -10,6 +10,7 @@ import (
 	"sync"
 	"unicode"
 
+	"github.com/compozy/compozy/internal/session"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -188,6 +189,12 @@ func componentizeSchema(
 }
 
 func fixedSchemaComponentName(typeOf reflect.Type) string {
+	switch typeOf {
+	case reflect.TypeFor[session.MCP]():
+		return "SessionMCP"
+	case reflect.TypeFor[session.RuntimeMCP]():
+		return "SessionRuntimeMCP"
+	}
 	for _, component := range extensionAuthoringComponentSchemas {
 		if reflect.TypeOf(component.value) == typeOf {
 			return component.name

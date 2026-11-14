@@ -27,10 +27,15 @@ export function useCopyDialog(
     server: RuntimeMCPServer;
   } | null>(firstGroup && initialCopy ? { snapshot: firstGroup, server: initialCopy } : null);
 
+  // The state's fixture rebuilds `copied` on every render, so the effect keys on the name and the
+  // toast carries a fixed id: re-renders and strict-mode replays update one toast, never stack it.
+  const copiedName = copied?.name;
   useEffect(() => {
-    if (!copied) return;
-    toast.success(`${copied.name} copied. Sessions can use it from their next message.`);
-  }, [copied]);
+    if (!copiedName) return;
+    toast.success(`${copiedName} copied. Sessions can use it from their next message.`, {
+      id: `mcp-copied-${copiedName}`,
+    });
+  }, [copiedName]);
 
   return [copying, setCopying] as const;
 }

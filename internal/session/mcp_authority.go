@@ -20,8 +20,8 @@ func WithMCPAuthoritySession(ctx context.Context, info *Info) context.Context {
 }
 
 func MCPAuthoritySession(ctx context.Context, id string) *Info {
-	info, _ := ctx.Value(authoritySessionKey{}).(*Info)
-	if info != nil && info.ID == id {
+	info, ok := ctx.Value(authoritySessionKey{}).(*Info)
+	if ok && info != nil && info.ID == id {
 		return info
 	}
 	return nil

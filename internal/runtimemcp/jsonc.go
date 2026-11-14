@@ -33,7 +33,7 @@ func removeJSONComments(data []byte) bool {
 		if data[i] != '/' || i+1 >= len(data) {
 			continue
 		}
-		end := i
+		var end int
 		switch data[i+1] {
 		case '/':
 			end = bytes.IndexByte(data[i:], '\n')

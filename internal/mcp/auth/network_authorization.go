@@ -52,6 +52,8 @@ func WithConsentScope(ctx context.Context, scope ConsentScope) context.Context {
 }
 
 func ConsentScopeFromContext(ctx context.Context) ConsentScope {
-	scope, _ := ctx.Value(consentScopeKey{}).(ConsentScope)
-	return scope
+	if scope, ok := ctx.Value(consentScopeKey{}).(ConsentScope); ok {
+		return scope
+	}
+	return ConsentScope{}
 }

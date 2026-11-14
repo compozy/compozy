@@ -18,7 +18,7 @@ func matchesNames(patterns any, name string) bool {
 	return false
 }
 
-func (r *reader) applyMCPPolicy(runtime string, policy object, entries map[string]entry) {
+func (r *reader) applyMCPPolicy(_ string, policy object, entries map[string]entry) {
 	for name, item := range entries {
 		if matchesNames(policy["excluded"], name) ||
 			(has(policy, "allowed") && !matchesNames(policy["allowed"], name)) {
@@ -29,10 +29,13 @@ func (r *reader) applyMCPPolicy(runtime string, policy object, entries map[strin
 }
 
 func claudePolicyMatches(rules any, name string, d object) bool {
-	list, _ := rules.([]any)
-	command := []string{str(d["command"])}
-	command = append(command, names(d["args"])...)
-	endpoint := cmp.Or(str(d["url"]), str(d["httpUrl"]))
+	list, ok := rules.([]any)
+	if !ok {
+		return false
+	}
+	command := []string{str(d[fieldCommand])}
+	command = append(command, names(d[fieldArgs])...)
+	endpoint := cmp.Or(str(d[fieldURL]), str(d[fieldHTTPURL]))
 	for _, rule := range list {
 		entry := obj(rule)
 		if str(entry["serverName"]) == name {

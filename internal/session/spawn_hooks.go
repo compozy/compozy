@@ -23,7 +23,7 @@ func (m *Manager) dispatchSpawnPreCreate(
 	if err != nil {
 		return SpawnOpts{}, nil, err
 	}
-	childPolicy, err := m.effectiveSpawnAuthority(ctx, parent, opts)
+	childPolicy, err := m.effectiveSpawnAuthority(ctx, parent, &opts)
 	if err != nil {
 		return SpawnOpts{}, nil, err
 	}

@@ -16,9 +16,24 @@ import (
 
 type object = map[string]any
 
-func obj(value any) object              { result, _ := value.(map[string]any); return result }
-func str(value any) string              { result, _ := value.(string); return result }
-func boolean(value any) bool            { result, _ := value.(bool); return result }
+func obj(value any) object {
+	if result, ok := value.(map[string]any); ok {
+		return result
+	}
+	return nil
+}
+func str(value any) string {
+	if result, ok := value.(string); ok {
+		return result
+	}
+	return ""
+}
+func boolean(value any) bool {
+	if result, ok := value.(bool); ok {
+		return result
+	}
+	return false
+}
 func has(value object, key string) bool { v, ok := value[key]; return ok && v != nil }
 func names(value any) []string {
 	result := []string{}
@@ -59,10 +74,10 @@ func digest(value any) string {
 
 func decodeServers(runtime string, doc object) (object, error) {
 	key := "mcpServers"
-	if runtime == "codex" {
+	if runtime == runtimeCodex {
 		key = "mcp_servers"
 	}
-	if runtime == "opencode" {
+	if runtime == runtimeOpenCode {
 		key = "mcp"
 		if m := obj(doc[key]); has(m, "servers") {
 			return checkedObject(m["servers"])
@@ -83,23 +98,23 @@ func checkedObject(value any) (object, error) {
 }
 
 func describeServer(runtime, name, scope, path, label string, definition object) (Server, error) {
-	if runtime == "codex" && has(definition, "command") && has(definition, "url") {
+	if runtime == runtimeCodex && has(definition, fieldCommand) && has(definition, fieldURL) {
 		return Server{}, errors.New("conflicting MCP transports")
 	}
 	transport, err := serverTransport(runtime, definition)
 	if err != nil {
 		return Server{}, err
 	}
-	env := obj(definition["env"])
+	env := obj(definition[fieldEnv])
 	if env == nil {
-		env = obj(definition["environment"])
+		env = obj(definition[fieldEnvironment])
 	}
-	headers := obj(definition["headers"])
+	headers := obj(definition[fieldHeaders])
 	if headers == nil {
-		headers = obj(definition["http_headers"])
+		headers = obj(definition[fieldHTTPHeaders])
 	}
 	if headers == nil {
-		headers = obj(definition["header"])
+		headers = obj(definition[fieldHeader])
 	}
 	enabled := true
 	if v, ok := definition["enabled"].(bool); ok {
@@ -146,49 +161,50 @@ func describeServer(runtime, name, scope, path, label string, definition object)
 }
 
 func serverTransport(runtime string, definition object) (string, error) {
-	transport := str(definition["type"])
+	transport := str(definition[fieldType])
 	switch transport {
-	case "", "local":
+	case "", scopeLocal:
 		switch {
-		case has(definition, "httpUrl"):
-			transport = "http"
-		case has(definition, "url"):
-			transport = "http"
-			if runtime == "gemini" || runtime == "qwen-code" {
+		case has(definition, fieldHTTPURL):
+			transport = transportHTTP
+		case has(definition, fieldURL):
+			transport = transportHTTP
+			if runtime == runtimeGemini || runtime == runtimeQwenCode {
 				transport = "sse"
 			}
-		case has(definition, "command"):
-			transport = "stdio"
+		case has(definition, fieldCommand):
+			transport = transportStdio
 		default:
 			return "", errors.New("invalid MCP server transport")
 		}
 	case "remote", "streamable-http", "streamable_http":
-		transport = "http"
+		transport = transportHTTP
 	}
-	if transport == "stdio" && (str(definition["command"]) == "" && len(names(definition["command"])) == 0) {
+	if transport == transportStdio &&
+		(str(definition[fieldCommand]) == "" && len(names(definition[fieldCommand])) == 0) {
 		return "", errors.New("missing MCP command")
 	}
-	if transport == "http" && !has(definition, "url") && !has(definition, "httpUrl") {
+	if transport == transportHTTP && !has(definition, fieldURL) && !has(definition, fieldHTTPURL) {
 		return "", errors.New("missing MCP URL")
 	}
 	return transport, nil
 }
 
 func serverTarget(transport string, definition object) string {
-	if transport == "stdio" {
-		if parts := names(definition["command"]); len(parts) > 0 {
+	if transport == transportStdio {
+		if parts := names(definition[fieldCommand]); len(parts) > 0 {
 			return filepath.Base(strings.ReplaceAll(parts[0], "\\", "/"))
 		}
-		command := str(definition["command"])
+		command := str(definition[fieldCommand])
 		parts, err := shellquote.Split(strings.ReplaceAll(command, "\\", "/"))
 		if err != nil || len(parts) == 0 {
 			return ""
 		}
 		return filepath.Base(strings.ReplaceAll(parts[0], "\\", "/"))
 	}
-	raw := str(definition["url"])
+	raw := str(definition[fieldURL])
 	if raw == "" {
-		raw = str(definition["httpUrl"])
+		raw = str(definition[fieldHTTPURL])
 	}
 	parsed, err := url.Parse(raw)
 	if err != nil {

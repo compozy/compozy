@@ -2,6 +2,40 @@ package runtimemcp
 
 import "time"
 
+const (
+	fieldHTTPHeaders = "http_headers"
+	fieldType        = "type"
+	fieldAuth        = "auth"
+
+	fieldHTTPURL     = "httpUrl"
+	fieldEnvironment = "environment"
+	fieldCommand     = "command"
+	fieldURL         = "url"
+	runtimeQwenCode  = "qwen-code"
+
+	fieldEnv              = "env"
+	transportStdio        = "stdio"
+	scopeManaged          = "managed"
+	transportHTTP         = "http"
+	fieldArgs             = "args"
+	fieldHeader           = "header"
+	fieldHeaders          = "headers"
+	runtimeCodex          = "codex"
+	runtimeOpenCode       = "opencode"
+	scopeLocal            = "local"
+	runtimeGemini         = "gemini"
+	scopeUser             = "user"
+	scopeProject          = "project"
+	runtimeClaude         = "claude"
+	runtimeQwen           = "qwen"
+	runtimeCopilot        = "copilot"
+	runtimeCursor         = "cursor"
+	runtimeAntigravity    = "agy"
+	scopePlugin           = "plugin"
+	authOAuth             = "oauth"
+	toolFiltersCopyReason = "uses tool filters, which CompozyOS servers can't keep"
+)
+
 type ReadContext struct {
 	SystemRoot     string
 	WorktreeRoot   string
@@ -74,15 +108,15 @@ type Descriptor struct {
 
 func Descriptors() []Descriptor {
 	return []Descriptor{
-		{"claude", "Claude Code", []string{"claude"}, true, false},
-		{"codex", "Codex", []string{"codex"}, false, false},
-		{"gemini", "Gemini CLI", []string{"gemini"}, false, false},
-		{"opencode", "OpenCode", []string{"opencode"}, false, true},
+		{runtimeClaude, "Claude Code", []string{runtimeClaude}, true, false},
+		{runtimeCodex, "Codex", []string{runtimeCodex}, false, false},
+		{runtimeGemini, "Gemini CLI", []string{runtimeGemini}, false, false},
+		{runtimeOpenCode, "OpenCode", []string{runtimeOpenCode}, false, true},
 		{"kimi-cli", "Kimi CLI", []string{"kimi"}, false, false},
-		{"qwen-code", "Qwen Code", []string{"qwen"}, true, false},
-		{"copilot", "GitHub Copilot CLI", []string{"copilot"}, true, true},
-		{"cursor", "Cursor Agent", []string{"cursor-agent", "agent"}, false, false},
-		{"agy", "Antigravity", []string{"agy", "agy_acp_server.par"}, false, false},
+		{runtimeQwenCode, "Qwen Code", []string{runtimeQwen}, true, false},
+		{runtimeCopilot, "GitHub Copilot CLI", []string{runtimeCopilot}, true, true},
+		{runtimeCursor, "Cursor Agent", []string{"cursor-agent", "agent"}, false, false},
+		{runtimeAntigravity, "Antigravity", []string{runtimeAntigravity, "agy_acp_server.par"}, false, false},
 		{"pi", "Pi", []string{"pi"}, false, false},
 	}
 }

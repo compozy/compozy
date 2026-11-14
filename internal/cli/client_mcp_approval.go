@@ -30,7 +30,7 @@ func (c *daemonClient) SetSettingsMCPApproval(
 			ctx,
 			http.MethodDelete,
 			path,
-			url.Values{"workspace_id": {body.WorkspaceID}, "profile": {body.Profile}},
+			url.Values{automationWorkspaceIDKey: {body.WorkspaceID}, profileFlagName: {body.Profile}},
 			nil,
 			nil,
 		)

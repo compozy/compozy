@@ -107,7 +107,7 @@ func TestRuntimeDecoders(t *testing.T) {
 			t.Fatalf("notes=%v", group.Notes)
 		}
 		putFixture(t, c, "claude/project.json", filepath.Join(c.CWD, ".mcp.json"))
-		putFixture(t, c, "claude/settings.json", filepath.Join(c.Home, ".claude/settings.json"))
+		putFixture(t, c, "claude/settings.json", filepath.Join(c.Home, ".claude", "settings.json"))
 		group = groupFor(t, c, "claude")
 		if serverFor(t, group, "project").Approval != "pending" {
 			t.Fatal("project auto-approved")
@@ -207,8 +207,8 @@ func TestRuntimeDecoders(t *testing.T) {
 	t.Run("Should decode Gemini transports and enablement UT-047", func(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
-		putFixture(t, c, "gemini/settings.json", filepath.Join(c.Home, ".gemini/settings.json"))
-		putFixture(t, c, "gemini/enablement.json", filepath.Join(c.Home, ".gemini/mcp-server-enablement.json"))
+		putFixture(t, c, "gemini/settings.json", filepath.Join(c.Home, ".gemini", "settings.json"))
+		putFixture(t, c, "gemini/enablement.json", filepath.Join(c.Home, ".gemini", "mcp-server-enablement.json"))
 		group := groupFor(t, c, "gemini")
 		for name, transport := range map[string]string{"http": "http", "sse": "sse", "local": "stdio"} {
 			if serverFor(t, group, name).Transport != transport {
@@ -231,7 +231,7 @@ func TestRuntimeDecoders(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
 		slug := cursorProjectSlug(c.WorktreeRoot)
-		putFixture(t, c, "cursor/mcp.json", filepath.Join(c.Home, ".cursor/mcp.json"))
+		putFixture(t, c, "cursor/mcp.json", filepath.Join(c.Home, ".cursor", "mcp.json"))
 		path, err := json.Marshal(c.WorktreeRoot)
 		if err != nil {
 			t.Fatal(err)
@@ -243,13 +243,13 @@ func TestRuntimeDecoders(t *testing.T) {
 			"$HASH",
 			hex.EncodeToString(sum[:8]),
 		)
-		putFile(t, filepath.Join(c.Home, ".cursor/projects", slug, "mcp-approvals.json"), approval)
+		putFile(t, filepath.Join(c.Home, ".cursor", "projects", slug, "mcp-approvals.json"), approval)
 		group := groupFor(t, c, "cursor")
 		if serverFor(t, group, "approved").Approval != "approved" ||
 			serverFor(t, group, "pending").Approval != "pending" {
 			t.Fatalf("approvals=%+v", group.Servers)
 		}
-		putFile(t, filepath.Join(c.Home, ".cursor/mcp.json"), `{"mcpServers":{"approved":{"command":"changed"}}}`)
+		putFile(t, filepath.Join(c.Home, ".cursor", "mcp.json"), `{"mcpServers":{"approved":{"command":"changed"}}}`)
 		if serverFor(t, groupFor(t, c, "cursor"), "approved").Approval != "pending" {
 			t.Fatal("approval survived a definition change")
 		}
@@ -274,11 +274,12 @@ func TestRuntimeInventorySafety(t *testing.T) {
 					break
 				}
 			}
-			if d.Runtime == "codex" {
+			switch d.Runtime {
+			case "codex":
 				putFixture(t, c, "codex/config.toml", path)
-			} else if d.Runtime == "opencode" {
+			case "opencode":
 				putFixture(t, c, "opencode/v1.json", path)
-			} else {
+			default:
 				putFile(
 					t,
 					path,
@@ -314,7 +315,7 @@ func TestRuntimeInventorySafety(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
 		putFile(t, filepath.Join(c.Home, ".claude.json"), `{"mcpServers":`)
-		putFixture(t, c, "codex/config.toml", filepath.Join(c.Home, ".codex/config.toml"))
+		putFixture(t, c, "codex/config.toml", filepath.Join(c.Home, ".codex", "config.toml"))
 		inventory, _, err := (Reader{}).List(t.Context(), Request{Context: c})
 		if err != nil {
 			t.Fatal(err)
@@ -332,7 +333,7 @@ func TestRuntimeInventorySafety(t *testing.T) {
 	t.Run("Should identify servers also configured in CompozyOS UT-057", func(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
-		putFixture(t, c, "codex/config.toml", filepath.Join(c.Home, ".codex/config.toml"))
+		putFixture(t, c, "codex/config.toml", filepath.Join(c.Home, ".codex", "config.toml"))
 		inventory, _, err := (Reader{}).List(
 			t.Context(),
 			Request{Context: c, Runtime: "codex", CompozyNames: []string{"savee"}},
@@ -354,7 +355,7 @@ func TestRuntimeInventorySafety(t *testing.T) {
 		}
 		target := filepath.Join(c.Home, "outside.json")
 		putFile(t, target, `{"mcpServers":{}}`)
-		link := filepath.Join(c.Home, ".pi/agent/mcp.json")
+		link := filepath.Join(c.Home, ".pi", "agent", "mcp.json")
 		if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -520,16 +521,16 @@ func TestRuntimePrecedence(t *testing.T) {
 		c.Profile = "operator-profile"
 		putFile(
 			t,
-			filepath.Join(c.Home, ".codex/config.toml"),
+			filepath.Join(c.Home, ".codex", "config.toml"),
 			"profile = \"native\"\n[mcp_servers.a]\ncommand = \"echo\"\n[mcp_servers.a.env]\nONE = \"secret1\"\nTWO = \"secret2\"\n",
 		)
-		putFile(t, filepath.Join(c.Home, ".codex/native.config.toml"), "[mcp_servers.a.env]\nTWO = \"override\"\n")
+		putFile(t, filepath.Join(c.Home, ".codex", "native.config.toml"), "[mcp_servers.a.env]\nTWO = \"override\"\n")
 		putFile(
 			t,
-			filepath.Join(c.Home, ".codex/operator-profile.config.toml"),
+			filepath.Join(c.Home, ".codex", "operator-profile.config.toml"),
 			"[mcp_servers.wrong]\ncommand = \"wrong\"\n",
 		)
-		putFile(t, filepath.Join(c.CWD, ".codex/config.toml"), "[mcp_servers.a]\nenabled = false\n")
+		putFile(t, filepath.Join(c.CWD, ".codex", "config.toml"), "[mcp_servers.a]\nenabled = false\n")
 		group := groupFor(t, c, "codex")
 		server := serverFor(t, group, "a")
 		if group.ReadState != "ok" || len(group.Servers) != 1 || len(server.EnvKeys) != 2 || server.EnabledInRuntime {
@@ -539,7 +540,7 @@ func TestRuntimePrecedence(t *testing.T) {
 	t.Run("Should parse JSONC trailing commas after comments and reject unterminated comments", func(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
-		path := filepath.Join(c.Home, ".config/opencode/opencode.jsonc")
+		path := filepath.Join(c.Home, ".config", "opencode", "opencode.jsonc")
 		putFile(t, path, "{\"mcp\":{\"a\":{\"type\":\"local\",\"command\":[\"echo\",/* comment */],},},}")
 		if groupFor(t, c, "opencode").ReadState != "ok" {
 			t.Fatal("valid commented trailing comma rejected")
@@ -555,7 +556,7 @@ func TestRuntimePrecedence(t *testing.T) {
 		putFile(t, filepath.Join(c.Home, ".claude.json"), `{"mcpServers":{"user":{"command":"echo"}}}`)
 		putFile(
 			t,
-			filepath.Join(c.SystemRoot, "ClaudeCode/managed-mcp.json"),
+			filepath.Join(c.SystemRoot, "ClaudeCode", "managed-mcp.json"),
 			`{"mcpServers":{"managed":{"command":"echo"}}}`,
 		)
 		group := groupFor(t, c, "claude")
@@ -567,15 +568,15 @@ func TestRuntimePrecedence(t *testing.T) {
 	t.Run("Should include enabled plugin servers without leaking their credentials", func(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
-		root := filepath.Join(c.Home, ".claude/plugins/cache/market/demo/v1")
+		root := filepath.Join(c.Home, ".claude", "plugins", "cache", "market", "demo", "v1")
 		encodedRoot, err := json.Marshal(root)
 		if err != nil {
 			t.Fatal(err)
 		}
-		putFile(t, filepath.Join(c.Home, ".claude/settings.json"), `{"enabledPlugins":{"demo@market":true}}`)
+		putFile(t, filepath.Join(c.Home, ".claude", "settings.json"), `{"enabledPlugins":{"demo@market":true}}`)
 		putFile(
 			t,
-			filepath.Join(c.Home, ".claude/plugins/installed_plugins.json"),
+			filepath.Join(c.Home, ".claude", "plugins", "installed_plugins.json"),
 			`{"plugins":{"demo@market":[{"installPath":`+string(encodedRoot)+`}]}}`,
 		)
 		putFile(
@@ -619,7 +620,7 @@ func TestRuntimePrecedence(t *testing.T) {
 					t.Fatalf("unisolated provider context=%+v", context)
 				}
 				if provider == "openrouter" &&
-					context.Env["PI_CODING_AGENT_DIR"] != filepath.Join(context.Home, ".pi/agent") {
+					context.Env["PI_CODING_AGENT_DIR"] != filepath.Join(context.Home, ".pi", "agent") {
 					t.Fatal("Pi provider uses operator MCP home")
 				}
 				if _, err := os.Stat(context.Home); !errors.Is(err, os.ErrNotExist) {
@@ -636,20 +637,20 @@ func TestRuntimeCodexPluginSelection(t *testing.T) {
 	t.Run("Should choose native semver precedence and prefer a local installation", func(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
-		putFile(t, filepath.Join(c.Home, ".codex/config.toml"), "[plugins.\"demo@market\"]\nenabled = true\n")
-		root := filepath.Join(c.Home, ".codex/plugins/cache/market/demo")
-		putFile(t, filepath.Join(root, "1.9.0/.mcp.json"), `{"mcpServers":{"old":{"command":"echo"}}}`)
-		putFile(t, filepath.Join(root, "1.10.0/.mcp.json"), `{"mcpServers":{"current":{"command":"echo"}}}`)
+		putFile(t, filepath.Join(c.Home, ".codex", "config.toml"), "[plugins.\"demo@market\"]\nenabled = true\n")
+		root := filepath.Join(c.Home, ".codex", "plugins", "cache", "market", "demo")
+		putFile(t, filepath.Join(root, "1.9.0", ".mcp.json"), `{"mcpServers":{"old":{"command":"echo"}}}`)
+		putFile(t, filepath.Join(root, "1.10.0", ".mcp.json"), `{"mcpServers":{"current":{"command":"echo"}}}`)
 		group := groupFor(t, c, "codex")
 		if len(group.Servers) != 1 || serverFor(t, group, "current").Scope != "plugin" {
 			t.Fatalf("inactive version loaded: %+v", group)
 		}
 		putFile(
 			t,
-			filepath.Join(root, "local/.codex-plugin/plugin.json"),
+			filepath.Join(root, "local", ".codex-plugin", "plugin.json"),
 			`{"mcpServers":["extra.json",{"inline":{"command":"echo"}}]}`,
 		)
-		putFile(t, filepath.Join(root, "local/extra.json"), `{"mcpServers":{"local":{"command":"echo"}}}`)
+		putFile(t, filepath.Join(root, "local", "extra.json"), `{"mcpServers":{"local":{"command":"echo"}}}`)
 		group = groupFor(t, c, "codex")
 		if len(group.Servers) != 2 || serverFor(t, group, "local").Copyable ||
 			serverFor(t, group, "inline").Scope != "plugin" {

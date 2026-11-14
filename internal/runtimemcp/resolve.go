@@ -50,27 +50,27 @@ func (s ResolvedServer) CopyDefinition() (config.MCPServer, error) {
 	if reason := copyBlocked(metadata, d); reason != "" {
 		code := "mcp_import_unsupported_definition"
 		switch {
-		case metadata.Scope == "plugin" || strings.HasPrefix(metadata.Name, "plugin:"):
+		case metadata.Scope == scopePlugin || strings.HasPrefix(metadata.Name, "plugin:"):
 			code = "mcp_import_unsupported_source"
-			if metadata.Runtime == "claude" {
+			if metadata.Runtime == runtimeClaude {
 				reason = metadata.Name + " is provided by a Claude Code plugin and can't be copied"
 			}
 		case strings.Contains(reason, "runtime-owned source"):
 			code = "mcp_import_unsupported_source"
-		case metadata.Transport != "stdio" && metadata.Transport != "http":
+		case metadata.Transport != transportStdio && metadata.Transport != transportHTTP:
 			code = "mcp_import_unsupported_transport"
 		}
 		return config.MCPServer{}, &ImportError{Code: code, Message: reason}
 	}
 	server := config.MCPServer{Name: metadata.Name, Transport: config.MCPServerTransport(metadata.Transport),
-		Command: str(d["command"]), Args: names(d["args"]), URL: cmp.Or(str(d["url"]), str(d["httpUrl"]))}
-	if command := names(d["command"]); len(command) > 0 {
+		Command: str(d[fieldCommand]), Args: names(d[fieldArgs]), URL: cmp.Or(str(d[fieldURL]), str(d[fieldHTTPURL]))}
+	if command := names(d[fieldCommand]); len(command) > 0 {
 		server.Command = command[0]
 		server.Args = append(command[1:], server.Args...)
 	}
-	server.Env = literalMap(d, "env", "environment")
-	server.Headers = literalMap(d, "headers", "http_headers", "header")
-	if has(d, "oauth") || str(d["auth"]) == "oauth" {
+	server.Env = literalMap(d, fieldEnv, fieldEnvironment)
+	server.Headers = literalMap(d, fieldHeaders, fieldHTTPHeaders, fieldHeader)
+	if has(d, authOAuth) || str(d[fieldAuth]) == authOAuth {
 		server.Auth.Registration = config.MCPAuthRegistrationAuto
 	}
 	return server, nil

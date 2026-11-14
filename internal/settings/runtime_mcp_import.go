@@ -98,7 +98,7 @@ func (s *service) ImportRuntimeMCP(ctx context.Context, req RuntimeMCPImportRequ
 		mutation.MCPServer.AuthStatus = &mcpauth.Status{
 			Status:      mcpauth.StatusNeedsLogin,
 			ServerName:  name,
-			Owner:       "manual",
+			Owner:       mcpManualOwner,
 			Scope:       mcpauth.Scope(scope),
 			WorkspaceID: workspaceID,
 		}
@@ -110,7 +110,7 @@ func (s *service) ImportRuntimeMCP(ctx context.Context, req RuntimeMCPImportRequ
 
 func importSettingsError(err error) error {
 	if failure, ok := errors.AsType[*runtimemcp.ImportError](err); ok {
-		if failure.Code == "mcp_server_not_found" {
+		if failure.Code == mcpServerNotFoundCode {
 			return notFoundError(err)
 		}
 		return unprocessableError(err)

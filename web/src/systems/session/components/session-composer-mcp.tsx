@@ -33,8 +33,9 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
   );
   const manage = () => void navigate({ to: MCP_SETTINGS_PATH });
   const hasActions =
-    model.data?.compozy_servers.some(row => sessionMCPStateView(row.state, "").action !== undefined) ??
-    false;
+    model.data?.compozy_servers.some(
+      row => sessionMCPStateView(row.state, "").action !== undefined
+    ) ?? false;
   const actions = useSessionMCPActions({
     workspaceId,
     sessionId: session.id,
@@ -53,7 +54,7 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
         onRetry={model.retry}
         onAction={actions.act}
         actingName={actions.actingName}
-        actionsDisabled={actions.resolving}
+        actionsDisabled={actions.resolving || actions.allowing}
         onManage={manage}
         onOpenChange={setOpen}
       />

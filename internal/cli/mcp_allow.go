@@ -57,34 +57,8 @@ func newMCPAllowCommand(deps commandDeps) *cobra.Command {
 				DefinitionDigest: digest,
 			}
 			if !revoke && body.DefinitionDigest == "" {
-				scope := contract.SettingsLayeredScopeProfile
-				collection, listErr := client.ListSettingsMCPServers(cmd.Context(), scope, resolved.ID, profile)
-				if listErr != nil {
-					return listErr
-				}
-				matches := 0
-				for _, server := range collection.MCPServers {
-					if server.Name != args[0] || server.Owner != "" && server.Owner != "manual" {
-						continue
-					}
-					matches++
-					if matches > 1 {
-						return fmt.Errorf(
-							"cli: multiple MCP declarations named %s; use --digest to select the observed definition",
-							args[0],
-						)
-					}
-					body.DefinitionDigest = server.Approval.DefinitionDigest
-					if _, err = fmt.Fprintf(
-						cmd.ErrOrStderr(),
-						"%s · %s · %s %v\n",
-						server.Name,
-						server.Transport,
-						server.Command,
-						server.Args,
-					); err != nil {
-						return err
-					}
+				if err := resolveMCPApprovalDigest(cmd, client, args[0], &body); err != nil {
+					return err
 				}
 			}
 			result, err := approvalClient.SetSettingsMCPApproval(cmd.Context(), args[0], body, revoke)
@@ -100,23 +74,62 @@ func newMCPAllowCommand(deps commandDeps) *cobra.Command {
 				}
 			}
 			return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
-				suffix := "Sessions can use it from their next message."
-				if revoke {
-					suffix = "Its tools stop working on the next call."
-				}
-				return fmt.Sprintf(
-					"%s %s in %s for profile %s. %s\n",
-					map[bool]string{true: "Revoked", false: "Allowed"}[revoke],
-					args[0],
-					label,
-					profile,
-					suffix,
-				), nil
+				return formatMCPApprovalOutput(args[0], label, profile, revoke), nil
 			}})
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Project workspace (ID, name, or path)")
+	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Project workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&digest, "digest", "", "Approve only this definition digest")
 	cmd.Flags().BoolVar(&revoke, "revoke", false, "Revoke project MCP consent")
 	return cmd
+}
+
+func resolveMCPApprovalDigest(
+	cmd *cobra.Command, client DaemonClient, name string, body *contract.SettingsMCPApprovalRequest,
+) error {
+	scope := contract.SettingsLayeredScopeProfile
+	collection, listErr := client.ListSettingsMCPServers(cmd.Context(), scope, body.WorkspaceID, body.Profile)
+	if listErr != nil {
+		return listErr
+	}
+	matches := 0
+	for _, server := range collection.MCPServers {
+		if server.Name != name || server.Owner != "" && server.Owner != "manual" {
+			continue
+		}
+		matches++
+		if matches > 1 {
+			return fmt.Errorf(
+				"cli: multiple MCP declarations named %s; use --digest to select the observed definition",
+				name,
+			)
+		}
+		body.DefinitionDigest = server.Approval.DefinitionDigest
+		if _, err := fmt.Fprintf(
+			cmd.ErrOrStderr(),
+			"%s · %s · %s %v\n",
+			server.Name,
+			server.Transport,
+			server.Command,
+			server.Args,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func formatMCPApprovalOutput(name, label, profile string, revoke bool) string {
+	suffix := "Sessions can use it from their next message."
+	if revoke {
+		suffix = "Its tools stop working on the next call."
+	}
+	return fmt.Sprintf(
+		"%s %s in %s for profile %s. %s\n",
+		map[bool]string{true: "Revoked", false: "Allowed"}[revoke],
+		name,
+		label,
+		profile,
+		suffix,
+	)
 }

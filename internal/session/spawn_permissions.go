@@ -135,7 +135,7 @@ func spawnValidation(message string) error {
 
 // effectiveSpawnAuthority resolves the pending child's own scope before its row exists.
 func (m *Manager) effectiveSpawnAuthority(
-	ctx context.Context, parent *Info, opts SpawnOpts,
+	ctx context.Context, parent *Info, opts *SpawnOpts,
 ) (store.SessionPermissionPolicy, error) {
 	workspaceID := parent.WorkspaceID
 	if opts.Workspace != "" {
@@ -152,7 +152,7 @@ func (m *Manager) effectiveSpawnAuthority(
 	return m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, child), child.ID)
 }
 
-func (m *Manager) validateEffectiveSpawnSubset(ctx context.Context, parent *Info, opts SpawnOpts) error {
+func (m *Manager) validateEffectiveSpawnSubset(ctx context.Context, parent *Info, opts *SpawnOpts) error {
 	ceiling, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, parent), parent.ID)
 	if err != nil {
 		return err

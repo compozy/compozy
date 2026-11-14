@@ -23,17 +23,17 @@ type sessionMCPReadModel struct {
 
 var _ session.MCPReader = (*sessionMCPReadModel)(nil)
 
-func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (session.SessionMCP, error) {
+func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (session.MCP, error) {
 	ctx = toolspkg.WithProjectionListings(toolspkg.WithCachedMCPProjection(ctx), toolspkg.NewProjectionListings())
 	info, err := r.state.sessions.Status(ctx, id)
 	if err != nil {
-		return session.SessionMCP{}, err
+		return session.MCP{}, err
 	}
 	profile := daemonDefaultProfileName
 	if r.state.profiles != nil {
 		profile, err = r.state.profiles.ProfileName(ctx, info.ProfileID)
 		if err != nil {
-			return session.SessionMCP{}, err
+			return session.MCP{}, err
 		}
 	}
 	request := settingspkg.CollectionRequest{
@@ -48,11 +48,11 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 	}
 	collection, err := r.state.deps.Settings.ListCollection(ctx, request)
 	if err != nil {
-		return session.SessionMCP{}, err
+		return session.MCP{}, err
 	}
 	authority, err := r.authority.EffectiveMCPAuthority(ctx, id)
 	if err != nil {
-		return session.SessionMCP{}, err
+		return session.MCP{}, err
 	}
 	scope := toolspkg.Scope{
 		SessionID:   id,
@@ -62,25 +62,25 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 	}
 	callable, err := r.registry.SessionProjection(ctx, scope)
 	if err != nil {
-		return session.SessionMCP{}, err
+		return session.MCP{}, err
 	}
 	advertised, err := r.registry.AdvertisedSessionProjection(ctx, scope)
 	if err != nil {
-		return session.SessionMCP{}, err
+		return session.MCP{}, err
 	}
 	diagnostics, err := r.registry.DiagnosticProjection(ctx, scope)
 	if err != nil {
-		return session.SessionMCP{}, err
+		return session.MCP{}, err
 	}
 	runtimeReader, ok := r.state.sessions.(interface {
 		MCPReadSnapshot(context.Context, string, toolspkg.AdvertisedCatalog) (session.MCPRuntimeSnapshot, error)
 	})
 	if !ok {
-		return session.SessionMCP{}, errors.New("daemon: session MCP runtime reader unavailable")
+		return session.MCP{}, errors.New("daemon: session MCP runtime reader unavailable")
 	}
 	runtime, err := runtimeReader.MCPReadSnapshot(ctx, id, toolspkg.NewAdvertisedCatalog(advertised))
 	if err != nil {
-		return session.SessionMCP{}, err
+		return session.MCP{}, err
 	}
 	return composeSessionMCP(id, collection.MCPServers, authority.MCPServers, callable, diagnostics, runtime), nil
 }
@@ -91,8 +91,8 @@ func composeSessionMCP(
 	allowed []string,
 	callable, diagnostics []toolspkg.ToolView,
 	runtime session.MCPRuntimeSnapshot,
-) session.SessionMCP {
-	result := session.SessionMCP{
+) session.MCP {
+	result := session.MCP{
 		SessionID: id,
 		Runtime:   runtime.Inventory.Runtime,
 		RuntimeDisplayName: cmp.Or(
@@ -100,17 +100,18 @@ func composeSessionMCP(
 			runtime.Inventory.Runtime,
 		),
 		LastReload:     runtime.LastReload,
-		MCPSummary:     session.MCPSummary{PendingReload: runtime.Pending},
+		PendingReload:  runtime.Pending,
 		CompozyServers: []session.MCPServerRow{},
-		RuntimeServers: session.SessionRuntimeMCP{RuntimeMCP: runtime.Mode, Servers: []session.RuntimeMCPRow{}},
+		RuntimeServers: session.RuntimeMCP{RuntimeMCP: runtime.Mode, Servers: []session.RuntimeMCPRow{}},
 	}
-	for _, item := range items {
+	for i := range items {
+		item := &items[i]
 		row := sessionMCPRow(item, allowed, callable, diagnostics, runtime)
 		result.CompozyServers = append(result.CompozyServers, row)
 		switch row.State {
 		case "ready", "applies_next_message":
 			result.Usable++
-		case "waiting_approval", "needs_sign_in", "failed":
+		case mcpWaitingApproval, "needs_sign_in", hookAgentEventsFailedKey:
 			result.Attention++
 		}
 	}
@@ -127,7 +128,7 @@ func composeSessionMCP(
 			result.RuntimeServers.Servers,
 			session.RuntimeMCPRow{Name: server.Name, Scope: server.Scope, Transport: server.Transport, State: state},
 		)
-		if state == "loaded_by_runtime" && server.EnabledInRuntime && server.Approval != "pending" &&
+		if state == "loaded_by_runtime" && server.EnabledInRuntime && server.Approval != hookAgentEventsPendingKey &&
 			server.Approval != "rejected" {
 			result.Usable++
 		}
@@ -136,7 +137,7 @@ func composeSessionMCP(
 }
 
 func sessionMCPRow(
-	item settingspkg.MCPServerItem,
+	item *settingspkg.MCPServerItem,
 	allowed []string,
 	callable, diagnostics []toolspkg.ToolView,
 	runtime session.MCPRuntimeSnapshot,
@@ -146,25 +147,28 @@ func sessionMCPRow(
 	if name == "" {
 		name = item.Name
 	}
-	for _, view := range diagnostics {
+	for i := range diagnostics {
+		view := &diagnostics[i]
 		if view.Descriptor.Source.Kind == toolspkg.SourceMCP && view.Descriptor.Source.RawServerName == name {
 			row.ToolCount++
 		}
 	}
-	for _, view := range callable {
+	for i := range callable {
+		view := &callable[i]
 		if view.Descriptor.Source.Kind == toolspkg.SourceMCP && view.Descriptor.Source.RawServerName == name {
 			row.CallableCount++
 		}
 	}
 	switch {
-	case item.Approval.State == "waiting":
-		row.State, row.Reason = "waiting_approval", "Project server waiting for approval"
+	case item.Approval.State == mcpApprovalWaiting:
+		row.State, row.Reason = mcpWaitingApproval, "Project server waiting for approval"
 	case !slices.Contains(allowed, item.Name):
 		row.State, row.Reason = "not_available", "Limited by the parent session"
-	case item.AuthStatus != nil && item.AuthStatus.Status != "" && item.AuthStatus.Status != "authenticated" && item.AuthStatus.Status != "unconfigured":
+	case item.AuthStatus != nil && item.AuthStatus.Status != "" &&
+		item.AuthStatus.Status != "authenticated" && item.AuthStatus.Status != "unconfigured":
 		row.State, row.Reason = "needs_sign_in", "Sign in to "+item.Name+" in CompozyOS"
 	case row.CallableCount == 0:
-		row.State, row.Reason = "failed", "No callable tools available"
+		row.State, row.Reason = hookAgentEventsFailedKey, "No callable tools available"
 	case runtime.Pending && (runtime.PendingServers[name] || runtime.BoundServers[name] != row.CallableCount):
 		row.State = "applies_next_message"
 	}

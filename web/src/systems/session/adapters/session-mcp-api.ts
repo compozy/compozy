@@ -5,7 +5,7 @@ import { throwSessionRequestError } from "./session-api-errors";
 import { sessionWorkspacePath } from "./session-workspace-path";
 
 export type SessionMCPResponse = OperationResponse<"getSessionMCP", 200>;
-export type SessionMCPServerRow = SessionMCPResponse["compozy"][number];
+export type SessionMCPServerRow = SessionMCPResponse["compozy_servers"][number];
 export type SessionRuntimeMCPRow = SessionMCPResponse["runtime_servers"]["servers"][number];
 export type SessionMCPReloadRecord = NonNullable<SessionMCPResponse["last_reload"]>;
 

@@ -105,7 +105,7 @@ func (m *Manager) prepareHostedMCPStartup(
 	runtime *sessionStartRuntime,
 	startOpts acp.StartOpts,
 ) acp.StartOpts {
-	const failedOutcome = "failed"
+	const failedOutcome = string(BadgeFailed)
 	// Only the Claude bridge is verified to consume list_changed. Other hosts
 	// reload at the turn boundary, using the effective post-hook command.
 	reloadTools := !providerexec.IsClaudeAgentBridge(startOpts.Command)
