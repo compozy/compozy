@@ -101,7 +101,10 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		}
 		executor, err := mcppkg.NewMCPCallExecutor(
 			newDaemonMCPServerResolver(state),
-			mcppkg.WithDefinitionDigestKey(testMCPDigestKey(t, state)), mcppkg.WithRuntimeHealthRegistry(state.mcpRuntimeHealth),
+			mcppkg.WithDefinitionDigestKey(
+				testMCPDigestKey(t, state),
+			),
+			mcppkg.WithRuntimeHealthRegistry(state.mcpRuntimeHealth),
 		)
 		if err != nil {
 			t.Fatal(err)

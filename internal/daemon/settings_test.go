@@ -276,7 +276,11 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newSettingsMCPAuthManagerWithConfig() error = %v", err)
 		}
-		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key"), mcpAuthStore: reopened, mcpAuthManager: manager}
+		surface := &settingsRuntimeSurface{
+			digestKey:      []byte("test installation key"),
+			mcpAuthStore:   reopened,
+			mcpAuthManager: manager,
+		}
 		status, err := surface.MCPAuthStatus(ctx, target, server)
 		if err != nil {
 			t.Fatalf("MCPAuthStatus() error = %v", err)
@@ -565,11 +569,16 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key"), mcpAuthStore: store, mcpAuthManager: manager, config: compozyconfig.Config{
-			Observability: compozyconfig.ObservabilityConfig{
-				AgentProbeTimeout: time.Nanosecond,
+		surface := &settingsRuntimeSurface{
+			digestKey:      []byte("test installation key"),
+			mcpAuthStore:   store,
+			mcpAuthManager: manager,
+			config: compozyconfig.Config{
+				Observability: compozyconfig.ObservabilityConfig{
+					AgentProbeTimeout: time.Nanosecond,
+				},
 			},
-		}}
+		}
 		// Invariant: allocated extension names remain probeable through the real MCP HTTP transport.
 		// Owner: daemon Settings runtime; canonical suite: settings_test.go.
 		for _, owner := range []string{"manual", "extension:docs"} {
@@ -613,7 +622,10 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			}
 		}))
 		t.Cleanup(blockingServer.Close)
-		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key"), mcpStatusTimeout: 20 * time.Millisecond}
+		surface := &settingsRuntimeSurface{
+			digestKey:        []byte("test installation key"),
+			mcpStatusTimeout: 20 * time.Millisecond,
+		}
 
 		startedAt := time.Now()
 		status, err := surface.MCPServerRuntimeStatus(
@@ -656,7 +668,11 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
-		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key"), mcpStdioPool: pool, mcpStatusTimeout: 5 * time.Second}
+		surface := &settingsRuntimeSurface{
+			digestKey:        []byte("test installation key"),
+			mcpStdioPool:     pool,
+			mcpStatusTimeout: 5 * time.Second,
+		}
 		status, err := surface.MCPServerRuntimeStatus(
 			t.Context(),
 			globalMCPTestTarget("crashing"),
@@ -762,7 +778,10 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("InsertWorkspace() error = %v", err)
 		}
-		surface := &settingsRuntimeSurface{digestKey: []byte("test installation key"), deadEntities: deadentity.New(globalDB)}
+		surface := &settingsRuntimeSurface{
+			digestKey:    []byte("test installation key"),
+			deadEntities: deadentity.New(globalDB),
+		}
 		target := mcpauth.Target{
 			Scope:       mcpauth.ScopeWorkspace,
 			WorkspaceID: workspaceID,
@@ -1765,7 +1784,12 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	surface := &settingsRuntimeSurface{digestKey: testMCPDigestKey(t, state), state: state, mcpAuthManager: manager, mcpAuthStore: tokens}
+	surface := &settingsRuntimeSurface{
+		digestKey:      testMCPDigestKey(t, state),
+		state:          state,
+		mcpAuthManager: manager,
+		mcpAuthStore:   tokens,
+	}
 	service, err := settingspkg.NewService(
 		testHomePaths(t),
 		settingspkg.Dependencies{

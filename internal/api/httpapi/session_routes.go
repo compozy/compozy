@@ -9,9 +9,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	sessions.GET("/facets", handlers.ListSessionFacets)
 	sessions.GET("/catalog-stream", handlers.StreamSessionCatalog)
 	sessions.GET("/attention-summary", handlers.SessionAttentionSummary)
-	sessions.GET("/history-cleanup", handlers.GetSessionHistoryCleanup)
-	sessions.POST("/history-cleanup", handlers.PlanSessionHistoryCleanup)
-	sessions.POST("/history-cleanup/stop", handlers.StopSessionHistoryCleanup)
+	registerSessionHistoryCleanupRoutes(sessions, handlers)
 	sessions.GET("/:session_id", handlers.GetSessionByID)
 	sessions.POST("/:session_id/pull-request/refresh", handlers.RefreshSessionPullRequest)
 	sessions.GET("/:session_id/owner", handlers.GetSessionOwner)
@@ -160,4 +158,11 @@ func registerSessionLifecycleRoutes(sessions gin.IRouter, handlers *Handlers) {
 	sessions.POST("/:session_id/resume-later", handlers.ResumeSessionFromLater)
 	sessions.POST("/:session_id/mark-seen", handlers.MarkSessionSeen)
 	sessions.POST("/:session_id/unarchive", handlers.UnarchiveSession)
+}
+
+// registerSessionHistoryCleanupRoutes keeps the archived-history cleanup plan, status and stop together.
+func registerSessionHistoryCleanupRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.GET("/history-cleanup", handlers.GetSessionHistoryCleanup)
+	sessions.POST("/history-cleanup", handlers.PlanSessionHistoryCleanup)
+	sessions.POST("/history-cleanup/stop", handlers.StopSessionHistoryCleanup)
 }

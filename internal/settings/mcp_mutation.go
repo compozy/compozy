@@ -75,46 +75,11 @@ func (s *service) putMCPServer(
 		rollbackErr := s.rollbackUnreferencedMCPSecrets(ctx, scope, workspaceID, profileName, secretMutations)
 		return MutationResult{}, errors.Join(err, rollbackErr)
 	}
-	mutationOutcome := mcpDefinitionMutationUnchanged
-	var approvalWarning string
-	commit := func() error {
-		var commitErr error
-		mutationOutcome, commitErr = s.commitMCPServerDefinition(
-			ctx,
-			scope,
-			workspaceID,
-			profileName,
-			root,
-			name,
-			target,
-			sources,
-			normalized,
-		)
-		return commitErr
+	write := mcpServerWrite{
+		scope: scope, workspaceID: workspaceID, profileName: profileName, root: root, name: name,
+		target: target, sources: sources, server: normalized,
 	}
-	if workspaceID != "" && s.workspaceMCPApprovals != nil {
-		approvalWarning, err = s.workspaceMCPApprovals.RecordWorkspaceMCPWrite(ctx, WorkspaceMCPWrite{
-			ProfileName: profileName,
-			WorkspaceID: workspaceID,
-			SourceID:    target.Path(),
-			Server:      normalized,
-			Write:       commit,
-			ReadCommitted: func() (compozyconfig.MCPServer, error) {
-				_, current, readErr := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
-				if readErr != nil {
-					return compozyconfig.MCPServer{}, readErr
-				}
-				entry, ok := mcpSourceForTarget(name, target.Kind(), current)
-				if !ok {
-					return compozyconfig.MCPServer{}, fmt.Errorf("settings: committed MCP definition is unavailable")
-				}
-				return entry.Server, nil
-			},
-		})
-	} else {
-		err = commit()
-		approvalWarning = unavailableMCPWriteApprovalWarning(workspaceID, err)
-	}
+	mutationOutcome, approvalWarning, err := s.commitMCPServerWithApproval(ctx, &write)
 	return s.finishMCPServerWrite(
 		ctx, MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName, Name: name},
 		root, target, sources, normalized, &secretCleanup, secretMutations,

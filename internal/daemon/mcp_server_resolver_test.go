@@ -956,7 +956,12 @@ func TestOperatorConsentedMCPSourceGrants(t *testing.T) {
 		"logged-out": {Status: "needs_login"},
 	}}
 	state := func(status toolspkg.MCPAuthStatusProvider) *bootState {
-		return &bootState{mcpDigestKeys: vault.NewMCPDigestKeyProvider(t.TempDir()), mcpServerCatalog: catalog, mcpAuthStatus: status, profiles: profiles}
+		return &bootState{
+			mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
+			mcpServerCatalog: catalog,
+			mcpAuthStatus:    status,
+			profiles:         profiles,
+		}
 	}
 	scope := toolspkg.Scope{ProfileID: open.ID}
 	descriptor := toolspkg.Descriptor{
@@ -997,8 +1002,15 @@ func TestOperatorConsentedMCPSourceGrants(t *testing.T) {
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "invalid"},
 			Owner: *extensionOwner("lab"), Spec: named("broken", true),
 		}})
-		grants, err := operatorConsentedSourceGrants(t.Context(),
-			&bootState{mcpDigestKeys: vault.NewMCPDigestKeyProvider(t.TempDir()), mcpServerCatalog: broken, mcpAuthStatus: authed}, scope)
+		grants, err := operatorConsentedSourceGrants(
+			t.Context(),
+			&bootState{
+				mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
+				mcpServerCatalog: broken,
+				mcpAuthStatus:    authed,
+			},
+			scope,
+		)
 		if err != nil || len(grants) != 0 {
 			t.Fatalf("grants = %#v, %v", grants, err)
 		}
@@ -1150,12 +1162,21 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := (settingsMCPConsent{state: state}).ApproveMCP(t.Context(), req, first.DefinitionDigest, false); err != nil {
+		if _, err := (settingsMCPConsent{state: state}).ApproveMCP(
+			t.Context(),
+			req,
+			first.DefinitionDigest,
+			false,
+		); err != nil {
 			t.Fatal(err)
 		}
 		restarted := &bootState{
-			mcpDigestKeys: vault.NewMCPDigestKeyProvider(home), registry: state.registry, cfg: state.cfg,
-			profiles: state.profiles, workspaceResolver: state.workspaceResolver, mcpServerCatalog: state.mcpServerCatalog,
+			mcpDigestKeys:     vault.NewMCPDigestKeyProvider(home),
+			registry:          state.registry,
+			cfg:               state.cfg,
+			profiles:          state.profiles,
+			workspaceResolver: state.workspaceResolver,
+			mcpServerCatalog:  state.mcpServerCatalog,
 		}
 		again, err := (settingsMCPConsent{state: restarted}).MCPConsent(t.Context(), req)
 		if err != nil || !again.Admitted || again.DefinitionDigest != first.DefinitionDigest {

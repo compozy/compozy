@@ -570,7 +570,10 @@ func TestRuntimeMCPInventory(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(home, "mcp-digest.key"), []byte("invalid"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if inventory, err := newRuntimeMCPInventory(vault.NewMCPDigestKeyProvider(home)); err == nil || inventory != nil {
+		if inventory, err := newRuntimeMCPInventory(
+			vault.NewMCPDigestKeyProvider(home),
+		); err == nil ||
+			inventory != nil {
 			t.Fatal("daemon inventory substituted an ephemeral key")
 		}
 	})
