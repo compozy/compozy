@@ -186,11 +186,13 @@ func (n *daemonNativeTools) sessionCleanupRequest(
 		request.Scope.WorkspaceID = workspaceID
 	}
 	// A confirmed count fixes the range where the preview resolved it.
+	countedAt := now.UTC()
 	if input.CountedAt != nil {
-		countedAt := input.CountedAt.UTC()
-		request.CountedAt = &countedAt
+		countedAt = input.CountedAt.UTC()
 		now = countedAt
 	}
+	// The count is fenced to the instant the range resolves from, so the two never drift apart.
+	request.CountedAt = &countedAt
 	cutoff, err := sessionCleanupCutoff(input, now)
 	if err != nil {
 		return request, nativeInputError(id, err)

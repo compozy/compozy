@@ -129,6 +129,10 @@ func TestBaseHandlersPlanSessionHistoryCleanup(t *testing.T) {
 		if want := historyCleanupNow.Add(-7 * 24 * time.Hour); !request.ArchivedBefore.Equal(want) {
 			t.Fatalf("cutoff = %v, want %v", request.ArchivedBefore, want)
 		}
+		// Counted at the instant the range resolved from, so no session falls between the two.
+		if request.CountedAt == nil || !request.CountedAt.Equal(historyCleanupNow) {
+			t.Fatalf("counted at = %v, want the range's instant %v", request.CountedAt, historyCleanupNow)
+		}
 	})
 
 	t.Run("Should report the instant a dry run counted up to and fence a start to it", func(t *testing.T) {

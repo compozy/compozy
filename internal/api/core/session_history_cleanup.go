@@ -159,11 +159,13 @@ func (h *BaseHandlers) historyCleanupRequest(
 		request.Scope.WorkspaceID = workspaceID
 	}
 	// A confirmed count fixes the range where the dry run resolved it.
+	countedAt := now.UTC()
 	if body.CountedAt != nil {
-		countedAt := body.CountedAt.UTC()
-		request.CountedAt = &countedAt
+		countedAt = body.CountedAt.UTC()
 		now = countedAt
 	}
+	// The count is fenced to the instant the range resolves from, so the two never drift apart.
+	request.CountedAt = &countedAt
 	cutoff, err := historyCleanupCutoff(body, now)
 	if err != nil {
 		return request, http.StatusBadRequest, err
