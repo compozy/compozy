@@ -25,7 +25,11 @@ import {
   TerminalApiError,
 } from "@/systems/terminal";
 import { DEV_SERVER_TERMINAL } from "@/systems/terminal/mocks/terminal-fixtures";
-import { TerminalWindowClose, terminalWindowCreateKey } from "../../../lib/terminal-window-close";
+import {
+  TerminalWindowClose,
+  terminalAggregateCreateKey,
+  terminalWindowCreateKey,
+} from "../../../lib/terminal-window-close";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../../lib/os-types";
 import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-context";
 import { createWindowManagerProjectionAtom } from "../../../lib/window-manager-projection";
@@ -358,16 +362,36 @@ describe("terminal window close lifecycle", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("Should close an unbound terminal window under All projects without reading the daemon", async () => {
+  it("Should close an unbound terminal window under All projects unless it is creating one", async () => {
     // Invariant: a window opened by id without its project, whose terminal the
-    // aggregate never resolved, always closes view-only — never trapped (#1712).
+    // aggregate never resolved, closes view-only — never trapped — but holds while
+    // its launcher is creating a terminal for it (#1712).
+    const client = new QueryClient();
     const controller = new TerminalWindowClose();
-    const guard = controller.guard(GLOBAL_DESKTOP_WORKSPACE_ID, new QueryClient());
+    const guard = controller.guard(GLOBAL_DESKTOP_WORKSPACE_ID, client);
     await expect(guard([terminalWindow], () => true)).resolves.toBe(true);
     expect(controller.confirmation.get()).toBeNull();
     expect(fetchTerminals).not.toHaveBeenCalled();
-    expect(closeTerminal).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
+
+    let fail!: (error: Error) => void;
+    const creation = client
+      .getMutationCache()
+      .build(client, {
+        mutationKey: terminalAggregateCreateKey(terminalWindow.id),
+        mutationFn: () =>
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+      })
+      .execute(undefined)
+      .catch(() => undefined);
+    await waitFor(() => expect(fail).toBeDefined());
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(false);
+    fail(new Error("create unavailable"));
+    await creation;
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(true);
+    expect(closeTerminal).not.toHaveBeenCalled();
   });
 
   it("Should leave process and window intact when confirmation is canceled", async () => {
@@ -600,21 +624,25 @@ describe("terminal window under All projects", () => {
   ) {
     const coordinator = { userRetarget: vi.fn().mockResolvedValue(undefined) };
     render(
-      createElement(TerminalAggregateLocation, {
-        windowId: "w-terminal",
-        catalog: {
-          data: overrides.terminals ?? [DEV_SERVER_TERMINAL, userTerminal, exitedTerminal],
-          error: null,
-          isPending: false,
-          refetch: vi.fn(),
-        },
-        coordinator,
-        requestedId: overrides.requestedId ?? null,
-        workspaces,
-        profile: "work",
-        readOnly: false,
-        viewer: { id: "client:web", attachmentToken: "token" },
-      })
+      createElement(
+        QueryClientProvider,
+        { client: new QueryClient() },
+        createElement(TerminalAggregateLocation, {
+          windowId: "w-terminal",
+          catalog: {
+            data: overrides.terminals ?? [DEV_SERVER_TERMINAL, userTerminal, exitedTerminal],
+            error: null,
+            isPending: false,
+            refetch: vi.fn(),
+          },
+          coordinator,
+          requestedId: overrides.requestedId ?? null,
+          workspaces,
+          profile: "work",
+          readOnly: false,
+          viewer: { id: "client:web", attachmentToken: "token" },
+        })
+      )
     );
     return coordinator;
   }

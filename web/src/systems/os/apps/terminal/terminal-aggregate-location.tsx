@@ -1,3 +1,4 @@
+import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { AlertCircle } from "@compozy/ui/icons";
@@ -14,6 +15,7 @@ import { ownerDataScope, WINDOW_BINDING_SEARCH_KEY, windowBindingValue } from "@
 
 import { TerminalLauncher } from "../../components/terminal-launcher";
 import type { RoutingCoordinator } from "../../lib/routing-coordinator";
+import { terminalAggregateCreateKey } from "../../lib/terminal-window-close";
 import {
   defaultTerminalLauncherDestination,
   runningTerminals,
@@ -64,7 +66,6 @@ export function TerminalAggregateLocation({
   readOnly,
   viewer,
 }: TerminalAggregateLocationProps) {
-  const [creating, setCreating] = useState(false);
   const [launcherShown, setLauncherShown] = useState(false);
   const terminals = catalog.data ?? [];
   const destinations = terminalLauncherDestinations(workspaces, worktrees, profile);
@@ -73,8 +74,8 @@ export function TerminalAggregateLocation({
     rememberedWorkspaceId
   );
 
-  const openBound = (terminalId: string, workspaceId: string) =>
-    void coordinator.userRetarget(windowId, {
+  const retargetBound = (terminalId: string, workspaceId: string) =>
+    coordinator.userRetarget(windowId, {
       app: "terminal",
       instanceKey: terminalId,
       route: {
@@ -82,6 +83,8 @@ export function TerminalAggregateLocation({
         search: { [WINDOW_BINDING_SEARCH_KEY]: windowBindingValue(ownerDataScope(workspaceId)) },
       },
     });
+  const openBound = (terminalId: string, workspaceId: string) =>
+    void retargetBound(terminalId, workspaceId);
 
   // A terminal opened by id without its project (a transcript block, a palette
   // row) binds as soon as the aggregate names that terminal's project.
@@ -90,21 +93,32 @@ export function TerminalAggregateLocation({
     if (requested) openBound(requested.id, requested.workspace_id);
   });
 
+  // Keyed to this window so the close guard holds the window until the new
+  // terminal has been created and shown in it.
+  const create = useMutation({
+    mutationKey: terminalAggregateCreateKey(windowId),
+    mutationFn: ({
+      destination,
+      identity,
+    }: {
+      destination: TerminalLauncherDestination;
+      identity: TerminalViewerIdentity;
+    }) =>
+      createTerminal(
+        destination.workspaceId,
+        terminalLauncherCreateInput(destination),
+        { profile },
+        identity
+      ),
+    onSuccess: terminal => retargetBound(terminal.id, terminal.workspace_id),
+    onError: error =>
+      toast.error(error instanceof Error ? error.message : "Failed to open terminal"),
+  });
+  const creating = create.isPending;
+
   const startNew = (destination: TerminalLauncherDestination) => {
     if (!viewer || creating) return;
-    setCreating(true);
-    void createTerminal(
-      destination.workspaceId,
-      terminalLauncherCreateInput(destination),
-      { profile },
-      viewer
-    )
-      .then(
-        terminal => openBound(terminal.id, terminal.workspace_id),
-        (error: unknown) =>
-          toast.error(error instanceof Error ? error.message : "Failed to open terminal")
-      )
-      .then(() => setCreating(false));
+    create.mutate({ destination, identity: viewer });
   };
 
   if (requested || (requestedId && catalog.isPending)) return <TerminalAggregateSkeleton />;
@@ -136,7 +150,10 @@ export function TerminalAggregateLocation({
   // before a daemon restart. Say so instead of swapping in the launcher; a new
   // terminal stays one secondary action away.
   if (requestedId && !catalog.error && !launcherShown) {
-    return <TerminalNotFoundState onOpenTerminal={() => setLauncherShown(true)} />;
+    // All profiles is read-only: nothing new starts, so no action promises one.
+    return (
+      <TerminalNotFoundState onOpenTerminal={readOnly ? undefined : () => setLauncherShown(true)} />
+    );
   }
 
   return (

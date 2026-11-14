@@ -8,6 +8,7 @@
 // reads as gone, with the launcher one secondary action away.
 // Boundary IN: TerminalAggregateLocation's launcher states.
 // Boundary OUT: catalog streaming and window retargeting (use-terminal-window-controller-state.test.ts).
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -51,7 +52,11 @@ function renderLocation(
     workspaces: WORKSPACES,
     ...overrides,
   };
-  return { ...render(<TerminalAggregateLocation {...props} />), props };
+  const client = new QueryClient();
+  const view = render(<TerminalAggregateLocation {...props} />, {
+    wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+  });
+  return { ...view, props };
 }
 
 describe("TerminalAggregateLocation", () => {
@@ -151,6 +156,16 @@ describe("TerminalAggregateLocation", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open a new terminal" }));
     expect(screen.getByTestId("terminal-launcher")).toBeInTheDocument();
+  });
+
+  it("Should offer no new-terminal action for a gone terminal in an all-profiles read", () => {
+    renderLocation(
+      { readOnly: true, requestedId: "term-reaped" },
+      { data: [...TERMINAL_FIXTURES], isPending: false }
+    );
+
+    expect(screen.getByTestId("terminal-not-found")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open a new terminal" })).not.toBeInTheDocument();
   });
 
   it("Should leave out new-terminal destinations and name each owner for an all-profiles read", () => {

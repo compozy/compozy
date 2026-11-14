@@ -18,6 +18,14 @@ interface CloseConfirmation {
 export const terminalWindowCreateKey = (windowId: string) =>
   ["terminal-window-create", windowId] as const;
 
+/**
+ * The All projects launcher's create in that window: a child of the window's
+ * key, so close admission sees it while the project-window creation state,
+ * which reads its own variables under the exact key, does not.
+ */
+export const terminalAggregateCreateKey = (windowId: string) =>
+  [...terminalWindowCreateKey(windowId), "aggregate"] as const;
+
 /** Operator-only orchestration; native window close remains view-only. */
 export class TerminalWindowClose {
   readonly confirmation = createAtom<CloseConfirmation | null>(null);
@@ -36,10 +44,8 @@ export class TerminalWindowClose {
         if (
           windows.some(
             window =>
-              !window.instanceKey &&
               queryClient.isMutating({
                 mutationKey: terminalWindowCreateKey(window.id),
-                exact: true,
               }) > 0
           )
         ) {
