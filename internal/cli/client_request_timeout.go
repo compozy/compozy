@@ -22,6 +22,16 @@ func resolveClientRequestTimeout(
 	getenv func(string) string,
 	loadConfig func() (compozyconfig.Config, error),
 ) (time.Duration, error) {
+	// The environment outranks the config key, so a rejected config value only
+	// applies when no override was supplied.
+	override, overridden, err := clientRequestTimeoutFromEnvironment(getenv)
+	if err != nil {
+		return 0, err
+	}
+	if overridden {
+		return clampClientRequestTimeout(override), nil
+	}
+
 	timeout := defaultUnixSocketClientTimeout
 	if loadConfig != nil {
 		cfg, err := loadConfig()
@@ -36,20 +46,29 @@ func resolveClientRequestTimeout(
 			return 0, err
 		}
 	}
-	if getenv != nil {
-		raw := strings.TrimSpace(getenv(ClientRequestTimeoutEnv))
-		if raw != "" {
-			parsed, err := time.ParseDuration(raw)
-			if err != nil {
-				return 0, fmt.Errorf("cli: parse %s: %w", ClientRequestTimeoutEnv, err)
-			}
-			if parsed <= 0 {
-				return 0, fmt.Errorf("cli: %s must be positive, got %q", ClientRequestTimeoutEnv, raw)
-			}
-			timeout = parsed
-		}
+	return clampClientRequestTimeout(timeout), nil
+}
+
+func clientRequestTimeoutFromEnvironment(getenv func(string) string) (time.Duration, bool, error) {
+	if getenv == nil {
+		return 0, false, nil
 	}
-	return min(max(timeout, compozyconfig.MinClientRequestTimeout), compozyconfig.MaxClientRequestTimeout), nil
+	raw := strings.TrimSpace(getenv(ClientRequestTimeoutEnv))
+	if raw == "" {
+		return 0, false, nil
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, false, fmt.Errorf("cli: parse %s: %w", ClientRequestTimeoutEnv, err)
+	}
+	if parsed <= 0 {
+		return 0, false, fmt.Errorf("cli: %s must be positive, got %q", ClientRequestTimeoutEnv, raw)
+	}
+	return parsed, true, nil
+}
+
+func clampClientRequestTimeout(timeout time.Duration) time.Duration {
+	return min(max(timeout, compozyconfig.MinClientRequestTimeout), compozyconfig.MaxClientRequestTimeout)
 }
 
 func isClientRequestTimeoutConfigError(err error) bool {

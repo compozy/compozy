@@ -83,6 +83,17 @@ func TestResolveClientRequestTimeout(t *testing.T) {
 			wantErrContains: "must be positive",
 		},
 		{
+			name:   "Should let the environment override a rejected config value",
+			getenv: env("2m"),
+			loadConfig: func() (compozyconfig.Config, error) {
+				return compozyconfig.Config{}, fmt.Errorf(
+					"load config: %w",
+					&compozyconfig.ClientRequestTimeoutError{Value: time.Second},
+				)
+			},
+			want: 2 * time.Minute,
+		},
+		{
 			name:   "Should surface an out-of-range config value instead of the default",
 			getenv: env(""),
 			loadConfig: func() (compozyconfig.Config, error) {
