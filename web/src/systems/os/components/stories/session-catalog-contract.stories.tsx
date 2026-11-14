@@ -217,7 +217,7 @@ function catalogHandler(failWorkspace?: string, hasMore = false) {
       page: {
         has_more: hasMore,
         limit: 100,
-        total: sessions.length,
+        total: hasMore ? sessions.length * 2 : sessions.length,
         ...(hasMore ? { next_cursor: "story-page-2" } : {}),
       },
     });
@@ -277,7 +277,13 @@ function storyView(state: CatalogState): SessionListViewModel {
         shelf: "archive",
         storedGroupBy: "project",
         groupBy: "project",
-        groups: [projectGroup("workspace-compozy", { total: 28, working: 0, needsYou: 0 })],
+        groups: [
+          projectGroup("workspace-compozy", {
+            total: ARCHIVED_PAGE.length * 2,
+            working: 0,
+            needsYou: 0,
+          }),
+        ],
       };
     default:
       return view;
@@ -405,7 +411,7 @@ export const ArchivedPaged: Story = {
   },
 };
 
-/** A grouped page with more rows keeps its pager below the group's last row (#1724). */
+/** Grouped by project with a next page: a check that grouped mode keeps its pager below the rows (#1724 never affected it). */
 export const GroupedPaged: Story = {
   args: { state: "grouped-paged" },
   parameters: storybookMswParameters({ session: [catalogHandler(undefined, true)] }),

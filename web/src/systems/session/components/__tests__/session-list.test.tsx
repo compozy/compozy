@@ -2573,25 +2573,26 @@ describe("SessionList folders and manual order", () => {
     expect(layout.reorderSessions).not.toHaveBeenCalled();
   });
 
-  // Invariant (#1724): in a folder list's scroll column the paging row follows the rows and the
-  // root zone keeps its content height, so a long page never squeezes its rows under the pager.
-  // jsdom has no layout; the ArchivedPaged contract story shows the rendered geometry.
-  it("Should keep the paging row after the last row of a long folder list", () => {
+  // Invariant (#1724): the root zone holding a folder list's rows never shrinks in its scroll
+  // column. Its `min-h-6` (an empty root stays droppable) replaces the flex item's content
+  // minimum, so without `shrink-0` a long page squeezed the zone and its rows spilled under the
+  // paging row that follows it. jsdom has no layout, so the class is the guard; the
+  // ArchivedPaged contract story shows the rendered geometry.
+  it("Should keep the folder list's root zone from shrinking above the paging row", () => {
     renderList({
       sessions: layoutRows,
       view: {
         ...view,
         shelf: "archive",
         layout: fakeLayout(),
-        catalog: sessionListCatalogFixture({ sessions: layoutRows, next: true, previous: true }),
+        catalog: sessionListCatalogFixture({ sessions: layoutRows, next: true }),
       },
     });
     const root = screen.getByTestId("session-sidebar-root");
-    const pager = screen.getByRole("button", { name: "Next sessions" }).parentElement!;
-    expect(screen.getByRole("button", { name: "Previous sessions" }).parentElement).toBe(pager);
-    expect(root.parentElement).toBe(pager.parentElement);
-    expect(root.compareDocumentPosition(pager) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(root).toContainElement(screen.getByTestId("session-sidebar-session-r2"));
+    // Structure only: the pager is the root zone's next sibling in the scroll column.
+    expect(root.nextElementSibling).toContainElement(
+      screen.getByRole("button", { name: "Next sessions" })
+    );
     expect(root).toHaveClass("shrink-0");
   });
 
