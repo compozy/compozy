@@ -1201,24 +1201,28 @@ plain `session_spawn` children keep the creator wake above. Claude's own Agent/T
 recorded too, as `origin: "provider_native"` rows with no child session; they never wake the parent and
 cannot be canceled.
 
-Operators and agents outside a turn read and cancel subagents through the CLI and the matching HTTP/UDS
-routes:
+Operators and agents outside a turn read, cancel and delete subagents through the CLI and the
+matching HTTP/UDS routes:
 
 ```bash
 compozy session subagents <session-id> [--origin delegated|provider_native] [--status running,completed] [--limit 50] [--cursor <c>] [--json]
 compozy session subagents show <subagent-id> [--json]
 compozy session subagents cancel <subagent-id> [--reason <text>] [--json]
+compozy session subagents delete <subagent-id> [--json]
 compozy session list --subagents include|exclude|only
 ```
 
 HTTP/UDS: `GET /api/workspaces/{workspace_id}/sessions/{session_id}/subagents`,
-`GET /api/workspaces/{workspace_id}/subagents/{subagent_id}`, and
+`GET /api/workspaces/{workspace_id}/subagents/{subagent_id}`,
 `POST /api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel` (202 `cancel_requested`; 409
-`subagent_not_cancelable` for provider-native rows). An unknown or inaccessible session returns
-`session_not_found`; an unknown subagent returns `subagent_not_found`. The session list's `subagents`
-filter defaults to `include`; each parent row carries `subagent_summary` (`live`, `total`, `failed`,
-`attention`, `most_urgent`). The parent's session stream adds `subagents_snapshot` and
-`subagent_updated` events.
+`subagent_not_cancelable` for provider-native rows), and `DELETE
+/api/workspaces/{workspace_id}/subagents/{subagent_id}` (204; 409 `subagent_not_deletable` for
+provider-native rows). A delete removes the child session's transcript and history first and then the
+roster row, so a failed session delete leaves the row visible and retryable. An unknown or inaccessible
+session returns `session_not_found`; an unknown subagent returns `subagent_not_found`. The session
+list's `subagents` filter defaults to `include`; each parent row carries `subagent_summary` (`live`,
+`total`, `failed`, `attention`, `most_urgent`). The parent's session stream adds `subagents_snapshot`,
+`subagent_updated` and `subagent_removed` (`{session_id, subagent_id}`) events.
 
 Lifecycle rules that matter for operations:
 

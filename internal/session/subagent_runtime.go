@@ -149,6 +149,17 @@ func (r managerSubagentRuntime) HasAdmission(ctx context.Context, row store.Sess
 	return found, err
 }
 func (r managerSubagentRuntime) Stop(ctx context.Context, id string) error { return r.m.Stop(ctx, id) }
+
+// DeleteSession removes the child session's runtime state and persisted history.
+// Deleting a session that is already gone is the outcome the caller wants.
+func (r managerSubagentRuntime) DeleteSession(ctx context.Context, id string) error {
+	err := r.m.Delete(ctx, id)
+	if errors.Is(err, ErrSessionNotFound) {
+		return nil
+	}
+	return err
+}
+
 func (r managerSubagentRuntime) NativeTurnEvents(
 	ctx context.Context, parentID, turnID string, types []string, afterSequence int64, limit int,
 ) ([]store.SessionEvent, error) {

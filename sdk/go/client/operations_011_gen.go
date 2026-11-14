@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// GetHookEventsParams carries the path, query, and header parameters.
+type GetHookEventsParams struct {
+	Family   *string `url:"family"`
+	SyncOnly *bool   `url:"sync_only"`
+}
+
 // GetHookEvents List supported hook taxonomy metadata
 func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) (*HookEventsResponse, error) {
 	path := "/api/hooks/events"
@@ -435,13 +441,4 @@ func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarke
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetMarketplaceSectionsParams carries the path, query, and header parameters.
-type GetMarketplaceSectionsParams struct {
-	Q           *string `url:"q"`
-	PerSection  *int    `url:"per_section"`
-	Scope       *string `url:"scope"`
-	Profile     *string `url:"profile"`
-	WorkspaceID *string `url:"workspace_id"`
 }

@@ -89,6 +89,20 @@ func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
 	c.JSON(http.StatusAccepted, contract.SubagentCancelPayload{SubagentID: outcome.ID, Status: outcome.Status})
 }
 
+// DeleteSubagent permanently removes a delegated subagent and its child session.
+// The service refuses provider-native rows, which follow the parent turn.
+func (h *BaseHandlers) DeleteSubagent(c *gin.Context) {
+	row, ok := h.authorizedSubagent(c, true)
+	if !ok {
+		return
+	}
+	if err := h.Subagents.Delete(c.Request.Context(), row.WorkspaceID, row.ID); err != nil {
+		h.respondSubagentError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *BaseHandlers) requireSubagents(c *gin.Context) bool {
 	if h.Subagents == nil {
 		subagentError(c, http.StatusServiceUnavailable, "feature_unavailable", "Subagents are unavailable.")
@@ -242,6 +256,13 @@ func (h *BaseHandlers) respondSubagentError(c *gin.Context, err error) {
 			409,
 			"subagent_not_cancelable",
 			"Provider-native subagents cannot be canceled; stop the parent turn instead.",
+		)
+	case errors.Is(err, session.ErrSubagentNotDeletable):
+		subagentError(
+			c,
+			409,
+			"subagent_not_deletable",
+			"Provider-native subagents cannot be deleted; stop the parent turn instead.",
 		)
 	case errors.Is(err, session.ErrSubagentParentNotActive):
 		subagentError(

@@ -5600,6 +5600,34 @@ func TestSubagentClientRequests(t *testing.T) {
 			t.Fatalf("result=%+v error=%v", result, err)
 		}
 	})
+	t.Run("Should delete without a response body", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				if request.Method != "DELETE" || request.URL.Path != "/api/workspaces/ws/subagents/sub-1" {
+					t.Fatalf("request=%s %s", request.Method, request.URL)
+				}
+				return newHTTPResponse(204, ""), nil
+			})},
+		}
+		if err := client.DeleteSubagent(t.Context(), "ws", "sub-1"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should map a deleted-row refusal to its documented code", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return newHTTPResponse(409, `{"code":"subagent_not_deletable","error":"native"}`), nil
+			})},
+		}
+		err := client.DeleteSubagent(t.Context(), "ws", "native")
+		if err == nil || !strings.HasPrefix(err.Error(), "subagent_not_deletable:") {
+			t.Fatalf("error=%v", err)
+		}
+	})
 	for _, kind := range []string{"session", "subagent"} {
 		t.Run("Should map unknown "+kind+" to the documented code", func(t *testing.T) {
 			t.Parallel()

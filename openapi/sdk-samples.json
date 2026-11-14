@@ -687,6 +687,13 @@
             "resource": "settings",
             "app_access": "denied"
         },
+        "deleteSubagent": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.deleteSubagent({ path: { \"workspace_id\": \"workspace_id\", \"subagent_id\": \"subagent_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.DeleteSubagent(ctx, client.DeleteSubagentParams{WorkspaceID: \"workspace_id\", SubagentID: \"subagent_id\"})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "deleteTask": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.deleteTask({ path: { \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.DeleteTask(ctx, client.DeleteTaskParams{ID: \"id\"})\nif err != nil { return err }",

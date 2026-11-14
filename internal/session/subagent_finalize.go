@@ -18,6 +18,11 @@ func deriveSubagentWorkState(active bool, queued, live int) string {
 }
 
 func (s *subagentService) OnChildSettled(ctx context.Context, child string) error {
+	// Deleting a child session settles it through the manager. That delete owns the
+	// row's removal, so it must not finalize the row or dispatch its settled hook.
+	if s.childSettlementSuppressed(child) {
+		return nil
+	}
 	row, err := s.store.GetSubagentByChild(ctx, child)
 	if errors.Is(err, store.ErrSubagentNotFound) {
 		return nil

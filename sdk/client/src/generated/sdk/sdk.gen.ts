@@ -304,6 +304,9 @@ import type {
   DeleteSettingsProviderData,
   DeleteSettingsProviderErrors,
   DeleteSettingsProviderResponses,
+  DeleteSubagentData,
+  DeleteSubagentErrors,
+  DeleteSubagentResponses,
   DeleteTaskData,
   DeleteTaskErrors,
   DeleteTaskExecutionProfileData,
@@ -9991,6 +9994,24 @@ export class sessions extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Delete a delegated subagent and its child session
+   */
+  public deleteSubagent<ThrowOnError extends boolean = true>(
+    options: Options<DeleteSubagentData, ThrowOnError>
+  ): RequestResult<DeleteSubagentResponses, DeleteSubagentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteSubagentResponses,
+      DeleteSubagentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/subagents/{subagent_id}",
+      ...options,
     });
   }
 

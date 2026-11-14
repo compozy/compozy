@@ -148,6 +148,28 @@ func (c *Client) DeleteSettingsProvider(ctx context.Context, params DeleteSettin
 	return &out, nil
 }
 
+// DeleteSubagentParams carries the path, query, and header parameters.
+type DeleteSubagentParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SubagentID  string  `url:"subagent_id"`
+	Profile     *string `url:"profile"`
+}
+
+// DeleteSubagent Delete a delegated subagent and its child session
+func (c *Client) DeleteSubagent(ctx context.Context, params DeleteSubagentParams) error {
+	path := "/api/workspaces/{workspace_id}/subagents/{subagent_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{subagent_id}", url.PathEscape(params.SubagentID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
 // DeleteTaskParams carries the path, query, and header parameters.
 type DeleteTaskParams struct {
 	ID      string  `url:"id"`
@@ -424,20 +446,4 @@ func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*Lo
 type DisableGatewayProviderParams struct {
 	Name string `url:"name"`
 	Tier string `url:"tier"`
-}
-
-// DisableGatewayProvider Disable one named connectivity provider for a gateway tier
-func (c *Client) DisableGatewayProvider(ctx context.Context, params DisableGatewayProviderParams) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/providers/{name}/disable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("tier", params.Tier)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

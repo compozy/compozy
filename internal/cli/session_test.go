@@ -5149,12 +5149,16 @@ func TestSubagentCommands(t *testing.T) {
 	}{
 		{"list table", []string{"parent"}, "ID", false},
 		{"list JSON", []string{"parent", "--json"}, `"next_cursor":null`, false},
-		{"show workspace help", []string{"show", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
-		{"cancel workspace help", []string{"cancel", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
+		{"show workspace help", []string{"show", "--help"}, "fast path for show/cancel/delete that avoids searching across workspaces", false},
+		{"cancel workspace help", []string{"cancel", "--help"}, "fast path for show/cancel/delete that avoids searching across workspaces", false},
 		{"show result", []string{"show", "sub-1"}, "Result\nRecommendation", false},
 		{"show JSON", []string{"show", "sub-1", "--json"}, `"subagent_id":"sub-1"`, false},
 		{"cancel", []string{"cancel", "sub-1", "--reason", "done"}, "Cancel requested for sub-1 (Review).", false},
 		{"cancel JSON", []string{"cancel", "sub-1", "--json"}, `"status":"cancel_requested"`, false},
+		{"delete", []string{"delete", "sub-1"}, "Deleted subagent sub-1 (Review).", false},
+		{"delete JSON", []string{"delete", "sub-1", "--json"}, `"subagent_id":"sub-1"`, false},
+		{"delete native", []string{"delete", "native"}, "subagent_not_deletable", true},
+		{"delete missing", []string{"delete", "missing"}, "subagent_not_found: subagent missing not found", true},
 		{"invalid limit", []string{"parent", "--limit", "0"}, "--limit must be between 1 and 200", true},
 		{"missing session", []string{"missing"}, "session_not_found", true},
 		{"missing subagent", []string{"show", "missing"}, "subagent_not_found: subagent missing not found", true},
@@ -5229,6 +5233,15 @@ func (s *subagentCommandStub) CancelSubagent(
 	id, _ string,
 ) (contract.SubagentCancelPayload, error) {
 	return contract.SubagentCancelPayload{SubagentID: id, Status: "cancel_requested"}, nil
+}
+
+func (s *subagentCommandStub) DeleteSubagent(_ context.Context, _, id string) error {
+	if id == "native" {
+		return errors.New(
+			"subagent_not_deletable: Provider-native subagents cannot be deleted; stop the parent turn instead.",
+		)
+	}
+	return nil
 }
 func subagentCLIRecord() contract.SubagentPayload {
 	return contract.SubagentPayload{

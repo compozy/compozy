@@ -1195,6 +1195,71 @@ describe("useSessionLiveTail", () => {
     expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.staleIds.size).toBe(0);
   });
 
+  // Invariant: `subagent_removed` drops exactly its row from the stream-owned roster and
+  // rereads the branch/list; a frame naming another session leaves this roster untouched.
+  // Owning layer: session live-tail stream orchestration; canonical suite: this hook's suite.
+  it("Should drop a removed subagent row and ignore another session's removal", () => {
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const rosterKey = sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID);
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const { sources } = renderLiveTail({ queryClient });
+    const row = (id: string, title: string) =>
+      ({
+        subagent_id: id,
+        parent_session_id: SESSION_ID,
+        child_session_id: `child-${id}`,
+        origin: "delegated",
+        title,
+        role: "",
+        status: "running",
+        work_state: "working",
+        progress: "",
+        result: null,
+        result_preview: "",
+        result_truncated: false,
+        error: null,
+        runtime: {},
+        depth: 1,
+        started_at: "2026-10-08T21:00:00.000Z",
+        settled_at: null,
+        created_at: "2026-10-08T21:00:00.000Z",
+        updated_at: "2026-10-08T21:00:01.000Z",
+        delivery: "none",
+      }) as never;
+
+    act(() => {
+      sources[0]?.emit("subagents_snapshot", {
+        session_id: SESSION_ID,
+        subagents: [row("sub-1", "Audit webhooks"), row("sub-2", "Read schema")],
+      });
+    });
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows.map(item => item.id)).toEqual([
+      "sub-1",
+      "sub-2",
+    ]);
+
+    act(() => {
+      sources[0]?.emit("subagent_removed", { session_id: "sess-other", subagent_id: "sub-1" });
+    });
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows).toHaveLength(2);
+
+    act(() => {
+      sources[0]?.emit("subagent_removed", { session_id: SESSION_ID, subagent_id: "sub-1" });
+    });
+    const removed = queryClient.getQueryData<SubagentRoster>(rosterKey);
+    expect(removed?.rows.map(item => item.id)).toEqual(["sub-2"]);
+    expect(removed?.staleIds.size).toBe(0);
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: sessionKeys.subagentBranch(WORKSPACE_ID, SESSION_ID),
+      exact: true,
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: sessionKeys.subagents(WORKSPACE_ID, SESSION_ID),
+      exact: true,
+    });
+  });
+
   it("Should wake only the exact session command projection", async () => {
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);

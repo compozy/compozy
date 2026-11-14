@@ -235,6 +235,44 @@ func TestGlobalDBSubagents(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	// DeleteSubagent deletes one row in any status and never crosses a workspace.
+	t.Run("Should delete one workspace-scoped row and report every other row as missing", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		var port store.SubagentStore = db.SessionRepo
+		ctx := t.Context()
+		reserveSubagent(t, port, workspace, parent, "delegated", now)
+		reserveSubagent(t, port, workspace, parent, "kept", now)
+		native := reserveSubagent(t, port, workspace, parent, "native", now)
+		native.ID, native.IdempotencyKey, native.Origin = "native-row", "native-row", store.SubagentOriginProviderNative
+		if _, _, err := port.ReserveSubagent(ctx, native); err != nil {
+			t.Fatal(err)
+		}
+		if err := port.DeleteSubagent(ctx, "foreign", "delegated"); !errors.Is(err, store.ErrSubagentNotFound) {
+			t.Fatalf("cross-workspace delete=%v", err)
+		}
+		if _, err := port.GetSubagent(ctx, workspace, "delegated"); err != nil {
+			t.Fatalf("rejected delete removed the row: %v", err)
+		}
+		if err := port.DeleteSubagent(ctx, workspace, "delegated"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := port.GetSubagent(ctx, workspace, "delegated"); !errors.Is(err, store.ErrSubagentNotFound) {
+			t.Fatalf("deleted row still readable: %v", err)
+		}
+		if _, err := port.GetSubagent(ctx, workspace, "kept"); err != nil {
+			t.Fatalf("sibling row = %v", err)
+		}
+		if err := port.DeleteSubagent(ctx, workspace, "native-row"); err != nil {
+			t.Fatalf("provider-native delete=%v", err)
+		}
+		if err := port.DeleteSubagent(ctx, workspace, "delegated"); !errors.Is(err, store.ErrSubagentNotFound) {
+			t.Fatalf("repeated delete=%v", err)
+		}
+		if _, err := port.GetSubagentByChild(ctx, "child"); !errors.Is(err, store.ErrSubagentNotFound) {
+			t.Fatalf("child lookup after delete=%v", err)
+		}
+	})
 	// M7, UT-056: wake reads never wait for a writer.
 	t.Run("Should read filtered wakes without the writer", func(t *testing.T) {
 		t.Parallel()

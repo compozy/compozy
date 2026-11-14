@@ -1,5 +1,24 @@
 # Compozy Change Impact
 
+## Subagent row delete and context menu — 2026-11-14
+
+Owner: subagent menu feature, web half (backend half landed in the same branch). QA: 2026-11-14 notes in
+`docs/qa/scenarios/ET-web-subagent-card.md` and `RT-subagent-delegate.md`.
+
+- Web (`web/src/systems/session`): subagent rows in the sessions rail gain the row context menu
+  (right-click and Shift+F10) with Copy ▸ (`Copy subagent ID`, `Copy title`), `Stop subagent` for a live
+  delegated row, and `Delete subagent` for a delegated row behind a confirmation; provider-native rows
+  offer Copy only. `SubagentDeleteDialog` composes the existing Dialog primitives and blocks dismissal
+  while the request runs. `useSessionSubagentActions` owns the delete/stop mutations and their rereads.
+  This is additive: left click still opens the child session and the rail's existing menus are unchanged.
+- The web consumes the backend's already-listed additive surfaces: `DELETE
+  /api/workspaces/{workspace_id}/subagents/{subagent_id}?profile=…` (204; 409 `subagent_not_deletable`),
+  the `compozy session subagents delete` CLI verb, and the `subagent_removed` session-stream event
+  (`{session_id, subagent_id}`). No schema, migration, config, hook, extension SDK or native tool change
+  in this half; no workspace-data-isolation change beyond the existing profile-scoped route. Official
+  skill `skills/compozy/`: `runtime-operations.md` and `native-tools.md` document the delete verb, route
+  and `subagent_removed`; no `compozy__*` tool was added.
+
 ## Grouped menus with List and Kanban parity — 2026-11-13
 
 Owner: PR `feat/grouped-menus` (proto drafts `web/src/drafts/session-menus` and `web/src/drafts/app-menus`,

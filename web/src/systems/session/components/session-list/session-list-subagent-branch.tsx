@@ -1,5 +1,6 @@
-import { use, type MouseEvent } from "react";
+import { use, useMemo, type MouseEvent } from "react";
 import { SubagentDrawerContext } from "../../contexts/subagent-drawer-context";
+import { SessionSubagentActionsContext } from "../../contexts/session-subagent-actions-context-value";
 import { Button, TreeBranchNode } from "@compozy/ui";
 
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
@@ -42,7 +43,18 @@ export function SessionListSubagentBranch({
   testIdPrefix,
 }: SessionListSubagentBranchProps) {
   const drawer = use(SubagentDrawerContext);
+  const actions = use(SessionSubagentActionsContext);
   const branch = useSessionSubagentBranch(workspaceId, sessionId, total);
+  // The branch's rows carry this parent's scope; the actions owner lives above
+  // the threads, so a confirmation outlives this branch.
+  const verbs = useMemo(() => {
+    if (!actions) return {};
+    const scope = { workspaceId, sessionId, profile: profile ?? "" };
+    return {
+      onDelete: (subagent: SubagentView) => actions.openDelete(subagent, scope),
+      onStop: (subagent: SubagentView) => actions.stop(subagent, scope),
+    };
+  }, [actions, workspaceId, sessionId, profile]);
   const open = (subagent: SubagentView, event: MouseEvent<HTMLButtonElement>) => {
     if (drawer) {
       drawer.open(subagent, { newWindow: event.metaKey || event.ctrlKey }, workspaceId);
@@ -70,6 +82,9 @@ export function SessionListSubagentBranch({
             subagent={subagent}
             workspace={workspace}
             profile={profile}
+            menuTestId={`${testIdPrefix}-subagent-menu-${subagent.id}`}
+            onDelete={verbs.onDelete}
+            onStop={verbs.onStop}
             current={
               subagent.child_session_id !== null && subagent.child_session_id === currentSessionId
             }

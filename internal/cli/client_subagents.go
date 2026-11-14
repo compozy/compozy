@@ -22,6 +22,7 @@ type sessionSubagentsClient interface {
 	ListSessionSubagents(context.Context, string, SubagentListQuery) (contract.SubagentListPayload, error)
 	GetSubagent(context.Context, string, string) (contract.SubagentPayload, error)
 	CancelSubagent(context.Context, string, string, string) (contract.SubagentCancelPayload, error)
+	DeleteSubagent(context.Context, string, string) error
 }
 
 var _ sessionSubagentsClient = (*daemonClient)(nil)
@@ -77,6 +78,17 @@ func (c *daemonClient) CancelSubagent(
 	}
 	err = c.doJSON(ctx, http.MethodPost, path+"/cancel", nil, contract.SubagentCancelRequest{Reason: reason}, &result)
 	return result, subagentClientError(err, "subagent_not_found", "subagent "+id+" not found")
+}
+
+// DeleteSubagent permanently removes a delegated subagent and its child session.
+// The daemon answers 204 with no body.
+func (c *daemonClient) DeleteSubagent(ctx context.Context, workspaceID, id string) error {
+	path, err := subagentClientPath(workspaceID, id)
+	if err != nil {
+		return err
+	}
+	err = c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+	return subagentClientError(err, "subagent_not_found", "subagent "+id+" not found")
 }
 
 func subagentClientPath(workspaceID, id string) (string, error) {
