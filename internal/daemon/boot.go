@@ -54,6 +54,7 @@ const (
 )
 
 type bootState struct {
+	mcpDigestKeys       vault.KeyProvider
 	runtimeMCPInventory *runtimeMCPInventory
 	sessionMCPReadModel *sessionMCPReadModel
 	agentInstances      *core.AgentInstanceAPI
@@ -192,6 +193,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	bootStarted := time.Now()
 
 	state := &bootState{
+		mcpDigestKeys:       vault.NewMCPDigestKeyProvider(d.homePaths.HomeDir),
 		mcpAuthGeneration:   mcpauth.NewMutationGeneration(),
 		toolProjectionEpoch: mcppkg.NewProjectionEpoch(),
 	}

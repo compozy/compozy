@@ -239,6 +239,46 @@ const loggedOutClientMCPAuthStatusJSON = `{
 
 func TestMCPListCommand(t *testing.T) {
 	t.Parallel()
+	// Invariant: explicit workspace inventory uses a matching workspace lens; owner: CLI HTTP boundary.
+	t.Run("Should send workspace scope with the inventory workspace", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				switch req.URL.Path {
+				case "/api/profiles":
+					return newHTTPResponse(http.StatusOK, `[{"name":"default","state":"active"}]`), nil
+				case "/api/profiles/selection":
+					return newHTTPResponse(http.StatusOK, `[]`), nil
+				case "/api/workspaces/project":
+					return newHTTPResponse(http.StatusOK, `{"workspace":{"id":"ws-project","name":"project"}}`), nil
+				case "/api/settings/runtime-mcp-servers":
+					if req.URL.Query().Get("scope") != "workspace" ||
+						req.URL.Query().Get("workspace_id") != "ws-project" {
+						return nil, fmt.Errorf("lost workspace lens: %s", req.URL)
+					}
+					return newHTTPResponse(http.StatusOK, `{"runtimes":[]}`), nil
+				default:
+					return nil, fmt.Errorf("unexpected route: %s", req.URL)
+				}
+			})},
+		}
+		_, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"mcp",
+			"list",
+			"--workspace",
+			"project",
+			"--runtime-only",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	// Invariant: CLI JSON preserves the runtime route's typed rows and adds CompozyOS definitions. Owner: CLI; UT-093.
 	t.Run("Should compose runtime and CompozyOS JSON responses UT-093", func(t *testing.T) {
 		t.Parallel()
@@ -331,6 +371,41 @@ func TestMCPApprovalClientRoutes(t *testing.T) {
 // Invariant: import preserves daemon error codes and escaped names. Owner: CLI transport; UT-095.
 func TestMCPImportCommand(t *testing.T) {
 	t.Parallel()
+	// Invariant: successful copy commands support all advertised machine formats; owner: CLI output.
+	for _, format := range []string{"json", "jsonl", "toon"} {
+		t.Run("Should render a copied server in "+format, func(t *testing.T) {
+			t.Parallel()
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodPost ||
+						req.URL.Path != "/api/settings/runtime-mcp-servers/claude/linear/import" {
+						return nil, fmt.Errorf("unexpected import: %s", req.URL)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"mcp_server":{"name":"linear","scope":"user","transport":"http"},"source":{"runtime":"claude","source_label":"Personal"}}`,
+					), nil
+				})},
+			}
+			stdout, _, err := executeRootCommand(
+				t,
+				newWorkspaceTestDeps(t, client),
+				"mcp",
+				"import",
+				"claude/linear",
+				"-o",
+				format,
+			)
+			if err != nil || !strings.Contains(stdout, "linear") {
+				t.Fatalf("output=%s err=%v", stdout, err)
+			}
+			if format != "toon" && !json.Valid([]byte(stdout)) {
+				t.Fatalf("invalid machine output: %s", stdout)
+			}
+		})
+	}
+
 	t.Run("Should surface a missing runtime server UT-095", func(t *testing.T) {
 		t.Parallel()
 		client := &daemonClient{
@@ -386,4 +461,54 @@ func TestMCPImportCommand(t *testing.T) {
 			t.Fatalf("wrong source error: %v", err)
 		}
 	})
+}
+
+// Invariant: session inventory supports machine formats and stable user-facing state labels; owner: CLI commands.
+func TestSessionMCPCommand(t *testing.T) {
+	t.Parallel()
+	for _, format := range []string{"json", "jsonl", "toon", "text"} {
+		t.Run("Should render session MCP inventory in "+format, func(t *testing.T) {
+			t.Parallel()
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.URL.Path == "/api/profiles" {
+						return newHTTPResponse(http.StatusOK, `[{"name":"default","state":"active"}]`), nil
+					}
+					if req.URL.Path == "/api/profiles/selection" {
+						return newHTTPResponse(http.StatusOK, `[]`), nil
+					}
+					if strings.HasSuffix(req.URL.Path, "/mcp") {
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"session_id":"sess-one","runtime":"codex","compozy_servers":[{"name":"linear","state":"failed"},{"name":"sentry","state":"not_available"}],"runtime_servers":{"servers":[]}}`,
+						), nil
+					}
+					return newHTTPResponse(http.StatusOK, `{"session":{"id":"sess-one","workspace_id":"ws-one"}}`), nil
+				})},
+			}
+			deps := newWorkspaceTestDeps(t, client)
+			deps.getenv = func(key string) string {
+				if key == "COMPOZY_WORKSPACE" {
+					return "@user"
+				}
+				return ""
+			}
+			args := []string{"session", "mcp", "sess-one"}
+			if format != "text" {
+				args = append(args, "-o", format)
+			}
+			stdout, _, err := executeRootCommand(t, deps, args...)
+			if err != nil || !strings.Contains(stdout, "linear") {
+				t.Fatalf("output=%s err=%v", stdout, err)
+			}
+			if format == "text" &&
+				(!strings.Contains(stdout, "Couldn't connect") || !strings.Contains(stdout, "Not available in this session")) {
+				t.Fatalf("wrong labels: %s", stdout)
+			}
+			if (format == "json" || format == "jsonl") && !json.Valid([]byte(stdout)) {
+				t.Fatalf("invalid machine output: %s", stdout)
+			}
+		})
+	}
 }

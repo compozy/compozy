@@ -25,7 +25,7 @@ type secretRefResolver interface {
 
 // CallExecutor lists and calls configured MCP servers through official MCP SDK clients.
 type CallExecutor struct {
-	consent        func(context.Context, toolspkg.SourceRef) error
+	consent        func(context.Context, toolspkg.SourceRef, ResolvedServer) error
 	authNetwork    func(context.Context, mcpauth.ServerConfig) error
 	servers        ServerResolver
 	tokenStore     mcpauth.TokenStore
@@ -48,7 +48,7 @@ var _ toolspkg.MCPAuthStatusProvider = (*CallExecutor)(nil)
 // CallExecutorOption configures the daemon-owned MCP executor.
 type CallExecutorOption func(*CallExecutor)
 
-func WithConsentCheck(check func(context.Context, toolspkg.SourceRef) error) CallExecutorOption {
+func WithConsentCheck(check func(context.Context, toolspkg.SourceRef, ResolvedServer) error) CallExecutorOption {
 	return func(e *CallExecutor) { e.consent = check }
 }
 

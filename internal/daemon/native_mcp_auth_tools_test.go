@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -556,6 +557,32 @@ func (p *nativeMCPAuthStatusProvider) Status(
 
 func TestRuntimeMCPInventory(t *testing.T) {
 	t.Parallel()
+	// Invariant: distinct context reads have bounded retention; owner: daemon inventory cache.
+	t.Run("Should evict old context snapshots at the cache limit", func(t *testing.T) {
+		t.Parallel()
+		inventory := newRuntimeMCPInventory()
+		root := t.TempDir()
+		for i := range runtimeMCPCacheLimit + 2 {
+			_, err := inventory.List(
+				t.Context(),
+				runtimemcp.Request{
+					Runtime: "claude",
+					Context: runtimemcp.ReadContext{
+						Home:       root,
+						SystemRoot: filepath.Join(root, "system"),
+						CWD:        filepath.Join(root, fmt.Sprint(i)),
+					},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(inventory.cache) > runtimeMCPCacheLimit {
+				t.Fatal("unbounded cache")
+			}
+		}
+	})
+
 	// Invariant: file changes invalidate only their context and snapshots cannot be mutated by callers. Owner: daemon inventory; UT-054.
 	t.Run("Should invalidate runtime snapshots on file replacement UT-054", func(t *testing.T) {
 		t.Parallel()
@@ -1018,8 +1045,13 @@ func TestRuntimeMCPCopy(t *testing.T) {
 			}
 		})
 	}
-	for _, source := range []string{`{"mcpServers":{}}`, `{"mcpServers":{"advos":{"command":"changed"}}}`} {
-		t.Run("Should refuse a source changed since listing UT-065", func(t *testing.T) {
+	// Invariant: stale Copy refuses both removed and edited definitions with the matching repair message.
+	// Owner: daemon runtime MCP copy; canonical suite: TestRuntimeMCPCopy.
+	for _, tc := range []struct{ name, source, message string }{
+		{"removed", `{"mcpServers":{}}`, "The server advos is no longer in ~/.claude.json"},
+		{"edited", `{"mcpServers":{"advos":{"command":"changed"}}}`, "The server advos changed in ~/.claude.json. List it again before copying"},
+	} {
+		t.Run("Should refuse a "+tc.name+" source since listing UT-065", func(t *testing.T) {
 			t.Parallel()
 			fixture := newRuntimeMCPCopyFixture(t, `{"mcpServers":{"advos":{"command":"echo"}}}`)
 			if _, err := fixture.inventory.List(
@@ -1028,7 +1060,7 @@ func TestRuntimeMCPCopy(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(fixture.root, ".claude.json"), []byte(source), 0o600); err != nil {
+			if err := os.WriteFile(filepath.Join(fixture.root, ".claude.json"), []byte(tc.source), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			_, err := fixture.importer.ImportRuntimeMCP(
@@ -1037,7 +1069,7 @@ func TestRuntimeMCPCopy(t *testing.T) {
 			)
 			failure, ok := errors.AsType[*runtimemcp.ImportError](err)
 			if !ok || failure.Code != "mcp_server_not_found" ||
-				failure.Message != "The server advos is no longer in ~/.claude.json" {
+				failure.Message != tc.message {
 				t.Fatalf("wrong stale-source error: %v", err)
 			}
 		})

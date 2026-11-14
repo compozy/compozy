@@ -47,6 +47,14 @@ func NewFileKeyProvider(homeDir string, lookupEnv func(string) (string, bool)) K
 	}
 }
 
+// NewMCPDigestKeyProvider keeps the installation's public-definition HMAC key separate from encryption keys.
+func NewMCPDigestKeyProvider(homeDir string) KeyProvider {
+	return &fileKeyProvider{
+		path:      filepath.Join(strings.TrimSpace(homeDir), "mcp-digest.key"),
+		lookupEnv: func(string) (string, bool) { return "", false },
+	}
+}
+
 func (p *fileKeyProvider) Key() ([]byte, error) {
 	lookupEnv := p.lookupEnv
 	if lookupEnv == nil {

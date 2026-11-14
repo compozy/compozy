@@ -1210,6 +1210,7 @@ func requireHostedToolMetaString(t *testing.T, meta sdkmcp.Meta, field string) s
 }
 
 type hostedProxyClientStub struct {
+	servedErr    error
 	served       []HostedServedRequest
 	streamErrors chan error
 	streamClosed chan struct{}
@@ -1877,13 +1878,46 @@ func (c *hostedProxyClientStub) ReportHostedMCPServed(_ context.Context, req Hos
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.served = append(c.served, req)
-	return nil
+	return c.servedErr
 }
 
 // Invariant: tools/list reports the revision actually served, not a later daemon projection.
 // Owner: bind-scoped hosted proxy; canonical suite: hosted proxy tests (UT-039/UT-113).
 func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 	t.Parallel()
+	t.Run("Should serve tools when receipt persistence fails and report only installed tools", func(t *testing.T) {
+		t.Parallel()
+		client := newHostedProxyClientStub(HostedBindResponse{})
+		client.servedErr = errors.New("retired bind")
+		server := newHostedProxyTestServer()
+		catalog := new(hostedProxyCatalog)
+		server.AddReceivingMiddleware(catalog.middleware(client, "bind-revision"))
+		view := hostedToolView("mcp__echo__ping")
+		view.Descriptor.Source = tools.SourceRef{
+			Kind:          tools.SourceMCP,
+			Owner:         "echo",
+			RawServerName: "echo",
+			RawToolName:   "ping",
+		}
+		catalog.apply(
+			server,
+			client,
+			"bind-revision",
+			HostedProjectionResponse{Tools: []tools.ToolView{view}, Catalog: tools.NewAdvertisedCatalog(nil)},
+		)
+		session := connectHostedProxyClient(t, server)
+		result, err := session.ListTools(t.Context(), nil)
+		if err != nil || len(result.Tools) != 1 || result.Tools[0].Name != view.Descriptor.ID.String() {
+			t.Fatalf("list=%+v err=%v", result, err)
+		}
+		client.mu.Lock()
+		defer client.mu.Unlock()
+		if len(client.served) != 1 ||
+			client.served[0].Digest != tools.NewAdvertisedCatalog([]tools.ToolView{view}).Digest {
+			t.Fatalf("receipt=%+v", client.served)
+		}
+	})
+
 	t.Run("Should report only a successfully served catalog revision", func(t *testing.T) {
 		t.Parallel()
 		client := newHostedProxyClientStub(HostedBindResponse{})
@@ -1907,7 +1941,12 @@ func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 			t.Fatal(err)
 		}
 		// Health withdraws execution temporarily, while the entitled revision stays the same.
-		catalog.apply(server, client, "bind-revision", HostedProjectionResponse{Catalog: first.Catalog})
+		catalog.apply(
+			server,
+			client,
+			"bind-revision",
+			HostedProjectionResponse{Tools: first.Tools, Catalog: first.Catalog},
+		)
 		if _, err := session.ListTools(t.Context(), nil); err != nil {
 			t.Fatal(err)
 		}

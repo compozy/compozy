@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/compozy/compozy/internal/tools"
@@ -19,7 +20,7 @@ func (c *hostedProxyCatalog) apply(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	applyHostedTools(server, client, bindID, projection.Tools)
-	c.catalog = projection.Catalog
+	c.catalog = tools.NewAdvertisedCatalog(projection.Tools)
 }
 
 func (c *hostedProxyCatalog) middleware(client HostedProxyClient, bindID string) sdkmcp.Middleware {
@@ -38,7 +39,7 @@ func (c *hostedProxyCatalog) middleware(client HostedProxyClient, bindID string)
 				ctx,
 				HostedServedRequest{BindID: bindID, Digest: c.catalog.Digest},
 			); err != nil {
-				return nil, err
+				slog.WarnContext(ctx, "mcp.hosted.served_receipt_failed", "bind_id", bindID, "error", err)
 			}
 			return result, nil
 		}

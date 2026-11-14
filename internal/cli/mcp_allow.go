@@ -73,9 +73,22 @@ func newMCPAllowCommand(deps commandDeps) *cobra.Command {
 					State:       "waiting",
 				}
 			}
-			return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
-				return formatMCPApprovalOutput(args[0], label, profile, revoke), nil
-			}})
+			return writeCommandOutput(cmd, outputBundle{jsonValue: result,
+				jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+				toon: func() (string, error) {
+					return renderToonObject(
+						"approval",
+						[]string{"server_name", automationWorkspaceIDKey, profileFlagName, appTokenStateFlag},
+						[]string{
+							result.Approval.ServerName,
+							result.Approval.WorkspaceID,
+							result.Approval.Profile,
+							result.Approval.State,
+						},
+					), nil
+				}, human: func() (string, error) {
+					return formatMCPApprovalOutput(args[0], label, profile, revoke), nil
+				}})
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Project workspace (ID, name, or path)")

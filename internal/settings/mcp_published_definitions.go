@@ -138,19 +138,24 @@ func (s *service) mcpApprovalDefinitions(ctx context.Context, req MCPAuthTargetR
 	return definitions, nil
 }
 
-func selectMCPApprovalDefinition(
-	name string,
+func (s *service) selectMCPApprovalDefinition(
+	ctx context.Context, name, profile string,
 	definitions []mcpAuthDefinition,
 	digest string,
 ) (mcpAuthDefinition, error) {
+	if s.mcpConsent == nil {
+		return mcpAuthDefinition{}, unavailableError(fmt.Errorf("settings: MCP consent is unavailable"))
+	}
 	var selected mcpAuthDefinition
 	matches := 0
 	for _, definition := range definitions {
-		current, err := config.MCPDefinitionDigest(definition.server)
+		req := consentRequestForTarget(definition.target, definition.server)
+		req.ProfileName = profile
+		decision, err := s.mcpConsent.MCPConsent(ctx, req)
 		if err != nil {
 			return selected, err
 		}
-		if current == digest {
+		if decision.DefinitionDigest == digest {
 			selected = definition
 			matches++
 		}

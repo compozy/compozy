@@ -1032,8 +1032,8 @@ func TestPromptMCPActivationDecision(t *testing.T) {
 					t.Fatal("current served report reloaded")
 				}
 				launcher.served = ""
-				if changed, _ := h.manager.needsActivationReload(t.Context(), active); !changed {
-					t.Fatal("missing served report did not reload")
+				if changed, _ := h.manager.needsActivationReload(t.Context(), active); changed {
+					t.Fatal("a runtime that has not listed yet was restarted")
 				}
 			}
 			launcher.setCatalog("echo")
@@ -1107,6 +1107,56 @@ func TestMCPReadSnapshotCatalogChanges(t *testing.T) {
 // Owner: session lifecycle; canonical suite: provider lifecycle (UT-021/UT-022/UT-023/UT-024/UT-024b/UT-025).
 func TestPromptMCPActivationLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: prompts before the first list receipt keep a list-changed runtime alive; owner: activation lifecycle.
+	t.Run("Should keep a list-changed runtime before its first tools list receipt", func(t *testing.T) {
+		t.Parallel()
+		h, launcher := newActivationHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		active.mu.Lock()
+		active.hostedMCPRequiresReload = false
+		active.mu.Unlock()
+		process := active.processHandle()
+		launcher.setCatalog("added-before-list")
+		for range 2 {
+			events, err := h.manager.Prompt(t.Context(), active.ID, "continue before listing")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if active.processHandle() != process {
+				t.Fatal("runtime restarted without a list receipt")
+			}
+		}
+	})
+
+	// Invariant: a telemetry write failure cannot reject an admitted rebind or repeat it; owner: session lifecycle.
+	t.Run("Should admit a successful rebind when the reload event cannot persist", func(t *testing.T) {
+		t.Parallel()
+		h, launcher := newActivationHarness(t)
+		open := h.manager.openStore
+		h.manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+			recorder, err := open(ctx, owner, path)
+			return &reloadEventFailingRecorder{EventRecorder: recorder}, err
+		}
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		before := active.activation.boundDigest
+		launcher.setCatalog("added")
+		events, err := h.manager.Prompt(t.Context(), active.ID, "use added tools")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		if active.activation.boundDigest == before || active.activation.lastReload == nil ||
+			active.activation.lastReload.Outcome != "applied" {
+			t.Fatal("successful activation was not retained")
+		}
+		if reload, _ := h.manager.needsActivationReload(t.Context(), active); reload {
+			t.Fatal("successful rebind was repeated")
+		}
+	})
+
 	for _, outcome := range []string{"applied", "replayed", "failed"} {
 		t.Run("Should record "+outcome+" before accepting the prompt", func(t *testing.T) {
 			t.Parallel()
@@ -1585,4 +1635,17 @@ func TestMCPChangedDurableNotification(t *testing.T) {
 			t.Fatal(ctx.Err())
 		}
 	})
+}
+
+// reloadEventFailingRecorder injects a failure at the event-store I/O boundary.
+type reloadEventFailingRecorder struct{ EventRecorder }
+
+func (r *reloadEventFailingRecorder) AppendEventIfAbsent(
+	ctx context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, bool, error) {
+	if event.Type == EventTypeMCPReloaded {
+		return store.SessionEvent{}, false, errors.New("reload event store unavailable")
+	}
+	return r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, event)
 }

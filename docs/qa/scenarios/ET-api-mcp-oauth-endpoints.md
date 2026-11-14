@@ -77,3 +77,5 @@ Renaming a source updates root delegation budgets at the next turn without widen
 instance allowlist. A failed full hosted projection must fail readiness instead of claiming success.
 
 QA impact 2026-11-14 (MCP hot activation spec): `auth/begin` gains an optional `definition_digest`. For a workspace record waiting for approval: without it `409 mcp_server_waiting_approval` and no network request; with the current digest the approval is recorded, then sign-in begins; with a stale digest `409 mcp_approval_definition_changed`. Retained OAuth clients and redirects recheck consent. Passive auth status stays readable. Re-walk begin/exchange on a waiting project server.
+
+QA impact 2026-11-14 review fixes: sign out after revoking project approval. Local credentials and pending auth state must be removed while approval is waiting, with no request to the MCP/OAuth server. The focused daemon auth suite exercises the real token store and a request-counting HTTP fixture; it does not replace the full live-provider walk.

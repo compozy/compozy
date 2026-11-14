@@ -345,7 +345,7 @@ func TestRuntimeInventorySafety(t *testing.T) {
 			t.Fatal("missing duplicate marker")
 		}
 	})
-	t.Run("Should bound file reads and reject symlink escapes", func(t *testing.T) {
+	t.Run("Should bound file reads and safely follow symlinked config files", func(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
 		path := filepath.Join(c.Home, ".claude.json")
@@ -354,7 +354,7 @@ func TestRuntimeInventorySafety(t *testing.T) {
 			t.Fatal("oversized file accepted")
 		}
 		target := filepath.Join(c.Home, "outside.json")
-		putFile(t, target, `{"mcpServers":{}}`)
+		putFile(t, target, `{"mcpServers":{"linked":{"command":"echo"}}}`)
 		link := filepath.Join(c.Home, ".pi", "agent", "mcp.json")
 		if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
 			t.Fatal(err)
@@ -362,14 +362,57 @@ func TestRuntimeInventorySafety(t *testing.T) {
 		if err := os.Symlink(target, link); err != nil {
 			t.Fatal(err)
 		}
-		if groupFor(t, c, "pi").ReadState != "unreadable" {
-			t.Fatal("symlink accepted")
+		group := groupFor(t, c, "pi")
+		if group.ReadState != "ok" || serverFor(t, group, "linked").Name != "linked" {
+			t.Fatalf("symlinked config=%+v", group)
 		}
 	})
 }
 
 func TestRuntimeContextAndDigests(t *testing.T) {
 	t.Parallel()
+	// Invariant: observed definitions remain keyed and copy distinguishes edits from removal; owner: runtime reader.
+	t.Run("Should key public digests and refuse an edited copy with a distinct message", func(t *testing.T) {
+		t.Parallel()
+		c := fixtureContext(t)
+		path := filepath.Join(c.Home, ".claude.json")
+		putFile(t, path, `{"mcpServers":{"a":{"command":"echo","env":{"PIN":"1234"}}}}`)
+		request := Request{Context: c, Runtime: "claude"}
+		firstReader, secondReader := Reader{
+			DigestKey: []byte("installation-one"),
+		}, Reader{
+			DigestKey: []byte("installation-two"),
+		}
+		first, _, err := firstReader.List(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		previous := serverFor(t, first.Runtimes[0], "a")
+		second, _, err := secondReader.List(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if previous.DefinitionDigest == second.Runtimes[0].Servers[0].DefinitionDigest {
+			t.Fatal("installation key omitted")
+		}
+		if _, err := firstReader.Resolve(t.Context(), request, "a", &previous); err != nil {
+			t.Fatal(err)
+		}
+		putFile(t, path, `{"mcpServers":{"a":{"command":"changed"}}}`)
+		_, err = firstReader.Resolve(t.Context(), request, "a", &previous)
+		if failure, ok := errors.AsType[*ImportError](
+			err,
+		); !ok || failure.Code != "mcp_server_not_found" ||
+			!strings.Contains(failure.Message, "changed in") {
+			t.Fatalf("edited copy error=%v", err)
+		}
+		putFile(t, path, `{"mcpServers":{}}`)
+		_, err = firstReader.Resolve(t.Context(), request, "a", &previous)
+		if err == nil || !strings.Contains(err.Error(), "no longer in") {
+			t.Fatalf("removed copy error=%v", err)
+		}
+	})
+
 	// Invariant: launch inputs are scoped to provider home and execution CWD, not only workspace. Owner: runtimemcp.
 	t.Run("Should separate worktrees nested CWD and Settings inventory UT-059", func(t *testing.T) {
 		t.Parallel()

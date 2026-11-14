@@ -49,7 +49,7 @@ func sessionMCPConsentFilter(state *bootState) session.MCPConsentFilter {
 			if err != nil {
 				return nil, err
 			}
-			digest, err := config.MCPDefinitionDigest(server)
+			digest, err := state.mcpDefinitionDigest(server)
 			if err != nil {
 				return nil, err
 			}
