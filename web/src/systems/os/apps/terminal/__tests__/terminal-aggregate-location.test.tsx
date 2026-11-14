@@ -394,11 +394,13 @@ describe("TerminalAggregateLocation", () => {
     expect(createTerminal).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("terminal-launcher-new-ws-atlas/wt-feature"));
 
-    expect(createTerminal).toHaveBeenCalledWith(
-      "ws-atlas",
-      { worktree: "wt-feature" },
-      { profile: "default" },
-      props.viewer
+    await waitFor(() =>
+      expect(createTerminal).toHaveBeenCalledWith(
+        "ws-atlas",
+        { worktree: "wt-feature" },
+        { profile: "default" },
+        props.viewer
+      )
     );
     await waitFor(() =>
       expect(props.coordinator.userRetarget).toHaveBeenCalledWith(
