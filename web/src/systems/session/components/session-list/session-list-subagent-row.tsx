@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import type { HTMLAttributes, MouseEvent, ReactElement } from "react";
 
 import { StateGlyph, TreeBranchNode, cn } from "@compozy/ui";
 
@@ -11,6 +11,7 @@ import { subagentDisplay, type SubagentDisplay } from "../subagents/subagent-for
 import { subagentRuntimeWords } from "../subagents/subagent-row-format";
 import type { SubagentView } from "../subagents/types";
 import { SessionListAgentMark } from "./session-list-agent-mark";
+import { SessionListSubagentMenu } from "./session-list-subagent-menu";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import { SESSION_ROW_MARK_TOOLTIP_DELAY, SUBAGENT_ROW_FRAME } from "./session-list-row-frame";
 
@@ -19,6 +20,9 @@ export function SessionListSubagentRow({
   subagent,
   current,
   onOpen,
+  onStop,
+  onDelete,
+  menuTestId,
   workspace,
   profile,
 }: {
@@ -27,6 +31,12 @@ export function SessionListSubagentRow({
   workspace?: string;
   profile?: string;
   onOpen?: (event: MouseEvent<HTMLButtonElement>) => void;
+  /** Opens the delete confirmation; absent hides the verb. */
+  onDelete?: (subagent: SubagentView) => void;
+  /** Stops a live delegated row; absent hides the verb. */
+  onStop?: (subagent: SubagentView) => void;
+  /** The right-click trigger's test id; the row derives its menu items from it. */
+  menuTestId?: string;
 }) {
   const selected = useSubagentDrawerSelected(subagent.id);
   const display = subagentDisplay(subagent);
@@ -52,6 +62,16 @@ export function SessionListSubagentRow({
     </>
   );
   const rowClass = cn(SUBAGENT_ROW_FRAME, (current || selected) && "bg-selected");
+  const resolvedMenuTestId = menuTestId ?? `session-subagent-menu-${subagent.id}`;
+  const menu = (row: ReactElement<HTMLAttributes<HTMLElement>>) => (
+    <SessionListSubagentMenu
+      subagent={subagent}
+      menuTestId={resolvedMenuTestId}
+      onDelete={onDelete}
+      onStop={onStop}
+      render={row}
+    />
+  );
 
   return (
     <TreeBranchNode
@@ -59,26 +79,28 @@ export function SessionListSubagentRow({
       data-status={subagent.status}
       data-state={display.glyph}
     >
-      {onOpen ? (
-        <button
-          type="button"
-          className={cn(
-            rowClass,
-            "transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring"
+      {onOpen
+        ? menu(
+            <button
+              type="button"
+              className={cn(
+                rowClass,
+                "transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring"
+              )}
+              aria-label={`Open ${subagent.title} · ${runtime.label}`}
+              aria-description={word}
+              aria-current={current || selected ? "true" : undefined}
+              onClick={onOpen}
+            >
+              {body}
+            </button>
+          )
+        : menu(
+            <div className={rowClass}>
+              {body}
+              <span className="sr-only">{word}</span>
+            </div>
           )}
-          aria-label={`Open ${subagent.title} · ${runtime.label}`}
-          aria-description={word}
-          aria-current={current || selected ? "true" : undefined}
-          onClick={onOpen}
-        >
-          {body}
-        </button>
-      ) : (
-        <div className={rowClass}>
-          {body}
-          <span className="sr-only">{word}</span>
-        </div>
-      )}
     </TreeBranchNode>
   );
 }

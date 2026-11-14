@@ -318,6 +318,10 @@ type SubagentStore interface {
 	// DeleteReserved removes a row still `queued` with no child (spawn.pre_create denial:
 	// no session and no row, IT-022). It returns ErrSubagentNotFound for any other row.
 	DeleteReserved(ctx context.Context, id string) error
+	// DeleteSubagent permanently removes one workspace-scoped row in any status. Child
+	// session removal belongs to the caller; it returns ErrSubagentNotFound for a row
+	// outside the workspace or already gone.
+	DeleteSubagent(ctx context.Context, workspaceID, id string) error
 	GetSubagent(ctx context.Context, workspaceID, id string) (SessionSubagent, error)
 	GetSubagentByID(ctx context.Context, id string) (SessionSubagent, error)
 	GetSubagentByChild(ctx context.Context, childSessionID string) (SessionSubagent, error)

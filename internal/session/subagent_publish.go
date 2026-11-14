@@ -82,10 +82,27 @@ func (s *subagentService) SubscribeSubagentUpdates(
 }
 
 func (s *subagentService) publish(_ context.Context, row store.SessionSubagent) {
-	update := SubagentUpdate{ParentSessionID: row.ParentSessionID, Subagent: presentSubagent(row)}
+	s.publishUpdate(row.ParentSessionID, row.ID, &SubagentUpdate{
+		ParentSessionID: row.ParentSessionID,
+		Subagent:        presentSubagent(row),
+	})
+}
+
+// publishRemoved tells roster subscribers to drop a deleted row. The update is
+// coalesced by subagent id like a row change, so a removal supersedes a pending
+// update of the same row.
+func (s *subagentService) publishRemoved(parent, id string) {
+	s.publishUpdate(parent, id, &SubagentUpdate{
+		ParentSessionID: parent,
+		Subagent:        Subagent{SessionSubagent: store.SessionSubagent{ID: id, ParentSessionID: parent}},
+		Removed:         true,
+	})
+}
+
+func (s *subagentService) publishUpdate(parent, id string, update *SubagentUpdate) {
 	s.mu.Lock()
-	for sub := range s.subscribers[row.ParentSessionID] {
-		sub.pending[row.ID] = update
+	for sub := range s.subscribers[parent] {
+		sub.pending[id] = *update
 		select {
 		case sub.signal <- struct{}{}:
 		default:

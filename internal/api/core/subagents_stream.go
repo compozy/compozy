@@ -61,6 +61,17 @@ func writeSubagentUpdate(writer FlushWriter, sessionID string, update *session.S
 	if update.ParentSessionID != sessionID {
 		return nil
 	}
+	// A deleted row is gone from the roster: the client drops it by id instead of
+	// replacing a row it can no longer read.
+	if update.Removed {
+		return WriteSSE(writer, SSEMessage{
+			Name: contract.SessionStreamEventSubagentRemoved,
+			Data: contract.SubagentRemovedEvent{
+				SessionID:  sessionID,
+				SubagentID: update.Subagent.ID,
+			},
+		})
+	}
 	return WriteSSE(writer, SSEMessage{
 		Name: contract.SessionStreamEventSubagentUpdated,
 		Data: contract.SubagentUpdatedEvent{

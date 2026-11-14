@@ -26,6 +26,7 @@ import {
 } from "../lib/session-transcript-query";
 import {
   applySubagentsSnapshot,
+  applySubagentRemoved,
   applySubagentUpdated,
   EMPTY_SUBAGENT_ROSTER,
   markSubagentRosterStale,
@@ -37,6 +38,7 @@ import type {
   SessionEventPayload,
   SessionPayload,
   SubagentsSnapshotPayload,
+  SubagentRemovedPayload,
   SubagentUpdatedPayload,
   TranscriptDeltaPayload,
   TranscriptSnapshotPayload,
@@ -336,6 +338,18 @@ export function createSessionLiveTailRuntime({
       if (!payload?.subagent) return;
       updateSubagentRoster(roster => applySubagentUpdated(roster, payload));
     };
+    const subagentRemovedListener: EventListener = event => {
+      const payload = parseSessionStreamPayload<SubagentRemovedPayload>(event as MessageEvent);
+      // The stream belongs to one parent; a frame naming another session is not ours.
+      if (!payload?.subagent_id || payload.session_id !== sessionId) return;
+      const { subagent_id } = payload;
+      updateSubagentRoster(roster => applySubagentRemoved(roster, subagent_id));
+      invalidateExact(
+        sessionKeys.subagentBranch(workspaceId, sessionId),
+        "session subagent branch"
+      );
+      invalidateExact(sessionKeys.subagents(workspaceId, sessionId), "session subagents");
+    };
 
     let usageTimer: ReturnType<typeof setTimeout> | undefined;
     const flushUsageChanges = () => {
@@ -366,6 +380,7 @@ export function createSessionLiveTailRuntime({
         snapshot: snapshotListener,
         subagentsSnapshot: subagentsSnapshotListener,
         subagentUpdated: subagentUpdatedListener,
+        subagentRemoved: subagentRemovedListener,
         terminal: terminalListener,
       });
     } catch (error) {

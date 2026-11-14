@@ -41,6 +41,13 @@ func TestSubagentHTTPUDSParity(t *testing.T) {
 		{"urgency order", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?order=urgency&cursor=urgent", "", `"next_cursor":"next"`, 200},
 		{"unknown order", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?order=oldest", "", `"code":"invalid_request"`, 400},
 		{"cancel native", "POST", "/api/workspaces/ws-public/subagents/native/cancel", `{}`, `"code":"subagent_not_cancelable"`, 409},
+		{"delete", "DELETE", "/api/workspaces/ws-public/subagents/sub-1", "", "", 204},
+		{"delete native", "DELETE", "/api/workspaces/ws-public/subagents/native", "", `"code":"subagent_not_deletable"`, 409},
+		{"delete unknown row", "DELETE", "/api/workspaces/ws-public/subagents/missing", "", `"code":"subagent_not_found"`, 404},
+		{"delete foreign row", "DELETE", "/api/workspaces/ws-public/subagents/foreign", "", `"code":"subagent_not_found"`, 404},
+		{"delete profile row", "DELETE", "/api/workspaces/ws-public/subagents/private?profile=design", "", "", 204},
+		{"delete wrong profile", "DELETE", "/api/workspaces/ws-public/subagents/private?profile=default", "", `"code":"subagent_not_found"`, 404},
+		{"delete aggregate profile", "DELETE", "/api/workspaces/ws-public/subagents/private?all_profiles=true", "", `"code":"subagent_not_found"`, 404},
 		{"unknown parent", "GET", "/api/workspaces/ws-public/sessions/missing/subagents", "", `"code":"session_not_found"`, 404},
 		{"inaccessible parent", "GET", "/api/workspaces/ws-public/sessions/foreign/subagents", "", `"code":"session_not_found"`, 404},
 		{"unknown row", "GET", "/api/workspaces/ws-public/subagents/missing", "", `"code":"subagent_not_found"`, 404},
@@ -201,6 +208,18 @@ func (s *subagentParityService) Cancel(
 		return session.SubagentCancelOutcome{ID: id, Status: "completed"}, nil
 	}
 	return session.SubagentCancelOutcome{ID: id, Status: "cancel_requested"}, nil
+}
+
+// Delete refuses a provider-native row exactly as the owner service does; the
+// transport must surface that mapping identically on HTTP and UDS.
+func (s *subagentParityService) Delete(_ context.Context, _ session.SubagentActor, workspaceID, id string) error {
+	if workspaceID != "ws-registry" {
+		return errors.New("unexpected delete workspace")
+	}
+	if id == "native" {
+		return session.ErrSubagentNotDeletable
+	}
+	return nil
 }
 func (s *subagentParityService) Summaries(_ context.Context, ids []string) (map[string]store.SubagentSummary, error) {
 	s.summaries++

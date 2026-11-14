@@ -18,6 +18,7 @@ var (
 	ErrSubagentCapabilityDenied  = errors.New("session: subagent capability denied")
 	ErrSubagentNotFound          = errors.New("session: subagent not found")
 	ErrSubagentNotCancelable     = errors.New("session: subagent not cancelable")
+	ErrSubagentNotDeletable      = errors.New("session: subagent not deletable")
 	ErrSubagentArchiveFollows    = errors.New("session: subagent archive follows parent")
 )
 
@@ -40,6 +41,13 @@ type SubagentCaller struct {
 }
 
 // SubagentActor is the caller of operator-reachable operations (CLI/HTTP/UDS or agent).
+const (
+	// SubagentActorOperator is an operator-driven lifecycle change.
+	SubagentActorOperator = "operator"
+	// SubagentActorAgent is a change made by an agent session on its own delegation.
+	SubagentActorAgent = "agent"
+)
+
 type SubagentActor struct {
 	Kind   string // "agent" | "operator"
 	ID     string
@@ -205,6 +213,10 @@ type SubagentService interface {
 	Delegate(ctx context.Context, req SubagentRequest) (Subagent, error)
 	Status(ctx context.Context, caller SubagentCaller, id string) (Subagent, error)
 	Cancel(ctx context.Context, actor SubagentActor, id, reason string) (SubagentCancelOutcome, error)
+	// Delete permanently removes a delegated subagent and its child session history.
+	// Provider-native rows are refused with ErrSubagentNotDeletable. An agent actor may
+	// only delete a subagent delegated by its own session.
+	Delete(ctx context.Context, actor SubagentActor, workspaceID, id string) error
 	Get(ctx context.Context, workspaceID, id string) (Subagent, error)
 	List(ctx context.Context, q store.SubagentListQuery) (store.SubagentPage, error)
 	Summaries(ctx context.Context, parentIDs []string) (map[string]store.SubagentSummary, error)
@@ -228,9 +240,12 @@ type SubagentService interface {
 
 // SubagentUpdate is published after every committed change to a subagent row.
 // The session stream forwards it as `subagent_updated` on the parent's stream.
+// A deleted row publishes Removed instead, forwarded as `subagent_removed`, and
+// then carries only the removed row's identity in Subagent.
 type SubagentUpdate struct {
 	ParentSessionID string
 	Subagent        Subagent
+	Removed         bool
 }
 
 // SubagentUpdateSubscriber streams committed subagent row changes for one parent session.

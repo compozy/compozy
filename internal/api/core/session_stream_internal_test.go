@@ -1357,6 +1357,43 @@ func TestSubagentStreamOrdering(t *testing.T) {
 	}
 }
 
+// A deleted subagent leaves the roster by id instead of replacing a row the client can no longer read.
+func TestSubagentStreamRemoval(t *testing.T) {
+	t.Parallel()
+	t.Run("Should emit subagent_removed for a deleted row", func(t *testing.T) {
+		t.Parallel()
+		writer := &streamTestFlushWriter{}
+		update := session.SubagentUpdate{
+			ParentSessionID: "parent",
+			Subagent: session.Subagent{
+				SessionSubagent: store.SessionSubagent{ID: "sub-1", ParentSessionID: "parent"},
+			},
+			Removed: true,
+		}
+		if err := writeSubagentUpdate(writer, "parent", &update); err != nil {
+			t.Fatal(err)
+		}
+		body := writer.String()
+		if !strings.Contains(body, "event: subagent_removed") ||
+			!strings.Contains(body, `"session_id":"parent"`) ||
+			!strings.Contains(body, `"subagent_id":"sub-1"`) ||
+			strings.Contains(body, "event: subagent_updated") {
+			t.Fatal(body)
+		}
+	})
+	t.Run("Should ignore another session's update", func(t *testing.T) {
+		t.Parallel()
+		writer := &streamTestFlushWriter{}
+		update := session.SubagentUpdate{ParentSessionID: "other", Removed: true}
+		if err := writeSubagentUpdate(writer, "parent", &update); err != nil {
+			t.Fatal(err)
+		}
+		if writer.Len() != 0 {
+			t.Fatal(writer.String())
+		}
+	})
+}
+
 // Greptile 711: the snapshot replaces the client roster, so it must carry every page.
 func TestSubagentSnapshotCarriesEveryPage(t *testing.T) {
 	t.Parallel()

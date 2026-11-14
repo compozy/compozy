@@ -152,6 +152,10 @@ UPDATE session_subagents SET pending_task = NULL, updated_at = ? WHERE id = ?;
 
 -- name: DeleteReservedSubagent :execrows
 DELETE FROM session_subagents WHERE id = ? AND status = 'queued' AND child_session_id IS NULL;
+
+-- name: DeleteSubagent :execrows
+DELETE FROM session_subagents WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
 -- name: ListSubagentArchiveFamily :many
 WITH RECURSIVE family(id,state) AS (
  SELECT sessions.id,sessions.state FROM sessions WHERE sessions.workspace_id = sqlc.arg(workspace_id) AND sessions.id = sqlc.arg(session_id)

@@ -50,6 +50,16 @@ export function markSubagentRosterStale(roster: SubagentRoster): SubagentRoster 
   return { rows: roster.rows, staleIds: new Set(roster.rows.map(row => row.id)) };
 }
 
+/** Drops one removed row, with any stale mark it still held; absent leaves the roster as is. */
+export function applySubagentRemoved(roster: SubagentRoster, id: string): SubagentRoster {
+  const rows = roster.rows.filter(row => row.id !== id);
+  if (rows.length === roster.rows.length) return roster;
+  const staleIds = roster.staleIds.has(id)
+    ? new Set([...roster.staleIds].filter(staleId => staleId !== id))
+    : roster.staleIds;
+  return { rows, staleIds };
+}
+
 export function findSubagent(roster: SubagentRoster, id: string): SubagentView | undefined {
   return roster.rows.find(row => row.id === id);
 }

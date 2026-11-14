@@ -2,7 +2,8 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
-// registrySubagentOperations describes roster reads and profile-scoped delegated cancellation.
+// registrySubagentOperations describes roster reads, delegated cancellation, and
+// delegated permanent deletion.
 func registrySubagentOperations() []OperationSpec {
 	const subagentPath = "/api/workspaces/{workspace_id}/subagents/{subagent_id}"
 	return []OperationSpec{
@@ -58,12 +59,42 @@ func registrySubagentOperations() []OperationSpec {
 			Responses: append(subagentResponses(202, contract.SubagentCancelPayload{}),
 				ResponseSpec{Status: 409, Description: "Subagent is not cancelable", Body: contract.ErrorPayload{}}),
 		},
+		{
+			Method:      httpMethodDelete,
+			Path:        subagentPath,
+			AppAccess:   AppAccessAllowed,
+			OperationID: "deleteSubagent",
+			Summary:     "Delete a delegated subagent and its child session",
+			Tags:        []string{specSessionsKey},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: withProfileSelector(
+				pathParam("workspace_id", "Workspace id"),
+				pathParam("subagent_id", "Subagent id"),
+			),
+			Responses: append(
+				append(
+					[]ResponseSpec{{Status: 204, Description: specNoContentDescription}},
+					subagentErrorResponses()...,
+				),
+				ResponseSpec{
+					Status:      409,
+					Description: "Subagent is provider-native and follows its parent turn",
+					Body:        contract.ErrorPayload{},
+				},
+			),
+		},
 	}
 }
 
 func subagentResponses(status int, body any) []ResponseSpec {
+	return append(
+		[]ResponseSpec{{Status: status, Description: specSuccessDescription, Body: body}},
+		subagentErrorResponses()...,
+	)
+}
+
+func subagentErrorResponses() []ResponseSpec {
 	return []ResponseSpec{
-		{Status: status, Description: specSuccessDescription, Body: body},
 		{Status: 400, Description: "Invalid request", Body: contract.ErrorPayload{}},
 		{Status: 403, Description: "Capability denied", Body: contract.ErrorPayload{}},
 		{Status: 404, Description: "Session or subagent not found", Body: contract.ErrorPayload{}},

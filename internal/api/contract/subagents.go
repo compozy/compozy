@@ -11,6 +11,7 @@ import (
 const (
 	SessionStreamEventSubagentsSnapshot = "subagents_snapshot"
 	SessionStreamEventSubagentUpdated   = "subagent_updated"
+	SessionStreamEventSubagentRemoved   = "subagent_removed"
 )
 
 // SubagentChildActivity is a delegated child session's liveness: working, idle, or stopped.
@@ -96,6 +97,12 @@ type SubagentsSnapshotEvent struct {
 type SubagentUpdatedEvent struct {
 	SessionID string          `json:"session_id"`
 	Subagent  SubagentPayload `json:"subagent"`
+}
+
+// SubagentRemovedEvent tells roster subscribers that a deleted row is gone.
+type SubagentRemovedEvent struct {
+	SessionID  string `json:"session_id"`
+	SubagentID string `json:"subagent_id"`
 }
 
 func SubagentFromDomain(row *session.Subagent) SubagentPayload {

@@ -64,7 +64,7 @@ func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
 		h.respondSubagentError(c, session.ErrSubagentNotCancelable)
 		return
 	}
-	actor := session.SubagentActor{Kind: "operator"}
+	actor := session.SubagentActor{Kind: session.SubagentActorOperator}
 	credentials := agentCallerCredentialsFromRequest(c)
 	if hasAgentCallerIdentityCredentials(credentials) {
 		caller, err := h.resolveAgentCallerForWorkspace(
@@ -77,9 +77,15 @@ func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
 			h.respondError(c, StatusForAgentIdentityError(err), err)
 			return
 		}
-		actor = session.SubagentActor{Kind: "agent", ID: caller.Session.ID, Caller: &session.SubagentCaller{
-			WorkspaceID: caller.Session.WorkspaceID, SessionID: caller.Session.ID, AgentName: caller.Session.AgentName,
-		}}
+		actor = session.SubagentActor{
+			Kind: session.SubagentActorAgent,
+			ID:   caller.Session.ID,
+			Caller: &session.SubagentCaller{
+				WorkspaceID: caller.Session.WorkspaceID,
+				SessionID:   caller.Session.ID,
+				AgentName:   caller.Session.AgentName,
+			},
+		}
 	}
 	outcome, err := h.Subagents.Cancel(c.Request.Context(), actor, row.ID, request.Reason)
 	if err != nil {
@@ -87,6 +93,43 @@ func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusAccepted, contract.SubagentCancelPayload{SubagentID: outcome.ID, Status: outcome.Status})
+}
+
+// DeleteSubagent permanently removes a delegated subagent and its child session.
+// The service refuses provider-native rows, which follow the parent turn.
+func (h *BaseHandlers) DeleteSubagent(c *gin.Context) {
+	row, ok := h.authorizedSubagent(c, true)
+	if !ok {
+		return
+	}
+	actor := session.SubagentActor{Kind: session.SubagentActorOperator}
+	credentials := agentCallerCredentialsFromRequest(c)
+	if hasAgentCallerIdentityCredentials(credentials) {
+		caller, err := h.resolveAgentCallerForWorkspace(
+			c.Request.Context(),
+			credentials,
+			"subagent.delete",
+			row.WorkspaceID,
+		)
+		if err != nil {
+			h.respondError(c, StatusForAgentIdentityError(err), err)
+			return
+		}
+		actor = session.SubagentActor{
+			Kind: session.SubagentActorAgent,
+			ID:   caller.Session.ID,
+			Caller: &session.SubagentCaller{
+				WorkspaceID: caller.Session.WorkspaceID,
+				SessionID:   caller.Session.ID,
+				AgentName:   caller.Session.AgentName,
+			},
+		}
+	}
+	if err := h.Subagents.Delete(c.Request.Context(), actor, row.WorkspaceID, row.ID); err != nil {
+		h.respondSubagentError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (h *BaseHandlers) requireSubagents(c *gin.Context) bool {
@@ -242,6 +285,13 @@ func (h *BaseHandlers) respondSubagentError(c *gin.Context, err error) {
 			409,
 			"subagent_not_cancelable",
 			"Provider-native subagents cannot be canceled; stop the parent turn instead.",
+		)
+	case errors.Is(err, session.ErrSubagentNotDeletable):
+		subagentError(
+			c,
+			409,
+			"subagent_not_deletable",
+			"Provider-native subagents cannot be deleted; stop the parent turn instead.",
 		)
 	case errors.Is(err, session.ErrSubagentParentNotActive):
 		subagentError(

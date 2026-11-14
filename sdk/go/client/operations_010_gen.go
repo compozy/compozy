@@ -9,6 +9,27 @@ import (
 	"strings"
 )
 
+// GetCmdPalettePersonalization Get command palette personalization summary
+func (c *Client) GetCmdPalettePersonalization(ctx context.Context, params GetCmdPalettePersonalizationParams) (*CmdPalettePersonalizationResponse, error) {
+	path := "/api/cmd-palette/personalization"
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPalettePersonalizationResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetCmdPaletteRankSignalsParams carries the path, query, and header parameters.
 type GetCmdPaletteRankSignalsParams struct {
 	Workspace   string  `url:"workspace"`
@@ -425,10 +446,4 @@ func (c *Client) GetHookCatalog(ctx context.Context, params GetHookCatalogParams
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetHookEventsParams carries the path, query, and header parameters.
-type GetHookEventsParams struct {
-	Family   *string `url:"family"`
-	SyncOnly *bool   `url:"sync_only"`
 }

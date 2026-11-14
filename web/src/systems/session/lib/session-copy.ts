@@ -8,7 +8,9 @@ export type SessionCopyKind =
   | "Branch name"
   | "Branch names"
   | "Pull request link"
-  | "Pull request links";
+  | "Pull request links"
+  | "Subagent ID"
+  | "Subagent title";
 
 const COPY_NOUN: Record<SessionCopyKind, string> = {
   "Session ID": "session ID",
@@ -19,6 +21,8 @@ const COPY_NOUN: Record<SessionCopyKind, string> = {
   "Branch names": "branch names",
   "Pull request link": "pull request link",
   "Pull request links": "pull request links",
+  "Subagent ID": "subagent ID",
+  "Subagent title": "subagent title",
 };
 
 /** Copies what a session menu hands out with the menus' clipboard and toast policy. */

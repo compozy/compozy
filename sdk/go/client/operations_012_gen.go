@@ -11,6 +11,15 @@ import (
 	"strings"
 )
 
+// GetMarketplaceSectionsParams carries the path, query, and header parameters.
+type GetMarketplaceSectionsParams struct {
+	Q           *string `url:"q"`
+	PerSection  *int    `url:"per_section"`
+	Scope       *string `url:"scope"`
+	Profile     *string `url:"profile"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
 // GetMarketplaceSections Browse Featured and category sections
 func (c *Client) GetMarketplaceSections(ctx context.Context, params GetMarketplaceSectionsParams) (*MarketplaceSectionsResponse, error) {
 	path := "/api/marketplace/sections"

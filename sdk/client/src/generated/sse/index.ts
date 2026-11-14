@@ -158,6 +158,7 @@ export type {
   StreamWorktreeResponses,
   SubagentPayload,
   SubagentPullRequestPayload,
+  SubagentRemovedEvent,
   SubagentRuntimePayload,
   SubagentsSnapshotEvent,
   SubagentUpdatedEvent,

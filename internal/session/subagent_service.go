@@ -34,6 +34,9 @@ type subagentRuntime interface {
 	HasAdmission(context.Context, store.SessionSubagent) (bool, error)
 	ResumeChild(context.Context, store.SessionSubagent) error
 	Stop(context.Context, string) error
+	// DeleteSession permanently removes a child session and its persisted history.
+	// A session that is already gone is reported as success.
+	DeleteSession(context.Context, string) error
 	Result(context.Context, string) (subagentTurnResult, error)
 	QueueWake(context.Context, store.SessionSubagentWake, []store.SessionSubagent) (string, error)
 	CancelWake(context.Context, store.SessionSubagentWake) error
@@ -110,6 +113,10 @@ type subagentService struct {
 	// awaitingFacts holds canceled isolated rows whose subagent.settled hook waits for the final Git and PR
 	// snapshot, which is observed outside the parent lock once the child stops.
 	awaitingFacts sync.Map
+	// deletingChildren holds child sessions whose deletion owns their settlement, so the
+	// OnChildSettled callback that a delete triggers never finalizes or hooks the row it removes.
+	deletingChildrenMu sync.Mutex
+	deletingChildren   map[string]int
 }
 
 var _ SubagentService = (*subagentService)(nil)

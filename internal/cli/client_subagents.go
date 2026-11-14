@@ -22,6 +22,7 @@ type sessionSubagentsClient interface {
 	ListSessionSubagents(context.Context, string, SubagentListQuery) (contract.SubagentListPayload, error)
 	GetSubagent(context.Context, string, string) (contract.SubagentPayload, error)
 	CancelSubagent(context.Context, string, string, string) (contract.SubagentCancelPayload, error)
+	DeleteSubagent(context.Context, string, string) error
 }
 
 var _ sessionSubagentsClient = (*daemonClient)(nil)
@@ -79,6 +80,17 @@ func (c *daemonClient) CancelSubagent(
 	return result, subagentClientError(err, "subagent_not_found", "subagent "+id+" not found")
 }
 
+// DeleteSubagent permanently removes a delegated subagent and its child session.
+// The daemon answers 204 with no body.
+func (c *daemonClient) DeleteSubagent(ctx context.Context, workspaceID, id string) error {
+	path, err := subagentClientPath(workspaceID, id)
+	if err != nil {
+		return err
+	}
+	err = c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+	return subagentClientError(err, "subagent_not_found", "subagent "+id+" not found")
+}
+
 func subagentClientPath(workspaceID, id string) (string, error) {
 	workspaceID, err := requirePathValue("workspace_id", workspaceID)
 	if err != nil {
@@ -100,10 +112,10 @@ func subagentClientError(err error, notFoundCode, notFoundMessage string) error 
 		return err
 	}
 	if apiError.statusCode == http.StatusNotFound {
-		return fmt.Errorf("%s: %s", notFoundCode, notFoundMessage)
+		return fmt.Errorf("%s: %s: %w", notFoundCode, notFoundMessage, err)
 	}
 	if apiError.payload.Code != "" {
-		return fmt.Errorf("%s: %s", apiError.payload.Code, apiError.payload.Error)
+		return fmt.Errorf("%s: %s: %w", apiError.payload.Code, apiError.payload.Error, err)
 	}
 	return err
 }

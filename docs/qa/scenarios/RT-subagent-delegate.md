@@ -5,7 +5,7 @@ title: Delegate to a subagent, get woken, and read the result
 persona: Ada
 journey: J-15-operate-session-via-cli-api
 expected: From an active turn, compozy__subagent_capabilities reports the caller's inherited runtime, depth, live count, and per-agent/provider can_delegate with the exact constraint strings; compozy__subagent_delegate in async mode returns status running with subagent_id and child_session_id within 3 s on a warm provider, the child's first prompt is exactly the task (role prefix when role is not general, no parent history, no attachments), the parent turn completes independently, and when the child settles the parent receives exactly one pointer wake per batch (steered into a running turn only when the agent declares steer_ext or concurrent_prompt and no user steer is queued, otherwise queued ahead of user prompts) whose text matches the fixed wake lines; compozy__subagent_status returns the result capped at [subagents].result_max_chars and moves delivery to acknowledged; wait mode returns the result or wait_timed_out without canceling the child; cancel, stop cascade, interrupt disposal, narrowing-only permissions, idempotency, and every documented error code behave as in the spec; CLI compozy session subagents list/show/cancel and the HTTP/UDS routes return the documented shapes and exit codes.
-entry_points: native tools compozy__subagent_capabilities, compozy__subagent_delegate, compozy__subagent_status, compozy__subagent_cancel (toolset sessions); compozy session subagents <session-id> [--json]; compozy session subagents show|cancel <subagent-id>; compozy session list --subagents include|exclude|only; GET /api/workspaces/{workspace_id}/sessions/{session_id}/subagents and GET|POST /api/workspaces/{workspace_id}/subagents/{subagent_id}[/cancel] over HTTP and UDS; [subagents] result_max_chars; hooks spawn.pre_create (spawn_role subagent) and subagent.settled
+entry_points: native tools compozy__subagent_capabilities, compozy__subagent_delegate, compozy__subagent_status, compozy__subagent_cancel (toolset sessions); compozy session subagents <session-id> [--json]; compozy session subagents show|cancel|delete <subagent-id>; compozy session list --subagents include|exclude|only; GET /api/workspaces/{workspace_id}/sessions/{session_id}/subagents and GET|POST|DELETE /api/workspaces/{workspace_id}/subagents/{subagent_id}[/cancel] over HTTP and UDS; [subagents] result_max_chars; hooks spawn.pre_create (spawn_role subagent) and subagent.settled
 qa_status: untested
 bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-idempotency-default; BUG-20261009-subagent-status-empty-input; BUG-20261009-subagent-show-needs-workspace; BUG-20261009-subagent-runtime-speed-empty; BUG-20261009-subagent-capabilities-oversized; BUG-20261009-subagent-settled-hook-canceled; BUG-20261009-subagent-deny-message-prefixed
 fix_status: fixed
@@ -48,10 +48,17 @@ E2E-008, which use acpmock.
 5. **Waiting child.** A child that requests approval shows `status: waiting` and does not wake the
    parent; `compozy__session_approve` on `child_session_id` (or the operator) resolves it, and the
    child continues.
-6. **Cancel, stop, interrupt.** `compozy__subagent_cancel` on a live row → `cancel_requested`, then
+6. **Cancel, stop, interrupt, delete.** `compozy__subagent_cancel` on a live row → `cancel_requested`, then
    `canceled`, delivery `disposed`, no wake. Stopping the parent session stops a child and grandchild
    in the same operation (no reaper tick), rows `canceled`, no wake. Interrupting a parent turn keeps
    that turn's children running; their results are readable but never wake the parent.
+   `compozy session subagents delete <sub-id>` (or `DELETE
+   /api/workspaces/{workspace_id}/subagents/{subagent_id}`) removes the child session's transcript and
+   history and then the roster row, prints `Deleted subagent …`, answers 204, and the parent stream
+   emits `subagent_removed` with `{session_id, subagent_id}`; the removed row no longer appears in
+   `subagents_snapshot` or the CLI list. A provider-native row → 409 `subagent_not_deletable`
+   (`Provider-native subagents cannot be deleted; stop the parent turn instead.`) with nothing removed;
+   a child session that cannot be deleted leaves the row in place and returns the failure.
 7. **Permissions and limits.** Omitted `tools`/`skills`/`mcp_servers`/`workspace_paths` inherit the
    caller's budget; `[]` gives none; a broader `permission_mode` or an atom outside the caller's budget
    → `permission_escalation_denied` with the exact message. No TTL, depth, or live-count cap: a
@@ -145,3 +152,17 @@ keep filters when advancing cursors, and use artifact continuation if the answer
 The existing manager, native real-SQLite and hosted-MCP daemon journeys pass these changed
 branches; this does not replace the broader real-provider walk. See
 [focused verification](../reports/2026-10-23-harness-dogfood.md).
+
+QA impact 2026-11-14 (web row delete): the sessions rail exposes the delegated delete this scenario's
+step 6 covers, behind a confirmation, and drops the row from its stream roster on `subagent_removed`
+(ignoring frames for another session). Web automated coverage: `SessionList subagents` in
+`session-list.test.tsx`, `SubagentDeleteDialog` in `subagent-components.test.tsx`, the `deleteSubagent`
+adapter case, and the `subagent_removed` case in `use-session-live-tail.test.tsx`. The backend walk in
+step 6 is unchanged.
+
+QA impact 2026-11-14 (delete settlement): deleting a settled row also removes it from a queued
+completion message (rewriting the batch, or canceling it when empty) and deleting the last live child
+settles the parent on the new roster under the same parent lock. A failed child delete leaves the row
+visible and retryable. Automated coverage: `TestSubagentDelete` (wake rewrite, parent settlement,
+suppression, native refusal, agent ownership, out-of-workspace refusal) and the store test that links
+a child before removing the row.

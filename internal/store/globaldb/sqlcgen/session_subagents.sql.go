@@ -122,6 +122,23 @@ func (q *Queries) DeleteReservedSubagent(ctx context.Context, id string) (int64,
 	return result.RowsAffected()
 }
 
+const deleteSubagent = `-- name: DeleteSubagent :execrows
+DELETE FROM session_subagents WHERE workspace_id = ?1 AND id = ?2
+`
+
+type DeleteSubagentParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	ID          string `json:"id"`
+}
+
+func (q *Queries) DeleteSubagent(ctx context.Context, arg DeleteSubagentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteSubagent, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const disposeSubagents = `-- name: DisposeSubagents :many
 UPDATE session_subagents SET delivery = 'disposed',wake_message_id = NULL,updated_at = ?1 WHERE origin = 'delegated' AND parent_session_id = ?2 AND (?3 = '' OR parent_turn_id = ?3) AND (?4 = '[]' OR id IN (SELECT value FROM json_each(?4))) AND delivery IN ('none','pending','claimed') RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number, child_activity, usage_total_tokens, usage_tool_uses
 `

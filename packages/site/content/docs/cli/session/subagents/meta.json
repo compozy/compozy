@@ -1,4 +1,4 @@
 {
     "title": "Subagents",
-    "pages": ["index", "cancel", "show"]
+    "pages": ["index", "cancel", "delete", "show"]
 }
