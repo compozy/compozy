@@ -470,6 +470,38 @@ describe("useSessionListView", () => {
     );
     expect(settingsWrites()).toEqual([]);
   });
+
+  // #1716: manual order serves every folder member before the root, so a folder longer than a
+  // page hid the unfoldered archived sessions. Archived and Later project lists read activity
+  // order, which lists unfoldered sessions next to folders on every page.
+  it("Should serve a stored manual sort as last activity in the Archived and Later shelves", async () => {
+    shell.sort = "manual";
+    act(() => setActiveWorkspaceId("ws-alpha"));
+    const { result } = renderHook(() => useSessionListView(), { wrapper });
+    await waitFor(() =>
+      expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace_id: "ws-alpha", sort: "manual" }),
+        expect.any(AbortSignal)
+      )
+    );
+
+    for (const shelf of ["archive", "later"] as const) {
+      act(() => result.current.setShelf(shelf));
+      await waitFor(() =>
+        expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workspace_id: "ws-alpha",
+            sort: "last_activity",
+            ...(shelf === "archive" ? { archive: "only" } : { later: "only" }),
+          }),
+          expect.any(AbortSignal)
+        )
+      );
+      expect(result.current.sort).toBe("manual");
+    }
+    act(() => result.current.setShelf("active"));
+    expect(settingsWrites()).toEqual([]);
+  });
   // #1085: with empty projects hidden, a reorder of the projects on screen writes the hidden
   // ones back into their slots instead of letting the daemon move them after the listed ones.
   it("Should keep a hidden empty project in its slot when the shown projects reorder", async () => {

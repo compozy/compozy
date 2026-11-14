@@ -185,7 +185,13 @@ export function useSessionListView(
   );
   const catalog = useSessionCatalog(
     scope,
-    { ...groupFilters, sort: sessionListSortParam(preferences.sort, pair !== null) },
+    {
+      ...groupFilters,
+      sort: sessionListSortParam(preferences.sort, {
+        singlePair: pair !== null,
+        shelved: shelf !== "active",
+      }),
+    },
     enabled && flat
   );
   const grouping = useSessionListGroups({

@@ -171,10 +171,16 @@ export function profileSessionGroups(
 
 /** A group's own page query: the list's shared filters in the order its pair allows. */
 export function sessionListGroupFilters(
-  view: { groupFilters: SessionListFilters; sort: SessionListSort },
+  view: { groupFilters: SessionListFilters; sort: SessionListSort; shelf: SessionListShelf },
   group: Pick<SessionListGroupSpec, "pair">
 ): SessionListFilters {
-  return { ...view.groupFilters, sort: sessionListSortParam(view.sort, group.pair !== null) };
+  return {
+    ...view.groupFilters,
+    sort: sessionListSortParam(view.sort, {
+      singlePair: group.pair !== null,
+      shelved: view.shelf !== "active",
+    }),
+  };
 }
 
 /**

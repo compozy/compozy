@@ -79,11 +79,17 @@ export function effectiveSessionListGroupBy(
 
 /**
  * The order a query is served: manual order lives in one (workspace, profile)
- * pair's folders, so any wider query reads `last_activity` instead. The stored
- * sort is never rewritten.
+ * pair's folders, so any wider query reads `last_activity` instead. The archive
+ * and Later read `last_activity` too: manual order serves every folder member
+ * before the root, so a folder longer than a page would hide the unfoldered
+ * sessions behind it (#1716). The stored sort is never rewritten.
  */
-export function sessionListSortParam(sort: SessionListSort, singlePair = true): SessionListSort {
-  return sort === "manual" && !singlePair ? "last_activity" : sort;
+export function sessionListSortParam(
+  sort: SessionListSort,
+  context: { singlePair?: boolean; shelved?: boolean } = {}
+): SessionListSort {
+  const manualApplies = (context.singlePair ?? true) && !context.shelved;
+  return sort === "manual" && !manualApplies ? "last_activity" : sort;
 }
 
 type SessionBoardSort = Exclude<SessionListSort, "manual">;
