@@ -44,6 +44,10 @@ import { useProjectFolderGroups, type WorkspaceLayout } from "./use-workspace-la
 export const SESSION_LIST_MANUAL_SORT_NOTE =
   "Manual order applies inside one project and profile. Group the list to use it.";
 
+/** The archive and Later list by last activity whatever the stored sort (#1716). */
+export const SESSION_LIST_SHELF_SORT_NOTE =
+  "Archived and Later sessions list by last activity. Manual order applies to the active list.";
+
 const SESSION_LIST_PAGE_SIZE = 100;
 
 export type { SessionListTotals } from "./use-session-list-groups";
@@ -264,7 +268,7 @@ export function useSessionListView(
     storedGroupBy: preferences.groupBy,
     groupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
-    sortNote: manualSortNote(preferences.sort, manualBlocked),
+    sortNote: manualSortNote(preferences.sort, manualBlocked, shelf),
     newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth, groupBy),
     shelf,
     laterCount,
@@ -365,8 +369,14 @@ function settledSearchCatalog<C extends { paging: boolean; next: boolean; previo
   };
 }
 
-function manualSortNote(sort: string, manualBlocked: boolean): string | null {
-  return sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
+function manualSortNote(
+  sort: string,
+  manualBlocked: boolean,
+  shelf: SessionListShelf
+): string | null {
+  if (sort !== "manual") return null;
+  if (shelf !== "active") return SESSION_LIST_SHELF_SORT_NOTE;
+  return manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
 }
 
 function newFolderUnavailableReason(

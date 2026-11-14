@@ -39,7 +39,11 @@ import { fetchSessions } from "../../adapters/session-api";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
 import { sessionCatalogOptions, sessionFacetsOptions } from "../../lib/session-catalog-options";
 import { useSessionListGroups, type SessionListGroupsInput } from "../use-session-list-groups";
-import { SESSION_LIST_MANUAL_SORT_NOTE, useSessionListView } from "../use-session-list-view";
+import {
+  SESSION_LIST_MANUAL_SORT_NOTE,
+  SESSION_LIST_SHELF_SORT_NOTE,
+  useSessionListView,
+} from "../use-session-list-view";
 import { useWorkspaceWorkingSessions } from "../use-workspace-working-sessions";
 
 // The instance row isn't under test here, and these suites count catalog reads.
@@ -498,8 +502,10 @@ describe("useSessionListView", () => {
         )
       );
       expect(result.current.sort).toBe("manual");
+      expect(result.current.sortNote).toBe(SESSION_LIST_SHELF_SORT_NOTE);
     }
     act(() => result.current.setShelf("active"));
+    expect(result.current.sortNote).toBeNull();
     expect(settingsWrites()).toEqual([]);
   });
   // #1085: with empty projects hidden, a reorder of the projects on screen writes the hidden
