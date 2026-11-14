@@ -118,6 +118,27 @@ func TestRecoverSettlesOrphanedIsolationWhenCompensationFails(t *testing.T) {
 	}
 }
 
+// A checkout is only collectable when the row is marked pending, so a fallback
+// that cannot write the marker must not finalize the delegation.
+func TestRecoverKeepsOrphanRunningWhenCleanupMarkerFails(t *testing.T) {
+	t.Parallel()
+
+	s, db, _ := newSubagentTestService(t)
+	row := orphanedDelegationRow()
+	row.Isolation = SubagentIsolationWorktree
+	db.rows["orphan"] = row
+	markerErr := errors.New("cleanup marker unavailable")
+	db.worktreeCleanupErr = markerErr
+
+	if err := s.Recover(t.Context()); err != nil {
+		t.Fatalf("Recover() error = %v", err)
+	}
+
+	if got := db.rows["orphan"].Status; got != store.SubagentStatusRunning {
+		t.Fatalf("status = %q, want the row left for the next boot", got)
+	}
+}
+
 func TestRecoverSkipsInFlightOrphan(t *testing.T) {
 	t.Parallel()
 

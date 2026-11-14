@@ -18,15 +18,17 @@ import (
 )
 
 type memorySubagents struct {
-	mu                 sync.Mutex
-	rows               map[string]store.SessionSubagent
-	wakes              map[string]store.SessionSubagentWake
-	writes             int
-	rewrites           map[string]string
-	orphans            []string
-	committedAdmission bool
-	finalizeFailures   int
-	finalizeCalls      int
+	mu                   sync.Mutex
+	rows                 map[string]store.SessionSubagent
+	wakes                map[string]store.SessionSubagentWake
+	writes               int
+	worktreeCleanupErr   error
+	worktreeCleanupCalls int
+	rewrites             map[string]string
+	orphans              []string
+	committedAdmission   bool
+	finalizeFailures     int
+	finalizeCalls        int
 }
 
 var _ store.SubagentStore = (*memorySubagents)(nil)
@@ -906,6 +908,10 @@ func (d *memorySubagents) AssociateSubagentWorktree(_ context.Context, row store
 func (d *memorySubagents) SetSubagentWorktreeCleanup(_ context.Context, id, state string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.worktreeCleanupCalls++
+	if d.worktreeCleanupErr != nil {
+		return d.worktreeCleanupErr
+	}
 	row := d.rows[id]
 	wt := row.WorktreeState()
 	wt.Cleanup = state

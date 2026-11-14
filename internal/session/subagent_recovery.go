@@ -84,6 +84,14 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 				// recoverIsolationCleanup, which retries the rollback from disk.
 				if err := s.recoverIsolation(ctx, row); err != nil {
 					s.recoveryResult(ctx, row.ID, "orphaned_isolation_compensation", err)
+					// The cleanup recovery only selects rows marked pending, so the
+					// marker has to be durable before the row becomes terminal.
+					// When it cannot be written, keep the row running for the next
+					// boot instead of finalizing a checkout nobody will collect.
+					if markErr := s.markWorktreeCleanupPending(ctx, row.ID); markErr != nil {
+						s.recoveryResult(ctx, row.ID, "orphaned_isolation_cleanup_marker", markErr)
+						continue
+					}
 					s.recoveryResult(
 						ctx,
 						row.ID,
