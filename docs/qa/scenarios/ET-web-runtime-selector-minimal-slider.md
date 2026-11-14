@@ -66,8 +66,10 @@ matrix with no effort coordinate stays Fast-only. Automated coverage: `to-runtim
 (intersection, advertised order, dedupe), `use-session-prompt-runtime` (catalog `low/high/max` vs
 ACP `default/low/medium/high/max/future-effort` → exactly `low/high/max`, default collapsed),
 `derive-active-session-options` and the `runtime-selector` renderer (`aria-valuemax=2`, Home/End).
-Reset for a live composer walk with a provider that publishes a wider ACP option than its model
-profile, including switching models while an effort is selected.
+The same ceiling now governs commits and defaults: a saved effort the intersection removed normalizes
+to no effort even when a configuration matrix still lists it, and a default outside the final options
+reads as absent. Reset for a live composer walk with a provider that publishes a wider ACP option than
+its model profile, including switching models while an effort is selected.
 
 
 QA impact 2026-11-11 (runtime selector polish): hovering a truncated model name or an OpenCode

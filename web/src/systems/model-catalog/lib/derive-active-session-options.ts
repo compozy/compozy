@@ -1,5 +1,7 @@
 import { isReasoningEffort, type OperationResponse } from "@/lib/api-contract";
 
+import { restrictReasoningEfforts } from "./to-runtime-selector-options";
+
 import { isKnownAvailabilityState, type ProviderModelPayload } from "../types";
 
 type ACPCaps = NonNullable<
@@ -56,7 +58,8 @@ export function deriveActiveSessionOptions(input: DeriveOptionsInput): ActiveSes
   const defaultReasoning = pickDefaultReasoning(
     input.catalog,
     acpReasoningOption,
-    input.selectedModel ?? null
+    input.selectedModel ?? null,
+    reasoningOptions
   );
   const reasoningSource = resolveReasoningSource(
     input.catalog,
@@ -146,20 +149,23 @@ function buildReasoningOptions(
       return [];
     }
     // The selected model still caps live values: ACP presence never widens the
-    // model's advertised levels. A silent catalog leaves the ACP list alone.
+    // model's advertised levels. A silent catalog leaves the ACP list alone. The
+    // shared rule keeps the advertised order and dedupes, so the same ceiling
+    // governs this list and the composer slider.
     const matched = findSelectedModel(catalog, selectedModel);
     const advertised = matched ? advertisedEfforts(matched) : [];
-    const allowed = new Set<string>(advertised);
-    const options: ReasoningOption[] = [];
+    const labels = new Map<string, string>();
     for (const value of values) {
-      if (allowed.size > 0 && !allowed.has(value.value)) continue;
-      options.push({
-        value: value.value,
-        label: value.label?.trim() || value.value,
-        source: "acp",
-      });
+      if (!labels.has(value.value)) labels.set(value.value, value.label?.trim() || value.value);
     }
-    return options;
+    return restrictReasoningEfforts(
+      advertised as ReasoningOption["value"][],
+      values.map(value => value.value)
+    ).map<ReasoningOption>(value => ({
+      value,
+      label: labels.get(value) ?? value,
+      source: "acp",
+    }));
   }
   const matched = findSelectedModel(catalog, selectedModel);
   if (!matched) {
@@ -194,6 +200,19 @@ function advertisedEfforts(model: ProviderModelPayload): string[] {
 }
 
 function pickDefaultReasoning(
+  catalog: ProviderModelPayload[],
+  acpOption: ACPConfigOption | undefined,
+  selectedModel: string | null,
+  options: readonly ReasoningOption[]
+): string | null {
+  const candidate = defaultReasoningCandidate(catalog, acpOption, selectedModel);
+  // A default the final ceiling removed is not selectable: read as no default.
+  return candidate !== null && options.some(option => option.value === candidate)
+    ? candidate
+    : null;
+}
+
+function defaultReasoningCandidate(
   catalog: ProviderModelPayload[],
   acpOption: ACPConfigOption | undefined,
   selectedModel: string | null

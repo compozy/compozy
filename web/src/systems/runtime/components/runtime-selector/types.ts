@@ -99,15 +99,15 @@ export interface RuntimeModelConfiguration {
   thinking?: boolean | null;
 }
 
-/** Whether the public model matrix contains a configuration for this effort. */
+/** Whether the model can honor this effort under its advertised ceiling. */
 export function modelSupportsReasoningEffort(
   model: RuntimeModelOption | undefined,
   effort: ReasoningEffort
 ): boolean {
   if (!model) return false;
-  if (!model.configurations || model.configurations.length === 0) {
-    return model.efforts.includes(effort);
-  }
+  // `efforts` is the selectable set after the catalog/config intersection; it is the ceiling.
+  if (model.efforts.length > 0) return model.efforts.includes(effort);
+  if (!model.configurations || model.configurations.length === 0) return false;
   return model.configurations.some(configuration => configuration.reasoning_effort === effort);
 }
 

@@ -390,6 +390,34 @@ describe("RuntimeSelector reasoning reset-on-switch", () => {
     });
   });
 
+  it("Should reset a saved effort the advertised ceiling removed even when a matrix lists it", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "with-medium", reasoning_effort: "medium" },
+      models: [
+        model("with-medium", { name: "With Medium", efforts: ["low", "medium", "high"] }),
+        model("narrowed", {
+          name: "Narrowed",
+          efforts: ["low", "high", "max"],
+          configurations: [
+            { reasoning_effort: "low" },
+            { reasoning_effort: "medium" },
+            { reasoning_effort: "high" },
+          ],
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.click(row("narrowed"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "narrowed",
+      reasoning_effort: "",
+    });
+  });
+
   it("Should keep the current reasoning_effort when the picked model still supports it", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
