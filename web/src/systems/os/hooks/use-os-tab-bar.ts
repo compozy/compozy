@@ -1,8 +1,10 @@
+import { useQueries } from "@tanstack/react-query";
 import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 import { useEffect, useState } from "react";
 
-import { type SessionPayload, useSessions } from "@/systems/session";
+import { useProfileReadScopeParams } from "@/systems/profiles";
+import { sessionScopedDetailOptions, type SessionPayload, useSessions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import type {
@@ -99,14 +101,34 @@ export function useOsTabModels(): readonly OsTabModel[] {
   return withSettlingOrder(models, settlingOrder);
 }
 
-/** Live sessions by id, read only while some tab holds a session window. */
-export function useTabSessions(hasSession: boolean): ReadonlyMap<string, SessionPayload> {
+/** The session IDs a set of windows holds, once each, for `useTabSessions`. */
+export function tabSessionIds(windows: Iterable<Pick<OsWindow, "app" | "instanceKey">>): string[] {
+  const ids = new Set<string>();
+  for (const win of windows) if (win.app === "session" && win.instanceKey) ids.add(win.instanceKey);
+  return [...ids];
+}
+
+/**
+ * Live sessions by id, read only while some tab holds a session window. The list is its first
+ * page, so an open session older than it reads its own detail (the read its window shares) once
+ * the list has answered or cannot, never while the list is still loading (#1709).
+ */
+export function useTabSessions(sessionIds: readonly string[]): ReadonlyMap<string, SessionPayload> {
   const { runtimeWorkspaceId } = useActiveWorkspace();
-  const sessions = useSessions(runtimeWorkspaceId, {
-    enabled: hasSession && runtimeWorkspaceId !== null,
-  });
+  const listEnabled = sessionIds.length > 0 && runtimeWorkspaceId !== null;
+  const sessions = useSessions(runtimeWorkspaceId, { enabled: listEnabled });
   const byId = new Map<string, SessionPayload>();
   for (const session of sessions.data ?? []) byId.set(session.id, session);
+  const listSettled = !listEnabled || sessions.data !== undefined || sessions.isError === true;
+  const missing = listSettled ? sessionIds.filter(id => !byId.has(id)) : [];
+  const params = useProfileReadScopeParams();
+  const details = useQueries({
+    queries: missing.map(id => sessionScopedDetailOptions(id, params, { liveTail: false })),
+  });
+  details.forEach((detail, index) => {
+    const id = missing[index];
+    if (id !== undefined && detail.data) byId.set(id, detail.data);
+  });
   return byId;
 }
 
@@ -151,8 +173,7 @@ function useTabWidths(tabs: readonly OsTabModel[]) {
  */
 export function useOsTabBar() {
   const tabs = useOsTabModels();
-  const hasSession = tabs.some(model => model.members.some(member => member.app === "session"));
-  const sessionById = useTabSessions(hasSession);
+  const sessionById = useTabSessions(tabSessionIds(tabs.flatMap(model => model.members)));
   const widths = useTabWidths(tabs);
   const shortcutLabels = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;

@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
 import { useDesktopOverviewDrag } from "../hooks/use-desktop-overview-drag";
 import { useOsShell } from "../hooks/use-os-shell";
-import { useTabSessions } from "../hooks/use-os-tab-bar";
+import { tabSessionIds, useTabSessions } from "../hooks/use-os-tab-bar";
 import type { OsWindow } from "../lib/os-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { DesktopOverviewItem, DesktopsOverviewState } from "../lib/desktops-overview-model";
@@ -82,10 +82,9 @@ export function DesktopManagerSurfaces({
     needsYou: needsYouDesktopIds.has(desktop.id),
     switchShortcut: switchShortcuts[index] ?? null,
   }));
-  const hasSession = desktops.some(desktop =>
-    desktop.tabs.some(tab => tab.members.some(member => member.app === "session"))
+  const sessionById = useTabSessions(
+    tabSessionIds(desktops.flatMap(desktop => desktop.tabs.flatMap(tab => tab.members)))
   );
-  const sessionById = useTabSessions(hasSession);
   const sessionOf = (win: OsWindow) =>
     win.app === "session" && win.instanceKey ? sessionById.get(win.instanceKey) : undefined;
   const overview = overviewState({
