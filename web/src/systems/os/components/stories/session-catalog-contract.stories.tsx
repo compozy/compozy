@@ -133,6 +133,7 @@ function archivedSession(id: string, title: string, parentId?: string): SessionP
       spawn_role: "worker",
       auto_stop_on_parent: false,
       notify_creator: false,
+      spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
       permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
     },
   };
