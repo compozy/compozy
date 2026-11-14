@@ -12,7 +12,7 @@ type GroupCatalog = ReturnType<typeof useSessionCatalog>;
  */
 export function useSessionListGroupCatalog(
   group: Pick<SessionListGroupSpec, "scope" | "lens" | "pair" | "total">,
-  view: Pick<SessionListViewModel, "groupFilters" | "sort">
+  view: Pick<SessionListViewModel, "groupFilters" | "sort" | "shelf">
 ): GroupCatalog {
   const listed = group.total > 0;
   const read = useSessionCatalog(group.scope, sessionListGroupFilters(view, group), listed, {

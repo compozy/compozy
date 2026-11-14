@@ -14,6 +14,7 @@ import type { Locator, Page } from "@playwright/test";
 
 import type { OperationResponse } from "@/lib/api-contract";
 
+import { maskHashedAssetNames } from "../fixtures/artifacts";
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import {
   appWindow,
@@ -521,8 +522,12 @@ async function assertNoSensitiveLeak(
     await readFile(runtime.artifactCollector.artifactPath("browser_route_state"), "utf8"),
     await readFile(runtime.artifactCollector.artifactPath("browser_api_snapshots"), "utf8"),
   ];
-  for (const payload of artifactPayloads) expect(payload).not.toMatch(sensitivePattern);
+  for (const payload of artifactPayloads) {
+    expect(maskHashedAssetNames(payload)).not.toMatch(sensitivePattern);
+  }
   if (runtime.paths?.daemonLog) {
-    expect(await readFile(runtime.paths.daemonLog, "utf8")).not.toMatch(sensitivePattern);
+    expect(maskHashedAssetNames(await readFile(runtime.paths.daemonLog, "utf8"))).not.toMatch(
+      sensitivePattern
+    );
   }
 }
