@@ -340,7 +340,7 @@ func sessionCleanupFailureTable(failures []contract.SessionHistoryCleanupFailure
 	}
 	return renderHumanTable(
 		"Failed threads (retry with --session <id>)",
-		[]string{"Session", "Title", authoredContextReasonValue},
+		[]string{"Session", taskTitleValue, authoredContextReasonValue},
 		rows,
 	)
 }

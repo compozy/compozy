@@ -55,8 +55,8 @@ export interface ArchivedCleanupDialogProps {
   onOptionsChange: (options: CleanupOptions) => void;
   /** The daemon's dry run for `options`; `undefined` while the first one loads. */
   impact?: CleanupImpact;
-  /** Each check's own count in the chosen range. */
-  counts: CleanupChoiceCounts;
+  /** Each check's own count in the chosen range; absent until a dry run has counted it. */
+  counts?: CleanupChoiceCounts;
   /**
    * A dry run for the current choices is in flight: the count on screen may be the previous
    * choice's, so the action waits for the new one.
@@ -381,7 +381,7 @@ function PartialOutcome({
           </Button>
         </>
       }
-      description={`Deleted ${phase.deleted.toLocaleString()} of ${plural(phase.total, "session", "sessions")}. ${plural(failed, "archived session stays", "archived sessions stay")} in Archived with everything under ${failed === 1 ? "it" : "them"}.`}
+      description={`Deleted ${phase.deleted.toLocaleString()} of ${plural(phase.total, "session", "sessions")}. The rest of ${failed === 1 ? "this thread stays" : `these ${failed.toLocaleString()} threads stay`} in Archived.`}
       title="Some sessions weren’t deleted"
     >
       <ul
@@ -391,7 +391,7 @@ function PartialOutcome({
         {phase.failed.map(item => (
           <li className="flex min-w-0 flex-col gap-0.5" key={item.sessionId}>
             <span className="truncate text-small-body text-fg">{item.title}</span>
-            <span className="text-meta text-destructive">{item.reason}</span>
+            <span className="text-meta break-words text-destructive">{item.reason}</span>
           </li>
         ))}
       </ul>

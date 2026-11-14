@@ -30,7 +30,8 @@ function CheckRow({
   id: string;
   label: string;
   description: string;
-  count: number;
+  /** Absent until a dry run has counted the range. */
+  count?: number;
   checked: boolean;
   disabled: boolean;
   onCheckedChange: (checked: boolean) => void;
@@ -49,7 +50,7 @@ function CheckRow({
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         <FieldDescription id={`${id}-hint`}>{description}</FieldDescription>
       </FieldContent>
-      <CountBadge count={count} />
+      {count === undefined ? null : <CountBadge count={count} />}
     </Field>
   );
 }
@@ -66,7 +67,7 @@ export function WhatChecks({
   onChange,
 }: {
   what: CleanupWhat;
-  counts: CleanupChoiceCounts;
+  counts?: CleanupChoiceCounts;
   disabled: boolean;
   onChange: (next: Partial<CleanupWhat>) => void;
 }) {
@@ -80,7 +81,7 @@ export function WhatChecks({
     >
       <CheckRow
         checked={what.everything}
-        count={counts.everything}
+        count={counts?.everything}
         description="Archived sessions, with their child sessions and subagents."
         disabled={disabled}
         id="archived-cleanup-what-everything"
@@ -92,7 +93,7 @@ export function WhatChecks({
         <TreeBranchNode className="pl-1.5 [--branch-arm:0.8125rem]">
           <CheckRow
             checked={what.everything || what.children}
-            count={counts.children}
+            count={counts?.children}
             description={what.everything ? included : "The main sessions stay."}
             disabled={disabled || what.everything}
             id="archived-cleanup-what-children"
@@ -103,7 +104,7 @@ export function WhatChecks({
         <TreeBranchNode className="pl-1.5 [--branch-arm:0.8125rem]">
           <CheckRow
             checked={what.everything || what.subagents}
-            count={counts.subagents}
+            count={counts?.subagents}
             description={what.everything ? included : "Main and child sessions stay."}
             disabled={disabled || what.everything}
             id="archived-cleanup-what-subagents"

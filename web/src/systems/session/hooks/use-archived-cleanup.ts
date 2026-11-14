@@ -49,7 +49,8 @@ export interface ArchivedCleanupModel {
   options: CleanupOptions;
   setOptions: (options: CleanupOptions) => void;
   impact?: CleanupImpact;
-  counts: CleanupChoiceCounts;
+  /** Absent until a dry run has counted the range. */
+  counts?: CleanupChoiceCounts;
   /** A dry run for the current choices is in flight; the count shown may be the previous one. */
   counting: boolean;
   previewError: string | null;
@@ -63,8 +64,6 @@ export interface ArchivedCleanupModel {
 }
 
 export const ALL_PROJECTS = "All projects";
-
-const NO_COUNTS: CleanupChoiceCounts = { everything: 0, children: 0, subagents: 0 };
 
 function errorText(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -197,7 +196,7 @@ function useCleanupPreview({
   const shown = !unchecked && cleanupPreviewable(options);
   return {
     impact: shown ? plan && cleanupImpactFromPlan(plan, projectName) : EMPTY_CLEANUP_IMPACT,
-    counts: plan?.choices ?? NO_COUNTS,
+    counts: plan?.choices,
     counting: previewable && (preview.isFetching || preview.isPlaceholderData),
     previewError: preview.error ? errorText(preview.error, "The count failed.") : null,
     cutoff: plan?.archived_before ?? undefined,
@@ -236,8 +235,12 @@ function useRunEndAnnouncement(
   projectName: (workspaceId: string) => string,
   onSettled: (runId: string) => void
 ) {
+  const queryClient = useQueryClient();
   const watched = useRef<string | null>(null);
   const announce = useEffectEvent((ended: SessionHistoryCleanupRun) => {
+    // Each deleted session also arrives on the catalog stream, but those reads are paced; the
+    // lists catch up with the toast at once.
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }, { cancelRefetch: false });
     // Every list watches the profile's run; one id makes their toasts one toast.
     const id = `history-cleanup-${ended.id}`;
     if (ended.state === "completed") {
