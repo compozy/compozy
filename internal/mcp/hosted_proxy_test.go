@@ -1732,8 +1732,11 @@ func TestHostedResultViewCatalogSize(t *testing.T) {
 				},
 			})
 		}
+		// A general session has an operator approval channel; compozy__mcp_allow always asks
+		// the operator, so without one it is withheld from the projection.
 		registry := hostedRuntimeRegistry(t, tools.PolicyInputs{
 			SystemPermissionMode: tools.PermissionModeApproveAll,
+			ApprovalAvailable:    true,
 		}, nil, nativeTools...)
 		views, err := registry.SessionProjection(t.Context(), tools.Scope{
 			SessionID: "sess-full-policy", WorkspaceID: "ws-full-policy", AgentName: "general",
