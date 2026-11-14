@@ -50,6 +50,7 @@ func (s *subagentService) Delete(
 	// The parent lock serializes the removal with delegation links and settlement.
 	// The pre-lock read can be stale, so the current row decides: a delegation that
 	// linked its child meanwhile must lose that session too, never outlive its row.
+	var wakeErr error
 	for {
 		unlock := s.lock(row.ParentSessionID)
 		current, readErr := s.store.GetSubagent(ctx, workspace, id)
@@ -66,6 +67,11 @@ func (s *subagentService) Delete(
 		}
 		if child == "" || child == deletedChild {
 			err = s.store.DeleteSubagent(ctx, workspace, id)
+			if err == nil {
+				// Other completion writers claim and rewrite wakes under this same lock; the
+				// rewrite must not overwrite a member another child added after our read.
+				wakeErr = s.rewriteDeletedWake(ctx, row.ParentSessionID)
+			}
 			unlock()
 			break
 		}
@@ -82,7 +88,7 @@ func (s *subagentService) Delete(
 	s.runtime.PublishParent(ctx, row.ParentSessionID)
 	// A completion message already composed for this row must not announce a result
 	// that can no longer be read; the parent's own settlement runs on the new roster.
-	s.logError(ctx, "delete_wake_rewrite", s.rewriteDeletedWake(ctx, row.ParentSessionID))
+	s.logError(ctx, "delete_wake_rewrite", wakeErr)
 	s.logError(ctx, "delete_parent_settle", s.settleParent(ctx, row.ParentSessionID))
 	s.logError(ctx, "delete_parent_propagate", s.OnChildSettled(ctx, row.ParentSessionID))
 	return nil
