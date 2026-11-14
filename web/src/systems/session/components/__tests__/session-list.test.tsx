@@ -2573,6 +2573,29 @@ describe("SessionList folders and manual order", () => {
     expect(layout.reorderSessions).not.toHaveBeenCalled();
   });
 
+  // Invariant (#1724): the root zone holding a folder list's rows never shrinks in its scroll
+  // column. Its `min-h-6` (an empty root stays droppable) replaces the flex item's content
+  // minimum, so without `shrink-0` a long page squeezed the zone and its rows spilled under the
+  // paging row that follows it. jsdom has no layout, so the class is the guard; the
+  // ArchivedPaged contract story shows the rendered geometry.
+  it("Should keep the folder list's root zone from shrinking above the paging row", () => {
+    renderList({
+      sessions: layoutRows,
+      view: {
+        ...view,
+        shelf: "archive",
+        layout: fakeLayout(),
+        catalog: sessionListCatalogFixture({ sessions: layoutRows, next: true }),
+      },
+    });
+    const root = screen.getByTestId("session-sidebar-root");
+    // Structure only: the pager is the root zone's next sibling in the scroll column.
+    expect(root.nextElementSibling).toContainElement(
+      screen.getByRole("button", { name: "Next sessions" })
+    );
+    expect(root).toHaveClass("shrink-0");
+  });
+
   it("Should open the row menu from the keyboard and move a session into a folder", async () => {
     // A keyboard-opened menu is driven by keys; the pointer check would only see its guard layer.
     const user = userEvent.setup({ pointerEventsCheck: 0 });
