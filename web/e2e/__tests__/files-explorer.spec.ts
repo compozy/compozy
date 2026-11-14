@@ -202,8 +202,9 @@ async function seedReadyWorktree(runtime: BrowserRuntime, workspaceId: string, n
 }
 
 // Invariant: the dock's Files icon (right after Agents) opens one Files window per project on
-// the active project; its root picker re-roots the tree on a worktree, and a second dock click
-// focuses that same window. Owner: Files OS app + dock; canonical suite: this file.
+// the active project; a Markdown file opens rendered in Preview with Source one click away; its root
+// picker re-roots the tree on a worktree, and a second dock click focuses that same window.
+// Owner: Files OS app + dock; canonical suite: this file.
 test("E2E-002: the Files dock app browses the active project and switches to a worktree root", async ({
   appPage,
   runtime,
@@ -250,6 +251,11 @@ test("E2E-002: the Files dock app browses the active project and switches to a w
     await files.locator('[data-type="item"][data-item-path="web/"]').click();
     await files.locator('[data-type="item"][data-item-path="web/README.md"]').click();
     await expect(files.getByTestId("file-viewer-header")).toContainText("web/README.md");
+    // Markdown opens rendered in Preview (#1605); Source shows the raw text in the code viewer.
+    await expect(files.getByTestId("file-viewer-markdown-preview")).toContainText(
+      "Files app fixture."
+    );
+    await files.getByTestId("file-viewer-mode-source").click();
     await expect(files.locator("[data-slot='code-viewer']")).toContainText("Files app fixture.");
     await expectTabLabel("README.md");
     await expect(windowTitle).toHaveText("Files");
