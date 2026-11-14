@@ -478,11 +478,18 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		if queries := recorder.queries.Load() - setupQueries; queries != 0 {
 			t.Fatalf("contiguous live delivery made %d catch-up queries", queries)
 		}
-		if _, err := recordPersistedSessionEvent(ctx, recorder.EventRecorder, store.SessionEvent{
-			TurnID: "later-turn", Type: "hook.dispatch.started", Content: "{}",
-			AgentName: session.Info().AgentName, Timestamp: time.Now().UTC(),
-		}); err != nil {
-			t.Fatal(err)
+		// Invariant: non-ACP lifecycle payloads cannot interrupt a turn's output delivery.
+		// Owner: session prompt delivery; canonical suite: TestPromptStreamsToRecorderAndNotifier.
+		for _, lifecycle := range []struct{ eventType, content string }{
+			{"hook.dispatch.started", "{}"},
+			{EventTypeMCPReloaded, `{"outcome":"applied","runtime":"Claude Code"}`},
+		} {
+			if _, err := recordPersistedSessionEvent(ctx, recorder.EventRecorder, store.SessionEvent{
+				TurnID: "later-turn", Type: lifecycle.eventType, Content: lifecycle.content,
+				AgentName: session.Info().AgentName, Timestamp: time.Now().UTC(),
+			}); err != nil {
+				t.Fatal(err)
+			}
 		}
 		for index, text := range []string{"after unpublished row", "live again"} {
 			if err := h.manager.recordEvent(ctx, session, acp.AgentEvent{

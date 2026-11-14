@@ -53,13 +53,19 @@ func (m *Manager) applyInstanceCeiling(
 	}
 	policy := ceiling.Policy
 	if spec.lineage != nil && (spec.sessionType == SessionTypeSpawned || spec.startAction == sessionStartActionResume) {
-		policy = agentinstance.IntersectPermissions(policy, spec.lineage.PermissionPolicy)
+		stored := spec.lineage.PermissionPolicy
+		policy = agentinstance.IntersectPermissions(policy, stored)
+		policy.MaterializedTools = stored.MaterializedTools && slices.Equal(policy.Tools, stored.Tools)
+		policy.MaterializedMCPServers = stored.MaterializedMCPServers &&
+			slices.Equal(policy.MCPServers, stored.MCPServers)
 	}
 	definitionPolicy := store.SessionPermissionPolicy{Tools: tools, ToolsMode: store.PermissionInherit}
 	if resolved.ToolPolicyEnforced || len(resolved.Tools) > 0 || len(resolved.Toolsets) > 0 {
 		definitionPolicy.ToolsMode = store.PermissionList
 	}
-	policy.Tools = agentinstance.IntersectPermissions(policy, definitionPolicy).Tools
+	boundedTools := agentinstance.IntersectPermissions(policy, definitionPolicy).Tools
+	policy.MaterializedTools = policy.MaterializedTools && slices.Equal(policy.Tools, boundedTools)
+	policy.Tools = boundedTools
 	effective, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, &Info{
 		ID: spec.sessionID, ProfileID: spec.profileID, WorkspaceID: spec.workspace.ID,
 		AgentName: spec.agentName, Type: spec.sessionType,

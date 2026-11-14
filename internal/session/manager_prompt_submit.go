@@ -130,17 +130,38 @@ func (m *Manager) submitProfiledPromptRequest(
 	} else {
 		session.setCurrentSkillInvocations(req.skillInvocations)
 	}
-	dispatchMessage, err := m.requestDispatchMessage(promptExecutionCtx, session, &req, message)
+	events, err := m.dispatchReservedPromptRequest(
+		promptExecutionCtx, session, proc, req, message, resolvedAttachments, turnTrace, cancelPromptExecution,
+	)
+	if err != nil {
+		return nil, err
+	}
+	stateOwned = false
+	return events, nil
+}
+
+// dispatchReservedPromptRequest records turn admission before handing execution to the prompt pump.
+func (m *Manager) dispatchReservedPromptRequest(
+	ctx context.Context,
+	session *Session,
+	proc *AgentProcess,
+	req promptRequest,
+	message string,
+	resolvedAttachments []acp.PromptAttachment,
+	turnTrace *promptTurnTrace,
+	cancelPromptExecution context.CancelFunc,
+) (<-chan acp.AgentEvent, error) {
+	dispatchMessage, err := m.requestDispatchMessage(ctx, session, &req, message)
 	if err != nil {
 		return nil, err
 	}
 	turnState := newPromptRequestDispatchState(session, req, message)
 	turnState.turnTrace = turnTrace
-	if err := m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
+	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
 		return nil, err
 	}
-	events, err := m.submitPromptInReservedSlot(
-		promptExecutionCtx,
+	return m.submitPromptInReservedSlot(
+		ctx,
 		session,
 		proc,
 		req,
@@ -150,11 +171,6 @@ func (m *Manager) submitProfiledPromptRequest(
 		turnState,
 		cancelPromptExecution,
 	)
-	if err != nil {
-		return nil, err
-	}
-	stateOwned = false
-	return events, nil
 }
 
 func (m *Manager) preparePromptRequestAttachments(
@@ -440,24 +456,6 @@ func (m *Manager) promptDispatchMessage(
 		message:  promptOriginMessageAfter(session.CurrentPromptMeta().Origin, augmented, collected),
 		sections: collected,
 	}, err
-}
-
-func (m *Manager) augmentPromptMessage(ctx context.Context, session *Session, message string) (string, error) {
-	expanded, err := m.expandPromptSkillInvocations(ctx, session, message)
-	if err != nil {
-		return "", err
-	}
-	if m.inputAugmenter == nil {
-		return expanded, nil
-	}
-	augmented, err := m.inputAugmenter(ctx, session, expanded)
-	if err != nil {
-		return "", fmt.Errorf("session: augment prompt input: %w", err)
-	}
-	if strings.TrimSpace(augmented) == "" {
-		return expanded, nil
-	}
-	return augmented, nil
 }
 
 func drainPromptSource(source <-chan acp.AgentEvent) {

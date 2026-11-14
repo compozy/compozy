@@ -135,7 +135,7 @@ func TestResumeRejectsPatchedSessionTypeForExistingSession(t *testing.T) {
 
 		h := newHarness(t)
 		parent := createSession(t, h)
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,

@@ -83,7 +83,7 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 	catalog toolspkg.ToolsetCatalog,
 	universe []toolspkg.ToolID,
 ) error {
-	if s == nil || s.startAction == sessionStartActionResume || s.instancePermissionCeiling != nil ||
+	if s == nil || s.instancePermissionCeiling != nil ||
 		strings.EqualFold(s.runtimeMode, RuntimeModeVerdictOnly) {
 		return nil
 	}
@@ -93,6 +93,15 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 		return nil
 	}
 	lineage := store.NormalizeSessionLineage(s.sessionID, s.lineage)
+	// Provenance links record origin without granting spawn authority.
+	if lineage.Kind == store.LineageKindProvenance {
+		return nil
+	}
+	// Only a missing generated budget is repaired on resume; authored empty lists stay closed.
+	if s.startAction == sessionStartActionResume &&
+		(!lineage.PermissionPolicy.MaterializedTools || len(lineage.PermissionPolicy.Tools) > 0) {
+		return nil
+	}
 	if len(lineage.PermissionPolicy.Tools) == 0 && resolved.SessionMCP {
 		tools, err := concreteDelegationTools(resolved, catalog, universe)
 		if err != nil {

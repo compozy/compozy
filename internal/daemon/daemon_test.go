@@ -7634,7 +7634,7 @@ func (f *fakeSessionManager) Create(_ context.Context, optsInput *session.Create
 	}, nil
 }
 
-func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error) {
+func (f *fakeSessionManager) Spawn(ctx context.Context, opts *session.SpawnOpts) (*session.Session, error) {
 	child, err := f.Create(ctx, new(session.CreateOpts{
 		AgentName:     opts.AgentName,
 		Provider:      opts.Provider,
@@ -9008,7 +9008,7 @@ type syntheticPrompter interface {
 }
 
 type spawnSurface interface {
-	Spawn(context.Context, session.SpawnOpts) (*session.Session, error)
+	Spawn(context.Context, *session.SpawnOpts) (*session.Session, error)
 }
 
 type autoTitleApplySurface interface {
@@ -9079,7 +9079,7 @@ var (
 
 func (m nonBindableHarnessSessionManager) Spawn(
 	ctx context.Context,
-	opts session.SpawnOpts,
+	opts *session.SpawnOpts,
 ) (*session.Session, error) {
 	spawner, ok := m.SessionManager.(spawnSurface)
 	if !ok {

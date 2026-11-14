@@ -1447,7 +1447,7 @@ func TestManagerIntegrationSpawnProviderCommandRouting(t *testing.T) {
 		h.resolver.upsert(&workspace)
 		child, err := h.manager.Spawn(
 			t.Context(),
-			SpawnOpts{ParentSessionID: parent.ID, AgentName: "child", TTL: time.Minute},
+			&SpawnOpts{ParentSessionID: parent.ID, AgentName: "child", TTL: time.Minute},
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -1455,7 +1455,7 @@ func TestManagerIntegrationSpawnProviderCommandRouting(t *testing.T) {
 		t.Cleanup(func() { stopActiveIntegrationSession(t, h, child.ID) })
 		explicit, err := h.manager.Spawn(
 			t.Context(),
-			SpawnOpts{ParentSessionID: parent.ID, AgentName: "explicit", TTL: time.Minute},
+			&SpawnOpts{ParentSessionID: parent.ID, AgentName: "explicit", TTL: time.Minute},
 		)
 		if err != nil {
 			t.Fatal(err)

@@ -418,14 +418,14 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				}
 				worker, err := manager.Spawn(
 					t.Context(),
-					session.SpawnOpts{ParentSessionID: parent.ID, AgentName: agentName, TTL: time.Minute},
+					&session.SpawnOpts{ParentSessionID: parent.ID, AgentName: agentName, TTL: time.Minute},
 				)
 				if err != nil {
 					t.Fatal(err)
 				}
 				stop(worker)
 				assertLatestPrompt("spawned worker", true)
-				child, err := manager.Spawn(t.Context(), session.SpawnOpts{
+				child, err := manager.Spawn(t.Context(), &session.SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       agentName,
 					SpawnRole:       session.SpawnRoleAutoTitle,
@@ -746,7 +746,7 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			var created *session.Session
 			var err error
 			if role == session.SpawnRoleAutoTitle {
-				created, err = manager.Spawn(t.Context(), session.SpawnOpts{
+				created, err = manager.Spawn(t.Context(), &session.SpawnOpts{
 					ParentSessionID: parent.ID, AgentName: workspace.Agents[0].Name, SpawnRole: role, TTL: time.Minute,
 				})
 			} else {

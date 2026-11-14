@@ -53,7 +53,7 @@ func (r managerSubagentRuntime) Snapshot(ctx context.Context, id string) (subage
 	}
 	return snap, nil
 }
-func (r managerSubagentRuntime) Spawn(ctx context.Context, opts SpawnOpts) (string, error) {
+func (r managerSubagentRuntime) Spawn(ctx context.Context, opts *SpawnOpts) (string, error) {
 	child, err := r.m.Spawn(ctx, opts)
 	if child == nil {
 		return "", err

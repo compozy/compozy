@@ -964,10 +964,10 @@ func TestSpawnPermissionIntent(t *testing.T) {
 		wantServers []string
 		denied      bool
 	}{
-		{name: "Should inherit new scope servers [UT-013]", wantMode: store.PermissionInherit, wantServers: []string{"linear", "sentry", "later"}},
+		{name: "Should inherit new scope servers [UT-013]", wantMode: store.PermissionInherit, wantServers: []string{"later", "linear", "sentry"}},
 		{name: "Should retain a named server list [UT-014]", named: []string{"linear"}, wantMode: store.PermissionList, wantServers: []string{"linear"}},
 		{name: "Should accept a newly admitted named server before and after hooks [UT-104]", named: []string{"sentry"}, wantMode: store.PermissionList, wantServers: []string{"sentry"}},
-		{name: "Should preserve inherit through an unchanged hook [UT-105]", hook: "unchanged", wantMode: store.PermissionInherit, wantServers: []string{"linear", "sentry", "later"}},
+		{name: "Should preserve inherit through an unchanged hook [UT-105]", hook: "unchanged", wantMode: store.PermissionInherit, wantServers: []string{"later", "linear", "sentry"}},
 		{name: "Should persist a hook narrowing as a list [UT-105]", hook: "narrow", wantMode: store.PermissionList, wantServers: []string{"sentry"}},
 		{name: "Should reject hook widening [UT-105]", hook: "widen", denied: true},
 	} {
@@ -997,7 +997,7 @@ func TestSpawnPermissionIntent(t *testing.T) {
 			if tc.named != nil {
 				opts.PermissionNarrowing = &SubagentPermissionNarrowing{MCPServers: tc.named}
 			}
-			child, err := h.manager.Spawn(t.Context(), opts)
+			child, err := h.manager.Spawn(t.Context(), &opts)
 			if tc.denied {
 				if !errors.Is(err, ErrSpawnPermissionDenied) {
 					t.Fatalf("hook widening: %v", err)
@@ -1042,14 +1042,14 @@ func TestSpawnRetainsStoredToolIntent(t *testing.T) {
 	}, store.SessionSpawnBudget{MaxDepth: 4, MaxChildren: 4})
 	child, err := h.manager.Spawn(
 		t.Context(),
-		SpawnOpts{ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true},
+		&SpawnOpts{ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	grandchild, err := h.manager.Spawn(
 		t.Context(),
-		SpawnOpts{ParentSessionID: child.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true},
+		&SpawnOpts{ParentSessionID: child.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1135,14 +1135,14 @@ func TestSpawnRetainsAncestorMCPCeiling(t *testing.T) {
 		ToolsMode: store.PermissionInherit, MCPServersMode: store.PermissionInherit,
 	}, store.SessionSpawnBudget{MaxDepth: 4, MaxChildren: 4})
 	cleanupSessionStop(t, h, root.ID)
-	parent, err := h.manager.Spawn(t.Context(), SpawnOpts{
+	parent, err := h.manager.Spawn(t.Context(), &SpawnOpts{
 		ParentSessionID: root.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true,
 		PermissionNarrowing: &SubagentPermissionNarrowing{MCPServers: []string{"linear"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := h.manager.Spawn(t.Context(), SpawnOpts{
+	child, err := h.manager.Spawn(t.Context(), &SpawnOpts{
 		ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true,
 	})
 	if err != nil {

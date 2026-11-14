@@ -498,13 +498,13 @@ func (r *subagentTestRuntime) Capabilities(
 ) ([]SubagentAgentOption, []SubagentProviderOption, error) {
 	return nil, nil, nil
 }
-func (r *subagentTestRuntime) Spawn(_ context.Context, opts SpawnOpts) (string, error) {
+func (r *subagentTestRuntime) Spawn(_ context.Context, opts *SpawnOpts) (string, error) {
 	if r.spawnBlock != nil {
 		<-r.spawnBlock
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.spawned = append(r.spawned, opts)
+	r.spawned = append(r.spawned, *opts)
 	if r.spawnErr != nil {
 		return "", r.spawnErr
 	}

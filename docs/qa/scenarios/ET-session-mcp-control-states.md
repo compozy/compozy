@@ -46,7 +46,9 @@ Steps:
    and a broken stdio server. Open the control with Enter; Tab reaches every row action.
    Screenshot each state: Ready · N tools; Needs sign-in; Waiting for approval; Couldn't connect.
 2. Add a server: the trigger shows the pending dot and the header "Applies on your next message"
-   without reopening (driven by `session.mcp_changed`).
+   without reopening (driven by `session.mcp_changed`). Send a message to apply the change; after its
+   terminal output, immediately send another. Both messages complete normally, the reload outcome
+   remains in the durable session log, and the second message is not refused as already in progress.
 3. Spawn a child narrowed to `compozy` only; its control lists echo/sentry under "Not available in
    this session" with "Limited by the parent session", collapsed by default.
 4. Runtime section: "Loaded by Claude Code" rows and "Manage in Settings"; with runtime_mcp off,
