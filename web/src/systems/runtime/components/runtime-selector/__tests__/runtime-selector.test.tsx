@@ -32,6 +32,7 @@ import {
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
 } from "../types";
+import { normalizeRuntimeSelectorValue } from "../runtime-advanced-options-model";
 
 // ---------------------------------------------------------------------------
 // Fixtures + harness
@@ -464,6 +465,21 @@ describe("RuntimeSelector reasoning reset-on-switch", () => {
       model: "matrix-only",
       reasoning_effort: "",
     });
+  });
+
+  it("Should normalize a saved effort away when only a matrix coordinate names it", () => {
+    const target = model("matrix-only", {
+      name: "Matrix Only",
+      efforts: [],
+      configurations: [{ reasoning_effort: "medium" }],
+    });
+
+    expect(
+      normalizeRuntimeSelectorValue(
+        { provider: "codex", model: "matrix-only", reasoning_effort: "medium" },
+        target
+      ).reasoning_effort
+    ).toBe("");
   });
 
   it("Should keep the current reasoning_effort when the picked model still supports it", async () => {
