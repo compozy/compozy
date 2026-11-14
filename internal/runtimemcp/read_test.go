@@ -371,6 +371,13 @@ func TestRuntimeInventorySafety(t *testing.T) {
 
 func TestRuntimeContextAndDigests(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject a persistent reader without an installation key", func(t *testing.T) {
+		t.Parallel()
+		if _, err := NewReader(nil); err == nil {
+			t.Fatal("persistent reader accepted an empty key")
+		}
+	})
 	// Invariant: observed definitions remain keyed and copy distinguishes edits from removal; owner: runtime reader.
 	t.Run("Should key public digests and refuse an edited copy with a distinct message", func(t *testing.T) {
 		t.Parallel()
@@ -543,7 +550,7 @@ func TestRuntimeCopyability(t *testing.T) {
 			if err := json.Unmarshal([]byte(tc.definition), &definition); err != nil {
 				t.Fatal(err)
 			}
-			s, err := describeServer("claude", "test", tc.scope, "/config", "config", definition)
+			s, err := describeServer("claude", "test", tc.scope, "/config", "config", definition, standaloneDigestKey())
 			if err != nil {
 				t.Fatal(err)
 			}

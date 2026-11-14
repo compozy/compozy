@@ -19,11 +19,8 @@ func read(c ReadContext, descriptor Descriptor, key []byte) (Snapshot, []string)
 	return snapshot, paths
 }
 
-func readDefinitions(c ReadContext, descriptor Descriptor, key ...[]byte) (Snapshot, []string, map[string]entry) {
-	r := reader{context: c, paths: map[string]struct{}{}}
-	if len(key) > 0 {
-		r.digestKey = key[0]
-	}
+func readDefinitions(c ReadContext, descriptor Descriptor, key []byte) (Snapshot, []string, map[string]entry) {
+	r := reader{context: c, paths: map[string]struct{}{}, digestKey: key}
 	snapshot := Snapshot{
 		Runtime:     descriptor.Runtime,
 		DisplayName: descriptor.DisplayName,

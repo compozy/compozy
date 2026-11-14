@@ -7,7 +7,7 @@ import (
 )
 
 // MCPDefinitionDigest fingerprints definitions with a keyed digest before any Vault value is resolved.
-func MCPDefinitionDigest(server MCPServer, key ...[]byte) (string, error) {
+func MCPDefinitionDigest(server MCPServer, key []byte) (string, error) {
 	server = normalizeMCPServerResourceSpec(server)
 	definition := struct {
 		Transport                              MCPServerTransport
@@ -32,9 +32,5 @@ func MCPDefinitionDigest(server MCPServer, key ...[]byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var digestKey []byte
-	if len(key) > 0 {
-		digestKey = key[0]
-	}
-	return definitiondigest.Sum(data, digestKey), nil
+	return definitiondigest.Sum(data, key)
 }

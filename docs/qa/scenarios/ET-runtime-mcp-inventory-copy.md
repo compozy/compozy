@@ -50,3 +50,10 @@ Pass: steps 1–7; no secret value in any DTO, log line or screenshot.
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
 
 QA impact 2026-11-14 review fixes: follow a symlinked runtime config safely without executing it. List with `compozy mcp list --workspace <project>` and confirm the workspace lens. Edit an observed runtime definition before Copy: expect “changed in <source>. List it again before copying”; removal still says “no longer in <source>”. Exercise import output with `-o json`, `-o jsonl`, and `-o toon`. Public definition digests remain stable after daemon restart and differ across installations. Focused backend regressions cover these boundaries; the full live scenario re-walk remains an integration responsibility.
+
+QA impact 2026-11-14 keyed digest consistency: list a runtime server, retain its digest,
+restart the isolated daemon with the same home and copy the unchanged definition. The
+new inventory and import source must retain the listed digest. Confirm an edited source
+still requires a fresh list. The daemon must fail initialization if its installation digest
+key is unreadable, rather than substituting a process key. This repair's live re-walk remains
+unverified under the operator's CI-only directive.

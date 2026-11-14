@@ -181,6 +181,7 @@ func TestManualMCPPersistsEncryptedSecretAndExecutorResolvesIt(t *testing.T) {
 					},
 				}, nil
 			}),
+			mcppkg.WithDefinitionDigestKey([]byte("test installation key")),
 			mcppkg.WithSecretResolver(vaultService),
 			mcppkg.WithTimeout(5*time.Second),
 		)

@@ -128,6 +128,7 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 			}
 			return resolved, nil
 		}),
+		mcppkg.WithDefinitionDigestKey(s.digestKey),
 		mcppkg.WithRuntimeHealthRegistry(s.mcpHealthRegistry),
 		mcppkg.WithConsentCheck(
 			func(ctx context.Context, _ toolspkg.SourceRef, resolved mcppkg.ResolvedServer) error {

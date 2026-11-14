@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -14,8 +15,16 @@ func (d *Daemon) newDaemonMCPToolProvider(
 	if state == nil {
 		return nil, nil, nil
 	}
+	if state.mcpDigestKeys == nil {
+		return nil, nil, errors.New("daemon: MCP digest key provider is required")
+	}
+	digestKey, err := state.mcpDigestKeys.Key()
+	if err != nil {
+		return nil, nil, err
+	}
 	resolver := newDaemonMCPServerResolver(state)
 	options := []mcppkg.CallExecutorOption{
+		mcppkg.WithDefinitionDigestKey(digestKey),
 		mcppkg.WithConsentCheck(
 			func(ctx context.Context, source toolspkg.SourceRef, resolved mcppkg.ResolvedServer) error {
 				return requireResolvedMCPConsent(ctx, state, source, &resolved)
