@@ -229,8 +229,54 @@ export function fileContentFixture(path: string, reveal: boolean): FileContentRe
   }
 }
 
+// Media fixtures ship as files; the raw route reads them past MSW and serves their bytes.
+const RAW_ASSETS: Record<string, { url: string; type: string }> = {
+  "docs/demo.webm": { url: demoWebmUrl, type: "video/webm" },
+  "docs/chime.mp3": { url: chimeMp3Url, type: "audio/mpeg" },
+  "docs/skyline.png": { url: skylinePngUrl, type: "image/png" },
+};
+
+/** Serves a fixture's bytes for a raw-bytes URL of any root (project or session). */
+async function rawFileResponse(request: Request) {
+  const prefix = "/files/raw/";
+  const pathname = new URL(request.url).pathname;
+  const path = decodeURIComponent(pathname.slice(pathname.indexOf(prefix) + prefix.length));
+  const asset = RAW_ASSETS[path];
+  if (asset) {
+    const bytes = await (await fetch(bypass(new URL(asset.url, request.url)))).arrayBuffer();
+    return new HttpResponse(bytes, { headers: { "Content-Type": asset.type } });
+  }
+  if (path === "docs/report.pdf") {
+    const bytes = Uint8Array.from(atob(REPORT_PDF), char => char.charCodeAt(0));
+    return new HttpResponse(bytes, { headers: { "Content-Type": "application/pdf" } });
+  }
+  const body = fileContentFixture(path, false);
+  if (body?.kind === "image" && body.image_base64) {
+    const bytes = Uint8Array.from(atob(body.image_base64), char => char.charCodeAt(0));
+    return new HttpResponse(bytes, { headers: { "Content-Type": body.image_mime ?? "" } });
+  }
+  if (body?.kind === "text") {
+    return new HttpResponse(body.text ?? "", { headers: { "Content-Type": "text/plain" } });
+  }
+  return HttpResponse.json({ code: "file_not_found", error: "file not found" }, { status: 404 });
+}
+
+/**
+ * The raw-bytes routes (#1605). The file path is a wildcard suffix with slashes, which the typed
+ * OpenAPI mock cannot match, so they use plain MSW routes.
+ */
+const workspaceRawFileHandler = http.get(
+  "*/api/workspaces/:workspaceId/files/raw/*",
+  ({ request }) => rawFileResponse(request)
+);
+const sessionRawFileHandler = http.get(
+  "*/api/workspaces/:workspaceId/sessions/:sessionId/files/raw/*",
+  ({ request }) => rawFileResponse(request)
+);
+
 /** Session-root file routes over the fixtures above. */
 export const sessionFilesHandlers = [
+  sessionRawFileHandler,
   compozyApiMock.get(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries",
     ({ request }) => {
@@ -260,44 +306,6 @@ export const sessionFilesHandlers = [
     }
   ),
 ];
-
-/**
- * The raw-bytes route (#1605) for the Files app's project root. The file path is a wildcard
- * suffix with slashes, which the typed OpenAPI mock cannot match, so it uses a plain MSW route.
- */
-// Media fixtures ship as files; the raw route reads them past MSW and serves their bytes.
-const RAW_ASSETS: Record<string, { url: string; type: string }> = {
-  "docs/demo.webm": { url: demoWebmUrl, type: "video/webm" },
-  "docs/chime.mp3": { url: chimeMp3Url, type: "audio/mpeg" },
-  "docs/skyline.png": { url: skylinePngUrl, type: "image/png" },
-};
-
-const workspaceRawFileHandler = http.get(
-  "*/api/workspaces/:workspaceId/files/raw/*",
-  async ({ request }) => {
-    const prefix = "/files/raw/";
-    const pathname = new URL(request.url).pathname;
-    const path = decodeURIComponent(pathname.slice(pathname.indexOf(prefix) + prefix.length));
-    const asset = RAW_ASSETS[path];
-    if (asset) {
-      const bytes = await (await fetch(bypass(new URL(asset.url, request.url)))).arrayBuffer();
-      return new HttpResponse(bytes, { headers: { "Content-Type": asset.type } });
-    }
-    if (path === "docs/report.pdf") {
-      const bytes = Uint8Array.from(atob(REPORT_PDF), char => char.charCodeAt(0));
-      return new HttpResponse(bytes, { headers: { "Content-Type": "application/pdf" } });
-    }
-    const body = fileContentFixture(path, false);
-    if (body?.kind === "image" && body.image_base64) {
-      const bytes = Uint8Array.from(atob(body.image_base64), char => char.charCodeAt(0));
-      return new HttpResponse(bytes, { headers: { "Content-Type": body.image_mime ?? "" } });
-    }
-    if (body?.kind === "text") {
-      return new HttpResponse(body.text ?? "", { headers: { "Content-Type": "text/plain" } });
-    }
-    return HttpResponse.json({ code: "file_not_found", error: "file not found" }, { status: 404 });
-  }
-);
 
 /** Project-root file routes (the Files app) over the same fixtures. */
 export const workspaceFilesHandlers = [

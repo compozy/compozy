@@ -7,19 +7,29 @@ const ASSET_ATTRIBUTES: ReadonlyArray<readonly [selector: string, attribute: str
 const STRIPPED =
   "script, noscript, iframe, frame, frameset, object, embed, applet, portal, base, meta[http-equiv], link[rel~='import'], link[rel~='prefetch'], link[rel~='preload'], form";
 const INLINE_HANDLER = /^on/i;
-const CSS_URL = /url\(\s*(['"]?)([^'")]*)\1\s*\)/gi;
+// A quoted value runs to its closing quote; an unquoted one stops at quotes, parentheses and
+// whitespace, as in the CSS grammar, so unclosed `url(` tokens cannot make the scan quadratic.
+const CSS_URL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^'"()\s]*))\s*\)/gi;
+
+/** Serializes a URL as a double-quoted CSS string. */
+function cssString(value: string): string {
+  return `"${value.replace(/["\\\n]/g, char => (char === "\n" ? "\\a " : `\\${char}`))}"`;
+}
 
 /** Rewrites the `url()` references of a style sheet or `style` attribute through `resolve`. */
 function rewriteCssUrls(css: string, baseUrl: string, resolve: (url: string) => string): string {
-  return css.replace(CSS_URL, (match, quote: string, value: string) => {
-    const trimmed = value.trim();
-    if (trimmed === "" || trimmed.startsWith("data:") || trimmed.startsWith("#")) return match;
-    try {
-      return `url(${quote}${resolve(new URL(trimmed, baseUrl).href)}${quote})`;
-    } catch {
-      return "none";
+  return css.replace(
+    CSS_URL,
+    (match, double: string | undefined, single: string | undefined, bare: string | undefined) => {
+      const trimmed = (double ?? single ?? bare ?? "").trim();
+      if (trimmed === "" || trimmed.startsWith("data:") || trimmed.startsWith("#")) return match;
+      try {
+        return `url(${cssString(resolve(new URL(trimmed, baseUrl).href))})`;
+      } catch {
+        return "none";
+      }
     }
-  });
+  );
 }
 
 function originOf(url: string | undefined): string | null {

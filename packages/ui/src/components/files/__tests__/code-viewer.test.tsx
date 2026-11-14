@@ -284,8 +284,22 @@ describe("FileHtmlPreview", () => {
     );
     expect(document.querySelector("style")?.textContent).toContain("url(data:image/png;base64,AA)");
     expect(document.querySelector("p")?.getAttribute("style")).toContain(
-      "url(http://127.0.0.1:2323/api/workspaces/ws/files/raw/b.png?scoped)"
+      'url("http://127.0.0.1:2323/api/workspaces/ws/files/raw/b.png?scoped")'
     );
+  });
+
+  it("Should quote resolved CSS URLs whose path holds apostrophes and parentheses", () => {
+    const base = "http://127.0.0.1:2323/raw/O'Reilly (1)/";
+    const prepared = prepareHtmlPreview(
+      "<html><head><style>a { background: url('img/a(2).png') } b { background: url(c.png) }</style></head><body></body></html>",
+      base,
+      url => url
+    );
+    const css = new DOMParser().parseFromString(prepared, "text/html").querySelector("style");
+    expect(css?.textContent).toContain(
+      `url("http://127.0.0.1:2323/raw/O'Reilly%20(1)/img/a(2).png")`
+    );
+    expect(css?.textContent).toContain(`url("http://127.0.0.1:2323/raw/O'Reilly%20(1)/c.png")`);
   });
 
   it("Should frame the document with a sandbox that never allows scripts", () => {
