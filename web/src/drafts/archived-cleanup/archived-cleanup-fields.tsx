@@ -1,4 +1,13 @@
-import { Checkbox, Field, FieldDescription, FieldLabel, Input } from "@compozy/ui";
+import {
+  Checkbox,
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  TreeBranch,
+  TreeBranchNode,
+} from "@compozy/ui";
 
 import type { CleanupWhat } from "./archived-cleanup-model";
 
@@ -36,18 +45,19 @@ function CheckRow({
         id={id}
         onCheckedChange={next => onCheckedChange(next === true)}
       />
-      <div className="grid min-w-0 flex-1 gap-0.5">
+      <FieldContent className="min-w-0">
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         <FieldDescription id={`${id}-hint`}>{description}</FieldDescription>
-      </div>
+      </FieldContent>
       <CountBadge count={count} />
     </Field>
   );
 }
 
 /**
- * Everything on top, its two parts nested under it: checking Everything checks and locks them,
- * because deleting a session takes all it holds. Unchecked, the parts thin sessions out instead.
+ * Everything on top, its two parts hanging from it on the branch the session list draws for child
+ * sessions: checking Everything checks and locks them, because deleting a session takes all it
+ * holds. Unchecked, the parts thin sessions out instead.
  */
 export function WhatChecks({
   what,
@@ -77,26 +87,31 @@ export function WhatChecks({
         label="Everything"
         onCheckedChange={everything => onChange({ everything })}
       />
-      <div className="ml-2 flex flex-col border-l border-line pl-4">
-        <CheckRow
-          checked={what.everything || what.children}
-          count={counts.children}
-          description={what.everything ? included : "The main sessions stay."}
-          disabled={disabled || what.everything}
-          id="archived-cleanup-what-children"
-          label="Child sessions"
-          onCheckedChange={children => onChange({ children })}
-        />
-        <CheckRow
-          checked={what.everything || what.subagents}
-          count={counts.subagents}
-          description={what.everything ? included : "Every session stays."}
-          disabled={disabled || what.everything}
-          id="archived-cleanup-what-subagents"
-          label="Subagents"
-          onCheckedChange={subagents => onChange({ subagents })}
-        />
-      </div>
+      {/* The rail continues from the center of Everything's check; each arm lands on a part's check. */}
+      <TreeBranch className="-ml-1.25">
+        <TreeBranchNode className="pl-1.5 [--branch-arm:0.8125rem]">
+          <CheckRow
+            checked={what.everything || what.children}
+            count={counts.children}
+            description={what.everything ? included : "The main sessions stay."}
+            disabled={disabled || what.everything}
+            id="archived-cleanup-what-children"
+            label="Child sessions"
+            onCheckedChange={children => onChange({ children })}
+          />
+        </TreeBranchNode>
+        <TreeBranchNode className="pl-1.5 [--branch-arm:0.8125rem]">
+          <CheckRow
+            checked={what.everything || what.subagents}
+            count={counts.subagents}
+            description={what.everything ? included : "Every session stays."}
+            disabled={disabled || what.everything}
+            id="archived-cleanup-what-subagents"
+            label="Subagents"
+            onCheckedChange={subagents => onChange({ subagents })}
+          />
+        </TreeBranchNode>
+      </TreeBranch>
     </div>
   );
 }
