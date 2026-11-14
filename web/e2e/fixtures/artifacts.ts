@@ -134,6 +134,16 @@ export function isLikelyViteDevHTML(html: string): boolean {
   return VITE_DEV_MARKERS.some(marker => html.includes(marker));
 }
 
+// Vite serves built assets as /assets/<name>-<hash>.<ext>. The 8-character
+// hash is random base64url text, so a case-insensitive leak check can read a
+// word such as "pkce" inside it ("P3pkcEIj"). Only that hash segment is masked;
+// the asset name and all surrounding text stay visible to the check.
+const hashedAssetPathPattern = /(\/assets\/[^\s"'?#\\]*-)[A-Za-z0-9_-]{8}(\.[A-Za-z0-9]+)/g;
+
+export function maskHashedAssetNames(payload: string): string {
+  return payload.replace(hashedAssetPathPattern, "$1<hash>$2");
+}
+
 export function resolveBrowserArtifactPath(rootDir: string, relativePath: string): string {
   const targetPath = path.resolve(rootDir, relativePath);
   const relativeTarget = path.relative(rootDir, targetPath);
