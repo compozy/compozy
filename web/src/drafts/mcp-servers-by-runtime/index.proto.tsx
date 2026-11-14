@@ -1,15 +1,40 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { COMPOZY_SERVERS, MCPServersByRuntimePage, type MCPPageProps } from "./mcp-page";
+import { mcpDefinitionKey } from "@/systems/settings/lib/mcp-management-target";
 import {
-  CLAUDE,
-  CLAUDE_OFF,
-  CODEX,
-  CURSOR_MANY,
-  DEFAULT_RUNTIMES,
-  OPENCODE_UNREADABLE,
-  PI,
-} from "./runtime-fixtures";
+  claudeOffRuntimeMCPFixture,
+  claudeRuntimeMCPFixture,
+  codexRuntimeMCPFixture,
+  manyRuntimeMCPFixture,
+  opencodeUnreadableRuntimeMCPFixture,
+  piRuntimeMCPFixture,
+  runtimeMCPInventoryFixture,
+} from "@/systems/settings/mocks/runtime-mcp-fixtures";
+import type { SettingsMCPServerEntry } from "@/systems/settings/types";
+
+import { COMPOZY_SERVERS, MCPServersByRuntimePage, type MCPPageProps } from "./mcp-page";
+
+const DEFAULT_RUNTIMES = runtimeMCPInventoryFixture().runtimes;
+
+/** The first project-scoped server, waiting for approval as a project file declared it. */
+function withWaiting(servers: readonly SettingsMCPServerEntry[]): SettingsMCPServerEntry[] {
+  let marked = false;
+  return servers.map(server => {
+    if (marked || server.scope !== "workspace") return server;
+    marked = true;
+    return {
+      ...server,
+      runtime_status: null,
+      callable_in_sessions: false,
+      approval: { required: true, state: "waiting", definition_digest: "sha256:3f9c" },
+    };
+  });
+}
+
+function waitingKey(servers: readonly SettingsMCPServerEntry[]): string {
+  const waiting = servers.find(server => server.approval.state === "waiting");
+  return waiting ? mcpDefinitionKey(waiting) : "";
+}
 
 export const meta = definePrototype({
   title: "MCP servers by runtime",
@@ -38,28 +63,44 @@ export const meta = definePrototype({
 
 function propsFor(state: string): MCPPageProps {
   const page = { compozy: COMPOZY_SERVERS, runtimes: DEFAULT_RUNTIMES };
+  const waiting = withWaiting(COMPOZY_SERVERS);
   switch (state) {
     case "loading":
       return { ...page, loading: true };
     case "filter-codex":
       return { ...page, filter: "codex" };
     case "waiting":
-      return { ...page, approvals: { sentry: "waiting" } };
+      return { ...page, compozy: waiting };
     case "changed":
-      return { ...page, approvals: { sentry: "changed" } };
+      return {
+        ...page,
+        compozy: waiting,
+        approvalNotes: { [waitingKey(waiting)]: { reason: "changed" } },
+      };
     case "runtime-off":
-      return { ...page, runtimes: [CLAUDE_OFF, CODEX, PI] };
+      return {
+        ...page,
+        runtimes: [claudeOffRuntimeMCPFixture, codexRuntimeMCPFixture, piRuntimeMCPFixture],
+      };
     case "unreadable":
-      return { ...page, runtimes: [CLAUDE, OPENCODE_UNREADABLE, CODEX] };
+      return {
+        ...page,
+        runtimes: [
+          claudeRuntimeMCPFixture,
+          opencodeUnreadableRuntimeMCPFixture,
+          codexRuntimeMCPFixture,
+        ],
+      };
     case "folded":
-      return { ...page, filter: "cursor", runtimes: [CURSOR_MANY, CODEX] };
+      return {
+        ...page,
+        filter: "cursor",
+        runtimes: [manyRuntimeMCPFixture(24), codexRuntimeMCPFixture],
+      };
     case "compozy-empty":
       return { ...page, compozy: [] };
     case "empty":
-      return {
-        compozy: [],
-        runtimes: DEFAULT_RUNTIMES.map(group => ({ ...group, servers: [] })),
-      };
+      return { compozy: [], runtimes: [] };
     case "no-match":
       return { ...page, query: "kubernetes" };
     case "copy":
@@ -70,12 +111,16 @@ function propsFor(state: string): MCPPageProps {
       return { ...page, copy: "source-changed" };
     case "copy-submitting":
       return { ...page, copy: "submitting" };
-    case "copied":
-      return {
-        ...page,
-        compozy: [...COMPOZY_SERVERS, { ...COMPOZY_SERVERS[0]!, name: "exa", transport: "http" }],
-        copied: "exa",
+    case "copied": {
+      const exa: SettingsMCPServerEntry = {
+        ...COMPOZY_SERVERS[0]!,
+        name: "exa",
+        transport: "http",
+        scope: "user",
+        workspace_id: undefined,
       };
+      return { ...page, compozy: [...COMPOZY_SERVERS, exa], copied: exa };
+    }
     default:
       return page;
   }

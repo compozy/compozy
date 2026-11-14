@@ -70,6 +70,8 @@ describe("MCPServerEditor", () => {
   it("Should let an explicit OAuth server with headers undo a toggle before saving", async () => {
     const user = userEvent.setup();
     const entry: SettingsMCPServerEntry = {
+      approval: { required: false, state: "not_required", definition_digest: "sha256:test" },
+      callable_in_sessions: true,
       name: "remote",
       transport: "http",
       url: "https://example.test/mcp",
@@ -98,6 +100,8 @@ describe("MCPServerEditor", () => {
   it("Should keep implicit OAuth disabled for a saved header-auth server", async () => {
     const user = userEvent.setup();
     const entry: SettingsMCPServerEntry = {
+      approval: { required: false, state: "not_required", definition_digest: "sha256:test" },
+      callable_in_sessions: true,
       name: "header",
       transport: "http",
       url: "https://example.test/mcp",

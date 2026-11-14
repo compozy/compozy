@@ -37,6 +37,7 @@ export {
 } from "./lib/window-manager-query";
 export { desktopShellBridge, isDesktopShell } from "./lib/desktop-shell-bridge";
 export { EDITOR_SETTINGS_PATH, reportOpenInEditorResult } from "./lib/open-in-editor-report";
+export { useOpenFileInEditor } from "./hooks/use-open-file-in-editor";
 export type {
   OpenInEditorErrorCode,
   OpenInEditorParams,

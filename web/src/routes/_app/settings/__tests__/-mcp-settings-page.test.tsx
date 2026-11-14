@@ -1,5 +1,6 @@
-// Invariant: Settings actions select the daemon-returned MCP owner and scope, even when names repeat.
-// Owner: the new MCP Settings page; no existing route suite exercises this composition.
+// Invariant: Settings actions select the daemon-returned MCP owner and scope, even when names repeat;
+// runtime groups, approval and copy act on the daemon's runtime inventory and approval digests.
+// Owner: the MCP Settings page; no existing route suite exercises this composition.
 // Canonical suite: this file. HTTP is mocked; routing, query state, controllers and editors run normally.
 import { TopbarSlotProvider } from "@compozy/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -23,6 +24,14 @@ import {
   mcpExtensionServerFixtures,
   settingsAppliedMutationFixture,
 } from "@/systems/settings/mocks/fixtures";
+import {
+  claudeRuntimeMCPFixture,
+  codexRuntimeMCPFixture,
+  manyRuntimeMCPFixture,
+  piRuntimeMCPFixture,
+  runtimeMCPInventoryFixture,
+} from "@/systems/settings/mocks/runtime-mcp-fixtures";
+import type { RuntimeMCPSnapshot } from "@/systems/settings/types";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsMCPServerEntry, SettingsMCPServerRequest } from "@/systems/settings";
 import { MCPSettingsPage } from "../-mcp-settings-page";
@@ -193,5 +202,181 @@ describe("MCP Settings page", () => {
     expect(removed[0]!.searchParams.get("target")).toBe("sidecar");
     expect(removed[0]!.searchParams.get("workspace_id")).toBeNull();
     expect(screen.getByRole("button", { name: "Select github from github" })).toBeVisible();
+  });
+
+  describe("servers by runtime", () => {
+    function serveRuntimes(runtimes: RuntimeMCPSnapshot[]) {
+      server.use(
+        http.get("*/api/settings/runtime-mcp-servers", () =>
+          HttpResponse.json(runtimeMCPInventoryFixture(runtimes))
+        )
+      );
+    }
+
+    it("UT-W03: Should offer only runtimes with servers and show just the picked runtime's group", async () => {
+      const user = userEvent.setup();
+      serveRuntimes([
+        claudeRuntimeMCPFixture,
+        codexRuntimeMCPFixture,
+        { ...piRuntimeMCPFixture, servers: [] },
+      ]);
+      await openSettings();
+      const filter = await screen.findByTestId("settings-mcp-runtime-filter");
+      expect(within(filter).getByTestId("settings-mcp-runtime-filter-all")).toBeVisible();
+      expect(within(filter).getByTestId("settings-mcp-runtime-filter-compozy")).toBeVisible();
+      expect(within(filter).getByTestId("settings-mcp-runtime-filter-claude")).toBeVisible();
+      expect(within(filter).getByTestId("settings-mcp-runtime-filter-codex")).toBeVisible();
+      expect(
+        within(filter).queryByTestId("settings-mcp-runtime-filter-pi")
+      ).not.toBeInTheDocument();
+
+      await user.click(within(filter).getByTestId("settings-mcp-runtime-filter-codex"));
+
+      expect(screen.getByTestId("settings-mcp-runtime-group-codex")).toBeVisible();
+      expect(screen.queryByTestId("settings-mcp-runtime-group-claude")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("settings-page-mcp-servers-list")).not.toBeInTheDocument();
+    });
+
+    it("UT-W04: Should name the unreadable file and list no rows for that runtime", async () => {
+      serveRuntimes([
+        {
+          ...claudeRuntimeMCPFixture,
+          read_state: "unreadable",
+          read_error: "Unexpected token at line 14",
+          config_files: ["~/.claude.json"],
+          servers: [],
+        },
+        codexRuntimeMCPFixture,
+      ]);
+      await openSettings();
+      const group = await screen.findByTestId("settings-mcp-runtime-group-claude");
+      expect(within(group).getByRole("alert")).toHaveTextContent("Couldn't read ~/.claude.json");
+      expect(within(group).queryAllByTestId(/^settings-mcp-runtime-row-claude-/)).toHaveLength(0);
+      // Other groups are unaffected.
+      expect(
+        within(screen.getByTestId("settings-mcp-runtime-group-codex")).getByTestId(
+          "settings-mcp-runtime-row-codex-github"
+        )
+      ).toBeVisible();
+    });
+
+    it("UT-W05: Should fold a group of 12 to 8 rows behind Show all 12", async () => {
+      const user = userEvent.setup();
+      serveRuntimes([manyRuntimeMCPFixture(12)]);
+      await openSettings();
+      const group = await screen.findByTestId("settings-mcp-runtime-group-cursor");
+      const rows = () =>
+        within(group).getAllByTestId(/^settings-mcp-runtime-row-cursor-server-\d+$/);
+      expect(rows()).toHaveLength(8);
+
+      await user.click(within(group).getByRole("button", { name: "Show all 12" }));
+
+      expect(rows()).toHaveLength(12);
+      expect(within(group).queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument();
+    });
+
+    it("UT-W06: Should keep the Copy dialog open with an inline name error on a 409", async () => {
+      const user = userEvent.setup();
+      const requests: Array<{ url: URL; body: unknown }> = [];
+      serveRuntimes([claudeRuntimeMCPFixture]);
+      server.use(
+        http.post(
+          "*/api/settings/runtime-mcp-servers/:runtime/:name/import",
+          async ({ request }) => {
+            requests.push({ url: new URL(request.url), body: await request.json() });
+            return HttpResponse.json(
+              {
+                error: "A CompozyOS server named exa already exists in Personal",
+                code: "mcp_import_name_taken",
+              },
+              { status: 409 }
+            );
+          }
+        )
+      );
+      await openSettings();
+      await user.click(
+        await screen.findByRole("button", { name: "Copy exa from Claude Code to CompozyOS" })
+      );
+      const dialog = await screen.findByTestId("settings-mcp-copy-dialog");
+      await user.click(within(dialog).getByTestId("settings-mcp-copy-submit"));
+
+      await waitFor(() =>
+        expect(within(dialog).getByRole("textbox", { name: "Name in CompozyOS" })).toHaveAttribute(
+          "aria-invalid",
+          "true"
+        )
+      );
+      expect(dialog).toHaveTextContent("A CompozyOS server named exa already exists in Personal");
+      expect(screen.getByTestId("settings-mcp-copy-dialog")).toBeVisible();
+      expect(requests).toHaveLength(1);
+      expect(requests[0]!.url.pathname).toBe("/api/settings/runtime-mcp-servers/claude/exa/import");
+      expect(requests[0]!.body).toEqual({ scope: "user" });
+    });
+
+    it("UT-W07: Should render no switch for a runtime that can't turn its servers off", async () => {
+      serveRuntimes([claudeRuntimeMCPFixture, codexRuntimeMCPFixture]);
+      await openSettings();
+      const codex = await screen.findByTestId("settings-mcp-runtime-group-codex");
+      expect(within(codex).queryByRole("switch")).not.toBeInTheDocument();
+      expect(
+        within(codex).getByTestId("settings-mcp-runtime-group-codex-phrase")
+      ).toHaveTextContent("Codex always loads its own servers");
+      const claude = screen.getByTestId("settings-mcp-runtime-group-claude");
+      expect(
+        within(claude).getByRole("switch", {
+          name: "Use Claude Code's own MCP servers in CompozyOS sessions",
+        })
+      ).toBeChecked();
+    });
+
+    it("Should allow a waiting project server with its digest and say so when the file changed", async () => {
+      const user = userEvent.setup();
+      const approvals: Array<{ name: string; body: unknown }> = [];
+      definitions = [
+        {
+          ...definitions[0]!,
+          scope: "workspace",
+          workspace_id: "ws-platform",
+          callable_in_sessions: false,
+          approval: { required: true, state: "waiting", definition_digest: "sha256:seen" },
+          source_metadata: {
+            available_targets: ["workspace-config"],
+            effective_source: {
+              kind: "workspace-config",
+              scope: "workspace",
+              workspace_id: "ws-platform",
+            },
+          },
+        },
+      ];
+      server.use(
+        http.put("*/api/settings/mcp-servers/:name/approval", async ({ request, params }) => {
+          approvals.push({ name: String(params.name), body: await request.json() });
+          return HttpResponse.json(
+            {
+              error:
+                "github changed since you looked at it. List it again and approve the new definition",
+              code: "mcp_approval_definition_changed",
+            },
+            { status: 409 }
+          );
+        })
+      );
+      renderSettings();
+      const allow = await screen.findByRole("button", { name: "Allow github" });
+      expect(screen.getByText("Added by a file in this project")).toBeVisible();
+
+      await user.click(allow);
+
+      expect(await screen.findByText("Changed since you allowed it")).toBeVisible();
+      expect(screen.getByRole("alert")).toHaveTextContent("github changed since you looked at it");
+      expect(approvals).toEqual([
+        {
+          name: "github",
+          body: { workspace_id: "ws-platform", definition_digest: "sha256:seen" },
+        },
+      ]);
+    });
   });
 });

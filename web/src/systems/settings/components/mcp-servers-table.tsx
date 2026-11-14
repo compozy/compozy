@@ -1,10 +1,13 @@
 import { Button, cn, Pill, Skeleton, SkeletonText } from "@compozy/ui";
 import { Pencil, Plug } from "@compozy/ui/icons";
+import type { ReactNode } from "react";
 
 import { mcpDefinitionKey } from "../lib/mcp-management-target";
+import { isMCPApprovalWaiting, type MCPApprovalNote } from "../lib/mcp-runtime-view-model";
 import { composeMCPRowStatus } from "../lib/mcp-status-view-model";
 import type { SettingsMCPServerEntry } from "../types";
 
+import { MCPApprovalCell } from "./mcp-approval-cell";
 import {
   mcpOwnerExtensionName,
   mcpServerProvenanceLine,
@@ -38,6 +41,16 @@ export interface MCPServersTableProps {
   onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
   onAuthorize: (entry: SettingsMCPServerEntry) => void;
+  /** Allows a project-file server waiting for approval; rows without it show no Allow. */
+  onAllow?: (entry: SettingsMCPServerEntry) => void;
+  /** Definition key of the row whose Allow is in flight. */
+  allowingServer?: string;
+  /** Per definition key: why the row waits and the last refused Allow. */
+  approvalNotes?: Readonly<Record<string, MCPApprovalNote>>;
+  /** Definition key of a row to highlight (a server just copied in). */
+  highlightedServer?: string;
+  /** Group heading above the column header (the CompozyOS group). */
+  heading?: ReactNode;
 }
 
 export function MCPServersTable({
@@ -46,6 +59,11 @@ export function MCPServersTable({
   onSelect,
   onEdit,
   onAuthorize,
+  onAllow,
+  allowingServer,
+  approvalNotes,
+  highlightedServer,
+  heading,
 }: MCPServersTableProps) {
   return (
     <section
@@ -53,6 +71,7 @@ export function MCPServersTable({
       data-testid="settings-page-mcp-servers-list"
       className={TABLE_CLASS}
     >
+      {heading}
       <MCPServersTableHeader />
       <div className="max-md:flex max-md:flex-col max-md:gap-2">
         {servers.map(server => (
@@ -60,9 +79,13 @@ export function MCPServersTable({
             key={mcpDefinitionKey(server)}
             server={server}
             selected={mcpDefinitionKey(server) === selectedServer}
+            highlighted={mcpDefinitionKey(server) === highlightedServer}
             onSelect={onSelect}
             onEdit={onEdit}
             onAuthorize={onAuthorize}
+            onAllow={onAllow}
+            allowing={mcpDefinitionKey(server) === allowingServer}
+            approvalNote={approvalNotes?.[mcpDefinitionKey(server)]}
           />
         ))}
       </div>
@@ -127,17 +150,26 @@ export function MCPServersTableSkeleton() {
 function MCPServerRow({
   server,
   selected,
+  highlighted,
   onSelect,
   onEdit,
   onAuthorize,
+  onAllow,
+  allowing,
+  approvalNote,
 }: {
   server: SettingsMCPServerEntry;
   selected: boolean;
+  highlighted: boolean;
   onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
   onAuthorize: (entry: SettingsMCPServerEntry) => void;
+  onAllow?: (entry: SettingsMCPServerEntry) => void;
+  allowing: boolean;
+  approvalNote?: MCPApprovalNote;
 }) {
   const status = composeMCPRowStatus(server);
+  const waiting = onAllow !== undefined && isMCPApprovalWaiting(server);
   const extension = mcpOwnerExtensionName(server.owner);
   const sourceLine = mcpServerProvenanceLine(server);
   const rowTestId = mcpServerRowTestId(server);
@@ -147,7 +179,8 @@ function MCPServerRow({
     <div
       data-testid={rowTestId}
       data-owner={server.owner ?? "manual"}
-      className={cn(ROW_CLASS, selected ? "bg-selected" : "hover:bg-surface-2")}
+      data-approval={waiting ? "waiting" : undefined}
+      className={cn(ROW_CLASS, selected || highlighted ? "bg-selected" : "hover:bg-surface-2")}
     >
       <div className={SERVER_CELL_CLASS}>
         <span
@@ -186,13 +219,29 @@ function MCPServerRow({
         </div>
       </div>
       <div className="min-w-0" data-testid={`${rowTestId}-status`}>
-        <Pill form="plain" tone={status.summary.tone}>
-          <Pill.Dot />
-          {status.summary.label}
-        </Pill>
+        {waiting ? (
+          <MCPApprovalCell error={approvalNote?.error} reason={approvalNote?.reason ?? "added"} />
+        ) : (
+          <Pill form="plain" tone={status.summary.tone}>
+            <Pill.Dot />
+            {status.summary.label}
+          </Pill>
+        )}
       </div>
       <div className="flex items-center justify-end gap-1.5">
-        {status.repairable && status.authorizeLabel ? (
+        {waiting ? (
+          <Button
+            type="button"
+            variant="neutral"
+            size="sm"
+            aria-label={`Allow ${accessibleName}`}
+            disabled={allowing}
+            onClick={() => onAllow?.(server)}
+            data-testid={`${rowTestId}-allow`}
+          >
+            Allow
+          </Button>
+        ) : status.repairable && status.authorizeLabel ? (
           <Button
             type="button"
             variant="neutral"

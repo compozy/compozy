@@ -19,8 +19,10 @@ import {
 
 import { useCheckProviderSignIn } from "../hooks/use-check-provider-sign-in";
 import { providerAuthStateLabel, providerAuthSummary } from "../lib/provider-copy";
+import { providerCanDisableRuntimeMCP } from "../lib/mcp-runtime-view-model";
 import { getProviderStateView } from "../lib/provider-state";
 import type { SettingsProviderEntry } from "../types";
+import { MCPRuntimeModeSwitch } from "./mcp-runtime-mode-switch";
 import { ProviderLoginDescriptorView } from "./provider-login-descriptor";
 import { ProviderStatusLabel } from "./provider-status-label";
 import { SettingsAdvancedFold } from "./settings-advanced-fold";
@@ -58,6 +60,7 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
   const checksInPlace = state.cta.intent === "check";
   const checkedAt = provider.auth_status?.last_probe_at;
   const runAction = checksInPlace ? () => checkSignIn.mutate(provider.name) : onAction;
+  const displayName = provider.settings.display_name?.trim() || provider.name;
 
   return (
     <div className="flex flex-col gap-5">
@@ -98,6 +101,16 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
             </MetadataListRow>
           ) : null}
         </MetadataList>
+        {providerCanDisableRuntimeMCP(provider.name) ? (
+          <MCPRuntimeModeSwitch
+            className="items-start"
+            data-testid="provider-detail-runtime-mcp"
+            label={`Use ${displayName}'s own MCP servers in CompozyOS sessions`}
+            mode={provider.settings.runtime_mcp ?? "load"}
+            provider={provider.name}
+            runtimeName={displayName}
+          />
+        ) : null}
         {showLogin && provider.auth_status?.login ? (
           <ProviderLoginDescriptorView
             login={provider.auth_status.login}
