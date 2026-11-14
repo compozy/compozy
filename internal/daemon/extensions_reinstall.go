@@ -16,18 +16,8 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 	ctx context.Context, prepared preparedDaemonExtensionInstall, installed *extensionpkg.ExtensionInfo,
 	request contract.InstallExtensionRequest, actor taskpkg.ActorContext, item *contract.ExtensionPayload,
 ) error {
-	if err := prepared.published.ValidateReinstall(installed); err != nil {
+	if err := s.validateReinstallAuthority(ctx, prepared, installed, request, actor); err != nil {
 		return err
-	}
-	if normalizedInstallSource(request.Source) == contract.InstallExtensionSourceLocalPath {
-		// A local bundle rewrites the name-keyed package every attachment resolves, so the
-		// authority check that ran at preparation is repeated under the package lock.
-		if err := s.authorizeExtensionReplace(ctx, installed.Name, actor); err != nil {
-			return err
-		}
-	}
-	if !actor.Scope.Operator && installed.Provenance.SourceRef == "" && prepared.published.Origin().SourceRef != "" {
-		return taskpkg.ErrPermissionDenied
 	}
 	attachments, err := s.registry.Installations(ctx, installed.Name)
 	if err != nil {
@@ -94,6 +84,31 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 	}
 	for _, warning := range warnings {
 		s.logger.Warn("daemon: clean committed extension reinstall", "extension", installed.Name, "code", warning.Code)
+	}
+	return nil
+}
+
+// validateReinstallAuthority keeps the origin and replacement guards out of the
+// transaction body: a local bundle rewrites the name-keyed package every attachment
+// resolves, so its authority check is repeated under the package lock.
+func (s *daemonExtensionService) validateReinstallAuthority(
+	ctx context.Context,
+	prepared preparedDaemonExtensionInstall,
+	installed *extensionpkg.ExtensionInfo,
+	request contract.InstallExtensionRequest,
+	actor taskpkg.ActorContext,
+) error {
+	if err := prepared.published.ValidateReinstall(installed); err != nil {
+		return err
+	}
+	if normalizedInstallSource(request.Source) == contract.InstallExtensionSourceLocalPath {
+		if err := s.authorizeExtensionReplace(ctx, installed.Name, actor); err != nil {
+			return err
+		}
+	}
+	if !actor.Scope.Operator && installed.Provenance.SourceRef == "" &&
+		prepared.published.Origin().SourceRef != "" {
+		return taskpkg.ErrPermissionDenied
 	}
 	return nil
 }
