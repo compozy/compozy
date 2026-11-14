@@ -5,55 +5,43 @@ import (
 	"log/slog"
 	"strings"
 
-	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-// operatorAuthorizedMCPSourceGrants turns one completed OAuth login into an allow grant bound to
-// the exact extension resource that scope projects, never to a normalized server name.
-// tools.policy.external_default stays the default for every other source; only a credential bound
-// to the current definition counts as consent, so logout, a changed definition, and a disabled
-// extension each withdraw the grant. A status failure grants nothing, which keeps the
-// deny-by-default outcome.
-func operatorAuthorizedMCPSourceGrants(
-	ctx context.Context,
-	state *bootState,
-	scope toolspkg.Scope,
-) ([]toolspkg.SourceGrant, error) {
-	if state == nil || state.mcpAuthStatus == nil {
+func operatorConsentedSourceGrants(ctx context.Context, state *bootState, scope toolspkg.Scope) ([]toolspkg.SourceGrant, error) {
+	if state == nil {
 		return nil, nil
 	}
 	sources, err := daemonMCPSources(ctx, state)
 	if err != nil {
-		// Grants only add access, so one unreadable record must not stop policy for native tools.
 		logMCPSourceGrantSkipped(ctx, state, toolspkg.SourceRef{}, err)
 		return nil, nil
 	}
 	var grants []toolspkg.SourceGrant
 	for _, source := range toolspkg.MCPSourcesForScope(sources, scope) {
-		if strings.TrimSpace(source.ResourceID) == "" {
-			continue
-		}
-		resolved, err := resolveDaemonMCPServer(ctx, state, source, "")
+		decision, err := mcpSourceConsent(ctx, state, scope, source)
 		if err != nil {
 			logMCPSourceGrantSkipped(ctx, state, source, err)
 			continue
 		}
-		if !strings.HasPrefix(resolved.Target.Owner, "extension:") || !mcpauth.OAuthCapable(resolved.Server) {
-			continue
+		if decision.Admitted {
+			grants = append(grants, toolspkg.SourceGrant{Kind: toolspkg.SourceMCP, Owner: source.Owner, ResourceID: source.ResourceID})
 		}
-		status, err := state.mcpAuthStatus.Status(ctx, source, "")
-		if err != nil {
-			logMCPSourceGrantSkipped(ctx, state, source, err)
-			continue
+	}
+	if state.toolCatalog != nil {
+		for _, record := range state.toolCatalog.Snapshot() {
+			if record.Owner.Kind != extensionResourceOwnerKind {
+				continue
+			}
+			profileID, workspaceID, err := mcpResourceProjectionOwner(ctx, state, record.Scope)
+			if err != nil {
+				return nil, err
+			}
+			if profileID != "" && profileID != scope.ProfileID || workspaceID != "" && workspaceID != scope.WorkspaceID {
+				continue
+			}
+			grants = append(grants, toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: record.Owner.ID, ResourceID: record.ID})
 		}
-		if !status.TokenPresent {
-			continue
-		}
-		grants = append(grants, toolspkg.SourceGrant{
-			Kind: toolspkg.SourceMCP, Owner: source.Owner, ResourceID: source.ResourceID,
-		})
 	}
 	return grants, nil
 }

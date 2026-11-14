@@ -393,6 +393,9 @@ func denialErrorForView(view *ToolView) error {
 			ErrToolConflict,
 			reasons...)
 	}
+	if view.Descriptor.Source.Kind == SourceMCP && slices.Contains(reasons, ReasonMCPAuthRequired) && !slices.Contains(reasons, ReasonSessionDenied) {
+		return MCPAuthRequiredError(id, firstNonEmpty(view.Descriptor.Source.RawServerName, view.Descriptor.Source.Owner))
+	}
 	if !view.Availability.Executable {
 		return NewToolError(
 			ErrorCodeUnavailable,

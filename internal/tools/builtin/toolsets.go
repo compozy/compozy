@@ -244,6 +244,6 @@ var builtinToolsets = []toolspkg.Toolset{
 			"compozy__layout_*",
 		},
 	},
-	{ID: toolspkg.ToolsetIDMCP, Tools: []string{toolspkg.ToolIDMCPStatus.String()}},
+	{ID: toolspkg.ToolsetIDMCP, Tools: []string{toolspkg.ToolIDMCPStatus.String(), toolspkg.ToolIDMCPAllow.String()}},
 	{ID: toolspkg.ToolsetIDMCPAuth, Tools: []string{toolspkg.ToolIDMCPAuthStatus.String()}},
 }

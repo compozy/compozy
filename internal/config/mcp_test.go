@@ -88,3 +88,49 @@ func TestMCPStdioConfig(t *testing.T) {
 		}
 	})
 }
+
+// Invariant (UT-007): the consent identity covers the full unresolved definition,
+// while credentials behind stable Vault references and runtime allocation do not affect it.
+// Owner: config definition normalization; canonical suite: TestMCPDefinitionDigest.
+func TestMCPDefinitionDigest(t *testing.T) {
+	t.Parallel()
+	original := MCPServer{Name: "remote", Transport: "http", URL: "https://example.com/mcp", Args: []string{"a"}, Env: map[string]string{"FLAG": "one"}, Headers: map[string]string{"X-Mode": "one"}, SecretEnv: map[string]string{"TOKEN": "vault:one"}, SecretHeaders: map[string]string{"X-Key": "vault:key"}, ReadOnlyTools: []string{"read"}, Auth: MCPAuthConfig{Registration: MCPAuthRegistrationAuto}}
+	digest, err := MCPDefinitionDigest(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name   string
+		change func(*MCPServer)
+	}{
+		{"args", func(s *MCPServer) { s.Args = []string{"b"} }},
+		{"env value", func(s *MCPServer) { s.Env["FLAG"] = "two" }},
+		{"header value", func(s *MCPServer) { s.Headers["X-Mode"] = "two" }},
+		{"env reference", func(s *MCPServer) { s.SecretEnv["TOKEN"] = "vault:two" }},
+		{"header reference", func(s *MCPServer) { s.SecretHeaders["X-Key"] = "vault:other" }},
+		{"readonly", func(s *MCPServer) { s.ReadOnlyTools = []string{"other"} }},
+		{"cwd", func(s *MCPServer) { s.CWD = "/other" }},
+		{"auth", func(s *MCPServer) { s.Auth.ClientID = "other-client" }},
+		{"catalog entry", func(s *MCPServer) { s.CatalogEntry = "other" }},
+		{"catalog version", func(s *MCPServer) { s.CatalogVersion = "2" }},
+		{"reference", func(s *MCPServer) { s.Reference = true }},
+	} {
+		t.Run("Should change for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			changed := cloneMCPServer(original)
+			tc.change(&changed)
+			got, err := MCPDefinitionDigest(changed)
+			if err != nil || got == digest {
+				t.Fatalf("digest=%q, err=%v", got, err)
+			}
+		})
+	}
+	changed := cloneMCPServer(original)
+	changed.Name = "other"
+	changed.RuntimeName = "allocated"
+	changed.DefinitionSource = "/other/file"
+	got, err := MCPDefinitionDigest(changed)
+	if err != nil || got != digest {
+		t.Fatalf("allocation changed digest: %q %v", got, err)
+	}
+}

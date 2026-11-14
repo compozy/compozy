@@ -47,6 +47,10 @@ func (s *service) buildMCPServerItems(
 			entry: effective,
 		})
 	}
+	items, err = s.appendPublishedMCPItems(ctx, items, MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName})
+	if err != nil {
+		return nil, err
+	}
 	items, err = s.appendExtensionMCPItems(
 		ctx,
 		items,

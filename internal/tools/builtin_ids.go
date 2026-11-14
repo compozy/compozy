@@ -340,6 +340,7 @@ const (
 	// ToolIDResourcesSnapshot reads a filtered desired-state resource snapshot.
 	ToolIDResourcesSnapshot ToolID = "compozy__resources_snapshot"
 	// ToolIDMCPStatus probes one configured MCP server without exposing login/logout as tools.
+	ToolIDMCPAllow  ToolID = "compozy__mcp_allow"
 	ToolIDMCPStatus ToolID = "compozy__mcp_status"
 	// ToolIDMCPAuthStatus reads redacted MCP auth diagnostics for one configured server.
 	ToolIDMCPAuthStatus ToolID = "compozy__mcp_auth_status"

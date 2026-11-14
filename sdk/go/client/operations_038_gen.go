@@ -9,6 +9,43 @@ import (
 	"strings"
 )
 
+// UpdateSettingsProviderUsage Update the provider usage settings section
+func (c *Client) UpdateSettingsProviderUsage(ctx context.Context, params UpdateSettingsProviderUsageParams, body SettingsProviderUsageUpdateRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/provider-usage"
+	query := url.Values{}
+	if params.CollectionProfile != nil {
+		query.Set("collection_profile", *params.CollectionProfile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateSettingsRoles Update the background-role routing settings section
+func (c *Client) UpdateSettingsRoles(ctx context.Context, body UpdateSettingsRolesRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/roles"
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateSettingsShell Update the operator shell settings section
+func (c *Client) UpdateSettingsShell(ctx context.Context, body UpdateSettingsShellRequest) (*SettingsShellMutationResponse, error) {
+	path := "/api/settings/shell"
+	var out SettingsShellMutationResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UpdateSettingsSkillsParams carries the path, query, and header parameters.
 type UpdateSettingsSkillsParams struct {
 	Scope       *string `url:"scope"`

@@ -27,6 +27,7 @@ type ServiceOption func(*Service)
 
 // Service executes OAuth 2.1 authorization-code flows for remote MCP servers.
 type Service struct {
+	authorizeNetwork  func(context.Context, ServerConfig) error
 	store             TokenStore
 	registrations     RegistrationStore
 	client            *http.Client
@@ -81,21 +82,14 @@ type httpDoer interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-func (s *Service) clientFor(cfg ServerConfig) httpDoer {
-	if strings.TrimSpace(cfg.CatalogEntry) != "" {
-		return s.catalogClient
-	}
-	if s.secureClient != nil {
-		return s.secureClient
-	}
-	return s.client
-}
+func (s *Service) clientFor(cfg ServerConfig) httpDoer { return s.sdkHTTPClientFor(cfg) }
 
 func (s *Service) sdkHTTPClientFor(cfg ServerConfig) *http.Client {
+	base := s.client
 	if strings.TrimSpace(cfg.CatalogEntry) != "" {
-		return s.catalogClient.HTTPClient()
+		base = s.catalogClient.HTTPClient()
 	}
-	return s.client
+	return s.authorizedHTTPClient(cfg, base)
 }
 
 // LoginState holds the short-lived in-memory authorization flow state.

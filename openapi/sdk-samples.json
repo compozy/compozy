@@ -673,6 +673,13 @@
             "resource": "settings",
             "app_access": "denied"
         },
+        "deleteSettingsMCPApproval": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.deleteSettingsMCPApproval({ path: { \"name\": \"name\" }, query: { \"workspace_id\": \"workspace_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.DeleteSettingsMCPApproval(ctx, client.DeleteSettingsMCPApprovalParams{Name: \"name\", WorkspaceID: \"workspace_id\"})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
         "deleteSettingsMCPServer": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.deleteSettingsMCPServer({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DeleteSettingsMCPServer(ctx, client.DeleteSettingsMCPServerParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2825,6 +2832,13 @@
         "putSettingsHook": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.putSettingsHook({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PutSettingsHook(ctx, client.PutSettingsHookParams{Name: \"name\"}, client.PutSettingsHookRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
+        "putSettingsMCPApproval": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.putSettingsMCPApproval({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PutSettingsMCPApproval(ctx, client.PutSettingsMCPApprovalParams{Name: \"name\"}, client.SettingsMCPApprovalRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "settings",
             "app_access": "denied"

@@ -7912,3 +7912,68 @@ func TestDraftAgentInstructionsEndpoint(t *testing.T) {
 		})
 	}
 }
+
+// Invariant (UT-005/036): agent create and update commit sidecars before approval,
+// and surface approval failures without undoing durable authoring. Owner: API agent
+// authoring; canonical suite: handlers_test.go.
+func TestBaseHandlersWorkspaceAgentMCPApproval(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	path := filepath.Join(root, compozyconfig.DirName, compozyconfig.ProfilesDirName, "default", compozyconfig.AgentsDirName, "worker", compozyconfig.AgentDefinitionFileName)
+	workspaces := testutil.StubWorkspaceService{ResolveForProfileFn: func(_ context.Context, _, profile string) (workspacepkg.ResolvedWorkspace, error) {
+		resolved := workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-agent", RootDir: root}, ProfileName: profile, Config: compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}}}
+		if agent, err := compozyconfig.LoadAgentDefFile(path); err == nil {
+			resolved.Agents = []compozyconfig.AgentDef{agent}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return resolved, err
+		}
+		return resolved, nil
+	}}
+	fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces)
+	calls := 0
+	fixture.Handlers.Settings = &agentMCPApprovalSettings{stubSettingsService: &stubSettingsService{}, record: func(ctx context.Context, write settingspkg.WorkspaceMCPWrite) (string, error) {
+		calls++
+		if write.WorkspaceID != "ws-agent" || !strings.HasSuffix(write.SourceID, compozyconfig.MCPJSONName) {
+			t.Fatalf("approval identity=%+v", write)
+		}
+		if err := write.Write(); err != nil {
+			return "", err
+		}
+		committed, err := write.ReadCommitted()
+		if err != nil || committed.Command != write.Server.Command {
+			t.Fatalf("committed=%+v %v", committed, err)
+		}
+		return "saved but waiting for approval", nil
+	}}
+	payload := contract.CreateAgentPayload{Name: "worker", Provider: "codex", Prompt: "Work.", MCPServers: []contract.AgentMCPServerInput{{Name: "local", Command: "fixture", Args: []string{"first"}}}}
+	created := performRequest(t, fixture.Engine, http.MethodPost, "/agents", mustJSON(t, contract.CreateAgentRequest{Scope: contract.AgentCreateScopeWorkspace, Workspace: "alpha", Agent: payload}))
+	if created.Code != http.StatusCreated || !strings.Contains(created.Body.String(), "saved but waiting for approval") || calls != 1 {
+		t.Fatalf("create=%d %s calls=%d", created.Code, created.Body.String(), calls)
+	}
+	agent, err := compozyconfig.LoadAgentDefFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, err := compozyconfig.AgentDefinitionDigest(agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload.MCPServers[0].Args = []string{"second"}
+	updated := performRequest(t, fixture.Engine, http.MethodPut, "/agents/worker", mustJSON(t, contract.UpdateAgentRequest{Workspace: "alpha", ExpectedDigest: digest, Agent: payload}))
+	if updated.Code != http.StatusOK || !strings.Contains(updated.Body.String(), "saved but waiting for approval") || calls != 2 {
+		t.Fatalf("update=%d %s calls=%d", updated.Code, updated.Body.String(), calls)
+	}
+	agent, err = compozyconfig.LoadAgentDefFile(path)
+	if err != nil || len(agent.MCPServers) != 1 || len(agent.MCPServers[0].Args) != 1 || agent.MCPServers[0].Args[0] != "second" {
+		t.Fatalf("durable sidecar=%+v %v", agent.MCPServers, err)
+	}
+}
+
+type agentMCPApprovalSettings struct {
+	*stubSettingsService
+	record func(context.Context, settingspkg.WorkspaceMCPWrite) (string, error)
+}
+
+func (s *agentMCPApprovalSettings) RecordWorkspaceMCPWrite(ctx context.Context, write settingspkg.WorkspaceMCPWrite) (string, error) {
+	return s.record(ctx, write)
+}

@@ -108,6 +108,7 @@ func resolveDaemonMCPResource(
 		}
 		return mcppkg.ResolvedServer{
 			ReadOnlyOverrideOrigin: new(toolspkg.MCPReadOnlyOverrideOperatorConfig),
+			ConsentScope:           mcpauth.ConsentScope{ProfileID: source.ProfileID, WorkspaceID: source.WorkspaceID, ResourceID: source.ResourceID},
 			Server:                 server, Target: target, HealthKey: extensionMCPHealthKey(ctx, state, record),
 		}, nil
 	}

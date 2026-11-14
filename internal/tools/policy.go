@@ -300,6 +300,10 @@ func (e *EffectivePolicyEvaluator) evaluateSourcePolicy(
 	}
 	if e.hasExplicitSourceGrant(d) || e.hasExplicitToolGrant(d.ID) {
 		decision.SourcePolicyResult = policyResultAllowed
+		if e.externalDefault() == ExternalDefaultAsk {
+			decision.SourcePolicyResult = policyResultApprovalRequired
+			return true, true
+		}
 		return true, false
 	}
 	if e.isTrustedReadOnlySource(d) {

@@ -133,6 +133,8 @@ const authTypeOAuth = "oauth"
 
 // ServerConfig is the token-free auth configuration used by the OAuth service.
 type ServerConfig struct {
+	DefinitionDigest        string
+	ConsentScope            ConsentScope
 	Implicit                bool
 	Target                  Target
 	Transport               string

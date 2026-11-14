@@ -57,6 +57,9 @@ func (m *Manager) sessionMCPServers(
 			"configured_mcp_servers", len(resolved.MCPServers),
 		)
 		servers, err := m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
+		if err == nil && m.mcpConsentFilter != nil {
+			servers, err = m.mcpConsentFilter(ctx, spec.profileID, spec.workspace.ID, servers)
+		}
 		if spec.sessionType == SessionTypeSpawned || spec.sessionType == SessionTypeCoordinator {
 			policy := store.NormalizeSessionLineage(spec.sessionID, spec.lineage).PermissionPolicy
 			servers = slices.DeleteFunc(servers, func(server compozyconfig.MCPServer) bool {

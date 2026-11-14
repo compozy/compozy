@@ -42,6 +42,10 @@ func WithMCPDeadEntityService(service MCPDeadEntityService) MCPProviderOption {
 	}
 }
 
+func WithMCPConsent(check func(context.Context, SourceRef, string) (bool, error)) MCPProviderOption {
+	return func(p *MCPProvider) { p.consent = check }
+}
+
 type mcpReliability struct {
 	service MCPDeadEntityService
 
@@ -59,6 +63,15 @@ func (p *MCPProvider) listSourceDescriptors(
 	profileID string,
 	timeout time.Duration,
 ) ([]Descriptor, bool, error) {
+	if p.consent != nil {
+		admitted, err := p.consent(ctx, source, profileID)
+		if err != nil {
+			return nil, false, err
+		}
+		if !admitted {
+			return nil, true, nil
+		}
+	}
 	key, tracked := mcpDeadEntityKey(source, profileID)
 	var reliabilityState *mcpReliabilityState
 	if tracked && p.reliability != nil {

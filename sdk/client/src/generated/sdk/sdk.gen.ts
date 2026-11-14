@@ -298,6 +298,9 @@ import type {
   DeleteSettingsHookData,
   DeleteSettingsHookErrors,
   DeleteSettingsHookResponses,
+  DeleteSettingsMCPApprovalData,
+  DeleteSettingsMCPApprovalErrors,
+  DeleteSettingsMCPApprovalResponses,
   DeleteSettingsMCPServerData,
   DeleteSettingsMCPServerErrors,
   DeleteSettingsMCPServerResponses,
@@ -1221,6 +1224,9 @@ import type {
   PutSettingsHookData,
   PutSettingsHookErrors,
   PutSettingsHookResponses,
+  PutSettingsMCPApprovalData,
+  PutSettingsMCPApprovalErrors,
+  PutSettingsMCPApprovalResponses,
   PutSettingsMCPServerData,
   PutSettingsMCPServerErrors,
   PutSettingsMCPServerResponses,
@@ -6845,6 +6851,56 @@ export class settings extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/settings/mcp-servers/{name}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Revoke workspace MCP consent
+   */
+  public deleteSettingsMCPApproval<ThrowOnError extends boolean = true>(
+    options: Options<DeleteSettingsMCPApprovalData, ThrowOnError>
+  ): RequestResult<
+    DeleteSettingsMCPApprovalResponses,
+    DeleteSettingsMCPApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      DeleteSettingsMCPApprovalResponses,
+      DeleteSettingsMCPApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/approval",
+      ...options,
+    });
+  }
+
+  /**
+   * Approve an exact workspace MCP definition
+   */
+  public putSettingsMCPApproval<ThrowOnError extends boolean = true>(
+    options: Options<PutSettingsMCPApprovalData, ThrowOnError>
+  ): RequestResult<
+    PutSettingsMCPApprovalResponses,
+    PutSettingsMCPApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).put<
+      PutSettingsMCPApprovalResponses,
+      PutSettingsMCPApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/approval",
       ...options,
       headers: {
         "Content-Type": "application/json",

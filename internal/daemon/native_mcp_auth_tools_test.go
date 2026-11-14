@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -542,4 +543,56 @@ func (p *nativeMCPAuthStatusProvider) Status(
 		status.Status = "authenticated"
 	}
 	return status, nil
+}
+
+// Invariant (UT-092/094): allow and revoke mutate the caller's consent through
+// the registry, while a narrowed session cannot mutate it. Owner: native tool adapter.
+func TestDaemonNativeMCPAllow(t *testing.T) {
+	t.Parallel()
+	t.Run("Should allow and revoke through the public registry without OAuth", func(t *testing.T) {
+		t.Parallel()
+		state, consentReq := newMCPConsentFixture(t)
+		writeMCPDeclarationFile(t, consentReq.Server.DefinitionSource, `{"mcpServers":{"sentry":{"command":"fixture"}}}`)
+		service, err := settingspkg.NewService(testHomePaths(t), settingspkg.Dependencies{WorkspaceResolver: state.workspaceResolver, ProfileResolver: state.profiles, MCPConsent: settingsMCPConsent{state: state}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: nativeTestSessionManager(consentReq.WorkspaceID), Workspaces: state.workspaceResolver, Settings: func() core.SettingsService { return service }}, nativeApproveAllPolicyInputs())
+		decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), consentReq)
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: consentReq.WorkspaceID, ProfileID: store.DefaultProfileID}
+		for _, action := range []string{"allow", "revoke"} {
+			input, err := json.Marshal(map[string]string{"server_name": "sentry", "decision": action, "definition_digest": decision.DefinitionDigest})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDMCPAllow, Input: input})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload struct {
+				Approval struct {
+					State string `json:"state"`
+				} `json:"approval"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			current, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), consentReq)
+			if err != nil || current.Admitted != (action == "allow") || (payload.Approval.State == "allowed") != current.Admitted {
+				t.Fatalf("%s: %+v %s %v", action, current, result.Structured, err)
+			}
+		}
+		restricted := nativeApproveAllPolicyInputs()
+		restricted.Session.Enforced = true
+		restricted.Session.Tools = []toolspkg.ToolID{"compozy__mcp_list"}
+		narrowed := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: nativeTestSessionManager(consentReq.WorkspaceID), Workspaces: state.workspaceResolver, Settings: func() core.SettingsService { return service }}, restricted)
+		_, err = narrowed.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDMCPAllow, Input: json.RawMessage(`{"server_name":"sentry","decision":"revoke"}`)})
+		failure, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || !slices.Contains(failure.ReasonCodes, toolspkg.ReasonSessionDenied) {
+			t.Fatalf("narrowed call=%v", err)
+		}
+	})
 }

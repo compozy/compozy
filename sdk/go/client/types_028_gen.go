@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// TerminalRecordingRequest is a daemon API value.
+type TerminalRecordingRequest struct {
+	Action TerminalRecordingAction `json:"action"`
+}
+
+// TerminalRecordingResponse is a daemon API value.
+type TerminalRecordingResponse struct {
+	Recording TerminalRecordingPayload `json:"recording"`
+}
+
+// TerminalRecordingState is a daemon API value.
+type TerminalRecordingState string
+
+// TerminalRejectInputRequest is a daemon API value.
+type TerminalRejectInputRequest struct {
+	Reason string `json:"reason"`
+}
+
 // TerminalResolvedInputRequest is a daemon API value.
 type TerminalResolvedInputRequest struct {
 	ID          string                         `json:"id"`
@@ -426,16 +444,3 @@ type ToolSourceRefPayload struct {
 	WorkspaceID     string     `json:"workspace_id,omitempty"`
 	Scope           string     `json:"scope,omitempty"`
 }
-
-// ToolsResponse is a daemon API value.
-type ToolsResponse struct {
-	Tools      []ToolPayload `json:"tools"`
-	Offset     int           `json:"offset,omitzero"`
-	Count      int           `json:"count"`
-	Total      int           `json:"total"`
-	NextOffset int           `json:"next_offset,omitzero"`
-	HasMore    bool          `json:"has_more"`
-}
-
-// ToolsetID is a daemon API value.
-type ToolsetID string

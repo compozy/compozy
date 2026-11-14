@@ -42,6 +42,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithToolsetCatalog(toolsets),
 			session.WithToolUniverse(toolUniverse),
 			session.WithMCPResolver(deps.MCPResolver),
+			session.WithMCPConsentFilter(deps.MCPConsentFilter),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithWorktreeResolver(deps.WorktreeResolver),
 			session.WithWindowReconciler(deps.WindowReconciler),

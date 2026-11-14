@@ -14,6 +14,8 @@ import (
 
 // MCPServerItem is one MCP server collection row.
 type MCPServerItem struct {
+	Approval               MCPApprovalState
+	CallableInSessions     bool
 	readOnlyTools          *[]string
 	Owner                  string
 	RuntimeName            string

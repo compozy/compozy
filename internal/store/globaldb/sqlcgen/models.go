@@ -1317,6 +1317,16 @@ type McpOauthRegistration struct {
 	UpdatedAt                  string         `json:"updated_at"`
 }
 
+type McpServerApproval struct {
+	ID               string `json:"id"`
+	ProfileID        string `json:"profile_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	ServerName       string `json:"server_name"`
+	SourceID         string `json:"source_id"`
+	DefinitionDigest string `json:"definition_digest"`
+	ApprovedAt       string `json:"approved_at"`
+}
+
 type ModelCatalogExecutionContext struct {
 	ContextID          string `json:"context_id"`
 	Scope              string `json:"scope"`

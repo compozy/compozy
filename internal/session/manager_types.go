@@ -256,6 +256,7 @@ type Manager struct {
 	toolsetCatalog               toolspkg.ToolsetCatalog
 	toolUniverse                 []toolspkg.ToolID
 	mcpResolver                  MCPResolver
+	mcpConsentFilter             MCPConsentFilter
 	hostedMCP                    HostedMCPLauncher
 	soulStore                    SoulSnapshotStore
 	soulRunChecker               SoulRunActivityChecker

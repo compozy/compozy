@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// WaitingOn is a daemon API value.
+type WaitingOn string
+
+// WebhookDeliveryPayload is a daemon API value.
+type WebhookDeliveryPayload struct {
+	Matched int          `json:"matched"`
+	Runs    []RunPayload `json:"runs,omitempty"`
+}
+
+// WebhookDeliveryResponse is a daemon API value.
+type WebhookDeliveryResponse struct {
+	Result WebhookDeliveryPayload `json:"result"`
+}
+
 // Weights is a daemon API value.
 type Weights struct {
 	Version                    int      `json:"version"`
@@ -433,17 +447,4 @@ type WorktreeBranchOutcomePayload struct {
 	Deleted bool   `json:"deleted"`
 	Reason  string `json:"reason,omitempty"`
 	Detail  string `json:"detail,omitempty"`
-}
-
-// WorktreeCatalogEventPayload is a daemon API value.
-type WorktreeCatalogEventPayload struct {
-	Kind        string `json:"kind"`
-	WorkspaceID string `json:"workspace_id"`
-	WorktreeID  string `json:"worktree_id"`
-	Error       string `json:"error,omitempty"`
-}
-
-// WorktreeCleanupResponse is a daemon API value.
-type WorktreeCleanupResponse struct {
-	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
 }

@@ -57,6 +57,11 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	defer func() {
 		err = redactMCPError(err)
 	}()
+	if e.consent != nil {
+		if err := e.consent(ctx, source); err != nil {
+			return nil, "", err
+		}
+	}
 	resolved, err := e.resolveServer(ctx, source, "")
 	if err != nil {
 		return nil, "", err
@@ -164,6 +169,11 @@ func (e *CallExecutor) CallTool(
 	defer func() {
 		err = redactMCPError(err)
 	}()
+	if e.consent != nil {
+		if err := e.consent(ctx, source); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	resolved, err := e.resolveServer(ctx, source, "")
 	if err != nil {
 		return toolspkg.ToolResult{}, err

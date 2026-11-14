@@ -188,28 +188,36 @@ type SettingsMCPExtensionOverridePayload struct {
 	URL     string            `json:"url,omitempty"`
 }
 
+type SettingsMCPApprovalStatePayload struct {
+	Required         bool   `json:"required"`
+	State            string `json:"state"`
+	DefinitionDigest string `json:"definition_digest"`
+}
+
 type SettingsMCPServerItemPayload struct {
-	ReadOnlyTools     []string                               `json:"read_only_tools,omitempty"`
-	HeadersConfigured bool                                   `json:"headers_configured,omitzero"`
-	Owner             string                                 `json:"owner,omitempty"`
-	RuntimeName       string                                 `json:"runtime_name,omitempty"`
-	Override          *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
-	Name              string                                 `json:"name"`
-	Transport         string                                 `json:"transport"`
-	Command           string                                 `json:"command,omitempty"`
-	Args              []string                               `json:"args,omitempty"`
-	EnvKeys           []string                               `json:"env_keys,omitempty"`
-	SecretEnvKeys     []string                               `json:"secret_env_keys,omitempty"`
-	URL               string                                 `json:"url,omitempty"`
-	Auth              *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
-	AuthStatus        *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
-	RuntimeStatus     *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
-	Scope             SettingsScopeKind                      `json:"scope"`
-	WorkspaceID       string                                 `json:"workspace_id,omitempty"`
-	Profile           string                                 `json:"profile,omitempty"`
-	CatalogEntry      string                                 `json:"catalog_entry,omitempty"`
-	CatalogVersion    string                                 `json:"catalog_version,omitempty"`
-	SourceMetadata    SettingsSourceMetadataPayload          `json:"source_metadata"`
+	Approval           SettingsMCPApprovalStatePayload        `json:"approval"`
+	CallableInSessions bool                                   `json:"callable_in_sessions"`
+	ReadOnlyTools      []string                               `json:"read_only_tools,omitempty"`
+	HeadersConfigured  bool                                   `json:"headers_configured,omitzero"`
+	Owner              string                                 `json:"owner,omitempty"`
+	RuntimeName        string                                 `json:"runtime_name,omitempty"`
+	Override           *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
+	Name               string                                 `json:"name"`
+	Transport          string                                 `json:"transport"`
+	Command            string                                 `json:"command,omitempty"`
+	Args               []string                               `json:"args,omitempty"`
+	EnvKeys            []string                               `json:"env_keys,omitempty"`
+	SecretEnvKeys      []string                               `json:"secret_env_keys,omitempty"`
+	URL                string                                 `json:"url,omitempty"`
+	Auth               *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
+	AuthStatus         *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
+	RuntimeStatus      *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
+	Scope              SettingsScopeKind                      `json:"scope"`
+	WorkspaceID        string                                 `json:"workspace_id,omitempty"`
+	Profile            string                                 `json:"profile,omitempty"`
+	CatalogEntry       string                                 `json:"catalog_entry,omitempty"`
+	CatalogVersion     string                                 `json:"catalog_version,omitempty"`
+	SourceMetadata     SettingsSourceMetadataPayload          `json:"source_metadata"`
 }
 
 type SettingsHookDeclarationPayload struct {

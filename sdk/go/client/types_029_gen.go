@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// ToolsResponse is a daemon API value.
+type ToolsResponse struct {
+	Tools      []ToolPayload `json:"tools"`
+	Offset     int           `json:"offset,omitzero"`
+	Count      int           `json:"count"`
+	Total      int           `json:"total"`
+	NextOffset int           `json:"next_offset,omitzero"`
+	HasMore    bool          `json:"has_more"`
+}
+
+// ToolsetID is a daemon API value.
+type ToolsetID string
+
 // ToolsetPayload is a daemon API value.
 type ToolsetPayload struct {
 	ID            ToolsetID    `json:"id"`
@@ -433,18 +446,4 @@ type WaitExpiry struct {
 	After    string       `json:"after"`
 	Escalate []EffectSpec `json:"escalate,omitempty"`
 	Route    NodeID       `json:"route,omitempty"`
-}
-
-// WaitingOn is a daemon API value.
-type WaitingOn string
-
-// WebhookDeliveryPayload is a daemon API value.
-type WebhookDeliveryPayload struct {
-	Matched int          `json:"matched"`
-	Runs    []RunPayload `json:"runs,omitempty"`
-}
-
-// WebhookDeliveryResponse is a daemon API value.
-type WebhookDeliveryResponse struct {
-	Result WebhookDeliveryPayload `json:"result"`
 }

@@ -234,3 +234,41 @@ const loggedOutClientMCPAuthStatusJSON = `{
   "refreshable":false,
   "token_present":false
 }`
+
+// Invariant: CLI approval requests preserve the exact digest and project/profile
+// identity over UDS, and DELETE uses the same identity. Owner: CLI transport boundary.
+func TestMCPApprovalClientRoutes(t *testing.T) {
+	t.Parallel()
+	calls := 0
+	client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		if req.URL.Path != "/api/settings/mcp-servers/sentry/approval" {
+			return nil, fmt.Errorf("wrong approval path: %s", req.URL)
+		}
+		if req.Method == http.MethodDelete {
+			if req.URL.Query().Get("workspace_id") != "ws-project" || req.URL.Query().Get("profile") != "work" {
+				return nil, fmt.Errorf("revoke lost identity: %s", req.URL)
+			}
+			return newHTTPResponse(http.StatusNoContent, ""), nil
+		}
+		var body contract.SettingsMCPApprovalRequest
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		if req.Method != http.MethodPut || body.WorkspaceID != "ws-project" || body.Profile != "work" || body.DefinitionDigest != "observed" {
+			return nil, fmt.Errorf("wrong approval request: %+v", body)
+		}
+		return newHTTPResponse(http.StatusOK, `{"approval":{"server_name":"sentry","workspace_id":"ws-project","profile":"work","state":"allowed"}}`), nil
+	})}}
+	body := contract.SettingsMCPApprovalRequest{WorkspaceID: "ws-project", Profile: "work", DefinitionDigest: "observed"}
+	result, err := client.SetSettingsMCPApproval(t.Context(), "sentry", body, false)
+	if err != nil || result.Approval.State != "allowed" {
+		t.Fatalf("allow=%+v %v", result, err)
+	}
+	if _, err := client.SetSettingsMCPApproval(t.Context(), "sentry", body, true); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls=%d", calls)
+	}
+}

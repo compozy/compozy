@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -95,6 +96,7 @@ func (n *daemonNativeTools) agentCreate(
 		string(req.ToolID),
 		profileName,
 		n.deps.Vault,
+		core.AgentMCPApprovalForSettings(n.settingsService()),
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
@@ -116,7 +118,19 @@ func (n *daemonNativeTools) agentCreate(
 		entry.WorkspaceID = created.WorkspaceID
 	}
 	payload := core.AgentPayloadFromEntryWithConfig(&entry, &created.RuntimeConfig)
-	return agentRecordViews.result(req.View, payload)
+	result, resultErr := agentRecordViews.result(req.View, payload)
+	if len(created.Warnings) > 0 {
+		result.Preview += "; " + strings.Join(created.Warnings, "; ")
+		warnings, err := json.Marshal(created.Warnings)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		if result.Metadata == nil {
+			result.Metadata = make(map[string]json.RawMessage)
+		}
+		result.Metadata["warnings"] = warnings
+	}
+	return result, resultErr
 }
 
 func (n *daemonNativeTools) nativeAgentCreateProfileName(

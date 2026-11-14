@@ -44,6 +44,8 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		TransportParity:         surface,
 		CmdPalette:              state.cmdPalette,
 		MCPAuth:                 surface,
+		MCPConsent:              settingsMCPConsent{state: state},
+		WorkspaceMCPApprovals:   settingsMCPConsent{state: state},
 		MCPRuntime:              surface,
 		MCPExtensions:           settingsMCPExtensionDefinitions{state: state},
 		MCPExtensionManagement:  settingsMCPExtensionDefinitions{state: state, auth: surface},

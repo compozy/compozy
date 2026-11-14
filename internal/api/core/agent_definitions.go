@@ -105,7 +105,8 @@ func (h *BaseHandlers) updateAgent(c *gin.Context, req contract.UpdateAgentReque
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	agent, err := h.writeUpdatedAgentDefinition(c, resolved.Entry.Def.SourcePath, draft, req.Agent.MCPServers)
+	var warnings []string
+	agent, err := h.writeUpdatedAgentDefinition(c, resolved.Entry.Def.SourcePath, draft, req.Agent.MCPServers, agentMCPApprovalContext(h.Settings, resolved.OperationWorkspace, profileName, &warnings))
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
@@ -121,7 +122,8 @@ func (h *BaseHandlers) updateAgent(c *gin.Context, req contract.UpdateAgentReque
 	entry := h.agentCatalogEntryFromDef(agent, resolved.OperationWorkspace)
 	h.logAgentMutation("update", &entry, startedAt, syncDuration)
 	c.JSON(http.StatusOK, contract.AgentResponse{
-		Agent: AgentPayloadFromEntryWithConfig(&entry, &resolved.Config),
+		Agent:    AgentPayloadFromEntryWithConfig(&entry, &resolved.Config),
+		Warnings: warnings,
 	})
 }
 

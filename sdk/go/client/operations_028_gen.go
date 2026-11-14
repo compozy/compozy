@@ -126,6 +126,22 @@ func (c *Client) PutSettingsHook(ctx context.Context, params PutSettingsHookPara
 	return &out, nil
 }
 
+// PutSettingsMCPApprovalParams carries the path, query, and header parameters.
+type PutSettingsMCPApprovalParams struct {
+	Name string `url:"name"`
+}
+
+// PutSettingsMCPApproval Approve an exact workspace MCP definition
+func (c *Client) PutSettingsMCPApproval(ctx context.Context, params PutSettingsMCPApprovalParams, body SettingsMCPApprovalRequest) (*SettingsMCPApprovalResponse, error) {
+	path := "/api/settings/mcp-servers/{name}/approval"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsMCPApprovalResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PutSettingsMCPServerParams carries the path, query, and header parameters.
 type PutSettingsMCPServerParams struct {
 	Name        string  `url:"name"`
@@ -408,41 +424,6 @@ type ReadSessionFileContentParams struct {
 	SessionID   string  `url:"session_id"`
 	Path        string  `url:"path"`
 	Reveal      *bool   `url:"reveal"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ReadSessionFileContent Read project file content
-func (c *Client) ReadSessionFileContent(ctx context.Context, params ReadSessionFileContentParams) (*FileContentResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	query.Set("path", params.Path)
-	if params.Reveal != nil {
-		query.Set("reveal", strconv.FormatBool(*params.Reveal))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileContentResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadTaskRunResultParams carries the path, query, and header parameters.
-type ReadTaskRunResultParams struct {
-	ID          string  `url:"id"`
-	Offset      *int    `url:"offset"`
-	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }
