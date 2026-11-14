@@ -26,6 +26,9 @@ type providerUsageRuntime struct {
 	profileDone   chan struct{}
 	authMu        sync.RWMutex
 	recoverAuth   func(string, string, string) bool
+	// recheckSignIn re-checks a provider whose stored needs_login verdict a verified collection
+	// contradicts.
+	recheckSignIn func(string)
 }
 
 func (d *Daemon) bootProviderUsage(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -131,11 +134,24 @@ func providerUsageConfigChanged(previous, next *config.Config) bool {
 // onAuthenticated forwards published native-auth proofs without holding the config reconciliation lock.
 func (r *providerUsageRuntime) onAuthenticated(_ context.Context, target providerusage.Target) {
 	r.authMu.RLock()
-	recoverAuth := r.recoverAuth
+	recoverAuth, recheckSignIn := r.recoverAuth, r.recheckSignIn
 	r.authMu.RUnlock()
-	if recoverAuth != nil && target.AuthRouteFingerprint != "" {
+	if target.AuthRouteFingerprint == "" {
+		return
+	}
+	if recoverAuth != nil {
 		recoverAuth(target.ProfileID, target.ProviderID, target.AuthRouteFingerprint)
 	}
+	if recheckSignIn != nil {
+		recheckSignIn(target.ProviderID)
+	}
+}
+
+// setSignInRecheck installs the native-CLI sign-in re-check that verified collections trigger.
+func (r *providerUsageRuntime) setSignInRecheck(recheck func(string)) {
+	r.authMu.Lock()
+	r.recheckSignIn = recheck
+	r.authMu.Unlock()
 }
 
 // setAuthRecovery reports whether the session manager exposes verified-auth recovery.

@@ -20,7 +20,8 @@ type AuthVerdict struct {
 // AuthVerdicts keeps the last live sign-in verdict per native_cli provider for one daemon process.
 // Explicit auth probes and session pre-start probes feed it; settings and provider list read it so a
 // verified sign-in is not reported as unverified. A change to the provider's sign-in identity
-// invalidates its verdict, and a daemon restart starts empty. Reads never run a status command.
+// invalidates its verdict, a sign-in verified elsewhere drops a needs_login verdict, and a daemon
+// restart starts empty. Reads never run a status command.
 type AuthVerdicts struct {
 	mu      sync.Mutex
 	now     func() time.Time
@@ -83,6 +84,27 @@ func (v *AuthVerdicts) Forget(providerNames ...string) {
 	for _, name := range providerNames {
 		delete(v.entries, strings.TrimSpace(name))
 	}
+}
+
+// DropNeedsLogin drops the provider's needs_login verdict when another source, such as a published
+// usage collection, verified its sign-in at observedAt. A verdict whose probe started after
+// observedAt is newer evidence and stays. The drop keeps observedAt as the probe start, so a probe
+// that started earlier cannot record afterwards. It reports whether a verdict was dropped, so the
+// caller can re-check the provider once.
+func (v *AuthVerdicts) DropNeedsLogin(providerName string, observedAt time.Time) bool {
+	if v == nil {
+		return false
+	}
+	name := strings.TrimSpace(providerName)
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	entry, found := v.entries[name]
+	if !found || entry.dropped || entry.verdict.Classification.State != ProviderAuthStateNeedsLogin ||
+		entry.startedAt.After(observedAt) {
+		return false
+	}
+	v.entries[name] = authVerdictEntry{startedAt: observedAt, dropped: true}
+	return true
 }
 
 // Lookup returns the provider's last verdict while its sign-in identity and the auth home it was

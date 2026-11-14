@@ -230,6 +230,42 @@ func TestProviderAuthStartup(t *testing.T) {
 		}
 	})
 
+	t.Run("Should re-check a needs_login provider after a sign-in is verified elsewhere", func(t *testing.T) {
+		t.Parallel()
+		// Invariant (#1695): a startup needs_login verdict does not outlive a verified sign-in.
+		var signedIn atomic.Bool
+		var runs atomic.Int32
+		f := newStartupProbeFixture(func(context.Context, providers.ProviderAuthCommandSpec) (
+			providers.ProviderAuthCommandResult, error,
+		) {
+			runs.Add(1)
+			if signedIn.Load() {
+				return providers.ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
+			}
+			return providers.ProviderAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+		}, "acme")
+		provider := nativeStatusProvider("acme")
+		f.runWith(t.Context(), startupConfig(map[string]compozyconfig.ProviderConfig{"acme": provider}))
+		if verdict, ok := f.verdicts.Lookup("acme", provider, nil); !ok ||
+			verdict.Classification.State != providers.ProviderAuthStateNeedsLogin {
+			t.Fatalf("startup verdict = %#v, %v; want needs_login", verdict, ok)
+		}
+
+		signedIn.Store(true)
+		// A group without a cancel func lets Stop join the re-check instead of canceling it.
+		worker := newOwnedWorkerGroup(nil)
+		f.check.recheck(t.Context(), worker, "acme")
+		f.check.recheck(t.Context(), worker, "acme")
+		<-worker.Stop()
+		verdict, ok := f.verdicts.Lookup("acme", provider, nil)
+		if !ok || verdict.Classification.State != providers.ProviderAuthStateAuthenticated {
+			t.Fatalf("verdict after the verified sign-in = %#v, %v; want authenticated", verdict, ok)
+		}
+		if got := runs.Load(); got != 2 {
+			t.Fatalf("status commands run = %d, want 2 (startup check plus one re-check)", got)
+		}
+	})
+
 	t.Run("Should keep a newer verdict for a provider edited while it waited in the queue", func(t *testing.T) {
 		t.Parallel()
 		started := make(chan struct{}, 4)

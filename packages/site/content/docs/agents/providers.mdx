@@ -458,7 +458,9 @@ probe, from **Check sign-in** in Settings → Providers, or from the check that 
 starts. Settings → Providers and `compozy provider list` show it (`Ready`, checked a few minutes ago, or
 `Needs sign-in`) and expose its time as `auth_status.last_probe_at`. Opening Settings never runs a
 status command. A provider reads `Sign-in unverified` only until its first check after the daemon starts
-or after you change that provider's configuration.
+or after you change that provider's configuration. If you sign in outside CompozyOS after a check reported
+`Needs sign-in`, the next successful usage collection for that provider drops the stale result and checks
+the sign-in again once, so the provider turns `Ready` without a manual check or a daemon restart.
 
 ### Recover from a provider refusal before acceptance
 

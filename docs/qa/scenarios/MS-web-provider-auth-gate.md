@@ -105,6 +105,24 @@ Verification 2026-11-05: isolated lab walk PASS (startup probe after two restart
 The scenario-level `qa_status` stays `blocked-verify`: the real-provider reauthentication branch above
 is still unwalked.
 
+## Signed out at daemon start, signed in afterwards (#1695)
+
+Isolated lab only: a synthetic `native_cli` provider with a usage collector family (for example a
+Claude alias with its own `CLAUDE_CONFIG_DIR`) and an `auth_status_command` whose result the lab controls.
+
+1. Sign the provider out and restart the lab daemon. After `provider_auth.startup_probe_done`,
+   `compozy provider list` reports `needs_login` and Settings → Providers shows `Needs sign-in`.
+2. Sign the provider in outside CompozyOS. Do not run a manual probe or restart the daemon.
+3. After the next successful usage collection (`provider_usage.collect ... status=ok`), the daemon log
+   shows one `provider_auth.startup_probe` for that provider with `state=authenticated`.
+   `compozy provider list` reports `authenticated` and Settings shows `Ready`, matching the Provider usage
+   popover. Until that re-check finishes, the provider reads `Sign-in unverified`, never `needs_login`.
+4. Further successful collections run no more status commands while the provider stays signed in.
+
+Automated owners: `internal/providers` `TestAuthVerdicts` (a newer verified sign-in drops only an older
+`needs_login`) and `internal/daemon` `TestProviderAuthStartup` (a dropped verdict is re-checked once and
+converges to `authenticated`). Real-lab walk pending.
+
 ## A stored verdict never hides a current failure (#1267)
 
 1. With a `native_cli` provider whose status command succeeds, run **Check sign-in** (or

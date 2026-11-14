@@ -18,7 +18,8 @@ const (
 	providerAuthStartupLabel       = "provider sign-in check"
 )
 
-// providerAuthStartup verifies native-CLI sign-in once after the daemon starts.
+// providerAuthStartup verifies native-CLI sign-in after the daemon starts, and again for a provider
+// whose needs_login verdict a verified usage collection contradicts.
 type providerAuthStartup struct {
 	verdicts *providers.AuthVerdicts
 	envFor   func(string, config.ProviderConfig) (providers.ProbeEnv, error)
@@ -62,12 +63,31 @@ func (d *Daemon) bootProviderAuthStartup(ctx context.Context, state *bootState, 
 	cleanup.add(func(cleanupCtx context.Context) error {
 		return stopOwnedWorker(cleanupCtx, providerAuthStartupLabel, worker)
 	})
+	// The worker context lives until shutdown so later sign-in re-checks can join the same group.
 	go func() {
 		defer complete()
-		defer cancel()
 		check.run(workerCtx)
 	}()
+	if state.providerUsage != nil {
+		state.providerUsage.setSignInRecheck(func(name string) { check.recheck(workerCtx, worker, name) })
+	}
 	return nil
+}
+
+// recheck re-probes a provider once after a sign-in verified elsewhere dropped its needs_login
+// verdict. Reads report the declared unverified fallback until the probe records a fresh verdict.
+func (p providerAuthStartup) recheck(ctx context.Context, worker *ownedWorkerGroup, name string) {
+	if !p.verdicts.DropNeedsLogin(name, p.now()) {
+		return
+	}
+	complete, ok := worker.Begin()
+	if !ok {
+		return
+	}
+	go func() {
+		defer complete()
+		p.probe(ctx, name)
+	}()
 }
 
 // activeConfigSource reads settings' active configuration, falling back to the boot snapshot.
