@@ -131,6 +131,7 @@ func (s *Service) Preview(ctx context.Context, request Request) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
+	countedAt := s.now()
 	rows, err := s.lister.ListSessionHistoryCleanupRows(ctx, store.SessionHistoryCleanupQuery{
 		ProfileID:     request.Scope.ProfileID,
 		WorkspaceID:   request.Scope.WorkspaceID,
@@ -139,7 +140,9 @@ func (s *Service) Preview(ctx context.Context, request Request) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	return BuildPlan(rows, request), nil
+	plan := BuildPlan(rows, request)
+	plan.CountedAt = countedAt
+	return plan, nil
 }
 
 // Start plans a cleanup and deletes it in the background. The plan is frozen:

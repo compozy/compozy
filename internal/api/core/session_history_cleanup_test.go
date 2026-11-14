@@ -35,8 +35,9 @@ func (m *historyCleanupStubManager) PreviewHistoryCleanup(
 ) (sessioncleanup.Plan, error) {
 	m.previews = append(m.previews, request)
 	return sessioncleanup.Plan{
-		Counts:  sessioncleanup.Counts{Sessions: 2, Children: 1},
-		Threads: []sessioncleanup.Thread{{RootID: "root"}, {RootID: "other"}},
+		CountedAt: historyCleanupNow,
+		Counts:    sessioncleanup.Counts{Sessions: 2, Children: 1},
+		Threads:   []sessioncleanup.Thread{{RootID: "root"}, {RootID: "other"}},
 	}, nil
 }
 
@@ -127,6 +128,26 @@ func TestBaseHandlersPlanSessionHistoryCleanup(t *testing.T) {
 		}
 		if want := historyCleanupNow.Add(-7 * 24 * time.Hour); !request.ArchivedBefore.Equal(want) {
 			t.Fatalf("cutoff = %v, want %v", request.ArchivedBefore, want)
+		}
+	})
+
+	t.Run("Should report the instant an Any time dry run counted up to", func(t *testing.T) {
+		t.Parallel()
+		manager := &historyCleanupStubManager{}
+		recorder := performHistoryCleanup(t, manager, historyCleanupBody(`,"dry_run":true`), false)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+		}
+		var response contract.SessionHistoryCleanupPreviewResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("decode preview: %v", err)
+		}
+		if len(manager.previews) != 1 || manager.previews[0].ArchivedBefore != nil {
+			t.Fatalf("previews = %+v, want one over every archived thread", manager.previews)
+		}
+		// The daemon's clock, so a start pinned to it deletes only what was counted.
+		if response.Plan.ArchivedBefore == nil || !response.Plan.ArchivedBefore.Equal(historyCleanupNow) {
+			t.Fatalf("plan cutoff = %v, want the count's instant %v", response.Plan.ArchivedBefore, historyCleanupNow)
 		}
 	})
 

@@ -203,7 +203,14 @@ func statusForHistoryCleanupError(err error) int {
 }
 
 // HistoryCleanupPlanPayload maps a plan to its wire shape.
+//
+// A plan with no cutoff (Any time) reports the instant it counted up to, on
+// the daemon's clock, so a client can pin its start to exactly what it showed.
 func HistoryCleanupPlanPayload(plan sessioncleanup.Plan, archivedBefore *time.Time) contract.SessionHistoryCleanupPlan {
+	if archivedBefore == nil && !plan.CountedAt.IsZero() {
+		countedAt := plan.CountedAt.UTC()
+		archivedBefore = &countedAt
+	}
 	workspaces := make([]contract.SessionHistoryCleanupWorkspace, 0, len(plan.Workspaces))
 	for _, item := range plan.Workspaces {
 		workspaces = append(workspaces, contract.SessionHistoryCleanupWorkspace{

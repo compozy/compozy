@@ -184,8 +184,8 @@ function useCleanupPreview({
   projectName: (workspaceId: string) => string;
 }): Pick<ArchivedCleanupModel, "impact" | "counts" | "counting" | "previewError"> & {
   /**
-   * What the dry run counted up to: its resolved cutoff, or for Any time the moment it answered.
-   * Confirming pins the range to it.
+   * What the dry run counted up to, on the daemon's clock: its resolved cutoff, or for Any time
+   * the instant it read the archive. Confirming pins the range to it.
    */
   cutoff?: string;
 } {
@@ -203,10 +203,7 @@ function useCleanupPreview({
     counts: plan?.choices,
     counting: previewable && (preview.isFetching || preview.isPlaceholderData),
     previewError: preview.error ? errorText(preview.error, "The count failed.") : null,
-    cutoff: plan
-      ? (plan.archived_before ??
-        (options.range === "all" ? new Date(preview.dataUpdatedAt).toISOString() : undefined))
-      : undefined,
+    cutoff: plan?.archived_before ?? undefined,
   };
 }
 

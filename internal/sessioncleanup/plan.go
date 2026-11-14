@@ -83,7 +83,10 @@ type Thread struct {
 
 // Plan is the dry run of one cleanup.
 type Plan struct {
-	Counts Counts
+	// CountedAt is when the plan read the archive: nothing archived later is in
+	// it, so a start pinned to it deletes no more than the plan counted.
+	CountedAt time.Time
+	Counts    Counts
 	// KeptLive counts child sessions still in the session list or in Later that
 	// the selection would otherwise delete; they and everything under them stay.
 	KeptLive int
