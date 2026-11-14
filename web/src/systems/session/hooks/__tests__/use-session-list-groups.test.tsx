@@ -39,7 +39,11 @@ import { fetchSessions } from "../../adapters/session-api";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
 import { sessionCatalogOptions, sessionFacetsOptions } from "../../lib/session-catalog-options";
 import { useSessionListGroups, type SessionListGroupsInput } from "../use-session-list-groups";
-import { SESSION_LIST_MANUAL_SORT_NOTE, useSessionListView } from "../use-session-list-view";
+import {
+  SESSION_LIST_MANUAL_SORT_NOTE,
+  SESSION_LIST_SHELF_SORT_NOTE,
+  useSessionListView,
+} from "../use-session-list-view";
 import { useWorkspaceWorkingSessions } from "../use-workspace-working-sessions";
 
 // The instance row isn't under test here, and these suites count catalog reads.
@@ -468,6 +472,40 @@ describe("useSessionListView", () => {
         expect.any(AbortSignal)
       )
     );
+    expect(settingsWrites()).toEqual([]);
+  });
+
+  // #1716: manual order serves every folder member before the root, so a folder longer than a
+  // page hid the unfoldered archived sessions. Archived and Later project lists read activity
+  // order, which lists unfoldered sessions next to folders on every page.
+  it("Should serve a stored manual sort as last activity in the Archived and Later shelves", async () => {
+    shell.sort = "manual";
+    act(() => setActiveWorkspaceId("ws-alpha"));
+    const { result } = renderHook(() => useSessionListView(), { wrapper });
+    await waitFor(() =>
+      expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace_id: "ws-alpha", sort: "manual" }),
+        expect.any(AbortSignal)
+      )
+    );
+
+    for (const shelf of ["archive", "later"] as const) {
+      act(() => result.current.setShelf(shelf));
+      await waitFor(() =>
+        expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workspace_id: "ws-alpha",
+            sort: "last_activity",
+            ...(shelf === "archive" ? { archive: "only" } : { later: "only" }),
+          }),
+          expect.any(AbortSignal)
+        )
+      );
+      expect(result.current.sort).toBe("manual");
+      expect(result.current.sortNote).toBe(SESSION_LIST_SHELF_SORT_NOTE);
+    }
+    act(() => result.current.setShelf("active"));
+    expect(result.current.sortNote).toBeNull();
     expect(settingsWrites()).toEqual([]);
   });
   // #1085: with empty projects hidden, a reorder of the projects on screen writes the hidden

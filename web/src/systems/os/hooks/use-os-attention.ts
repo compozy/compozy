@@ -149,7 +149,7 @@ function useSessionAttentionSources({
     {
       include_health: true,
       limit: 100,
-      sort: sessionListSortParam(listPreferences.sort),
+      sort: sessionListSortParam(listPreferences.sort, { shelved: archived }),
       worktree: worktree.worktreeId,
       ...(archived ? { archive: "only" as const } : {}),
     },

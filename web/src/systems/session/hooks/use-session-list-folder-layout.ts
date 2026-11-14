@@ -51,11 +51,12 @@ export function useSessionListFolderLayout(
   // A reorder pins the listed rows ahead of every container member the request
   // omits. Rows hidden by a filter, a worktree scope, or a page boundary would be
   // pushed behind the visible ones, so manual reorder needs the whole container on
-  // screen: unfiltered, unscoped, and the first settled catalog page. Archived
-  // members never render alongside active ones, so the archive split keeps each
-  // list's own relative order.
+  // screen: unfiltered, unscoped, and the first settled catalog page. The archive
+  // and Later are served in activity order rather than manual order (#1716), so
+  // their rows carry no order verbs.
   const orderable =
     view.sort === "manual" &&
+    view.shelf === "active" &&
     !filtering &&
     !view.worktreeId &&
     !view.catalog?.previous &&
