@@ -186,6 +186,21 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := target.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := bindTelemetryDestination(ctx, prior, target.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
 		if err := prior.Close(); err != nil {
 			t.Fatal(err)
 		}
