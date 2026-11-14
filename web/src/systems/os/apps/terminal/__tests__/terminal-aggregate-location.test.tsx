@@ -4,16 +4,19 @@
 // whose folder is gone stays listed but unavailable, an all-profiles read offers no destination,
 // only running terminals are listed, and only ready worktrees of the acting profile are offered,
 // folded under their project until the pointer or ←/→ unfolds it or a search matches one, each
-// opening its terminal in that worktree.
+// opening its terminal in that worktree. A requested terminal the settled catalog does not list
+// reads as gone, with the launcher one secondary action away.
 // Boundary IN: TerminalAggregateLocation's launcher states.
 // Boundary OUT: catalog streaming and window retargeting (use-terminal-window-controller-state.test.ts).
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { createTerminal } from "@/systems/terminal";
+import { createTerminal, terminalKeys } from "@/systems/terminal";
 import { TERMINAL_FIXTURES } from "@/systems/terminal/mocks/terminal-fixtures";
 
+import { terminalWindowCreateKey } from "../../../lib/terminal-window-close";
 import { TerminalAggregateLocation } from "../terminal-aggregate-location";
 
 vi.mock("@/systems/terminal", async importOriginal => ({
@@ -50,7 +53,13 @@ function renderLocation(
     workspaces: WORKSPACES,
     ...overrides,
   };
-  return { ...render(<TerminalAggregateLocation {...props} />), props };
+  const client = new QueryClient();
+  const view = render(<TerminalAggregateLocation {...props} />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  return { ...view, props, client };
 }
 
 describe("TerminalAggregateLocation", () => {
@@ -134,6 +143,32 @@ describe("TerminalAggregateLocation", () => {
     screen.getByRole("button", { name: "Retry" }).click();
     expect(props.catalog.refetch).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("terminal-launcher")).not.toBeInTheDocument();
+  });
+
+  it("Should say a requested terminal is gone and keep the launcher one action away", () => {
+    // #1712: an exited, reaped terminal opened from a transcript must not silently
+    // become the new-terminal launcher.
+    const { props } = renderLocation(
+      { requestedId: "term-reaped" },
+      { data: [...TERMINAL_FIXTURES], isPending: false }
+    );
+
+    expect(screen.getByTestId("terminal-not-found")).toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-launcher")).not.toBeInTheDocument();
+    expect(props.coordinator.userRetarget).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open a new terminal" }));
+    expect(screen.getByTestId("terminal-launcher")).toBeInTheDocument();
+  });
+
+  it("Should offer no new-terminal action for a gone terminal in an all-profiles read", () => {
+    renderLocation(
+      { readOnly: true, requestedId: "term-reaped" },
+      { data: [...TERMINAL_FIXTURES], isPending: false }
+    );
+
+    expect(screen.getByTestId("terminal-not-found")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open a new terminal" })).not.toBeInTheDocument();
   });
 
   it("Should leave out new-terminal destinations and name each owner for an all-profiles read", () => {
@@ -313,6 +348,41 @@ describe("TerminalAggregateLocation", () => {
     });
 
     expect(screen.queryByTestId("terminal-launcher-new-ws-atlas/wt-feature")).toBeNull();
+  });
+
+  it("Should show a created terminal, already in its cached catalog, while refreshes stall", async () => {
+    // #1712 review: refreshing the lists must not gate showing the new terminal, nor keep
+    // its creation pending — the close guard holds the window while it is.
+    const terminal = { ...TERMINAL_FIXTURES[0], id: "term-new", workspace_id: "ws-atlas" };
+    vi.mocked(createTerminal).mockResolvedValueOnce(terminal);
+    const { props, client } = renderLocation({}, { data: [], isPending: false });
+    const stalled = new QueryObserver(client, {
+      queryKey: terminalKeys.aggregate("", "default"),
+      queryFn: () => new Promise<never>(() => {}),
+      initialData: [],
+      staleTime: Number.POSITIVE_INFINITY,
+    });
+    const unsubscribe = stalled.subscribe(() => {});
+    const ownerCatalog = terminalKeys.catalog({ workspaceId: "ws-atlas", profileKey: "default" });
+    client.setQueryData(ownerCatalog, []);
+
+    fireEvent.click(screen.getByTestId("terminal-launcher-new-ws-atlas"));
+
+    await waitFor(() =>
+      expect(props.coordinator.userRetarget).toHaveBeenCalledWith(
+        "win-1",
+        expect.objectContaining({ instanceKey: "term-new" })
+      )
+    );
+    await waitFor(() =>
+      expect(client.isMutating({ mutationKey: terminalWindowCreateKey("win-1") })).toBe(0)
+    );
+    expect(client.getQueryState(terminalKeys.aggregate("", "default"))?.fetchStatus).toBe(
+      "fetching"
+    );
+    // The bound window's cached catalog already names it, before any read lands.
+    expect(client.getQueryData(ownerCatalog)).toEqual([terminal]);
+    unsubscribe();
   });
 
   it("Should open a worktree row's terminal in that worktree and bind the window to its project", async () => {

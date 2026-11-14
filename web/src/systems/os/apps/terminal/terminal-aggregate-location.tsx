@@ -1,3 +1,4 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { AlertCircle } from "@compozy/ui/icons";
@@ -6,6 +7,9 @@ import { Button, Empty, toast } from "@compozy/ui";
 import {
   createTerminal,
   TerminalAggregateSkeleton,
+  TERMINAL_ALL_PROFILES_KEY,
+  TerminalNotFoundState,
+  terminalKeys,
   type TerminalInfo,
   type TerminalViewerIdentity,
 } from "@/systems/terminal";
@@ -13,6 +17,7 @@ import { ownerDataScope, WINDOW_BINDING_SEARCH_KEY, windowBindingValue } from "@
 
 import { TerminalLauncher } from "../../components/terminal-launcher";
 import type { RoutingCoordinator } from "../../lib/routing-coordinator";
+import { terminalAggregateCreateKey } from "../../lib/terminal-window-close";
 import {
   defaultTerminalLauncherDestination,
   runningTerminals,
@@ -63,7 +68,8 @@ export function TerminalAggregateLocation({
   readOnly,
   viewer,
 }: TerminalAggregateLocationProps) {
-  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
+  const [launcherShown, setLauncherShown] = useState(false);
   const terminals = catalog.data ?? [];
   const destinations = terminalLauncherDestinations(workspaces, worktrees, profile);
   const defaultDestination = defaultTerminalLauncherDestination(
@@ -71,8 +77,8 @@ export function TerminalAggregateLocation({
     rememberedWorkspaceId
   );
 
-  const openBound = (terminalId: string, workspaceId: string) =>
-    void coordinator.userRetarget(windowId, {
+  const retargetBound = (terminalId: string, workspaceId: string) =>
+    coordinator.userRetarget(windowId, {
       app: "terminal",
       instanceKey: terminalId,
       route: {
@@ -80,6 +86,8 @@ export function TerminalAggregateLocation({
         search: { [WINDOW_BINDING_SEARCH_KEY]: windowBindingValue(ownerDataScope(workspaceId)) },
       },
     });
+  const openBound = (terminalId: string, workspaceId: string) =>
+    void retargetBound(terminalId, workspaceId);
 
   // A terminal opened by id without its project (a transcript block, a palette
   // row) binds as soon as the aggregate names that terminal's project.
@@ -88,21 +96,53 @@ export function TerminalAggregateLocation({
     if (requested) openBound(requested.id, requested.workspace_id);
   });
 
+  // Keyed to this window so the close guard holds the window until the new
+  // terminal has been created and shown in it.
+  const create = useMutation({
+    mutationKey: terminalAggregateCreateKey(windowId),
+    // The daemon is local: an offline browser must fail the create through
+    // onError, not park it pending and hold the window's close admission.
+    networkMode: "always",
+    mutationFn: ({
+      destination,
+      identity,
+    }: {
+      destination: TerminalLauncherDestination;
+      identity: TerminalViewerIdentity;
+    }) =>
+      createTerminal(
+        destination.workspaceId,
+        terminalLauncherCreateInput(destination),
+        { profile },
+        identity
+      ),
+    onSuccess: async terminal => {
+      // The bound window reads its owner's catalog: a cached list must already
+      // name the new terminal, or the window says it isn't here until a read lands.
+      const owner = windowBindingValue(ownerDataScope(terminal.workspace_id));
+      for (const profileKey of [profile, TERMINAL_ALL_PROFILES_KEY]) {
+        queryClient.setQueryData<TerminalInfo[]>(
+          terminalKeys.catalog({ workspaceId: owner, profileKey }),
+          current =>
+            current && !current.some(item => item.id === terminal.id)
+              ? [...current, terminal]
+              : current
+        );
+      }
+      // Refreshed in the background: a stalled read must not keep the terminal
+      // from showing, nor hold the window's close admission.
+      void queryClient.invalidateQueries({ queryKey: [...terminalKeys.all(), "aggregate"] });
+      void queryClient.invalidateQueries({ queryKey: [...terminalKeys.all(), "catalog", owner] });
+      await retargetBound(terminal.id, terminal.workspace_id);
+    },
+    onError: error =>
+      toast.error(error instanceof Error ? error.message : "Failed to open terminal"),
+  });
+  const creating = create.isPending;
+
   const startNew = (destination: TerminalLauncherDestination) => {
     if (!viewer || creating) return;
-    setCreating(true);
-    void createTerminal(
-      destination.workspaceId,
-      terminalLauncherCreateInput(destination),
-      { profile },
-      viewer
-    )
-      .then(
-        terminal => openBound(terminal.id, terminal.workspace_id),
-        (error: unknown) =>
-          toast.error(error instanceof Error ? error.message : "Failed to open terminal")
-      )
-      .then(() => setCreating(false));
+    create.mutate({ destination, identity: viewer });
   };
 
   if (requested || (requestedId && catalog.isPending)) return <TerminalAggregateSkeleton />;
@@ -127,6 +167,16 @@ export function TerminalAggregateLocation({
           title="Couldn't load Terminal"
         />
       </div>
+    );
+  }
+
+  // The settled catalog does not have it: it exited and was reaped, or it ran
+  // before a daemon restart. Say so instead of swapping in the launcher; a new
+  // terminal stays one secondary action away.
+  if (requestedId && !catalog.error && !launcherShown) {
+    // All profiles is read-only: nothing new starts, so no action promises one.
+    return (
+      <TerminalNotFoundState onOpenTerminal={readOnly ? undefined : () => setLauncherShown(true)} />
     );
   }
 

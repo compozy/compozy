@@ -6,7 +6,8 @@
 // terminal-recording-state / use-terminal-recordings.
 // Close invariant: only confirmed running targets terminate; cancellation,
 // stale scope, or failed termination keeps the managed window retryable.
-// All projects invariant: an unbound window lists the aggregate and opens in place, bound.
+// All projects invariant: an unbound window lists the aggregate and opens in place, bound, and
+// an unbound window whose terminal never resolved always closes view-only.
 // Resolution invariant: a window on the id-less route reads the catalog after it mounts, even
 // when another window's read is still fresh; a window that names its terminal forces no read.
 
@@ -24,11 +25,15 @@ import {
   TerminalApiError,
 } from "@/systems/terminal";
 import { DEV_SERVER_TERMINAL } from "@/systems/terminal/mocks/terminal-fixtures";
-import { TerminalWindowClose, terminalWindowCreateKey } from "../../../lib/terminal-window-close";
+import {
+  TerminalWindowClose,
+  terminalAggregateCreateKey,
+  terminalWindowCreateKey,
+} from "../../../lib/terminal-window-close";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../../lib/os-types";
 import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-context";
 import { createWindowManagerProjectionAtom } from "../../../lib/window-manager-projection";
-import { WindowDataBindingContext } from "@/systems/workspace";
+import { GLOBAL_DESKTOP_WORKSPACE_ID, WindowDataBindingContext } from "@/systems/workspace";
 import { useTerminalWindowControllerState } from "../hooks/use-terminal-window-controller-state";
 import { executeWindowManagerCommand } from "../../../adapters/window-manager-api";
 import { RoutingCoordinator } from "../../../lib/routing-coordinator";
@@ -357,6 +362,38 @@ describe("terminal window close lifecycle", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("Should close an unbound terminal window under All projects unless it is creating one", async () => {
+    // Invariant: a window opened by id without its project, whose terminal the
+    // aggregate never resolved, closes view-only — never trapped — but holds while
+    // its launcher is creating a terminal for it (#1712).
+    const client = new QueryClient();
+    const controller = new TerminalWindowClose();
+    const guard = controller.guard(GLOBAL_DESKTOP_WORKSPACE_ID, client);
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(true);
+    expect(controller.confirmation.get()).toBeNull();
+    expect(fetchTerminals).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+
+    let fail!: (error: Error) => void;
+    const creation = client
+      .getMutationCache()
+      .build(client, {
+        mutationKey: terminalAggregateCreateKey(terminalWindow.id),
+        mutationFn: () =>
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+      })
+      .execute(undefined)
+      .catch(() => undefined);
+    await waitFor(() => expect(fail).toBeDefined());
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(false);
+    fail(new Error("create unavailable"));
+    await creation;
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(true);
+    expect(closeTerminal).not.toHaveBeenCalled();
+  });
+
   it("Should leave process and window intact when confirmation is canceled", async () => {
     const { controller, guard } = setup();
     const result = guard([terminalWindow], () => true);
@@ -587,21 +624,25 @@ describe("terminal window under All projects", () => {
   ) {
     const coordinator = { userRetarget: vi.fn().mockResolvedValue(undefined) };
     render(
-      createElement(TerminalAggregateLocation, {
-        windowId: "w-terminal",
-        catalog: {
-          data: overrides.terminals ?? [DEV_SERVER_TERMINAL, userTerminal, exitedTerminal],
-          error: null,
-          isPending: false,
-          refetch: vi.fn(),
-        },
-        coordinator,
-        requestedId: overrides.requestedId ?? null,
-        workspaces,
-        profile: "work",
-        readOnly: false,
-        viewer: { id: "client:web", attachmentToken: "token" },
-      })
+      createElement(
+        QueryClientProvider,
+        { client: new QueryClient() },
+        createElement(TerminalAggregateLocation, {
+          windowId: "w-terminal",
+          catalog: {
+            data: overrides.terminals ?? [DEV_SERVER_TERMINAL, userTerminal, exitedTerminal],
+            error: null,
+            isPending: false,
+            refetch: vi.fn(),
+          },
+          coordinator,
+          requestedId: overrides.requestedId ?? null,
+          workspaces,
+          profile: "work",
+          readOnly: false,
+          viewer: { id: "client:web", attachmentToken: "token" },
+        })
+      )
     );
     return coordinator;
   }

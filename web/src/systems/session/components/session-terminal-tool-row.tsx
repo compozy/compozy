@@ -4,7 +4,9 @@ import { Suspense, lazy, use, useState } from "react";
 
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { TerminalInfo } from "@/systems/terminal/parts";
+import { itemBindingSearch } from "@/systems/workspace";
 import { useSessionTerminalCatalogEntry } from "../hooks/use-session-terminal-catalog";
+import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
 import { useSessionTerminalScope } from "../hooks/use-session-terminal-scope";
 import {
   readNonEmptyString,
@@ -61,8 +63,20 @@ export function SessionTerminalToolRow(props: SessionTerminalToolRowProps) {
   // itself rather than from whichever profile the shell happens to be showing.
   // A same-named terminal in another profile is a different terminal.
   const scope = useSessionTerminalScope();
+  // The transcript's own project, known before the session detail settles: the
+  // window binds to it even when the profile (and so the catalog) is not known.
+  const runtimeWorkspaceId = useSessionRuntimeRenderContext()?.workspaceId;
   if (!facts) return null;
-  if (!scope) return <TerminalToolRowView {...props} facts={facts} shell={shell} />;
+  if (!scope) {
+    return (
+      <TerminalToolRowView
+        {...props}
+        facts={facts}
+        shell={shell}
+        workspaceId={runtimeWorkspaceId}
+      />
+    );
+  }
   return <CatalogBackedTerminalToolRow {...props} facts={facts} scope={scope} shell={shell} />;
 }
 
@@ -71,6 +85,8 @@ interface TerminalToolRowViewProps extends SessionTerminalToolRowProps {
   shell: OsShellHandle | null;
   catalog?: TerminalInfo;
   scope?: TerminalScope;
+  /** The transcript's project when the profile-owned scope is not resolved yet. */
+  workspaceId?: string;
 }
 
 function CatalogBackedTerminalToolRow(props: TerminalToolRowViewProps & { scope: TerminalScope }) {
@@ -117,6 +133,7 @@ function TerminalToolRowView({
   facts,
   catalog,
   scope,
+  workspaceId,
   shell,
   defaultExpanded = false,
   partIndex,
@@ -159,7 +176,15 @@ function TerminalToolRowView({
         }}
         statLabel={statText || undefined}
         stat={statText ? <span className="text-subtle">{statText}</span> : undefined}
-        actions={shell ? <OpenTerminalAction shell={shell} terminalId={facts.terminalId} /> : null}
+        actions={
+          shell ? (
+            <OpenTerminalAction
+              shell={shell}
+              terminalId={facts.terminalId}
+              workspaceId={scope?.workspaceId ?? workspaceId}
+            />
+          ) : null
+        }
       >
         {hasScreen ? (
           <Suspense
@@ -191,7 +216,16 @@ function TerminalToolRowView({
   );
 }
 
-function OpenTerminalAction({ shell, terminalId }: { shell: OsShellHandle; terminalId: string }) {
+function OpenTerminalAction({
+  shell,
+  terminalId,
+  workspaceId,
+}: {
+  shell: OsShellHandle;
+  terminalId: string;
+  /** The session's project: binds the window so All projects resolves it, live or reaped. */
+  workspaceId: string | undefined;
+}) {
   return (
     <Button
       aria-label="Open terminal"
@@ -203,7 +237,7 @@ function OpenTerminalAction({ shell, terminalId }: { shell: OsShellHandle; termi
           instanceKey: terminalId,
           route: {
             pathname: `/terminal/${encodeURIComponent(terminalId)}`,
-            search: {},
+            search: workspaceId === undefined ? {} : itemBindingSearch(workspaceId),
           },
         });
       }}
