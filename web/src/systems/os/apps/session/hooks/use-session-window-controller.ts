@@ -7,6 +7,7 @@ import {
   useSessionDeletedByOperator,
   useSessionDeletionPending,
   useSessionPresence,
+  type SessionPayload,
 } from "@/systems/session";
 import { useWindowDataWorkspace } from "@/systems/workspace";
 
@@ -14,8 +15,19 @@ import { useOsShell } from "../../../hooks/use-os-shell";
 import { useSessionWindowResolution } from "./use-session-window-resolution";
 import { useSessionWindowRuntime } from "./use-session-window-runtime";
 
-/** Resolves the session window identity and retires it once its session is confirmed gone. */
-export function useSessionWindowController(windowId: string) {
+/**
+ * Resolves the session window identity and retires it once its session is confirmed gone.
+ *
+ * While a delete this window confirmed is in flight, its target (`deletingSessions`) stands in
+ * for the resolution once the delete clears the by-id cache: the window keeps its loaded view
+ * instead of swapping to skeleton/notice/empty, which is what unmounted the confirmation
+ * mid-flight. Once the request settles the stand-in drops and the window follows the normal
+ * gone/retire path.
+ */
+export function useSessionWindowController(
+  windowId: string,
+  options: { deletingSessions?: readonly SessionPayload[] | null } = {}
+) {
   const { aggregate } = useProfileReadScope();
   // The window's own scope (its binding, else its partition): a session of
   // another scope is hidden here; a catalog window on All projects hides none.
@@ -33,17 +45,29 @@ export function useSessionWindowController(windowId: string) {
   });
   const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
   const archivedWhileOpen = useSessionArchivedWhileOpen(sessionId, resolution, archivePending);
-  const deletedLocally = deletedByOperator || remotelyGone;
+  const operatorDeleted = deletedByOperator || remotelyGone;
+  // The window shows the delete's own target only once the read can no longer answer:
+  // before that the resolution is fresher, and after the request settles the target is gone.
+  const retained =
+    resolution.shownSession === undefined
+      ? retainedDeletionTarget(sessionId, options.deletingSessions)
+      : undefined;
+  const retainingSession = retained !== undefined;
+  const deletedLocally = operatorDeleted && !retainingSession;
+  const session = retained ?? resolution.session;
   const effectiveLiveTailEnabled =
-    liveTailEnabled && !deletionPending && !deletedLocally && !resolution.crossesWorkspace;
+    liveTailEnabled && !deletionPending && !operatorDeleted && !resolution.crossesWorkspace;
   useSessionPresence(
     resolution.workspaceId,
     sessionId,
-    presenceEnabled && !deletionPending && sessionPresenceAllowed(resolution, deletedLocally)
+    presenceEnabled &&
+      !retainingSession &&
+      !deletionPending &&
+      sessionPresenceAllowed(resolution, operatorDeleted)
   );
   // A document's project lens cannot remove a valid shared window. Only a confirmed
   // missing session, one this client deleted, or one archived while open retires it;
-  // scope mismatches render a local notice.
+  // scope mismatches render a local notice. A delete still in flight never retires it.
   useRetireSessionWindow(
     windowId,
     sessionId,
@@ -56,13 +80,29 @@ export function useSessionWindowController(windowId: string) {
 
   return {
     ...resolution,
+    // A retained target keeps its own project: the by-id read that supplied the workspace
+    // is gone by the time the delete clears the cache.
+    workspaceId: retained ? (retained.workspace_id?.trim() ?? "") : resolution.workspaceId,
+    isLoading: retainingSession ? false : resolution.isLoading,
+    error: retainingSession ? null : resolution.error,
     agentName,
     deletedLocally,
     effectiveLiveTailEnabled,
     focused,
     liveTailEnabled,
+    retainingSession,
+    session,
     sessionId,
   };
+}
+
+/** The session a delete this window confirmed is removing, while it matches the window. */
+function retainedDeletionTarget(
+  sessionId: string | null,
+  deletingSessions: readonly SessionPayload[] | null | undefined
+): SessionPayload | undefined {
+  if (sessionId === null) return undefined;
+  return deletingSessions?.find(session => session.id === sessionId);
 }
 
 type SessionWindowResolution = ReturnType<typeof useSessionWindowResolution>;

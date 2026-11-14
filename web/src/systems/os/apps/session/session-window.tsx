@@ -3,6 +3,8 @@ import { useSessionWindowViewState } from "@/systems/session";
 import { useSessionWindowController } from "./hooks/use-session-window-controller";
 import { SessionBoardWindow } from "./session-board-window";
 import { preloadSessionWindowModules } from "./session-window-module-loader";
+import { SessionWindowLifecycleHost } from "./session-window-lifecycle";
+import { useSessionWindowLifecycle } from "./hooks/use-session-window-lifecycle";
 import { SessionProfileOwnerNotice } from "./session-profile-owner-notice";
 import { SessionWindowEmpty } from "./session-window-empty";
 import { SessionWindowNotice, SessionWindowView } from "./session-window-view";
@@ -43,9 +45,19 @@ export function SessionWindow({ windowId }: { windowId: string }) {
 
 /**
  * The window's session at full size, or inside the board drawer: the one session view both
- * hosts mount, resolution and notices included.
+ * hosts mount, resolution and notices included. The lifecycle host sits above this branch so
+ * a delete confirmation outlives the session it deletes.
  */
 export function SessionWindowSession({ windowId }: { windowId: string }) {
+  return (
+    <SessionWindowLifecycleHost windowId={windowId}>
+      <SessionWindowSessionBody windowId={windowId} />
+    </SessionWindowLifecycleHost>
+  );
+}
+
+function SessionWindowSessionBody({ windowId }: { windowId: string }) {
+  const lifecycle = useSessionWindowLifecycle();
   const {
     agentName,
     crossesWorkspace,
@@ -56,12 +68,39 @@ export function SessionWindowSession({ windowId }: { windowId: string }) {
     isLoading,
     focused,
     liveTailEnabled,
+    retainingSession,
     session,
     sessionId,
     workspaceId,
-  } = useSessionWindowController(windowId);
+  } = useSessionWindowController(windowId, {
+    // The delete this window confirmed is still running: its targets stand in for the
+    // resolution while the request clears the session out of the cache.
+    deletingSessions: lifecycle?.deleteDialog.isDeleting ? lifecycle.deleteDialog.sessions : null,
+  });
 
-  if (deletedLocally || sessionId === null) {
+  if (sessionId === null) {
+    return <SessionWindowEmpty windowId={windowId} />;
+  }
+  // The delete this window confirmed is still in flight. Keep the last resolved session on
+  // screen instead of swapping to skeleton/notice/empty until the request settles.
+  if (retainingSession && session) {
+    return (
+      <SessionWindowBody>
+        <SessionWindowView
+          windowId={windowId}
+          name={agentName ?? ""}
+          id={sessionId}
+          workspaceId={workspaceId ?? ""}
+          session={session}
+          focused={focused}
+          liveTailEnabled={effectiveLiveTailEnabled}
+          isLoading={false}
+          error={null}
+        />
+      </SessionWindowBody>
+    );
+  }
+  if (deletedLocally) {
     return <SessionWindowEmpty windowId={windowId} />;
   }
   if (agentName === null) {

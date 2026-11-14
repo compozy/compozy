@@ -2,6 +2,7 @@ import { useDataScope, useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
+import type { SessionWindowLifecycle } from "./session-window-lifecycle-context";
 import {
   useSessionWindowOpenSession,
   type SessionWindowSidebarTarget,
@@ -37,10 +38,6 @@ export interface SessionWindowSidebarModel {
   openSession: (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => void;
   onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
-  rowDeleteDialog: ReturnType<typeof useSessionListLifecycleActions>["deleteDialog"];
-  rowProcessDialog: ReturnType<typeof useSessionListLifecycleActions>["processDialog"];
-  rowRenameDialog: ReturnType<typeof useSessionListLifecycleActions>["renameDialog"];
-  rowLaterDialog: ReturnType<typeof useSessionListLifecycleActions>["laterDialog"];
 }
 
 /**
@@ -50,16 +47,22 @@ export interface SessionWindowSidebarModel {
  * open and stays live through the catalog stream. Row activation retargets
  * this window in place (rebinding it under All projects), unless the target
  * belongs elsewhere or already owns a window — that window wins focus instead.
+ *
+ * Lifecycle confirmations belong to the window host, so the rail consumes the
+ * lifecycle a `SessionWindowLifecycleHost` supplies; a standalone mount (tests,
+ * stories) still gets its own so its rows keep their actions.
  */
 export function useSessionWindowSidebar({
   transportDisconnected = false,
   windowId,
   sessionId,
+  lifecycle: sharedLifecycle,
 }: {
   /** The window's live stream is down; the rail must not read "connected" (US-018.AC-1). */
   transportDisconnected?: boolean;
   windowId: string;
   sessionId?: string;
+  lifecycle?: SessionWindowLifecycle;
 }): SessionWindowSidebarModel {
   const scope = useDataScope();
   const sidebar = useSessionSidebarState();
@@ -69,7 +72,9 @@ export function useSessionWindowSidebar({
   const transport = useSessionTransportState();
   const transportGraceElapsed = useTransportGraceElapsed(transport.degradedAt);
   const { openForAgent } = useSessionCreateActions();
-  const lifecycle = useSessionListLifecycleActions({ windowId });
+  // A standalone mount (tests, stories) keeps its own instance; inside a window the host's wins.
+  const ownedLifecycle = useSessionListLifecycleActions({ windowId });
+  const lifecycle = sharedLifecycle ?? ownedLifecycle;
   // Only a project narrows to a worktree.
   const worktree = useScopedWorktreeFilter(
     scope?.kind === "project" ? scope.workspaceId : null,
@@ -113,9 +118,5 @@ export function useSessionWindowSidebar({
     openSession,
     onNewSession: options => openForAgent("", options),
     sessionActions: lifecycle.actions,
-    rowDeleteDialog: lifecycle.deleteDialog,
-    rowProcessDialog: lifecycle.processDialog,
-    rowRenameDialog: lifecycle.renameDialog,
-    rowLaterDialog: lifecycle.laterDialog,
   };
 }

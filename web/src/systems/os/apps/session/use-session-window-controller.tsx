@@ -5,6 +5,7 @@ import { useSelector } from "@xstate/store-react";
 
 import { useSessionWindowPullRequest } from "./use-session-window-pull-request";
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
+import { useSessionWindowLifecycle } from "./hooks/use-session-window-lifecycle";
 import {
   getSessionPromptRuntimeSnapshot,
   type InspectorUsage,
@@ -72,6 +73,8 @@ export function useSessionWindowController(input: {
     origin,
     onOpenOriginSource,
   } = input;
+  // The window host owns the lifecycle confirmations; the rail inside this body opens them.
+  const lifecycle = useSessionWindowLifecycle();
   const promptRuntime = useSessionPromptRuntimeContext();
   const promptRuntimeSnapshot = useSelector(
     promptRuntime,
@@ -102,6 +105,7 @@ export function useSessionWindowController(input: {
     transportDisconnected:
       transport.phase === "failed" || isSessionTransportDisconnected(transport),
     windowId,
+    lifecycle: lifecycle ?? undefined,
   });
   // The strip owns Goal controls and stream reconciliation. This reader only
   // supplies activity and the session-stop consequence from the shared cache.
