@@ -8,6 +8,7 @@
 - Tool presentation metadata
 - Oversized tool results
 - Marketplace discovery
+- MCP activation and consent; runtime MCP inventory
 - Skill loading
 - Skill sources and exposure
 - Session command catalog
@@ -41,19 +42,13 @@ currently callable set, then
 `compozy__tool_info` for one complete schema and backend descriptor.
 
 External MCP declarations in user, personal-profile, workspace and workspace-profile config or
-`mcp.json` feed the same hosted catalog. Adding or enabling a source and completing or refreshing
-OAuth updates open hosted sessions; removing a source, disabling it or logging out withdraws its callable tools.
-The Claude ACP bridge refreshes the stable proxy connection through `notifications/tools/list_changed`.
-Other hosted providers, including Codex, reload the same native session at the next turn boundary
-when MCP tools change, after the old provider process exits. The CompozyOS session ID and transcript
-remain intact. A failed native load uses the existing transcript replay fallback. Direct stdio
-sidecars reload on launch configuration changes at the next turn as well; remote HTTP/OAuth require
-hosted MCP. Providers with session MCP disabled receive no tools.
-Workspace/profile isolation, source policy and delegated `mcp_servers` allowlists still apply.
+`mcp.json` feed the same hosted catalog. See [MCP Activation And Consent](#mcp-activation-and-consent)
+for which sources are admitted, when open sessions see a change, and how to repair a missing tool.
+Providers with session MCP disabled receive no tools. Direct stdio sidecars reload on launch
+configuration changes at the next message as well; remote HTTP/OAuth require hosted MCP.
+Workspace/profile isolation and delegated `mcp_servers` allowlists still apply.
 Server allowlists use logical declaration names; allocated runtime names remain tool/routing identities.
-An explicit tool override is exhaustive: naming a server alone cannot widen that tool list.
-Ready never overrides a denial. Generated root delegation budgets follow current server names;
-authored and legacy unmarked ceilings, child grants and instance grants retain their recorded limits.
+Ready never overrides a denial.
 
 In a managed session, resolve canonical `compozy__skill_search`/`compozy__skill_view`, then call returned references. Do not invoke the operator CLI or read skill files directly. If policy denies the native tool, report the skill as unavailable. Operators can use `compozy skill view` from their own shell.
 
@@ -215,11 +210,11 @@ reads for the narrower scope (`mcp auth status --scope workspace`, `compozy__mcp
 scope without its own definition fail with a validation error naming the declaring scope; authorize
 at that scope, or declare the server in the narrower layer to give it its own credential.
 
-Completing OAuth for an extension-owned server is the operator's grant for that source: its tools
-become callable for sessions in the credential's scope without changing
-`tools.policy.external_default`, including sessions already running. Logout, a changed server
-definition, or disabling the extension withdraws the grant. Agent and session tool policy still
-narrow it, and manual servers and extension servers without OAuth keep needing an explicit grant.
+Sign-in is availability, not consent: consent comes from where the server was declared (see
+[MCP Activation And Consent](#mcp-activation-and-consent)). A project server waiting for approval
+refuses `auth/begin` with `409 mcp_server_waiting_approval` before any network call. Passing its
+`definition_digest` (CLI `compozy mcp auth login <name> --digest <d>`) records the approval first and
+then begins sign-in; a stale digest fails `mcp_approval_definition_changed`.
 
 For remote MCPs configured with `method: oauth` and `registration: auto`, the daemon resolves
 protected-resource metadata, then the client metadata document, then makes one Dynamic Client
@@ -258,6 +253,100 @@ Extension source search is separate: `compozy extension search <query> [--source
 and naming any failed or slow source in `sources_degraded`. Use `compozy skill info
 <installed-name>` for effective installed metadata and resources, and do not call the deleted skill-
 or extension-specific browse endpoints.
+
+## MCP Activation And Consent
+
+**Consent comes from where a server is declared.** These are admitted without another step:
+servers added through CompozyOS at any scope (Settings, `compozy mcp import`, agent create), servers in
+operator-owned files under `$COMPOZY_HOME` (user and personal-profile `mcp.json`/`config.toml`),
+servers of an enabled extension, and copies made with Copy to CompozyOS. A server declared in a file
+under a workspace root (`.compozy/mcp.json`, project `config.toml`, `.compozy/profiles/<p>/…`, or an
+agent or skill sidecar under the project) and changed outside CompozyOS **waits for approval**. A
+waiting server is listed as metadata only; CompozyOS never starts, connects to, discovers, probes or
+signs in to it. CompozyOS writes at workspace scope record the approval for the committed definition;
+if that record fails, the write returns a warning and the server stays waiting.
+
+- Approve with `compozy mcp allow <server> --workspace <ws>` (the CLI reads the current definition and
+  sends its digest), `--digest <d>` to pin the definition you inspected, or `compozy__mcp_allow`
+  with `definition_digest` from `compozy__mcp_list`. Revoke with `--revoke` / `decision: "revoke"`;
+  the tools stop working on the next call. The HTTP/UDS route is
+  `PUT|DELETE /api/settings/mcp-servers/{name}/approval`.
+- An approval binds one (profile, workspace, server name) and one definition digest. Any change to
+  the definition's non-secret fields (command, args, URL, env and header keys and values, Vault
+  reference identities, OAuth registration) returns it to waiting. Rotating a value behind the same
+  Vault reference does not.
+- `GET /api/settings/mcp-servers` items carry `approval{required,state,definition_digest,reason}`
+  (`state`: `not_required`, `waiting`, `allowed`; `reason`: `new` or `changed` while waiting) and
+  `callable_in_sessions`.
+- `tools.policy.external_default` applies only to sources without consent: project servers waiting
+  for approval. `enabled` admits them; `disabled` (default) and `ask` keep them waiting and never start
+  them. `ask` still prompts per call for consented sources. Dynamic tools stay denied.
+- Blocked calls name the repair: `source_disabled` "`<server>` is waiting for approval in `<ws>`.
+  Allow it in Settings → MCP servers." or "`<server>` was removed from CompozyOS"; `mcp_auth_required`
+  "`<server>` needs sign-in. Sign in to `<server>` in CompozyOS (Settings → MCP servers)."
+
+**Changes apply on the next message.** Adding, enabling, approving or signing in to a server, or
+installing or enabling an extension, makes its tools callable in sessions already open, from their
+next message. Removing, disabling, revoking or signing out withdraws the tools on the next call. At
+prompt admission CompozyOS compares the session's activation fingerprint (the advertised MCP and
+extension tools, `runtime_mcp` mode, and for runtimes that read their own servers only at start,
+their runtime-server definitions). When it changed and the runtime has not refreshed itself, the
+session reloads its native runtime before the message, keeping history. A turn in progress is never
+interrupted. Health-only failures never trigger a reload. Each attempt emits
+`session.mcp_reloaded{outcome,added,removed,reason}`:
+
+- `applied`: the native session loaded with the new tools;
+- `replayed`: the native load failed and the conversation continued from the transcript;
+- `failed`: no runtime could start. The prompt is refused before acceptance with
+  `409 session_mcp_reload_failed` (`retryable: true`, `provider_error`, `client_message_id`). Send it
+  again; the next message retries. There is no separate reload operation.
+
+`session.mcp_changed` carries the new `mcp_summary{usable,attention,pending_reload}` for open
+sessions; the single-session payload has the same `mcp_summary`.
+
+**Derived sessions follow the current server set.** Forks, continues, provenance and recovery
+sessions inherit the current admitted servers of their own profile and workspace. A child inherits
+unless its spawn or a hook named an MCP list; a hook can narrow but never widen. A child stays
+inside the parent's ceiling recorded at spawn, and a child in another workspace or profile never gets
+servers its parent did not have. Naming a server without naming its tools admits all of that
+server's tools. Extension tools follow the same inherit-or-list rule. Always-on instances without an
+authored list inherit. `permission_policy.mcp_servers` on public lineage reports the effective list.
+
+**Diagnose a missing MCP tool** with `compozy__session_mcp_list` (CLI `compozy session mcp <id>`,
+HTTP `GET /api/workspaces/{ws}/sessions/{id}/mcp`). It lists every configured server of the session's
+scope, including waiting, signed-out and excluded ones, with a repair reason. `needs_sign_in` → run
+the sign-in flow above; `waiting_approval` → allow it; `not_available` → the session's restriction
+excludes it (start a session without that restriction); `applies_next_message` → send the next
+message.
+
+### Runtime MCP Inventory
+
+Each runtime CLI (Claude Code, Codex, Gemini CLI, OpenCode, Kimi CLI, Qwen Code, GitHub Copilot CLI,
+Cursor Agent, Antigravity, Pi) can load its own MCP servers from its own files. CompozyOS lists them
+read-only: `compozy mcp list [--runtime <id>] [--workspace <ws>] [--compozy-only|--runtime-only]`,
+`compozy__mcp_list`, `GET /api/settings/runtime-mcp-servers`. Runtime IDs are `claude`, `codex`,
+`gemini`, `opencode`, `kimi-cli`, `qwen-code`, `copilot`, `cursor`, `agy`, `pi`; Pi-based providers
+share `pi`. Rows report name, scope, transport, source file, whether the runtime enables or approves
+it, `also_in_compozy`, `copyable`/`copy_blocked_reason`, and env/header key names, never values.
+The reader parses files only. It never runs the runtime, connects to servers or reads keychains, so
+runtime sign-in state is `unknown` outside a session. An unparseable or oversized file marks only
+that runtime `read_state: "unreadable"`. Session status reads the runtime's files from the session's
+own provider home and working directory.
+
+CompozyOS never edits runtime files. To manage a runtime server in CompozyOS, copy it:
+`compozy mcp import <runtime>/<server> [--scope user|profile|workspace] [--workspace <ws>] [--name <n>]`,
+`compozy__mcp_import`, or `POST /api/settings/runtime-mcp-servers/{runtime}/{name}/import` (escape
+`:` in names). Only stdio (command, args, literal env) and streamable HTTP (URL without query,
+literal headers, OAuth registration) definitions copy. Literal values become Vault secrets; OAuth
+tokens are never copied, so sign in again in CompozyOS. Plugin, claude.ai connector, built-in and
+managed sources, SSE/WebSocket, `cwd`, header helpers, env passthrough, per-tool filters, URL query
+strings and runtime-specific OAuth clients are refused with the reason. The runtime keeps loading
+its own copy.
+
+`[providers.<id>] runtime_mcp = "off"` stops a runtime from loading its own servers in CompozyOS
+sessions, from each session's next message. Only `claude`, `copilot` and `qwen-code` accept it;
+others fail `runtime_mcp_unsupported`. Claude reports the switch unavailable while a machine
+`managed-mcp.json` exists. See `references/configuration.md`.
 
 ## Skill Loading
 

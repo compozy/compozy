@@ -931,6 +931,35 @@ Acquire Marketplace MCP capabilities through extension installation. Manage manu
 through Settings MCP APIs; extension-owned management and diagnostics require the explicit
 extension owner. Browser/OAuth login remains a management operation.
 
+MCP availability and repair tools (toolset `compozy__mcp`). Consent, runtime inventory and copy rules
+live in `references/tools-and-skills.md`.
+
+- `compozy__session_mcp_list` (read; `session_id` defaults to the caller): the session's CompozyOS
+  servers and its runtime's own servers, with `usable`, `attention`, `pending_reload` and
+  `last_reload{at,outcome,reason}`. Row states: `ready`, `applies_next_message`, `needs_sign_in`,
+  `waiting_approval`, `failed`, `not_available` (reason `Limited by the parent session`); runtime rows
+  use `loaded_by_runtime` or `off_in_compozy_sessions`. It reads cached state only and never discovers,
+  probes or starts a server. Reads stay inside the caller's workspace and profile. Start here when a
+  tool is missing; `compozy__mcp_status.callable_discovery_note` points to it.
+- `compozy__mcp_list` (read; `runtime`, `include_runtimes` default `true`, `workspace` limited to the
+  caller's workspace): CompozyOS servers with `approval{required,state,definition_digest}` and
+  `callable_in_sessions`, plus one read-only group per runtime. A `runtime` filter returns only that
+  runtime group. It reads files only.
+- `compozy__mcp_allow` (mutating, approval per permission mode): `server_name`, `decision`
+  (`allow`|`revoke`), `workspace`, and for `allow` the `definition_digest` copied from
+  `compozy__mcp_list`. A missing or stale digest fails `mcp_approval_definition_changed` and approves
+  nothing; list again and send the new digest. `mcp_approval_not_required` means the server was
+  added through CompozyOS or belongs to an extension. The approval is bound to the caller's profile.
+- `compozy__mcp_import` (mutating, approval per permission mode): `runtime`, `server_name`, `scope`
+  (`user` default, `profile`, `workspace`), optional `workspace` and new `name`. Errors:
+  `mcp_server_not_found`, `mcp_import_name_taken` (retry with `name`),
+  `mcp_import_unsupported_source`, `mcp_import_unsupported_transport`,
+  `mcp_import_unsupported_definition`. A result with `partial: true` warns that secret cleanup was
+  not confirmed; report the warning instead of retrying.
+
+There is no reload tool. The next `compozy__session_prompt` applies a pending change; a prompt refused
+with `session_mcp_reload_failed` (`retryable: true`) was not accepted and can be sent again unchanged.
+
 ## Observability Tools
 
 Runtime log inspection is available through `compozy__logs`. Logs and `compozy__observe_search`
