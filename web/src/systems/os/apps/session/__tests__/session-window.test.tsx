@@ -5,7 +5,7 @@
 // A window's data scope (its binding, else its partition: a project, or User) hides another
 // scope's history without retiring the shared window; an All projects catalog window hides none.
 // Owning layer: the OS session-window controller.
-import { act, fireEvent, render as renderView, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as renderView, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,6 +41,25 @@ const workspace: { dataScope: TestDataScope | null } = {
 };
 const documentActivity = vi.hoisted(() => ({ active: true }));
 const useSessionPresenceSpy = vi.hoisted(() => vi.fn());
+// The window's lifecycle host is the only owner of the rail's confirmations. This suite
+// drives its dialog state directly to observe where that host lives.
+const lifecycleState = vi.hoisted(() => ({
+  deleteDialog: {
+    open: false,
+    session: undefined as unknown,
+    sessions: [] as unknown[],
+    results: undefined as unknown,
+    onRetry: undefined as unknown,
+    isDeleting: false,
+    childSessions: undefined as unknown,
+    onOpenChange: vi.fn(),
+    onConfirm: vi.fn(),
+  },
+  processDialog: { open: false },
+  laterDialog: { open: false },
+  renameDialog: { open: false },
+}));
+const deleteDialogSpy = vi.fn((_props: Record<string, unknown>) => null);
 const queryState: {
   data: typeof session | undefined;
   error: Error | null;
@@ -86,6 +105,17 @@ vi.mock("@/systems/session/adapters/session-api", async importOriginal => ({
 }));
 
 vi.mock("sonner", () => ({ toast: { error: toastError } }));
+
+vi.mock("../../../hooks/use-session-list-lifecycle-actions", () => ({
+  useSessionListLifecycleActions: () => lifecycleState,
+}));
+
+vi.mock("@/systems/session/components/session-delete-dialog", () => ({
+  SessionDeleteDialog: (props: Record<string, unknown>) => {
+    deleteDialogSpy(props);
+    return <div data-testid="delete-dialog" />;
+  },
+}));
 
 vi.mock("@/systems/session/hooks/use-foreign-profile-session", () => ({
   useForeignProfileSession: () => foreignState.current,
@@ -188,6 +218,11 @@ describe("SessionWindow", () => {
     userClose.mockResolvedValue(true);
     userOpen.mockClear();
     useSessionPresenceSpy.mockClear();
+    lifecycleState.deleteDialog.open = false;
+    lifecycleState.deleteDialog.isDeleting = false;
+    lifecycleState.deleteDialog.session = session;
+    lifecycleState.deleteDialog.sessions = [session];
+    deleteDialogSpy.mockClear();
   });
 
   it.each([
@@ -534,6 +569,79 @@ describe("SessionWindow", () => {
     );
     expect(sessionWindowEmptySpy).toHaveBeenCalled();
     expect(toastError).not.toHaveBeenCalled();
+  });
+
+  // Invariant: the delete a window confirmed keeps its loaded session rendered while the
+  // request runs — the by-id cache is already cleared — and only then follows the deletion
+  // to Empty and retirement. Owner: OS session-window controller; canonical suite: SessionWindow.
+  it("Should keep the loaded session while its deletion is in flight", async () => {
+    const view = render(<SessionWindow windowId="session:sess-1" />);
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(expect.objectContaining({ session }));
+    sessionWindowViewSpy.mockClear();
+    sessionWindowEmptySpy.mockClear();
+    sessionWindowNoticeSpy.mockClear();
+
+    // The mutation cleared the by-id read and the window is waiting on the daemon.
+    lifecycleState.deleteDialog.isDeleting = true;
+    deletionPending = true;
+    queryState.data = undefined;
+    view.rerender(<SessionWindow windowId="session:sess-1" />);
+
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "sess-1", session, workspaceId: "ws-1", isLoading: false })
+    );
+    expect(sessionWindowEmptySpy).not.toHaveBeenCalled();
+    expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
+
+    // Settled: the retained session drops and the window follows the deletion.
+    lifecycleState.deleteDialog.isDeleting = false;
+    deletionPending = false;
+    deletedByOperator = true;
+    view.rerender(<SessionWindow windowId="session:sess-1" />);
+
+    expect(sessionWindowEmptySpy).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1", "sess-1")
+    );
+  });
+
+  // Invariant: a retained delete target never crosses the window's data scope; a scope switch
+  // during the request falls back to the normal resolution instead of showing another project.
+  // Owner: OS session-window controller; canonical suite: SessionWindow.
+  it("Should not retain a deletion target outside the window's current scope", () => {
+    workspace.dataScope = { kind: "user" };
+    lifecycleState.deleteDialog.isDeleting = true;
+    deletionPending = true;
+    queryState.data = undefined;
+    render(<SessionWindow windowId="session:sess-1" />);
+
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "sess-1", session: undefined, workspaceId: "" })
+    );
+  });
+
+  // Invariant: the delete confirmation belongs to the window, above the content/empty branch,
+  // so its target leaving the body never unmounts the dialog mid-request. Owner: session-window
+  // lifecycle host; canonical suite: SessionWindow.
+  it("Should keep the open delete confirmation mounted across a deleted-by-operator flip", async () => {
+    lifecycleState.deleteDialog.open = true;
+    lifecycleState.deleteDialog.isDeleting = true;
+    const view = render(<SessionWindow windowId="session:sess-1" />);
+    expect(await screen.findByTestId("delete-dialog")).toBeInTheDocument();
+    expect(deleteDialogSpy).toHaveBeenLastCalledWith(expect.objectContaining({ isDeleting: true }));
+
+    // The window's own session is already gone from the cache while the batch runs.
+    deletedByOperator = true;
+    queryState.data = undefined;
+    view.rerender(<SessionWindow windowId="session:sess-1" />);
+    expect(sessionWindowEmptySpy).not.toHaveBeenCalled();
+    expect(screen.getByTestId("delete-dialog")).toBeInTheDocument();
+
+    // Request settled: the body follows the deletion, the confirmation stays host-owned.
+    lifecycleState.deleteDialog.isDeleting = false;
+    view.rerender(<SessionWindow windowId="session:sess-1" />);
+    expect(sessionWindowEmptySpy).toHaveBeenCalled();
+    expect(screen.getByTestId("delete-dialog")).toBeInTheDocument();
   });
 
   it("Should read the session through the profile-enforced route, keyed by the active lens", () => {

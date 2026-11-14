@@ -7,15 +7,32 @@ import {
   useSessionDeletedByOperator,
   useSessionDeletionPending,
   useSessionPresence,
+  type SessionPayload,
 } from "@/systems/session";
-import { useWindowDataWorkspace } from "@/systems/workspace";
+import {
+  ownerDataScope,
+  sameDataScope,
+  useWindowDataWorkspace,
+  type FocusedDataScope,
+} from "@/systems/workspace";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
 import { useSessionWindowResolution } from "./use-session-window-resolution";
 import { useSessionWindowRuntime } from "./use-session-window-runtime";
 
-/** Resolves the session window identity and retires it once its session is confirmed gone. */
-export function useSessionWindowController(windowId: string) {
+/**
+ * Resolves the session window identity and retires it once its session is confirmed gone.
+ *
+ * While a delete this window confirmed is in flight, its target (`deletingSessions`) stands in
+ * for the resolution once the delete clears the by-id cache: the window keeps its loaded view
+ * instead of swapping to skeleton/notice/empty, which is what unmounted the confirmation
+ * mid-flight. Once the request settles the stand-in drops and the window follows the normal
+ * gone/retire path.
+ */
+export function useSessionWindowController(
+  windowId: string,
+  options: { deletingSessions?: readonly SessionPayload[] | null } = {}
+) {
   const { aggregate } = useProfileReadScope();
   // The window's own scope (its binding, else its partition): a session of
   // another scope is hidden here; a catalog window on All projects hides none.
@@ -33,17 +50,32 @@ export function useSessionWindowController(windowId: string) {
   });
   const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
   const archivedWhileOpen = useSessionArchivedWhileOpen(sessionId, resolution, archivePending);
-  const deletedLocally = deletedByOperator || remotelyGone;
+  const retention = sessionDeletionRetention({
+    deletedByOperator,
+    remotelyGone,
+    shownSession: resolution.shownSession,
+    resolvedSession: resolution.session,
+    sessionId,
+    deletingSessions: options.deletingSessions,
+    focusedScope,
+    workspaceId: resolution.workspaceId,
+    isLoading: resolution.isLoading,
+    error: resolution.error,
+  });
+  const { operatorDeleted, retainingSession, deletedLocally, session } = retention;
   const effectiveLiveTailEnabled =
-    liveTailEnabled && !deletionPending && !deletedLocally && !resolution.crossesWorkspace;
+    liveTailEnabled && !deletionPending && !operatorDeleted && !resolution.crossesWorkspace;
   useSessionPresence(
     resolution.workspaceId,
     sessionId,
-    presenceEnabled && !deletionPending && sessionPresenceAllowed(resolution, deletedLocally)
+    presenceEnabled &&
+      !retainingSession &&
+      !deletionPending &&
+      sessionPresenceAllowed(resolution, operatorDeleted)
   );
   // A document's project lens cannot remove a valid shared window. Only a confirmed
   // missing session, one this client deleted, or one archived while open retires it;
-  // scope mismatches render a local notice.
+  // scope mismatches render a local notice. A delete still in flight never retires it.
   useRetireSessionWindow(
     windowId,
     sessionId,
@@ -56,13 +88,83 @@ export function useSessionWindowController(windowId: string) {
 
   return {
     ...resolution,
+    workspaceId: retention.workspaceId,
+    isLoading: retention.isLoading,
+    error: retention.error,
     agentName,
     deletedLocally,
     effectiveLiveTailEnabled,
     focused,
     liveTailEnabled,
+    retainingSession,
+    session,
     sessionId,
   };
+}
+
+/**
+ * What the window shows while a delete it confirmed is in flight. The delete's own target
+ * stands in only once the by-id read can no longer answer: before that the resolution is
+ * fresher, and after the request settles the target is gone and the normal gone/retire path
+ * takes over.
+ */
+function sessionDeletionRetention({
+  deletedByOperator,
+  remotelyGone,
+  shownSession,
+  resolvedSession,
+  sessionId,
+  deletingSessions,
+  focusedScope,
+  workspaceId,
+  isLoading,
+  error,
+}: {
+  deletedByOperator: boolean;
+  remotelyGone: boolean;
+  shownSession: SessionPayload | undefined;
+  resolvedSession: SessionPayload | undefined;
+  sessionId: string | null;
+  deletingSessions: readonly SessionPayload[] | null | undefined;
+  focusedScope: FocusedDataScope | null;
+  workspaceId: string | null;
+  isLoading: boolean;
+  error: Error | null;
+}) {
+  const operatorDeleted = deletedByOperator || remotelyGone;
+  const candidate =
+    shownSession === undefined ? retainedDeletionTarget(sessionId, deletingSessions) : undefined;
+  // The same scope rule the resolution applies: a window never retains a session from
+  // another project/User scope just because its delete was confirmed before a scope switch.
+  const retained =
+    candidate && deletionTargetInScope(candidate, focusedScope) ? candidate : undefined;
+  const retainingSession = retained !== undefined;
+  return {
+    operatorDeleted,
+    retainingSession,
+    deletedLocally: operatorDeleted && !retainingSession,
+    session: retained ?? resolvedSession,
+    // A retained target keeps its own project: the by-id read that supplied the workspace
+    // is gone by the time the delete clears the cache.
+    workspaceId: retained ? (retained.workspace_id?.trim() ?? "") : workspaceId,
+    isLoading: retainingSession ? false : isLoading,
+    error: retainingSession ? null : error,
+  };
+}
+
+/** Whether a retained delete target still belongs to the window's current data scope. */
+function deletionTargetInScope(target: SessionPayload, focusedScope: FocusedDataScope | null) {
+  if (focusedScope === null) return true;
+  return sameDataScope(ownerDataScope(target.workspace_id?.trim() ?? ""), focusedScope);
+}
+
+/** The session a delete this window confirmed is removing, while it matches the window. */
+function retainedDeletionTarget(
+  sessionId: string | null,
+  deletingSessions: readonly SessionPayload[] | null | undefined
+): SessionPayload | undefined {
+  if (sessionId === null) return undefined;
+  return deletingSessions?.find(session => session.id === sessionId);
 }
 
 type SessionWindowResolution = ReturnType<typeof useSessionWindowResolution>;

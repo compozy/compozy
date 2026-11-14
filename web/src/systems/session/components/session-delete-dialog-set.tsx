@@ -65,8 +65,15 @@ export function SessionDeleteDialogSet({
   return (
     <Dialog
       open={open}
-      onOpenChange={next => {
-        if (!isDeleting || next) onOpenChange(next);
+      disablePointerDismissal={isDeleting ? true : undefined}
+      onOpenChange={(next, details) => {
+        // An in-flight batch owns the dialog: refuse Escape/outside dismissal so the progress
+        // it reports is never replayed by an open/close transition.
+        if (isDeleting && !next) {
+          details.cancel();
+          return;
+        }
+        onOpenChange(next);
       }}
     >
       <DialogContent

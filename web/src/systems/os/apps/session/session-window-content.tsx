@@ -7,14 +7,12 @@ import {
   subagentNavigationTarget,
   type SessionInspectorProps,
 } from "@/systems/session";
-import { use, useRef } from "react";
-
+import { lazy, Suspense, use, useRef } from "react";
 import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";
 import { SessionThread } from "./session-thread-lazy";
 import { SessionWindowRightRegion } from "./session-window-right-panel";
 import { SessionPullRequestExitSurface } from "./session-pull-request-exit-surface";
-import { SessionWindowRowDialogs } from "./session-window-row-dialogs";
 import { useForkDeadSession } from "./use-fork-dead-session";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerive } from "./use-session-window-derive";
@@ -42,6 +40,10 @@ import {
 } from "@/systems/session";
 
 type SessionWindowControls = ReturnType<typeof useSessionWindowController>["controls"];
+
+const SessionClearDialog = lazy(() =>
+  import("./session-window-dialogs").then(module => ({ default: module.SessionClearDialog }))
+);
 
 /** Drill-in from a subagent row (S1 rule): this window, or a new one with ⌘/Ctrl. */
 function subagentOpener(
@@ -392,11 +394,16 @@ export function SessionWindowContent({
                 workspaceId={workspaceId}
                 workspaceName={session.workspace_path ?? workspaceId}
               />
-              <SessionWindowRowDialogs
-                clearDialog={clearDialog}
-                controls={controls}
-                sidebar={sidebar}
-              />
+              {clearDialog.open ? (
+                <Suspense fallback={null}>
+                  <SessionClearDialog
+                    open
+                    onOpenChange={clearDialog.setOpen}
+                    isClearing={controls.isClearing}
+                    onConfirm={clearDialog.confirmClear}
+                  />
+                </Suspense>
+              ) : null}
             </div>
           </SessionSubagentDrawer>
         </SessionClearContext>

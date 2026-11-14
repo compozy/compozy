@@ -114,3 +114,18 @@ apply there. Walk in the session window sidebar, the Sessions modal and the Kanb
 Not offered from a list row or card (they need the session's window): the pull request agent
 prompts (Fix failing checks, Address review comments) and the exit actions; the selection has
 no Move to profile.
+
+QA impact 2026-11-14: the session window rail now owns its delete, process-choice, Later and rename
+confirmations in one lifecycle host above the content/empty branch, and the window keeps rendering
+the session a confirm delete is removing until the DELETE settles. The rail's delete confirmation is
+also handed to the OS shell's persistent lifecycle host, which outlives the session window the daemon
+reconciles before the DELETE answers, so neither a single nor a batch confirmation leaves with its
+window; the window-level host stays as the standalone fallback. A confirmed delete no longer unmounts
+the confirmation as the session leaves the by-id cache, swaps the body to Empty, or removes the window.
+Automated coverage: `session-window.test.tsx` ("Should keep the loaded session while its deletion is
+in flight", "Should keep the open delete confirmation mounted across a deleted-by-operator flip",
+"Should not retain a deletion target outside the window's current scope"),
+`use-session-window-sidebar.test.tsx` (rail delete handed to the shell host, local fallback without
+one), `session-delete-request-host.test.tsx` (single/batch host forwarding), the existing
+`session-delete-dialog.test.tsx` Escape guard, and `use-session-list-lifecycle-actions.test.tsx`.
+Reset for a focused live re-walk of the window rail's delete confirmation, including a slow DELETE.

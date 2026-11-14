@@ -1,5 +1,27 @@
 # Compozy Change Impact
 
+## Session delete confirmation survives the window body swap — 2026-11-14
+
+Owner: `fix/session-delete-dialog-flicker`. Web-only bug fix (internal regime, SD-013).
+
+- **Web.** The session window owns one `useSessionListLifecycleActions` instance in
+  `SessionWindowLifecycleHost`, above the content/empty branch, and renders the delete,
+  process-choice, Later and rename dialogs there. `SessionWindowEmpty` and the rail consume that
+  instance instead of mounting their own hosts. The rail's delete itself is handed to the OS shell's
+  persistent lifecycle host (`DesktopSessionDialogs`) through `requestSessionDelete`, because the
+  daemon reconciles a deleted session's window before the DELETE answers; the window-level dialog
+  remains as the standalone fallback. While a delete the window confirmed is in flight, the
+  controller substitutes the delete target for the cleared by-id read (and refuses a target outside
+  the window's current data scope), so the body keeps the loaded session instead of swapping to
+  skeleton/notice/empty. `SessionDeleteDialog` and `SessionDeleteDialogSet` cancel Escape/outside
+  dismissals through Base UI `details.cancel()` while deleting and keep the wrapper's window-scoped
+  pointer-dismissal default when idle.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema or
+  migration change. Workspace data isolation is unchanged: the retained target is the same
+  owner-scoped session the confirmation captured. Official skill `skills/compozy/`: no change.
+- QA: 2026-11-14 notes in `docs/qa/scenarios/RT-session-list-row-actions.md` and
+  `docs/qa/scenarios/ET-web-sessions-catalog-modal.md`; regression suites named there.
+
 ## Grouped menus with List and Kanban parity — 2026-11-13
 
 Owner: PR `feat/grouped-menus` (proto drafts `web/src/drafts/session-menus` and `web/src/drafts/app-menus`,
