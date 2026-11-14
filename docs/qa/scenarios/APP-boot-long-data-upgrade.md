@@ -53,9 +53,18 @@ Walk:
    ready` in the daemon log reports `unchanged_sessions` equal to the retained session count and
    `opened_sessions` 0, and `observe: session reconcile complete` reports `read_sessions` 0. Prompt
    one session, restart again, and only that session is opened and read.
+9. In a separate isolated home, archive a stopped session, remove only its session directory, and
+   restart the same build twice. Both starts reach readiness and log a structured warning with
+   the session ID and reason `archived_session_missing`. The archived catalog row retains its
+   state, archive timestamp and metadata, stays readable with archived sessions included, and can
+   be deleted explicitly. A missing unarchived session still follows the existing orphan policy.
 
 Owning suites: `TestBootSessionRepair` (per-session progress, cleared on exit, unchanged sessions
 skipped), `TestReconciliationReadsOnlyChangedSessions` (reconcile reads only changed sessions),
 `TestGlobalDBUsageCostRepair` (usage cost repair progress), `TestDesktopRuntimeBootstrapReplacement`
 (counts, stage name and version transition on bootstrap events), desktop `bootstrap-state`,
 `bootstrap-event`, `boot-journey`, `boot-runner-engine` and `boot-control`.
+
+Archived missing-directory coverage: `TestGlobalDBReconcileSessionsWithArchivedMissingFolder`
+exercises both full and incremental reconciliation against real SQLite. The manual restart walk
+is not run when local validation is prohibited; CI owns executable validation in that case.
