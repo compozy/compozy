@@ -45,16 +45,18 @@ export function useSessionWindowController(
   });
   const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
   const archivedWhileOpen = useSessionArchivedWhileOpen(sessionId, resolution, archivePending);
-  const operatorDeleted = deletedByOperator || remotelyGone;
-  // The window shows the delete's own target only once the read can no longer answer:
-  // before that the resolution is fresher, and after the request settles the target is gone.
-  const retained =
-    resolution.shownSession === undefined
-      ? retainedDeletionTarget(sessionId, options.deletingSessions)
-      : undefined;
-  const retainingSession = retained !== undefined;
-  const deletedLocally = operatorDeleted && !retainingSession;
-  const session = retained ?? resolution.session;
+  const retention = sessionDeletionRetention({
+    deletedByOperator,
+    remotelyGone,
+    shownSession: resolution.shownSession,
+    resolvedSession: resolution.session,
+    sessionId,
+    deletingSessions: options.deletingSessions,
+    workspaceId: resolution.workspaceId,
+    isLoading: resolution.isLoading,
+    error: resolution.error,
+  });
+  const { operatorDeleted, retainingSession, deletedLocally, session } = retention;
   const effectiveLiveTailEnabled =
     liveTailEnabled && !deletionPending && !operatorDeleted && !resolution.crossesWorkspace;
   useSessionPresence(
@@ -80,11 +82,9 @@ export function useSessionWindowController(
 
   return {
     ...resolution,
-    // A retained target keeps its own project: the by-id read that supplied the workspace
-    // is gone by the time the delete clears the cache.
-    workspaceId: retained ? (retained.workspace_id?.trim() ?? "") : resolution.workspaceId,
-    isLoading: retainingSession ? false : resolution.isLoading,
-    error: retainingSession ? null : resolution.error,
+    workspaceId: retention.workspaceId,
+    isLoading: retention.isLoading,
+    error: retention.error,
     agentName,
     deletedLocally,
     effectiveLiveTailEnabled,
@@ -93,6 +93,50 @@ export function useSessionWindowController(
     retainingSession,
     session,
     sessionId,
+  };
+}
+
+/**
+ * What the window shows while a delete it confirmed is in flight. The delete's own target
+ * stands in only once the by-id read can no longer answer: before that the resolution is
+ * fresher, and after the request settles the target is gone and the normal gone/retire path
+ * takes over.
+ */
+function sessionDeletionRetention({
+  deletedByOperator,
+  remotelyGone,
+  shownSession,
+  resolvedSession,
+  sessionId,
+  deletingSessions,
+  workspaceId,
+  isLoading,
+  error,
+}: {
+  deletedByOperator: boolean;
+  remotelyGone: boolean;
+  shownSession: SessionPayload | undefined;
+  resolvedSession: SessionPayload | undefined;
+  sessionId: string | null;
+  deletingSessions: readonly SessionPayload[] | null | undefined;
+  workspaceId: string | null;
+  isLoading: boolean;
+  error: Error | null;
+}) {
+  const operatorDeleted = deletedByOperator || remotelyGone;
+  const retained =
+    shownSession === undefined ? retainedDeletionTarget(sessionId, deletingSessions) : undefined;
+  const retainingSession = retained !== undefined;
+  return {
+    operatorDeleted,
+    retainingSession,
+    deletedLocally: operatorDeleted && !retainingSession,
+    session: retained ?? resolvedSession,
+    // A retained target keeps its own project: the by-id read that supplied the workspace
+    // is gone by the time the delete clears the cache.
+    workspaceId: retained ? (retained.workspace_id?.trim() ?? "") : workspaceId,
+    isLoading: retainingSession ? false : isLoading,
+    error: retainingSession ? null : error,
   };
 }
 
