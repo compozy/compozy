@@ -159,8 +159,9 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := prior.ExecContext(ctx, `INSERT INTO sessions
-			(id,agent_name,workspace_id,session_type,state,created_at,updated_at)
-			VALUES ('parent','coder','ws-child-migration','user','active',?,?)`, now, now); err != nil {
+			(id,profile_id,agent_name,workspace_id,session_type,state,created_at,updated_at)
+			VALUES ('parent',?,'coder','ws-child-migration','user','active',?,?)`,
+			store.DefaultProfileID, now, now); err != nil {
 			t.Fatal(err)
 		}
 		cases := []struct {
