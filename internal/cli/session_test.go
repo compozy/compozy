@@ -5238,7 +5238,7 @@ func (s *subagentCommandStub) CancelSubagent(
 func (s *subagentCommandStub) DeleteSubagent(_ context.Context, _, id string) error {
 	if id == "native" {
 		return errors.New(
-			"subagent_not_deletable: Provider-native subagents cannot be deleted; stop the parent turn instead.",
+			"subagent_not_deletable: provider-native subagents cannot be deleted; stop the parent turn instead.",
 		)
 	}
 	return nil
