@@ -14,7 +14,10 @@ func (s *service) populateMCPServerStatuses(
 	entry mcpSourceEntry,
 	skipRuntimeStatus bool,
 ) error {
-	ctx = mcpauth.WithConsentScope(ctx, mcpauth.ConsentScope{ProfileName: item.ProfileName, WorkspaceID: item.WorkspaceID})
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: item.ProfileName, WorkspaceID: item.WorkspaceID},
+	)
 	target, err := mcpAuthTargetForSource(entry)
 	if err != nil {
 		return err
@@ -28,7 +31,8 @@ func (s *service) populateMCPServerStatuses(
 		if consentErr != nil {
 			return consentErr
 		}
-		required := (target.Scope == mcpauth.ScopeWorkspace || target.Scope == mcpauth.ScopeWorkspaceProfile) && !strings.HasPrefix(target.Owner, "extension:")
+		required := (target.Scope == mcpauth.ScopeWorkspace || target.Scope == mcpauth.ScopeWorkspaceProfile) &&
+			!strings.HasPrefix(target.Owner, "extension:")
 		item.Approval = approvalState(decision, required)
 		item.CallableInSessions = decision.Admitted
 		skipRuntimeStatus = skipRuntimeStatus || !decision.Admitted

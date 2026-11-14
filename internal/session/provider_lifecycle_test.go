@@ -1015,7 +1015,11 @@ func TestPromptMCPActivationDecision(t *testing.T) {
 			if !host.reload {
 				wantReason = "served_stale"
 			}
-			if changed, reason := h.manager.needsActivationReload(t.Context(), active); !changed || reason != wantReason {
+			if changed, reason := h.manager.needsActivationReload(
+				t.Context(),
+				active,
+			); !changed ||
+				reason != wantReason {
 				t.Fatalf("added tool reload = %v, %s", changed, reason)
 			}
 			if !host.reload {
@@ -1131,7 +1135,12 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 				if outcome == "replayed" && opts.ResumeSessionID != "" {
 					return nil, acp.ErrLoadSessionFailed
 				}
-				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, firstTrimmedNonEmpty(opts.ResumeSessionID, "acp-replayed")), nil
+				return newFakeProcess(
+					opts.AgentName,
+					opts.Command,
+					opts.Cwd,
+					firstTrimmedNonEmpty(opts.ResumeSessionID, "acp-replayed"),
+				), nil
 			}
 			opts := SendPromptOpts{Message: "use new tools", MessageID: "message-reload", IdempotencyKey: "reload-send"}
 			sent, err := h.manager.SendPrompt(t.Context(), active.ID, opts)
@@ -1143,7 +1152,8 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 				if active.activation.boundDigest != original {
 					t.Fatal("failed attempt advanced fingerprint")
 				}
-				if attempts != 1 || countActivationEvents(readStoredEvents(t, active), acp.EventTypeUserMessage) != oldHistory {
+				if attempts != 1 ||
+					countActivationEvents(readStoredEvents(t, active), acp.EventTypeUserMessage) != oldHistory {
 					t.Fatal("failed prompt was accepted or retried")
 				}
 				failed := storedEventByType(t, readStoredEvents(t, active), EventTypeMCPReloaded)
@@ -1159,7 +1169,11 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 					t.Fatalf("failed event = %+v", event)
 				}
 				if event.Runtime == "" || !strings.Contains(refusal.Error(), "Couldn't start "+event.Runtime+" ") {
-					t.Fatalf("transcript line and refusal name different runtimes: event=%q refusal=%q", event.Runtime, refusal.Error())
+					t.Fatalf(
+						"transcript line and refusal name different runtimes: event=%q refusal=%q",
+						event.Runtime,
+						refusal.Error(),
+					)
 				}
 				fail = false
 				sent, err = h.manager.SendPrompt(t.Context(), active.ID, opts)
@@ -1197,7 +1211,9 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 			if outcome == "failed" {
 				wantOutcome = "applied"
 			}
-			if event.Outcome != wantOutcome || !slices.Equal(event.Added, []string{"branas-dashboard"}) || len(event.Removed) != 0 || event.Reason != "fingerprint" {
+			if event.Outcome != wantOutcome || !slices.Equal(event.Added, []string{"branas-dashboard"}) ||
+				len(event.Removed) != 0 ||
+				event.Reason != "fingerprint" {
 				t.Fatalf("reload event = %+v", event)
 			}
 			if active.activation.boundDigest == original {
@@ -1235,7 +1251,8 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		launcher.setCatalog("branas")
-		if len(h.driver.startCalls) != 1 || countActivationEvents(readStoredEvents(t, active), EventTypeMCPReloaded) != 0 {
+		if len(h.driver.startCalls) != 1 ||
+			countActivationEvents(readStoredEvents(t, active), EventTypeMCPReloaded) != 0 {
 			t.Fatal("mid-turn reload")
 		}
 		stream <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turnID, PromptStopReason: acp.PromptStopReasonEndTurn}
@@ -1258,7 +1275,11 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
 		launcher.setCatalog("echo")
 		h.driver.stopHook = func(*fakeProcess) error { return nil }
-		_, err := h.manager.SendPrompt(t.Context(), active.ID, SendPromptOpts{Message: "wait for old writer", MessageID: "fenced"})
+		_, err := h.manager.SendPrompt(
+			t.Context(),
+			active.ID,
+			SendPromptOpts{Message: "wait for old writer", MessageID: "fenced"},
+		)
 		h.driver.stopHook = nil
 		if !errors.Is(err, ErrStopVerificationFailed) || len(h.driver.startCalls) != 1 {
 			t.Fatalf("unverified stop launched a second writer: %v", err)
@@ -1293,7 +1314,9 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resolved.Agents = []compozyconfig.AgentDef{{Name: "coder", Provider: "pi", Model: "claude-opus-4-7", Prompt: "Use the session tools."}}
+		resolved.Agents = []compozyconfig.AgentDef{
+			{Name: "coder", Provider: "pi", Model: "claude-opus-4-7", Prompt: "Use the session tools."},
+		}
 		h.resolver.upsert(&resolved)
 		var previous *AgentProcess
 		firstPath := ""
@@ -1306,7 +1329,8 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 			if sequence == 1 {
 				firstPath = path
 			} else {
-				if path == firstPath || previous == nil || !isProcessDone(previous) || opts.ResumeSessionID != previous.SessionID {
+				if path == firstPath || previous == nil || !isProcessDone(previous) ||
+					opts.ResumeSessionID != previous.SessionID {
 					t.Fatal("Pi load reused stale bridge state or an active writer")
 				}
 				env, ok := config.Servers[0].Config["env"].(map[string]any)
@@ -1378,89 +1402,105 @@ func TestPromptRuntimeMCPActivation(t *testing.T) {
 		{"qwen", "off", ".qwen/settings.json", true, false},
 		{"claude", "load", ".claude.json", true, true},
 	} {
-		t.Run(fmt.Sprintf("Should reconcile %s inventory with %s and direct %t [UT-074]", tc.provider, tc.mode, tc.direct), func(t *testing.T) {
-			t.Parallel()
-			root := t.TempDir()
-			path := filepath.Join(root, tc.path)
-			writeRuntimeMCPFixture(t, path, `{"mcpServers":{"initial":{"command":"echo"}}}`)
-			h, launcher := newActivationHarness(t)
-			if tc.direct {
-				h.manager.hostedMCP = nil
-			}
-			h.manager.runtimeMCPInventory = runtimeMCPFileInventory{systemRoot: t.TempDir()}
-			provider, err := h.cfg.ResolveProvider(tc.provider)
-			if err != nil {
-				t.Fatal(err)
-			}
-			provider.Command = "HOME=" + root + " accepted-driver --acp"
-			provider.RuntimeMCP = tc.mode
-			h.cfg.Providers[tc.provider] = provider
-			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			workspace.Config = h.cfg
-			h.resolver.upsert(&workspace)
-			active, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: tc.provider}))
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
-			if tc.provider == "claude" && !tc.direct {
-				active.mu.Lock()
-				active.hostedMCPRequiresReload = false
-				active.mu.Unlock()
-			}
-			launcher.served = launcher.catalog.Digest
-			before := active.processHandle()
-			bound := active.activation.boundDigest
-			runtimeDigest := active.activation.runtimeDigest
-			if changed, reason := h.manager.needsActivationReload(t.Context(), active); changed {
-				t.Fatalf("unchanged inventory reloaded: %s", reason)
-			}
-			writeRuntimeMCPFixture(t, path, `{"mcpServers":{"initial":{"command":"echo"},"added later":{"command":"echo"}}}`)
-			changed, reason := h.manager.needsActivationReload(t.Context(), active)
-			if changed != tc.reload || changed && reason != "runtime_inventory" {
-				t.Fatalf("inventory reload = %v, %s", changed, reason)
-			}
-			provider.Command = "unaccepted-driver"
-			workspace.Config.Providers[tc.provider] = provider
-			h.resolver.upsert(&workspace)
-			events, err := h.manager.Prompt(t.Context(), active.ID, "next message")
-			if err != nil {
-				t.Fatal(err)
-			}
-			collectEvents(t, events)
-			if tc.reload {
-				if active.processHandle() == before || len(h.driver.startCalls) != 2 ||
-					active.activation.runtimeDigest == runtimeDigest || !tc.direct && active.activation.boundDigest == bound {
-					t.Fatal("inventory change did not rebind exactly once")
+		t.Run(
+			fmt.Sprintf(
+				"Should reconcile %s inventory with %s and direct %t [UT-074]",
+				tc.provider,
+				tc.mode,
+				tc.direct,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				root := t.TempDir()
+				path := filepath.Join(root, tc.path)
+				writeRuntimeMCPFixture(t, path, `{"mcpServers":{"initial":{"command":"echo"}}}`)
+				h, launcher := newActivationHarness(t)
+				if tc.direct {
+					h.manager.hostedMCP = nil
 				}
-				launch := h.driver.startCalls[1]
-				parsed, err := compozyconfig.ParseLaunchCommand(launch.Command)
+				h.manager.runtimeMCPInventory = runtimeMCPFileInventory{systemRoot: t.TempDir()}
+				provider, err := h.cfg.ResolveProvider(tc.provider)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if parsed.Executable != "accepted-driver" || parsed.Args[0] != "--acp" {
-					t.Fatalf("lost accepted command: %s", launch.Command)
+				provider.Command = "HOME=" + root + " accepted-driver --acp"
+				provider.RuntimeMCP = tc.mode
+				h.cfg.Providers[tc.provider] = provider
+				workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+				if err != nil {
+					t.Fatal(err)
 				}
-				if tc.mode == "off" && !slices.Contains(parsed.Args, "added later") {
-					t.Fatalf("new server was not disabled: %s", launch.Command)
+				workspace.Config = h.cfg
+				h.resolver.upsert(&workspace)
+				active, err := h.manager.Create(
+					t.Context(),
+					new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: tc.provider}),
+				)
+				if err != nil {
+					t.Fatal(err)
 				}
-				if active.activation.lastReload == nil || active.activation.lastReload.Reason != "runtime_inventory" {
-					t.Fatalf("reload record = %+v", active.activation.lastReload)
+				t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+				if tc.provider == "claude" && !tc.direct {
+					active.mu.Lock()
+					active.hostedMCPRequiresReload = false
+					active.mu.Unlock()
 				}
-			} else if active.processHandle() != before || len(h.driver.startCalls) != 1 {
-				t.Fatal("native hot reload caused a process restart")
-			}
-			if changed, reason := h.manager.needsActivationReload(t.Context(), active); changed {
-				t.Fatalf("bound inventory reloaded again: %s", reason)
-			}
-			writeRuntimeMCPFixture(t, path, `{`)
-			if changed, reason := h.manager.needsActivationReload(t.Context(), active); changed {
-				t.Fatalf("unreadable inventory requested reload: %s", reason)
-			}
-		})
+				launcher.served = launcher.catalog.Digest
+				before := active.processHandle()
+				bound := active.activation.boundDigest
+				runtimeDigest := active.activation.runtimeDigest
+				if changed, reason := h.manager.needsActivationReload(t.Context(), active); changed {
+					t.Fatalf("unchanged inventory reloaded: %s", reason)
+				}
+				writeRuntimeMCPFixture(
+					t,
+					path,
+					`{"mcpServers":{"initial":{"command":"echo"},"added later":{"command":"echo"}}}`,
+				)
+				changed, reason := h.manager.needsActivationReload(t.Context(), active)
+				if changed != tc.reload || changed && reason != "runtime_inventory" {
+					t.Fatalf("inventory reload = %v, %s", changed, reason)
+				}
+				provider.Command = "unaccepted-driver"
+				workspace.Config.Providers[tc.provider] = provider
+				h.resolver.upsert(&workspace)
+				events, err := h.manager.Prompt(t.Context(), active.ID, "next message")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, events)
+				if tc.reload {
+					if active.processHandle() == before || len(h.driver.startCalls) != 2 ||
+						active.activation.runtimeDigest == runtimeDigest || !tc.direct && active.activation.boundDigest == bound {
+						t.Fatal("inventory change did not rebind exactly once")
+					}
+					launch := h.driver.startCalls[1]
+					parsed, err := compozyconfig.ParseLaunchCommand(launch.Command)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if parsed.Executable != "accepted-driver" || parsed.Args[0] != "--acp" {
+						t.Fatalf("lost accepted command: %s", launch.Command)
+					}
+					if tc.mode == "off" && !slices.Contains(parsed.Args, "added later") {
+						t.Fatalf("new server was not disabled: %s", launch.Command)
+					}
+					if active.activation.lastReload == nil ||
+						active.activation.lastReload.Reason != "runtime_inventory" {
+						t.Fatalf("reload record = %+v", active.activation.lastReload)
+					}
+				} else if active.processHandle() != before || len(h.driver.startCalls) != 1 {
+					t.Fatal("native hot reload caused a process restart")
+				}
+				if changed, reason := h.manager.needsActivationReload(t.Context(), active); changed {
+					t.Fatalf("bound inventory reloaded again: %s", reason)
+				}
+				writeRuntimeMCPFixture(t, path, `{`)
+				if changed, reason := h.manager.needsActivationReload(t.Context(), active); changed {
+					t.Fatalf("unreadable inventory requested reload: %s", reason)
+				}
+			},
+		)
 	}
 	t.Run("Should reload a Claude switch even with a current served catalog", func(t *testing.T) {
 		t.Parallel()
@@ -1480,7 +1520,11 @@ func TestPromptRuntimeMCPActivation(t *testing.T) {
 		provider.RuntimeMCP = "off"
 		workspace.Config.Providers["claude"] = provider
 		h.resolver.upsert(&workspace)
-		if changed, reason := h.manager.needsActivationReload(t.Context(), active); !changed || reason != "runtime_mcp" {
+		if changed, reason := h.manager.needsActivationReload(
+			t.Context(),
+			active,
+		); !changed ||
+			reason != "runtime_mcp" {
 			t.Fatalf("mode reload = %v, %s", changed, reason)
 		}
 		events, err := h.manager.Prompt(t.Context(), active.ID, "switch mode")
@@ -1488,7 +1532,8 @@ func TestPromptRuntimeMCPActivation(t *testing.T) {
 			t.Fatal(err)
 		}
 		collectEvents(t, events)
-		if len(h.driver.startCalls) != 2 || !h.driver.startCalls[1].IsolateProviderMCP || active.activation.runtimeMCP != "off" {
+		if len(h.driver.startCalls) != 2 || !h.driver.startCalls[1].IsolateProviderMCP ||
+			active.activation.runtimeMCP != "off" {
 			t.Fatal("switch was not applied on the next launch")
 		}
 	})

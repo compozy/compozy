@@ -1635,12 +1635,16 @@ func TestOAuthNetworkConsentRevalidation(t *testing.T) {
 		}))
 		defer server.Close()
 		denied := errors.New("waiting for approval")
-		service, err := NewService(&adapterTestStore{}, withHTTPClientForTest(server.Client()), WithNetworkAuthorization(func(context.Context, ServerConfig) error {
-			if !admitted.Load() {
-				return denied
-			}
-			return nil
-		}))
+		service, err := NewService(
+			&adapterTestStore{},
+			withHTTPClientForTest(server.Client()),
+			WithNetworkAuthorization(func(context.Context, ServerConfig) error {
+				if !admitted.Load() {
+					return denied
+				}
+				return nil
+			}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

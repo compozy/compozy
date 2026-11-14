@@ -14,12 +14,27 @@ import (
 )
 
 type runtimeMCPImportClient interface {
-	ImportRuntimeMCPServer(context.Context, string, string, contract.RuntimeMCPImportRequest) (contract.RuntimeMCPImportResponse, error)
+	ImportRuntimeMCPServer(
+		context.Context,
+		string,
+		string,
+		contract.RuntimeMCPImportRequest,
+	) (contract.RuntimeMCPImportResponse, error)
 }
 
-func (c *daemonClient) ImportRuntimeMCPServer(ctx context.Context, runtime, name string, body contract.RuntimeMCPImportRequest) (contract.RuntimeMCPImportResponse, error) {
+func (c *daemonClient) ImportRuntimeMCPServer(
+	ctx context.Context,
+	runtime, name string,
+	body contract.RuntimeMCPImportRequest,
+) (contract.RuntimeMCPImportResponse, error) {
 	var result contract.RuntimeMCPImportResponse
-	path := "/api/settings/runtime-mcp-servers/" + url.PathEscape(runtime) + "/" + strings.ReplaceAll(url.PathEscape(name), ":", "%3A") + "/import"
+	path := "/api/settings/runtime-mcp-servers/" + url.PathEscape(
+		runtime,
+	) + "/" + strings.ReplaceAll(
+		url.PathEscape(name),
+		":",
+		"%3A",
+	) + "/import"
 	err := c.doJSON(ctx, http.MethodPost, path, nil, body, &result)
 	if apiErr, ok := errors.AsType[*daemonAPIError](err); ok && apiErr.payload.Code != "" {
 		hint := ""
@@ -39,7 +54,11 @@ func (c *daemonClient) ImportRuntimeMCPServer(ctx context.Context, runtime, name
 
 func newMCPImportCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, scope, name string
-	cmd := &cobra.Command{Use: "import <runtime>/<server>", Short: "Copy a runtime MCP server into CompozyOS", Args: exactOneNonBlankArg()}
+	cmd := &cobra.Command{
+		Use:   "import <runtime>/<server>",
+		Short: "Copy a runtime MCP server into CompozyOS",
+		Args:  exactOneNonBlankArg(),
+	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		runtime, server, found := strings.Cut(args[0], "/")
 		if !found || runtime == "" || server == "" {
@@ -55,7 +74,13 @@ func newMCPImportCommand(deps commandDeps) *cobra.Command {
 		}
 		body := contract.RuntimeMCPImportRequest{Scope: contract.SettingsScopeKind(scope), Name: name}
 		if workspaceRef != "" || scope == "workspace" {
-			resolved, err := resolveCommandWorkspace(cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspaceRef})
+			resolved, err := resolveCommandWorkspace(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspaceResolutionRequest{FlagRef: workspaceRef},
+			)
 			if err != nil {
 				return err
 			}
@@ -84,9 +109,19 @@ func newMCPImportCommand(deps commandDeps) *cobra.Command {
 				}
 			}
 			label := map[string]string{"user": "Personal", "workspace": "Project", "profile": "Profile"}[scope]
-			output := fmt.Sprintf("Copied %s from %s (%s) to CompozyOS (%s).\n", result.MCPServer.Name, display, result.Source.SourceLabel, label)
+			output := fmt.Sprintf(
+				"Copied %s from %s (%s) to CompozyOS (%s).\n",
+				result.MCPServer.Name,
+				display,
+				result.Source.SourceLabel,
+				label,
+			)
 			if result.MCPServer.AuthStatus != nil && result.MCPServer.AuthStatus.Status == "needs_login" {
-				output += fmt.Sprintf("%s uses OAuth: sign in with `compozy mcp auth login %s`.\n", result.MCPServer.Name, result.MCPServer.Name)
+				output += fmt.Sprintf(
+					"%s uses OAuth: sign in with `compozy mcp auth login %s`.\n",
+					result.MCPServer.Name,
+					result.MCPServer.Name,
+				)
 			}
 			for _, note := range result.Notes {
 				for _, descriptor := range runtimemcp.Descriptors() {

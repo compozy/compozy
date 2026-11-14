@@ -17,7 +17,10 @@ type runtimeMCPClient interface {
 	ListRuntimeMCPServers(context.Context, string, string, string) (contract.RuntimeMCPServersResponse, error)
 }
 
-func (c *daemonClient) ListRuntimeMCPServers(ctx context.Context, workspace, profile, runtime string) (contract.RuntimeMCPServersResponse, error) {
+func (c *daemonClient) ListRuntimeMCPServers(
+	ctx context.Context,
+	workspace, profile, runtime string,
+) (contract.RuntimeMCPServersResponse, error) {
 	query := url.Values{}
 	if workspace != "" {
 		query.Set("workspace_id", workspace)
@@ -46,13 +49,22 @@ func newMCPListCommand(deps commandDeps) *cobra.Command {
 			return err
 		}
 		if workspace != "" {
-			resolution, err := resolveCommandWorkspace(cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspace})
+			resolution, err := resolveCommandWorkspace(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspaceResolutionRequest{FlagRef: workspace},
+			)
 			if err != nil {
 				return err
 			}
 			workspace = resolution.ID
 		}
-		result := contract.MCPListResponse{CompozyServers: []contract.SettingsMCPServerItemPayload{}, Runtimes: []runtimemcp.Snapshot{}}
+		result := contract.MCPListResponse{
+			CompozyServers: []contract.SettingsMCPServerItemPayload{},
+			Runtimes:       []runtimemcp.Snapshot{},
+		}
 		if !compozyOnly {
 			reader, ok := client.(runtimeMCPClient)
 			if !ok {
@@ -85,8 +97,10 @@ func newMCPListCommand(deps commandDeps) *cobra.Command {
 }
 
 func mcpListBundle(result contract.MCPListResponse) outputBundle {
-	return outputBundle{jsonValue: result, json: func(cmd *cobra.Command) error { return writeJSONWithoutWorkspaceResolution(cmd, result) },
-		jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+	return outputBundle{
+		jsonValue: result,
+		json:      func(cmd *cobra.Command) error { return writeJSONWithoutWorkspaceResolution(cmd, result) },
+		jsonl:     func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
 		human: func() (string, error) {
 			var out strings.Builder
 			if len(result.CompozyServers) > 0 {
@@ -109,23 +123,40 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 					} else if s.Approval == "pending" {
 						state = "Waiting for approval"
 					}
-					fmt.Fprintf(&out, "  %-24s %-10s %-8s %-24s %s\n", s.Name, s.Scope, s.Transport, state, s.SourceLabel)
+					fmt.Fprintf(
+						&out,
+						"  %-24s %-10s %-8s %-24s %s\n",
+						s.Name,
+						s.Scope,
+						s.Transport,
+						state,
+						s.SourceLabel,
+					)
 				}
 				for _, note := range group.Notes {
 					fmt.Fprintf(&out, "  %s\n", note)
 				}
 			}
 			return out.String(), nil
-		}, toon: func() (string, error) {
+		},
+		toon: func() (string, error) {
 			rows := [][]string{}
 			for _, s := range result.CompozyServers {
 				rows = append(rows, []string{"compozy", s.Name, string(s.Scope), s.Transport, "", ""})
 			}
 			for _, group := range result.Runtimes {
 				for _, s := range group.Servers {
-					rows = append(rows, []string{group.Runtime, s.Name, s.Scope, s.Transport, s.Approval, s.SourceLabel})
+					rows = append(
+						rows,
+						[]string{group.Runtime, s.Name, s.Scope, s.Transport, s.Approval, s.SourceLabel},
+					)
 				}
 			}
-			return renderToonArray("mcp_servers", []string{"runtime", "name", "scope", "transport", "approval", "source"}, rows), nil
-		}}
+			return renderToonArray(
+				"mcp_servers",
+				[]string{"runtime", "name", "scope", "transport", "approval", "source"},
+				rows,
+			), nil
+		},
+	}
 }

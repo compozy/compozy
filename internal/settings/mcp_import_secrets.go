@@ -18,14 +18,23 @@ func mcpHeaderSecretRef(prefix, name string) string {
 	return prefix + "headers/" + hex.EncodeToString([]byte(strings.ToLower(name)))
 }
 
-func prepareMCPSecretHeaderValues(prefix string, server *config.MCPServer, values map[string]string) ([]preparedSecretWrite, error) {
+func prepareMCPSecretHeaderValues(
+	prefix string,
+	server *config.MCPServer,
+	values map[string]string,
+) ([]preparedSecretWrite, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
 	if server.EffectiveTransport() != config.MCPServerTransportHTTP {
 		return nil, validationError(fmt.Errorf("settings: secret headers require HTTP transport"))
 	}
-	if err := mcppolicy.ValidateHeaders(nil, values, mcppolicy.SourceOperatorSecret, server.Auth.Enabled()); err != nil {
+	if err := mcppolicy.ValidateHeaders(
+		nil,
+		values,
+		mcppolicy.SourceOperatorSecret,
+		server.Auth.Enabled(),
+	); err != nil {
 		return nil, validationError(err)
 	}
 	if server.SecretHeaders == nil {
@@ -35,7 +44,10 @@ func prepareMCPSecretHeaderValues(prefix string, server *config.MCPServer, value
 	for _, name := range slices.Sorted(maps.Keys(values)) {
 		ref := mcpHeaderSecretRef(prefix, name)
 		server.SecretHeaders[name] = ref
-		writes = append(writes, preparedSecretWrite{ref: ref, kind: mcpHeaderSecretKind, value: values[name], description: "MCP header"})
+		writes = append(
+			writes,
+			preparedSecretWrite{ref: ref, kind: mcpHeaderSecretKind, value: values[name], description: "MCP header"},
+		)
 	}
 	return writes, nil
 }
@@ -44,7 +56,12 @@ func mcpImportCleanupWarning(name string) string {
 	return name + " was copied, but CompozyOS couldn't confirm its secrets were cleaned up. Check Settings → MCP servers → " + name + "."
 }
 
-func (s *service) rollbackUnreferencedMCPSecrets(ctx context.Context, scope ScopeKind, workspaceID, profile string, mutations []mcpSecretMutation) error {
+func (s *service) rollbackUnreferencedMCPSecrets(
+	ctx context.Context,
+	scope ScopeKind,
+	workspaceID, profile string,
+	mutations []mcpSecretMutation,
+) error {
 	if len(mutations) == 0 {
 		return nil
 	}
@@ -70,11 +87,24 @@ func (s *service) rollbackUnreferencedMCPSecrets(ctx context.Context, scope Scop
 	return s.rollbackMCPSecretMutations(cleanupCtx, safe)
 }
 
-func (s *service) validateMCPImportName(ctx context.Context, scope ScopeKind, workspaceID, profile, name string, sources map[string][]mcpSourceEntry) error {
+func (s *service) validateMCPImportName(
+	ctx context.Context,
+	scope ScopeKind,
+	workspaceID, profile, name string,
+	sources map[string][]mcpSourceEntry,
+) error {
 	_, occupied := preferredMCPDeleteTarget(scope, name, sources)
-	err := s.validateManualMCPName(ctx, MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profile, Name: name})
+	err := s.validateManualMCPName(
+		ctx,
+		MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profile, Name: name},
+	)
 	if occupied || errors.Is(err, ErrMCPServerNameTaken) {
-		return conflictError(&runtimemcp.ImportError{Code: "mcp_import_name_taken", Message: fmt.Sprintf("A CompozyOS server named %s already exists in %s", name, importScopeLabel(scope))})
+		return conflictError(
+			&runtimemcp.ImportError{
+				Code:    "mcp_import_name_taken",
+				Message: fmt.Sprintf("A CompozyOS server named %s already exists in %s", name, importScopeLabel(scope)),
+			},
+		)
 	}
 	return err
 }

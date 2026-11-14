@@ -738,8 +738,14 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 	t.Run("Should publish effective servers for inherited lineage [UT-107]", func(t *testing.T) {
 		t.Parallel()
 		for _, effective := range [][]string{{"linear", "sentry"}, {}} {
-			lineage := &store.SessionLineage{RootSessionID: "root", EffectiveMCPServers: effective,
-				PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit, MCPServers: []string{"stale-snapshot"}}}
+			lineage := &store.SessionLineage{
+				RootSessionID:       "root",
+				EffectiveMCPServers: effective,
+				PermissionPolicy: store.SessionPermissionPolicy{
+					MCPServersMode: store.PermissionInherit,
+					MCPServers:     []string{"stale-snapshot"},
+				},
+			}
 			payload := contract.SessionLineagePayloadFromStore(lineage)
 			if !slices.Equal(payload.PermissionPolicy.MCPServers, effective) {
 				t.Fatalf("public authority=%+v", payload.PermissionPolicy)

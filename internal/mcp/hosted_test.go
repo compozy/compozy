@@ -27,7 +27,12 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		t.Parallel()
 		executable := hostedTestExecutable(t, "compozy")
 		view := hostedToolView("mcp__echo__ping")
-		view.Descriptor.Source = tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", RawToolName: "ping"}
+		view.Descriptor.Source = tools.SourceRef{
+			Kind:          tools.SourceMCP,
+			Owner:         "echo",
+			RawServerName: "echo",
+			RawToolName:   "ping",
+		}
 		registry := &hostedRegistryStub{views: []tools.ToolView{view}}
 		service := newHostedTestService(t, executable, registry, time.Now)
 		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-receipt", EagerTools: true})
@@ -41,11 +46,19 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 			t.Fatalf("initial unbound launch catalog: %v", err)
 		}
 		peer := hostedTestPeer(executable)
-		bound, err := service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-receipt", Nonce: hostedLaunchNonce(t, launch.Args)}, peer)
+		bound, err := service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-receipt", Nonce: hostedLaunchNonce(t, launch.Args)},
+			peer,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := service.ReportServedCatalog(t.Context(), HostedServedRequest{BindID: bound.BindID, Digest: bound.Catalog.Digest}, peer); err != nil {
+		if err := service.ReportServedCatalog(
+			t.Context(),
+			HostedServedRequest{BindID: bound.BindID, Digest: bound.Catalog.Digest},
+			peer,
+		); err != nil {
 			t.Fatal(err)
 		}
 		registry.replaceViews(nil)
@@ -61,7 +74,14 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		if _, _, err := service.ActivationCatalog(t.Context(), "sess-receipt"); !errors.Is(err, ErrHostedBindNotFound) {
 			t.Fatalf("lost proxy catalog = %v", err)
 		}
-		if err := service.ReportServedCatalog(t.Context(), HostedServedRequest{BindID: bound.BindID, Digest: current.Digest}, peer); !errors.Is(err, ErrHostedBindNotFound) {
+		if err := service.ReportServedCatalog(
+			t.Context(),
+			HostedServedRequest{BindID: bound.BindID, Digest: current.Digest},
+			peer,
+		); !errors.Is(
+			err,
+			ErrHostedBindNotFound,
+		) {
 			t.Fatalf("retired receipt = %v", err)
 		}
 	})
@@ -2997,7 +3017,12 @@ func TestHostedAdvertisedCatalogDigest(t *testing.T) {
 		views := make([]tools.ToolView, 0, 51)
 		for i := range 50 {
 			view := hostedToolView(tools.ToolID(fmt.Sprintf("mcp__server%d__echo", i)))
-			view.Descriptor.Source = tools.SourceRef{Kind: tools.SourceMCP, Owner: fmt.Sprintf("server%d", i), RawServerName: fmt.Sprintf("server%d", i), RawToolName: "echo"}
+			view.Descriptor.Source = tools.SourceRef{
+				Kind:          tools.SourceMCP,
+				Owner:         fmt.Sprintf("server%d", i),
+				RawServerName: fmt.Sprintf("server%d", i),
+				RawToolName:   "echo",
+			}
 			views = append(views, view)
 		}
 		bound := hostedExternalToolDigest(views)

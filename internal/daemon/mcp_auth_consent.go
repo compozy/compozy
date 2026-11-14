@@ -14,7 +14,12 @@ import (
 
 func authorizeMCPAuthNetwork(ctx context.Context, state *bootState, cfg mcpauth.ServerConfig) error {
 	target := cfg.Target.Normalize()
-	source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: target.ServerName, RawServerName: target.ServerName, ProfileID: store.DefaultProfileID}
+	source := toolspkg.SourceRef{
+		Kind:          toolspkg.SourceMCP,
+		Owner:         target.ServerName,
+		RawServerName: target.ServerName,
+		ProfileID:     store.DefaultProfileID,
+	}
 	switch target.Scope {
 	case mcpauth.ScopeWorkspace:
 		source.WorkspaceID = target.WorkspaceID
@@ -71,7 +76,13 @@ func authorizeMCPAuthNetwork(ctx context.Context, state *bootState, cfg mcpauth.
 		return err
 	}
 	if cfg.DefinitionDigest != "" && cfg.DefinitionDigest != digest {
-		return &settingspkg.MCPApprovalError{Code: "mcp_approval_definition_changed", Message: fmt.Sprintf("%s changed since you looked at it. List it again and approve the new definition", target.ServerName)}
+		return &settingspkg.MCPApprovalError{
+			Code: "mcp_approval_definition_changed",
+			Message: fmt.Sprintf(
+				"%s changed since you looked at it. List it again and approve the new definition",
+				target.ServerName,
+			),
+		}
 	}
 	return nil
 }

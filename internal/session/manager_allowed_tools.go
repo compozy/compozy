@@ -83,7 +83,8 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 	catalog toolspkg.ToolsetCatalog,
 	universe []toolspkg.ToolID,
 ) error {
-	if s == nil || s.startAction == sessionStartActionResume || s.instancePermissionCeiling != nil || strings.EqualFold(s.runtimeMode, RuntimeModeVerdictOnly) {
+	if s == nil || s.startAction == sessionStartActionResume || s.instancePermissionCeiling != nil ||
+		strings.EqualFold(s.runtimeMode, RuntimeModeVerdictOnly) {
 		return nil
 	}
 	switch normalizeSessionType(s.sessionType) {

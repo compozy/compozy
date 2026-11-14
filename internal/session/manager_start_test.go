@@ -1165,18 +1165,34 @@ func TestRuntimeMCPStartup(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			systemRoot := t.TempDir()
-			writeRuntimeMCPFixture(t, filepath.Join(root, ".copilot/mcp-config.json"), `{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo","enabled":false}}}`)
-			writeRuntimeMCPFixture(t, filepath.Join(root, ".qwen/settings.json"), `{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo"}}}`)
+			writeRuntimeMCPFixture(
+				t,
+				filepath.Join(root, ".copilot/mcp-config.json"),
+				`{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo","enabled":false}}}`,
+			)
+			writeRuntimeMCPFixture(
+				t,
+				filepath.Join(root, ".qwen/settings.json"),
+				`{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo"}}}`,
+			)
 			cfg := runtimeMCPTestConfig(t)
 			cfg.Providers[provider] = compozyconfig.ProviderConfig{RuntimeMCP: "off"}
-			runtime := &sessionStartRuntime{agent: compozyconfig.ResolvedAgent{Provider: provider, Harness: compozyconfig.ProviderHarnessACP}}
+			runtime := &sessionStartRuntime{
+				agent: compozyconfig.ResolvedAgent{Provider: provider, Harness: compozyconfig.ProviderHarnessACP},
+			}
 			manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: systemRoot}}
 			spec := &sessionStartSpec{cwd: root, workspace: workspaceForRuntimeMCP(root, cfg)}
-			opts, err := manager.prepareRuntimeMCPStartup(t.Context(), spec, runtime, acp.StartOpts{Command: "accepted-driver --acp", Cwd: root, Env: []string{"HOME=" + root}})
+			opts, err := manager.prepareRuntimeMCPStartup(
+				t.Context(),
+				spec,
+				runtime,
+				acp.StartOpts{Command: "accepted-driver --acp", Cwd: root, Env: []string{"HOME=" + root}},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if runtime.activationDigest == "" || runtime.activationRequest.Context.Home != root || runtime.activationRequest.Context.CWD != root {
+			if runtime.activationDigest == "" || runtime.activationRequest.Context.Home != root ||
+				runtime.activationRequest.Context.CWD != root {
 				t.Fatalf("activation context = %+v", runtime)
 			}
 			if provider == "claude" {
@@ -1203,9 +1219,17 @@ func TestRuntimeMCPStartup(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		cfg := runtimeMCPTestConfig(t)
-		spec := &sessionStartSpec{workspace: workspaceForRuntimeMCP(h.workspace, cfg), cwd: h.workspace, sessionType: SessionTypeUser}
+		spec := &sessionStartSpec{
+			workspace:   workspaceForRuntimeMCP(h.workspace, cfg),
+			cwd:         h.workspace,
+			sessionType: SessionTypeUser,
+		}
 		active := &Session{agentDef: compozyconfig.AgentDef{Kind: compozyconfig.AgentKindAlwaysOn}}
-		resolved := compozyconfig.ResolvedAgent{Provider: "claude", Command: "accepted-driver", Harness: compozyconfig.ProviderHarnessACP}
+		resolved := compozyconfig.ResolvedAgent{
+			Provider: "claude",
+			Command:  "accepted-driver",
+			Harness:  compozyconfig.ProviderHarnessACP,
+		}
 		opts, err := h.manager.sessionStartOpts(spec, active, resolved, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -1220,7 +1244,11 @@ func TestRuntimeMCPStartup(t *testing.T) {
 	t.Run("Should leave stored off inert under managed Claude policy [UT-075]", func(t *testing.T) {
 		t.Parallel()
 		root, systemRoot := t.TempDir(), t.TempDir()
-		writeRuntimeMCPFixture(t, filepath.Join(systemRoot, "ClaudeCode/managed-mcp.json"), `{"mcpServers":{"managed":{"command":"echo"}}}`)
+		writeRuntimeMCPFixture(
+			t,
+			filepath.Join(systemRoot, "ClaudeCode/managed-mcp.json"),
+			`{"mcpServers":{"managed":{"command":"echo"}}}`,
+		)
 		cfg := runtimeMCPTestConfig(t)
 		cfg.Providers["claude"] = compozyconfig.ProviderConfig{RuntimeMCP: "off"}
 		if err := cfg.Validate(); err != nil {
@@ -1229,7 +1257,12 @@ func TestRuntimeMCPStartup(t *testing.T) {
 		manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: systemRoot}}
 		spec := &sessionStartSpec{workspace: workspaceForRuntimeMCP(root, cfg)}
 		runtime := &sessionStartRuntime{agent: compozyconfig.ResolvedAgent{Provider: "claude"}}
-		opts, err := manager.prepareRuntimeMCPStartup(t.Context(), spec, runtime, acp.StartOpts{Command: "accepted-driver", Cwd: root, Env: []string{"HOME=" + root}})
+		opts, err := manager.prepareRuntimeMCPStartup(
+			t.Context(),
+			spec,
+			runtime,
+			acp.StartOpts{Command: "accepted-driver", Cwd: root, Env: []string{"HOME=" + root}},
+		)
 		if err != nil || opts.IsolateProviderMCP || !opts.ManagedProviderMCP || runtime.activationMode != "off" {
 			t.Fatalf("managed launch = %+v, %v", opts, err)
 		}

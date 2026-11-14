@@ -12,7 +12,11 @@ type RuntimeMCPInventory interface {
 	List(context.Context, runtimemcp.Request) (runtimemcp.Inventory, error)
 }
 
-func (s *service) ListRuntimeMCP(ctx context.Context, req CollectionRequest, runtime string) (runtimemcp.Inventory, error) {
+func (s *service) ListRuntimeMCP(
+	ctx context.Context,
+	req CollectionRequest,
+	runtime string,
+) (runtimemcp.Inventory, error) {
 	if s.runtimeMCP == nil {
 		return runtimemcp.Inventory{}, errors.New("runtime MCP inventory unavailable")
 	}
@@ -43,7 +47,10 @@ func (s *service) ListRuntimeMCP(ctx context.Context, req CollectionRequest, run
 	for _, server := range collection.MCPServers {
 		names = append(names, server.Name)
 	}
-	return s.runtimeMCP.List(ctx, runtimemcp.Request{Context: readContext, Runtime: runtime, Modes: modes, CompozyNames: names})
+	return s.runtimeMCP.List(
+		ctx,
+		runtimemcp.Request{Context: readContext, Runtime: runtime, Modes: modes, CompozyNames: names},
+	)
 }
 
 func (s *service) operatorRuntimeMCPContext() (runtimemcp.ReadContext, error) {

@@ -66,7 +66,14 @@ func WaitingMCPApprovalError(name string, workspace ...string) error {
 	if len(workspace) > 0 && workspace[0] != "" {
 		label = workspace[0]
 	}
-	return &MCPApprovalError{Code: "mcp_server_waiting_approval", Message: fmt.Sprintf("%s is waiting for approval in %s. Allow it first, or sign in from its row to allow and sign in together.", name, label)}
+	return &MCPApprovalError{
+		Code: "mcp_server_waiting_approval",
+		Message: fmt.Sprintf(
+			"%s is waiting for approval in %s. Allow it first, or sign in from its row to allow and sign in together.",
+			name,
+			label,
+		),
+	}
 }
 
 func approvalState(decision ConsentDecision, required bool) MCPApprovalState {
@@ -92,7 +99,12 @@ func approvalState(decision ConsentDecision, required bool) MCPApprovalState {
 }
 
 func consentRequestForTarget(target mcpauth.Target, server config.MCPServer) MCPConsentRequest {
-	req := MCPConsentRequest{Server: server, Scope: string(target.Scope), WorkspaceID: target.WorkspaceID, Owner: target.Owner}
+	req := MCPConsentRequest{
+		Server:      server,
+		Scope:       string(target.Scope),
+		WorkspaceID: target.WorkspaceID,
+		Owner:       target.Owner,
+	}
 	if target.Scope == mcpauth.ScopeProfile {
 		req.ProfileName = target.WorkspaceID
 		req.WorkspaceID = ""
@@ -104,7 +116,12 @@ func consentRequestForTarget(target mcpauth.Target, server config.MCPServer) MCP
 }
 
 // SetMCPApproval resolves the current effective definition before binding consent.
-func (s *service) SetMCPApproval(ctx context.Context, req MCPAuthTargetRequest, digest string, revoke bool) (store.MCPApproval, error) {
+func (s *service) SetMCPApproval(
+	ctx context.Context,
+	req MCPAuthTargetRequest,
+	digest string,
+	revoke bool,
+) (store.MCPApproval, error) {
 	if s.mcpConsent == nil {
 		return store.MCPApproval{}, unavailableError(fmt.Errorf("settings: MCP consent is unavailable"))
 	}

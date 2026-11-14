@@ -141,13 +141,24 @@ func sources(c ReadContext, id string) []source {
 			}
 		}
 		if name == "gemini" {
-			system := cmp.Or(c.Env["GEMINI_CLI_SYSTEM_SETTINGS_PATH"], filepath.Join(c.systemDir("GeminiCli"), "settings.json"))
+			system := cmp.Or(
+				c.Env["GEMINI_CLI_SYSTEM_SETTINGS_PATH"],
+				filepath.Join(c.systemDir("GeminiCli"), "settings.json"),
+			)
 			list = append(list, source{system, "managed"})
 		}
 	case "kimi-cli":
-		list = append(list, user(filepath.Join(home, ".kimi/mcp.json")), user(filepath.Join(c.homeDir("KIMI_CODE_HOME", ".kimi-code"), "mcp.json")))
+		list = append(
+			list,
+			user(filepath.Join(home, ".kimi/mcp.json")),
+			user(filepath.Join(c.homeDir("KIMI_CODE_HOME", ".kimi-code"), "mcp.json")),
+		)
 		if cwd != "" {
-			list = append(list, project(filepath.Join(cmp.Or(c.WorktreeRoot, c.GitRoot, cwd), ".mcp.json")), source{filepath.Join(cwd, ".kimi-code/mcp.json"), "local"})
+			list = append(
+				list,
+				project(filepath.Join(cmp.Or(c.WorktreeRoot, c.GitRoot, cwd), ".mcp.json")),
+				source{filepath.Join(cwd, ".kimi-code/mcp.json"), "local"},
+			)
 		}
 	case "copilot":
 		list = append(list, user(filepath.Join(c.homeDir("COPILOT_HOME", ".copilot"), "mcp-config.json")))

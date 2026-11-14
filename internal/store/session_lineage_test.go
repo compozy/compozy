@@ -543,7 +543,11 @@ func TestSessionPermissionIntent(t *testing.T) {
 	t.Run("Should decode root and derived policies independently of native atoms [UT-010]", func(t *testing.T) {
 		t.Parallel()
 		for _, kind := range []LineageKind{LineageKindRoot, LineageKindFork, LineageKindContinue, LineageKindProvenance, LineageKindRecovery} {
-			policy := DecodeIntent(SessionPermissionPolicy{Tools: []string{"compozy__session_list"}, MaterializedTools: true}, kind, "user")
+			policy := DecodeIntent(
+				SessionPermissionPolicy{Tools: []string{"compozy__session_list"}, MaterializedTools: true},
+				kind,
+				"user",
+			)
 			if policy.MCPServersMode != PermissionInherit || policy.ToolsMode != PermissionInherit {
 				t.Fatalf("%s: %+v", kind, policy)
 			}
@@ -556,7 +560,8 @@ func TestSessionPermissionIntent(t *testing.T) {
 	t.Run("Should retain an empty legacy spawn as a list [UT-011]", func(t *testing.T) {
 		t.Parallel()
 		policy := DecodeIntent(SessionPermissionPolicy{}, LineageKindSpawn, "spawned")
-		if policy.MCPServersMode != PermissionList || policy.ToolsMode != PermissionList || len(BoundMCPServers(policy, []string{"linear"})) != 0 {
+		if policy.MCPServersMode != PermissionList || policy.ToolsMode != PermissionList ||
+			len(BoundMCPServers(policy, []string{"linear"})) != 0 {
 			t.Fatalf("legacy spawn widened: %+v", policy)
 		}
 	})
@@ -568,7 +573,8 @@ func TestSessionPermissionIntent(t *testing.T) {
 			if depth == 0 {
 				want = PermissionInherit
 			}
-			if policy.MCPServersMode != want || policy.ToolsMode != want || !slices.Equal(policy.MCPServers, []string{"linear"}) {
+			if policy.MCPServersMode != want || policy.ToolsMode != want ||
+				!slices.Equal(policy.MCPServers, []string{"linear"}) {
 				t.Fatalf("depth %d: %+v", depth, policy)
 			}
 			if got := DecodeInstanceCeilingIntent(policy, 1-depth); !reflect.DeepEqual(got, policy) {
@@ -579,7 +585,11 @@ func TestSessionPermissionIntent(t *testing.T) {
 	t.Run("Should round trip an explicitly empty ancestor ceiling [UT-111]", func(t *testing.T) {
 		t.Parallel()
 		ceiling := IntersectMCPCeiling(new([]string{"linear"}), []string{"sentry"})
-		policy := SessionPermissionPolicy{MCPServersMode: PermissionInherit, ToolsMode: PermissionInherit, AncestorMCPCeiling: ceiling}
+		policy := SessionPermissionPolicy{
+			MCPServersMode:     PermissionInherit,
+			ToolsMode:          PermissionInherit,
+			AncestorMCPCeiling: ceiling,
+		}
 		raw, err := EncodeSessionPermissionPolicy(policy)
 		if err != nil {
 			t.Fatal(err)
@@ -588,7 +598,8 @@ func TestSessionPermissionIntent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if decoded.AncestorMCPCeiling == nil || len(*decoded.AncestorMCPCeiling) != 0 || len(BoundMCPServers(decoded, []string{"linear", "sentry"})) != 0 {
+		if decoded.AncestorMCPCeiling == nil || len(*decoded.AncestorMCPCeiling) != 0 ||
+			len(BoundMCPServers(decoded, []string{"linear", "sentry"})) != 0 {
 			t.Fatalf("explicit empty ceiling lost: %s / %+v", raw, decoded)
 		}
 		v2, err := jsonv2.Marshal(policy)

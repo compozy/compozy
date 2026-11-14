@@ -30,7 +30,10 @@ func validateRuntimeMCP(name string, provider ProviderConfig) error {
 		if display == "" {
 			display = name
 		}
-		return fmt.Errorf("runtime_mcp_unsupported: %s always loads its own MCP servers; runtime_mcp can only be \"load\"", display)
+		return fmt.Errorf(
+			"runtime_mcp_unsupported: %s always loads its own MCP servers; runtime_mcp can only be \"load\"",
+			display,
+		)
 	default:
 		return fmt.Errorf("providers.%s.runtime_mcp must be \"load\" or \"off\"", name)
 	}

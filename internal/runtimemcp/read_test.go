@@ -6,11 +6,12 @@ import (
 	"encoding/json/v2"
 
 	"errors"
-	"github.com/compozy/compozy/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/config"
 )
 
 func fixtureContext(t *testing.T) ReadContext {
@@ -19,7 +20,12 @@ func fixtureContext(t *testing.T) ReadContext {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := ReadContext{Home: filepath.Join(root, "home"), CWD: filepath.Join(root, "project"), SystemRoot: filepath.Join(root, "system"), Env: map[string]string{}}
+	c := ReadContext{
+		Home:       filepath.Join(root, "home"),
+		CWD:        filepath.Join(root, "project"),
+		SystemRoot: filepath.Join(root, "system"),
+		Env:        map[string]string{},
+	}
 	for _, dir := range []string{c.Home, c.CWD, c.SystemRoot} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			t.Fatal(err)
@@ -89,7 +95,9 @@ func TestRuntimeDecoders(t *testing.T) {
 		c := fixtureContext(t)
 		putFixture(t, c, "claude/user.json", filepath.Join(c.Home, ".claude.json"))
 		group := groupFor(t, c, "claude")
-		if len(group.Servers) != 3 || serverFor(t, group, "local").Scope != "local" || serverFor(t, group, "remote").Scope != "user" || serverFor(t, group, "remote").Transport != "http" {
+		if len(group.Servers) != 3 || serverFor(t, group, "local").Scope != "local" ||
+			serverFor(t, group, "remote").Scope != "user" ||
+			serverFor(t, group, "remote").Transport != "http" {
 			t.Fatalf("unexpected servers: %+v", group)
 		}
 		if serverFor(t, group, "paper").EnabledInRuntime {
@@ -109,14 +117,78 @@ func TestRuntimeDecoders(t *testing.T) {
 		name, runtime, fixture, path, server, transport string
 		enabled                                         bool
 	}{
-		{"Should decode Codex disabled stdio UT-044", "codex", "codex/config.toml", ".codex/config.toml", "computer-use", "stdio", false},
-		{"Should decode OpenCode v1 UT-046", "opencode", "opencode/v1.json", ".config/opencode/opencode.json", "y", "http", false},
-		{"Should decode OpenCode v2 JSONC UT-046", "opencode", "opencode/v2.jsonc", ".config/opencode/opencode.jsonc", "x", "stdio", true},
-		{"Should decode Kimi current config UT-048", "kimi-cli", "kimi-cli/mcp.json", ".kimi-code/mcp.json", "kimi", "stdio", true},
-		{"Should decode Kimi legacy config UT-048", "kimi-cli", "kimi-cli/mcp.json", ".kimi/mcp.json", "kimi", "stdio", true},
-		{"Should decode Qwen exclusions UT-049", "qwen-code", "qwen-code/settings.json", ".qwen/settings.json", "qwen", "stdio", false},
-		{"Should decode Copilot user scope UT-050", "copilot", "copilot/mcp-config.json", ".copilot/mcp-config.json", "copilot", "stdio", true},
-		{"Should decode Antigravity UT-052", "agy", "agy/mcp_config.json", ".gemini/config/mcp_config.json", "agy", "stdio", true},
+		{
+			"Should decode Codex disabled stdio UT-044",
+			"codex",
+			"codex/config.toml",
+			".codex/config.toml",
+			"computer-use",
+			"stdio",
+			false,
+		},
+		{
+			"Should decode OpenCode v1 UT-046",
+			"opencode",
+			"opencode/v1.json",
+			".config/opencode/opencode.json",
+			"y",
+			"http",
+			false,
+		},
+		{
+			"Should decode OpenCode v2 JSONC UT-046",
+			"opencode",
+			"opencode/v2.jsonc",
+			".config/opencode/opencode.jsonc",
+			"x",
+			"stdio",
+			true,
+		},
+		{
+			"Should decode Kimi current config UT-048",
+			"kimi-cli",
+			"kimi-cli/mcp.json",
+			".kimi-code/mcp.json",
+			"kimi",
+			"stdio",
+			true,
+		},
+		{
+			"Should decode Kimi legacy config UT-048",
+			"kimi-cli",
+			"kimi-cli/mcp.json",
+			".kimi/mcp.json",
+			"kimi",
+			"stdio",
+			true,
+		},
+		{
+			"Should decode Qwen exclusions UT-049",
+			"qwen-code",
+			"qwen-code/settings.json",
+			".qwen/settings.json",
+			"qwen",
+			"stdio",
+			false,
+		},
+		{
+			"Should decode Copilot user scope UT-050",
+			"copilot",
+			"copilot/mcp-config.json",
+			".copilot/mcp-config.json",
+			"copilot",
+			"stdio",
+			true,
+		},
+		{
+			"Should decode Antigravity UT-052",
+			"agy",
+			"agy/mcp_config.json",
+			".gemini/config/mcp_config.json",
+			"agy",
+			"stdio",
+			true,
+		},
 		{"Should decode Pi disablement UT-052", "pi", "pi/mcp.json", ".pi/agent/mcp.json", "pi", "stdio", false},
 	}
 	for _, tc := range cases {
@@ -126,7 +198,8 @@ func TestRuntimeDecoders(t *testing.T) {
 			putFixture(t, c, tc.fixture, filepath.Join(c.Home, tc.path))
 			group := groupFor(t, c, tc.runtime)
 			s := serverFor(t, group, tc.server)
-			if group.ReadState != "ok" || s.Scope != "user" || s.Transport != tc.transport || s.EnabledInRuntime != tc.enabled {
+			if group.ReadState != "ok" || s.Scope != "user" || s.Transport != tc.transport ||
+				s.EnabledInRuntime != tc.enabled {
 				t.Fatalf("group=%+v server=%+v", group, s)
 			}
 		})
@@ -165,10 +238,15 @@ func TestRuntimeDecoders(t *testing.T) {
 		}
 		// Native Cursor 2026.09.26 preimage; independent of the inventory's approval-key helper.
 		sum := sha256.Sum256([]byte(`{"path":` + string(path) + `,"server":{"command":"echo"}}`))
-		approval := strings.ReplaceAll(string(mustReadFixture(t, "cursor/mcp-approvals.json")), "$HASH", hex.EncodeToString(sum[:8]))
+		approval := strings.ReplaceAll(
+			string(mustReadFixture(t, "cursor/mcp-approvals.json")),
+			"$HASH",
+			hex.EncodeToString(sum[:8]),
+		)
 		putFile(t, filepath.Join(c.Home, ".cursor/projects", slug, "mcp-approvals.json"), approval)
 		group := groupFor(t, c, "cursor")
-		if serverFor(t, group, "approved").Approval != "approved" || serverFor(t, group, "pending").Approval != "pending" {
+		if serverFor(t, group, "approved").Approval != "approved" ||
+			serverFor(t, group, "pending").Approval != "pending" {
 			t.Fatalf("approvals=%+v", group.Servers)
 		}
 		putFile(t, filepath.Join(c.Home, ".cursor/mcp.json"), `{"mcpServers":{"approved":{"command":"changed"}}}`)
@@ -201,7 +279,13 @@ func TestRuntimeInventorySafety(t *testing.T) {
 			} else if d.Runtime == "opencode" {
 				putFixture(t, c, "opencode/v1.json", path)
 			} else {
-				putFile(t, path, `{"mcpServers":{"safe":{"command":"`+filepath.ToSlash(marker)+`","env":{"TOKEN":"s3cr3t"},"headers":{"Authorization":"Bearer abc"}}}}`)
+				putFile(
+					t,
+					path,
+					`{"mcpServers":{"safe":{"command":"`+filepath.ToSlash(
+						marker,
+					)+`","env":{"TOKEN":"s3cr3t"},"headers":{"Authorization":"Bearer abc"}}}}`,
+				)
 			}
 			group := groupFor(t, c, d.Runtime)
 			if group.Installed {
@@ -249,7 +333,10 @@ func TestRuntimeInventorySafety(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
 		putFixture(t, c, "codex/config.toml", filepath.Join(c.Home, ".codex/config.toml"))
-		inventory, _, err := (Reader{}).List(t.Context(), Request{Context: c, Runtime: "codex", CompozyNames: []string{"savee"}})
+		inventory, _, err := (Reader{}).List(
+			t.Context(),
+			Request{Context: c, Runtime: "codex", CompozyNames: []string{"savee"}},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -335,21 +422,75 @@ func TestRuntimeCopyability(t *testing.T) {
 		name, definition, scope, reason string
 		copyable                        bool
 	}{
-		{"Should allow literal stdio env", `{"command":"echo","args":["ok"],"env":{"TOKEN":"literal"}}`, "user", "", true},
-		{"Should allow literal HTTP headers", `{"type":"http","url":"https://example.test/mcp","headers":{"Authorization":"secret"}}`, "user", "", true},
-		{"Should reject URL queries", `{"type":"http","url":"https://example.test/mcp?secret=value"}`, "user", "URL query", false},
+		{
+			"Should allow literal stdio env",
+			`{"command":"echo","args":["ok"],"env":{"TOKEN":"literal"}}`,
+			"user",
+			"",
+			true,
+		},
+		{
+			"Should allow literal HTTP headers",
+			`{"type":"http","url":"https://example.test/mcp","headers":{"Authorization":"secret"}}`,
+			"user",
+			"",
+			true,
+		},
+		{
+			"Should reject URL queries",
+			`{"type":"http","url":"https://example.test/mcp?secret=value"}`,
+			"user",
+			"URL query",
+			false,
+		},
 		{"Should reject cwd", `{"command":"echo","cwd":"/tmp"}`, "user", "cwd", false},
-		{"Should reject headers helpers", `{"url":"https://example.test","headersHelper":"secret command"}`, "user", "headers helper", false},
-		{"Should reject Codex headers helpers", `{"url":"https://example.test","http_headers_helper":"secret command"}`, "user", "headers helper", false},
-		{"Should reject env passthrough", `{"command":"echo","env_vars":["TOKEN"]}`, "user", "environment passthrough", false},
-		{"Should reject bearer passthrough", `{"url":"https://example.test","bearer_token_env_var":"TOKEN"}`, "user", "environment passthrough", false},
+		{
+			"Should reject headers helpers",
+			`{"url":"https://example.test","headersHelper":"secret command"}`,
+			"user",
+			"headers helper",
+			false,
+		},
+		{
+			"Should reject Codex headers helpers",
+			`{"url":"https://example.test","http_headers_helper":"secret command"}`,
+			"user",
+			"headers helper",
+			false,
+		},
+		{
+			"Should reject env passthrough",
+			`{"command":"echo","env_vars":["TOKEN"]}`,
+			"user",
+			"environment passthrough",
+			false,
+		},
+		{
+			"Should reject bearer passthrough",
+			`{"url":"https://example.test","bearer_token_env_var":"TOKEN"}`,
+			"user",
+			"environment passthrough",
+			false,
+		},
 		{"Should reject tool filters", `{"command":"echo","enabled_tools":["read"]}`, "user", "tool filters", false},
-		{"Should reject custom OAuth clients", `{"url":"https://example.test","oauth":{"clientId":"custom"}}`, "user", "custom OAuth client", false},
+		{
+			"Should reject custom OAuth clients",
+			`{"url":"https://example.test","oauth":{"clientId":"custom"}}`,
+			"user",
+			"custom OAuth client",
+			false,
+		},
 		{"Should reject plugin sources", `{"command":"echo"}`, "plugin", "runtime-owned", false},
 		{"Should reject managed sources", `{"command":"echo"}`, "managed", "runtime-owned", false},
 		{"Should reject SSE", `{"type":"sse","url":"https://example.test"}`, "user", "SSE", false},
 		{"Should reject WebSocket", `{"type":"ws","url":"wss://example.test"}`, "user", "WS", false},
-		{"Should reject environment expansion", `{"command":"echo","env":{"TOKEN":"${TOKEN}"}}`, "user", "environment indirection", false},
+		{
+			"Should reject environment expansion",
+			`{"command":"echo","env":{"TOKEN":"${TOKEN}"}}`,
+			"user",
+			"environment indirection",
+			false,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -377,9 +518,17 @@ func TestRuntimePrecedence(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
 		c.Profile = "operator-profile"
-		putFile(t, filepath.Join(c.Home, ".codex/config.toml"), "profile = \"native\"\n[mcp_servers.a]\ncommand = \"echo\"\n[mcp_servers.a.env]\nONE = \"secret1\"\nTWO = \"secret2\"\n")
+		putFile(
+			t,
+			filepath.Join(c.Home, ".codex/config.toml"),
+			"profile = \"native\"\n[mcp_servers.a]\ncommand = \"echo\"\n[mcp_servers.a.env]\nONE = \"secret1\"\nTWO = \"secret2\"\n",
+		)
 		putFile(t, filepath.Join(c.Home, ".codex/native.config.toml"), "[mcp_servers.a.env]\nTWO = \"override\"\n")
-		putFile(t, filepath.Join(c.Home, ".codex/operator-profile.config.toml"), "[mcp_servers.wrong]\ncommand = \"wrong\"\n")
+		putFile(
+			t,
+			filepath.Join(c.Home, ".codex/operator-profile.config.toml"),
+			"[mcp_servers.wrong]\ncommand = \"wrong\"\n",
+		)
 		putFile(t, filepath.Join(c.CWD, ".codex/config.toml"), "[mcp_servers.a]\nenabled = false\n")
 		group := groupFor(t, c, "codex")
 		server := serverFor(t, group, "a")
@@ -404,7 +553,11 @@ func TestRuntimePrecedence(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)
 		putFile(t, filepath.Join(c.Home, ".claude.json"), `{"mcpServers":{"user":{"command":"echo"}}}`)
-		putFile(t, filepath.Join(c.SystemRoot, "ClaudeCode/managed-mcp.json"), `{"mcpServers":{"managed":{"command":"echo"}}}`)
+		putFile(
+			t,
+			filepath.Join(c.SystemRoot, "ClaudeCode/managed-mcp.json"),
+			`{"mcpServers":{"managed":{"command":"echo"}}}`,
+		)
 		group := groupFor(t, c, "claude")
 		server := serverFor(t, group, "managed")
 		if len(group.Servers) != 1 || group.RuntimeMCP.CanDisable || server.Copyable || server.Scope != "managed" {
@@ -420,8 +573,16 @@ func TestRuntimePrecedence(t *testing.T) {
 			t.Fatal(err)
 		}
 		putFile(t, filepath.Join(c.Home, ".claude/settings.json"), `{"enabledPlugins":{"demo@market":true}}`)
-		putFile(t, filepath.Join(c.Home, ".claude/plugins/installed_plugins.json"), `{"plugins":{"demo@market":[{"installPath":`+string(encodedRoot)+`}]}}`)
-		putFile(t, filepath.Join(root, ".mcp.json"), `{"mcpServers":{"tool":{"url":"https://example.test/mcp","headers":{"Authorization":"private-plugin-header"}}}}`)
+		putFile(
+			t,
+			filepath.Join(c.Home, ".claude/plugins/installed_plugins.json"),
+			`{"plugins":{"demo@market":[{"installPath":`+string(encodedRoot)+`}]}}`,
+		)
+		putFile(
+			t,
+			filepath.Join(root, ".mcp.json"),
+			`{"mcpServers":{"tool":{"url":"https://example.test/mcp","headers":{"Authorization":"private-plugin-header"}}}}`,
+		)
 		group := groupFor(t, c, "claude")
 		server := serverFor(t, group, "plugin:demo:tool")
 		if server.Scope != "plugin" || server.Copyable || len(server.HeaderKeys) != 1 {
@@ -432,30 +593,41 @@ func TestRuntimePrecedence(t *testing.T) {
 			t.Fatal("plugin credentials leaked")
 		}
 	})
-	t.Run("Should resolve isolated native homes for Codex and Pi derived providers without creating directories", func(t *testing.T) {
-		t.Parallel()
-		c := fixtureContext(t)
-		home := config.HomePaths{HomeDir: filepath.Join(c.Home, "compozy")}
-		for _, provider := range []string{"codex", "openrouter"} {
-			resolved := config.ProviderConfig{HomePolicy: config.ProviderHomePolicyIsolated}
-			if provider == "openrouter" {
-				resolved.Harness = config.ProviderHarnessPiACP
+	t.Run(
+		"Should resolve isolated native homes for Codex and Pi derived providers without creating directories",
+		func(t *testing.T) {
+			t.Parallel()
+			c := fixtureContext(t)
+			home := config.HomePaths{HomeDir: filepath.Join(c.Home, "compozy")}
+			for _, provider := range []string{"codex", "openrouter"} {
+				resolved := config.ProviderConfig{HomePolicy: config.ProviderHomePolicyIsolated}
+				if provider == "openrouter" {
+					resolved.Harness = config.ProviderHarnessPiACP
+				}
+				context, err := ProviderContext(
+					home,
+					provider,
+					resolved,
+					[]string{"HOME=" + c.Home},
+					c.CWD,
+					c.WorktreeRoot,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if context.Home == c.Home || !strings.HasPrefix(context.Home, home.HomeDir) {
+					t.Fatalf("unisolated provider context=%+v", context)
+				}
+				if provider == "openrouter" &&
+					context.Env["PI_CODING_AGENT_DIR"] != filepath.Join(context.Home, ".pi/agent") {
+					t.Fatal("Pi provider uses operator MCP home")
+				}
+				if _, err := os.Stat(context.Home); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("read-only context created home: %v", err)
+				}
 			}
-			context, err := ProviderContext(home, provider, resolved, []string{"HOME=" + c.Home}, c.CWD, c.WorktreeRoot)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if context.Home == c.Home || !strings.HasPrefix(context.Home, home.HomeDir) {
-				t.Fatalf("unisolated provider context=%+v", context)
-			}
-			if provider == "openrouter" && context.Env["PI_CODING_AGENT_DIR"] != filepath.Join(context.Home, ".pi/agent") {
-				t.Fatal("Pi provider uses operator MCP home")
-			}
-			if _, err := os.Stat(context.Home); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("read-only context created home: %v", err)
-			}
-		}
-	})
+		},
+	)
 }
 
 func TestRuntimeCodexPluginSelection(t *testing.T) {
@@ -472,10 +644,15 @@ func TestRuntimeCodexPluginSelection(t *testing.T) {
 		if len(group.Servers) != 1 || serverFor(t, group, "current").Scope != "plugin" {
 			t.Fatalf("inactive version loaded: %+v", group)
 		}
-		putFile(t, filepath.Join(root, "local/.codex-plugin/plugin.json"), `{"mcpServers":["extra.json",{"inline":{"command":"echo"}}]}`)
+		putFile(
+			t,
+			filepath.Join(root, "local/.codex-plugin/plugin.json"),
+			`{"mcpServers":["extra.json",{"inline":{"command":"echo"}}]}`,
+		)
 		putFile(t, filepath.Join(root, "local/extra.json"), `{"mcpServers":{"local":{"command":"echo"}}}`)
 		group = groupFor(t, c, "codex")
-		if len(group.Servers) != 2 || serverFor(t, group, "local").Copyable || serverFor(t, group, "inline").Scope != "plugin" {
+		if len(group.Servers) != 2 || serverFor(t, group, "local").Copyable ||
+			serverFor(t, group, "inline").Scope != "plugin" {
 			t.Fatalf("local plugin precedence or manifest array wrong: %+v", group)
 		}
 	})

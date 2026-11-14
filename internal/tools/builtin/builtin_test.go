@@ -3618,7 +3618,15 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expand(mcp) error = %v", err)
 		}
-		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPAllow, toolspkg.ToolIDMCPImport, toolspkg.ToolIDMCPList, toolspkg.ToolIDMCPStatus}; !slices.Equal(mcp, want) {
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDMCPAllow,
+			toolspkg.ToolIDMCPImport,
+			toolspkg.ToolIDMCPList,
+			toolspkg.ToolIDMCPStatus,
+		}; !slices.Equal(
+			mcp,
+			want,
+		) {
 			t.Fatalf("mcp expansion = %#v, want %#v", mcp, want)
 		}
 

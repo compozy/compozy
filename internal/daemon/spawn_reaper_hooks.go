@@ -97,7 +97,10 @@ func (r *spawnReaper) spawnLifecyclePayload(
 			if target.info == nil {
 				continue
 			}
-			policy, err := resolver.EffectiveMCPAuthority(session.WithMCPAuthoritySession(ctx, target.info), target.info.ID)
+			policy, err := resolver.EffectiveMCPAuthority(
+				session.WithMCPAuthoritySession(ctx, target.info),
+				target.info.ID,
+			)
 			if err != nil {
 				return payload, err
 			}

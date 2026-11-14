@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )

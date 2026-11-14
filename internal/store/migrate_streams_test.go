@@ -1388,11 +1388,21 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 		}
 	}
 	for _, depth := range []int{0, 1} {
-		if _, err := db.ExecContext(ctx, `INSERT INTO agent_instances
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO agent_instances
 			(id,profile_id,agent_name,state,depth,permission_ceiling,created_by_kind,created_by_id,created_at,updated_at,archived_at)
 			VALUES (?, ?,?,'paused',?,?,'human','operator','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z',?)`,
-			fmt.Sprintf("instance-%d", depth), store.DefaultProfileID, fmt.Sprintf("coder-%d", depth), depth, authoredPolicy,
-			[]any{nil, "2026-11-02T00:00:00Z"}[depth]); err != nil {
+			fmt.Sprintf(
+				"instance-%d",
+				depth,
+			),
+			store.DefaultProfileID,
+			fmt.Sprintf("coder-%d", depth),
+			depth,
+			authoredPolicy,
+			[]any{nil, "2026-11-02T00:00:00Z"}[depth],
+		); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1405,7 +1415,8 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 		t.Helper()
 		for _, fixture := range fixtures {
 			var raw string
-			if err := db.QueryRowContext(ctx, `SELECT permission_policy_json FROM sessions WHERE id=?`, fixture.id).Scan(&raw); err != nil {
+			if err := db.QueryRowContext(ctx, `SELECT permission_policy_json FROM sessions WHERE id=?`, fixture.id).
+				Scan(&raw); err != nil {
 				t.Fatal(err)
 			}
 			original, err := store.DecodeSessionPermissionPolicy(fixture.raw)
@@ -1425,7 +1436,8 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 		for _, depth := range []int{0, 1} {
 			id := fmt.Sprintf("instance-%d", depth)
 			var raw string
-			if err := db.QueryRowContext(ctx, `SELECT permission_ceiling FROM agent_instances WHERE id=?`, id).Scan(&raw); err != nil {
+			if err := db.QueryRowContext(ctx, `SELECT permission_ceiling FROM agent_instances WHERE id=?`, id).
+				Scan(&raw); err != nil {
 				t.Fatal(err)
 			}
 			original, err := store.DecodeSessionPermissionPolicy(authoredPolicy)

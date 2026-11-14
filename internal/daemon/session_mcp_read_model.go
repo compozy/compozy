@@ -85,9 +85,16 @@ func composeSessionMCP(
 	callable, diagnostics []toolspkg.ToolView,
 	runtime session.MCPRuntimeSnapshot,
 ) session.SessionMCP {
-	result := session.SessionMCP{SessionID: id, Runtime: runtime.Inventory.Runtime,
-		RuntimeDisplayName: cmp.Or(runtime.Inventory.DisplayName, runtime.Inventory.Runtime), LastReload: runtime.LastReload,
-		MCPSummary: session.MCPSummary{PendingReload: runtime.Pending}, CompozyServers: []session.MCPServerRow{},
+	result := session.SessionMCP{
+		SessionID: id,
+		Runtime:   runtime.Inventory.Runtime,
+		RuntimeDisplayName: cmp.Or(
+			runtime.Inventory.DisplayName,
+			runtime.Inventory.Runtime,
+		),
+		LastReload:     runtime.LastReload,
+		MCPSummary:     session.MCPSummary{PendingReload: runtime.Pending},
+		CompozyServers: []session.MCPServerRow{},
 		RuntimeServers: session.SessionRuntimeMCP{RuntimeMCP: runtime.Mode, Servers: []session.RuntimeMCPRow{}},
 	}
 	for _, item := range items {
@@ -100,7 +107,10 @@ func composeSessionMCP(
 			result.Attention++
 		}
 	}
-	slices.SortFunc(result.CompozyServers, func(a, b session.MCPServerRow) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(
+		result.CompozyServers,
+		func(a, b session.MCPServerRow) int { return strings.Compare(a.Name, b.Name) },
+	)
 	for _, server := range runtime.Inventory.Servers {
 		state := "loaded_by_runtime"
 		if runtime.Mode == "off" && runtime.Inventory.RuntimeMCP.CanDisable {

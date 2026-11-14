@@ -12,7 +12,11 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func (n *daemonNativeTools) mcpImport(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) mcpImport(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
 	var input struct {
 		Runtime    string `json:"runtime"`
 		ServerName string `json:"server_name"`
@@ -51,7 +55,12 @@ func (n *daemonNativeTools) mcpImport(ctx context.Context, scope toolspkg.Scope,
 	result, err := core.ImportRuntimeMCP(ctx, service, input.Runtime, input.ServerName, body)
 	if err != nil {
 		if failure, ok := errors.AsType[*runtimemcp.ImportError](err); ok {
-			return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCode(failure.Code), req.ToolID, failure.Message, err)
+			return toolspkg.ToolResult{}, toolspkg.NewToolError(
+				toolspkg.ErrorCode(failure.Code),
+				req.ToolID,
+				failure.Message,
+				err,
+			)
 		}
 		return toolspkg.ToolResult{}, nativeHTTPStatusToolError(req.ToolID, err, core.StatusForSettingsError(err))
 	}

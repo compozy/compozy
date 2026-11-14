@@ -50,7 +50,8 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cached, ok := s.cache[key]
-	if !ok || !s.now().Before(cached.expires) || !sameRuntimeMCPStamps(cached.stamps, captureRuntimeMCPFiles(cached.paths)) {
+	if !ok || !s.now().Before(cached.expires) ||
+		!sameRuntimeMCPStamps(cached.stamps, captureRuntimeMCPFiles(cached.paths)) {
 		before := captureRuntimeMCPFiles(cached.paths)
 		inventory, paths, err := (runtimemcp.Reader{}).List(ctx, req)
 		if err != nil {
@@ -80,7 +81,13 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 		if err != nil {
 			return runtimemcp.Inventory{}, err
 		}
-		cached = runtimeMCPCacheEntry{readContext: string(contextData), inventory: inventory, paths: paths, stamps: after, expires: s.now().Add(runtimeMCPCacheTTL)}
+		cached = runtimeMCPCacheEntry{
+			readContext: string(contextData),
+			inventory:   inventory,
+			paths:       paths,
+			stamps:      after,
+			expires:     s.now().Add(runtimeMCPCacheTTL),
+		}
 		if !sameRuntimeMCPStamps(before, after) {
 			cached.expires = time.Time{}
 		}
@@ -166,7 +173,11 @@ func cloneRuntimeMCPInventory(value runtimemcp.Inventory) runtimemcp.Inventory {
 	return value
 }
 
-func (s *runtimeMCPInventory) Resolve(ctx context.Context, req runtimemcp.Request, name string) (runtimemcp.ResolvedServer, error) {
+func (s *runtimeMCPInventory) Resolve(
+	ctx context.Context,
+	req runtimemcp.Request,
+	name string,
+) (runtimemcp.ResolvedServer, error) {
 	req.Context = runtimemcp.ResolveContext(req.Context)
 	data, err := json.Marshal(req.Context, json.Deterministic(true))
 	if err != nil {

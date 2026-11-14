@@ -4298,7 +4298,8 @@ func TestProviderRuntimeMCP(t *testing.T) {
 		provider := BuiltinProviders()["codex"]
 		provider.RuntimeMCP = "off"
 		err := validateRuntimeMCP("codex", provider)
-		if err == nil || err.Error() != `runtime_mcp_unsupported: Codex always loads its own MCP servers; runtime_mcp can only be "load"` {
+		if err == nil ||
+			err.Error() != `runtime_mcp_unsupported: Codex always loads its own MCP servers; runtime_mcp can only be "load"` {
 			t.Fatalf("error=%v", err)
 		}
 	})

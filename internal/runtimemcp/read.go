@@ -20,8 +20,18 @@ func read(c ReadContext, descriptor Descriptor) (Snapshot, []string) {
 
 func readDefinitions(c ReadContext, descriptor Descriptor) (Snapshot, []string, map[string]entry) {
 	r := reader{context: c, paths: map[string]struct{}{}}
-	snapshot := Snapshot{Runtime: descriptor.Runtime, DisplayName: descriptor.DisplayName, Installed: installed(c, descriptor),
-		RuntimeMCP: RuntimeMode{Mode: "load", CanDisable: descriptor.CanDisableRuntimeMCP}, ReadState: "ok", ConfigFiles: []string{}, Servers: []Server{}}
+	snapshot := Snapshot{
+		Runtime:     descriptor.Runtime,
+		DisplayName: descriptor.DisplayName,
+		Installed:   installed(c, descriptor),
+		RuntimeMCP: RuntimeMode{
+			Mode:       "load",
+			CanDisable: descriptor.CanDisableRuntimeMCP,
+		},
+		ReadState:   "ok",
+		ConfigFiles: []string{},
+		Servers:     []Server{},
+	}
 	entries := map[string]entry{}
 	if descriptor.Runtime == "claude" {
 		r.readClaude(entries, &snapshot)
@@ -78,7 +88,8 @@ func (r *reader) add(runtime string, src source, definitions object, entries map
 			continue
 		}
 		if old, ok := entries[name]; ok && old.server.Scope != "plugin" {
-			if runtime == "codex" || (runtime == "pi" && !has(definition, "command") && !has(definition, "url") && !has(definition, "type")) {
+			if runtime == "codex" ||
+				(runtime == "pi" && !has(definition, "command") && !has(definition, "url") && !has(definition, "type")) {
 				definition = mergeDefinition(old.definition, definition)
 			}
 		}
@@ -138,7 +149,8 @@ func (r *reader) readSources(runtime string, entries map[string]entry) {
 		if runtime == "codex" && src.scope == "user" {
 			r.codexPlugins(doc, entries)
 			profile := str(doc["profile"])
-			if r.context.RuntimeProfile == "" && filepath.Base(src.path) == "config.toml" && validRuntimeProfile(profile) {
+			if r.context.RuntimeProfile == "" && filepath.Base(src.path) == "config.toml" &&
+				validRuntimeProfile(profile) {
 				path := filepath.Join(filepath.Dir(src.path), profile+".config.toml")
 				srcs = slices.Insert(srcs, index+1, source{path, "user"})
 			}
@@ -152,7 +164,10 @@ func (r *reader) readClaude(entries map[string]entry, snapshot *Snapshot) {
 	managed := filepath.Join(r.context.systemDir("ClaudeCode"), "managed-mcp.json")
 	if value, ok := r.load(managed); ok {
 		snapshot.RuntimeMCP.CanDisable = false
-		snapshot.Notes = append(snapshot.Notes, "Claude Code's managed-mcp.json controls its MCP servers; the runtime switch is unavailable")
+		snapshot.Notes = append(
+			snapshot.Notes,
+			"Claude Code's managed-mcp.json controls its MCP servers; the runtime switch is unavailable",
+		)
 		definitions, err := decodeServers("claude", obj(value))
 		if err != nil {
 			r.failure = "Couldn't read " + r.label(managed) + ": invalid MCP configuration shape"
@@ -170,7 +185,11 @@ func (r *reader) readClaude(entries map[string]entry, snapshot *Snapshot) {
 	settings := object{}
 	paths := []string{filepath.Join(r.context.homeDir("CLAUDE_CONFIG_DIR", ".claude"), "settings.json")}
 	if r.context.CWD != "" {
-		paths = append(paths, filepath.Join(r.context.CWD, ".claude/settings.json"), filepath.Join(r.context.CWD, ".claude/settings.local.json"))
+		paths = append(
+			paths,
+			filepath.Join(r.context.CWD, ".claude/settings.json"),
+			filepath.Join(r.context.CWD, ".claude/settings.local.json"),
+		)
 	}
 	paths = append(paths, filepath.Join(r.context.systemDir("ClaudeCode"), "managed-settings.json"))
 	for _, path := range paths {
@@ -215,7 +234,8 @@ func applyClaudeApprovals(project, settings object, entries map[string]entry) {
 		}
 		if item.server.Scope == "project" {
 			item.server.Approval = "pending"
-			if boolean(settings["enableAllProjectMcpServers"]) || contains(settings["enabledMcpjsonServers"], name) || contains(project["enabledMcpjsonServers"], name) {
+			if boolean(settings["enableAllProjectMcpServers"]) || contains(settings["enabledMcpjsonServers"], name) ||
+				contains(project["enabledMcpjsonServers"], name) {
 				item.server.Approval = "approved"
 			}
 			if contains(settings["disabledMcpjsonServers"], name) || contains(project["disabledMcpjsonServers"], name) {
@@ -253,7 +273,12 @@ func (r *reader) applyGeminiEnablement(entries map[string]entry) {
 
 func installed(c ReadContext, d Descriptor) bool {
 	roots := filepath.SplitList(c.Env["PATH"])
-	roots = append(roots, filepath.Join(c.Home, ".local/bin"), filepath.Join(c.Home, ".opencode/bin"), filepath.Join(c.Home, ".kimi-code/bin"))
+	roots = append(
+		roots,
+		filepath.Join(c.Home, ".local/bin"),
+		filepath.Join(c.Home, ".opencode/bin"),
+		filepath.Join(c.Home, ".kimi-code/bin"),
+	)
 	for _, dir := range roots {
 		if dir == "" {
 			continue

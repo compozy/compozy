@@ -18,13 +18,30 @@ type AgentMCPApprovalContext struct {
 	Warnings    *[]string
 }
 
-func agentMCPApprovalContext(service SettingsService, workspaceID, profileName string, warnings *[]string) AgentMCPApprovalContext {
+func agentMCPApprovalContext(
+	service SettingsService,
+	workspaceID, profileName string,
+	warnings *[]string,
+) AgentMCPApprovalContext {
 	recorder, _ := service.(settingspkg.WorkspaceMCPApprovalRecorder)
-	return AgentMCPApprovalContext{Recorder: recorder, WorkspaceID: workspaceID, ProfileName: profileName, Warnings: warnings}
+	return AgentMCPApprovalContext{
+		Recorder:    recorder,
+		WorkspaceID: workspaceID,
+		ProfileName: profileName,
+		Warnings:    warnings,
+	}
 }
 
-func commitAgentMCPDefinition(ctx context.Context, path string, servers []config.MCPServer, write func() error, read func() (config.AgentDef, error), approval AgentMCPApprovalContext) error {
-	if approval.WorkspaceID == "" || !slices.ContainsFunc(servers, func(server config.MCPServer) bool { return !server.Reference }) {
+func commitAgentMCPDefinition(
+	ctx context.Context,
+	path string,
+	servers []config.MCPServer,
+	write func() error,
+	read func() (config.AgentDef, error),
+	approval AgentMCPApprovalContext,
+) error {
+	if approval.WorkspaceID == "" ||
+		!slices.ContainsFunc(servers, func(server config.MCPServer) bool { return !server.Reference }) {
 		return write()
 	}
 	if approval.Recorder == nil {
@@ -32,7 +49,10 @@ func commitAgentMCPDefinition(ctx context.Context, path string, servers []config
 			return err
 		}
 		if approval.Warnings != nil {
-			*approval.Warnings = append(*approval.Warnings, "MCP servers saved but approval is unavailable; waiting for approval")
+			*approval.Warnings = append(
+				*approval.Warnings,
+				"MCP servers saved but approval is unavailable; waiting for approval",
+			)
 		}
 		return nil
 	}
@@ -42,7 +62,10 @@ func commitAgentMCPDefinition(ctx context.Context, path string, servers []config
 			continue
 		}
 		warning, err := approval.Recorder.RecordWorkspaceMCPWrite(ctx, settingspkg.WorkspaceMCPWrite{
-			ProfileName: approval.ProfileName, WorkspaceID: approval.WorkspaceID, SourceID: filepath.Join(filepath.Dir(path), config.MCPJSONName), Server: server,
+			ProfileName: approval.ProfileName,
+			WorkspaceID: approval.WorkspaceID,
+			SourceID:    filepath.Join(filepath.Dir(path), config.MCPJSONName),
+			Server:      server,
 			Write: func() error {
 				if committed {
 					return nil
@@ -58,7 +81,10 @@ func commitAgentMCPDefinition(ctx context.Context, path string, servers []config
 				if err != nil {
 					return config.MCPServer{}, err
 				}
-				index := slices.IndexFunc(agent.MCPServers, func(current config.MCPServer) bool { return current.Name == server.Name && !current.Reference })
+				index := slices.IndexFunc(
+					agent.MCPServers,
+					func(current config.MCPServer) bool { return current.Name == server.Name && !current.Reference },
+				)
 				if index < 0 {
 					return config.MCPServer{}, fmt.Errorf("api: committed agent MCP definition is unavailable")
 				}

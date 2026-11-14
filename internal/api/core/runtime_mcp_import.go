@@ -32,7 +32,12 @@ func (h *BaseHandlers) ImportRuntimeMCPServer(c *gin.Context) {
 	c.JSON(http.StatusCreated, result)
 }
 
-func ImportRuntimeMCP(ctx context.Context, service RuntimeMCPImporter, runtime, name string, body contract.RuntimeMCPImportRequest) (contract.RuntimeMCPImportResponse, error) {
+func ImportRuntimeMCP(
+	ctx context.Context,
+	service RuntimeMCPImporter,
+	runtime, name string,
+	body contract.RuntimeMCPImportRequest,
+) (contract.RuntimeMCPImportResponse, error) {
 	result, err := service.ImportRuntimeMCP(ctx, settingspkg.RuntimeMCPImportRequest{
 		Scope: settingspkg.ScopeKind(body.Scope), WorkspaceID: body.WorkspaceID, ProfileName: body.Profile,
 		Runtime: runtime, ServerName: name, Name: body.Name,

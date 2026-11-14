@@ -39,10 +39,19 @@ func (h *BaseHandlers) ListRuntimeMCPServers(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func MCPList(ctx context.Context, settings SettingsService, req settingspkg.CollectionRequest, runtime string, includeRuntimes bool) (contract.MCPListResponse, error) {
+func MCPList(
+	ctx context.Context,
+	settings SettingsService,
+	req settingspkg.CollectionRequest,
+	runtime string,
+	includeRuntimes bool,
+) (contract.MCPListResponse, error) {
 	req.Collection = settingspkg.CollectionMCPServers
 	req.SkipRuntimeStatus = true
-	result := contract.MCPListResponse{CompozyServers: []contract.SettingsMCPServerItemPayload{}, Runtimes: []runtimemcp.Snapshot{}}
+	result := contract.MCPListResponse{
+		CompozyServers: []contract.SettingsMCPServerItemPayload{},
+		Runtimes:       []runtimemcp.Snapshot{},
+	}
 	if runtime == "" || !includeRuntimes {
 		collection, err := settings.ListCollection(ctx, req)
 		if err != nil {

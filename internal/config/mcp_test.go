@@ -94,7 +94,18 @@ func TestMCPStdioConfig(t *testing.T) {
 // Owner: config definition normalization; canonical suite: TestMCPDefinitionDigest.
 func TestMCPDefinitionDigest(t *testing.T) {
 	t.Parallel()
-	original := MCPServer{Name: "remote", Transport: "http", URL: "https://example.com/mcp", Args: []string{"a"}, Env: map[string]string{"FLAG": "one"}, Headers: map[string]string{"X-Mode": "one"}, SecretEnv: map[string]string{"TOKEN": "vault:one"}, SecretHeaders: map[string]string{"X-Key": "vault:key"}, ReadOnlyTools: []string{"read"}, Auth: MCPAuthConfig{Registration: MCPAuthRegistrationAuto}}
+	original := MCPServer{
+		Name:          "remote",
+		Transport:     "http",
+		URL:           "https://example.com/mcp",
+		Args:          []string{"a"},
+		Env:           map[string]string{"FLAG": "one"},
+		Headers:       map[string]string{"X-Mode": "one"},
+		SecretEnv:     map[string]string{"TOKEN": "vault:one"},
+		SecretHeaders: map[string]string{"X-Key": "vault:key"},
+		ReadOnlyTools: []string{"read"},
+		Auth:          MCPAuthConfig{Registration: MCPAuthRegistrationAuto},
+	}
 	digest, err := MCPDefinitionDigest(original)
 	if err != nil {
 		t.Fatal(err)

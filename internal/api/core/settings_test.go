@@ -4982,7 +4982,12 @@ func TestSettingsShellAppearance(t *testing.T) {
 	})
 }
 
-func (s *stubSettingsService) SetMCPApproval(ctx context.Context, req settingspkg.MCPAuthTargetRequest, digest string, revoke bool) (store.MCPApproval, error) {
+func (s *stubSettingsService) SetMCPApproval(
+	ctx context.Context,
+	req settingspkg.MCPAuthTargetRequest,
+	digest string,
+	revoke bool,
+) (store.MCPApproval, error) {
 	if s.SetMCPApprovalFn != nil {
 		return s.SetMCPApprovalFn(ctx, req, digest, revoke)
 	}
@@ -4999,17 +5004,34 @@ func TestSettingsMCPApprovalHandlers(t *testing.T) {
 	}{{"", 200}, {"mcp_approval_definition_changed", 409}, {"mcp_approval_not_required", 409}, {"mcp_server_not_found", 404}} {
 		t.Run("Should report approval "+tc.code, func(t *testing.T) {
 			t.Parallel()
-			service := &stubSettingsService{SetMCPApprovalFn: func(_ context.Context, req settingspkg.MCPAuthTargetRequest, digest string, revoke bool) (store.MCPApproval, error) {
-				if req.Name != "sentry" || req.WorkspaceID != "ws-project" || req.ProfileName != "work" || req.Scope != settingspkg.ScopeProfile || (!revoke && digest != "observed") {
-					t.Fatalf("approval lost identity: %+v %s", req, digest)
-				}
-				if tc.code != "" {
-					return store.MCPApproval{}, &settingspkg.MCPApprovalError{Code: tc.code, Message: "approval rejected"}
-				}
-				return store.MCPApproval{ServerName: req.Name, WorkspaceID: req.WorkspaceID, ApprovedAt: time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)}, nil
-			}}
+			service := &stubSettingsService{
+				SetMCPApprovalFn: func(_ context.Context, req settingspkg.MCPAuthTargetRequest, digest string, revoke bool) (store.MCPApproval, error) {
+					if req.Name != "sentry" || req.WorkspaceID != "ws-project" || req.ProfileName != "work" ||
+						req.Scope != settingspkg.ScopeProfile ||
+						(!revoke && digest != "observed") {
+						t.Fatalf("approval lost identity: %+v %s", req, digest)
+					}
+					if tc.code != "" {
+						return store.MCPApproval{}, &settingspkg.MCPApprovalError{
+							Code:    tc.code,
+							Message: "approval rejected",
+						}
+					}
+					return store.MCPApproval{
+						ServerName:  req.Name,
+						WorkspaceID: req.WorkspaceID,
+						ApprovedAt:  time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC),
+					}, nil
+				},
+			}
 			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-			response := performRequest(t, fixture.Engine, http.MethodPut, "/api/settings/mcp-servers/sentry/approval", []byte(`{"workspace_id":"ws-project","profile":"work","definition_digest":"observed"}`))
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPut,
+				"/api/settings/mcp-servers/sentry/approval",
+				[]byte(`{"workspace_id":"ws-project","profile":"work","definition_digest":"observed"}`),
+			)
 			if response.Code != tc.status {
 				t.Fatalf("status=%d body=%s", response.Code, response.Body)
 			}
@@ -5022,10 +5044,17 @@ func TestSettingsMCPApprovalHandlers(t *testing.T) {
 			} else {
 				var payload contract.SettingsMCPApprovalResponse
 				decodeJSON(t, response.Body.Bytes(), &payload)
-				if payload.Approval.State != "allowed" || payload.Approval.Profile != "work" || payload.Approval.ApprovedAt.IsZero() {
+				if payload.Approval.State != "allowed" || payload.Approval.Profile != "work" ||
+					payload.Approval.ApprovedAt.IsZero() {
 					t.Fatalf("approval=%+v", payload)
 				}
-				response = performRequest(t, fixture.Engine, http.MethodDelete, "/api/settings/mcp-servers/sentry/approval?workspace_id=ws-project&profile=work", nil)
+				response = performRequest(
+					t,
+					fixture.Engine,
+					http.MethodDelete,
+					"/api/settings/mcp-servers/sentry/approval?workspace_id=ws-project&profile=work",
+					nil,
+				)
 				if response.Code != http.StatusNoContent || response.Body.Len() != 0 {
 					t.Fatalf("revoke=%d %s", response.Code, response.Body)
 				}

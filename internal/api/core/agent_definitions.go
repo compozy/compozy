@@ -106,7 +106,13 @@ func (h *BaseHandlers) updateAgent(c *gin.Context, req contract.UpdateAgentReque
 		return
 	}
 	var warnings []string
-	agent, err := h.writeUpdatedAgentDefinition(c, resolved.Entry.Def.SourcePath, draft, req.Agent.MCPServers, agentMCPApprovalContext(h.Settings, resolved.OperationWorkspace, profileName, &warnings))
+	agent, err := h.writeUpdatedAgentDefinition(
+		c,
+		resolved.Entry.Def.SourcePath,
+		draft,
+		req.Agent.MCPServers,
+		agentMCPApprovalContext(h.Settings, resolved.OperationWorkspace, profileName, &warnings),
+	)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return

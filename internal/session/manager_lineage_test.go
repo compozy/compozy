@@ -95,19 +95,21 @@ func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 		t.Parallel()
 		h := newHostedMCPHarness(t)
 		admitted := []string{"linear"}
-		h.manager.SetMCPAuthorityResolver(lineageAuthorityFunc(func(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
-			info := MCPAuthoritySession(ctx, id)
-			if info == nil {
-				var err error
-				info, err = h.manager.StoredStatus(ctx, id)
-				if err != nil {
-					return store.SessionPermissionPolicy{}, err
+		h.manager.SetMCPAuthorityResolver(
+			lineageAuthorityFunc(func(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
+				info := MCPAuthoritySession(ctx, id)
+				if info == nil {
+					var err error
+					info, err = h.manager.StoredStatus(ctx, id)
+					if err != nil {
+						return store.SessionPermissionPolicy{}, err
+					}
 				}
-			}
-			policy := info.Lineage.PermissionPolicy
-			policy.MCPServers = store.BoundMCPServers(policy, admitted)
-			return policy, nil
-		}))
+				policy := info.Lineage.PermissionPolicy
+				policy.MCPServers = store.BoundMCPServers(policy, admitted)
+				return policy, nil
+			}),
+		)
 		created := createSession(t, h)
 		before := readMeta(t, created.MetaPath()).Lineage.PermissionPolicy
 		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
@@ -943,7 +945,10 @@ func spawnedCreateOpts(rootID string, lineage *store.SessionLineage) CreateOpts 
 // lineageAuthorityFunc is the composition-root I/O boundary in session unit tests.
 type lineageAuthorityFunc func(context.Context, string) (store.SessionPermissionPolicy, error)
 
-func (f lineageAuthorityFunc) EffectiveMCPAuthority(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
+func (f lineageAuthorityFunc) EffectiveMCPAuthority(
+	ctx context.Context,
+	id string,
+) (store.SessionPermissionPolicy, error) {
 	return f(ctx, id)
 }
 
@@ -968,15 +973,17 @@ func TestSpawnPermissionIntent(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			hooks := &recordingSessionSpawnHooks{preCreatePatch: func(p hookspkg.SpawnPreCreatePayload) hookspkg.SpawnPreCreatePayload {
-				switch tc.hook {
-				case "narrow":
-					p.ChildPermissions.MCPServers = []string{"sentry"}
-				case "widen":
-					p.ChildPermissions.MCPServers = append(p.ChildPermissions.MCPServers, "unauthorized")
-				}
-				return p
-			}}
+			hooks := &recordingSessionSpawnHooks{
+				preCreatePatch: func(p hookspkg.SpawnPreCreatePayload) hookspkg.SpawnPreCreatePayload {
+					switch tc.hook {
+					case "narrow":
+						p.ChildPermissions.MCPServers = []string{"sentry"}
+					case "widen":
+						p.ChildPermissions.MCPServers = append(p.ChildPermissions.MCPServers, "unauthorized")
+					}
+					return p
+				},
+			}
 			h := newHostedMCPHarness(t, WithHookSet(HookSet{Spawn: hooks}))
 			scopes := map[string][]string{h.workspaceID: {"linear"}}
 			installLineageAuthority(h, scopes)
@@ -1014,7 +1021,8 @@ func TestSpawnPermissionIntent(t *testing.T) {
 			if err != nil || !slices.Equal(public.Lineage.EffectiveMCPServers, tc.wantServers) {
 				t.Fatalf("public effective authority=%+v err=%v", public, err)
 			}
-			if len(hooks.preCreate) != 1 || !slices.Equal(hooks.preCreate[0].ParentPermissions.MCPServers, []string{"linear", "sentry"}) {
+			if len(hooks.preCreate) != 1 ||
+				!slices.Equal(hooks.preCreate[0].ParentPermissions.MCPServers, []string{"linear", "sentry"}) {
 				t.Fatalf("hook did not see live parent authority: %+v", hooks.preCreate)
 			}
 		})
@@ -1032,11 +1040,17 @@ func TestSpawnRetainsStoredToolIntent(t *testing.T) {
 	parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
 		Tools: tools, ToolsMode: store.PermissionList, MCPServersMode: store.PermissionInherit,
 	}, store.SessionSpawnBudget{MaxDepth: 4, MaxChildren: 4})
-	child, err := h.manager.Spawn(t.Context(), SpawnOpts{ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true})
+	child, err := h.manager.Spawn(
+		t.Context(),
+		SpawnOpts{ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	grandchild, err := h.manager.Spawn(t.Context(), SpawnOpts{ParentSessionID: child.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true})
+	grandchild, err := h.manager.Spawn(
+		t.Context(),
+		SpawnOpts{ParentSessionID: child.ID, AgentName: "coder", TTL: time.Hour, InheritPermissions: true},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1062,38 +1076,51 @@ func TestCrossWorkspaceSpawnIntent(t *testing.T) {
 	installLineageAuthority(h, scopes)
 	parent := &Info{ID: "parent", WorkspaceID: h.workspaceID, ProfileID: store.DefaultProfileID, Type: SessionTypeUser,
 		Lineage: &store.SessionLineage{PermissionPolicy: store.SessionPermissionPolicy{
-			MCPServersMode: store.PermissionInherit, ToolsMode: store.PermissionInherit, Tools: []string{"compozy__session_list"},
+			MCPServersMode: store.PermissionInherit,
+			ToolsMode:      store.PermissionInherit,
+			Tools:          []string{"compozy__session_list"},
 		}}}
-	policy, err := h.manager.resolveSpawnPermissionPolicy(t.Context(), parent, SpawnOpts{Workspace: "ws-other", InheritPermissions: true})
+	policy, err := h.manager.resolveSpawnPermissionPolicy(
+		t.Context(),
+		parent,
+		SpawnOpts{Workspace: "ws-other", InheritPermissions: true},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if policy.AncestorMCPCeiling == nil || !slices.Equal(*policy.AncestorMCPCeiling, []string{"linear"}) || policy.ToolsMode != store.PermissionList {
+	if policy.AncestorMCPCeiling == nil || !slices.Equal(*policy.AncestorMCPCeiling, []string{"linear"}) ||
+		policy.ToolsMode != store.PermissionList {
 		t.Fatalf("cross-scope ceiling=%+v", policy)
 	}
 	scopes[h.workspaceID] = append(scopes[h.workspaceID], "later-a")
 	scopes["ws-other"] = append(scopes["ws-other"], "later-a")
-	got, err := h.manager.effectiveSpawnAuthority(t.Context(), parent, SpawnOpts{Workspace: "ws-other", PermissionPolicy: policy})
+	got, err := h.manager.effectiveSpawnAuthority(
+		t.Context(),
+		parent,
+		SpawnOpts{Workspace: "ws-other", PermissionPolicy: policy},
+	)
 	if err != nil || !slices.Equal(got.MCPServers, []string{"linear"}) {
 		t.Fatalf("cross-scope authority=%+v err=%v", got, err)
 	}
 }
 
 func installLineageAuthority(h *harness, scopes map[string][]string) {
-	h.manager.SetMCPAuthorityResolver(lineageAuthorityFunc(func(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
-		info := MCPAuthoritySession(ctx, id)
-		if info == nil {
-			var err error
-			info, err = h.manager.StoredStatus(ctx, id)
-			if err != nil {
-				return store.SessionPermissionPolicy{}, err
+	h.manager.SetMCPAuthorityResolver(
+		lineageAuthorityFunc(func(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
+			info := MCPAuthoritySession(ctx, id)
+			if info == nil {
+				var err error
+				info, err = h.manager.StoredStatus(ctx, id)
+				if err != nil {
+					return store.SessionPermissionPolicy{}, err
+				}
 			}
-		}
-		lineage := store.NormalizeSessionLineage(id, info.Lineage)
-		policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
-		policy.MCPServers = store.BoundMCPServers(policy, scopes[info.WorkspaceID])
-		return policy, nil
-	}))
+			lineage := store.NormalizeSessionLineage(id, info.Lineage)
+			policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+			policy.MCPServers = store.BoundMCPServers(policy, scopes[info.WorkspaceID])
+			return policy, nil
+		}),
+	)
 }
 
 // Invariant: a parent's named MCP list becomes a durable ceiling for its descendants.

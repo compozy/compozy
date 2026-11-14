@@ -1680,10 +1680,23 @@ func (e *recoveringProjectionMCPExecutor) ListTools(
 // whose previous descriptors could otherwise be cached. Owner: MCP registry adapter.
 func TestMCPConsentPrecedesDiscovery(t *testing.T) {
 	t.Parallel()
-	executor := newFakeMCPExecutor([]MCPToolDescriptor{{RawName: "read", InputSchema: json.RawMessage(`{"type":"object"}`)}})
-	source := SourceRef{Kind: SourceMCP, Owner: "remote", RawServerName: "remote", WorkspaceID: "ws", ResourceID: "record"}
+	executor := newFakeMCPExecutor(
+		[]MCPToolDescriptor{{RawName: "read", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	)
+	source := SourceRef{
+		Kind:          SourceMCP,
+		Owner:         "remote",
+		RawServerName: "remote",
+		WorkspaceID:   "ws",
+		ResourceID:    "record",
+	}
 	admitted := false
-	provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }), executor, executor, WithMCPConsent(func(context.Context, SourceRef, string) (bool, error) { return admitted, nil }))
+	provider, err := NewMCPProvider(
+		MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+		executor,
+		executor,
+		WithMCPConsent(func(context.Context, SourceRef, string) (bool, error) { return admitted, nil }),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1708,9 +1721,16 @@ func TestMCPConsentPrecedesDiscovery(t *testing.T) {
 func TestMCPAuthRequiredRepair(t *testing.T) {
 	t.Parallel()
 	descriptor := mcpDescriptor("mcp__linear__read", "linear", "read")
-	err := denialErrorForView(&ToolView{Descriptor: descriptor, Availability: Availability{ReasonCodes: []ReasonCode{ReasonMCPAuthRequired}}, Decision: EffectiveToolDecision{ReasonCodes: []ReasonCode{ReasonMCPAuthRequired}}})
+	err := denialErrorForView(
+		&ToolView{
+			Descriptor:   descriptor,
+			Availability: Availability{ReasonCodes: []ReasonCode{ReasonMCPAuthRequired}},
+			Decision:     EffectiveToolDecision{ReasonCodes: []ReasonCode{ReasonMCPAuthRequired}},
+		},
+	)
 	toolErr, ok := errors.AsType[*ToolError](err)
-	if !ok || toolErr.Code != "mcp_auth_required" || toolErr.Message != "linear needs sign-in. Sign in to linear in CompozyOS (Settings → MCP servers)." {
+	if !ok || toolErr.Code != "mcp_auth_required" ||
+		toolErr.Message != "linear needs sign-in. Sign in to linear in CompozyOS (Settings → MCP servers)." {
 		t.Fatalf("error=%+v", err)
 	}
 }
@@ -1721,10 +1741,16 @@ func TestMCPProviderAdvertisedDiscoveryRetention(t *testing.T) {
 	t.Parallel()
 	t.Run("Should retain discovered views while failing and withdraw sign-out or removal", func(t *testing.T) {
 		t.Parallel()
-		executor := newFakeMCPExecutor([]MCPToolDescriptor{{RawName: "echo", InputSchema: json.RawMessage(`{"type":"object"}`)}})
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "echo", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
 		source := SourceRef{Kind: SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
 		sources := []SourceRef{source}
-		provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return sources, nil }), executor, executor)
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return sources, nil }),
+			executor,
+			executor,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1736,7 +1762,10 @@ func TestMCPProviderAdvertisedDiscoveryRetention(t *testing.T) {
 		}
 		catalog := func() AdvertisedCatalog {
 			t.Helper()
-			views, err := registry.AdvertisedSessionProjection(t.Context(), Scope{SessionID: "retained", ProfileID: "default", WorkspaceID: "workspace-a"})
+			views, err := registry.AdvertisedSessionProjection(
+				t.Context(),
+				Scope{SessionID: "retained", ProfileID: "default", WorkspaceID: "workspace-a"},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1760,7 +1789,9 @@ func TestMCPProviderAdvertisedDiscoveryRetention(t *testing.T) {
 			t.Fatal("same-tool recovery changed catalog")
 		}
 		executor.mu.Lock()
-		executor.tools = []MCPToolDescriptor{{RawName: "replacement", InputSchema: json.RawMessage(`{"type":"object"}`)}}
+		executor.tools = []MCPToolDescriptor{
+			{RawName: "replacement", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		}
 		executor.mu.Unlock()
 		if catalog().Digest == bound.Digest {
 			t.Fatal("recovery ignored changed tools")

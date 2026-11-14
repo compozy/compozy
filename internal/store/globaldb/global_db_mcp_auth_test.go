@@ -1331,10 +1331,21 @@ func TestMCPApprovalSourceIsolationAndReopen(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
 		workspaceID := "ws_1111111111111111"
-		if err := db.InsertWorkspace(t.Context(), compozyworkspace.Workspace{ID: workspaceID, RootDir: t.TempDir(), Name: "approval"}); err != nil {
+		if err := db.InsertWorkspace(
+			t.Context(),
+			compozyworkspace.Workspace{ID: workspaceID, RootDir: t.TempDir(), Name: "approval"},
+		); err != nil {
 			t.Fatal(err)
 		}
-		first := store.MCPApproval{ID: "mcpa-one", ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, ServerName: "sentry", SourceID: ".compozy/mcp.json", DefinitionDigest: "first", ApprovedAt: time.Now().UTC()}
+		first := store.MCPApproval{
+			ID:               "mcpa-one",
+			ProfileID:        store.DefaultProfileID,
+			WorkspaceID:      workspaceID,
+			ServerName:       "sentry",
+			SourceID:         ".compozy/mcp.json",
+			DefinitionDigest: "first",
+			ApprovedAt:       time.Now().UTC(),
+		}
 		second := first
 		second.ID = "mcpa-two"
 		second.SourceID = ".compozy/agents/worker/mcp.json"
@@ -1367,11 +1378,18 @@ func TestMCPApprovalSourceIsolationAndReopen(t *testing.T) {
 			t.Fatalf("reopened approvals=%+v %v", rows, err)
 		}
 		for _, row := range rows {
-			if row.SourceID == first.SourceID && row.DefinitionDigest != "updated" || row.SourceID == second.SourceID && row.DefinitionDigest != "second" {
+			if row.SourceID == first.SourceID && row.DefinitionDigest != "updated" ||
+				row.SourceID == second.SourceID && row.DefinitionDigest != "second" {
 				t.Fatalf("source overwrite=%+v", row)
 			}
 		}
-		if err := reopened.DeleteMCPServerApproval(t.Context(), store.DefaultProfileID, workspaceID, first.ServerName, first.SourceID); err != nil {
+		if err := reopened.DeleteMCPServerApproval(
+			t.Context(),
+			store.DefaultProfileID,
+			workspaceID,
+			first.ServerName,
+			first.SourceID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		rows, err = reopened.ListMCPServerApprovals(t.Context(), store.DefaultProfileID, workspaceID)

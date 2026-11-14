@@ -2,10 +2,11 @@ package runtimemcp
 
 import (
 	"cmp"
-	"github.com/compozy/compozy/internal/mcppolicy"
 	"net/url"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/mcppolicy"
 )
 
 func copyBlocked(s Server, d object) string {

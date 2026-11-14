@@ -10,7 +10,11 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func (n *daemonNativeTools) mcpList(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) mcpList(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
 	var input struct {
 		Runtime         string `json:"runtime"`
 		IncludeRuntimes *bool  `json:"include_runtimes"`
@@ -36,7 +40,11 @@ func (n *daemonNativeTools) mcpList(ctx context.Context, scope toolspkg.Scope, r
 		}
 		workspaceID = resolved.ID
 	}
-	readReq := settingspkg.CollectionRequest{Collection: settingspkg.CollectionMCPServers, Scope: settingspkg.ScopeUser, WorkspaceID: workspaceID}
+	readReq := settingspkg.CollectionRequest{
+		Collection:  settingspkg.CollectionMCPServers,
+		Scope:       settingspkg.ScopeUser,
+		WorkspaceID: workspaceID,
+	}
 	if workspaceID != "" {
 		readReq.Scope = settingspkg.ScopeWorkspace
 	}

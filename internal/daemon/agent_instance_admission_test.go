@@ -1685,16 +1685,26 @@ func TestInstancePermissionIntent(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			definitions, _ := newInstanceDefinitionsFixture(t, nil)
-			definitions.agents = stubSessionCommandAgentResolver(func(name string, _ *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
-				agent := compozyconfig.AgentDef{Name: name, Kind: "always_on", Provider: "claude", Prompt: "Review work."}
-				if named {
-					agent.MCPServers = []compozyconfig.MCPServer{{Name: "linear", Command: "test"}}
-				}
-				return agent, nil
-			})
+			definitions.agents = stubSessionCommandAgentResolver(
+				func(name string, _ *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+					agent := compozyconfig.AgentDef{
+						Name:     name,
+						Kind:     "always_on",
+						Provider: "claude",
+						Prompt:   "Review work.",
+					}
+					if named {
+						agent.MCPServers = []compozyconfig.MCPServer{{Name: "linear", Command: "test"}}
+					}
+					return agent, nil
+				},
+			)
 			admission := &instanceAdmission{definitions: definitions, reach: &instanceAdmissionInputs{}}
 			instance, err := admission.ResolveCreate(t.Context(), agentinstance.CreateRequest{
-				Agent: "coder", Profile: store.DefaultProfileID, Workspace: "ws-instance-paths", Actor: workspaceaccess.ActorRef{Operator: true},
+				Agent:     "coder",
+				Profile:   store.DefaultProfileID,
+				Workspace: "ws-instance-paths",
+				Actor:     workspaceaccess.ActorRef{Operator: true},
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -1717,8 +1727,11 @@ func TestInstancePermissionIntent(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ctx := session.WithMCPAuthoritySession(t.Context(), &session.Info{ID: "occurrence", Type: session.SessionTypeSystem,
-				Lineage: &store.SessionLineage{PermissionPolicy: policy}})
+			ctx := session.WithMCPAuthoritySession(
+				t.Context(),
+				&session.Info{ID: "occurrence", Type: session.SessionTypeSystem,
+					Lineage: &store.SessionLineage{PermissionPolicy: policy}},
+			)
 			first, err := resolver.EffectiveMCPAuthority(ctx, "occurrence")
 			if err != nil || !reflect.DeepEqual(first.MCPServers, []string{"linear"}) {
 				t.Fatalf("initial occurrence=%+v, %v", first, err)

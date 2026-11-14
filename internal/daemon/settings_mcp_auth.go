@@ -19,7 +19,14 @@ func newSettingsMCPAuthManagerWithConfig(
 	oauthConfig compozyconfig.MCPOAuthConfig,
 	generation ...*mcpauth.MutationGeneration,
 ) (*mcpauth.Manager, error) {
-	return newSettingsMCPAuthManagerWithAuthorization(store, notifier, registrations, secretResolver, oauthConfig, nil, generation...)
+	return newSettingsMCPAuthManagerWithAuthorization(
+		store,
+		notifier,
+		registrations,
+		secretResolver,
+		oauthConfig,
+		nil,
+		generation...)
 }
 
 func newSettingsMCPAuthManagerWithAuthorization(

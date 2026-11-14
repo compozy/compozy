@@ -25,7 +25,11 @@ func (h *BaseHandlers) PutSettingsMCPApproval(c *gin.Context) {
 }
 
 func (h *BaseHandlers) DeleteSettingsMCPApproval(c *gin.Context) {
-	h.setSettingsMCPApproval(c, contract.SettingsMCPApprovalRequest{WorkspaceID: c.Query("workspace_id"), Profile: c.Query("profile")}, true)
+	h.setSettingsMCPApproval(
+		c,
+		contract.SettingsMCPApprovalRequest{WorkspaceID: c.Query("workspace_id"), Profile: c.Query("profile")},
+		true,
+	)
 }
 
 func (h *BaseHandlers) setSettingsMCPApproval(c *gin.Context, body contract.SettingsMCPApprovalRequest, revoke bool) {
@@ -42,7 +46,17 @@ func (h *BaseHandlers) setSettingsMCPApproval(c *gin.Context, body contract.Sett
 	if body.Profile != "" {
 		scope = settingspkg.ScopeProfile
 	}
-	approval, err := service.SetMCPApproval(c.Request.Context(), settingspkg.MCPAuthTargetRequest{Scope: scope, WorkspaceID: body.WorkspaceID, ProfileName: body.Profile, Name: c.Param("name")}, body.DefinitionDigest, revoke)
+	approval, err := service.SetMCPApproval(
+		c.Request.Context(),
+		settingspkg.MCPAuthTargetRequest{
+			Scope:       scope,
+			WorkspaceID: body.WorkspaceID,
+			ProfileName: body.Profile,
+			Name:        c.Param("name"),
+		},
+		body.DefinitionDigest,
+		revoke,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
@@ -55,5 +69,16 @@ func (h *BaseHandlers) setSettingsMCPApproval(c *gin.Context, body contract.Sett
 	if profile == "" {
 		profile = "default"
 	}
-	c.JSON(http.StatusOK, contract.SettingsMCPApprovalResponse{Approval: contract.SettingsMCPApprovalPayload{ServerName: approval.ServerName, WorkspaceID: approval.WorkspaceID, Profile: profile, State: "allowed", ApprovedAt: approval.ApprovedAt}})
+	c.JSON(
+		http.StatusOK,
+		contract.SettingsMCPApprovalResponse{
+			Approval: contract.SettingsMCPApprovalPayload{
+				ServerName:  approval.ServerName,
+				WorkspaceID: approval.WorkspaceID,
+				Profile:     profile,
+				State:       "allowed",
+				ApprovedAt:  approval.ApprovedAt,
+			},
+		},
+	)
 }

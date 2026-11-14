@@ -129,7 +129,9 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 			return resolved, nil
 		}),
 		mcppkg.WithRuntimeHealthRegistry(s.mcpHealthRegistry),
-		mcppkg.WithConsentCheck(func(ctx context.Context, _ toolspkg.SourceRef) error { return s.requireMCPConsent(ctx, target, server) }),
+		mcppkg.WithConsentCheck(
+			func(ctx context.Context, _ toolspkg.SourceRef) error { return s.requireMCPConsent(ctx, target, server) },
+		),
 		mcppkg.WithAuthNetworkAuthorization(func(ctx context.Context, cfg mcpauth.ServerConfig) error {
 			if s.state == nil {
 				return nil

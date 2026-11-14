@@ -34,7 +34,10 @@ func (c *hostedProxyCatalog) middleware(client HostedProxyClient, bindID string)
 			if err != nil {
 				return result, err
 			}
-			if err := client.ReportHostedMCPServed(ctx, HostedServedRequest{BindID: bindID, Digest: c.catalog.Digest}); err != nil {
+			if err := client.ReportHostedMCPServed(
+				ctx,
+				HostedServedRequest{BindID: bindID, Digest: c.catalog.Digest},
+			); err != nil {
 				return nil, err
 			}
 			return result, nil

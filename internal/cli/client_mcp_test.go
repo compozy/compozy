@@ -243,16 +243,22 @@ func TestMCPListCommand(t *testing.T) {
 	t.Run("Should compose runtime and CompozyOS JSON responses UT-093", func(t *testing.T) {
 		t.Parallel()
 		runtimeJSON := `{"runtimes":[{"runtime":"codex","display_name":"Codex","installed":false,"runtime_mcp":{"mode":"load","can_disable":false},"read_state":"ok","config_files":["/home/test/.codex/config.toml"],"servers":[{"runtime":"codex","name":"savee","scope":"user","transport":"http","auth":"unknown","env_keys":[],"header_keys":[],"copyable":true}]}],"generated_at":"2026-11-14T16:30:00Z"}`
-		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			switch req.URL.Path {
-			case "/api/settings/runtime-mcp-servers":
-				return newHTTPResponse(http.StatusOK, runtimeJSON), nil
-			case "/api/settings/mcp-servers":
-				return newHTTPResponse(http.StatusOK, `{"mcp_servers":[{"name":"manual","owner":"manual","scope":"user","transport":"stdio"}]}`), nil
-			default:
-				return nil, fmt.Errorf("unexpected route %s", req.URL.Path)
-			}
-		})}}
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				switch req.URL.Path {
+				case "/api/settings/runtime-mcp-servers":
+					return newHTTPResponse(http.StatusOK, runtimeJSON), nil
+				case "/api/settings/mcp-servers":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"mcp_servers":[{"name":"manual","owner":"manual","scope":"user","transport":"stdio"}]}`,
+					), nil
+				default:
+					return nil, fmt.Errorf("unexpected route %s", req.URL.Path)
+				}
+			})},
+		}
 		deps := newWorkspaceTestDeps(t, client)
 		stdout, _, err := executeRootCommand(t, deps, "mcp", "list", "-o", "json")
 		if err != nil {
@@ -266,7 +272,8 @@ func TestMCPListCommand(t *testing.T) {
 		if err := json.Unmarshal([]byte(runtimeJSON), &expected); err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(actual.Runtimes, expected.Runtimes) || len(actual.CompozyServers) != 1 || actual.CompozyServers[0].Name != "manual" {
+		if !reflect.DeepEqual(actual.Runtimes, expected.Runtimes) || len(actual.CompozyServers) != 1 ||
+			actual.CompozyServers[0].Name != "manual" {
 			t.Fatalf("payload=%+v", actual)
 		}
 	})
@@ -277,27 +284,38 @@ func TestMCPListCommand(t *testing.T) {
 func TestMCPApprovalClientRoutes(t *testing.T) {
 	t.Parallel()
 	calls := 0
-	client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		calls++
-		if req.URL.Path != "/api/settings/mcp-servers/sentry/approval" {
-			return nil, fmt.Errorf("wrong approval path: %s", req.URL)
-		}
-		if req.Method == http.MethodDelete {
-			if req.URL.Query().Get("workspace_id") != "ws-project" || req.URL.Query().Get("profile") != "work" {
-				return nil, fmt.Errorf("revoke lost identity: %s", req.URL)
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			calls++
+			if req.URL.Path != "/api/settings/mcp-servers/sentry/approval" {
+				return nil, fmt.Errorf("wrong approval path: %s", req.URL)
 			}
-			return newHTTPResponse(http.StatusNoContent, ""), nil
-		}
-		var body contract.SettingsMCPApprovalRequest
-		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-			return nil, err
-		}
-		if req.Method != http.MethodPut || body.WorkspaceID != "ws-project" || body.Profile != "work" || body.DefinitionDigest != "observed" {
-			return nil, fmt.Errorf("wrong approval request: %+v", body)
-		}
-		return newHTTPResponse(http.StatusOK, `{"approval":{"server_name":"sentry","workspace_id":"ws-project","profile":"work","state":"allowed"}}`), nil
-	})}}
-	body := contract.SettingsMCPApprovalRequest{WorkspaceID: "ws-project", Profile: "work", DefinitionDigest: "observed"}
+			if req.Method == http.MethodDelete {
+				if req.URL.Query().Get("workspace_id") != "ws-project" || req.URL.Query().Get("profile") != "work" {
+					return nil, fmt.Errorf("revoke lost identity: %s", req.URL)
+				}
+				return newHTTPResponse(http.StatusNoContent, ""), nil
+			}
+			var body contract.SettingsMCPApprovalRequest
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				return nil, err
+			}
+			if req.Method != http.MethodPut || body.WorkspaceID != "ws-project" || body.Profile != "work" ||
+				body.DefinitionDigest != "observed" {
+				return nil, fmt.Errorf("wrong approval request: %+v", body)
+			}
+			return newHTTPResponse(
+				http.StatusOK,
+				`{"approval":{"server_name":"sentry","workspace_id":"ws-project","profile":"work","state":"allowed"}}`,
+			), nil
+		})},
+	}
+	body := contract.SettingsMCPApprovalRequest{
+		WorkspaceID:      "ws-project",
+		Profile:          "work",
+		DefinitionDigest: "observed",
+	}
 	result, err := client.SetSettingsMCPApproval(t.Context(), "sentry", body, false)
 	if err != nil || result.Approval.State != "allowed" {
 		t.Fatalf("allow=%+v %v", result, err)
@@ -315,33 +333,55 @@ func TestMCPImportCommand(t *testing.T) {
 	t.Parallel()
 	t.Run("Should surface a missing runtime server UT-095", func(t *testing.T) {
 		t.Parallel()
-		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			if req.Method != http.MethodPost || req.URL.Path != "/api/settings/runtime-mcp-servers/claude/nope/import" {
-				return nil, fmt.Errorf("unexpected import route %s %s", req.Method, req.URL.Path)
-			}
-			return newHTTPResponse(http.StatusNotFound, `{"code":"mcp_server_not_found","error":"No MCP server named nope in Claude Code"}`), nil
-		})}}
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodPost ||
+					req.URL.Path != "/api/settings/runtime-mcp-servers/claude/nope/import" {
+					return nil, fmt.Errorf("unexpected import route %s %s", req.Method, req.URL.Path)
+				}
+				return newHTTPResponse(
+					http.StatusNotFound,
+					`{"code":"mcp_server_not_found","error":"No MCP server named nope in Claude Code"}`,
+				), nil
+			})},
+		}
 		_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "mcp", "import", "claude/nope")
-		if cliExitCodeForError(err) != 1 || err == nil || !strings.Contains(err.Error(), "mcp_server_not_found") || !strings.Contains(err.Error(), "No MCP server named nope in Claude Code") {
+		if cliExitCodeForError(err) != 1 || err == nil || !strings.Contains(err.Error(), "mcp_server_not_found") ||
+			!strings.Contains(err.Error(), "No MCP server named nope in Claude Code") {
 			t.Fatalf("wrong missing server error: %v", err)
 		}
 	})
 	t.Run("Should escape a source name and forward the target name", func(t *testing.T) {
 		t.Parallel()
-		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			if req.URL.EscapedPath() != "/api/settings/runtime-mcp-servers/claude/plugin%3Afigma%3Afigma/import" {
-				return nil, fmt.Errorf("unexpected import path %s", req.URL.EscapedPath())
-			}
-			var body contract.RuntimeMCPImportRequest
-			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-				return nil, err
-			}
-			if body.Scope != "user" || body.Name != "renamed" {
-				return nil, fmt.Errorf("import lost target identity")
-			}
-			return newHTTPResponse(http.StatusUnprocessableEntity, `{"code":"mcp_import_unsupported_source","error":"plugin source cannot be copied"}`), nil
-		})}}
-		_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "mcp", "import", "claude/plugin:figma:figma", "--name", "renamed")
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.URL.EscapedPath() != "/api/settings/runtime-mcp-servers/claude/plugin%3Afigma%3Afigma/import" {
+					return nil, fmt.Errorf("unexpected import path %s", req.URL.EscapedPath())
+				}
+				var body contract.RuntimeMCPImportRequest
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					return nil, err
+				}
+				if body.Scope != "user" || body.Name != "renamed" {
+					return nil, fmt.Errorf("import lost target identity")
+				}
+				return newHTTPResponse(
+					http.StatusUnprocessableEntity,
+					`{"code":"mcp_import_unsupported_source","error":"plugin source cannot be copied"}`,
+				), nil
+			})},
+		}
+		_, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"mcp",
+			"import",
+			"claude/plugin:figma:figma",
+			"--name",
+			"renamed",
+		)
 		if err == nil || !strings.Contains(err.Error(), "mcp_import_unsupported_source") {
 			t.Fatalf("wrong source error: %v", err)
 		}

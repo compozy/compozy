@@ -183,7 +183,12 @@ func TestMCPImportSecretCommitOwnership(t *testing.T) {
 			root := t.TempDir()
 			store := newFakeProviderSecretStore()
 			failure := errors.New("injected mutation boundary failure")
-			deps := Dependencies{ProviderSecrets: store, WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{"ws-copy": {ID: "ws-copy", RootDir: root}}}}
+			deps := Dependencies{
+				ProviderSecrets: store,
+				WorkspaceResolver: fakeWorkspaceResolver{
+					resolved: map[string]workspacepkg.ResolvedWorkspace{"ws-copy": {ID: "ws-copy", RootDir: root}},
+				},
+			}
 			switch outcome {
 			case "uncommitted":
 				deps.MCPDefinitionWriter = func(compozyconfig.HomePaths, string, string, compozyconfig.WriteTarget, compozyconfig.MCPServer) error {
@@ -195,7 +200,19 @@ func TestMCPImportSecretCommitOwnership(t *testing.T) {
 				deps.WorkspaceMCPApprovals = importCommitRecorder{afterCommit: failure}
 			}
 			settings := testService(t, home, deps).(*service)
-			result, err := settings.putMCPServer(t.Context(), ScopeWorkspace, "ws-copy", "", "copy", TargetAuto, compozyconfig.MCPServer{Command: "echo"}, MCPSecretValues{SecretEnv: map[string]string{"TOKEN": "copied-value"}}, MCPSecretPreservation{}, nil, true)
+			result, err := settings.putMCPServer(
+				t.Context(),
+				ScopeWorkspace,
+				"ws-copy",
+				"",
+				"copy",
+				TargetAuto,
+				compozyconfig.MCPServer{Command: "echo"},
+				MCPSecretValues{SecretEnv: map[string]string{"TOKEN": "copied-value"}},
+				MCPSecretPreservation{},
+				nil,
+				true,
+			)
 			ref := "vault:mcp/ws/ws-copy/copy/env/TOKEN"
 			if outcome != "committed" {
 				if !errors.Is(err, failure) {
@@ -204,13 +221,22 @@ func TestMCPImportSecretCommitOwnership(t *testing.T) {
 				if _, found := store.plaintext[ref]; found {
 					t.Fatal("uncommitted copy retained new secret")
 				}
-				collection, err := settings.ListCollection(t.Context(), CollectionRequest{Collection: CollectionMCPServers, Scope: ScopeWorkspace, WorkspaceID: "ws-copy", SkipRuntimeStatus: true})
+				collection, err := settings.ListCollection(
+					t.Context(),
+					CollectionRequest{
+						Collection:        CollectionMCPServers,
+						Scope:             ScopeWorkspace,
+						WorkspaceID:       "ws-copy",
+						SkipRuntimeStatus: true,
+					},
+				)
 				if err != nil || len(collection.MCPServers) != 0 {
 					t.Fatalf("failed copy left a definition: %v", err)
 				}
 				return
 			}
-			if err != nil || result.MCPServer == nil || len(result.Warnings) != 1 || result.Warnings[0] != mcpImportCleanupWarning("copy") {
+			if err != nil || result.MCPServer == nil || len(result.Warnings) != 1 ||
+				result.Warnings[0] != mcpImportCleanupWarning("copy") {
 				t.Fatalf("committed copy did not return its warning: %v", err)
 			}
 			if store.plaintext[ref] != "copied-value" {
@@ -225,7 +251,11 @@ func TestMCPImportSecretCommitOwnership(t *testing.T) {
 			if !found || entry.Server.SecretEnv["TOKEN"] != ref || len(entry.Server.Env) != 0 {
 				t.Fatal("reopened definition lost its Vault binding")
 			}
-			if value, err := store.ResolveRef(t.Context(), entry.Server.SecretEnv["TOKEN"]); err != nil || value != "copied-value" {
+			if value, err := store.ResolveRef(
+				t.Context(),
+				entry.Server.SecretEnv["TOKEN"],
+			); err != nil ||
+				value != "copied-value" {
 				t.Fatal("committed definition references a removed secret")
 			}
 		})
@@ -237,13 +267,29 @@ func TestMCPImportSecretCommitOwnership(t *testing.T) {
 			home := testHomePaths(t)
 			ref := "vault:mcp/user/copy/env/A"
 			if referenced {
-				writeFile(t, home.ConfigFile, "[[mcp_servers]]\nname = \"other\"\ncommand = \"echo\"\n[mcp_servers.secret_env]\nTOKEN = \""+ref+"\"\n")
+				writeFile(
+					t,
+					home.ConfigFile,
+					"[[mcp_servers]]\nname = \"other\"\ncommand = \"echo\"\n[mcp_servers.secret_env]\nTOKEN = \""+ref+"\"\n",
+				)
 			}
 			secretStore := newFakeProviderSecretStore()
 			failure := errors.New("second secret write failed")
 			secretStore.putErrors["vault:mcp/user/copy/env/B"] = failure
 			settings := testService(t, home, Dependencies{ProviderSecrets: secretStore}).(*service)
-			_, err := settings.putMCPServer(t.Context(), ScopeUser, "", "", "copy", TargetAuto, compozyconfig.MCPServer{Command: "echo"}, MCPSecretValues{SecretEnv: map[string]string{"A": "first", "B": "second"}}, MCPSecretPreservation{}, nil, true)
+			_, err := settings.putMCPServer(
+				t.Context(),
+				ScopeUser,
+				"",
+				"",
+				"copy",
+				TargetAuto,
+				compozyconfig.MCPServer{Command: "echo"},
+				MCPSecretValues{SecretEnv: map[string]string{"A": "first", "B": "second"}},
+				MCPSecretPreservation{},
+				nil,
+				true,
+			)
 			if !errors.Is(err, failure) {
 				t.Fatalf("unexpected storage failure: %v", err)
 			}
@@ -251,7 +297,13 @@ func TestMCPImportSecretCommitOwnership(t *testing.T) {
 			if exists != referenced {
 				t.Fatal("partial storage violated reference ownership")
 			}
-			if _, sources, err := settings.resolveMCPTargetContext(t.Context(), ScopeUser, "", ""); err != nil || len(sources["copy"]) != 0 {
+			if _, sources, err := settings.resolveMCPTargetContext(
+				t.Context(),
+				ScopeUser,
+				"",
+				"",
+			); err != nil ||
+				len(sources["copy"]) != 0 {
 				t.Fatalf("partial storage wrote a definition: %v", err)
 			}
 		})
@@ -260,17 +312,37 @@ func TestMCPImportSecretCommitOwnership(t *testing.T) {
 	t.Run("Should retain a newly stored entry still referenced by another definition", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)
-		writeFile(t, home.ConfigFile, "[[mcp_servers]]\nname = \"other\"\ncommand = \"echo\"\n[mcp_servers.secret_env]\nTOKEN = \"vault:mcp/user/copy/env/TOKEN\"\n")
+		writeFile(
+			t,
+			home.ConfigFile,
+			"[[mcp_servers]]\nname = \"other\"\ncommand = \"echo\"\n[mcp_servers.secret_env]\nTOKEN = \"vault:mcp/user/copy/env/TOKEN\"\n",
+		)
 		store := newFakeProviderSecretStore()
 		failure := errors.New("write refused")
 		settings := testService(t, home, Dependencies{ProviderSecrets: store, MCPDefinitionWriter: func(compozyconfig.HomePaths, string, string, compozyconfig.WriteTarget, compozyconfig.MCPServer) error {
 			return failure
 		}}).(*service)
-		_, err := settings.putMCPServer(t.Context(), ScopeUser, "", "", "copy", TargetAuto, compozyconfig.MCPServer{Command: "echo"}, MCPSecretValues{SecretEnv: map[string]string{"TOKEN": "referenced-value"}}, MCPSecretPreservation{}, nil, true)
+		_, err := settings.putMCPServer(
+			t.Context(),
+			ScopeUser,
+			"",
+			"",
+			"copy",
+			TargetAuto,
+			compozyconfig.MCPServer{Command: "echo"},
+			MCPSecretValues{SecretEnv: map[string]string{"TOKEN": "referenced-value"}},
+			MCPSecretPreservation{},
+			nil,
+			true,
+		)
 		if !errors.Is(err, failure) {
 			t.Fatalf("unexpected failure: %v", err)
 		}
-		if value, err := store.ResolveRef(t.Context(), "vault:mcp/user/copy/env/TOKEN"); err != nil || value != "referenced-value" {
+		if value, err := store.ResolveRef(
+			t.Context(),
+			"vault:mcp/user/copy/env/TOKEN",
+		); err != nil ||
+			value != "referenced-value" {
 			t.Fatal("rollback deleted a referenced entry")
 		}
 	})

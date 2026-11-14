@@ -57,7 +57,11 @@ func (s *service) ImportRuntimeMCP(ctx context.Context, req RuntimeMCPImportRequ
 	if err != nil {
 		return RuntimeMCPImportResult{}, err
 	}
-	resolved, err := resolver.Resolve(ctx, runtimemcp.Request{Context: readContext, Runtime: req.Runtime}, req.ServerName)
+	resolved, err := resolver.Resolve(
+		ctx,
+		runtimemcp.Request{Context: readContext, Runtime: req.Runtime},
+		req.ServerName,
+	)
 	if err != nil {
 		return RuntimeMCPImportResult{}, importSettingsError(err)
 	}
@@ -72,13 +76,32 @@ func (s *service) ImportRuntimeMCP(ctx context.Context, req RuntimeMCPImportRequ
 	server.Name = name
 	secrets := MCPSecretValues{SecretEnv: server.Env, SecretHeaders: server.Headers, allowEmpty: true}
 	server.Env, server.Headers = nil, nil
-	mutation, err := s.putMCPServer(ctx, scope, workspaceID, profile, name, TargetAuto, server, secrets, MCPSecretPreservation{}, nil, true)
+	mutation, err := s.putMCPServer(
+		ctx,
+		scope,
+		workspaceID,
+		profile,
+		name,
+		TargetAuto,
+		server,
+		secrets,
+		MCPSecretPreservation{},
+		nil,
+		true,
+	)
 	mutation, err = s.finalizeCommittedCollectionMutation(ctx, mutation, err, "replace", true)
 	if err != nil {
 		return RuntimeMCPImportResult{}, err
 	}
-	if mcpauth.OAuthCapable(server) && (server.Auth.Enabled() || len(secrets.SecretHeaders) == 0) && mutation.MCPServer != nil {
-		mutation.MCPServer.AuthStatus = &mcpauth.Status{Status: mcpauth.StatusNeedsLogin, ServerName: name, Owner: "manual", Scope: mcpauth.Scope(scope), WorkspaceID: workspaceID}
+	if mcpauth.OAuthCapable(server) && (server.Auth.Enabled() || len(secrets.SecretHeaders) == 0) &&
+		mutation.MCPServer != nil {
+		mutation.MCPServer.AuthStatus = &mcpauth.Status{
+			Status:      mcpauth.StatusNeedsLogin,
+			ServerName:  name,
+			Owner:       "manual",
+			Scope:       mcpauth.Scope(scope),
+			WorkspaceID: workspaceID,
+		}
 	}
 	source := resolved.Metadata()
 	return RuntimeMCPImportResult{Mutation: mutation, Source: source, Partial: len(mutation.Warnings) > 0,
@@ -115,7 +138,11 @@ func runtimeDisplayName(runtime string) string {
 	return runtime
 }
 
-func (s *service) runtimeMCPReadContext(ctx context.Context, scope ScopeKind, workspaceID, profile string) (runtimemcp.ReadContext, error) {
+func (s *service) runtimeMCPReadContext(
+	ctx context.Context,
+	scope ScopeKind,
+	workspaceID, profile string,
+) (runtimemcp.ReadContext, error) {
 	_, resolved, err := s.loadConfig(ctx, scope, workspaceID, profile)
 	if err != nil {
 		return runtimemcp.ReadContext{}, err

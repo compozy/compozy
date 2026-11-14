@@ -8,7 +8,13 @@ import (
 	"github.com/compozy/compozy/internal/providerenv"
 )
 
-func ProviderContext(home config.HomePaths, provider string, resolved config.ProviderConfig, environ []string, cwd, worktreeRoot string) (ReadContext, error) {
+func ProviderContext(
+	home config.HomePaths,
+	provider string,
+	resolved config.ProviderConfig,
+	environ []string,
+	cwd, worktreeRoot string,
+) (ReadContext, error) {
 	policy := resolved.EffectiveHomePolicy()
 	env, err := providerenv.ResolveHomeEnv(home, provider, policy, environ)
 	if err != nil {

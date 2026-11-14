@@ -29,7 +29,10 @@ func (s settingsMCPConsent) profileID(ctx context.Context, name string) (string,
 	return s.state.profiles.AvailableProfileID(ctx, name)
 }
 
-func (s settingsMCPConsent) MCPConsent(ctx context.Context, req settingspkg.MCPConsentRequest) (ConsentDecision, error) {
+func (s settingsMCPConsent) MCPConsent(
+	ctx context.Context,
+	req settingspkg.MCPConsentRequest,
+) (ConsentDecision, error) {
 	if s.state == nil {
 		return ConsentDecision{}, errors.New("daemon: MCP consent is unavailable")
 	}
@@ -49,19 +52,40 @@ func (s settingsMCPConsent) MCPConsent(ctx context.Context, req settingspkg.MCPC
 	if strings.HasPrefix(req.Owner, "extension:") {
 		owner = *extensionOwner(strings.TrimPrefix(req.Owner, "extension:"))
 	}
-	return mcpDefinitionConsent(ctx, s.state, toolspkg.Scope{ProfileID: profileID, WorkspaceID: req.WorkspaceID}, resources.Record[config.MCPServer]{Scope: scope, Owner: owner, Spec: req.Server}, req.Server)
+	return mcpDefinitionConsent(
+		ctx,
+		s.state,
+		toolspkg.Scope{ProfileID: profileID, WorkspaceID: req.WorkspaceID},
+		resources.Record[config.MCPServer]{Scope: scope, Owner: owner, Spec: req.Server},
+		req.Server,
+	)
 }
 
-func (s settingsMCPConsent) ApproveMCP(ctx context.Context, req settingspkg.MCPConsentRequest, digest string, revoke bool) (MCPApproval, error) {
-	if req.WorkspaceID == "" || (req.Scope == "user" || req.Scope == "profile") || strings.HasPrefix(req.Owner, "extension:") {
-		return MCPApproval{}, &settingspkg.MCPApprovalError{Code: "mcp_approval_not_required", Message: fmt.Sprintf("%s does not need approval: it was added through CompozyOS", req.Server.Name)}
+func (s settingsMCPConsent) ApproveMCP(
+	ctx context.Context,
+	req settingspkg.MCPConsentRequest,
+	digest string,
+	revoke bool,
+) (MCPApproval, error) {
+	if req.WorkspaceID == "" || (req.Scope == "user" || req.Scope == "profile") ||
+		strings.HasPrefix(req.Owner, "extension:") {
+		return MCPApproval{}, &settingspkg.MCPApprovalError{
+			Code:    "mcp_approval_not_required",
+			Message: fmt.Sprintf("%s does not need approval: it was added through CompozyOS", req.Server.Name),
+		}
 	}
 	current, err := config.MCPDefinitionDigest(req.Server)
 	if err != nil {
 		return MCPApproval{}, err
 	}
 	if !revoke && (digest == "" || current != digest) {
-		return MCPApproval{}, &settingspkg.MCPApprovalError{Code: "mcp_approval_definition_changed", Message: fmt.Sprintf("%s changed since you looked at it. List it again and approve the new definition", req.Server.Name)}
+		return MCPApproval{}, &settingspkg.MCPApprovalError{
+			Code: "mcp_approval_definition_changed",
+			Message: fmt.Sprintf(
+				"%s changed since you looked at it. List it again and approve the new definition",
+				req.Server.Name,
+			),
+		}
 	}
 	profileID, err := s.profileID(ctx, req.ProfileName)
 	if err != nil {
@@ -75,7 +99,14 @@ func (s settingsMCPConsent) ApproveMCP(ctx context.Context, req settingspkg.MCPC
 	if !ok {
 		return MCPApproval{}, errors.New("daemon: MCP approval store is unavailable")
 	}
-	approval := MCPApproval{ProfileID: profileID, WorkspaceID: req.WorkspaceID, ServerName: req.Server.Name, SourceID: sourceID, DefinitionDigest: current, ApprovedAt: approvalTimestamp()}
+	approval := MCPApproval{
+		ProfileID:        profileID,
+		WorkspaceID:      req.WorkspaceID,
+		ServerName:       req.Server.Name,
+		SourceID:         sourceID,
+		DefinitionDigest: current,
+		ApprovedAt:       approvalTimestamp(),
+	}
 	approval.ID, err = store.NewID("mcpa")
 	if err != nil {
 		return MCPApproval{}, err
@@ -92,7 +123,11 @@ func (s settingsMCPConsent) ApproveMCP(ctx context.Context, req settingspkg.MCPC
 	return approval, nil
 }
 
-func (s *settingsRuntimeSurface) requireMCPConsent(ctx context.Context, target mcpauth.Target, server config.MCPServer) error {
+func (s *settingsRuntimeSurface) requireMCPConsent(
+	ctx context.Context,
+	target mcpauth.Target,
+	server config.MCPServer,
+) error {
 	if s.state == nil {
 		return nil
 	}
@@ -112,7 +147,12 @@ func (s *settingsRuntimeSurface) requireMCPConsent(ctx context.Context, target m
 }
 
 func settingsConsentRequest(target mcpauth.Target, server config.MCPServer) settingspkg.MCPConsentRequest {
-	req := settingspkg.MCPConsentRequest{Server: server, Scope: string(target.Scope), WorkspaceID: target.WorkspaceID, Owner: target.Owner}
+	req := settingspkg.MCPConsentRequest{
+		Server:      server,
+		Scope:       string(target.Scope),
+		WorkspaceID: target.WorkspaceID,
+		Owner:       target.Owner,
+	}
 	if target.Scope == mcpauth.ScopeProfile {
 		req.ProfileName = target.WorkspaceID
 		req.WorkspaceID = ""

@@ -1736,7 +1736,17 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 	req.Server.Transport = "http"
 	req.Server.URL = listener.URL + "/mcp"
 	req.Server.Auth = compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationAuto}
-	encoded, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"sentry": map[string]any{"type": "http", "url": req.Server.URL, "auth": map[string]any{"registration": "auto"}}}})
+	encoded, err := json.Marshal(
+		map[string]any{
+			"mcpServers": map[string]any{
+				"sentry": map[string]any{
+					"type": "http",
+					"url":  req.Server.URL,
+					"auth": map[string]any{"registration": "auto"},
+				},
+			},
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1749,24 +1759,58 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 		t.Fatalf("servers=%+v %v", servers, err)
 	}
 	req.Server = servers[0]
-	state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{{ID: "workspace-server", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID}, Spec: req.Server}})
+	state.mcpServerCatalog.Replace(
+		2,
+		[]resources.Record[compozyconfig.MCPServer]{
+			{
+				ID:    "workspace-server",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID},
+				Spec:  req.Server,
+			},
+		},
+	)
 	tokens := state.registry.(mcpauth.TokenStore)
-	manager, err := newSettingsMCPAuthManagerWithAuthorization(tokens, nil, nil, nil, compozyconfig.MCPOAuthConfig{}, func(ctx context.Context, cfg mcpauth.ServerConfig) error {
-		return authorizeMCPAuthNetwork(ctx, state, cfg)
-	})
+	manager, err := newSettingsMCPAuthManagerWithAuthorization(
+		tokens,
+		nil,
+		nil,
+		nil,
+		compozyconfig.MCPOAuthConfig{},
+		func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+			return authorizeMCPAuthNetwork(ctx, state, cfg)
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	surface := &settingsRuntimeSurface{state: state, mcpAuthManager: manager, mcpAuthStore: tokens}
-	service, err := settingspkg.NewService(testHomePaths(t), settingspkg.Dependencies{WorkspaceResolver: state.workspaceResolver, ProfileResolver: state.profiles, MCPConsent: settingsMCPConsent{state: state}, MCPAuth: surface, MCPRuntime: surface})
+	service, err := settingspkg.NewService(
+		testHomePaths(t),
+		settingspkg.Dependencies{
+			WorkspaceResolver: state.workspaceResolver,
+			ProfileResolver:   state.profiles,
+			MCPConsent:        settingsMCPConsent{state: state},
+			MCPAuth:           surface,
+			MCPRuntime:        surface,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	target := settingspkg.MCPAuthTargetRequest{Scope: settingspkg.ScopeWorkspace, WorkspaceID: req.WorkspaceID, Name: "sentry"}
+	target := settingspkg.MCPAuthTargetRequest{
+		Scope:       settingspkg.ScopeWorkspace,
+		WorkspaceID: req.WorkspaceID,
+		Name:        "sentry",
+	}
 	if _, err = service.GetMCPAuthStatus(t.Context(), target); err != nil {
 		t.Fatalf("passive status blocked: %v", err)
 	}
-	if status, err := surface.MCPServerRuntimeStatus(t.Context(), mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "sentry"}, req.Server); err != nil || status.Probe != settingspkg.MCPServerProbeSkipped {
+	if status, err := surface.MCPServerRuntimeStatus(
+		t.Context(),
+		mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "sentry"},
+		req.Server,
+	); err != nil ||
+		status.Probe != settingspkg.MCPServerProbeSkipped {
 		t.Fatalf("waiting probe=%+v %v", status, err)
 	}
 	digest, err := compozyconfig.MCPDefinitionDigest(req.Server)
@@ -1774,13 +1818,27 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ digest, code string }{{"", "mcp_server_waiting_approval"}, {"stale", "mcp_approval_definition_changed"}} {
-		_, err := service.BeginMCPAuth(t.Context(), settingspkg.MCPAuthBeginRequest{MCPAuthTargetRequest: target, DefinitionDigest: tc.digest, CallbackURL: "http://127.0.0.1:7777/callback"})
+		_, err := service.BeginMCPAuth(
+			t.Context(),
+			settingspkg.MCPAuthBeginRequest{
+				MCPAuthTargetRequest: target,
+				DefinitionDigest:     tc.digest,
+				CallbackURL:          "http://127.0.0.1:7777/callback",
+			},
+		)
 		approvalErr, ok := errors.AsType[*settingspkg.MCPApprovalError](err)
 		if !ok || approvalErr.Code != tc.code || requests.Load() != 0 {
 			t.Fatalf("begin digest=%q error=%v requests=%d", tc.digest, err, requests.Load())
 		}
 	}
-	_, _ = service.BeginMCPAuth(t.Context(), settingspkg.MCPAuthBeginRequest{MCPAuthTargetRequest: target, DefinitionDigest: digest, CallbackURL: "http://127.0.0.1:7777/callback"})
+	_, _ = service.BeginMCPAuth(
+		t.Context(),
+		settingspkg.MCPAuthBeginRequest{
+			MCPAuthTargetRequest: target,
+			DefinitionDigest:     digest,
+			CallbackURL:          "http://127.0.0.1:7777/callback",
+		},
+	)
 	if requests.Load() == 0 || unapproved.Load() {
 		t.Fatalf("requests=%d unapproved=%t", requests.Load(), unapproved.Load())
 	}
@@ -1788,7 +1846,11 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := requests.Load()
-	cfg, err := surface.mcpAuthServerConfig(t.Context(), mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "sentry"}, req.Server)
+	cfg, err := surface.mcpAuthServerConfig(
+		t.Context(),
+		mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "sentry"},
+		req.Server,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1814,7 +1876,15 @@ func TestMCPAuthNetworkUsesActiveConsentProfile(t *testing.T) {
 	if _, err := consent.ApproveMCP(t.Context(), req, digest, false); err != nil {
 		t.Fatal(err)
 	}
-	cfg := mcpauth.ServerConfig{Target: mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: req.Server.Name}, DefinitionDigest: digest, ConsentScope: mcpauth.ConsentScope{ProfileID: work.ID, WorkspaceID: req.WorkspaceID}}
+	cfg := mcpauth.ServerConfig{
+		Target: mcpauth.Target{
+			Scope:       mcpauth.ScopeWorkspace,
+			WorkspaceID: req.WorkspaceID,
+			ServerName:  req.Server.Name,
+		},
+		DefinitionDigest: digest,
+		ConsentScope:     mcpauth.ConsentScope{ProfileID: work.ID, WorkspaceID: req.WorkspaceID},
+	}
 	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err == nil {
 		t.Fatal("default profile consent leaked to work")
 	}

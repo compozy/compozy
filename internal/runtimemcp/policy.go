@@ -20,7 +20,8 @@ func matchesNames(patterns any, name string) bool {
 
 func (r *reader) applyMCPPolicy(runtime string, policy object, entries map[string]entry) {
 	for name, item := range entries {
-		if matchesNames(policy["excluded"], name) || (has(policy, "allowed") && !matchesNames(policy["allowed"], name)) {
+		if matchesNames(policy["excluded"], name) ||
+			(has(policy, "allowed") && !matchesNames(policy["allowed"], name)) {
 			item.server.EnabledInRuntime = false
 		}
 		entries[name] = item
@@ -52,7 +53,8 @@ func claudePolicyMatches(rules any, name string, d object) bool {
 
 func applyClaudePolicy(settings object, entries map[string]entry) {
 	for name, item := range entries {
-		allowed := !has(settings, "allowedMcpServers") || claudePolicyMatches(settings["allowedMcpServers"], name, item.definition)
+		allowed := !has(settings, "allowedMcpServers") ||
+			claudePolicyMatches(settings["allowedMcpServers"], name, item.definition)
 		if !allowed || claudePolicyMatches(settings["deniedMcpServers"], name, item.definition) {
 			item.server.EnabledInRuntime = false
 			item.server.Approval = "rejected"

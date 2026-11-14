@@ -8,7 +8,11 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func operatorConsentedSourceGrants(ctx context.Context, state *bootState, scope toolspkg.Scope) ([]toolspkg.SourceGrant, error) {
+func operatorConsentedSourceGrants(
+	ctx context.Context,
+	state *bootState,
+	scope toolspkg.Scope,
+) ([]toolspkg.SourceGrant, error) {
 	if state == nil {
 		return nil, nil
 	}
@@ -25,7 +29,10 @@ func operatorConsentedSourceGrants(ctx context.Context, state *bootState, scope 
 			continue
 		}
 		if decision.Admitted {
-			grants = append(grants, toolspkg.SourceGrant{Kind: toolspkg.SourceMCP, Owner: source.Owner, ResourceID: source.ResourceID})
+			grants = append(
+				grants,
+				toolspkg.SourceGrant{Kind: toolspkg.SourceMCP, Owner: source.Owner, ResourceID: source.ResourceID},
+			)
 		}
 	}
 	if state.toolCatalog != nil {
@@ -37,10 +44,14 @@ func operatorConsentedSourceGrants(ctx context.Context, state *bootState, scope 
 			if err != nil {
 				return nil, err
 			}
-			if profileID != "" && profileID != scope.ProfileID || workspaceID != "" && workspaceID != scope.WorkspaceID {
+			if profileID != "" && profileID != scope.ProfileID ||
+				workspaceID != "" && workspaceID != scope.WorkspaceID {
 				continue
 			}
-			grants = append(grants, toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: record.Owner.ID, ResourceID: record.ID})
+			grants = append(
+				grants,
+				toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: record.Owner.ID, ResourceID: record.ID},
+			)
 		}
 	}
 	return grants, nil

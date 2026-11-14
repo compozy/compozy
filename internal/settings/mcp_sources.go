@@ -71,7 +71,11 @@ func (s *service) loadGlobalMCPSources(
 	workspaceID string,
 	profileName string,
 ) error {
-	globalConfigServers, err := loadMCPServersFromConfigFile(s.homePaths.ConfigFile, s.homePaths, effectiveMCPSourceServers(sources))
+	globalConfigServers, err := loadMCPServersFromConfigFile(
+		s.homePaths.ConfigFile,
+		s.homePaths,
+		effectiveMCPSourceServers(sources),
+	)
 	if err != nil {
 		return fmt.Errorf("settings: load global config MCP servers: %w", err)
 	}
@@ -97,7 +101,11 @@ func (s *service) loadProfileMCPSources(
 	if err != nil {
 		return err
 	}
-	profileConfigServers, err := loadMCPServersFromConfigFile(profileConfigTarget.Path(), s.homePaths, effectiveMCPSourceServers(sources))
+	profileConfigServers, err := loadMCPServersFromConfigFile(
+		profileConfigTarget.Path(),
+		s.homePaths,
+		effectiveMCPSourceServers(sources),
+	)
 	if err != nil {
 		return fmt.Errorf("settings: load profile config MCP servers: %w", err)
 	}
@@ -124,7 +132,11 @@ func (s *service) loadWorkspaceMCPSources(
 	scope ScopeKind,
 	profileName string,
 ) error {
-	workspaceConfigServers, err := loadMCPServersFromConfigFile(workspaceConfigPath(workspaceRoot), s.homePaths, effectiveMCPSourceServers(sources))
+	workspaceConfigServers, err := loadMCPServersFromConfigFile(
+		workspaceConfigPath(workspaceRoot),
+		s.homePaths,
+		effectiveMCPSourceServers(sources),
+	)
 	if err != nil {
 		return fmt.Errorf("settings: load workspace config MCP servers: %w", err)
 	}
@@ -180,7 +192,11 @@ func appendMCPSourceServers(
 	}
 }
 
-func loadMCPServersFromConfigFile(path string, homePaths compozyconfig.HomePaths, inherited ...[]compozyconfig.MCPServer) ([]compozyconfig.MCPServer, error) {
+func loadMCPServersFromConfigFile(
+	path string,
+	homePaths compozyconfig.HomePaths,
+	inherited ...[]compozyconfig.MCPServer,
+) ([]compozyconfig.MCPServer, error) {
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 	if len(inherited) > 0 {
 		cfg.MCPServers = inherited[0]
@@ -188,7 +204,10 @@ func loadMCPServersFromConfigFile(path string, homePaths compozyconfig.HomePaths
 	if err := compozyconfig.ApplyConfigOverlayFile(path, &cfg); err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(cfg.MCPServers, func(server compozyconfig.MCPServer) bool { return server.DefinitionSource != path }), nil
+	return slices.DeleteFunc(
+		cfg.MCPServers,
+		func(server compozyconfig.MCPServer) bool { return server.DefinitionSource != path },
+	), nil
 }
 
 func (s *service) resolveMCPPutTarget(

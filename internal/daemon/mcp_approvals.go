@@ -160,13 +160,19 @@ func mcpApprovalSourceID(ctx context.Context, state *bootState, workspaceID, pat
 		return "", err
 	}
 	relative, err := filepath.Rel(workspace.RootDir, path)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) ||
+		filepath.IsAbs(relative) {
 		return "", errors.New("daemon: MCP declaring file is outside the workspace")
 	}
 	return filepath.ToSlash(relative), nil
 }
 
-func mcpSourceConsent(ctx context.Context, state *bootState, scope toolspkg.Scope, source toolspkg.SourceRef) (ConsentDecision, error) {
+func mcpSourceConsent(
+	ctx context.Context,
+	state *bootState,
+	scope toolspkg.Scope,
+	source toolspkg.SourceRef,
+) (ConsentDecision, error) {
 	if source.ResourceID == "" {
 		resolved, found, err := mcpSourceResource(ctx, state, source, "")
 		if err != nil {
@@ -195,7 +201,12 @@ func mcpSourceConsent(ctx context.Context, state *bootState, scope toolspkg.Scop
 }
 
 func requireMCPSourceConsent(ctx context.Context, state *bootState, source toolspkg.SourceRef) error {
-	decision, err := mcpSourceConsent(ctx, state, toolspkg.Scope{ProfileID: source.ProfileID, WorkspaceID: source.WorkspaceID}, source)
+	decision, err := mcpSourceConsent(
+		ctx,
+		state,
+		toolspkg.Scope{ProfileID: source.ProfileID, WorkspaceID: source.WorkspaceID},
+		source,
+	)
 	if err != nil {
 		return err
 	}
@@ -209,14 +220,27 @@ func requireMCPSourceConsent(ctx context.Context, state *bootState, source tools
 					workspace = resolved.Name
 				}
 			}
-			message = fmt.Sprintf("%s is waiting for approval in %s. Allow it in Settings → MCP servers.", name, workspace)
+			message = fmt.Sprintf(
+				"%s is waiting for approval in %s. Allow it in Settings → MCP servers.",
+				name,
+				workspace,
+			)
 		}
-		return toolspkg.NewToolError("source_disabled", "", message, toolspkg.ErrToolDenied, toolspkg.ReasonSourceDisabled)
+		return toolspkg.NewToolError(
+			"source_disabled",
+			"",
+			message,
+			toolspkg.ErrToolDenied,
+			toolspkg.ReasonSourceDisabled,
+		)
 	}
 	return nil
 }
 
-func (s settingsMCPConsent) RecordWorkspaceMCPWrite(ctx context.Context, w settingspkg.WorkspaceMCPWrite) (string, error) {
+func (s settingsMCPConsent) RecordWorkspaceMCPWrite(
+	ctx context.Context,
+	w settingspkg.WorkspaceMCPWrite,
+) (string, error) {
 	if w.Write == nil {
 		return "", errors.New("daemon: MCP write is required")
 	}
@@ -234,7 +258,17 @@ func (s settingsMCPConsent) RecordWorkspaceMCPWrite(ctx context.Context, w setti
 	server.DefinitionSource = w.SourceID
 	digest, err := config.MCPDefinitionDigest(server)
 	if err == nil {
-		_, err = s.ApproveMCP(ctx, settingspkg.MCPConsentRequest{ProfileName: w.ProfileName, WorkspaceID: w.WorkspaceID, Scope: "workspace", Server: server}, digest, false)
+		_, err = s.ApproveMCP(
+			ctx,
+			settingspkg.MCPConsentRequest{
+				ProfileName: w.ProfileName,
+				WorkspaceID: w.WorkspaceID,
+				Scope:       "workspace",
+				Server:      server,
+			},
+			digest,
+			false,
+		)
 	}
 	if err != nil {
 		return fmt.Sprintf("%s saved but approval failed; waiting for approval", server.Name), nil

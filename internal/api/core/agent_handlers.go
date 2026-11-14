@@ -97,7 +97,15 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	}
 
 	var warnings []string
-	agent, err := writeAgentDefinitionWithMCP(c.Request.Context(), h.Vault, path, draft, false, req.Agent.MCPServers, agentMCPApprovalContext(h.Settings, workspaceID, profileName, &warnings))
+	agent, err := writeAgentDefinitionWithMCP(
+		c.Request.Context(),
+		h.Vault,
+		path,
+		draft,
+		false,
+		req.Agent.MCPServers,
+		agentMCPApprovalContext(h.Settings, workspaceID, profileName, &warnings),
+	)
 	if err != nil {
 		h.respondError(c, statusForCreateAgentError(err), err)
 		return

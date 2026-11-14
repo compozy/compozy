@@ -90,7 +90,10 @@ func (a *instanceAdmission) ResolveCreate(
 		callerPolicy.MCPServersMode, callerPolicy.ToolsMode = store.PermissionList, store.PermissionList
 		policy = agentinstance.IntersectPermissions(callerPolicy, policy)
 		policy.MCPServersMode, policy.ToolsMode = store.PermissionList, store.PermissionList
-		policy.AncestorMCPCeiling = store.IntersectMCPCeiling(policy.AncestorMCPCeiling, caller.PermissionPolicy.MCPServers)
+		policy.AncestorMCPCeiling = store.IntersectMCPCeiling(
+			policy.AncestorMCPCeiling,
+			caller.PermissionPolicy.MCPServers,
+		)
 		if err := session.ValidatePermissionSubset(caller.PermissionPolicy, policy); err != nil {
 			return agentinstance.Instance{}, err
 		}

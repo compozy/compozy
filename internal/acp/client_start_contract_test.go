@@ -3363,19 +3363,22 @@ func TestClaudeRuntimeMCPIsolationMeta(t *testing.T) {
 	t.Parallel()
 	for _, managed := range []bool{false, true} {
 		for _, inputOnly := range []bool{false, true} {
-			t.Run(fmt.Sprintf("Should respect managed policy %t for input-only %t [UT-070 UT-075]", managed, inputOnly), func(t *testing.T) {
-				t.Parallel()
-				meta := claudeCodeSessionMeta(StartOpts{Command: "claude-agent-acp", IsolateProviderMCP: true, ManagedProviderMCP: managed, InputOnly: inputOnly}).(map[string]any)
-				options := meta["claudeCode"].(map[string]any)["options"].(map[string]any)
-				strict, present := options["strictMcpConfig"]
-				if present == managed || !managed && strict != true {
-					t.Fatalf("strict option = %v (present %v)", strict, present)
-				}
-				env := options["env"].(map[string]string)
-				if env["ENABLE_CLAUDEAI_MCP_SERVERS"] != "false" {
-					t.Fatalf("connector isolation = %v", env)
-				}
-			})
+			t.Run(
+				fmt.Sprintf("Should respect managed policy %t for input-only %t [UT-070 UT-075]", managed, inputOnly),
+				func(t *testing.T) {
+					t.Parallel()
+					meta := claudeCodeSessionMeta(StartOpts{Command: "claude-agent-acp", IsolateProviderMCP: true, ManagedProviderMCP: managed, InputOnly: inputOnly}).(map[string]any)
+					options := meta["claudeCode"].(map[string]any)["options"].(map[string]any)
+					strict, present := options["strictMcpConfig"]
+					if present == managed || !managed && strict != true {
+						t.Fatalf("strict option = %v (present %v)", strict, present)
+					}
+					env := options["env"].(map[string]string)
+					if env["ENABLE_CLAUDEAI_MCP_SERVERS"] != "false" {
+						t.Fatalf("connector isolation = %v", env)
+					}
+				},
+			)
 		}
 	}
 }

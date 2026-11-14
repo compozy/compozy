@@ -3216,9 +3216,22 @@ func TestDaemonRuntimeMCPInventory(t *testing.T) {
 			t.Fatal(err)
 		}
 		var requests atomic.Int64
-		listener := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); w.WriteHeader(http.StatusUnauthorized) }))
+		listener := httptest.NewServer(
+			http.HandlerFunc(
+				func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); w.WriteHeader(http.StatusUnauthorized) },
+			),
+		)
 		t.Cleanup(listener.Close)
-		claudeHome, codexHome, opencodeHome := filepath.Join(root, "claude"), filepath.Join(root, "codex"), filepath.Join(root, "opencode")
+		claudeHome, codexHome, opencodeHome := filepath.Join(
+			root,
+			"claude",
+		), filepath.Join(
+			root,
+			"codex",
+		), filepath.Join(
+			root,
+			"opencode",
+		)
 		for _, dir := range []string{claudeHome, codexHome, opencodeHome} {
 			if err := os.MkdirAll(dir, 0o700); err != nil {
 				t.Fatal(err)
@@ -3230,22 +3243,53 @@ func TestDaemonRuntimeMCPInventory(t *testing.T) {
 			t.Fatal(err)
 		}
 		claudePath := filepath.Join(claudeHome, ".claude.json")
-		fixture, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"local": map[string]any{"command": script, "env": map[string]string{"TOKEN": "fixture-secret"}}}})
+		fixture, err := json.Marshal(
+			map[string]any{
+				"mcpServers": map[string]any{
+					"local": map[string]any{"command": script, "env": map[string]string{"TOKEN": "fixture-secret"}},
+				},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(claudePath, fixture, 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(codexHome, "config.toml"), []byte("[mcp_servers.remote]\nurl = \""+listener.URL+"/mcp\"\n[mcp_servers.remote.http_headers]\nAuthorization = \"Bearer fixture-header\"\n"), 0o600); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(codexHome, "config.toml"),
+			[]byte(
+				"[mcp_servers.remote]\nurl = \""+listener.URL+"/mcp\"\n[mcp_servers.remote.http_headers]\nAuthorization = \"Bearer fixture-header\"\n",
+			),
+			0o600,
+		); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(opencodeHome, "opencode.json"), []byte(`{"mcp":{"servers":{"other":{"type":"local","command":["echo"]}}}}`), 0o600); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(opencodeHome, "opencode.json"),
+			[]byte(`{"mcp":{"servers":{"other":{"type":"local","command":["echo"]}}}}`),
+			0o600,
+		); err != nil {
 			t.Fatal(err)
 		}
-		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{Env: map[string]string{"CLAUDE_CONFIG_DIR": claudeHome, "CODEX_HOME": codexHome, "OPENCODE_CONFIG_DIR": opencodeHome}})
+		harness := e2etest.StartRuntimeHarness(
+			t,
+			&e2etest.RuntimeHarnessOptions{
+				Env: map[string]string{
+					"CLAUDE_CONFIG_DIR":   claudeHome,
+					"CODEX_HOME":          codexHome,
+					"OPENCODE_CONFIG_DIR": opencodeHome,
+				},
+			},
+		)
 		var inventory compozycontract.RuntimeMCPServersResponse
-		if err := harness.HTTPJSON(t.Context(), http.MethodGet, "/api/settings/runtime-mcp-servers", nil, &inventory); err != nil {
+		if err := harness.HTTPJSON(
+			t.Context(),
+			http.MethodGet,
+			"/api/settings/runtime-mcp-servers",
+			nil,
+			&inventory,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if len(inventory.Runtimes) != 3 {
@@ -3267,14 +3311,31 @@ func TestDaemonRuntimeMCPInventory(t *testing.T) {
 		if err := os.WriteFile(claudePath, []byte(`{"mcpServers":{"changed":{"command":"echo"}}}`), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if err := harness.HTTPJSON(t.Context(), http.MethodGet, "/api/settings/runtime-mcp-servers?runtime=claude", nil, &inventory); err != nil {
+		if err := harness.HTTPJSON(
+			t.Context(),
+			http.MethodGet,
+			"/api/settings/runtime-mcp-servers?runtime=claude",
+			nil,
+			&inventory,
+		); err != nil {
 			t.Fatal(err)
 		}
-		if len(inventory.Runtimes) != 1 || len(inventory.Runtimes[0].Servers) != 1 || inventory.Runtimes[0].Servers[0].Name != "changed" {
+		if len(inventory.Runtimes) != 1 || len(inventory.Runtimes[0].Servers) != 1 ||
+			inventory.Runtimes[0].Servers[0].Name != "changed" {
 			t.Fatalf("stale inventory=%+v", inventory)
 		}
 		var viaCLI compozycontract.MCPListResponse
-		if err := harness.CLI.RunJSON(t.Context(), &viaCLI, "mcp", "list", "--runtime", "claude", "--runtime-only", "-o", "json"); err != nil {
+		if err := harness.CLI.RunJSON(
+			t.Context(),
+			&viaCLI,
+			"mcp",
+			"list",
+			"--runtime",
+			"claude",
+			"--runtime-only",
+			"-o",
+			"json",
+		); err != nil {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(viaCLI.Runtimes, inventory.Runtimes) {
@@ -3503,9 +3564,14 @@ func TestDaemonWorkspaceMCPApprovalWriteFailure(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve the file warning and waiting state after restart", func(t *testing.T) {
 		t.Parallel()
-		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
-			cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultDisabled
-		}}})
+		harness := e2etest.StartRuntimeHarness(
+			t,
+			&e2etest.RuntimeHarnessOptions{
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultDisabled
+				}},
+			},
+		)
 		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 		defer cancel()
 		databaseURL := url.URL{Scheme: "file", Path: harness.HomePaths.DatabaseFile, RawQuery: "mode=rw"}
@@ -3518,7 +3584,10 @@ func TestDaemonWorkspaceMCPApprovalWriteFailure(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		_, err = db.ExecContext(ctx, `CREATE TRIGGER fail_mcp_approval BEFORE INSERT ON mcp_server_approvals BEGIN SELECT RAISE(FAIL, 'injected approval failure'); END;`)
+		_, err = db.ExecContext(
+			ctx,
+			`CREATE TRIGGER fail_mcp_approval BEFORE INSERT ON mcp_server_approvals BEGIN SELECT RAISE(FAIL, 'injected approval failure'); END;`,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3526,10 +3595,22 @@ func TestDaemonWorkspaceMCPApprovalWriteFailure(t *testing.T) {
 		var mutation struct {
 			Warnings []string `json:"warnings"`
 		}
-		if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/mcp-servers/sentry"+query, compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{Name: "sentry", Command: "must-never-start-without-consent"}}, &mutation); err != nil {
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPut,
+			"/api/settings/mcp-servers/sentry"+query,
+			compozycontract.PutSettingsMCPServerRequest{
+				Server: compozycontract.SettingsMCPServerPayload{
+					Name:    "sentry",
+					Command: "must-never-start-without-consent",
+				},
+			},
+			&mutation,
+		); err != nil {
 			t.Fatal(err)
 		}
-		if len(mutation.Warnings) == 0 || !strings.Contains(strings.Join(mutation.Warnings, " "), "waiting for approval") {
+		if len(mutation.Warnings) == 0 ||
+			!strings.Contains(strings.Join(mutation.Warnings, " "), "waiting for approval") {
 			t.Fatalf("missing approval warning: %+v", mutation)
 		}
 		path := filepath.Join(harness.WorkspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName)
@@ -3542,10 +3623,17 @@ func TestDaemonWorkspaceMCPApprovalWriteFailure(t *testing.T) {
 			var listing struct {
 				MCPServers []compozycontract.SettingsMCPServerItemPayload `json:"mcp_servers"`
 			}
-			if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/mcp-servers"+query, nil, &listing); err != nil {
+			if err := harness.HTTPJSON(
+				ctx,
+				http.MethodGet,
+				"/api/settings/mcp-servers"+query,
+				nil,
+				&listing,
+			); err != nil {
 				t.Fatal(err)
 			}
-			if len(listing.MCPServers) != 1 || listing.MCPServers[0].Approval.State != "waiting" || listing.MCPServers[0].CallableInSessions {
+			if len(listing.MCPServers) != 1 || listing.MCPServers[0].Approval.State != "waiting" ||
+				listing.MCPServers[0].CallableInSessions {
 				t.Fatalf("failure admitted definition: %+v", listing.MCPServers)
 			}
 		}
@@ -3569,20 +3657,36 @@ func TestDaemonRuntimeMCPCopy(t *testing.T) {
 		if err := os.WriteFile(sourcePath, []byte(source), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{Env: map[string]string{"CLAUDE_CONFIG_DIR": sourceHome}})
+		harness := e2etest.StartRuntimeHarness(
+			t,
+			&e2etest.RuntimeHarnessOptions{Env: map[string]string{"CLAUDE_CONFIG_DIR": sourceHome}},
+		)
 		copied := importRuntimeMCPHTTP(t, harness, "advos")
-		if copied.MCPServer.Name != "advos" || copied.MCPServer.Owner != "manual" || copied.MCPServer.Scope != "user" || copied.Partial {
+		if copied.MCPServer.Name != "advos" || copied.MCPServer.Owner != "manual" || copied.MCPServer.Scope != "user" ||
+			copied.Partial {
 			t.Fatal("copy response lost its definition identity")
 		}
 		var metadata compozycontract.VaultSecretResponse
-		if err := harness.HTTPJSON(t.Context(), http.MethodGet, "/api/vault/secrets/metadata?ref="+url.QueryEscape("vault:mcp/user/advos/env/TOKEN"), nil, &metadata); err != nil {
+		if err := harness.HTTPJSON(
+			t.Context(),
+			http.MethodGet,
+			"/api/vault/secrets/metadata?ref="+url.QueryEscape("vault:mcp/user/advos/env/TOKEN"),
+			nil,
+			&metadata,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if !metadata.Secret.Present || metadata.Secret.Kind != "mcp_env" {
 			t.Fatal("copy did not create a Vault entry")
 		}
 		var listed compozycontract.SettingsMCPServersResponse
-		if err := harness.HTTPJSON(t.Context(), http.MethodGet, "/api/settings/mcp-servers?scope=user", nil, &listed); err != nil {
+		if err := harness.HTTPJSON(
+			t.Context(),
+			http.MethodGet,
+			"/api/settings/mcp-servers?scope=user",
+			nil,
+			&listed,
+		); err != nil {
 			t.Fatal(err)
 		}
 		found := false
@@ -3610,7 +3714,10 @@ func TestDaemonRuntimeMCPCopy(t *testing.T) {
 		t.Parallel()
 		var authenticated atomic.Bool
 		mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "copy-header", Version: "1.0.0"}, nil)
-		transport := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server { return mcpServer }, &sdkmcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true})
+		transport := sdkmcp.NewStreamableHTTPHandler(
+			func(*http.Request) *sdkmcp.Server { return mcpServer },
+			&sdkmcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+		)
 		endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Authorization") != "Bearer integration-header-secret" {
 				w.WriteHeader(http.StatusUnauthorized)
@@ -3621,7 +3728,17 @@ func TestDaemonRuntimeMCPCopy(t *testing.T) {
 		}))
 		t.Cleanup(endpoint.Close)
 		sourceHome := t.TempDir()
-		definition, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"advos": map[string]any{"type": "http", "url": endpoint.URL, "headers": map[string]string{"Authorization": "Bearer integration-header-secret"}}}})
+		definition, err := json.Marshal(
+			map[string]any{
+				"mcpServers": map[string]any{
+					"advos": map[string]any{
+						"type":    "http",
+						"url":     endpoint.URL,
+						"headers": map[string]string{"Authorization": "Bearer integration-header-secret"},
+					},
+				},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3629,7 +3746,10 @@ func TestDaemonRuntimeMCPCopy(t *testing.T) {
 		if err := os.WriteFile(sourcePath, definition, 0o600); err != nil {
 			t.Fatal(err)
 		}
-		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{Env: map[string]string{"CLAUDE_CONFIG_DIR": sourceHome}})
+		harness := e2etest.StartRuntimeHarness(
+			t,
+			&e2etest.RuntimeHarnessOptions{Env: map[string]string{"CLAUDE_CONFIG_DIR": sourceHome}},
+		)
 		copied := importRuntimeMCPHTTP(t, harness, "advos")
 		if !copied.MCPServer.HeadersConfigured || copied.Partial {
 			t.Fatal("copied headers were not configured")
@@ -3638,13 +3758,20 @@ func TestDaemonRuntimeMCPCopy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(config), "secret_headers") || strings.Contains(string(config), "integration-header-secret") {
+		if !strings.Contains(string(config), "secret_headers") ||
+			strings.Contains(string(config), "integration-header-secret") {
 			t.Fatal("Automatic did not store a redacted config binding")
 		}
 		harness.Restart(t)
 		authenticated.Store(false)
 		var listed compozycontract.SettingsMCPServersResponse
-		if err := harness.UDSJSON(t.Context(), http.MethodGet, "/api/settings/mcp-servers?scope=user", nil, &listed); err != nil {
+		if err := harness.UDSJSON(
+			t.Context(),
+			http.MethodGet,
+			"/api/settings/mcp-servers?scope=user",
+			nil,
+			&listed,
+		); err != nil {
 			t.Fatal(err)
 		}
 		found := false
@@ -3663,9 +3790,18 @@ func TestDaemonRuntimeMCPCopy(t *testing.T) {
 	})
 }
 
-func importRuntimeMCPHTTP(t *testing.T, harness *e2etest.RuntimeHarness, name string) compozycontract.RuntimeMCPImportResponse {
+func importRuntimeMCPHTTP(
+	t *testing.T,
+	harness *e2etest.RuntimeHarness,
+	name string,
+) compozycontract.RuntimeMCPImportResponse {
 	t.Helper()
-	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, harness.HTTPURL("/api/settings/runtime-mcp-servers/claude/"+url.PathEscape(name)+"/import"), strings.NewReader(`{"scope":"user"}`))
+	request, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		harness.HTTPURL("/api/settings/runtime-mcp-servers/claude/"+url.PathEscape(name)+"/import"),
+		strings.NewReader(`{"scope":"user"}`),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4353,7 +4489,16 @@ func testDaemonRuntimeMCPSwitch(t *testing.T) {
 	}
 	home := e2etest.NewHomePaths(t)
 	fixture := mockFixturePath(t, "hosted_native_tools_fixture.json")
-	registration, err := acpmock.Register(home, acpmock.RegisterOptions{FixturePath: fixture, FixtureAgent: "hosted-native", AgentName: "runtime-switch", ProviderName: "claude", DriverPath: alias})
+	registration, err := acpmock.Register(
+		home,
+		acpmock.RegisterOptions{
+			FixturePath:  fixture,
+			FixtureAgent: "hosted-native",
+			AgentName:    "runtime-switch",
+			ProviderName: "claude",
+			DriverPath:   alias,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4386,10 +4531,26 @@ func testDaemonRuntimeMCPSwitch(t *testing.T) {
 	request := compozycontract.PutSettingsProviderRequest{Settings: compozycontract.SettingsProviderWritePayload{
 		RuntimeMCP: "off", Command: alias, DisplayName: "ACP Mock", Harness: "acp", AuthMode: "none",
 	}}
-	if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/providers/claude?scope=user", request, nil); err != nil {
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodPut,
+		"/api/settings/providers/claude?scope=user",
+		request,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
-	status, body := activationPromptHTTP(t, ctx, harness, active.ID, compozycontract.SendPromptRequest{Message: "noop", MessageID: "runtime-off-message", IdempotencyKey: "runtime-off-send"})
+	status, body := activationPromptHTTP(
+		t,
+		ctx,
+		harness,
+		active.ID,
+		compozycontract.SendPromptRequest{
+			Message:        "noop",
+			MessageID:      "runtime-off-message",
+			IdempotencyKey: "runtime-off-send",
+		},
+	)
 	if status != http.StatusOK {
 		t.Fatalf("prompt status %d: %s", status, body)
 	}

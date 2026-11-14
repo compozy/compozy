@@ -62,7 +62,12 @@ func representableCopyShape(transport string, d object) bool {
 		return false
 	}
 	headers := literalMap(d, "headers", "http_headers", "header")
-	return mcppolicy.ValidateHeaders(nil, headers, mcppolicy.SourceOperatorSecret, has(d, "auth") || has(d, "oauth")) == nil
+	return mcppolicy.ValidateHeaders(
+		nil,
+		headers,
+		mcppolicy.SourceOperatorSecret,
+		has(d, "auth") || has(d, "oauth"),
+	) == nil
 }
 
 func stringArray(value any) bool {

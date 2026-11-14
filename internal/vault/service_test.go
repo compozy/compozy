@@ -292,7 +292,15 @@ func TestServiceStoresEncryptedSecretsAndResolvesRefs(t *testing.T) {
 					t.Fatalf("blank MCP literal did not survive reopen: %v", err)
 				}
 				for _, target := range []struct{ ref, kind string }{{"vault:providers/custom/key", kind}, {"vault:mcp/user/copied/oauth/token", "mcp_oauth_token"}} {
-					if _, err := service.PutSecret(t.Context(), target.ref, target.kind, value); !errors.Is(err, ErrMissingSecret) {
+					if _, err := service.PutSecret(
+						t.Context(),
+						target.ref,
+						target.kind,
+						value,
+					); !errors.Is(
+						err,
+						ErrMissingSecret,
+					) {
 						t.Fatalf("nonliteral secret accepted blank: %v", err)
 					}
 				}

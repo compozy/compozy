@@ -42,7 +42,10 @@ func (s *service) GetMCPAuthStatus(
 	ctx context.Context,
 	req MCPAuthTargetRequest,
 ) (mcpauth.Status, error) {
-	ctx = mcpauth.WithConsentScope(ctx, mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID})
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
+	)
 	if s.mcpAuth == nil {
 		return mcpauth.Status{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
 	}
@@ -67,12 +70,16 @@ func (s *service) BeginMCPAuth(
 	ctx context.Context,
 	req MCPAuthBeginRequest,
 ) (mcpauth.BeginResult, error) {
-	ctx = mcpauth.WithConsentScope(ctx, mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID})
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
+	)
 	if s.mcpAuth == nil {
 		return mcpauth.BeginResult{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
 	}
 	target, server, err := s.resolveMCPAuthTarget(ctx, req.MCPAuthTargetRequest)
-	if req.DefinitionDigest != "" && !strings.HasPrefix(target.Owner, "extension:") && (err != nil || target.Scope == mcpauth.ScopeWorkspace || target.Scope == mcpauth.ScopeWorkspaceProfile) {
+	if req.DefinitionDigest != "" && !strings.HasPrefix(target.Owner, "extension:") &&
+		(err != nil || target.Scope == mcpauth.ScopeWorkspace || target.Scope == mcpauth.ScopeWorkspaceProfile) {
 		definitions, resolveErr := s.mcpApprovalDefinitions(ctx, req.MCPAuthTargetRequest)
 		if resolveErr != nil {
 			return mcpauth.BeginResult{}, resolveErr
@@ -82,7 +89,13 @@ func (s *service) BeginMCPAuth(
 			return mcpauth.BeginResult{}, selectErr
 		}
 		if selected.inherited {
-			return mcpauth.BeginResult{}, validationError(fmt.Errorf("settings: authorize inherited MCP server %q at %s", req.Name, describeMCPAuthTarget(selected.target)))
+			return mcpauth.BeginResult{}, validationError(
+				fmt.Errorf(
+					"settings: authorize inherited MCP server %q at %s",
+					req.Name,
+					describeMCPAuthTarget(selected.target),
+				),
+			)
 		}
 		target, server, err = selected.target, selected.server, nil
 	}
@@ -135,7 +148,10 @@ func (s *service) ExchangeMCPAuth(
 	ctx context.Context,
 	req MCPAuthExchangeRequest,
 ) (mcpauth.Status, error) {
-	ctx = mcpauth.WithConsentScope(ctx, mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID})
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
+	)
 	if s.mcpAuth == nil {
 		return mcpauth.Status{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
 	}
@@ -215,7 +231,10 @@ func (s *service) LogoutMCPAuth(
 	ctx context.Context,
 	req MCPAuthTargetRequest,
 ) (mcpauth.Status, error) {
-	ctx = mcpauth.WithConsentScope(ctx, mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID})
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
+	)
 	if s.mcpAuth == nil {
 		return mcpauth.Status{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
 	}

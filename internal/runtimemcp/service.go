@@ -15,7 +15,8 @@ type Reader struct{}
 func (Reader) List(ctx context.Context, req Request) (Inventory, []string, error) {
 	req.Context = ResolveContext(req.Context)
 	descriptors := Descriptors()
-	if req.Runtime != "" && !slices.ContainsFunc(descriptors, func(d Descriptor) bool { return d.Runtime == req.Runtime }) {
+	if req.Runtime != "" &&
+		!slices.ContainsFunc(descriptors, func(d Descriptor) bool { return d.Runtime == req.Runtime }) {
 		return Inventory{}, nil, ErrInvalidRuntime
 	}
 	result := Inventory{Runtimes: []Snapshot{}, GeneratedAt: time.Now().UTC()}
@@ -45,7 +46,18 @@ func (Reader) List(ctx context.Context, req Request) (Inventory, []string, error
 
 func Environment(environ []string) map[string]string {
 	result := map[string]string{}
-	allowed := []string{"PATH", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "OPENCODE_CONFIG_DIR", "KIMI_CODE_HOME", "COPILOT_HOME", "PI_CODING_AGENT_DIR", "GEMINI_CLI_SYSTEM_SETTINGS_PATH", "CURSOR_DATA_DIR"}
+	allowed := []string{
+		"PATH",
+		"CLAUDE_CONFIG_DIR",
+		"CODEX_HOME",
+		"XDG_CONFIG_HOME",
+		"OPENCODE_CONFIG_DIR",
+		"KIMI_CODE_HOME",
+		"COPILOT_HOME",
+		"PI_CODING_AGENT_DIR",
+		"GEMINI_CLI_SYSTEM_SETTINGS_PATH",
+		"CURSOR_DATA_DIR",
+	}
 	for _, value := range environ {
 		key, text, ok := strings.Cut(value, "=")
 		if ok && slices.Contains(allowed, key) {

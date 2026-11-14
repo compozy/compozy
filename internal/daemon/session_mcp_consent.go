@@ -17,11 +17,18 @@ func sessionMCPConsentFilter(state *bootState) session.MCPConsentFilter {
 		}
 		visible := toolspkg.MCPSourcesForScope(sources, toolspkg.Scope{ProfileID: profileID, WorkspaceID: workspaceID})
 		for _, server := range servers {
-			source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, ProfileID: profileID, WorkspaceID: workspaceID, Owner: server.EffectiveRuntimeName(), RawServerName: server.Name}
+			source := toolspkg.SourceRef{
+				Kind:          toolspkg.SourceMCP,
+				ProfileID:     profileID,
+				WorkspaceID:   workspaceID,
+				Owner:         server.EffectiveRuntimeName(),
+				RawServerName: server.Name,
+			}
 			if state.mcpServerCatalog != nil && server.DefinitionSource != "" {
 				for _, candidate := range visible {
 					for _, record := range state.mcpServerCatalog.Snapshot() {
-						if candidate.ResourceID == record.ID && record.Spec.Name == server.Name && record.Spec.DefinitionSource == server.DefinitionSource {
+						if candidate.ResourceID == record.ID && record.Spec.Name == server.Name &&
+							record.Spec.DefinitionSource == server.DefinitionSource {
 							source.ResourceID = record.ID
 							break
 						}
@@ -31,7 +38,12 @@ func sessionMCPConsentFilter(state *bootState) session.MCPConsentFilter {
 					}
 				}
 			}
-			decision, err := mcpSourceConsent(ctx, state, toolspkg.Scope{ProfileID: profileID, WorkspaceID: workspaceID}, source)
+			decision, err := mcpSourceConsent(
+				ctx,
+				state,
+				toolspkg.Scope{ProfileID: profileID, WorkspaceID: workspaceID},
+				source,
+			)
 			if err != nil {
 				return nil, err
 			}

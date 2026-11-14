@@ -1064,10 +1064,19 @@ func TestMCPAllowCommand(t *testing.T) {
 					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-project", Name: "project"}}, nil
 				},
 				listSettingsMCPServersFn: func(_ context.Context, scope contract.SettingsLayeredScopeKind, workspace, profile string) (contract.SettingsMCPServersResponse, error) {
-					if scope != contract.SettingsLayeredScopeProfile || workspace != "ws-project" || profile != "default" {
+					if scope != contract.SettingsLayeredScopeProfile || workspace != "ws-project" ||
+						profile != "default" {
 						t.Fatalf("listing identity=%s %s %s", scope, workspace, profile)
 					}
-					return contract.SettingsMCPServersResponse{MCPServers: []contract.SettingsMCPServerItemPayload{{Name: "sentry", Command: "fixture", Approval: contract.SettingsMCPApprovalStatePayload{DefinitionDigest: "observed"}}}}, nil
+					return contract.SettingsMCPServersResponse{
+						MCPServers: []contract.SettingsMCPServerItemPayload{
+							{
+								Name:     "sentry",
+								Command:  "fixture",
+								Approval: contract.SettingsMCPApprovalStatePayload{DefinitionDigest: "observed"},
+							},
+						},
+					}, nil
 				},
 			})}
 			args := []string{"mcp", "allow", "sentry", "--workspace", "project", "-o", "json"}
@@ -1079,10 +1088,23 @@ func TestMCPAllowCommand(t *testing.T) {
 			if want == "" {
 				want = "observed"
 			}
-			if err != nil || client.body.DefinitionDigest != want || client.body.WorkspaceID != "ws-project" || client.body.Profile != "default" || !strings.Contains(stdout, `"allowed"`) {
+			if err != nil || client.body.DefinitionDigest != want || client.body.WorkspaceID != "ws-project" ||
+				client.body.Profile != "default" ||
+				!strings.Contains(stdout, `"allowed"`) {
 				t.Fatalf("allow=%+v %s %v", client.body, stdout, err)
 			}
-			_, _, err = executeRootCommand(t, newTestDeps(t, client), "mcp", "allow", "sentry", "--workspace", "project", "--revoke", "-o", "json")
+			_, _, err = executeRootCommand(
+				t,
+				newTestDeps(t, client),
+				"mcp",
+				"allow",
+				"sentry",
+				"--workspace",
+				"project",
+				"--revoke",
+				"-o",
+				"json",
+			)
 			if err != nil || !client.revoke {
 				t.Fatalf("revoke=%t %v", client.revoke, err)
 			}
@@ -1096,7 +1118,19 @@ type mcpApprovalCommandClient struct {
 	revoke bool
 }
 
-func (c *mcpApprovalCommandClient) SetSettingsMCPApproval(_ context.Context, name string, body contract.SettingsMCPApprovalRequest, revoke bool) (contract.SettingsMCPApprovalResponse, error) {
+func (c *mcpApprovalCommandClient) SetSettingsMCPApproval(
+	_ context.Context,
+	name string,
+	body contract.SettingsMCPApprovalRequest,
+	revoke bool,
+) (contract.SettingsMCPApprovalResponse, error) {
 	c.body, c.revoke = body, revoke
-	return contract.SettingsMCPApprovalResponse{Approval: contract.SettingsMCPApprovalPayload{ServerName: name, WorkspaceID: body.WorkspaceID, Profile: body.Profile, State: "allowed"}}, nil
+	return contract.SettingsMCPApprovalResponse{
+		Approval: contract.SettingsMCPApprovalPayload{
+			ServerName:  name,
+			WorkspaceID: body.WorkspaceID,
+			Profile:     body.Profile,
+			State:       "allowed",
+		},
+	}, nil
 }

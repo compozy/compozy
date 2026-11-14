@@ -174,7 +174,10 @@ func NewMCPCallExecutor(
 		executor.httpClient = &cloned
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
-		options := []mcpauth.ServiceOption{mcpauth.WithMutationGeneration(executor.authGeneration), mcpauth.WithNetworkAuthorization(executor.authNetwork)}
+		options := []mcpauth.ServiceOption{
+			mcpauth.WithMutationGeneration(executor.authGeneration),
+			mcpauth.WithNetworkAuthorization(executor.authNetwork),
+		}
 		authClient := executor.secureClient
 		if authClient == nil {
 			authClient = securehttp.NewClient(

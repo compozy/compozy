@@ -9,7 +9,10 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func (s settingsMCPConsent) PublishedMCPDefinitions(ctx context.Context, req settingspkg.MCPAuthTargetRequest) ([]settingspkg.MCPPublishedDefinition, error) {
+func (s settingsMCPConsent) PublishedMCPDefinitions(
+	ctx context.Context,
+	req settingspkg.MCPAuthTargetRequest,
+) ([]settingspkg.MCPPublishedDefinition, error) {
 	if s.state.mcpServerCatalog == nil || req.WorkspaceID == "" {
 		return nil, nil
 	}
@@ -37,11 +40,25 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(ctx context.Context, req set
 		if record.Source == toolMCPSyncActor().Source {
 			continue
 		}
-		resolved, err := resolveDaemonMCPResource(ctx, s.state, toolspkg.SourceRef{Kind: toolspkg.SourceMCP, ResourceID: record.ID, ProfileID: profileID, WorkspaceID: workspaceID}, strings.TrimSpace(record.Spec.Name), "manual")
+		resolved, err := resolveDaemonMCPResource(
+			ctx,
+			s.state,
+			toolspkg.SourceRef{
+				Kind:        toolspkg.SourceMCP,
+				ResourceID:  record.ID,
+				ProfileID:   profileID,
+				WorkspaceID: workspaceID,
+			},
+			strings.TrimSpace(record.Spec.Name),
+			"manual",
+		)
 		if err != nil {
 			return nil, err
 		}
-		definitions = append(definitions, settingspkg.MCPPublishedDefinition{Target: resolved.Target, Server: resolved.Server})
+		definitions = append(
+			definitions,
+			settingspkg.MCPPublishedDefinition{Target: resolved.Target, Server: resolved.Server},
+		)
 	}
 	return definitions, nil
 }

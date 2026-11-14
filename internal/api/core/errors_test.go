@@ -518,7 +518,11 @@ func TestMCPReloadAdmissionErrorContract(t *testing.T) {
 	t.Parallel()
 	t.Run("Should expose an authoritative retryable conflict without masking the provider cause", func(t *testing.T) {
 		t.Parallel()
-		failure := &session.MCPReloadError{Provider: "codex", ClientMessageID: "message-reload", Cause: errors.New("provider launch failed")}
+		failure := &session.MCPReloadError{
+			Provider:        "codex",
+			ClientMessageID: "message-reload",
+			Cause:           errors.New("provider launch failed"),
+		}
 		wrapped := fmt.Errorf("prepare runtime: %w", failure)
 		if StatusForSessionError(wrapped) != http.StatusConflict {
 			t.Fatal("reload failure mapped to ambiguous server error")
@@ -529,7 +533,9 @@ func TestMCPReloadAdmissionErrorContract(t *testing.T) {
 			t.Fatal("wrapped preparation cause overrode authoritative reload refusal")
 		}
 		payload := ErrorPayloadForError(wrapped)
-		if payload.Code != session.MCPReloadFailedCode || !payload.Retryable || payload.ClientMessageID != failure.ClientMessageID || payload.ProviderError != failure.Cause.Error() {
+		if payload.Code != session.MCPReloadFailedCode || !payload.Retryable ||
+			payload.ClientMessageID != failure.ClientMessageID ||
+			payload.ProviderError != failure.Cause.Error() {
 			t.Fatalf("HTTP payload = %+v", payload)
 		}
 		native := NativeToolError("compozy__session_prompt", wrapped)
@@ -537,7 +543,9 @@ func TestMCPReloadAdmissionErrorContract(t *testing.T) {
 			t.Fatal("native reload failure lost HTTP status")
 		}
 		result := ToolErrorResponseForError(native, http.StatusConflict, true)
-		if string(result.Error.Code) != payload.Code || !result.Error.Retryable || result.Error.ClientMessageID != payload.ClientMessageID || result.Error.ProviderError != payload.ProviderError {
+		if string(result.Error.Code) != payload.Code || !result.Error.Retryable ||
+			result.Error.ClientMessageID != payload.ClientMessageID ||
+			result.Error.ProviderError != payload.ProviderError {
 			t.Fatalf("native payload = %+v", result)
 		}
 	})

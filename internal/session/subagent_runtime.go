@@ -435,6 +435,9 @@ func (r managerSubagentRuntime) ResumeChild(ctx context.Context, row store.Sessi
 	return err
 }
 
-func (r managerSubagentRuntime) EffectiveMCPAuthority(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
+func (r managerSubagentRuntime) EffectiveMCPAuthority(
+	ctx context.Context,
+	id string,
+) (store.SessionPermissionPolicy, error) {
 	return r.m.EffectiveMCPAuthority(ctx, id)
 }

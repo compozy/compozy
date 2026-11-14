@@ -59,7 +59,10 @@ func (r *nativeToolPolicyResolver) EffectiveMCPAuthority(
 	return store.NormalizeSessionPermissionPolicy(policy), nil
 }
 
-func (r *nativeToolPolicyResolver) admittedMCPNames(inputs toolspkg.PolicyInputs, servers []compozyconfig.MCPServer) []string {
+func (r *nativeToolPolicyResolver) admittedMCPNames(
+	inputs toolspkg.PolicyInputs,
+	servers []compozyconfig.MCPServer,
+) []string {
 	names := make([]string, 0)
 	if inputs.ExternalDefault == toolspkg.ExternalDefaultEnabled {
 		for _, server := range servers {
@@ -112,7 +115,8 @@ func (r *nativeToolPolicyResolver) effectiveScopeTools(
 		if source.Kind == toolspkg.SourceExtension && sourcePolicyAdmitted(view.Decision.SourcePolicyResult) {
 			ids = append(ids, view.Descriptor.ID.String())
 		}
-		if source.Kind == toolspkg.SourceMCP && slices.Contains(policy.MCPServers, mcpAuthoritySourceName(source, names)) {
+		if source.Kind == toolspkg.SourceMCP &&
+			slices.Contains(policy.MCPServers, mcpAuthoritySourceName(source, names)) {
 			ids = append(ids, view.Descriptor.ID.String())
 		}
 	}

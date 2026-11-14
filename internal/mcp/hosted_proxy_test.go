@@ -1888,8 +1888,16 @@ func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 		catalog := new(hostedProxyCatalog)
 		server.AddReceivingMiddleware(catalog.middleware(client, "bind-revision"))
 		view := hostedToolView("mcp__echo__ping")
-		view.Descriptor.Source = tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", RawToolName: "ping"}
-		first := HostedProjectionResponse{Tools: []tools.ToolView{view}, Catalog: tools.NewAdvertisedCatalog([]tools.ToolView{view})}
+		view.Descriptor.Source = tools.SourceRef{
+			Kind:          tools.SourceMCP,
+			Owner:         "echo",
+			RawServerName: "echo",
+			RawToolName:   "ping",
+		}
+		first := HostedProjectionResponse{
+			Tools:   []tools.ToolView{view},
+			Catalog: tools.NewAdvertisedCatalog([]tools.ToolView{view}),
+		}
 		catalog.apply(server, client, "bind-revision", first)
 		session := connectHostedProxyClient(t, server)
 		if _, err := session.ListTools(t.Context(), nil); err != nil {
@@ -1903,7 +1911,8 @@ func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 		removed := tools.NewAdvertisedCatalog(nil)
 		catalog.apply(server, client, "bind-revision", HostedProjectionResponse{Catalog: removed})
 		client.mu.Lock()
-		if len(client.served) != 2 || client.served[0].Digest != first.Catalog.Digest || client.served[1].Digest != first.Catalog.Digest {
+		if len(client.served) != 2 || client.served[0].Digest != first.Catalog.Digest ||
+			client.served[1].Digest != first.Catalog.Digest {
 			t.Fatal("reported an unserved or health-only revision")
 		}
 		client.mu.Unlock()
@@ -1912,7 +1921,8 @@ func TestHostedProxyServedCatalogReceipt(t *testing.T) {
 		}
 		client.mu.Lock()
 		defer client.mu.Unlock()
-		if len(client.served) != 3 || client.served[2].Digest != removed.Digest || client.served[2].BindID != "bind-revision" {
+		if len(client.served) != 3 || client.served[2].Digest != removed.Digest ||
+			client.served[2].BindID != "bind-revision" {
 			t.Fatalf("served receipts = %+v", client.served)
 		}
 	})

@@ -351,8 +351,14 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		descriptor.ID = "mcp__docs__lookup"
 		descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: "lookup"}
 		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
-			SystemPermissionMode: PermissionModeApproveAll, ExternalDefault: ExternalDefaultEnabled,
-			Session: SessionToolPolicy{Enforced: true, Tools: []ToolID{ToolIDSkillView}, MCPServers: []string{"docs"}, MCPByServer: true},
+			SystemPermissionMode: PermissionModeApproveAll,
+			ExternalDefault:      ExternalDefaultEnabled,
+			Session: SessionToolPolicy{
+				Enforced:    true,
+				Tools:       []ToolID{ToolIDSkillView},
+				MCPServers:  []string{"docs"},
+				MCPByServer: true,
+			},
 		}, ToolsetCatalog{}, []ToolID{descriptor.ID, ToolIDSkillView})
 		if err != nil {
 			t.Fatal(err)
@@ -814,7 +820,11 @@ func TestMCPConsentPolicy(t *testing.T) {
 	inputs := DefaultPolicyInputs()
 	inputs.SystemPermissionMode = PermissionModeApproveAll
 	inputs.Session = SessionToolPolicy{Enforced: true, Tools: []ToolID{"compozy__mcp_list"}}
-	evaluator, err := NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, []ToolID{descriptor.ID, "compozy__mcp_list"})
+	evaluator, err := NewEffectivePolicyEvaluator(
+		inputs,
+		ToolsetCatalog{},
+		[]ToolID{descriptor.ID, "compozy__mcp_list"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

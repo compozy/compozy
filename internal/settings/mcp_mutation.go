@@ -79,12 +79,26 @@ func (s *service) putMCPServer(
 	var approvalWarning string
 	commit := func() error {
 		var commitErr error
-		mutationOutcome, commitErr = s.commitMCPServerDefinition(ctx, scope, workspaceID, profileName, root, name, target, sources, normalized)
+		mutationOutcome, commitErr = s.commitMCPServerDefinition(
+			ctx,
+			scope,
+			workspaceID,
+			profileName,
+			root,
+			name,
+			target,
+			sources,
+			normalized,
+		)
 		return commitErr
 	}
 	if workspaceID != "" && s.workspaceMCPApprovals != nil {
 		approvalWarning, err = s.workspaceMCPApprovals.RecordWorkspaceMCPWrite(ctx, WorkspaceMCPWrite{
-			ProfileName: profileName, WorkspaceID: workspaceID, SourceID: target.Path(), Server: normalized, Write: commit,
+			ProfileName: profileName,
+			WorkspaceID: workspaceID,
+			SourceID:    target.Path(),
+			Server:      normalized,
+			Write:       commit,
 			ReadCommitted: func() (compozyconfig.MCPServer, error) {
 				_, current, readErr := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
 				if readErr != nil {
@@ -116,7 +130,18 @@ func (s *service) putMCPServer(
 	}
 	var cleanupWarnings []string
 	if importWarning == "" {
-		cleanupWarnings, err = s.executeMCPSecretCleanupPlan(ctx, scope, workspaceID, profileName, root, name, target, secretCleanup, secretMutations, importing)
+		cleanupWarnings, err = s.executeMCPSecretCleanupPlan(
+			ctx,
+			scope,
+			workspaceID,
+			profileName,
+			root,
+			name,
+			target,
+			secretCleanup,
+			secretMutations,
+			importing,
+		)
 		if err != nil {
 			return MutationResult{}, err
 		}
