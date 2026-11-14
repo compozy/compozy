@@ -1,5 +1,6 @@
 import { SessionSubagentDrawer } from "./session-subagent-drawer";
 import {
+  SessionComposerMCP,
   SessionComposerMonitors,
   SessionComposerProcesses,
   SessionComposerSubagents,
@@ -333,6 +334,7 @@ export function SessionWindowContent({
                             />
                           )
                         }
+                        mcpControl={<SessionComposerMCP session={session} />}
                         subagentControl={
                           <SessionComposerSubagents session={session} onOpen={openSubagent} />
                         }

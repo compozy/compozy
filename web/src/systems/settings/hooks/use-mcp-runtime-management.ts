@@ -8,6 +8,7 @@ import { SettingsApiError } from "../adapters/settings-api";
 import { mcpDefinitionKey } from "../lib/mcp-management-target";
 import {
   MCP_FILTER_ALL,
+  mcpApprovalReason,
   mcpApprovalTarget,
   type MCPApprovalNote,
   type MCPCopyFailure,
@@ -86,7 +87,7 @@ export function useMCPRuntimeManagement({ enabled, filter }: UseMCPRuntimeManage
               reason:
                 error instanceof SettingsApiError && error.code === DEFINITION_CHANGED
                   ? "changed"
-                  : (current[key]?.reason ?? "added"),
+                  : (current[key]?.reason ?? mcpApprovalReason(entry)),
               error: error.message,
             },
           })),

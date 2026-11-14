@@ -126,6 +126,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
             scheduleSurfaceRefresh(handles, trigger, context.generation);
           }
           if (event.frame.containsClarification) handles.runtime.invalidateClarifications();
+          if (event.frame.containsMCPChange) handles.runtime.invalidateMCP();
         });
         if (context.pendingFrames.length >= MAX_PENDING_FRAMES) {
           enqueue.effect(({ trigger }) => {

@@ -126,6 +126,8 @@ export const sessionKeys = {
   /** The session's daemon-owned monitors (composer monitor popover). */
   monitors: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "monitors"] as const,
+  /** What MCP servers this session can use (composer MCP popover). */
+  mcp: (workspace: string, id: string) => [...sessionKeys.detail(workspace, id), "mcp"] as const,
   /** Processes the session started that are still running (composer processes popover). */
   processes: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "processes"] as const,

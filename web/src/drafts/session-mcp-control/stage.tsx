@@ -1,17 +1,23 @@
 /**
- * A Claude session in the Sessions window with the real composer, the MCP control in its action
- * row, and the transcript reload line (`_uiux.md` S3, S4) as the shipped `Marker` row renders it.
+ * A Claude session in the Sessions window with the real composer, the production MCP control in
+ * its action row, and the production transcript reload line (`_uiux.md` S3, S4), from fixtures.
  */
-import { AlertCircle, Plug } from "@compozy/ui/icons";
-
-import { Marker } from "@compozy/ui";
+import { MCPComposerControl } from "@/systems/session/components/mcp-composer-control";
+import { SessionMCPReloadMarker } from "@/systems/session/components/session-mcp-reload-marker";
+import type { SessionMCPResponse } from "@/systems/session/adapters/session-mcp-api";
+import type { SessionMCPReloadView } from "@/systems/session/lib/session-mcp-reload-event";
+import { sessionMCPRuntimeDisplayName } from "@/systems/session/lib/session-mcp-view";
+import { sessionMCPSummaryFixture } from "@/systems/session/mocks/session-mcp-fixtures";
 
 import { SessionsWindow } from "../always-on-agents-shared/session-frame";
 import { GLOBAL_ROW } from "../always-on-agents-shared/sessions-fixtures";
-import { AgentTurn, DraftComposer, TranscriptColumn, UserTurn } from "../always-on-agents-shared/transcript";
+import {
+  AgentTurn,
+  DraftComposer,
+  TranscriptColumn,
+  UserTurn,
+} from "../always-on-agents-shared/transcript";
 import { INSTANCES } from "../always-on-agents-shared/fixtures";
-import type { SessionMCPModel } from "./fixtures";
-import { MCPComposerControl } from "./mcp-control";
 
 const RAIL_GROUP = {
   name: "compozy",
@@ -21,35 +27,13 @@ const RAIL_GROUP = {
   instances: [INSTANCES.orchestratorCompozy, INSTANCES.triageCompozy],
 };
 
-export type ReloadLine = "none" | "applied" | "replayed" | "failed";
-
-export function ReloadMarker({
-  line,
-  runtime,
-}: {
-  line: Exclude<ReloadLine, "none">;
-  runtime: string;
-}) {
-  if (line === "failed") {
-    return (
-      <Marker icon={<AlertCircle />} role="alert" tone="warning">
-        <b>Couldn't start {runtime} with the new MCP servers</b> · your message wasn't sent
-      </Marker>
-    );
-  }
-  return (
-    <Marker icon={<Plug />} role="status" tone="neutral">
-      <b>MCP servers updated</b> ·{" "}
-      {line === "replayed" ? "conversation continued from history" : "sentry added"}
-    </Marker>
-  );
-}
-
 export interface SessionStageProps {
-  model: SessionMCPModel;
+  data: SessionMCPResponse;
   open?: boolean;
   loading?: boolean;
-  line?: ReloadLine;
+  /** The last read failed: rows stay, marked out of date. */
+  stale?: boolean;
+  reload?: SessionMCPReloadView;
 }
 
 interface ComposerRuntime {
@@ -58,15 +42,26 @@ interface ComposerRuntime {
   label: string;
 }
 
-const CLAUDE_COMPOSER: ComposerRuntime = { provider: "claude", model: "claude-opus-5-5", label: "Claude" };
+const CLAUDE_COMPOSER: ComposerRuntime = {
+  provider: "claude",
+  model: "claude-opus-5-5",
+  label: "Claude",
+};
 
 const COMPOSER_RUNTIME: Partial<Record<string, ComposerRuntime>> = {
   claude: CLAUDE_COMPOSER,
   codex: { provider: "codex", model: "gpt-6-astra", label: "Codex" },
 };
 
-export function SessionMCPStage({ model, open = true, loading = false, line = "none" }: SessionStageProps) {
-  const composerRuntime = COMPOSER_RUNTIME[model.runtime.id] ?? CLAUDE_COMPOSER;
+export function SessionMCPStage({
+  data,
+  open = true,
+  loading = false,
+  stale = false,
+  reload,
+}: SessionStageProps) {
+  const composerRuntime = COMPOSER_RUNTIME[data.runtime] ?? CLAUDE_COMPOSER;
+  const continued = reload !== undefined && reload.outcome !== "failed";
   return (
     <SessionsWindow
       rail={{ groups: [{ ...RAIL_GROUP, currentRow: "s1" }], top: GLOBAL_ROW }}
@@ -80,8 +75,13 @@ export function SessionMCPStage({ model, open = true, loading = false, line = "n
               "I don't have a Sentry tool in this session yet. If you add the Sentry MCP server, I can read the issues directly."
             }
           </AgentTurn>
-          {line !== "none" ? <ReloadMarker line={line} runtime={model.runtime.displayName} /> : null}
-          {line === "applied" || line === "replayed" ? (
+          {reload ? (
+            <SessionMCPReloadMarker
+              reload={reload}
+              runtime={sessionMCPRuntimeDisplayName(data.runtime)}
+            />
+          ) : null}
+          {continued ? (
             <AgentTurn>
               {
                 "Sentry is connected now. The checkout errors come from one release: `checkout@4.12.0` throws on an empty cart."
@@ -90,8 +90,22 @@ export function SessionMCPStage({ model, open = true, loading = false, line = "n
           ) : null}
         </TranscriptColumn>
         <DraftComposer
-          children={line === "failed" ? "Now check the checkout errors in Sentry, please." : undefined}
-          environmentControl={<MCPComposerControl loading={loading} model={model} open={open} />}
+          children={
+            reload?.outcome === "failed"
+              ? "Now check the checkout errors in Sentry, please."
+              : undefined
+          }
+          environmentControl={
+            <MCPComposerControl
+              summary={sessionMCPSummaryFixture(data)}
+              data={loading ? null : data}
+              loading={loading}
+              failed={stale}
+              onAction={() => undefined}
+              onManage={() => undefined}
+              defaultOpen={open}
+            />
+          }
           placeholder={`Message ${composerRuntime.label}`}
           runtime={composerRuntime}
         />

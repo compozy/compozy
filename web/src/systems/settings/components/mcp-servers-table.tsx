@@ -3,7 +3,11 @@ import { Pencil, Plug } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { mcpDefinitionKey } from "../lib/mcp-management-target";
-import { isMCPApprovalWaiting, type MCPApprovalNote } from "../lib/mcp-runtime-view-model";
+import {
+  isMCPApprovalWaiting,
+  mcpApprovalReason,
+  type MCPApprovalNote,
+} from "../lib/mcp-runtime-view-model";
 import { composeMCPRowStatus } from "../lib/mcp-status-view-model";
 import type { SettingsMCPServerEntry } from "../types";
 
@@ -220,7 +224,10 @@ function MCPServerRow({
       </div>
       <div className="min-w-0" data-testid={`${rowTestId}-status`}>
         {waiting ? (
-          <MCPApprovalCell error={approvalNote?.error} reason={approvalNote?.reason ?? "added"} />
+          <MCPApprovalCell
+            error={approvalNote?.error}
+            reason={approvalNote?.reason ?? mcpApprovalReason(server)}
+          />
         ) : (
           <Pill form="plain" tone={status.summary.tone}>
             <Pill.Dot />

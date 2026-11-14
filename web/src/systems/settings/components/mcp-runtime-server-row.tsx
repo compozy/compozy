@@ -64,6 +64,14 @@ export function MCPRuntimeServerRow({
         </ListingRow.Name>
         <ListingRow.Meta>
           <span>{runtimeScopeLabel(server.scope)}</span>
+          {server.target ? (
+            <>
+              <ListingRow.MetaDot />
+              <span className="truncate font-mono" data-testid={`${testId}-target`}>
+                {server.target}
+              </span>
+            </>
+          ) : null}
           <ListingRow.MetaDot />
           <span className="truncate font-mono">{server.source_label}</span>
           {keys.length > 0 ? (

@@ -4,6 +4,13 @@ import { toast } from "@compozy/ui";
 const MAX_REFUSAL_REASON_LENGTH = 400;
 
 /**
+ * The daemon refused the prompt before accepting it because the coding agent could not start with
+ * the session's new MCP servers. Nothing was recorded, so the draft comes back and sending it
+ * again retries the reload; there is no separate retry action.
+ */
+export const MCP_RELOAD_FAILED_CODE = "session_mcp_reload_failed";
+
+/**
  * The daemon's reason for refusing a prompt, read from the body of its error
  * response (the AI SDK transport surfaces that body as the error message).
  */
@@ -14,8 +21,12 @@ export function sessionPromptRefusalReason(body: string): string | null {
     const payload: unknown = JSON.parse(trimmed);
     if (typeof payload === "object" && payload !== null && "error" in payload) {
       const reason = payload.error;
-      if (typeof reason === "string" && reason.trim().length > 0)
+      if (typeof reason === "string" && reason.trim().length > 0) {
+        if ("code" in payload && payload.code === MCP_RELOAD_FAILED_CODE) {
+          return mcpReloadReason(reason.trim());
+        }
         return readableReason(reason.trim());
+      }
     }
     return null;
   } catch {
@@ -43,6 +54,11 @@ export function dismissSessionPromptNotSent(sessionId: string): void {
 function bounded(reason: string): string {
   if (reason.length <= MAX_REFUSAL_REASON_LENGTH) return reason;
   return `${reason.slice(0, MAX_REFUSAL_REASON_LENGTH - 1)}…`;
+}
+
+// The daemon's sentence already ends by saying the message wasn't sent; the notice says it once.
+function mcpReloadReason(reason: string): string {
+  return bounded(reason.replace(/\.?\s*Your message wasn't sent\.?$/i, ""));
 }
 
 /** Converts missing attachment diagnostics into recovery guidance for a retained draft. */

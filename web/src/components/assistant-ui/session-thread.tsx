@@ -138,6 +138,7 @@ export function SessionThread({
   runtimeControl,
   environmentControl,
   contextControl,
+  mcpControl,
   subagentControl,
   monitorControl,
   processControl,
@@ -272,6 +273,7 @@ export function SessionThread({
                       runtimeControl={runtimeControl}
                       environmentControl={environmentControl}
                       contextControl={contextControl}
+                      mcpControl={mcpControl}
                       subagentControl={subagentControl}
                       monitorControl={monitorControl}
                       processControl={processControl}

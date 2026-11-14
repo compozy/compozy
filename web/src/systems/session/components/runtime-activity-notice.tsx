@@ -9,6 +9,8 @@ import { providerErrorView } from "../lib/provider-error";
 import { ClusterCount } from "./marker-cluster-count";
 import { ProviderErrorNotice } from "./provider-error-notice";
 import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
+import { isMCPReloadEventData, parseMCPReloadEvent } from "../lib/session-mcp-reload-event";
+import { SessionMCPReloadMarker } from "./session-mcp-reload-marker";
 import {
   hasText,
   isOperationalStatusEvent,
@@ -305,6 +307,10 @@ export function RuntimeActivityNotice({
   event: AgentEventPayload;
   count?: number;
 }) {
+  if (isMCPReloadEventData(event)) {
+    const reload = parseMCPReloadEvent(event);
+    return reload ? <SessionMCPReloadMarker reload={reload} /> : null;
+  }
   if (
     event.type === "session.restart_interrupted" ||
     event.type === "session.restart_resumed" ||

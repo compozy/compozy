@@ -1,18 +1,21 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
 import {
-  ALL_READY,
-  CODEX_SESSION,
-  FAILED,
-  LIMITED,
-  MANY,
-  NEEDS_SIGN_IN,
-  PENDING,
-  RELOAD_FAILED,
-  RUNTIME_OFF,
-  STALE,
-  WAITING,
-} from "./fixtures";
+  sessionMCPAllReadyFixture,
+  sessionMCPCodexFixture,
+  sessionMCPFailedFixture,
+  sessionMCPLimitedFixture,
+  sessionMCPManyFixture,
+  sessionMCPNeedsSignInFixture,
+  sessionMCPPendingFixture,
+  sessionMCPReloadAppliedFixture,
+  sessionMCPReloadFailedFixture,
+  sessionMCPReloadFailedLineFixture,
+  sessionMCPReloadReplayedFixture,
+  sessionMCPRuntimeOffFixture,
+  sessionMCPWaitingFixture,
+} from "@/systems/session/mocks/session-mcp-fixtures";
+
 import { SessionMCPStage, type SessionStageProps } from "./stage";
 
 export const meta = definePrototype({
@@ -43,37 +46,49 @@ export const meta = definePrototype({
 function propsFor(state: string): SessionStageProps {
   switch (state) {
     case "closed":
-      return { model: ALL_READY, open: false };
+      return { data: sessionMCPAllReadyFixture, open: false };
     case "pending":
-      return { model: PENDING };
+      return { data: sessionMCPPendingFixture };
     case "sign-in":
-      return { model: NEEDS_SIGN_IN };
+      return { data: sessionMCPNeedsSignInFixture };
     case "waiting":
-      return { model: WAITING };
+      return { data: sessionMCPWaitingFixture };
     case "failed":
-      return { model: FAILED };
+      return { data: sessionMCPFailedFixture };
     case "reload-failed":
-      return { model: RELOAD_FAILED };
+      return { data: sessionMCPReloadFailedFixture };
     case "limited":
-      return { model: LIMITED };
+      return { data: sessionMCPLimitedFixture };
     case "runtime-off":
-      return { model: RUNTIME_OFF };
+      return { data: sessionMCPRuntimeOffFixture };
     case "codex":
-      return { model: CODEX_SESSION };
+      return { data: sessionMCPCodexFixture };
     case "stale":
-      return { model: STALE };
+      return { data: sessionMCPAllReadyFixture, stale: true };
     case "loading":
-      return { model: ALL_READY, loading: true };
+      return { data: sessionMCPAllReadyFixture, loading: true };
     case "many":
-      return { model: MANY };
+      return { data: sessionMCPManyFixture };
     case "line-applied":
-      return { model: ALL_READY, open: false, line: "applied" };
+      return {
+        data: sessionMCPAllReadyFixture,
+        open: false,
+        reload: sessionMCPReloadAppliedFixture,
+      };
     case "line-replayed":
-      return { model: ALL_READY, open: false, line: "replayed" };
+      return {
+        data: sessionMCPAllReadyFixture,
+        open: false,
+        reload: sessionMCPReloadReplayedFixture,
+      };
     case "line-failed":
-      return { model: RELOAD_FAILED, open: false, line: "failed" };
+      return {
+        data: sessionMCPReloadFailedFixture,
+        open: false,
+        reload: sessionMCPReloadFailedLineFixture,
+      };
     default:
-      return { model: ALL_READY };
+      return { data: sessionMCPAllReadyFixture };
   }
 }
 

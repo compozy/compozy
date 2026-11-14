@@ -498,4 +498,31 @@ describe("RuntimeActivityNotice", () => {
 
     expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
   });
+
+  // Invariant (`_uiux.md` S4): each recorded MCP reload renders one quiet line; a failed one says
+  // the message wasn't sent, and an unreadable record renders nothing rather than a guess.
+  it("renders one line per MCP reload outcome", () => {
+    const reload = (raw: unknown): AgentEventPayload => ({ type: "session.mcp_reloaded", raw });
+    const { rerender } = render(
+      <RuntimeActivityNotice
+        event={reload({ outcome: "applied", added: ["sentry"], removed: ["linear"] })}
+      />
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "MCP servers updated · sentry added · linear removed"
+    );
+
+    rerender(<RuntimeActivityNotice event={reload({ outcome: "replayed", added: [] })} />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "MCP servers updated · conversation continued from history"
+    );
+
+    rerender(<RuntimeActivityNotice event={reload({ outcome: "failed", added: ["sentry"] })} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't start the coding agent with the new MCP servers · your message wasn't sent"
+    );
+
+    rerender(<RuntimeActivityNotice event={reload({ outcome: "unknown" })} />);
+    expect(screen.queryByTestId("session-mcp-reload")).not.toBeInTheDocument();
+  });
 });
