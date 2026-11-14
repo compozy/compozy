@@ -160,17 +160,20 @@ func (d *Driver) awaitSessionModelOption(
 		if remaining <= 0 {
 			break
 		}
+		// Capture the revision before reading the snapshot: an update that lands
+		// between the two is then already newer than the revision we wait on, so the
+		// wait returns instead of blocking for the whole budget.
 		since, _ := process.configRevisionAndChange()
+		options = process.CapsSnapshot().ConfigOptions
+		if announced, found := ModelConfigOption(options); found &&
+			configOptionAllowsValue(announced, modelID) {
+			return announced, nil
+		}
 		if err := waitForConfigRevision(ctx, process, since, remaining); err != nil {
 			if errors.Is(err, errConfigSettleTimeout) {
 				break
 			}
 			return SessionConfigOption{}, err
-		}
-		options = process.CapsSnapshot().ConfigOptions
-		if announced, found := ModelConfigOption(options); found &&
-			configOptionAllowsValue(announced, modelID) {
-			return announced, nil
 		}
 	}
 
