@@ -31,8 +31,10 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	if !ok {
 		return errors.New("daemon: shell scope revision store is required")
 	}
+	state.runtimeMCPInventory = newRuntimeMCPInventory()
 	service, err := settingspkg.NewService(d.homePaths, settingspkg.Dependencies{
 		WorkspaceResolver:       state.workspaceResolver,
+		RuntimeMCPInventory:     state.runtimeMCPInventory,
 		ProfileResolver:         state.profiles,
 		AttentionWorkspaceMutes: state.registry,
 		ShellScopeRevisions:     scopeRevisions,

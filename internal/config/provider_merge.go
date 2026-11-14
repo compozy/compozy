@@ -42,6 +42,9 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	if override.EnvPolicy != "" {
 		merged.EnvPolicy = override.EnvPolicy
 	}
+	if override.RuntimeMCP != "" {
+		merged.RuntimeMCP = override.RuntimeMCP
+	}
 	if override.HomePolicy != "" {
 		merged.HomePolicy = override.HomePolicy
 	}

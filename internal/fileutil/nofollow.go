@@ -52,7 +52,7 @@ func OpenRegularFile(path string) (*os.File, error) {
 
 // ReadRegularFile reads a regular file through a non-following directory chain.
 // It returns the metadata observed through that same file handle.
-func ReadRegularFile(path string) (contents []byte, info os.FileInfo, err error) {
+func ReadRegularFile(path string, limits ...int64) (contents []byte, info os.FileInfo, err error) {
 	file, info, err := openRegularFile(path)
 	if err != nil {
 		return nil, nil, err
@@ -63,7 +63,17 @@ func ReadRegularFile(path string) (contents []byte, info os.FileInfo, err error)
 		}
 	}()
 
-	contents, err = io.ReadAll(file)
+	var reader io.Reader = file
+	if len(limits) > 0 && limits[0] > 0 {
+		if info.Size() > limits[0] {
+			return nil, info, errors.New("fileutil: file exceeds read limit")
+		}
+		reader = io.LimitReader(file, limits[0]+1)
+	}
+	contents, err = io.ReadAll(reader)
+	if len(limits) > 0 && limits[0] > 0 && int64(len(contents)) > limits[0] {
+		return nil, info, errors.New("fileutil: file exceeds read limit")
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("fileutil: read regular file: %w", err)
 	}

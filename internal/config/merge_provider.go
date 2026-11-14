@@ -39,6 +39,9 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	if o.EnvPolicy != nil {
 		dst.EnvPolicy = *o.EnvPolicy
 	}
+	if o.RuntimeMCP != nil {
+		dst.RuntimeMCP = *o.RuntimeMCP
+	}
 	if o.HomePolicy != nil {
 		dst.HomePolicy = *o.HomePolicy
 	}

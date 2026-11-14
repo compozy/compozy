@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"os/exec"
@@ -16,6 +17,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -3198,5 +3200,84 @@ func TestDaemonE2ESubagentResultLimitReload(t *testing.T) {
 			}
 		}
 		t.Fatal("the full answer is missing from the persisted child transcript")
+	})
+}
+
+func TestDaemonRuntimeMCPInventory(t *testing.T) {
+	// Invariant: the public inventory reads native fixtures without connecting or executing them. Owner: daemon/API; IT-008.
+	t.Run("Should list redacted runtime files and refresh edits without side effects IT-008", func(t *testing.T) {
+		t.Parallel()
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var requests atomic.Int64
+		listener := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { requests.Add(1); w.WriteHeader(http.StatusUnauthorized) }))
+		t.Cleanup(listener.Close)
+		claudeHome, codexHome, opencodeHome := filepath.Join(root, "claude"), filepath.Join(root, "codex"), filepath.Join(root, "opencode")
+		for _, dir := range []string{claudeHome, codexHome, opencodeHome} {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		marker := filepath.Join(root, "started")
+		script := filepath.Join(root, "server")
+		if err := os.WriteFile(script, []byte("#!/bin/sh\n: > '"+marker+"'\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		claudePath := filepath.Join(claudeHome, ".claude.json")
+		fixture, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"local": map[string]any{"command": script, "env": map[string]string{"TOKEN": "fixture-secret"}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(claudePath, fixture, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(codexHome, "config.toml"), []byte("[mcp_servers.remote]\nurl = \""+listener.URL+"/mcp\"\n[mcp_servers.remote.http_headers]\nAuthorization = \"Bearer fixture-header\"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(opencodeHome, "opencode.json"), []byte(`{"mcp":{"servers":{"other":{"type":"local","command":["echo"]}}}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{Env: map[string]string{"CLAUDE_CONFIG_DIR": claudeHome, "CODEX_HOME": codexHome, "OPENCODE_CONFIG_DIR": opencodeHome}})
+		var inventory compozycontract.RuntimeMCPServersResponse
+		if err := harness.HTTPJSON(t.Context(), http.MethodGet, "/api/settings/runtime-mcp-servers", nil, &inventory); err != nil {
+			t.Fatal(err)
+		}
+		if len(inventory.Runtimes) != 3 {
+			t.Fatalf("runtime groups=%+v", inventory.Runtimes)
+		}
+		data, err := json.Marshal(inventory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "fixture-secret") || strings.Contains(string(data), "fixture-header") {
+			t.Fatal("inventory leaked secret")
+		}
+		if requests.Load() != 0 {
+			t.Fatalf("inventory connected %d times", requests.Load())
+		}
+		if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("inventory spawned server: %v", err)
+		}
+		if err := os.WriteFile(claudePath, []byte(`{"mcpServers":{"changed":{"command":"echo"}}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.HTTPJSON(t.Context(), http.MethodGet, "/api/settings/runtime-mcp-servers?runtime=claude", nil, &inventory); err != nil {
+			t.Fatal(err)
+		}
+		if len(inventory.Runtimes) != 1 || len(inventory.Runtimes[0].Servers) != 1 || inventory.Runtimes[0].Servers[0].Name != "changed" {
+			t.Fatalf("stale inventory=%+v", inventory)
+		}
+		var viaCLI compozycontract.MCPListResponse
+		if err := harness.CLI.RunJSON(t.Context(), &viaCLI, "mcp", "list", "--runtime", "claude", "--runtime-only", "-o", "json"); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(viaCLI.Runtimes, inventory.Runtimes) {
+			t.Fatal("CLI and HTTP runtime rows differ")
+		}
+		if requests.Load() != 0 {
+			t.Fatal("CLI connected to runtime server")
+		}
 	})
 }

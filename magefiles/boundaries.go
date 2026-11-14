@@ -209,6 +209,13 @@ func Boundaries() error {
 			"github.com/compozy/compozy/internal/fileutil":    {},
 			"github.com/compozy/compozy/internal/procutil":    {},
 		}},
+		{importer: "internal/runtimemcp", allowed: map[string]struct{}{
+			"github.com/Masterminds/semver/v3":                {},
+			"github.com/compozy/compozy/internal/config":      {},
+			"github.com/compozy/compozy/internal/providerenv": {},
+			"github.com/compozy/compozy/internal/fileutil":    {},
+			"github.com/pelletier/go-toml/v2":                 {},
+		}},
 		{importer: "internal/redact", allowed: map[string]struct{}{}},
 		{importer: "internal/extensionprotocol", allowed: map[string]struct{}{}},
 		{importer: "internal/mcppolicy", allowed: map[string]struct{}{}},

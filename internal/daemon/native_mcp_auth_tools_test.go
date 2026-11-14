@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -542,4 +546,93 @@ func (p *nativeMCPAuthStatusProvider) Status(
 		status.Status = "authenticated"
 	}
 	return status, nil
+}
+
+func TestRuntimeMCPInventory(t *testing.T) {
+	t.Parallel()
+	// Invariant: file changes invalidate only their context and snapshots cannot be mutated by callers. Owner: daemon inventory; UT-054.
+	t.Run("Should invalidate runtime snapshots on file replacement UT-054", func(t *testing.T) {
+		t.Parallel()
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(root, ".claude.json")
+		if err := os.WriteFile(path, []byte(`{"mcpServers":{"old":{"command":"echo"}}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		inventory := newRuntimeMCPInventory()
+		request := runtimemcp.Request{Runtime: "claude", Context: runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")}}
+		first, err := inventory.List(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first.Runtimes[0].Servers[0].Name = "mutated"
+		again, err := inventory.List(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if again.Runtimes[0].Servers[0].Name != "old" {
+			t.Fatal("caller mutated cache")
+		}
+		if err := os.WriteFile(path, []byte(`{"mcpServers":{"new-name":{"command":"echo"}}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		inventory.Poll()
+		after, err := inventory.List(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.Runtimes[0].Servers[0].Name != "new-name" || after.Runtimes[0].ActivationDigest == again.Runtimes[0].ActivationDigest {
+			t.Fatalf("stale snapshot: %+v", after)
+		}
+		if err := os.WriteFile(path, []byte(`{"mcpServers":`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		unreadable, err := inventory.List(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if unreadable.Runtimes[0].ReadState != "unreadable" || unreadable.Runtimes[0].ActivationDigest != after.Runtimes[0].ActivationDigest {
+			t.Fatal("transient read failure discarded the last activation identity")
+		}
+	})
+	t.Run("Should filter native MCP inventory to Codex UT-090", func(t *testing.T) {
+		t.Parallel()
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(root, ".codex"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, ".codex/config.toml"), []byte("[mcp_servers.savee]\nurl = \"https://example.test/mcp\"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		settings := &nativeRuntimeMCPSettings{inventory: newRuntimeMCPInventory(), readContext: runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: nativeTestSessionManager("ws-auth"), Settings: func() core.SettingsService { return settings }}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-auth"}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDMCPList, Input: json.RawMessage(`{"runtime":"codex","include_runtimes":true}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload contract.MCPListResponse
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if len(payload.Runtimes) != 1 || payload.Runtimes[0].Runtime != "codex" || payload.Runtimes[0].Servers[0].Name != "savee" || payload.Runtimes[0].Servers[0].Auth != "unknown" {
+			t.Fatalf("payload=%+v", payload)
+		}
+	})
+}
+
+type nativeRuntimeMCPSettings struct {
+	nativeMCPSettingsService
+	inventory   *runtimeMCPInventory
+	readContext runtimemcp.ReadContext
+}
+
+var _ core.RuntimeMCPReader = (*nativeRuntimeMCPSettings)(nil)
+
+func (s *nativeRuntimeMCPSettings) ListRuntimeMCP(ctx context.Context, _ settingspkg.CollectionRequest, runtime string) (runtimemcp.Inventory, error) {
+	return s.inventory.List(ctx, runtimemcp.Request{Context: s.readContext, Runtime: runtime})
 }

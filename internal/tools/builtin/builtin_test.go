@@ -1348,6 +1348,7 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDMCPList, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDSessionChanges, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentDraftInstructions, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDSessionPendingInteractions, risk: toolspkg.RiskRead, readOnly: true},
@@ -3615,7 +3616,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expand(mcp) error = %v", err)
 		}
-		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPStatus}; !slices.Equal(mcp, want) {
+		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPList, toolspkg.ToolIDMCPStatus}; !slices.Equal(mcp, want) {
 			t.Fatalf("mcp expansion = %#v, want %#v", mcp, want)
 		}
 

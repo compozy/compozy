@@ -975,6 +975,9 @@ import type {
   ListRolesData,
   ListRolesErrors,
   ListRolesResponses,
+  ListRuntimeMCPServersData,
+  ListRuntimeMCPServersErrors,
+  ListRuntimeMCPServersResponses,
   ListSessionChangeBasesData,
   ListSessionChangeBasesErrors,
   ListSessionChangeBasesResponses,
@@ -7266,6 +7269,29 @@ export class settings extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * List runtime MCP servers from native configuration files
+   */
+  public listRuntimeMCPServers<ThrowOnError extends boolean = true>(
+    options?: Options<ListRuntimeMCPServersData, ThrowOnError>
+  ): RequestResult<
+    ListRuntimeMCPServersResponses,
+    ListRuntimeMCPServersErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListRuntimeMCPServersResponses,
+      ListRuntimeMCPServersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/runtime-mcp-servers",
+      ...options,
     });
   }
 

@@ -32,6 +32,7 @@ func registrySettingsOperations() []OperationSpec {
 		updateSettingsMarketplaceOperation(),
 		updateSettingsHooksExtensionsOperationSpec(),
 		listSettingsMCPServersOperationSpec(),
+		listRuntimeMCPServersOperationSpec(),
 		getSettingsMCPServerOperationSpec(),
 		putSettingsMCPServerOperationSpec(),
 		deleteSettingsMCPServerOperationSpec(),

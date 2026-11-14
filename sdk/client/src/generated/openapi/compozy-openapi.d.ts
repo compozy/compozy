@@ -3869,6 +3869,23 @@ export interface paths {
     patch: operations["updateSettingsRoles"];
     trace?: never;
   };
+  "/api/settings/runtime-mcp-servers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List runtime MCP servers from native configuration files */
+    get: operations["listRuntimeMCPServers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/shell": {
     parameters: {
       query?: never;
@@ -12265,6 +12282,11 @@ export interface components {
       enable_error?: components["schemas"]["ExtensionEnableError"] | null;
       extension: components["schemas"]["ExtensionPayload"];
     };
+    Inventory: {
+      /** Format: date-time */
+      generated_at: string;
+      runtimes: components["schemas"]["Snapshot"][];
+    };
     /** @enum {string} */
     IssueSeverity: "error" | "warning" | "warn" | "info";
     JobPayload: {
@@ -15295,6 +15317,10 @@ export interface components {
       id?: string;
       type?: string;
     };
+    RuntimeMode: {
+      can_disable: boolean;
+      mode: string;
+    };
     RuntimePolicy: {
       /** @enum {string} */
       mode: "default" | "evidence";
@@ -15469,6 +15495,23 @@ export interface components {
     };
     SendPromptResultResponse: {
       prompt: components["schemas"]["SendPromptResultPayload"];
+    };
+    Server: {
+      also_in_compozy: boolean;
+      approval: string;
+      auth: string;
+      copy_blocked_reason: string;
+      copyable: boolean;
+      definition_digest: string;
+      enabled_in_runtime: boolean;
+      env_keys: string[];
+      header_keys: string[];
+      name: string;
+      runtime: string;
+      scope: string;
+      source_label: string;
+      source_path: string;
+      transport: string;
     };
     SessionActivityHealthPayload: {
       current_tool?: string;
@@ -17632,6 +17675,7 @@ export interface components {
       harness?: string;
       home_policy?: string;
       models?: components["schemas"]["SettingsProviderModelsPayload"] | null;
+      runtime_mcp?: string;
       runtime_provider?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
@@ -17690,6 +17734,7 @@ export interface components {
       harness?: string;
       home_policy?: string;
       models?: components["schemas"]["SettingsProviderModelsPayload"] | null;
+      runtime_mcp?: string;
       runtime_provider?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
@@ -18563,6 +18608,17 @@ export interface components {
       /** Format: double */
       exit_slack: number;
       repeat_ratios: number[];
+    };
+    Snapshot: {
+      config_files: string[];
+      display_name: string;
+      installed: boolean;
+      notes?: string[];
+      read_error?: string;
+      read_state: string;
+      runtime: string;
+      runtime_mcp: components["schemas"]["RuntimeMode"];
+      servers: components["schemas"]["Server"][];
     };
     SourceOutcome: {
       /** Format: int64 */
@@ -42459,6 +42515,61 @@ export interface operations {
       };
       /** @description Conflicting settings change */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listRuntimeMCPServers: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
+        workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
+        runtime?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Inventory"];
+        };
+      };
+      /** @description Invalid runtime or settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };

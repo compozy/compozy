@@ -97,6 +97,9 @@ func (d *Daemon) bootMCPDeclarationWatcher(ctx context.Context, state *bootState
 		defer ticker.Stop()
 		delay := interval
 		for {
+			if state.runtimeMCPInventory != nil {
+				state.runtimeMCPInventory.Poll()
+			}
 			if err := watcher.poll(workerCtx); err != nil && workerCtx.Err() == nil && state.logger != nil {
 				// Parsing errors can contain config values; keep the warning secret-free.
 				state.logger.WarnContext(workerCtx, "daemon: MCP declaration refresh deferred")

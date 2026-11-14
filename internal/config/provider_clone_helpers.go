@@ -34,6 +34,7 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 		AuthMode:            src.AuthMode,
 		EnvPolicy:           src.EnvPolicy,
 		HomePolicy:          src.HomePolicy,
+		RuntimeMCP:          src.RuntimeMCP,
 		NoneSecurity:        src.NoneSecurity,
 		AuthStatusCmd:       src.AuthStatusCmd,
 		AuthLoginCmd:        src.AuthLoginCmd,

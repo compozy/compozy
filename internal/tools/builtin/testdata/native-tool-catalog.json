@@ -2239,6 +2239,19 @@
     "single_result_reason": "minimal"
   },
   {
+    "tool_id": "compozy__mcp_list",
+    "native_name": "mcp_list",
+    "toolsets": [
+      "compozy__mcp"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "217fc8a778d525599fb15b3d47821d52c919d011f8c0eac2d3cfdd8819b1293e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__mcp_status",
     "native_name": "mcp_status",
     "toolsets": [

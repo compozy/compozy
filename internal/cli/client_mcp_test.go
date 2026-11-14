@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -234,3 +235,38 @@ const loggedOutClientMCPAuthStatusJSON = `{
   "refreshable":false,
   "token_present":false
 }`
+
+func TestMCPListCommand(t *testing.T) {
+	t.Parallel()
+	// Invariant: CLI JSON preserves the runtime route's typed rows and adds CompozyOS definitions. Owner: CLI; UT-093.
+	t.Run("Should compose runtime and CompozyOS JSON responses UT-093", func(t *testing.T) {
+		t.Parallel()
+		runtimeJSON := `{"runtimes":[{"runtime":"codex","display_name":"Codex","installed":false,"runtime_mcp":{"mode":"load","can_disable":false},"read_state":"ok","config_files":["/home/test/.codex/config.toml"],"servers":[{"runtime":"codex","name":"savee","scope":"user","transport":"http","auth":"unknown","env_keys":[],"header_keys":[],"copyable":true}]}],"generated_at":"2026-11-14T16:30:00Z"}`
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			switch req.URL.Path {
+			case "/api/settings/runtime-mcp-servers":
+				return newHTTPResponse(http.StatusOK, runtimeJSON), nil
+			case "/api/settings/mcp-servers":
+				return newHTTPResponse(http.StatusOK, `{"mcp_servers":[{"name":"manual","owner":"manual","scope":"user","transport":"stdio"}]}`), nil
+			default:
+				return nil, fmt.Errorf("unexpected route %s", req.URL.Path)
+			}
+		})}}
+		deps := newWorkspaceTestDeps(t, client)
+		stdout, _, err := executeRootCommand(t, deps, "mcp", "list", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var actual contract.MCPListResponse
+		if err := json.Unmarshal([]byte(stdout), &actual); err != nil {
+			t.Fatal(err)
+		}
+		var expected contract.RuntimeMCPServersResponse
+		if err := json.Unmarshal([]byte(runtimeJSON), &expected); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(actual.Runtimes, expected.Runtimes) || len(actual.Compozy) != 1 || actual.Compozy[0].Name != "manual" {
+			t.Fatalf("payload=%+v", actual)
+		}
+	})
+}

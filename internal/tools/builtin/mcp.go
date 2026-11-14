@@ -5,6 +5,10 @@ import toolspkg "github.com/compozy/compozy/internal/tools"
 const mcpKey = "mcp"
 
 var mcpTools = []toolspkg.Descriptor{
+	nativeDescriptor(toolspkg.ToolIDMCPList, "mcp_list", "MCP Servers",
+		"List CompozyOS and runtime MCP server definitions without starting or probing them.",
+		mcpListInputSchema, toolspkg.RiskRead, true, false, false, []toolspkg.ToolsetID{toolspkg.ToolsetIDMCP},
+		[]string{mcpKey, "list", "runtime"}, []string{"list mcp servers", "runtime mcp inventory"}),
 	nativeDescriptor(
 		toolspkg.ToolIDMCPStatus,
 		"mcp_status",
@@ -24,3 +28,5 @@ var mcpTools = []toolspkg.Descriptor{
 func mcpDescriptors() []toolspkg.Descriptor {
 	return mcpTools
 }
+
+const mcpListInputSchema = `{"type":"object","properties":{"runtime":{"type":"string"},"include_runtimes":{"type":"boolean","default":true},"workspace":{"type":"string"}},"additionalProperties":false}`

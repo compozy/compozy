@@ -14503,6 +14503,25 @@
         ],
         "type": "object"
       },
+      "Inventory": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "runtimes": {
+            "items": {
+              "$ref": "#/components/schemas/Snapshot"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "runtimes"
+        ],
+        "type": "object"
+      },
       "IssueSeverity": {
         "enum": [
           "error",
@@ -25147,6 +25166,21 @@
         },
         "type": "object"
       },
+      "RuntimeMode": {
+        "properties": {
+          "can_disable": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "can_disable",
+          "mode"
+        ],
+        "type": "object"
+      },
       "RuntimePolicy": {
         "properties": {
           "mode": {
@@ -25796,6 +25830,79 @@
         },
         "required": [
           "prompt"
+        ],
+        "type": "object"
+      },
+      "Server": {
+        "properties": {
+          "also_in_compozy": {
+            "type": "boolean"
+          },
+          "approval": {
+            "type": "string"
+          },
+          "auth": {
+            "type": "string"
+          },
+          "copy_blocked_reason": {
+            "type": "string"
+          },
+          "copyable": {
+            "type": "boolean"
+          },
+          "definition_digest": {
+            "type": "string"
+          },
+          "enabled_in_runtime": {
+            "type": "boolean"
+          },
+          "env_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "header_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "runtime": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "source_label": {
+            "type": "string"
+          },
+          "source_path": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "also_in_compozy",
+          "approval",
+          "auth",
+          "copy_blocked_reason",
+          "copyable",
+          "definition_digest",
+          "enabled_in_runtime",
+          "env_keys",
+          "header_keys",
+          "name",
+          "runtime",
+          "scope",
+          "source_label",
+          "source_path",
+          "transport"
         ],
         "type": "object"
       },
@@ -33406,6 +33513,9 @@
               }
             ]
           },
+          "runtime_mcp": {
+            "type": "string"
+          },
           "runtime_provider": {
             "type": "string"
           },
@@ -33585,6 +33695,9 @@
                 "nullable": true
               }
             ]
+          },
+          "runtime_mcp": {
+            "type": "string"
           },
           "runtime_provider": {
             "type": "string"
@@ -36495,6 +36608,56 @@
           "edge_band",
           "exit_slack",
           "repeat_ratios"
+        ],
+        "type": "object"
+      },
+      "Snapshot": {
+        "properties": {
+          "config_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "read_error": {
+            "type": "string"
+          },
+          "read_state": {
+            "type": "string"
+          },
+          "runtime": {
+            "type": "string"
+          },
+          "runtime_mcp": {
+            "$ref": "#/components/schemas/RuntimeMode"
+          },
+          "servers": {
+            "items": {
+              "$ref": "#/components/schemas/Server"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "config_files",
+          "display_name",
+          "installed",
+          "read_state",
+          "runtime",
+          "runtime_mcp",
+          "servers"
         ],
         "type": "object"
       },
@@ -79494,6 +79657,100 @@
           }
         },
         "summary": "Update the background-role routing settings section",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/runtime-mcp-servers": {
+      "get": {
+        "operationId": "listRuntimeMCPServers",
+        "parameters": [
+          {
+            "description": "Select the settings scope",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "enum": [
+                "user",
+                "profile",
+                "workspace"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the workspace context",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the profile layer",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "runtime",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inventory"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid runtime or settings scope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "List runtime MCP servers from native configuration files",
         "tags": [
           "settings"
         ],

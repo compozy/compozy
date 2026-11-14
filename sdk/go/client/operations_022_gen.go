@@ -117,6 +117,40 @@ func (c *Client) ListRoles(ctx context.Context, params ListRolesParams) (*RolesR
 	return &out, nil
 }
 
+// ListRuntimeMCPServersParams carries the path, query, and header parameters.
+type ListRuntimeMCPServersParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Runtime     *string `url:"runtime"`
+}
+
+// ListRuntimeMCPServers List runtime MCP servers from native configuration files
+func (c *Client) ListRuntimeMCPServers(ctx context.Context, params ListRuntimeMCPServersParams) (*Inventory, error) {
+	path := "/api/settings/runtime-mcp-servers"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Runtime != nil {
+		query.Set("runtime", *params.Runtime)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out Inventory
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionChangeBasesParams carries the path, query, and header parameters.
 type ListSessionChangeBasesParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -409,36 +443,4 @@ func (c *Client) ListSessionFileEntries(ctx context.Context, params ListSessionF
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListSessionFoldersParams carries the path, query, and header parameters.
-type ListSessionFoldersParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ListSessionFolders List session folders in manual order
-func (c *Client) ListSessionFolders(ctx context.Context, params ListSessionFoldersParams) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionInputsParams carries the path, query, and header parameters.
-type ListSessionInputsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

@@ -1,0 +1,8 @@
+[mcp_servers.computer-use]
+command = "computer-use"
+enabled = false
+[mcp_servers.savee]
+url = "http://127.0.0.1:9/mcp?token=private-query"
+[mcp_servers.savee.http_headers]
+Authorization = "Bearer abc"
+

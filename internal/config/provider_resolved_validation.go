@@ -197,6 +197,9 @@ func validateSessionMCPTransport(provider ProviderConfig, path string) error {
 // validateProviderLaunchPolicies checks the environment, home, no-auth, and
 // session MCP delivery policies that shape a provider launch.
 func validateProviderLaunchPolicies(name string, provider ProviderConfig) error {
+	if err := validateRuntimeMCP(name, provider); err != nil {
+		return err
+	}
 	if err := provider.EffectiveEnvPolicy().Validate(fmt.Sprintf("providers.%s.env_policy", name)); err != nil {
 		return err
 	}

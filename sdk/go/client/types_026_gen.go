@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// TaskExecutionProfileResponse is a daemon API value.
+type TaskExecutionProfileResponse struct {
+	Profile ExecutionProfile `json:"profile"`
+}
+
+// TaskExecutionRequest is a daemon API value.
+type TaskExecutionRequest struct {
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+}
+
 // TaskExecutionResponse is a daemon API value.
 type TaskExecutionResponse struct {
 	Task TaskPayload    `json:"task"`

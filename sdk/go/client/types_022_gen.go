@@ -286,6 +286,7 @@ type SettingsProviderSettingsPayload struct {
 	BaseURL           string                                  `json:"base_url,omitempty"`
 	AuthMode          string                                  `json:"auth_mode,omitempty"`
 	EnvPolicy         string                                  `json:"env_policy,omitempty"`
+	RuntimeMCP        string                                  `json:"runtime_mcp,omitempty"`
 	HomePolicy        string                                  `json:"home_policy,omitempty"`
 	AuthStatusCmd     string                                  `json:"auth_status_command,omitempty"`
 	AuthACPMethod     string                                  `json:"auth_acp_method,omitempty"`
@@ -333,6 +334,7 @@ type SettingsProviderWritePayload struct {
 	BaseURL           string                                  `json:"base_url,omitempty"`
 	AuthMode          string                                  `json:"auth_mode,omitempty"`
 	EnvPolicy         string                                  `json:"env_policy,omitempty"`
+	RuntimeMCP        string                                  `json:"runtime_mcp,omitempty"`
 	HomePolicy        string                                  `json:"home_policy,omitempty"`
 	AuthStatusCmd     string                                  `json:"auth_status_command,omitempty"`
 	AuthLoginCmd      *string                                 `json:"auth_login_command,omitzero"`

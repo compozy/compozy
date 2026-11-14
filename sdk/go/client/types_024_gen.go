@@ -168,6 +168,19 @@ type SnapConfig struct {
 	RepeatRatios []float64 `json:"repeat_ratios"`
 }
 
+// Snapshot is a daemon API value.
+type Snapshot struct {
+	Runtime     string                `json:"runtime"`
+	DisplayName string                `json:"display_name"`
+	Installed   bool                  `json:"installed"`
+	RuntimeMCP  RuntimemcpRuntimeMode `json:"runtime_mcp"`
+	ReadState   string                `json:"read_state"`
+	ReadError   string                `json:"read_error,omitempty"`
+	ConfigFiles []string              `json:"config_files"`
+	Notes       []string              `json:"notes,omitempty"`
+	Servers     []Server              `json:"servers"`
+}
+
 // SourceErrorCode is a daemon API value.
 type SourceErrorCode string
 
@@ -429,16 +442,4 @@ type SubagentSummaryPayload struct {
 	Failed     int    `json:"failed"`
 	Attention  int    `json:"attention"`
 	MostUrgent string `json:"most_urgent"`
-}
-
-// SubagentUpdatedEvent is a daemon API value.
-type SubagentUpdatedEvent struct {
-	SessionID string          `json:"session_id"`
-	Subagent  SubagentPayload `json:"subagent"`
-}
-
-// SubagentUsagePayload is a daemon API value.
-type SubagentUsagePayload struct {
-	TotalTokens int64 `json:"total_tokens"`
-	ToolUses    int64 `json:"tool_uses"`
 }

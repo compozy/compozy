@@ -4168,6 +4168,11 @@ export type InstallExtensionResponse = {
   extension: ExtensionPayload;
 };
 
+export type Inventory = {
+  generated_at: string;
+  runtimes: Array<Snapshot>;
+};
+
 export type JobPayload = {
   agent_name: string;
   created_at: string;
@@ -7080,6 +7085,11 @@ export type RuntimeMatch = {
   type?: string;
 };
 
+export type RuntimeMode = {
+  can_disable: boolean;
+  mode: string;
+};
+
 export type RuntimePolicy = {
   mode: "default" | "evidence";
 };
@@ -7246,6 +7256,24 @@ export type SendPromptResultPayload = {
 
 export type SendPromptResultResponse = {
   prompt: SendPromptResultPayload;
+};
+
+export type Server = {
+  also_in_compozy: boolean;
+  approval: string;
+  auth: string;
+  copy_blocked_reason: string;
+  copyable: boolean;
+  definition_digest: string;
+  enabled_in_runtime: boolean;
+  env_keys: Array<string>;
+  header_keys: Array<string>;
+  name: string;
+  runtime: string;
+  scope: string;
+  source_label: string;
+  source_path: string;
+  transport: string;
 };
 
 export type SessionActivityHealthPayload = {
@@ -9338,6 +9366,7 @@ export type SettingsProviderSettingsPayload = {
   harness?: string;
   home_policy?: string;
   models?: SettingsProviderModelsPayload | null;
+  runtime_mcp?: string;
   runtime_provider?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
@@ -9398,6 +9427,7 @@ export type SettingsProviderWritePayload = {
   harness?: string;
   home_policy?: string;
   models?: SettingsProviderModelsPayload | null;
+  runtime_mcp?: string;
   runtime_provider?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
@@ -10267,6 +10297,18 @@ export type SnapConfig = {
   edge_band: number;
   exit_slack: number;
   repeat_ratios: Array<number>;
+};
+
+export type Snapshot = {
+  config_files: Array<string>;
+  display_name: string;
+  installed: boolean;
+  notes?: Array<string>;
+  read_error?: string;
+  read_state: string;
+  runtime: string;
+  runtime_mcp: RuntimeMode;
+  servers: Array<Server>;
 };
 
 export type SourceOutcome = {
@@ -28792,6 +28834,55 @@ export type UpdateSettingsRolesResponses = {
 
 export type UpdateSettingsRolesResponse =
   UpdateSettingsRolesResponses[keyof UpdateSettingsRolesResponses];
+
+export type ListRuntimeMCPServersData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Select the settings scope
+     */
+    scope?: "user" | "profile" | "workspace";
+    /**
+     * Select the workspace context
+     */
+    workspace_id?: string;
+    /**
+     * Select the profile layer
+     */
+    profile?: string;
+    runtime?: string;
+  };
+  url: "/api/settings/runtime-mcp-servers";
+};
+
+export type ListRuntimeMCPServersErrors = {
+  /**
+   * Invalid runtime or settings scope
+   */
+  400: ErrorPayload;
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type ListRuntimeMCPServersError =
+  ListRuntimeMCPServersErrors[keyof ListRuntimeMCPServersErrors];
+
+export type ListRuntimeMCPServersResponses = {
+  /**
+   * OK
+   */
+  200: Inventory;
+};
+
+export type ListRuntimeMCPServersResponse =
+  ListRuntimeMCPServersResponses[keyof ListRuntimeMCPServersResponses];
 
 export type GetSettingsShellData = {
   body?: never;

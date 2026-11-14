@@ -1,0 +1,1 @@
+{"mcpServers":{"remote":{"type":"http","url":"https://example.test/mcp","headers":{"Authorization":"Bearer abc"}},"paper":{"command":"echo","env":{"TOKEN":"s3cr3t"}}},"projects":{"$PROJECT":{"mcpServers":{"local":{"command":"local"}},"disabledMcpServers":["paper"]}}}

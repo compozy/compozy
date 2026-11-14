@@ -54,6 +54,7 @@ const (
 )
 
 type bootState struct {
+	runtimeMCPInventory *runtimeMCPInventory
 	agentInstances      *core.AgentInstanceAPI
 	subagents           session.SubagentService
 	cfg                 compozyconfig.Config
