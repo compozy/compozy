@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, useEffect, useState } from "react";
 
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
@@ -7,6 +7,15 @@ import type { OsDesktopRuntimeStore, OsWindow } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
 
 const LIVE_DATA_WINDOW_BUDGET = 2;
+
+/**
+ * How long a window's place in the live-data budget must hold before its app follows it. Gaining
+ * or losing the lease re-renders the app, enables or pauses its reads, opens or closes its
+ * streams and runs its preload; a tab the operator only passes through (a burst of tab clicks, a
+ * focus answer shown on the way to the newest one) does none of that. It exceeds the focus hold
+ * (`FOCUS_HOLD_LIMIT_MS`), the longest a rapid-click burst shows one intermediate tab.
+ */
+export const LIVE_DATA_SETTLE_MS = 500;
 
 function canOwnLiveData(window: OsWindow, activeDesktopId: string | null): boolean {
   return window.desktopId === activeDesktopId && window.shown;
@@ -51,9 +60,19 @@ export function useCurrentWindowLiveDataEnabled(): boolean {
   return useContext(WindowLiveDataContext);
 }
 
-/** Bounds retained-window streams while keeping one visible background window live. */
+/**
+ * Bounds retained-window streams while keeping one visible background window live. A change in
+ * the window's lease applies once it has held for `LIVE_DATA_SETTLE_MS`; a hidden document pauses
+ * every window at once.
+ */
 export function useWindowLiveDataEnabled(windowId: string): boolean {
   const documentVisible = useDocumentVisible();
   const windowLive = useDesktop(state => liveDataOwners(state).includes(windowId));
-  return documentVisible && windowLive;
+  const [settled, setSettled] = useState(windowLive);
+  useEffect(() => {
+    if (settled === windowLive) return undefined;
+    const timer = setTimeout(() => setSettled(windowLive), LIVE_DATA_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [settled, windowLive]);
+  return documentVisible && settled;
 }
