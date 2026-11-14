@@ -127,6 +127,23 @@ func TestBuildPlan(t *testing.T) {
 		}
 	})
 
+	t.Run("Should pick an archived subagent whose parent is gone as its own thread", func(t *testing.T) {
+		t.Parallel()
+		rows := []store.SessionHistoryCleanupRow{
+			subagentRow("orphan", "deleted-root", 10),
+			liveRow("live", ""),
+			subagentRow("with-live-parent", "live", 10),
+		}
+		plan := BuildPlan(rows, everythingRequest())
+		if got := threadByRoot(t, plan, "orphan").Delete; !slices.Equal(got, []string{"orphan"}) {
+			t.Fatalf("orphan Delete = %v, want its own thread", got)
+		}
+		// A subagent still under its live parent stays with that parent.
+		if len(plan.Threads) != 1 {
+			t.Fatalf("threads = %+v, want only the orphan", plan.Threads)
+		}
+	})
+
 	t.Run("Should never pick an always-on agent's main session", func(t *testing.T) {
 		t.Parallel()
 		main := archivedRow("main", "", 10)

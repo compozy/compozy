@@ -32,8 +32,9 @@ type fakeDeleter struct {
 	entered chan string
 	gate    chan struct{}
 
-	mu      sync.Mutex
-	deleted []string
+	releaseOnce sync.Once
+	mu          sync.Mutex
+	deleted     []string
 }
 
 func (d *fakeDeleter) DeleteArchived(_ context.Context, target store.ArchivedSessionDelete) error {
@@ -50,6 +51,16 @@ func (d *fakeDeleter) DeleteArchived(_ context.Context, target store.ArchivedSes
 	defer d.mu.Unlock()
 	d.deleted = append(d.deleted, target.SessionID)
 	return nil
+}
+
+// release opens the gate once; the harness also calls it before shutdown, so a
+// failed assertion cannot leave a delete blocked and hang the test.
+func (d *fakeDeleter) release() {
+	d.releaseOnce.Do(func() {
+		if d.gate != nil {
+			close(d.gate)
+		}
+	})
 }
 
 func (d *fakeDeleter) deletedIDs() []string {
@@ -88,6 +99,8 @@ func newServiceHarness(t *testing.T, rows []store.SessionHistoryCleanupRow, dele
 			t.Errorf("Shutdown() error = %v", err)
 		}
 	})
+	// Registered after Shutdown, so it runs first.
+	t.Cleanup(deleter.release)
 	return serviceHarness{service: service, deleter: deleter, notified: notified}
 }
 
@@ -207,7 +220,7 @@ func TestServiceStart(t *testing.T) {
 		if _, _, err := h.service.Start(context.Background(), serviceRequest()); !errors.Is(err, ErrRunActive) {
 			t.Fatalf("second Start() error = %v, want ErrRunActive", err)
 		}
-		close(deleter.gate)
+		deleter.release()
 		if run := h.waitForSettled(t); run.State != RunCompleted {
 			t.Fatalf("run = %+v, want completed", run)
 		}
@@ -225,6 +238,9 @@ func TestServiceStart(t *testing.T) {
 			{name: "Should require a selection", mutate: func(r *Request) { r.Selection = Selection{} }},
 			{name: "Should cap retried session ids", mutate: func(r *Request) {
 				r.RootIDs = make([]string, maxRootIDs+1)
+			}},
+			{name: "Should refuse retried session ids that are all blank", mutate: func(r *Request) {
+				r.RootIDs = []string{"", "  "}
 			}},
 		}
 		for _, tt := range tests {
@@ -264,7 +280,7 @@ func TestServiceStop(t *testing.T) {
 		if _, err := h.service.Stop(canceled, testProfile); !errors.Is(err, context.Canceled) {
 			t.Fatalf("Stop() error = %v, want the canceled wait", err)
 		}
-		close(deleter.gate)
+		deleter.release()
 		run := h.waitForSettled(t)
 		if run.State != RunStopped || run.Deleted != 1 {
 			t.Fatalf("run = %+v, want stopped after the delete in flight", run)

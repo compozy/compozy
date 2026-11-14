@@ -161,8 +161,9 @@ func buildForest(rows []store.SessionHistoryCleanupRow) []*cleanupNode {
 			parent.children = append(parent.children, node)
 		}
 		// A thread starts at an archived session whose list parent is gone or
-		// still in the list; a subagent always follows its parent.
-		if node.archived() && !node.subagent() && (parent == nil || !parent.archived()) {
+		// still in the list. A subagent follows its parent while that parent
+		// exists; one whose parent is gone heads its own thread.
+		if node.archived() && (parent == nil || (!node.subagent() && !parent.archived())) {
 			heads = append(heads, node)
 		}
 	}

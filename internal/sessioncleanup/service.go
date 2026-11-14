@@ -349,6 +349,10 @@ func normalizeRequest(request Request) (Request, error) {
 			ids = append(ids, id)
 		}
 	}
+	// A list of only blank ids names nothing; read as "no limit" it would plan every thread.
+	if len(request.RootIDs) > 0 && len(ids) == 0 {
+		return Request{}, fmt.Errorf("%w: session ids must not be blank", ErrInvalidRequest)
+	}
 	request.RootIDs = ids
 	return request, nil
 }
