@@ -1,5 +1,22 @@
 # Compozy Change Impact
 
+## Per-model reasoning effort ceiling — 2026-11-14
+
+Owner: `fix/model-effort-levels`. Web-only bug fix (internal regime, SD-013).
+
+- **Web.** The reasoning slider renders only the levels a model advertises. One shared rule,
+  `restrictReasoningEfforts` (`web/src/systems/model-catalog/lib/to-runtime-selector-options.ts`),
+  intersects every provider/live list with the catalog row's `reasoning_efforts`, preserving the
+  advertised order and deduping. It caps the live ACP overlay in `sessionModelCapabilities`, the
+  configuration matrix in `modelEfforts`, and the latent `buildReasoningOptions`. An empty
+  advertised list still lets ACP introduce levels; a matrix with no effort coordinate stays
+  Fast-only. `resolveReasoningState`, the slider and `setReasoning` keep rendering/validating
+  `efforts` unchanged.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema or
+  migration change; the daemon already stores per-model effort profiles. Workspace data isolation
+  is unchanged. Official skill `skills/compozy/`: no change.
+- Docs: 2026-11-14 QA note in `docs/qa/scenarios/ET-web-runtime-selector-minimal-slider.md`.
+
 ## Grouped menus with List and Kanban parity — 2026-11-13
 
 Owner: PR `feat/grouped-menus` (proto drafts `web/src/drafts/session-menus` and `web/src/drafts/app-menus`,

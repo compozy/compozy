@@ -32,6 +32,7 @@ import {
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
 } from "../types";
+import { normalizeRuntimeSelectorValue } from "../runtime-advanced-options-model";
 
 // ---------------------------------------------------------------------------
 // Fixtures + harness
@@ -390,6 +391,97 @@ describe("RuntimeSelector reasoning reset-on-switch", () => {
     });
   });
 
+  it("Should reset a saved effort the advertised ceiling removed even when a matrix lists it", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "with-medium", reasoning_effort: "medium" },
+      models: [
+        model("with-medium", { name: "With Medium", efforts: ["low", "medium", "high"] }),
+        model("narrowed", {
+          name: "Narrowed",
+          efforts: ["low", "high", "max"],
+          configurations: [
+            { reasoning_effort: "low" },
+            { reasoning_effort: "medium" },
+            { reasoning_effort: "high" },
+          ],
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.click(row("narrowed"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "narrowed",
+      reasoning_effort: "",
+    });
+  });
+
+  it("Should not fall back to a configuration coordinate outside the advertised ceiling", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "with-medium", reasoning_effort: "medium" },
+      models: [
+        model("with-medium", { name: "With Medium", efforts: ["low", "medium", "high"] }),
+        model("disjoint", {
+          name: "Disjoint",
+          efforts: ["low"],
+          configurations: [{ reasoning_effort: "medium" }],
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.click(row("disjoint"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "disjoint",
+      reasoning_effort: "",
+    });
+  });
+
+  it("Should clear a saved effort when the model exposes no selectable levels", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "with-medium", reasoning_effort: "medium" },
+      models: [
+        model("with-medium", { name: "With Medium", efforts: ["low", "medium", "high"] }),
+        model("matrix-only", {
+          name: "Matrix Only",
+          efforts: [],
+          configurations: [{ reasoning_effort: "medium" }],
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    await user.click(row("matrix-only"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "matrix-only",
+      reasoning_effort: "",
+    });
+  });
+
+  it("Should normalize a saved effort away when only a matrix coordinate names it", () => {
+    const target = model("matrix-only", {
+      name: "Matrix Only",
+      efforts: [],
+      configurations: [{ reasoning_effort: "medium" }],
+    });
+
+    expect(
+      normalizeRuntimeSelectorValue(
+        { provider: "codex", model: "matrix-only", reasoning_effort: "medium" },
+        target
+      ).reasoning_effort
+    ).toBe("");
+  });
+
   it("Should keep the current reasoning_effort when the picked model still supports it", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
@@ -676,6 +768,34 @@ describe("RuntimeSelector reasoning slider", () => {
       "false"
     );
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("Should expose exactly the model's advertised levels when a provider offers more", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "capped", reasoning_effort: "" },
+      models: [model("capped", { name: "Capped", efforts: ["low", "high", "max"] })],
+    });
+
+    await openSelector(user);
+
+    // The slider renders `efforts` untouched: three advertised levels → range
+    // 0..2 with low/max at the edges, so no medium stop can appear.
+    const track = sliderTrack();
+    expect(track).toHaveAttribute("aria-valuemin", "0");
+    expect(track).toHaveAttribute("aria-valuemax", "2");
+    fireEvent.keyDown(track, { key: "Home" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "capped",
+      reasoning_effort: "low",
+    });
+    fireEvent.keyDown(track, { key: "End" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "capped",
+      reasoning_effort: "max",
+    });
   });
 
   it("Should reflect an explicit wire value on the slider", async () => {

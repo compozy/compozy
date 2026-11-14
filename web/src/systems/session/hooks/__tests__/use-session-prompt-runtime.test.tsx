@@ -620,6 +620,94 @@ describe("SessionPromptRuntimeProvider hydration", () => {
     }
   );
 
+  it("Should cap live thought levels at the effective model's advertised efforts", async () => {
+    const workspaceId = workspaceDetailFixture.workspace.id;
+    const { queryClient } = createHarness();
+    queryClient.setQueryData(workspaceKeys.detail(workspaceId), {
+      ...workspaceDetailFixture,
+      agents: [],
+      providers: [
+        { name: "claude", display_name: "Claude", harness: "acp", runtime_provider: "claude" },
+      ],
+    } satisfies WorkspaceDetailPayload);
+    queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), []);
+    queryClient.setQueryData(providerKeys.lists(), {
+      providers: [provider("claude", "authenticated")],
+    });
+    queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+      models: [
+        {
+          ...model("claude", "claude-fable-5-1"),
+          supports_reasoning: true,
+          reasoning_apply: "acp_option",
+          reasoning_efforts: ["low", "high", "max"],
+        },
+        {
+          ...model("claude", "claude-fable-5"),
+          supports_reasoning: true,
+          reasoning_apply: "acp_option",
+          reasoning_efforts: ["low", "high"],
+        },
+      ],
+    } satisfies AllModelsListResponse);
+    const session: SessionPayload = {
+      ...primarySessionFixture,
+      workspace_id: workspaceId,
+      runtime: {
+        ...primarySessionFixture.runtime,
+        effective: { provider: "claude", model: "claude-fable-5-1", reasoning_effort: "medium" },
+        selected: { provider: "claude", model: "claude-fable-5", reasoning_effort: "low" },
+        acp_caps: {
+          prompt_audio: false,
+          prompt_image: false,
+          prompt_embedded_context: false,
+          supports_fork_session: false,
+          supports_load_session: true,
+          supports_resume_session: false,
+          config_options: [
+            {
+              id: "reasoning_effort",
+              category: "thought_level",
+              kind: "select",
+              current_value_id: "medium",
+              values: [
+                { value: "default" },
+                { value: "low" },
+                { value: "medium" },
+                { value: "high" },
+                { value: "max" },
+                { value: "future-effort" },
+              ],
+            },
+          ],
+        },
+      },
+    };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <SessionPromptRuntimeProvider session={session} canPrompt>
+          {children}
+        </SessionPromptRuntimeProvider>
+      </QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSessionPromptRuntime(useSessionPromptRuntimeContext()), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.catalog.models).toHaveLength(2));
+    const effective = result.current.catalog.models.find(row => row.id === "claude-fable-5-1");
+    // The live ACP list advertises more levels than the model honors; only the
+    // model's own levels may reach the slider.
+    expect(effective?.efforts).toEqual(["low", "high", "max"]);
+    // "medium" is ACP's current value but not a model level → provider default.
+    expect(effective?.default_effort).toBe("");
+    expect(effective?.reasoning_source).toBe("acp");
+    // Non-effective rows keep their own catalog capabilities untouched.
+    expect(result.current.catalog.models.find(row => row.id === "claude-fable-5")?.efforts).toEqual(
+      ["low", "high"]
+    );
+  });
+
   it("Should preserve selected ACP options when mounting and refetching a session", () => {
     const selected = {
       provider: "cursor",

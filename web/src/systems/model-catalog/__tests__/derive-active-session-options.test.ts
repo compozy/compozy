@@ -244,6 +244,89 @@ describe("deriveActiveSessionOptions", () => {
     expect(result.reasoningSource).toBe("acp");
   });
 
+  it("Should filter ACP reasoning values by the selected model's advertised efforts", () => {
+    const result = deriveActiveSessionOptions({
+      catalog: [
+        {
+          ...visibleCatalogFlags,
+          provider_id: "claude",
+          model_id: "claude-fable-5-1",
+          availability_state: "available_live",
+          available: true,
+          stale: false,
+          sources: [],
+          supports_reasoning: true,
+          reasoning_efforts: ["low", "high", "max"],
+        },
+      ],
+      selectedModel: "claude-fable-5-1",
+      configOptions: [
+        {
+          id: "reasoning_effort",
+          kind: "enum",
+          current_value_id: "medium",
+          values: [
+            { value: "default" },
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High" },
+            { value: "max", label: "Max" },
+            { value: "future-effort" },
+          ],
+        },
+      ],
+    });
+
+    // The live option can only narrow the model's levels: no default stop, no
+    // level the model does not advertise, and ACP labels survive.
+    expect(result.reasoningOptions).toEqual([
+      { value: "low", label: "Low", source: "acp" },
+      { value: "high", label: "High", source: "acp" },
+      { value: "max", label: "Max", source: "acp" },
+    ]);
+    expect(result.reasoningSupported).toBe(true);
+    expect(result.reasoningOverrideAvailable).toBe(true);
+    // The ACP current value `medium` was removed by the ceiling, so no default remains selectable.
+    expect(result.defaultReasoning).toBeNull();
+  });
+
+  it("Should keep advertised order and labels when ACP repeats or reorders values", () => {
+    const result = deriveActiveSessionOptions({
+      catalog: [
+        {
+          ...visibleCatalogFlags,
+          provider_id: "claude",
+          model_id: "claude-fable-5-1",
+          availability_state: "available_live",
+          available: true,
+          stale: false,
+          sources: [],
+          supports_reasoning: true,
+          reasoning_efforts: ["high", "low"],
+        },
+      ],
+      selectedModel: "claude-fable-5-1",
+      configOptions: [
+        {
+          id: "reasoning_effort",
+          kind: "enum",
+          current_value_id: "low",
+          values: [
+            { value: "low", label: "Low" },
+            { value: "low", label: "Low again" },
+            { value: "high", label: "High" },
+          ],
+        },
+      ],
+    });
+
+    expect(result.reasoningOptions).toEqual([
+      { value: "high", label: "High", source: "acp" },
+      { value: "low", label: "Low", source: "acp" },
+    ]);
+    expect(result.defaultReasoning).toBe("low");
+  });
+
   it("Should treat catalog rows as the only authority when ACP exposes no values for reasoning", () => {
     const result = deriveActiveSessionOptions({
       catalog: codexCatalog,

@@ -57,6 +57,20 @@ QA 2026-09-16, issue #655: Rendered full/recent/favorite Fable selection, valid/
 
 QA impact 2026-10-31, #1107: the session composer selector now applies same-provider changes to the live session and shows an apply note derived from the provider's runtime_live_apply capability; see RT-session-runtime-live-apply. Flag only.
 
+QA impact 2026-11-14: the slider stops are now the intersection of the model's advertised
+`reasoning_efforts` and every live ACP/config matrix list, so a model advertising `low/high/max`
+no longer shows `medium` or other provider-wide levels. One shared rule
+(`restrictReasoningEfforts`) caps the live session overlay, the catalog configuration matrix and the
+latent session-derive options; an empty advertised list still lets ACP introduce levels, and a
+matrix with no effort coordinate stays Fast-only. Automated coverage: `to-runtime-selector-options`
+(intersection, advertised order, dedupe), `use-session-prompt-runtime` (catalog `low/high/max` vs
+ACP `default/low/medium/high/max/future-effort` → exactly `low/high/max`, default collapsed),
+`derive-active-session-options` and the `runtime-selector` renderer (`aria-valuemax=2`, Home/End).
+The same ceiling now governs commits and defaults: a saved effort the intersection removed normalizes
+to no effort even when a configuration matrix still lists it, and a default outside the final options
+reads as absent. Reset for a live composer walk with a provider that publishes a wider ACP option than
+its model profile, including switching models while an effort is selected.
+
 
 QA impact 2026-11-11 (runtime selector polish): hovering a truncated model name or an OpenCode
 upstream provider label reveals the full text through the shared tooltip without adding a tab stop
