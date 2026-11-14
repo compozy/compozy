@@ -237,6 +237,20 @@ describe("MCP Settings page", () => {
       expect(screen.queryByTestId("settings-page-mcp-servers-list")).not.toBeInTheDocument();
     });
 
+    it("Should say nothing matches when the search empties the picked runtime", async () => {
+      const user = userEvent.setup();
+      serveRuntimes([claudeRuntimeMCPFixture]);
+      await openSettings();
+      const filter = await screen.findByTestId("settings-mcp-runtime-filter");
+      await user.type(screen.getByRole("searchbox", { name: "Search MCP servers" }), "github");
+      await user.click(within(filter).getByTestId("settings-mcp-runtime-filter-claude"));
+
+      expect(await screen.findByTestId("settings-page-mcp-query-empty")).toHaveTextContent(
+        'Nothing matches "github".'
+      );
+      expect(screen.getByTestId("settings-mcp-runtime-filter")).toBeVisible();
+    });
+
     it("UT-W04: Should name the unreadable file and list no rows for that runtime", async () => {
       serveRuntimes([
         {
@@ -312,6 +326,41 @@ describe("MCP Settings page", () => {
       expect(requests).toHaveLength(1);
       expect(requests[0]!.url.pathname).toBe("/api/settings/runtime-mcp-servers/claude/exa/import");
       expect(requests[0]!.body).toEqual({ scope: "user" });
+    });
+
+    it("Should name the project in view when copying one of its runtime servers to Personal", async () => {
+      const user = userEvent.setup();
+      const listed: Array<string | null> = [];
+      const bodies: unknown[] = [];
+      server.use(
+        http.get("*/api/settings/runtime-mcp-servers", ({ request }) => {
+          listed.push(new URL(request.url).searchParams.get("workspace_id"));
+          return HttpResponse.json(runtimeMCPInventoryFixture([claudeRuntimeMCPFixture]));
+        }),
+        http.post(
+          "*/api/settings/runtime-mcp-servers/:runtime/:name/import",
+          async ({ request }) => {
+            bodies.push(await request.json());
+            return HttpResponse.json(
+              { error: "exa is no longer in .mcp.json", code: "mcp_server_not_found" },
+              { status: 404 }
+            );
+          }
+        )
+      );
+      await openSettings();
+      await user.click(screen.getByTestId("settings-page-mcp-scope-workspace"));
+      await waitFor(() => expect(listed.at(-1)).toBeTruthy());
+      const project = listed.at(-1)!;
+
+      await user.click(
+        await screen.findByRole("button", { name: "Copy exa from Claude Code to CompozyOS" })
+      );
+      const dialog = await screen.findByTestId("settings-mcp-copy-dialog");
+      await user.click(within(dialog).getByTestId("settings-mcp-copy-submit"));
+
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(bodies[0]).toEqual({ scope: "user", workspace_id: project });
     });
 
     it("UT-W07: Should render no switch for a runtime that can't turn its servers off", async () => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { toast } from "@compozy/ui";
 
@@ -24,6 +24,8 @@ import { useAllowMCPServer, useImportRuntimeMCPServer } from "./use-mcp-runtime-
 import { useRuntimeMCPInventory } from "./use-settings-collections";
 
 const DEFINITION_CHANGED = "mcp_approval_definition_changed";
+/** How long the row a copy created stays marked before it reads as any other row. */
+export const MCP_COPY_HIGHLIGHT_MS = 2_400;
 
 interface UseMCPRuntimeManagementOptions {
   enabled: boolean;
@@ -62,6 +64,12 @@ export function useMCPRuntimeManagement({ enabled, filter }: UseMCPRuntimeManage
   const allowMutation = useAllowMCPServer();
   const importMutation = useImportRuntimeMCPServer();
   const showFile = useOpenFileInEditor();
+
+  useEffect(() => {
+    if (highlightedKey === null) return;
+    const timer = setTimeout(() => setHighlightedKey(null), MCP_COPY_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [highlightedKey]);
 
   const allow = (entry: SettingsMCPServerEntry) => {
     const target = mcpApprovalTarget(entry);

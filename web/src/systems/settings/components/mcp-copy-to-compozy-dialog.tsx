@@ -52,7 +52,9 @@ function copyRequest(
     scope,
     ...(name !== server.name ? { name } : {}),
     ...(scope === "profile" && profile ? { profile } : {}),
-    ...(scope === "workspace" && workspaceId ? { workspace_id: workspaceId } : {}),
+    // The project in view is where the inventory found the source, whatever the destination: the
+    // daemon resolves the source in it and only files a Project copy there.
+    ...(workspaceId ? { workspace_id: workspaceId } : {}),
   };
 }
 
