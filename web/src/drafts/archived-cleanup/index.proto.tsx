@@ -19,9 +19,11 @@ import {
   archivedRows,
 } from "./archived-cleanup-fixtures";
 import {
+  DEFAULT_CLEANUP_OPTIONS,
   cleanupImpact,
   cleanupRemaining,
   deletedSentence,
+  plural,
   type ArchivedThread,
   type CleanupOptions,
 } from "./archived-cleanup-model";
@@ -39,17 +41,18 @@ export const meta = definePrototype({
   states: [
     { id: "archived-list", label: "1 · Archived list with Clean up history" },
     { id: "active-list", label: "1 · Active list: no entry point" },
-    { id: "dialog", label: "2 · Dialog: Everything, last 7 days" },
-    { id: "dialog-children", label: "3 · Only child sessions, last 30 days" },
-    { id: "dialog-subagents", label: "3 · Only subagents, all time" },
-    { id: "dialog-since", label: "2 · Since a chosen date" },
+    { id: "dialog", label: "2 · Dialog: Everything, 7+ days ago, type to confirm" },
+    { id: "dialog-children", label: "3 · Child sessions only, 30+ days ago" },
+    { id: "dialog-subagents", label: "3 · Child sessions and subagents, 15+ days ago" },
+    { id: "dialog-before", label: "2 · Archived before a chosen date" },
     { id: "dialog-empty", label: "3 · Nothing matches" },
-    { id: "deleting", label: "5 · Deleting" },
+    { id: "deleting", label: "5 · Deleting (keeps going if closed)" },
+    { id: "background", label: "5 · Closed while deleting: progress in the footer" },
     { id: "done", label: "5 · Done: list refreshed, toast" },
     { id: "partial", label: "5 · Some sessions weren't deleted" },
     { id: "failed", label: "5 · Nothing was deleted" },
     { id: "scale-list", label: "6 · All projects, 512 archived" },
-    { id: "scale", label: "6 · All projects dialog, per project" },
+    { id: "scale", label: "6 · All projects dialog, per project, type to confirm" },
   ],
 });
 
@@ -65,10 +68,12 @@ interface Scenario {
   finished?: boolean;
 }
 
-/** The project's archive with nothing in the last week, for the empty preview. */
+/** A project whose archive is all from this week, for the empty preview. */
 const QUIET_ARCHIVE = PROJECT_ARCHIVE.flatMap(thread =>
-  thread.archivedDaysAgo >= 9 ? [{ ...thread, project: "compozy-site" }] : []
+  thread.archivedDaysAgo < 7 ? [{ ...thread, project: "compozy-site" }] : []
 );
+
+const ONLY = { everything: false, children: false, subagents: false };
 
 const SCENARIOS: Record<string, Scenario> = {
   "archived-list": { scope: "compozy", archive: PROJECT_ARCHIVE, open: false },
@@ -76,31 +81,37 @@ const SCENARIOS: Record<string, Scenario> = {
   "dialog-children": {
     scope: "compozy",
     archive: PROJECT_ARCHIVE,
-    options: { what: "children", range: "30" },
+    options: { what: { ...ONLY, children: true }, range: "30" },
   },
   "dialog-subagents": {
     scope: "compozy",
     archive: PROJECT_ARCHIVE,
-    options: { what: "subagents", range: "all" },
+    options: { what: { ...ONLY, children: true, subagents: true }, range: "15" },
   },
-  "dialog-since": {
+  "dialog-before": {
     scope: "compozy",
     archive: PROJECT_ARCHIVE,
-    options: { range: "since", since: new Date(Date.now() - 20 * DAY_MS) },
+    options: { range: "before", before: new Date(Date.now() - 20 * DAY_MS) },
   },
   "dialog-empty": { scope: "compozy-site", archive: QUIET_ARCHIVE },
-  deleting: { scope: "compozy", archive: PROJECT_ARCHIVE, phase: { kind: "deleting", done: 23 } },
+  deleting: { scope: "compozy", archive: PROJECT_ARCHIVE, phase: { kind: "deleting", done: 64 } },
+  background: {
+    scope: "compozy",
+    archive: PROJECT_ARCHIVE,
+    open: false,
+    phase: { kind: "deleting", done: 64 },
+  },
   done: { scope: "compozy", archive: PROJECT_ARCHIVE, open: false, finished: true },
   partial: {
     scope: "compozy",
-    // The run already removed five of the week's seven; the two that failed stay listed.
+    // Everything archived 7+ days ago is 158 sessions; the two threads that failed hold 11.
     archive: PROJECT_ARCHIVE.filter(
-      (thread, index) => thread.archivedDaysAgo >= 7 || index === 0 || index === 2
+      (thread, index) => thread.archivedDaysAgo < 7 || index === 20 || index === 22
     ),
     phase: {
       kind: "partial",
-      total: 7,
-      deleted: 5,
+      total: 158,
+      deleted: 147,
       failed: [
         {
           title: "Fix #1704 cap reasoning effort levels",
@@ -176,8 +187,9 @@ function CleanupScenario({ initial, scale }: { initial: Scenario; scale: boolean
   const [options, setOptions] = useState<Partial<CleanupOptions> | undefined>(initial.options);
   const [archive, setArchive] = useState(initial.archive);
   const [run, setRun] = useState(0);
-  const runOptions: CleanupOptions = { what: "everything", range: "7", since: null, ...options };
+  const runOptions: CleanupOptions = { ...DEFAULT_CLEANUP_OPTIONS, ...options };
   const deleting = phase.kind === "deleting" ? phase.done : null;
+  const runTotal = cleanupImpact(archive, runOptions).total;
 
   const finish = (from: readonly ArchivedThread[], chosen: CleanupOptions) => {
     toast.success("History cleaned up", {
@@ -199,16 +211,26 @@ function CleanupScenario({ initial, scale }: { initial: Scenario; scale: boolean
   }, []);
 
   const advance = useEffectEvent((done: number) => {
-    const total = cleanupImpact(archive, runOptions).total;
-    const next = Math.min(total, done + Math.max(1, Math.ceil(total / 8)));
-    if (next >= total) finish(archive, runOptions);
+    const next = Math.min(runTotal, done + Math.max(1, Math.ceil(runTotal / 8)));
+    if (next >= runTotal) finish(archive, runOptions);
     else setPhase({ kind: "deleting", done: next });
   });
+  // The daemon keeps deleting whether or not the dialog is open; the seeded deleting states hold
+  // still until the person starts a run of their own.
   useEffect(() => {
     if (run === 0 || deleting === null) return;
-    const timer = window.setTimeout(() => advance(deleting), 350);
+    const timer = window.setTimeout(() => advance(deleting), 600);
     return () => window.clearTimeout(timer);
   }, [run, deleting]);
+
+  const stop = () => {
+    toast("Cleanup stopped", {
+      description: `Deleted ${plural(deleting ?? 0, "session", "sessions")} of ${runTotal.toLocaleString()}. The rest are still in Archived.`,
+    });
+    setOptions(undefined);
+    setPhase({ kind: "form" });
+    setOpen(false);
+  };
 
   return (
     <main className="flex min-h-dvh bg-canvas">
@@ -217,6 +239,7 @@ function CleanupScenario({ initial, scale }: { initial: Scenario; scale: boolean
           <ArchivedCleanupFooter
             archivedCount={scale ? SCALE_ARCHIVE_TOTAL : archive.length}
             onCleanUp={() => setOpen(true)}
+            progress={deleting === null ? null : { done: deleting, total: runTotal }}
           />
         }
       >
@@ -234,6 +257,7 @@ function CleanupScenario({ initial, scale }: { initial: Scenario; scale: boolean
         }}
         onOpenChange={setOpen}
         onRetry={() => finish(archive, runOptions)}
+        onStop={stop}
         open={open}
         phase={phase}
         scopeName={initial.scope}

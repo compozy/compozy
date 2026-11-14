@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Eraser } from "@compozy/ui/icons";
 
-import { Button, SearchInput } from "@compozy/ui";
+import { Button, SearchInput, Spinner } from "@compozy/ui";
 
 import { AgentIdentityCatalogContext } from "@/systems/agent/lib/agent-identity-context";
 import { SessionListFolder } from "@/systems/session/components/session-list/session-list-folder";
@@ -23,13 +23,26 @@ import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 const actions = sessionLifecycleActionsFixture();
 const noop = () => undefined;
 
+/** The models today's rows name; the shared board fixtures still carry older ones. */
+const CURRENT_MODELS: Record<string, string> = {
+  claude: "Opus 5.5 high",
+  codex: "GPT 6.1 Sol medium",
+};
+
+function currentRuntime(session: SessionPayload) {
+  const runtime = boardRuntimeFixture(session);
+  const model = CURRENT_MODELS[runtime.provider];
+  if (!model || !runtime.model) return runtime;
+  return { ...runtime, model, label: runtime.label.replace(runtime.model, model) };
+}
+
 export function ArchivedRow({ session }: { session: SessionPayload }) {
   return (
     <SessionListRowView
       onSelect={noop}
       preloadHandlers={SESSION_ENTRY_PRELOAD_FIXTURE}
       rowActions={<SessionRowActions actions={actions} session={session} />}
-      runtime={boardRuntimeFixture(session)}
+      runtime={currentRuntime(session)}
       session={session}
       sessionActions={actions}
       testIdPrefix="archived-cleanup"
@@ -95,9 +108,12 @@ export function ArchivedProjectGroup({
  */
 export function ArchivedCleanupFooter({
   archivedCount,
+  progress,
   onCleanUp,
 }: {
   archivedCount: number;
+  /** A cleanup running in the daemon: the verb becomes its progress and reopens the dialog. */
+  progress?: { done: number; total: number } | null;
   onCleanUp: () => void;
 }) {
   return (
@@ -108,16 +124,27 @@ export function ArchivedCleanupFooter({
     >
       <Button
         data-testid="archived-cleanup-open"
-        disabled={archivedCount === 0}
+        disabled={archivedCount === 0 && !progress}
         onClick={onCleanUp}
         size="sm"
         variant="quiet"
       >
-        <Eraser />
-        Clean up history…
+        {progress ? (
+          <>
+            <Spinner className="size-3" />
+            <span className="tabular-nums">
+              Deleting… {progress.done.toLocaleString()} of {progress.total.toLocaleString()}
+            </span>
+          </>
+        ) : (
+          <>
+            <Eraser />
+            Clean up history…
+          </>
+        )}
       </Button>
       <span className="ml-auto pr-1.5 text-micro text-subtle">
-        <span className="font-mono text-muted-foreground tabular-nums">
+        <span className="text-muted-foreground tabular-nums">
           {archivedCount.toLocaleString()}
         </span>{" "}
         archived

@@ -2,13 +2,27 @@
  * The decisions behind "Clean up history" (#1717), as pure functions over the archive the dialog
  * previews. The prototype computes the preview from fixtures; the implementation reads the same
  * numbers from the daemon's dry run, so the copy below is the contract either way.
+ *
+ * Every number the dialog shows counts sessions removed: a child session and a subagent are
+ * sessions too, so "Everything" is always at least as large as either of its parts.
  */
 
-/** What goes. Each choice is a strict description of what is deleted from each picked thread. */
-export type CleanupWhat = "everything" | "children" | "subagents";
+/**
+ * What goes, as checks. `everything` deletes each picked main session with all it holds, so it
+ * includes the other two; without it, `children` and `subagents` thin the sessions out and keep
+ * the main sessions.
+ */
+export interface CleanupWhat {
+  everything: boolean;
+  children: boolean;
+  subagents: boolean;
+}
 
-/** Which threads are picked, by the day their main session was archived. */
-export type CleanupRange = "7" | "15" | "30" | "since" | "all";
+/**
+ * Which threads are picked, by the day their main session was archived: older than N days,
+ * archived before a chosen day, or any. Recent history stays unless the person picks Any time.
+ */
+export type CleanupRange = "7" | "15" | "30" | "before" | "all";
 
 /**
  * One row of the Archived list: an archived main session, with what hangs under it. Child
@@ -31,9 +45,15 @@ export interface ArchivedThread {
 export interface CleanupOptions {
   what: CleanupWhat;
   range: CleanupRange;
-  /** The chosen day for `since`; `null` until picked. */
-  since: Date | null;
+  /** The chosen day for `before`; `null` until picked. */
+  before: Date | null;
 }
+
+export const DEFAULT_CLEANUP_OPTIONS: CleanupOptions = {
+  what: { everything: true, children: true, subagents: true },
+  range: "7",
+  before: null,
+};
 
 export interface CleanupProjectImpact {
   project: string;
@@ -41,57 +61,60 @@ export interface CleanupProjectImpact {
 }
 
 export interface CleanupImpact {
-  /** Main sessions deleted (`everything` only). */
+  /** Main sessions deleted (Everything only). */
   sessions: number;
   /** Child sessions deleted. */
   children: number;
   /** Subagent sessions deleted. */
   subagents: number;
-  /** Every session the run deletes. */
+  /** Every session the run deletes: the one number the dialog leads with. */
   total: number;
   /** Child sessions kept because they are still in the list or in Later. */
   keptLive: number;
-  /** Per project, busiest first, in the headline's unit; only shown across several projects. */
+  /** Sessions deleted per project, busiest first; only shown across several projects. */
   projects: readonly CleanupProjectImpact[];
 }
 
+/** Above this many sessions the person types the count to confirm. */
+export const TYPED_CONFIRM_THRESHOLD = 100;
+
 export const CLEANUP_RANGE_ITEMS: readonly { value: CleanupRange; label: string }[] = [
-  { value: "7", label: "7 days" },
-  { value: "15", label: "15 days" },
-  { value: "30", label: "30 days" },
-  { value: "since", label: "Since a date" },
-  { value: "all", label: "All time" },
+  { value: "7", label: "7+ days ago" },
+  { value: "15", label: "15+ days ago" },
+  { value: "30", label: "30+ days ago" },
+  { value: "before", label: "Before a date" },
+  { value: "all", label: "Any time" },
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Whole days between `since` and now; a future day matches nothing. */
-function daysSince(since: Date, now: number): number {
-  return Math.floor((now - since.getTime()) / DAY_MS);
+/** Whole days between `day` and now. */
+function daysAgo(day: Date, now: number): number {
+  return Math.floor((now - day.getTime()) / DAY_MS);
 }
 
 function inRange(thread: ArchivedThread, options: CleanupOptions, now: number): boolean {
   switch (options.range) {
     case "all":
       return true;
-    case "since":
-      return options.since !== null && thread.archivedDaysAgo <= daysSince(options.since, now);
+    case "before":
+      return options.before !== null && thread.archivedDaysAgo > daysAgo(options.before, now);
     default:
-      return thread.archivedDaysAgo < Number(options.range);
+      return thread.archivedDaysAgo >= Number(options.range);
   }
 }
 
-/** What one thread loses under a choice: the counts the dialog adds up. */
+/** What one thread loses under the checks. */
 function threadImpact(thread: ArchivedThread, what: CleanupWhat) {
-  switch (what) {
-    case "everything":
-      return { sessions: 1, children: thread.children, subagents: thread.subagents };
-    case "children":
-      // A child session goes with its own subagents; the main session's subagents stay.
-      return { sessions: 0, children: thread.children, subagents: 0 };
-    default:
-      return { sessions: 0, children: 0, subagents: thread.subagents };
+  if (what.everything) {
+    return { sessions: 1, children: thread.children, subagents: thread.subagents };
   }
+  return {
+    sessions: 0,
+    // A child session goes with its own subagents; they are counted with the child.
+    children: what.children ? thread.children : 0,
+    subagents: what.subagents ? thread.subagents : 0,
+  };
 }
 
 export function cleanupImpact(
@@ -112,17 +135,8 @@ export function cleanupImpact(
     sessions += impact.sessions;
     children += impact.children;
     subagents += impact.subagents;
-    if (options.what !== "subagents") keptLive += thread.liveChildren;
-    // Per project in the headline's unit, so the parts add up to the headline.
-    const headline =
-      options.what === "everything"
-        ? impact.sessions
-        : options.what === "children"
-          ? impact.children
-          : impact.subagents;
-    if (headline > 0) {
-      byProject.set(thread.project, (byProject.get(thread.project) ?? 0) + headline);
-    }
+    if (options.what.everything || options.what.children) keptLive += thread.liveChildren;
+    byProject.set(thread.project, (byProject.get(thread.project) ?? 0) + deleted);
   }
   const projects = [...byProject]
     .map(([project, count]) => ({ project, sessions: count }))
@@ -137,18 +151,27 @@ export function cleanupImpact(
   };
 }
 
-/** The count each choice would delete in the chosen range, for the choice's own badge. */
+/** Each check's own count in the chosen range: sessions it alone would remove. */
 export function cleanupChoiceCounts(
   threads: readonly ArchivedThread[],
   options: CleanupOptions,
   now = Date.now()
-): Record<CleanupWhat, number> {
-  const count = (what: CleanupWhat) => cleanupImpact(threads, { ...options, what }, now);
+): Record<keyof CleanupWhat, number> {
+  const only = (what: Partial<CleanupWhat>) =>
+    cleanupImpact(
+      threads,
+      { ...options, what: { everything: false, children: false, subagents: false, ...what } },
+      now
+    ).total;
   return {
-    everything: count("everything").sessions,
-    children: count("children").children,
-    subagents: count("subagents").subagents,
+    everything: only({ everything: true }),
+    children: only({ children: true }),
+    subagents: only({ subagents: true }),
   };
+}
+
+export function nothingChecked(what: CleanupWhat): boolean {
+  return !what.everything && !what.children && !what.subagents;
 }
 
 export function plural(count: number, one: string, many: string): string {
@@ -161,90 +184,101 @@ export function formatCleanupDay(day: Date): string {
   return DAY_FORMAT.format(day);
 }
 
-/** The range as the end of a sentence: "in the last 7 days", "since Nov 3", "". */
+/** The range as a sentence's tail: " more than 7 days ago", " before Nov 3", "". */
 export function rangePhrase(options: CleanupOptions): string {
   switch (options.range) {
     case "all":
       return "";
-    case "since":
-      return options.since ? ` since ${formatCleanupDay(options.since)}` : "";
+    case "before":
+      return options.before ? ` before ${formatCleanupDay(options.before)}` : "";
     default:
-      return ` in the last ${options.range} days`;
+      return ` more than ${options.range} days ago`;
   }
 }
 
-/** The primary action names exactly what the run deletes, so it doubles as the confirmation. */
-export function cleanupActionLabel(what: CleanupWhat, impact: CleanupImpact): string {
-  switch (what) {
-    case "everything":
-      return `Delete ${plural(impact.sessions, "session", "sessions")}`;
-    case "children":
-      return `Delete ${plural(impact.children, "child session", "child sessions")}`;
+/** What the range keeps, said plainly under the choice. */
+export function rangeKeeps(options: CleanupOptions): string {
+  switch (options.range) {
+    case "all":
+      return "Every archived session counts, however recent.";
+    case "before":
+      return options.before
+        ? `Everything archived on or after ${formatCleanupDay(options.before)} stays.`
+        : "Sessions archived before the day you pick.";
     default:
-      return `Delete ${plural(impact.subagents, "subagent", "subagents")}`;
+      return `Everything archived in the last ${options.range} days stays.`;
   }
 }
 
-/** The headline of the preview: the thing the person picked, counted. */
-export function cleanupHeadline(what: CleanupWhat, impact: CleanupImpact): string {
-  switch (what) {
-    case "everything":
-      return `${plural(impact.sessions, "archived session", "archived sessions")} will be deleted`;
-    case "children":
-      return `${plural(impact.children, "child session", "child sessions")} will be deleted`;
-    default:
-      return `${plural(impact.subagents, "subagent", "subagents")} will be deleted`;
-  }
+/** The primary action carries the same number as the headline, so it doubles as confirmation. */
+export function cleanupActionLabel(impact: CleanupImpact): string {
+  return `Delete ${plural(impact.total, "session", "sessions")}`;
 }
 
-/** What goes along with the headline, and what stays; zero parts never pad the sentence. */
+export function cleanupHeadline(impact: CleanupImpact): string {
+  return `${plural(impact.total, "session", "sessions")} will be deleted`;
+}
+
+/** The parts behind the headline, what stays, and the one warning; zero parts never pad it. */
 export function cleanupDetail(what: CleanupWhat, impact: CleanupImpact, kept = ""): string {
-  const along: string[] = [];
-  if (what === "everything") {
-    if (impact.children > 0) along.push(plural(impact.children, "child session", "child sessions"));
-    if (impact.subagents > 0) along.push(plural(impact.subagents, "subagent", "subagents"));
-  }
   const parts: string[] = [];
-  if (along.length > 0) parts.push(`Along with ${along.join(" and ")} inside them.`);
-  if (what === "children") parts.push("Their own subagents go with them.");
-  if (kept) parts.push(kept);
-  parts.push("Deleted sessions can’t be brought back.");
-  return parts.join(" ");
+  if (impact.sessions > 0) {
+    parts.push(plural(impact.sessions, "archived session", "archived sessions"));
+  }
+  if (impact.children > 0) parts.push(plural(impact.children, "child session", "child sessions"));
+  if (impact.subagents > 0) parts.push(plural(impact.subagents, "subagent", "subagents"));
+  const sentences: string[] = [];
+  if (parts.length > 1) {
+    sentences.push(`${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}.`);
+  }
+  if (!what.everything) {
+    sentences.push(what.children ? "The main sessions stay." : "Every session stays.");
+  }
+  if (kept) sentences.push(kept);
+  sentences.push("Deleted sessions can’t be brought back.");
+  return sentences.join(" ");
 }
 
 /** Why nothing matches, in the person's own terms. */
 export function emptyReason(options: CleanupOptions): string {
-  if (options.range === "since" && !options.since) return "Pick a date to see what goes.";
-  const noun =
-    options.what === "everything"
-      ? "No sessions were archived"
-      : options.what === "children"
-        ? "No archived session has child sessions"
-        : "No archived session has subagents";
+  if (nothingChecked(options.what)) return "Choose what to delete.";
+  if (options.range === "before" && !options.before) return "Pick a date to see what goes.";
   const range = rangePhrase(options);
-  return `${noun}${range || " yet"}.`;
+  if (options.what.everything) {
+    return range ? `No sessions were archived${range}.` : "Nothing is archived yet.";
+  }
+  const has =
+    options.what.children && options.what.subagents
+      ? "child sessions or subagents"
+      : options.what.children
+        ? "child sessions"
+        : "subagents";
+  return range ? `No session archived${range} has ${has}.` : `No archived session has ${has}.`;
 }
 
-/** The Archived list after a run: only `everything` removes rows; the other choices thin them. */
+/** The Archived list after a run: Everything removes rows; the other checks thin them. */
 export function cleanupRemaining(
   threads: readonly ArchivedThread[],
   options: CleanupOptions,
   now = Date.now()
 ): ArchivedThread[] {
-  if (options.what === "everything")
-    return threads.filter(thread => !inRange(thread, options, now));
+  if (options.what.everything) return threads.filter(thread => !inRange(thread, options, now));
   return threads.map(thread => {
     if (!inRange(thread, options, now)) return thread;
-    return options.what === "children" ? { ...thread, children: 0 } : { ...thread, subagents: 0 };
+    return {
+      ...thread,
+      children: options.what.children ? 0 : thread.children,
+      subagents: options.what.subagents ? 0 : thread.subagents,
+    };
   });
 }
 
 /** The success toast: what went, in one sentence. */
 export function deletedSentence(impact: CleanupImpact, scopeName: string): string {
-  const parts: string[] = [];
-  if (impact.sessions > 0) parts.push(plural(impact.sessions, "session", "sessions"));
-  if (impact.children > 0) parts.push(plural(impact.children, "child session", "child sessions"));
-  if (impact.subagents > 0) parts.push(plural(impact.subagents, "subagent", "subagents"));
-  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
-  return `Deleted ${list} from ${scopeName}.`;
+  return `Deleted ${plural(impact.total, "session", "sessions")} from ${scopeName}.`;
+}
+
+/** The typed confirmation matches when its digits spell the count, separators aside. */
+export function typedMatches(value: string, total: number): boolean {
+  return value.replace(/\D/g, "") === String(total);
 }

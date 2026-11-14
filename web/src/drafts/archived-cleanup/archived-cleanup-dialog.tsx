@@ -16,16 +16,19 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
   PillGroup,
   Progress,
   ProgressLabel,
   ProgressValue,
-  RadioCardGroup,
   Spinner,
 } from "@compozy/ui";
 
 import {
   CLEANUP_RANGE_ITEMS,
+  DEFAULT_CLEANUP_OPTIONS,
+  TYPED_CONFIRM_THRESHOLD,
   cleanupActionLabel,
   cleanupChoiceCounts,
   cleanupDetail,
@@ -33,12 +36,14 @@ import {
   cleanupImpact,
   emptyReason,
   formatCleanupDay,
+  rangeKeeps,
   plural,
   type ArchivedThread,
   type CleanupImpact,
   type CleanupOptions,
-  type CleanupWhat,
+  typedMatches,
 } from "./archived-cleanup-model";
+import { CountBadge, TypedConfirm, WhatChecks } from "./archived-cleanup-fields";
 
 /** Where the run is: choosing, deleting, or how a failed run ended. Success closes the dialog. */
 export type CleanupPhase =
@@ -66,31 +71,8 @@ export interface ArchivedCleanupDialogProps {
   phase: CleanupPhase;
   onConfirm: (options: CleanupOptions) => void;
   onRetry?: () => void;
-}
-
-const WHAT_COPY: Record<CleanupWhat, { title: string; description: string }> = {
-  everything: {
-    title: "Everything",
-    description: "Sessions, with their child sessions and subagents.",
-  },
-  children: {
-    title: "Only child sessions",
-    description: "Main sessions stay.",
-  },
-  subagents: {
-    title: "Only subagents",
-    description: "Every session stays.",
-  },
-};
-
-const WHAT_ORDER: readonly CleanupWhat[] = ["everything", "children", "subagents"];
-
-function CountBadge({ count }: { count: number }) {
-  return (
-    <span className="font-mono text-meta text-muted-foreground tabular-nums">
-      {count.toLocaleString()}
-    </span>
-  );
+  /** Stops a running cleanup after the sessions in flight; what went stays gone. */
+  onStop?: () => void;
 }
 
 /** Per project, busiest first; the long tail folds into one phrase. */
@@ -142,7 +124,7 @@ function ImpactPreview({
   return (
     <Alert data-testid="archived-cleanup-preview" role="status" variant="destructive">
       <Trash2 />
-      <AlertTitle className="tabular-nums">{cleanupHeadline(options.what, impact)}</AlertTitle>
+      <AlertTitle className="tabular-nums">{cleanupHeadline(impact)}</AlertTitle>
       <AlertDescription className="tabular-nums">
         {cleanupDetail(options.what, impact, kept)}
         {acrossProjects && impact.projects.length > 1 ? <ProjectBreakdown impact={impact} /> : null}
@@ -174,6 +156,7 @@ function CleanupForm({
   phase,
   onCancel,
   onConfirm,
+  onStop,
 }: {
   archive: readonly ArchivedThread[];
   scopeName: string;
@@ -182,16 +165,18 @@ function CleanupForm({
   phase: Extract<CleanupPhase, { kind: "form" | "deleting" }>;
   onCancel: () => void;
   onConfirm: (options: CleanupOptions) => void;
+  onStop?: () => void;
 }) {
   const [options, setOptions] = useState<CleanupOptions>(() => ({
-    what: "everything",
-    range: "7",
-    since: null,
+    ...DEFAULT_CLEANUP_OPTIONS,
     ...initialOptions,
   }));
+  const [typed, setTyped] = useState("");
   const deleting = phase.kind === "deleting";
   const impact = cleanupImpact(archive, options);
   const counts = cleanupChoiceCounts(archive, options);
+  const needsTyping = impact.total > TYPED_CONFIRM_THRESHOLD;
+  const ready = impact.total > 0 && (!needsTyping || typedMatches(typed, impact.total));
   const update = (next: Partial<CleanupOptions>) =>
     setOptions(current => ({ ...current, ...next }));
 
@@ -201,7 +186,7 @@ function CleanupForm({
       noValidate
       onSubmit={event => {
         event.preventDefault();
-        if (!deleting && impact.total > 0) onConfirm(options);
+        if (!deleting && ready) onConfirm(options);
       }}
     >
       <DialogHeader>
@@ -211,25 +196,20 @@ function CleanupForm({
           with their conversations. Sessions in your lists and in Later are never touched.
         </DialogDescription>
       </DialogHeader>
-      <Field>
-        <FieldLabel id="archived-cleanup-what-label">What to delete</FieldLabel>
-        <RadioCardGroup
-          aria-labelledby="archived-cleanup-what-label"
-          data-testid="archived-cleanup-what"
+      {/* A fieldset, not a Field: a Field fades every checkbox in it once one of them is locked. */}
+      <FieldSet className="gap-0">
+        <FieldLegend className="mb-2" id="archived-cleanup-what-label" variant="label">
+          What to delete
+        </FieldLegend>
+        <WhatChecks
+          counts={counts}
           disabled={deleting}
-          onValueChange={what => update({ what })}
-          options={WHAT_ORDER.map(what => ({
-            value: what,
-            title: WHAT_COPY[what].title,
-            description: WHAT_COPY[what].description,
-            badge: <CountBadge count={counts[what]} />,
-            "data-testid": `archived-cleanup-what-${what}`,
-          }))}
-          value={options.what}
+          onChange={next => update({ what: { ...options.what, ...next } })}
+          what={options.what}
         />
-      </Field>
+      </FieldSet>
       <Field>
-        <FieldLabel id="archived-cleanup-range-label">Time range</FieldLabel>
+        <FieldLabel id="archived-cleanup-range-label">Archived</FieldLabel>
         <PillGroup
           aria-labelledby="archived-cleanup-range-label"
           className="flex-wrap"
@@ -242,57 +222,79 @@ function CleanupForm({
           onChange={range => update({ range })}
           value={options.range}
         />
-        {options.range === "since" ? (
+        {options.range === "before" ? (
           <DateTimePicker
             aria-labelledby="archived-cleanup-range-label"
             className="mt-1"
-            data-testid="archived-cleanup-since"
+            data-testid="archived-cleanup-before"
             defaultTime={[0, 0]}
             disabled={deleting}
-            formatValue={day => `Since ${formatCleanupDay(day)}`}
-            id="archived-cleanup-since"
-            onValueChange={since => update({ since })}
+            formatValue={day => `Before ${formatCleanupDay(day)}`}
+            id="archived-cleanup-before"
+            onValueChange={before => update({ before })}
             placeholder="Pick a date"
-            value={options.since}
+            value={options.before}
           />
         ) : null}
         <FieldDescription>
-          When each session was archived. Child sessions and subagents follow their main session.
+          {rangeKeeps(options)} Child sessions and subagents follow their main session.
         </FieldDescription>
       </Field>
       {deleting ? (
-        <DeletingProgress done={phase.done} total={impact.total} />
+        <Field>
+          <DeletingProgress done={phase.done} total={impact.total} />
+          <FieldDescription>It keeps going if you close this.</FieldDescription>
+        </Field>
       ) : (
-        <ImpactPreview acrossProjects={acrossProjects} impact={impact} options={options} />
+        <>
+          <ImpactPreview acrossProjects={acrossProjects} impact={impact} options={options} />
+          {needsTyping ? (
+            <TypedConfirm onChange={setTyped} total={impact.total} value={typed} />
+          ) : null}
+        </>
       )}
       <DialogFooter className="gap-2">
-        <Button
-          data-testid="archived-cleanup-cancel"
-          disabled={deleting}
-          onClick={onCancel}
-          type="button"
-          variant="ghost"
-        >
-          Cancel
-        </Button>
-        <Button
-          data-testid="archived-cleanup-confirm"
-          disabled={deleting || impact.total === 0}
-          type="submit"
-          variant="destructive"
-        >
-          {deleting ? (
-            <>
+        {deleting ? (
+          <>
+            <Button
+              data-testid="archived-cleanup-stop"
+              onClick={onStop}
+              type="button"
+              variant="ghost"
+            >
+              Stop
+            </Button>
+            <Button
+              data-testid="archived-cleanup-close"
+              onClick={onCancel}
+              type="button"
+              variant="secondary"
+            >
               <Spinner className="size-3" />
-              Deleting
-            </>
-          ) : (
-            <>
+              Close
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              data-testid="archived-cleanup-cancel"
+              onClick={onCancel}
+              type="button"
+              variant="ghost"
+            >
+              Cancel
+            </Button>
+            <Button
+              data-testid="archived-cleanup-confirm"
+              disabled={!ready}
+              type="submit"
+              variant="destructive"
+            >
               <Trash2 className="size-3" />
-              {impact.total === 0 ? "Delete" : cleanupActionLabel(options.what, impact)}
-            </>
-          )}
-        </Button>
+              {impact.total === 0 ? "Delete" : cleanupActionLabel(impact)}
+            </Button>
+          </>
+        )}
       </DialogFooter>
     </form>
   );
@@ -326,7 +328,8 @@ function CleanupOutcome({
 
 /**
  * "Clean up history" for the Archived list: what to delete, from when, and a live count of what
- * goes. One step: the count-bearing destructive action is the confirmation.
+ * goes. The count-bearing destructive action confirms; past 100 sessions the person types the
+ * count first. The run happens in the daemon, so the dialog can close while it works.
  */
 export function ArchivedCleanupDialog({
   open,
@@ -338,6 +341,7 @@ export function ArchivedCleanupDialog({
   phase,
   onConfirm,
   onRetry,
+  onStop,
 }: ArchivedCleanupDialogProps) {
   const close = () => onOpenChange(false);
   const body = (() => {
@@ -357,7 +361,7 @@ export function ArchivedCleanupDialog({
                 </Button>
               </>
             }
-            description={`Deleted ${phase.deleted.toLocaleString()} of ${plural(phase.total, "session", "sessions")}. ${plural(failed, "session is", "sessions are")} still in Archived.`}
+            description={`Deleted ${phase.deleted.toLocaleString()} of ${plural(phase.total, "session", "sessions")}. ${plural(failed, "archived session stays", "archived sessions stay")} in Archived with everything under ${failed === 1 ? "it" : "them"}.`}
             title="Some sessions weren’t deleted"
           >
             <ul
@@ -400,26 +404,17 @@ export function ArchivedCleanupDialog({
             initialOptions={initialOptions}
             onCancel={close}
             onConfirm={onConfirm}
+            onStop={onStop}
             phase={phase}
             scopeName={scopeName}
           />
         );
     }
   })();
-  const busy = phase.kind === "deleting";
+  // A running cleanup belongs to the daemon, so closing the dialog never stops it.
   return (
-    <Dialog
-      onOpenChange={nextOpen => {
-        if (busy && !nextOpen) return;
-        onOpenChange(nextOpen);
-      }}
-      open={open}
-    >
-      <DialogContent
-        className="max-w-lg"
-        data-testid="archived-cleanup-dialog"
-        showCloseButton={!busy}
-      >
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent className="max-w-lg" data-testid="archived-cleanup-dialog">
         {body}
       </DialogContent>
     </Dialog>
