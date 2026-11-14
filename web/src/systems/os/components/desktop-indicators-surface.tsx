@@ -15,7 +15,7 @@ import { DesktopIndicators } from "./desktop-indicators";
 
 export interface DesktopIndicatorsSurfaceProps {
   activeDesktopId: string | null;
-  desktops: readonly LayoutDesktop[];
+  desktops: readonly Pick<LayoutDesktop, "id" | "name">[];
   /** Desktops holding a window that needs you (marked while off-screen). */
   needsYouDesktopIds: ReadonlySet<string>;
   canSwitchDesktop: boolean;

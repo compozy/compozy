@@ -380,18 +380,22 @@ describe("document reduced motion", () => {
   });
 });
 
-// Invariant: shell metadata ignores geometry, while window membership, attention,
-// and an opened overview immediately reflect the latest authoritative projection.
+// Invariant: shell metadata ignores geometry and the pager ignores tab topology, while
+// destinations, window membership, attention and an opened overview reflect authoritative state.
 // Owning layer: OS projection subscriptions; canonical suite: OS interaction hooks.
 describe("desktop chrome projection subscriptions", () => {
-  it("Should ignore geometry and publish window membership and desktop attention", () => {
+  it("Should isolate tab topology and geometry from desktop destinations and attention", () => {
     const shell = createShell();
     const primary: OsWindow = {
       ...shell.state.windows["window:primary"]!,
       app: "session",
       instanceKey: "session:attention",
     };
-    shell.setRuntimeState({ windows: { [primary.id]: primary } });
+    const desktops = [
+      { id: "desktop:main", name: "Main", order: 0, tabs: [], activeTabId: null },
+      { id: "desktop:other", name: "Other", order: 1, tabs: [], activeTabId: null },
+    ];
+    shell.setRuntimeState({ desktops, windows: { [primary.id]: primary } });
     const row: OsSessionAttentionRow = {
       kind: "session",
       id: primary.instanceKey!,
@@ -420,6 +424,30 @@ describe("desktop chrome projection subscriptions", () => {
     expect(renders).toBe(initialRenders);
     expect(result.current.chrome.windowIds).toEqual([primary.id]);
     expect([...result.current.pager.needsYouDesktopIds]).toEqual(["desktop:main"]);
+
+    // A peer changing this desktop's tabs cannot change the destination dots.
+    const changedTabs = {
+      ...desktops[0]!,
+      tabs: [
+        {
+          id: primary.tabId,
+          pinned: false,
+          root: { id: primary.nodeId, kind: "leaf" as const, windowId: primary.id },
+        },
+      ],
+      activeTabId: primary.tabId,
+    };
+    act(() => shell.setRuntimeState({ desktops: [changedTabs, desktops[1]!] }));
+    expect(renders).toBe(initialRenders);
+    act(() =>
+      shell.setRuntimeState({
+        desktops: [desktops[1]!, { ...changedTabs, name: "Renamed" }],
+      })
+    );
+    expect(result.current.pager.desktops).toEqual([
+      { id: "desktop:other", name: "Other" },
+      { id: "desktop:main", name: "Renamed" },
+    ]);
 
     act(() =>
       shell.setRuntimeState({

@@ -21,7 +21,9 @@ not prepare drop geometry or publish an active drag view. Verify click activatio
 head controls, then drag across the threshold (including a release without an intermediate
 move), reorder, split, cancel, and converge from a second client. Retained tab trees observe
 their own members and projection; sibling focus changes must preserve hidden app state, while
-member updates/removal and split topology still propagate. E2E-023 owns real-browser acceptance
+member updates/removal and split topology still propagate. Merging or splitting tabs must not
+invalidate the desktop indicators; desktop rename, order, membership and attention still update.
+E2E-023 owns real-browser acceptance
 with eleven tabs, the unchanged 500 ms restore budget and both 50 ms switch/convergence bounds.
 CI owns verification; local runs and screenshots are waived by the v0.6.3 release dispatch.
 
