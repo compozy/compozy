@@ -394,6 +394,31 @@ describe("terminal window close lifecycle", () => {
     expect(closeTerminal).not.toHaveBeenCalled();
   });
 
+  it("Should keep a terminal-showing window closable while it opens another", async () => {
+    vi.mocked(fetchTerminals).mockResolvedValue([]);
+    const client = new QueryClient();
+    const creation = client
+      .getMutationCache()
+      .build(client, {
+        mutationKey: terminalWindowCreateKey(terminalWindow.id),
+        mutationFn: () => new Promise(() => {}),
+      })
+      .execute(undefined)
+      .catch(() => undefined);
+    const guard = new TerminalWindowClose().guard("ws-close", client);
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(true);
+    void creation;
+  });
+
+  it("Should hold an unbound terminal window until the partition is known", async () => {
+    // The view-only close is for the All projects aggregate only; an unknown
+    // partition may hide a running terminal that deserves its confirmation.
+    const guard = new TerminalWindowClose().guard(null, new QueryClient());
+    await expect(guard([terminalWindow], () => true)).resolves.toBe(false);
+    expect(toast.error).toHaveBeenCalled();
+    expect(closeTerminal).not.toHaveBeenCalled();
+  });
+
   it("Should leave process and window intact when confirmation is canceled", async () => {
     const { controller, guard } = setup();
     const result = guard([terminalWindow], () => true);

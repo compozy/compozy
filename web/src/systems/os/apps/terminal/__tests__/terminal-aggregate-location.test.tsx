@@ -148,7 +148,7 @@ describe("TerminalAggregateLocation", () => {
   it("Should say a requested terminal is gone and keep the launcher one action away", () => {
     // #1712: an exited, reaped terminal opened from a transcript must not silently
     // become the new-terminal launcher.
-    const { props } = renderLocation(
+    const { props, rerender } = renderLocation(
       { requestedId: "term-reaped" },
       { data: [...TERMINAL_FIXTURES], isPending: false }
     );
@@ -159,6 +159,21 @@ describe("TerminalAggregateLocation", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open a new terminal" }));
     expect(screen.getByTestId("terminal-launcher")).toBeInTheDocument();
+
+    // Choosing the launcher answers that request only; another missing id asks again.
+    rerender(<TerminalAggregateLocation {...props} requestedId="term-other-reaped" />);
+    expect(screen.getByTestId("terminal-not-found")).toBeInTheDocument();
+  });
+
+  it("Should offer Retry, not the launcher, when a failed refresh lacks the request", () => {
+    renderLocation(
+      { requestedId: "term-reaped" },
+      { data: [...TERMINAL_FIXTURES], error: new Error("daemon unavailable"), isPending: false }
+    );
+
+    expect(screen.getByText("Couldn't load Terminal")).toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-launcher")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-not-found")).not.toBeInTheDocument();
   });
 
   it("Should offer no new-terminal action for a gone terminal in an all-profiles read", () => {

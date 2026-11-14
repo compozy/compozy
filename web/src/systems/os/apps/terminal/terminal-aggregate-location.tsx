@@ -69,7 +69,8 @@ export function TerminalAggregateLocation({
   viewer,
 }: TerminalAggregateLocationProps) {
   const queryClient = useQueryClient();
-  const [launcherShown, setLauncherShown] = useState(false);
+  // The requested id the operator chose the launcher over; a new request asks again.
+  const [launcherFor, setLauncherFor] = useState<string | null>(null);
   const terminals = catalog.data ?? [];
   const destinations = terminalLauncherDestinations(workspaces, worktrees, profile);
   const defaultDestination = defaultTerminalLauncherDestination(
@@ -148,8 +149,10 @@ export function TerminalAggregateLocation({
   };
 
   if (requested || (requestedId && catalog.isPending)) return <TerminalAggregateSkeleton />;
-  // A terminal asked for by id cannot bind until the catalog names its project.
-  if (requestedId && catalog.error && terminals.length === 0) {
+  // A terminal asked for by id cannot bind until the catalog names its project,
+  // and one a failed read did not list may still exist: offer the retry.
+  const awaitingRequested = Boolean(requestedId) && launcherFor !== requestedId;
+  if (awaitingRequested && catalog.error) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
         <Empty
@@ -175,10 +178,12 @@ export function TerminalAggregateLocation({
   // The settled catalog does not have it: it exited and was reaped, or it ran
   // before a daemon restart. Say so instead of swapping in the launcher; a new
   // terminal stays one secondary action away.
-  if (requestedId && !catalog.error && !launcherShown) {
+  if (awaitingRequested) {
     // All profiles is read-only: nothing new starts, so no action promises one.
     return (
-      <TerminalNotFoundState onOpenTerminal={readOnly ? undefined : () => setLauncherShown(true)} />
+      <TerminalNotFoundState
+        onOpenTerminal={readOnly ? undefined : () => setLauncherFor(requestedId)}
+      />
     );
   }
 
