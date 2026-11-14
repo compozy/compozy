@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -752,8 +753,8 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 			WHEN OLD.id = 'child' BEGIN SELECT RAISE(ABORT, 'forced delete failure'); END`); err != nil {
 			t.Fatal(err)
 		}
-		if err := db.DeleteSession(ctx, "child"); err == nil {
-			t.Fatal("child deletion succeeded")
+		if err := db.DeleteSession(ctx, "child"); err == nil || !strings.Contains(err.Error(), "forced delete failure") {
+			t.Fatalf("DeleteSession() error = %v, want forced delete failure", err)
 		}
 		got, err := db.GetSubagent(ctx, workspace, "delegation")
 		if err != nil || got.ChildSessionID == nil || *got.ChildSessionID != "child" ||
