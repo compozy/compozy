@@ -54,10 +54,10 @@ export function ArchivedFolder({
       folder={{ id: name, name }}
       onDelete={noop}
       onRename={noop}
-      onToggle={() => setExpanded((value) => !value)}
+      onToggle={() => setExpanded(value => !value)}
       testIdPrefix="archived-cleanup"
     >
-      {rows.map((session) => (
+      {rows.map(session => (
         <ArchivedRow key={session.id} session={session} />
       ))}
     </SessionListFolder>

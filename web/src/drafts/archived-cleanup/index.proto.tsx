@@ -66,8 +66,8 @@ interface Scenario {
 }
 
 /** The project's archive with nothing in the last week, for the empty preview. */
-const QUIET_ARCHIVE = PROJECT_ARCHIVE.flatMap((thread) =>
-  thread.archivedDaysAgo >= 9 ? [{ ...thread, project: "compozy-site" }] : [],
+const QUIET_ARCHIVE = PROJECT_ARCHIVE.flatMap(thread =>
+  thread.archivedDaysAgo >= 9 ? [{ ...thread, project: "compozy-site" }] : []
 );
 
 const SCENARIOS: Record<string, Scenario> = {
@@ -95,7 +95,7 @@ const SCENARIOS: Record<string, Scenario> = {
     scope: "compozy",
     // The run already removed five of the week's seven; the two that failed stay listed.
     archive: PROJECT_ARCHIVE.filter(
-      (thread, index) => thread.archivedDaysAgo >= 7 || index === 0 || index === 2,
+      (thread, index) => thread.archivedDaysAgo >= 7 || index === 0 || index === 2
     ),
     phase: {
       kind: "partial",
@@ -126,15 +126,15 @@ const SCENARIOS: Record<string, Scenario> = {
 function ArchiveRows({ archive, scale }: { archive: readonly ArchivedThread[]; scale: boolean }) {
   if (scale) {
     const rows = archivedRows(
-      archive.filter((thread) => thread.project === "compozy"),
-      9,
+      archive.filter(thread => thread.project === "compozy"),
+      9
     );
     return (
       <>
         <ArchivedProjectGroup collapsed={false} count={214} project="compozy">
           <ArchivedFolder count={41} name="Issue batch #1704–#1710" rows={rows.slice(0, 3)} />
           <ArchivedFolder count={18} name="Release v0.7.0" rows={rows.slice(3, 5)} />
-          {rows.slice(5).map((session) => (
+          {rows.slice(5).map(session => (
             <ArchivedRow key={session.id} session={session} />
           ))}
         </ArchivedProjectGroup>
@@ -154,11 +154,11 @@ function ArchiveRows({ archive, scale }: { archive: readonly ArchivedThread[]; s
   }
   return (
     <>
-      {rows.slice(0, 4).map((session) => (
+      {rows.slice(0, 4).map(session => (
         <ArchivedRow key={session.id} session={session} />
       ))}
       <ArchivedFolder count={3} name="Files preview" rows={rows.slice(4, 7)} />
-      {rows.slice(7).map((session) => (
+      {rows.slice(7).map(session => (
         <ArchivedRow key={session.id} session={session} />
       ))}
     </>
@@ -227,10 +227,10 @@ function CleanupScenario({ initial, scale }: { initial: Scenario; scale: boolean
         archive={archive}
         initialOptions={options}
         key={`${run}-${phase.kind}-${open ? "open" : "closed"}`}
-        onConfirm={(confirmed) => {
+        onConfirm={confirmed => {
           setOptions(confirmed);
           setPhase({ kind: "deleting", done: 0 });
-          setRun((value) => value + 1);
+          setRun(value => value + 1);
         }}
         onOpenChange={setOpen}
         onRetry={() => finish(archive, runOptions)}
@@ -253,7 +253,7 @@ export default function ArchivedCleanupDraft({ state }: PrototypeProps) {
             SESSIONS.chip,
             SESSIONS.board,
             SESSIONS.review,
-          ].map((session) => (
+          ].map(session => (
             <ArchivedRow key={session.id} session={session} />
           ))}
         </ArchivedSidebar>

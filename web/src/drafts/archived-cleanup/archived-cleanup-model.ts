@@ -97,7 +97,7 @@ function threadImpact(thread: ArchivedThread, what: CleanupWhat) {
 export function cleanupImpact(
   threads: readonly ArchivedThread[],
   options: CleanupOptions,
-  now = Date.now(),
+  now = Date.now()
 ): CleanupImpact {
   let sessions = 0;
   let children = 0;
@@ -141,7 +141,7 @@ export function cleanupImpact(
 export function cleanupChoiceCounts(
   threads: readonly ArchivedThread[],
   options: CleanupOptions,
-  now = Date.now(),
+  now = Date.now()
 ): Record<CleanupWhat, number> {
   const count = (what: CleanupWhat) => cleanupImpact(threads, { ...options, what }, now);
   return {
@@ -229,11 +229,11 @@ export function emptyReason(options: CleanupOptions): string {
 export function cleanupRemaining(
   threads: readonly ArchivedThread[],
   options: CleanupOptions,
-  now = Date.now(),
+  now = Date.now()
 ): ArchivedThread[] {
   if (options.what === "everything")
-    return threads.filter((thread) => !inRange(thread, options, now));
-  return threads.map((thread) => {
+    return threads.filter(thread => !inRange(thread, options, now));
+  return threads.map(thread => {
     if (!inRange(thread, options, now)) return thread;
     return options.what === "children" ? { ...thread, children: 0 } : { ...thread, subagents: 0 };
   });

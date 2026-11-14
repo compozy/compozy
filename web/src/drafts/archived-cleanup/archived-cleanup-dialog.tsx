@@ -100,7 +100,7 @@ function ProjectBreakdown({ impact }: { impact: CleanupImpact }) {
   const restCount = rest.reduce((sum, item) => sum + item.sessions, 0);
   return (
     <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-meta">
-      {shown.map((item) => (
+      {shown.map(item => (
         <li className="flex items-baseline gap-1" key={item.project}>
           <span className="text-fg-2">{item.project}</span>
           <CountBadge count={item.sessions} />
@@ -193,13 +193,13 @@ function CleanupForm({
   const impact = cleanupImpact(archive, options);
   const counts = cleanupChoiceCounts(archive, options);
   const update = (next: Partial<CleanupOptions>) =>
-    setOptions((current) => ({ ...current, ...next }));
+    setOptions(current => ({ ...current, ...next }));
 
   return (
     <form
       className="flex flex-col gap-4"
       noValidate
-      onSubmit={(event) => {
+      onSubmit={event => {
         event.preventDefault();
         if (!deleting && impact.total > 0) onConfirm(options);
       }}
@@ -217,8 +217,8 @@ function CleanupForm({
           aria-labelledby="archived-cleanup-what-label"
           data-testid="archived-cleanup-what"
           disabled={deleting}
-          onValueChange={(what) => update({ what })}
-          options={WHAT_ORDER.map((what) => ({
+          onValueChange={what => update({ what })}
+          options={WHAT_ORDER.map(what => ({
             value: what,
             title: WHAT_COPY[what].title,
             description: WHAT_COPY[what].description,
@@ -234,12 +234,12 @@ function CleanupForm({
           aria-labelledby="archived-cleanup-range-label"
           className="flex-wrap"
           data-testid="archived-cleanup-range"
-          items={CLEANUP_RANGE_ITEMS.map((item) => ({
+          items={CLEANUP_RANGE_ITEMS.map(item => ({
             ...item,
             disabled: deleting,
             testId: `archived-cleanup-range-${item.value}`,
           }))}
-          onChange={(range) => update({ range })}
+          onChange={range => update({ range })}
           value={options.range}
         />
         {options.range === "since" ? (
@@ -249,9 +249,9 @@ function CleanupForm({
             data-testid="archived-cleanup-since"
             defaultTime={[0, 0]}
             disabled={deleting}
-            formatValue={(day) => `Since ${formatCleanupDay(day)}`}
+            formatValue={day => `Since ${formatCleanupDay(day)}`}
             id="archived-cleanup-since"
-            onValueChange={(since) => update({ since })}
+            onValueChange={since => update({ since })}
             placeholder="Pick a date"
             value={options.since}
           />
@@ -364,7 +364,7 @@ export function ArchivedCleanupDialog({
               className="flex flex-col gap-1.5 rounded-lg bg-surface-2 px-3.5 py-3"
               data-testid="archived-cleanup-failures"
             >
-              {phase.failed.map((item) => (
+              {phase.failed.map(item => (
                 <li className="flex min-w-0 flex-col gap-0.5" key={item.title}>
                   <span className="truncate text-small-body text-fg">{item.title}</span>
                   <span className="text-meta text-destructive">{item.reason}</span>
@@ -409,7 +409,7 @@ export function ArchivedCleanupDialog({
   const busy = phase.kind === "deleting";
   return (
     <Dialog
-      onOpenChange={(nextOpen) => {
+      onOpenChange={nextOpen => {
         if (busy && !nextOpen) return;
         onOpenChange(nextOpen);
       }}

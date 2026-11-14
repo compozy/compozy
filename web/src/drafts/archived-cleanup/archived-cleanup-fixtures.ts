@@ -65,7 +65,7 @@ const PROJECT_DAYS = [
 ];
 
 export const PROJECT_ARCHIVE: readonly ArchivedThread[] = PROJECT_DAYS.map((days, index) =>
-  thread(index, "compozy", days),
+  thread(index, "compozy", days)
 );
 
 /** Every project of the profile, busiest first: 512 archived main sessions in all. */
@@ -83,18 +83,18 @@ const SCALE_PROJECTS: readonly { project: string; count: number }[] = [
 export const SCALE_ARCHIVE: readonly ArchivedThread[] = SCALE_PROJECTS.flatMap(
   ({ project, count }, projectIndex) =>
     Array.from({ length: count }, (_, index) =>
-      thread(index + projectIndex, project, spread(index, 120, projectIndex)),
-    ),
+      thread(index + projectIndex, project, spread(index, 120, projectIndex))
+    )
 );
 
 export const SCALE_ARCHIVE_TOTAL = SCALE_ARCHIVE.length;
 
-export const SCALE_PROJECT_NAMES = SCALE_PROJECTS.map((item) => item.project);
+export const SCALE_PROJECT_NAMES = SCALE_PROJECTS.map(item => item.project);
 
 /** A list row for an archived main session. */
 export function archivedRow(
   item: ArchivedThread,
-  overrides: Partial<SessionPayload> = {},
+  overrides: Partial<SessionPayload> = {}
 ): SessionPayload {
   const index = Number(item.id.split("-").pop());
   return {
@@ -129,7 +129,7 @@ export function archivedRows(archive: readonly ArchivedThread[], limit: number):
   const seen = new Set<string>();
   return [...archive]
     .sort((a, b) => a.archivedDaysAgo - b.archivedDaysAgo)
-    .filter((item) => !seen.has(item.title) && Boolean(seen.add(item.title)))
+    .filter(item => !seen.has(item.title) && Boolean(seen.add(item.title)))
     .slice(0, limit)
-    .map((item) => archivedRow(item));
+    .map(item => archivedRow(item));
 }
