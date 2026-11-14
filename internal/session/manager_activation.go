@@ -11,6 +11,7 @@ import (
 	"slices"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/store"
@@ -65,8 +66,17 @@ var _ error = (*MCPReloadError)(nil)
 func (e *MCPReloadError) Error() string {
 	return fmt.Sprintf(
 		"Couldn't start %s with the new MCP servers: %s. Your message wasn't sent. (%s)",
-		e.Provider, diagnostics.RedactAndBound(e.Cause.Error(), 2048), MCPReloadFailedCode,
+		providerDisplayName(e.Provider), diagnostics.RedactAndBound(e.Cause.Error(), 2048), MCPReloadFailedCode,
 	)
+}
+
+// providerDisplayName names a builtin provider the way the product shows it, falling back to its id.
+func providerDisplayName(provider string) string {
+	if builtin, ok := compozyconfig.BuiltinProviders()[compozyconfig.CanonicalProviderName(provider)]; ok &&
+		builtin.DisplayName != "" {
+		return builtin.DisplayName
+	}
+	return provider
 }
 func (e *MCPReloadError) Unwrap() error { return e.Cause }
 
@@ -212,7 +222,7 @@ func (m *Manager) reloadActivationRuntime(
 		}
 		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
-		eventErr := m.recordMCPReload(cleanupCtx, s, before, attempted, outcome, reason)
+		eventErr := m.recordMCPReload(cleanupCtx, s, before, attempted, outcome, reason, selection.Provider)
 		m.sessionLogger(s).Info("session.mcp_reload", "reason", reason, "outcome", outcome,
 			"duration_ms", m.now().Sub(started).Milliseconds())
 		if err != nil || eventErr != nil {
@@ -243,7 +253,7 @@ func (m *Manager) reloadActivationRuntime(
 }
 
 func (m *Manager) recordMCPReload(
-	ctx context.Context, s *Session, before, after activationState, outcome, reason string,
+	ctx context.Context, s *Session, before, after activationState, outcome, reason, provider string,
 ) error {
 	added, removed := []string{}, []string{}
 	for name := range after.boundServers {
@@ -263,7 +273,8 @@ func (m *Manager) recordMCPReload(
 		Added   []string `json:"added"`
 		Removed []string `json:"removed"`
 		Reason  string   `json:"reason"`
-	}{outcome, added, removed, reason})
+		Runtime string   `json:"runtime"`
+	}{outcome, added, removed, reason, providerDisplayName(provider)})
 	if err != nil {
 		return err
 	}

@@ -28709,6 +28709,9 @@
           "runtime": {
             "type": "string"
           },
+          "runtime_display_name": {
+            "type": "string"
+          },
           "runtime_servers": {
             "$ref": "#/components/schemas/SessionRuntimeMCP"
           },
@@ -28724,6 +28727,7 @@
           "compozy",
           "pending_reload",
           "runtime",
+          "runtime_display_name",
           "runtime_servers",
           "session_id",
           "usable"

@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"slices"
@@ -84,7 +85,8 @@ func composeSessionMCP(
 	callable, diagnostics []toolspkg.ToolView,
 	runtime session.MCPRuntimeSnapshot,
 ) session.SessionMCP {
-	result := session.SessionMCP{SessionID: id, Runtime: runtime.Inventory.Runtime, LastReload: runtime.LastReload,
+	result := session.SessionMCP{SessionID: id, Runtime: runtime.Inventory.Runtime,
+		RuntimeDisplayName: cmp.Or(runtime.Inventory.DisplayName, runtime.Inventory.Runtime), LastReload: runtime.LastReload,
 		MCPSummary: session.MCPSummary{PendingReload: runtime.Pending}, Compozy: []session.MCPServerRow{},
 		RuntimeServers: session.SessionRuntimeMCP{RuntimeMCP: runtime.Mode, Servers: []session.RuntimeMCPRow{}},
 	}

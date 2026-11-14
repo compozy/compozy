@@ -39,8 +39,9 @@ type RuntimeMCPRow struct {
 }
 
 type SessionMCP struct {
-	SessionID string `json:"session_id"`
-	Runtime   string `json:"runtime"`
+	SessionID          string `json:"session_id"`
+	Runtime            string `json:"runtime"`
+	RuntimeDisplayName string `json:"runtime_display_name"`
 	MCPSummary
 	LastReload     *MCPReloadRecord  `json:"last_reload,omitempty"`
 	Compozy        []MCPServerRow    `json:"compozy"`

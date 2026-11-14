@@ -60,15 +60,15 @@ func (m *Manager) readRuntimeMCP(ctx context.Context, request runtimemcp.Request
 			return snapshot, nil
 		}
 	}
-	canDisable := false
+	canDisable, displayName := false, ""
 	for _, descriptor := range runtimemcp.Descriptors() {
 		if descriptor.Runtime == request.Runtime {
-			canDisable = descriptor.CanDisableRuntimeMCP
+			canDisable, displayName = descriptor.CanDisableRuntimeMCP, descriptor.DisplayName
 			break
 		}
 	}
 	return runtimemcp.Snapshot{
-		Runtime: request.Runtime, ReadState: "ok",
+		Runtime: request.Runtime, DisplayName: displayName, ReadState: "ok",
 		RuntimeMCP:       runtimemcp.RuntimeMode{CanDisable: canDisable},
 		ActivationDigest: activationFingerprint("", request.Runtime, ""),
 	}, nil

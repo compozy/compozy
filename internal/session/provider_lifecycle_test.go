@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1149,12 +1150,16 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 				var event struct {
 					Outcome string
 					Added   []string
+					Runtime string
 				}
 				if err := json.Unmarshal([]byte(failed.Content), &event); err != nil {
 					t.Fatal(err)
 				}
 				if event.Outcome != "failed" || !slices.Equal(event.Added, []string{"branas-dashboard"}) {
 					t.Fatalf("failed event = %+v", event)
+				}
+				if event.Runtime == "" || !strings.Contains(refusal.Error(), "Couldn't start "+event.Runtime+" ") {
+					t.Fatalf("transcript line and refusal name different runtimes: event=%q refusal=%q", event.Runtime, refusal.Error())
 				}
 				fail = false
 				sent, err = h.manager.SendPrompt(t.Context(), active.ID, opts)

@@ -20,27 +20,8 @@ export interface SessionMCPStateView {
   quiet?: boolean;
 }
 
-// The session read model names runtimes by their canonical inventory id. Display names follow
-// the daemon's runtime descriptors (`internal/runtimemcp/types.go`); an unknown id shows as is.
-const RUNTIME_DISPLAY_NAMES: Readonly<Record<string, string>> = {
-  claude: "Claude Code",
-  codex: "Codex",
-  gemini: "Gemini CLI",
-  opencode: "OpenCode",
-  "kimi-cli": "Kimi CLI",
-  "qwen-code": "Qwen Code",
-  copilot: "GitHub Copilot CLI",
-  cursor: "Cursor Agent",
-  agy: "Antigravity",
-  pi: "Pi",
-};
-
 // Provider logos are keyed by provider, which differs from the runtime id for Qwen.
 const RUNTIME_PROVIDER_KEYS: Readonly<Record<string, string>> = { "qwen-code": "qwen" };
-
-export function sessionMCPRuntimeDisplayName(runtime: string): string {
-  return RUNTIME_DISPLAY_NAMES[runtime] ?? runtime;
-}
 
 export function sessionMCPRuntimeProvider(runtime: string): string {
   return RUNTIME_PROVIDER_KEYS[runtime] ?? runtime;
@@ -98,7 +79,7 @@ export interface SessionMCPControlView {
 }
 
 export function sessionMCPControlView(data: SessionMCPResponse): SessionMCPControlView {
-  const runtimeName = sessionMCPRuntimeDisplayName(data.runtime);
+  const runtimeName = data.runtime_display_name || data.runtime;
   const needsYou = (row: SessionMCPServerRow) =>
     sessionMCPStateView(row.state, runtimeName).action !== undefined;
   const available = data.compozy.filter(row => row.state !== "not_available");

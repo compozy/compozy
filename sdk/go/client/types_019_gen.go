@@ -347,14 +347,15 @@ type SessionLinkedWorkSummary struct {
 
 // SessionMCP is a daemon API value.
 type SessionMCP struct {
-	SessionID      string            `json:"session_id"`
-	Runtime        string            `json:"runtime"`
-	Usable         int               `json:"usable"`
-	Attention      int               `json:"attention"`
-	PendingReload  bool              `json:"pending_reload"`
-	LastReload     *MCPReloadRecord  `json:"last_reload,omitempty"`
-	Compozy        []MCPServerRow    `json:"compozy"`
-	RuntimeServers SessionRuntimeMCP `json:"runtime_servers"`
+	SessionID          string            `json:"session_id"`
+	Runtime            string            `json:"runtime"`
+	RuntimeDisplayName string            `json:"runtime_display_name"`
+	Usable             int               `json:"usable"`
+	Attention          int               `json:"attention"`
+	PendingReload      bool              `json:"pending_reload"`
+	LastReload         *MCPReloadRecord  `json:"last_reload,omitempty"`
+	Compozy            []MCPServerRow    `json:"compozy"`
+	RuntimeServers     SessionRuntimeMCP `json:"runtime_servers"`
 }
 
 // SessionMentionKind is a daemon API value.

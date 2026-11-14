@@ -7983,6 +7983,7 @@ export type SessionMCP = {
   last_reload?: MCPReloadRecord | null;
   pending_reload: boolean;
   runtime: string;
+  runtime_display_name: string;
   runtime_servers: SessionRuntimeMCP;
   session_id: string;
   usable: number;

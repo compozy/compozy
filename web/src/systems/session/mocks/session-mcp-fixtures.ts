@@ -46,6 +46,7 @@ const READY = [
 interface SessionMCPFixtureInput {
   compozy?: SessionMCPServerRow[];
   runtime?: string;
+  runtimeDisplayName?: string;
   runtimeServers?: SessionRuntimeMCPRow[];
   runtimeMCP?: string;
   pendingReload?: boolean;
@@ -57,6 +58,7 @@ export function sessionMCPFixture(input: SessionMCPFixtureInput = {}): SessionMC
   return {
     session_id: "sess-mcp",
     runtime: input.runtime ?? "claude",
+    runtime_display_name: input.runtimeDisplayName ?? "Claude Code",
     usable: compozy.filter(row => row.state === "ready").length,
     attention: compozy.filter(row => ATTENTION_STATES.has(row.state)).length,
     pending_reload: input.pendingReload ?? false,
@@ -147,6 +149,7 @@ export const sessionMCPManyFixture = sessionMCPFixture({
 
 export const sessionMCPCodexFixture = sessionMCPFixture({
   runtime: "codex",
+  runtimeDisplayName: "Codex",
   runtimeServers: [runtimeRow("github"), runtimeRow("linear"), runtimeRow("local-scripts")],
 });
 
@@ -166,4 +169,5 @@ export const sessionMCPReloadFailedLineFixture: SessionMCPReloadView = {
   outcome: "failed",
   added: ["sentry"],
   removed: [],
+  runtime: "Claude Code",
 };

@@ -13,12 +13,15 @@ export interface SessionMCPReloadView {
   outcome: SessionMCPReloadOutcome;
   added: readonly string[];
   removed: readonly string[];
+  /** The runtime the reload started, by display name. */
+  runtime?: string;
 }
 
 const reloadEventSchema = z.object({
   outcome: z.enum(["applied", "replayed", "failed"]),
   added: z.array(z.string()).nullish(),
   removed: z.array(z.string()).nullish(),
+  runtime: z.string().nullish(),
 });
 
 export function isMCPReloadEventData(value: AgentEventPayload): boolean {
@@ -36,6 +39,7 @@ export function parseMCPReloadEvent(data: AgentEventPayload): SessionMCPReloadVi
     outcome: parsed.data.outcome,
     added: parsed.data.added ?? [],
     removed: parsed.data.removed ?? [],
+    ...(parsed.data.runtime ? { runtime: parsed.data.runtime } : {}),
   };
 }
 

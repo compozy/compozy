@@ -6,7 +6,6 @@ import { MCPComposerControl } from "@/systems/session/components/mcp-composer-co
 import { SessionMCPReloadMarker } from "@/systems/session/components/session-mcp-reload-marker";
 import type { SessionMCPResponse } from "@/systems/session/adapters/session-mcp-api";
 import type { SessionMCPReloadView } from "@/systems/session/lib/session-mcp-reload-event";
-import { sessionMCPRuntimeDisplayName } from "@/systems/session/lib/session-mcp-view";
 import { sessionMCPSummaryFixture } from "@/systems/session/mocks/session-mcp-fixtures";
 
 import { SessionsWindow } from "../always-on-agents-shared/session-frame";
@@ -76,10 +75,7 @@ export function SessionMCPStage({
             }
           </AgentTurn>
           {reload ? (
-            <SessionMCPReloadMarker
-              reload={reload}
-              runtime={sessionMCPRuntimeDisplayName(data.runtime)}
-            />
+            <SessionMCPReloadMarker reload={{ ...reload, runtime: data.runtime_display_name }} />
           ) : null}
           {continued ? (
             <AgentTurn>

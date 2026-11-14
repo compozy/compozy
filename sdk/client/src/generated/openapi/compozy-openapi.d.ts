@@ -16322,6 +16322,7 @@ export interface components {
       last_reload?: components["schemas"]["MCPReloadRecord"] | null;
       pending_reload: boolean;
       runtime: string;
+      runtime_display_name: string;
       runtime_servers: components["schemas"]["SessionRuntimeMCP"];
       session_id: string;
       usable: number;
