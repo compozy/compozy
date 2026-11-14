@@ -41,7 +41,8 @@ func (s *service) appendPublishedMCPItems(
 	}
 	for _, definition := range definitions {
 		found := false
-		for _, item := range items {
+		for i := range items {
+			item := &items[i]
 			if item.entry.Server.DefinitionSource == definition.Server.DefinitionSource &&
 				item.item.Name == definition.Server.Name {
 				found = true
@@ -98,7 +99,7 @@ func mcpApprovalNotFound(name string, err error) error {
 		return err
 	}
 	return &MCPApprovalError{
-		Code:    "mcp_server_not_found",
+		Code:    mcpServerNotFoundCode,
 		Message: fmt.Sprintf("No MCP server named %s in CompozyOS", name),
 	}
 }

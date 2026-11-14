@@ -9,7 +9,9 @@ import (
 )
 
 func sessionMCPConsentFilter(state *bootState) session.MCPConsentFilter {
-	return func(ctx context.Context, profileID, workspaceID string, servers []config.MCPServer) ([]config.MCPServer, error) {
+	return func(
+		ctx context.Context, profileID, workspaceID string, servers []config.MCPServer,
+	) ([]config.MCPServer, error) {
 		var admitted []config.MCPServer
 		sources, err := daemonMCPSources(ctx, state)
 		if err != nil {

@@ -172,7 +172,8 @@ func (s *service) preserveProviderOptionalFields(
 ) (ProviderSettings, error) {
 	if (settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "") &&
 		(settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "") &&
-		settings.RuntimeMCP != "" && settings.SteerCapability != "" && settings.SessionEnv != nil && settings.AutoCompactWindow != nil {
+		settings.RuntimeMCP != "" && settings.SteerCapability != "" &&
+		settings.SessionEnv != nil && settings.AutoCompactWindow != nil {
 		return settings, nil
 	}
 	cfg, _, err := s.loadConfig(ctx, ScopeUser, "", "")

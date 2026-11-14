@@ -1083,7 +1083,7 @@ func TestCrossWorkspaceSpawnIntent(t *testing.T) {
 	policy, err := h.manager.resolveSpawnPermissionPolicy(
 		t.Context(),
 		parent,
-		SpawnOpts{Workspace: "ws-other", InheritPermissions: true},
+		&SpawnOpts{Workspace: "ws-other", InheritPermissions: true},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1097,7 +1097,7 @@ func TestCrossWorkspaceSpawnIntent(t *testing.T) {
 	got, err := h.manager.effectiveSpawnAuthority(
 		t.Context(),
 		parent,
-		SpawnOpts{Workspace: "ws-other", PermissionPolicy: policy},
+		&SpawnOpts{Workspace: "ws-other", PermissionPolicy: policy},
 	)
 	if err != nil || !slices.Equal(got.MCPServers, []string{"linear"}) {
 		t.Fatalf("cross-scope authority=%+v err=%v", got, err)

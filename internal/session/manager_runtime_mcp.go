@@ -19,6 +19,11 @@ type RuntimeMCPInventory interface {
 }
 
 // WithRuntimeMCPInventory shares the daemon inventory cache with session admission.
+const (
+	runtimeMCPQwenCode = "qwen-code"
+	runtimeMCPOff      = "off"
+)
+
 func WithRuntimeMCPInventory(inventory RuntimeMCPInventory) Option {
 	return func(m *Manager) { m.runtimeMCPInventory = inventory }
 }
@@ -29,7 +34,7 @@ func runtimeMCPDescriptor(agent compozyconfig.ResolvedAgent) (runtimemcp.Descrip
 		runtimeID = "pi"
 	}
 	if runtimeID == "qwen" {
-		runtimeID = "qwen-code"
+		runtimeID = runtimeMCPQwenCode
 	}
 	for _, descriptor := range runtimemcp.Descriptors() {
 		if descriptor.Runtime == runtimeID {
@@ -40,8 +45,8 @@ func runtimeMCPDescriptor(agent compozyconfig.ResolvedAgent) (runtimemcp.Descrip
 }
 
 func runtimeMCPNeedsDigest(descriptor runtimemcp.Descriptor, mode string) bool {
-	return !descriptor.NativeHotReload || mode == "off" &&
-		(descriptor.Runtime == "copilot" || descriptor.Runtime == "qwen-code")
+	return !descriptor.NativeHotReload || mode == runtimeMCPOff &&
+		(descriptor.Runtime == "copilot" || descriptor.Runtime == runtimeMCPQwenCode)
 }
 
 func (m *Manager) readRuntimeMCP(ctx context.Context, request runtimemcp.Request) (runtimemcp.Snapshot, error) {
@@ -113,12 +118,12 @@ func (m *Manager) prepareRuntimeMCPStartup(
 	}
 	if descriptor.Runtime == "claude" {
 		opts.ManagedProviderMCP = !snapshot.RuntimeMCP.CanDisable
-		if runtime.activationMode == "off" && !opts.ManagedProviderMCP {
+		if runtime.activationMode == runtimeMCPOff && !opts.ManagedProviderMCP {
 			opts.IsolateProviderMCP = true
 		}
 		return opts, nil
 	}
-	if runtime.activationMode != "off" || !descriptor.CanDisableRuntimeMCP {
+	if runtime.activationMode != runtimeMCPOff || !descriptor.CanDisableRuntimeMCP {
 		return opts, nil
 	}
 	if snapshot.ReadState != "ok" {

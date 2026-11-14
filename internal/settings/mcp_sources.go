@@ -47,7 +47,7 @@ func (s *service) loadMCPSources(
 	profileName string,
 ) (map[string][]mcpSourceEntry, error) {
 	if scope == ScopeWorkspace && profileName == "" {
-		profileName = "default"
+		profileName = mcpAuthDefaultProfileName
 	}
 	sources := make(map[string][]mcpSourceEntry)
 	if err := s.loadGlobalMCPSources(sources, workspaceID, profileName); err != nil {

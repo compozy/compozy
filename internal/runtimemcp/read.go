@@ -2,6 +2,7 @@ package runtimemcp
 
 import (
 	"cmp"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -33,15 +34,15 @@ func readDefinitions(c ReadContext, descriptor Descriptor) (Snapshot, []string, 
 		Servers:     []Server{},
 	}
 	entries := map[string]entry{}
-	if descriptor.Runtime == "claude" {
+	if descriptor.Runtime == runtimeClaude {
 		r.readClaude(entries, &snapshot)
 	} else {
 		r.readSources(descriptor.Runtime, entries)
 	}
-	if descriptor.Runtime == "gemini" {
+	if descriptor.Runtime == runtimeGemini {
 		r.applyGeminiEnablement(entries)
 	}
-	if descriptor.Runtime == "cursor" {
+	if descriptor.Runtime == runtimeCursor {
 		r.applyCursorApprovals(entries)
 	}
 	snapshot.ConfigFiles = slices.Clone(r.files)
@@ -87,9 +88,9 @@ func (r *reader) add(runtime string, src source, definitions object, entries map
 			r.failure = "Couldn't read " + r.label(src.path) + ": invalid MCP server definition"
 			continue
 		}
-		if old, ok := entries[name]; ok && old.server.Scope != "plugin" {
-			if runtime == "codex" ||
-				(runtime == "pi" && !has(definition, "command") && !has(definition, "url") && !has(definition, "type")) {
+		if old, ok := entries[name]; ok && old.server.Scope != scopePlugin {
+			if runtime == runtimeCodex ||
+				(runtime == "pi" && !has(definition, fieldCommand) && !has(definition, fieldURL) && !has(definition, fieldType)) {
 				definition = mergeDefinition(old.definition, definition)
 			}
 		}
@@ -105,9 +106,7 @@ func (r *reader) add(runtime string, src source, definitions object, entries map
 // Codex layers merge TOML tables recursively; arrays and scalar values replace.
 func mergeDefinition(base, overlay object) object {
 	merged := object{}
-	for key, value := range base {
-		merged[key] = value
-	}
+	maps.Copy(merged, base)
 	for key, value := range overlay {
 		if nested := obj(value); nested != nil && obj(merged[key]) != nil {
 			value = mergeDefinition(obj(merged[key]), nested)
@@ -146,13 +145,13 @@ func (r *reader) readSources(runtime string, entries map[string]entry) {
 				policy[key] = value
 			}
 		}
-		if runtime == "codex" && src.scope == "user" {
+		if runtime == runtimeCodex && src.scope == scopeUser {
 			r.codexPlugins(doc, entries)
 			profile := str(doc["profile"])
 			if r.context.RuntimeProfile == "" && filepath.Base(src.path) == "config.toml" &&
 				validRuntimeProfile(profile) {
 				path := filepath.Join(filepath.Dir(src.path), profile+".config.toml")
-				srcs = slices.Insert(srcs, index+1, source{path, "user"})
+				srcs = slices.Insert(srcs, index+1, source{path, scopeUser})
 			}
 		}
 	}
@@ -168,12 +167,12 @@ func (r *reader) readClaude(entries map[string]entry, snapshot *Snapshot) {
 			snapshot.Notes,
 			"Claude Code's managed-mcp.json controls its MCP servers; the runtime switch is unavailable",
 		)
-		definitions, err := decodeServers("claude", obj(value))
+		definitions, err := decodeServers(runtimeClaude, obj(value))
 		if err != nil {
 			r.failure = "Couldn't read " + r.label(managed) + ": invalid MCP configuration shape"
 			return
 		}
-		r.add("claude", source{managed, "managed"}, definitions, entries)
+		r.add(runtimeClaude, source{managed, scopeManaged}, definitions, entries)
 		return
 	}
 	// An unreadable managed file is still an exclusive machine policy.
@@ -181,22 +180,20 @@ func (r *reader) readClaude(entries map[string]entry, snapshot *Snapshot) {
 		snapshot.RuntimeMCP.CanDisable = false
 		return
 	}
-	srcs := sources(r.context, "claude")
+	srcs := sources(r.context, runtimeClaude)
 	settings := object{}
 	paths := []string{filepath.Join(r.context.homeDir("CLAUDE_CONFIG_DIR", ".claude"), "settings.json")}
 	if r.context.CWD != "" {
 		paths = append(
 			paths,
-			filepath.Join(r.context.CWD, ".claude/settings.json"),
-			filepath.Join(r.context.CWD, ".claude/settings.local.json"),
+			filepath.Join(r.context.CWD, ".claude", "settings.json"),
+			filepath.Join(r.context.CWD, ".claude", "settings.local.json"),
 		)
 	}
 	paths = append(paths, filepath.Join(r.context.systemDir("ClaudeCode"), "managed-settings.json"))
 	for _, path := range paths {
 		if value, ok := r.load(path); ok {
-			for k, v := range obj(value) {
-				settings[k] = v
-			}
+			maps.Copy(settings, obj(value))
 		}
 	}
 	r.claudePlugins(settings, entries)
@@ -211,18 +208,18 @@ func (r *reader) readClaude(entries map[string]entry, snapshot *Snapshot) {
 			r.failure = "Couldn't read " + r.label(src.path) + ": invalid configuration shape"
 			continue
 		}
-		definitions, err := decodeServers("claude", doc)
+		definitions, err := decodeServers(runtimeClaude, doc)
 		if err != nil {
 			r.failure = "Couldn't read " + r.label(src.path) + ": invalid MCP configuration shape"
 			continue
 		}
-		r.add("claude", src, definitions, entries)
-		if src.scope == "user" {
+		r.add(runtimeClaude, src, definitions, entries)
+		if src.scope == scopeUser {
 			project = obj(obj(doc["projects"])[cmp.Or(r.context.GitRoot, r.context.CWD)])
 		}
 	}
 	if project != nil {
-		r.add("claude", source{srcs[0].path, "local"}, obj(project["mcpServers"]), entries)
+		r.add(runtimeClaude, source{srcs[0].path, scopeLocal}, obj(project["mcpServers"]), entries)
 	}
 	applyClaudeApprovals(project, settings, entries)
 }
@@ -232,7 +229,7 @@ func applyClaudeApprovals(project, settings object, entries map[string]entry) {
 		if contains(project["disabledMcpServers"], name) {
 			item.server.EnabledInRuntime = false
 		}
-		if item.server.Scope == "project" {
+		if item.server.Scope == scopeProject {
 			item.server.Approval = "pending"
 			if boolean(settings["enableAllProjectMcpServers"]) || contains(settings["enabledMcpjsonServers"], name) ||
 				contains(project["enabledMcpjsonServers"], name) {
@@ -249,7 +246,7 @@ func applyClaudeApprovals(project, settings object, entries map[string]entry) {
 }
 
 func (r *reader) applyGeminiEnablement(entries map[string]entry) {
-	value, ok := r.load(filepath.Join(r.context.Home, ".gemini/mcp-server-enablement.json"))
+	value, ok := r.load(filepath.Join(r.context.Home, ".gemini", "mcp-server-enablement.json"))
 	if !ok {
 		return
 	}
@@ -275,9 +272,9 @@ func installed(c ReadContext, d Descriptor) bool {
 	roots := filepath.SplitList(c.Env["PATH"])
 	roots = append(
 		roots,
-		filepath.Join(c.Home, ".local/bin"),
-		filepath.Join(c.Home, ".opencode/bin"),
-		filepath.Join(c.Home, ".kimi-code/bin"),
+		filepath.Join(c.Home, ".local", "bin"),
+		filepath.Join(c.Home, ".opencode", "bin"),
+		filepath.Join(c.Home, ".kimi-code", "bin"),
 	)
 	for _, dir := range roots {
 		if dir == "" {
