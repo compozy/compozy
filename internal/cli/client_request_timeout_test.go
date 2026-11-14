@@ -133,25 +133,29 @@ func TestResolveClientRequestTimeout(t *testing.T) {
 func TestCommandDepsApplyResolvedRequestTimeout(t *testing.T) {
 	t.Parallel()
 
-	deps := commandDeps{
-		getenv: func(string) string { return "3m" },
-		loadConfig: func() (compozyconfig.Config, error) {
-			return compozyconfig.Config{}, nil
-		},
-	}
+	t.Run("Should apply the resolved timeout only to unary requests", func(t *testing.T) {
+		t.Parallel()
 
-	client, err := deps.withDefaults().newClient(LocalClientTarget("/tmp/compozy.sock"))
-	if err != nil {
-		t.Fatalf("newClient() error = %v", err)
-	}
-	udsClient, ok := client.(*daemonClient)
-	if !ok {
-		t.Fatalf("newClient() = %T, want *daemonClient", client)
-	}
-	if want := 3 * time.Minute; udsClient.httpClient.Timeout != want {
-		t.Fatalf("httpClient timeout = %v, want %v", udsClient.httpClient.Timeout, want)
-	}
-	if udsClient.streamClient.Timeout != 0 {
-		t.Fatalf("streamClient timeout = %v, want streams left untimed", udsClient.streamClient.Timeout)
-	}
+		deps := commandDeps{
+			getenv: func(string) string { return "3m" },
+			loadConfig: func() (compozyconfig.Config, error) {
+				return compozyconfig.Config{}, nil
+			},
+		}
+
+		client, err := deps.withDefaults().newClient(LocalClientTarget("/tmp/compozy.sock"))
+		if err != nil {
+			t.Fatalf("newClient() error = %v", err)
+		}
+		udsClient, ok := client.(*daemonClient)
+		if !ok {
+			t.Fatalf("newClient() = %T, want *daemonClient", client)
+		}
+		if want := 3 * time.Minute; udsClient.httpClient.Timeout != want {
+			t.Fatalf("httpClient timeout = %v, want %v", udsClient.httpClient.Timeout, want)
+		}
+		if udsClient.streamClient.Timeout != 0 {
+			t.Fatalf("streamClient timeout = %v, want streams left untimed", udsClient.streamClient.Timeout)
+		}
+	})
 }
