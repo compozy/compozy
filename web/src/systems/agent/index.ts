@@ -361,6 +361,7 @@ export {
   humanizeAgentSlug,
   resolveAgentIdentity,
   type AgentIdentity,
+  type AgentIdentitySource,
 } from "./lib/agent-identity";
 export {
   applyAgentInstanceUpdate,
@@ -415,7 +416,10 @@ export {
 export { blockedReason, toolCallLine } from "./lib/agent-check-in-tool-calls";
 export { markAgentInstanceSeen, type AgentInstanceRef } from "./adapters/agent-instance-api";
 
-export { AgentIdentityScopeContext } from "./lib/agent-identity-context";
+export {
+  AgentIdentityCatalogContext,
+  AgentIdentityScopeContext,
+} from "./lib/agent-identity-context";
 export { InlineCodeText } from "./components/inline-code-text";
 
 export { useMarkAgentInstanceSeen } from "./hooks/use-agent-instances";

@@ -29,10 +29,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@compozy/ui";
 
-import type { AgentIdentitySource } from "@/systems/agent/lib/agent-identity";
-import { AgentIdentityCatalogContext } from "@/systems/agent/lib/agent-identity-context";
+import {
+  AgentIdentityCatalogContext,
+  type AgentIdentitySource,
+  type AgentInstancePayload,
+} from "@/systems/agent";
 import { agentInstanceFixture } from "@/systems/agent/mocks";
-import type { AgentInstancePayload } from "@/systems/agent";
 import { useProfileReadScopeParams } from "@/systems/profiles";
 import { sessionScopedDetailOptions, type SessionPayload } from "@/systems/session";
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
@@ -65,8 +67,10 @@ vi.mock("@/systems/session", async importOriginal => ({
   useSessions: () => ({ data: sessionRows }),
 }));
 
-vi.mock("@/systems/agent", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/agent")>()),
+// The hook's own module: the barrel loads the shell back through its imports, so a barrel mock
+// would not reach this bar.
+vi.mock("@/systems/agent/hooks/use-agent-instances", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/hooks/use-agent-instances")>()),
   useAgentInstances: () => instanceRows,
 }));
 
