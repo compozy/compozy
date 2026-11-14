@@ -1,0 +1,89 @@
+{
+  "version": 3,
+  "key": "archived-cleanup",
+  "sequence": 1,
+  "review": {
+    "status": "in_review",
+    "updatedAt": null
+  },
+  "events": [],
+  "comments": [
+    {
+      "id": "archived-cleanup-1",
+      "slug": "archived-cleanup",
+      "status": "resolved",
+      "createdAt": "2026-11-14T18:48:55.317Z",
+      "updatedAt": "2026-11-14T18:53:14.119Z",
+      "resolvedAt": "2026-11-14T18:53:02.036Z",
+      "context": {
+        "commit": "16d07b597fb1831c8fbab2ee61d3643fc312aa00",
+        "state": "dialog-subagents",
+        "theme": "dark",
+        "role": null,
+        "viewport": {
+          "width": 1859,
+          "height": 1154
+        }
+      },
+      "target": {
+        "kind": "element",
+        "selector": "[data-testid=\"archived-cleanup-what\"] > div:nth-of-type(2)",
+        "testId": "archived-cleanup-what",
+        "tag": "div",
+        "text": "Child sessions The main sessions stay. 21 Subagents Every session stays. 84",
+        "source": "src/drafts/archived-cleanup/archived-cleanup-fields.tsx:80:7",
+        "sourceChain": [
+          "src/drafts/archived-cleanup/archived-cleanup-fields.tsx:80:7",
+          "src/drafts/archived-cleanup/archived-cleanup-fields.tsx:65:5",
+          "src/drafts/archived-cleanup/archived-cleanup-dialog.tsx:204:9",
+          "src/drafts/archived-cleanup/archived-cleanup-dialog.tsx:200:7",
+          "src/drafts/archived-cleanup/archived-cleanup-dialog.tsx:184:5",
+          "src/drafts/archived-cleanup/archived-cleanup-dialog.tsx:401:11",
+          "src/drafts/archived-cleanup/archived-cleanup-dialog.tsx:417:7",
+          "src/drafts/archived-cleanup/archived-cleanup-dialog.tsx:416:5"
+        ],
+        "rect": {
+          "x": 773.5,
+          "y": 412.6875,
+          "width": 320,
+          "height": 91.75
+        },
+        "rectNormalized": {
+          "x": 0.4160839160839161,
+          "y": 0.3576148180242634,
+          "width": 0.17213555675094136,
+          "height": 0.07950606585788561
+        },
+        "offset": null
+      },
+      "thread": [
+        {
+          "id": "03b2d859-e08d-419b-9e81-f106b99748eb",
+          "at": "2026-11-14T18:48:55.327Z",
+          "editedAt": null,
+          "body": "aqui deveriamos usar o branched list como na child sessions ao inves",
+          "author": "reviewer",
+          "attachments": []
+        },
+        {
+          "id": "e565b7a6-7c3a-463c-bb9f-5b405094de8a",
+          "at": "2026-11-14T18:53:02.035Z",
+          "editedAt": "2026-11-14T18:53:14.119Z",
+          "body": "Child sessions and Subagents now hang from Everything on TreeBranch/TreeBranchNode from @compozy/ui, the same connector the session list draws for child sessions and subagents (├ then └). The rail continues from the center of Everything's check, and each arm lands on its part's check (archived-cleanup-fields.tsx, WhatChecks). Check rows now use FieldContent, so each check sits on its label's first line. Verified: proto check reports 0 problems, oxlint is clean, and I viewed screenshots of dialog-subagents and dialog in dark. Commit 3f34987f1.",
+          "author": "agent",
+          "attachments": [
+            {
+              "id": "c9535bb4-7544-47db-a5e2-50f8df85e617",
+              "name": "branch.png",
+              "type": "image/png",
+              "size": 346758,
+              "width": 2560,
+              "height": 1720,
+              "uploaderKind": "agent"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
