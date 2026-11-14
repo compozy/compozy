@@ -1,0 +1,128 @@
+---
+title: Add a server and use it
+description: Add an MCP server while a session is open, use its tools on the next message, sign in to an OAuth server, and take a server away again.
+---
+
+At the end of this page an agent in a session you already have open will call a tool from a server
+you added a minute ago, without stopping or recreating the session.
+
+## Before you start
+
+- The CompozyOS daemon is running (`compozy status`).
+- A session is open and idle. Copy its ID from the session header or from `compozy session list`.
+- For the OAuth step, you need an account with a remote MCP service that uses sign-in (Linear,
+  Sentry, Notion and similar).
+
+## Step 1: Look at what the session has today
+
+```bash
+compozy session mcp <session-id>
+```
+
+```text
+SESSION sess-27200ac31012601a · claude · 1 usable
+COMPOZYOS SERVERS
+  compozy                  Ready                        212 tools
+RUNTIME SERVERS (Claude Code)
+  cua-driver               Loaded by Claude Code
+```
+
+In the web app, the same list opens from the **MCP 1** control in the session composer.
+
+## Step 2: Add a server
+
+Open **Settings → MCP servers → Add MCP server**, choose **Personal**, and fill in a local server:
+
+- **Name**: `everything`
+- **Command**: `npx`
+- **Arguments**: `-y @modelcontextprotocol/server-everything`
+
+Save. The toast reads `Saved "everything" · … Open sessions use it from their next message.`
+
+You can also write the same server in `~/.compozy/mcp.json`; CompozyOS notices the file change by
+itself:
+
+```json
+{
+  "mcpServers": {
+    "everything": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"]
+    }
+  }
+}
+```
+
+Servers you add in Settings or in your own `~/.compozy` files need no approval. Servers in a project's
+`.compozy/mcp.json` do; see [Project servers need approval](/docs/mcp/project-servers).
+
+## Step 3: Check that the change is waiting
+
+```bash
+compozy session mcp <session-id>
+```
+
+```text
+  everything               Applies on your next message 0 tools
+```
+
+The composer control shows a dot, and its header says **Applies on your next message**. Nothing has
+touched the running agent yet.
+
+## Step 4: Send your next message
+
+Ask the agent to use the new server, for example: `Call the echo tool of the everything server with
+"hello"`. The agent calls `echo` in that turn.
+
+Claude Code usually picks up new tools without restarting. Runtimes that can't, such as Codex, reload
+their native session once before the message and keep the conversation; the transcript then shows one
+line:
+
+```text
+MCP servers updated · everything added
+```
+ Run
+`compozy session mcp <session-id>` again: `everything` is **Ready** with its tool count.
+
+## Step 5: Sign in to an OAuth server
+
+Add a remote server that uses sign-in, for example Linear at `https://mcp.linear.app/mcp`. Its row
+reads **Needs sign-in**, in Settings and in the session's MCP control. Click **Sign in** (either place)
+and finish the authorization in your browser, or run:
+
+```bash
+compozy mcp auth login linear
+```
+
+The command waits until the sign-in completes. On your next message the agent can call Linear's
+tools. Signing in again after a token expires works the same way.
+
+## Step 6: Take a server away
+
+Delete `everything` in Settings, or remove it from `~/.compozy/mcp.json`. Its tools stop working on
+the agent's next call, and its row leaves the session's MCP list. When the runtime reloads at the next
+message, the transcript line names the server as removed. Signing out of a
+server (`compozy mcp auth logout linear`) and disabling an extension work the same way.
+
+## Extensions follow the same rule
+
+Installing or enabling an extension from the [Marketplace](/docs/marketplace) is consent for its MCP
+servers and tools. They reach open sessions on the next message, like a server you added yourself.
+If the extension's server uses OAuth, sign in to it once.
+
+## Troubleshooting
+
+| Symptom                                                                                         | Fix                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The row says **Waiting for approval**.                                                          | The server comes from a project file. Allow it: [Project servers need approval](/docs/mcp/project-servers).                                                                                            |
+| The row says **Not available in this session**.                                                 | The session was started with an explicit list of MCP servers (for example a child session created with one). Start a new session without that list.                                                     |
+| The transcript says **Couldn't start … with the new MCP servers · your message wasn't sent**.   | The message is back in the composer. Send it again; the next message retries. If it keeps failing, check the runtime itself (`compozy provider auth status <provider>`).                               |
+| The transcript says **conversation continued from history**.                                     | Nothing to fix. The runtime couldn't resume its own conversation, so CompozyOS continued it from the transcript with the new tools.                                                                     |
+| The agent says the tool doesn't exist, but the row is **Ready**.                                 | The change applies at the start of a message. Send a new message instead of continuing the same turn.                                                                                                  |
+| A server is **Failed** (Couldn't connect).                                                       | Open it in Settings → MCP servers to read the probe error, fix the command or URL, and send another message.                                                                                           |
+
+## Next steps
+
+- [Project servers need approval](/docs/mcp/project-servers)
+- [Runtime servers](/docs/mcp/runtime-servers)
+- [`mcp.json` reference](/docs/configuration/mcp-json)

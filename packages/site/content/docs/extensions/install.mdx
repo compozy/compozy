@@ -564,9 +564,11 @@ compozy mcp auth status linear --scope user --owner extension:linear
 compozy mcp auth logout linear --scope user --owner extension:linear
 ```
 
+Enabling the extension is the consent for its servers; signing in makes an OAuth server available.
 One login is enough: the server's tools become callable for sessions in that scope, including
-sessions already running, even with `tools.policy.external_default = "disabled"`. Logging out
-withdraws that access.
+sessions already running (from their next message), even with
+`tools.policy.external_default = "disabled"`. Logging out or disabling the extension withdraws that
+access.
 
 Use the manifest server name as the positional argument and `extension:<extension-name>` as the owner.
 An allocated runtime name is not a management or authorization alias, even with an explicit owner.

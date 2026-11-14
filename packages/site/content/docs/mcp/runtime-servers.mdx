@@ -1,0 +1,147 @@
+---
+title: Runtime servers
+description: See the MCP servers each coding agent CLI loads from its own files, copy one into CompozyOS, and turn a runtime's own servers off in CompozyOS sessions.
+---
+
+Every coding agent CLI that CompozyOS runs can also load MCP servers from its **own** configuration:
+Claude Code reads `~/.claude.json` and the project's `.mcp.json`, Codex reads `~/.codex/config.toml`,
+and so on. Those servers load inside CompozyOS sessions too, so CompozyOS shows them, grouped by
+runtime, next to its own servers.
+
+They are **read-only** in CompozyOS. CompozyOS never edits a runtime's files, never runs the runtime
+to list them, never connects to them and never reads the runtime's keychain. That is why a runtime
+server's sign-in status reads "—" in Settings (Status shown in sessions). To manage one in CompozyOS,
+copy it.
+
+Runtimes listed: Claude Code (`claude`), Codex (`codex`), Gemini CLI (`gemini`), OpenCode
+(`opencode`), Kimi CLI (`kimi-cli`), Qwen Code (`qwen-code`), GitHub Copilot CLI (`copilot`), Cursor
+Agent (`cursor`), Antigravity (`agy`) and Pi (`pi`). Pi-based providers (OpenRouter, z.ai, Moonshot,
+Vercel AI Gateway, xAI) share the `pi` group.
+
+## Before you start
+
+- The CompozyOS daemon is running.
+- At least one runtime CLI has MCP servers in its own files.
+
+## Step 1: See every runtime's servers
+
+Open **Settings → MCP servers** (or **Marketplace → MCPs**). After the **CompozyOS** group comes one
+group per runtime that has servers, with a header such as **Claude Code · 21 · Loaded in CompozyOS
+sessions** or **Codex · 11 · Codex always loads its own servers**. The filter above the list
+(`All · CompozyOS · Claude Code · Codex · …`) shows one group at a time. Select **Project** and a
+project to include that project's runtime files.
+
+Each row shows the name, transport, scope, source file and the names (never values) of its environment
+variables and headers, plus what the runtime's files say:
+
+| Label                       | Meaning                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| Off in Claude Code          | The runtime's own settings turn it off.                                       |
+| Not approved in Claude Code | A project server the runtime itself hasn't approved yet.                      |
+| Also in CompozyOS           | A CompozyOS server has the same name, so the agent may see both.              |
+
+From the CLI:
+
+```bash
+compozy mcp list --runtime-only
+```
+
+```text
+CLAUDE CODE · 3 servers
+  advos                    user       http     Also in CompozyOS        ~/.claude.json
+  cua-driver               user       stdio    —                        ~/.claude.json
+  plugin:figma:figma       plugin     http     —                        figma plugin
+  claude.ai connectors appear inside sessions
+
+CODEX · 1 servers
+  savee                    user       http     —                        ~/.codex/config.toml
+```
+
+`--runtime codex` prints one group; `-o json` returns the full rows, including `copyable` and
+`copy_blocked_reason`. Agents use `compozy__mcp_list`. If a runtime's file can't be parsed, only that
+group shows `Couldn't read <file>: …`; the others still list.
+
+Inside a session, the composer's **MCP** control and `compozy session mcp <session-id>` list the
+servers of that session's runtime, read from the session's own home and working directory (so two
+sessions in different worktrees can differ).
+
+## Step 2: Copy a server to CompozyOS
+
+Copy a runtime server when you want CompozyOS to manage it: sign in once in CompozyOS, use it with any
+runtime, and approve or remove it like any other CompozyOS server.
+
+Click **Copy to CompozyOS** on the row. The dialog shows the server and its source file. Choose where
+the copy lives (**Personal**, **This profile** on a named profile, or **This project**), keep or change
+its name, and confirm. Or from the CLI:
+
+```bash
+compozy mcp import claude/advos
+```
+
+```text
+Copied advos from Claude Code (~/.claude.json) to CompozyOS (Personal).
+advos uses OAuth: sign in with `compozy mcp auth login advos`.
+Claude Code still loads its own copy; turn off "Use Claude Code's own MCP servers" to avoid duplicates.
+```
+
+What happens:
+
+- Environment and header values are stored as CompozyOS [Vault](/docs/configuration/vault) secrets;
+  the copy references them. Values never reach the browser.
+- Sign-in is not copied. If the server uses OAuth, sign in once in CompozyOS.
+- The runtime's file is not changed, and the runtime keeps loading its own copy.
+- Sessions can use the copy from their next message.
+
+Use `--scope profile` or `--scope workspace --workspace <project>` for other targets, and
+`--name <new-name>` when the name is taken.
+
+### Servers that can't be copied
+
+The row shows the reason instead of **Copy to CompozyOS** when CompozyOS can't represent the server
+exactly:
+
+| Source                                                                         | Error code                            |
+| ------------------------------------------------------------------------------ | ------------------------------------- |
+| Plugins, claude.ai connectors, built-in or managed servers                     | `mcp_import_unsupported_source`       |
+| SSE or WebSocket transport                                                     | `mcp_import_unsupported_transport`    |
+| A working directory (`cwd`), a headers helper, env passthrough, per-tool filters, a URL with a query string, or a runtime-specific OAuth client | `mcp_import_unsupported_definition`   |
+| The name already exists at the target                                          | `mcp_import_name_taken` (use `--name`) |
+| The server changed or left the file since you listed it                        | `mcp_server_not_found` (list again)   |
+
+Add those servers by hand in **Settings → MCP servers → Add MCP server** if you need them in
+CompozyOS.
+
+## Step 3: Turn a runtime's own servers off
+
+When a runtime's own servers get in the way (duplicates of servers you copied, or servers that need a
+sign-in the session can't complete), stop that runtime from loading them in CompozyOS sessions. Use
+the switch on the runtime's group header, the **Use Claude Code's own MCP servers in CompozyOS
+sessions** switch in **Settings → Providers**, or:
+
+```bash
+compozy config set providers.claude.runtime_mcp off
+```
+
+The change applies to open sessions on their next message. CompozyOS servers keep working. The
+runtime's rows read **Off in CompozyOS sessions**, and the runtime's own use outside CompozyOS is not
+affected. Set it back with `runtime_mcp load`.
+
+The switch exists only for runtimes that can turn their own servers off per session: Claude Code,
+GitHub Copilot CLI and Qwen Code. Other runtimes always load their own servers; their header says so
+and the setting is rejected with `runtime_mcp_unsupported`. Claude Code reports the switch unavailable
+while the machine has a managed `managed-mcp.json`. Always-on agents keep their own isolation either
+way. The key is described in [`config.toml`](/docs/configuration/config-toml#providersname).
+
+## Troubleshooting
+
+| Symptom                                                         | Fix                                                                                                                                       |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| A runtime you use has no group.                                 | It has no MCP servers in its files. Settings only shows runtimes that have servers or a file it couldn't read.                            |
+| A server shows "—" for its status.                              | Runtime servers' sign-in status is only known inside a session. Open the session's **MCP** control.                                       |
+| The agent sees a tool twice after a copy.                       | The runtime still loads its own copy. Turn its runtime switch off, or remove the server from the runtime's file.                          |
+| A runtime server keeps asking to sign in inside sessions.       | CompozyOS can't sign in to runtime servers. Copy it to CompozyOS and sign in there, then turn the runtime switch off.                      |
+
+## Next steps
+
+- [MCP servers overview](/docs/mcp)
+- [Add a server and use it](/docs/mcp/add-a-server)

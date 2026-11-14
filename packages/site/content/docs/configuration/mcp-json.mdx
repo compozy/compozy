@@ -7,13 +7,18 @@ description: Configure, authorize, inspect, edit, and repair local and remote MC
 personal-profile, workspace, workspace-profile, agent, and skill scopes. The profile scopes follow
 the active [profile](/docs/profiles) and merge in their owning config layer's slot.
 
-Hosted sessions receive declaration and OAuth changes without a daemon restart. The Claude ACP
-bridge updates its tool list over the stable hosted MCP connection. Other providers, including
-Codex, refresh at the next turn boundary by reconnecting the provider runtime to the same native
-session. If native load is unavailable, the existing transcript replay fallback preserves the
-CompozyOS session. New sessions receive the current tools in their initial projection. Removing
-a server, disabling its source or signing out withdraws its tools. Direct edits and deletions of
-user, personal-profile, workspace and workspace-profile config files are detected automatically.
+Changes reach sessions that are already open on their next message, with no daemon restart: adding,
+enabling or signing in to a server makes its tools callable, and removing, disabling or signing out
+withdraws them. Runtimes that can't refresh their tool list reload their native session before the
+message, keeping the conversation; if that load fails, the transcript replay fallback continues it.
+Direct edits of user, personal-profile, workspace and workspace-profile files are detected
+automatically. See [MCP servers](/docs/mcp).
+
+Servers in your own files under `$COMPOZY_HOME` are admitted as soon as they are declared. Servers in
+a project's files (`<workspace>/.compozy/mcp.json`, `<workspace>/.compozy/profiles/<name>/mcp.json`,
+and agent or skill sidecars inside the workspace) **wait for approval** and are never started until
+you allow them with **Allow** or `compozy mcp allow`. See
+[Project servers need approval](/docs/mcp/project-servers).
 
 With hosted MCP disabled, direct stdio sidecars also reload at the next turn after their launch
 configuration changes. Direct ACP sidecars currently support stdio only; remote HTTP and OAuth
@@ -480,7 +485,8 @@ my-project/
 ```
 
 Use this repository-authored layer when a project should specialize an existing profile. It is
-read-only to CLI mutations and activates only for the matching profile name.
+read-only to CLI mutations and activates only for the matching profile name. Like every project
+file, its servers wait for [approval](/docs/mcp/project-servers).
 
 ### Workspace MCP Server
 
@@ -491,7 +497,8 @@ my-project/
     mcp.json
 ```
 
-Use this for tools that only make sense inside one project.
+Use this for tools that only make sense inside one project. Servers declared here wait for
+[approval](/docs/mcp/project-servers) unless they were added through CompozyOS.
 
 ### Agent MCP Server
 
@@ -523,6 +530,7 @@ skill root.
 - [AGENT.md](/docs/configuration/agent-md) documents agent-local MCP declarations.
 - [SKILL.md](/docs/configuration/skill-md) documents skill-local MCP declarations.
 - [Marketplace](/docs/marketplace) covers discovery, guided install, updates, and trust.
+- [MCP servers](/docs/mcp) covers next-message activation, approvals, session status and runtime servers.
 
 ## Extension-provided servers
 
