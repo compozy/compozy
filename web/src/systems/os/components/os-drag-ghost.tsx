@@ -14,13 +14,7 @@ import { OsTabTiles } from "./os-tab";
 
 type SessionOf = (win: OsWindow) => SessionPayload | undefined;
 
-function GhostTitle({
-  win,
-  sessionOf,
-}: {
-  win: OsWindow;
-  sessionOf: SessionOf;
-}) {
+function GhostTitle({ win, sessionOf }: { win: OsWindow; sessionOf: SessionOf }) {
   return <span className="truncate">{useOsWindowTitle(win, sessionOf(win))}</span>;
 }
 
