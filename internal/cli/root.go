@@ -14,6 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/procutil"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/vault"
 	"github.com/compozy/compozy/internal/version"
@@ -83,6 +84,7 @@ type commandDeps struct {
 	readDaemonInfo              func(path string) (compozydaemon.Info, error)
 	signalProcess               func(pid int, sig syscall.Signal) error
 	processAlive                func(pid int) bool
+	inspectProcess              func(pid int) (procutil.ScannedProcess, error)
 	processMatchesStartTime     func(pid int, startedAt time.Time) bool
 	processOwnsFileLock         func(pid int, path string) (bool, error)
 	inspectDaemonLock           func(path string) (compozydaemon.LockOwner, error)

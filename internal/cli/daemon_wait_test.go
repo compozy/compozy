@@ -361,6 +361,11 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 					}
 					return compozydaemon.Info{}, os.ErrNotExist
 				}
+				if !replacement {
+					deps.inspectProcess = func(int) (procutil.ScannedProcess, error) {
+						return procutil.ScannedProcess{}, errors.New("process inspection unavailable")
+					}
+				}
 				aliveChecks := 0
 				deps.processAlive = func(pid int) bool {
 					if pid != info.PID {
@@ -385,6 +390,32 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 					)
 				}
 			})
+		}
+	})
+
+	// Invariant: an exited, unreaped process cannot write to the home and must not delay stop.
+	// Owner: CLI daemon lifecycle; canonical suite: daemon_wait_test.go.
+	t.Run("Should report an unreaped zombie as stopped", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, &stubClient{}).withDefaults()
+		deps.pollInterval = time.Millisecond
+		info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+		deps.processAlive = func(int) bool { return true }
+		deps.inspectProcess = func(pid int) (procutil.ScannedProcess, error) {
+			if pid != info.PID {
+				t.Fatalf("inspectProcess() PID = %d, want %d", pid, info.PID)
+			}
+			return procutil.ScannedProcess{PID: pid, Zombie: true}, nil
+		}
+		runtime, err := loadRuntimeContext(deps)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		status, err := waitForDaemonStop(ctx, deps, runtime, info)
+		if err != nil || status.Status != "stopped" || status.PID != info.PID {
+			t.Fatalf("waitForDaemonStop(zombie) = %#v, %v; want stopped", status, err)
 		}
 	})
 

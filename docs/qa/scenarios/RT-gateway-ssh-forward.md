@@ -36,3 +36,6 @@ the daemon preserved by the crash/reuse journey, wait for the original daemon pr
 before deleting its isolated home. Withdrawing `daemon.json` alone is not shutdown completion:
 database and logger teardown can still write to that home. Keep the real OpenSSH journey and
 strict temporary-home removal in `TestRemoteGatewayE2EConnectSSHUsesLoopbackAndPreservesOwnership`.
+An exited Unix process in state `Z` has already closed its writers and counts as stopped even if
+its parent has not collected its exit status. A live process with unavailable inspection still
+keeps the stop waiter pending.

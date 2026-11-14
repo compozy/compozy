@@ -104,6 +104,9 @@ func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
 	if d.processAlive == nil {
 		d.processAlive = procutil.Alive
 	}
+	if d.inspectProcess == nil {
+		d.inspectProcess = procutil.InspectProcess
+	}
 	if d.processMatchesStartTime == nil {
 		d.processMatchesStartTime = procutil.MatchesStartTime
 	}
