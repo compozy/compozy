@@ -11,6 +11,7 @@ import {
 import { type ProfileOwner, useProfileReadScope } from "@/systems/profiles";
 import {
   DESTINATION_COPY,
+  SHELL_WORKTREE_SCOPE,
   sortWorktreeNestEntries,
   toWorktreeNestEntries,
   useScopedWorktreeFilter,
@@ -34,7 +35,6 @@ import {
 import { composePaletteSessionPage, keepServerSessions } from "../lib/palette-session-filters";
 import { applyPaletteWorktreeSelection } from "../lib/os-palette-worktree-selection";
 import { useDesktop } from "./use-desktop";
-import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
 import { normalizeRankingText } from "../lib/ranking/normalize";
 import { rankCandidates } from "../lib/ranking/rank";
@@ -159,14 +159,28 @@ function focusedSessionId(state: Pick<OsDesktopRuntimeStore, "focusedId" | "wind
   return focused && osAppId(focused.app) === "session" ? focused.instanceKey : null;
 }
 
+/** Closed palettes ignore focus publications; opening reads the current target. */
+export function usePaletteFocus(open: boolean) {
+  return useDesktop(
+    state =>
+      open
+        ? {
+            worktreeScopeId: state.focusedId ?? SHELL_WORKTREE_SCOPE,
+            sessionId: focusedSessionId(state),
+          }
+        : null,
+    shallowEqual
+  );
+}
+
 /** The focused session, when the query can reach one of its commands from this page. */
-function usePaletteFocusedSessionCommand(
+function paletteFocusedSessionCommand(
+  focusedSession: string | null,
   command: { label: string; keywords: string[] },
   query: string,
   destination: boolean,
   signals: CmdPaletteRankSignals | null
 ): string | null {
-  const focusedSession = useDesktop(focusedSessionId);
   const candidates = !destination && focusedSession && query.trim() !== "" ? [focusedSession] : [];
   const ranked = rankEntityRows(
     candidates,
@@ -201,7 +215,8 @@ export function useOsPaletteEntities({
   const searchPending = remoteQuery !== query.trim();
   const profile = useProfileReadScope();
   const queryEnabled = paletteEntityQueryEnabled(destination, query, signals);
-  const worktreeScopeId = useFocusedWorktreeScopeId();
+  const focus = usePaletteFocus(open);
+  const worktreeScopeId = focus?.worktreeScopeId ?? SHELL_WORKTREE_SCOPE;
   const project = dataScope?.kind === "project";
   const all = dataScope?.kind === "all";
   const worktreesQuery = useWorktrees(activeWorkspaceId, {
@@ -232,8 +247,15 @@ export function useOsPaletteEntities({
   });
   const sessionSearchRan =
     remoteQuery !== "" && paletteEntityQueryEnabled(destination, remoteQuery, signals);
-  const linkSessionId = usePaletteFocusedSessionCommand(LINK_COMMAND, query, destination, signals);
-  const moveSessionId = usePaletteFocusedSessionCommand(
+  const linkSessionId = paletteFocusedSessionCommand(
+    focus?.sessionId ?? null,
+    LINK_COMMAND,
+    query,
+    destination,
+    signals
+  );
+  const moveSessionId = paletteFocusedSessionCommand(
+    focus?.sessionId ?? null,
     MOVE_UNDER_COMMAND,
     query,
     destination,

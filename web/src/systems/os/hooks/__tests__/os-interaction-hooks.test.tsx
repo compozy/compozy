@@ -36,7 +36,7 @@ import { statusKeys } from "@/systems/status";
 import { workspaceKeys } from "@/systems/workspace";
 import { ensureWindowSlotStore, pruneWindowSlotStores } from "../../lib/window-slot-registry";
 import { useCmdPaletteContext } from "../use-cmd-palette-context";
-import { usePaletteTabs } from "../use-os-palette-entities";
+import { usePaletteFocus, usePaletteTabs } from "../use-os-palette-entities";
 import { useOsWindowMember } from "../use-os-window-member";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
 import {
@@ -568,6 +568,51 @@ describe("useCmdPaletteContext store subscriptions", () => {
     );
     act(() => vi.advanceTimersByTime(100));
     expect(result.current!["desktop.windowCount"]).toBe(count - 1);
+  });
+});
+
+// Invariant: closed palette focus reads stay idle; opening targets the current window/session.
+// Owning layer: shell projection subscriptions; canonical suite: OS interaction hooks.
+describe("usePaletteFocus", () => {
+  it("Should ignore focus while closed and read the current target on each opening", () => {
+    const shell = createShell();
+    const session = windowFixture("window:session", {
+      app: "session",
+      instanceKey: "session:current",
+    });
+    let renders = 0;
+    const { result, rerender } = renderHook(
+      ({ open }) => {
+        renders += 1;
+        return usePaletteFocus(open);
+      },
+      { wrapper: shell.wrapper, initialProps: { open: false } }
+    );
+    const closedRenders = renders;
+    act(() =>
+      shell.setRuntimeState({
+        windows: { ...shell.state.windows, [session.id]: session },
+        focusedId: session.id,
+      })
+    );
+    expect(renders).toBe(closedRenders);
+    expect(result.current).toBeNull();
+    rerender({ open: true });
+    expect(result.current).toEqual({
+      worktreeScopeId: session.id,
+      sessionId: session.instanceKey,
+    });
+    act(() => shell.setRuntimeState({ focusedId: "window:peer" }));
+    expect(result.current).toEqual({ worktreeScopeId: "window:peer", sessionId: null });
+    rerender({ open: false });
+    const reclosedRenders = renders;
+    act(() => shell.setRuntimeState({ focusedId: session.id }));
+    expect(renders).toBe(reclosedRenders);
+    rerender({ open: true });
+    expect(result.current).toEqual({
+      worktreeScopeId: session.id,
+      sessionId: session.instanceKey,
+    });
   });
 });
 

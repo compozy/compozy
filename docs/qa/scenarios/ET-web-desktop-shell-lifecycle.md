@@ -216,6 +216,14 @@ CPU throttled 6x, a 20 s idle window on both peers recorded 6 and 4 long tasks o
 71–130 ms before the change and none after. The workspace hook suites cover both
 behaviors; repeated unmodified E2E-023 runs passed with 0 ms peer-convergence tasks.
 
+QA impact 2026-11-14 (#1700): keep the command palette closed during the 11-tab
+switch burst, then open it on a session tab. Its focused-session commands and worktree
+selection must target that current window, including after another close/switch/reopen.
+Closed palettes must ignore focus publications rather than rebuilding their entity and
+ranking tree on each switch. The OS interaction-hook suite owns this subscription and
+reopening invariant; E2E-023 retains the 50 ms switch/convergence and 500 ms restore
+limits and the 11-tab fixture.
+
 QA impact 2026-11-13 (window-tabs-split S9): the topbar pager was replaced by the desktop
 indicators. On boot and during stream loss confirm the dots render, switching is
 `aria-disabled` and the dot menu does not open until a registered client is live, and that

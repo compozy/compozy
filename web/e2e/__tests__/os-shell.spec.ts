@@ -3657,69 +3657,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     await switchInput.detach();
   }
   const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
-  // Temporary attribution only: replay the same warmed 11-tab layout after scoring and
-  // before any peer split changes it. The canonical frame-budget invariant stays above/below.
-  const diagnostic = await appPage.context().newCDPSession(appPage);
-  try {
-    await waitForLongTaskQuiet(appPage);
-    await diagnostic.send("Debugger.enable");
-    await diagnostic.send("Profiler.enable");
-    const layoutEvents: unknown[] = [];
-    diagnostic.on("Tracing.dataCollected", ({ value }) => {
-      layoutEvents.push(...value);
-    });
-    await diagnostic.send("Tracing.start", {
-      categories:
-        "devtools.timeline,disabled-by-default-devtools.timeline.stack,disabled-by-default-devtools.timeline.invalidationTracking",
-      transferMode: "ReportEvents",
-    });
-    await diagnostic.send("Profiler.start");
-    for (let index = 0; index < 200; index += 1) {
-      const target = targets[index % targets.length];
-      if (!target) continue;
-      for (const type of ["mousePressed", "mouseReleased"] as const) {
-        await diagnostic.send("Input.dispatchMouseEvent", {
-          type,
-          x: target.x,
-          y: target.y,
-          button: "left",
-          buttons: type === "mousePressed" ? 1 : 0,
-          clickCount: 1,
-        });
-      }
-    }
-    const { profile } = await diagnostic.send("Profiler.stop");
-    const tracingComplete = new Promise<void>(resolve => {
-      diagnostic.once("Tracing.tracingComplete", () => resolve());
-    });
-    await diagnostic.send("Tracing.end");
-    await tracingComplete;
-    await testInfo.attach("switch-layout-replay.cpuprofile", {
-      body: JSON.stringify(profile),
-      contentType: "application/json",
-    });
-    await testInfo.attach("switch-layout-replay-events", {
-      body: JSON.stringify(layoutEvents),
-      contentType: "application/json",
-    });
-    const scripts = new Map<string, string>();
-    for (const node of profile.nodes) {
-      if (node.callFrame.url.includes("/assets/")) {
-        scripts.set(node.callFrame.scriptId, node.callFrame.url);
-      }
-    }
-    for (const [scriptId, url] of scripts) {
-      const { scriptSource } = await diagnostic.send("Debugger.getScriptSource", { scriptId });
-      await testInfo.attach(`switch-layout-replay-${new URL(url).pathname.split("/").pop()}`, {
-        body: scriptSource,
-        contentType: "text/javascript",
-      });
-    }
-  } catch (error) {
-    console.log("[switch-layout-diagnostic]", String(error));
-  } finally {
-    await diagnostic.detach();
-  }
   const appOfWindow = new Map([...perfWindowIDs].map(([app, id]) => [id, app]));
 
   const peerA = await openPeerPage(browser, runtime);
