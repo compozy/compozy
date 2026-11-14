@@ -260,6 +260,7 @@ type Manager struct {
 	mcpConsentFilter             MCPConsentFilter
 	hostedMCP                    HostedMCPLauncher
 	runtimeMCPInventory          RuntimeMCPInventory
+	mcpReader                    MCPReader
 	soulStore                    SoulSnapshotStore
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore

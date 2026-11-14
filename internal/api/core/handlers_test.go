@@ -7977,3 +7977,78 @@ type agentMCPApprovalSettings struct {
 func (s *agentMCPApprovalSettings) RecordWorkspaceMCPWrite(ctx context.Context, write settingspkg.WorkspaceMCPWrite) (string, error) {
 	return s.record(ctx, write)
 }
+
+// Invariant: MCP summary decorates detail only and scoped reads authorize before reading inventory. Owner: session HTTP core; canonical handler suite (UT-083).
+func TestSessionMCPDetailAndScope(t *testing.T) {
+	t.Parallel()
+	for _, count := range []int{0, 1} {
+		t.Run(fmt.Sprintf("Should decorate only detail for %d servers UT-083", count), func(t *testing.T) {
+			t.Parallel()
+			info := testutil.NewSessionInfo("sess-mcp")
+			info.WorkspaceID = "ws-mcp"
+			info.ProfileID = store.DefaultProfileID
+			base := &testutil.StubSessionManager{
+				StatusFn:  func(context.Context, string) (*session.Info, error) { return info, nil },
+				ListAllFn: func(context.Context) ([]*session.Info, error) { return []*session.Info{info}, nil },
+			}
+			fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			reader := &sessionMCPHandlerStub{
+				SessionManager: fixture.Handlers.Sessions,
+				result: session.SessionMCP{
+					SessionID:  info.ID,
+					MCPSummary: session.MCPSummary{Attention: count},
+				},
+			}
+			if count > 0 {
+				reader.result.Compozy = []session.MCPServerRow{{Name: "linear", State: "needs_sign_in"}}
+			}
+			fixture.Handlers.Sessions = reader
+			fixture.Engine.GET("/workspaces/:workspace_id/sessions/:session_id/mcp", fixture.Handlers.GetSessionMCP)
+			detail := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp", nil)
+			if detail.Code != http.StatusOK {
+				t.Fatalf("detail %d: %s", detail.Code, detail.Body.String())
+			}
+			var payload contract.SessionResponse
+			if err := json.Unmarshal(detail.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if (payload.Session.MCPSummary != nil) != (count > 0) {
+				t.Fatalf("summary=%+v", payload.Session.MCPSummary)
+			}
+			list := core.SessionPayloadsFromInfos([]*session.Info{info})
+			data, err := json.Marshal(list)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "mcp_summary") {
+				t.Fatalf("list contains summary: %s", data)
+			}
+			for _, path := range []string{"/workspaces/another/sessions/sess-mcp/mcp", "/workspaces/ws-mcp/sessions/sess-mcp/mcp?profile=other"} {
+				before := reader.reads
+				denied := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
+				if denied.Code == http.StatusOK || reader.reads != before || denied.Body.Len() == 0 {
+					t.Fatalf(
+						"scope leaked: %d %s reads %d -> %d",
+						denied.Code,
+						denied.Body.String(),
+						before,
+						reader.reads,
+					)
+				}
+			}
+		})
+	}
+}
+
+type sessionMCPHandlerStub struct {
+	core.SessionManager
+	result session.SessionMCP
+	reads  int
+}
+
+var _ session.MCPReader = (*sessionMCPHandlerStub)(nil)
+
+func (s *sessionMCPHandlerStub) ListSessionMCP(context.Context, string) (session.SessionMCP, error) {
+	s.reads++
+	return s.result, nil
+}

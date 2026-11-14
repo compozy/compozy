@@ -6811,6 +6811,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session MCP availability without discovery */
+    get: operations["getSessionMCP"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
     parameters: {
       query?: never;
@@ -13455,6 +13472,20 @@ export interface components {
       registration?: string;
       scopes?: string[];
     };
+    MCPReloadRecord: {
+      /** Format: date-time */
+      at: string;
+      outcome: string;
+      reason: string;
+    };
+    MCPServerRow: {
+      callable_count: number;
+      name: string;
+      owner: string;
+      reason: string;
+      state: string;
+      tool_count: number;
+    };
     MCPServerStatusPayload: {
       auth_status?: string;
       configured: boolean;
@@ -13469,6 +13500,11 @@ export interface components {
       tool_count?: number;
       transport?: string;
       workspace_id?: string;
+    };
+    MCPSummary: {
+      attention: number;
+      pending_reload: boolean;
+      usable: number;
     };
     ManagedExtensionRemovePayload: {
       data_path?: string;
@@ -15365,6 +15401,12 @@ export interface components {
       source: components["schemas"]["Server"];
       warnings?: string[];
     };
+    RuntimeMCPRow: {
+      name: string;
+      scope: string;
+      state: string;
+      transport: string;
+    };
     RuntimeMatch: {
       complexity?: string;
       id?: string;
@@ -15564,6 +15606,7 @@ export interface components {
       scope: string;
       source_label: string;
       source_path: string;
+      target: string;
       transport: string;
     };
     SessionActivityHealthPayload: {
@@ -16273,6 +16316,16 @@ export interface components {
       pull_requests: number;
       total: number;
     };
+    SessionMCP: {
+      attention: number;
+      compozy: components["schemas"]["MCPServerRow"][];
+      last_reload?: components["schemas"]["MCPReloadRecord"] | null;
+      pending_reload: boolean;
+      runtime: string;
+      runtime_servers: components["schemas"]["SessionRuntimeMCP"];
+      session_id: string;
+      usable: number;
+    };
     SessionMonitorPayload: {
       branch?: string;
       /** Format: date-time */
@@ -16366,6 +16419,7 @@ export interface components {
       later?: components["schemas"]["SessionLaterPayload"] | null;
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
       linked_work?: components["schemas"]["SessionLinkedWorkSummary"] | null;
+      mcp_summary?: components["schemas"]["MCPSummary"] | null;
       monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
       name?: string;
       parent_title?: string;
@@ -16610,6 +16664,10 @@ export interface components {
     };
     SessionResponse: {
       session: components["schemas"]["SessionPayload"];
+    };
+    SessionRuntimeMCP: {
+      runtime_mcp: string;
+      servers: components["schemas"]["RuntimeMCPRow"][];
     };
     SessionRuntimePayload: {
       acp_caps?: components["schemas"]["ACPCapsPayload"] | null;
@@ -17393,6 +17451,7 @@ export interface components {
     };
     SettingsMCPApprovalStatePayload: {
       definition_digest: string;
+      reason?: string;
       required: boolean;
       state: string;
     };
@@ -57987,6 +58046,63 @@ export interface operations {
         };
       };
       /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionMCP: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionMCP"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session MCP read model unavailable */
       503: {
         headers: {
           [name: string]: unknown;

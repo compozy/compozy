@@ -9,6 +9,44 @@ import (
 	"strings"
 )
 
+// ListSessionFileEntriesParams carries the path, query, and header parameters.
+type ListSessionFileEntriesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Path        *string `url:"path"`
+	ShowIgnored *bool   `url:"show_ignored"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionFileEntries List project file entries
+func (c *Client) ListSessionFileEntries(ctx context.Context, params ListSessionFileEntriesParams) (*FileEntriesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Path != nil {
+		query.Set("path", *params.Path)
+	}
+	if params.ShowIgnored != nil {
+		query.Set("show_ignored", strconv.FormatBool(*params.ShowIgnored))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileEntriesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionFoldersParams carries the path, query, and header parameters.
 type ListSessionFoldersParams struct {
 	WorkspaceID string  `url:"workspace_id"`

@@ -72,6 +72,9 @@ func (p *MCPProvider) listSourceDescriptors(
 			return nil, true, nil
 		}
 	}
+	if cachedMCPProjection(ctx) {
+		return p.cachedSourceDescriptors(source), true, nil
+	}
 	key, tracked := mcpDeadEntityKey(source, profileID)
 	var reliabilityState *mcpReliabilityState
 	if tracked && p.reliability != nil {

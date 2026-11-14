@@ -653,6 +653,9 @@ import type {
   GetSessionHistoryData,
   GetSessionHistoryErrors,
   GetSessionHistoryResponses,
+  GetSessionMCPData,
+  GetSessionMCPErrors,
+  GetSessionMCPResponses,
   GetSessionOwnerData,
   GetSessionOwnerErrors,
   GetSessionOwnerResponses,
@@ -9252,6 +9255,24 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session MCP availability without discovery
+   */
+  public getSessionMCP<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionMCPData, ThrowOnError>
+  ): RequestResult<GetSessionMCPResponses, GetSessionMCPErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionMCPResponses,
+      GetSessionMCPErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp",
       ...options,
     });
   }

@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// OverviewLongestSessionPayload is a daemon API value.
+type OverviewLongestSessionPayload struct {
+	SessionID       string `json:"session_id"`
+	AgentName       string `json:"agent_name"`
+	DurationSeconds int64  `json:"duration_seconds"`
+	Date            string `json:"date"`
+}
+
+// OverviewOutcomeDayPayload is a daemon API value.
+type OverviewOutcomeDayPayload struct {
+	Date      string `json:"date"`
+	Completed int    `json:"completed"`
+	Failed    int    `json:"failed"`
+	Canceled  int    `json:"canceled"`
+}
+
 // OverviewOutcomesPayload is a daemon API value.
 type OverviewOutcomesPayload struct {
 	WindowDays int                         `json:"window_days"`
@@ -429,20 +445,3 @@ type ProviderLoginPresence string
 
 // ProviderLoginSource is a daemon API value.
 type ProviderLoginSource string
-
-// ProviderModelConfigurationPayload is a daemon API value.
-type ProviderModelConfigurationPayload struct {
-	ReasoningEffort *Effort `json:"reasoning_effort,omitempty"`
-	Fast            *bool   `json:"fast,omitempty"`
-	Thinking        *bool   `json:"thinking,omitempty"`
-}
-
-// ProviderModelCurationRequest is a daemon API value.
-type ProviderModelCurationRequest struct {
-	ModelID                string  `json:"model_id"`
-	Hidden                 *bool   `json:"hidden,omitzero"`
-	Featured               *bool   `json:"featured,omitzero"`
-	Deprecated             *bool   `json:"deprecated,omitzero"`
-	DefaultReasoningEffort *Effort `json:"default_effort,omitzero"`
-	DefaultSpeed           *Speed  `json:"default_speed,omitzero"`
-}

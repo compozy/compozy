@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// RunDesignationSummary is a daemon API value.
+type RunDesignationSummary struct {
+	Index int    `json:"index"`
+	Brief string `json:"brief,omitempty"`
+}
+
+// RunEventKind is a daemon API value.
+type RunEventKind string
+
+// RunID is a daemon API value.
+type RunID string
+
+// RunKind is a daemon API value.
+type RunKind string
+
 // RunLoopRequest is a daemon API value.
 type RunLoopRequest struct {
 	Inputs          map[string]any `json:"inputs,omitempty"`
@@ -220,6 +235,14 @@ type RuntimeMCPImportResponse struct {
 	Warnings  []string                     `json:"warnings,omitempty"`
 }
 
+// RuntimeMCPRow is a daemon API value.
+type RuntimeMCPRow struct {
+	Name      string `json:"name"`
+	Scope     string `json:"scope"`
+	Transport string `json:"transport"`
+	State     string `json:"state"`
+}
+
 // RuntimeMatch is a daemon API value.
 type RuntimeMatch struct {
 	ID         string `json:"id,omitempty"`
@@ -399,36 +422,4 @@ type Selection struct {
 	ID        string `json:"id"`
 	ValueID   string `json:"value_id,omitempty"`
 	BoolValue *bool  `json:"bool_value,omitzero"`
-}
-
-// SendPromptResultPayload is a daemon API value.
-type SendPromptResultPayload struct {
-	HeldReason            string                `json:"held_reason,omitempty"`
-	HeldInstanceID        string                `json:"held_instance_id,omitempty"`
-	TargetSessionID       string                `json:"target_session_id,omitempty"`
-	ReplyWatch            *ReplyWatchRefPayload `json:"reply_watch,omitempty"`
-	TargetWorkspaceID     string                `json:"target_workspace_id,omitempty"`
-	Disposition           Disposition           `json:"disposition,omitempty"`
-	SteerDelivery         SteerDeliveryMode     `json:"steer_delivery,omitempty"`
-	TurnID                string                `json:"turn_id,omitempty"`
-	EntryID               string                `json:"entry_id,omitempty"`
-	Status                string                `json:"status"`
-	Mode                  PromptMode            `json:"mode,omitempty"`
-	Delivery              PromptDelivery        `json:"delivery"`
-	MessageID             string                `json:"message_id"`
-	IdempotencyKey        string                `json:"idempotency_key"`
-	Replayed              bool                  `json:"replayed"`
-	QueueEntryID          string                `json:"queue_entry_id,omitempty"`
-	QueuePosition         int                   `json:"queue_position"`
-	QueueGeneration       int64                 `json:"queue_generation,omitzero"`
-	EstimatedSendAt       *time.Time            `json:"estimated_send_at,omitempty"`
-	PreviousTurnID        string                `json:"previous_turn_id,omitempty"`
-	NewTurnID             string                `json:"new_turn_id,omitempty"`
-	CanceledQueuedEntries int                   `json:"canceled_queued_entries,omitzero"`
-	Goal                  *GoalCommandResult    `json:"goal,omitzero"`
-}
-
-// SendPromptResultResponse is a daemon API value.
-type SendPromptResultResponse struct {
-	Prompt SendPromptResultPayload `json:"prompt"`
 }

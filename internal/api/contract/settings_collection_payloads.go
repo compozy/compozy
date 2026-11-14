@@ -191,6 +191,7 @@ type SettingsMCPExtensionOverridePayload struct {
 }
 
 type SettingsMCPApprovalStatePayload struct {
+	Reason           string `json:"reason,omitempty"`
 	Required         bool   `json:"required"`
 	State            string `json:"state"`
 	DefinitionDigest string `json:"definition_digest"`

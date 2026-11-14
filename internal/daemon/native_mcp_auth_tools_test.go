@@ -14,8 +14,10 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/runtimemcp"
+	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -647,23 +649,91 @@ func TestDaemonNativeMCPAllow(t *testing.T) {
 	t.Run("Should allow and revoke through the public registry without OAuth", func(t *testing.T) {
 		t.Parallel()
 		state, consentReq := newMCPConsentFixture(t)
-		writeMCPDeclarationFile(t, consentReq.Server.DefinitionSource, `{"mcpServers":{"sentry":{"command":"fixture"}}}`)
-		service, err := settingspkg.NewService(testHomePaths(t), settingspkg.Dependencies{WorkspaceResolver: state.workspaceResolver, ProfileResolver: state.profiles, MCPConsent: settingsMCPConsent{state: state}})
+		writeMCPDeclarationFile(
+			t,
+			consentReq.Server.DefinitionSource,
+			`{"mcpServers":{"sentry":{"command":"fixture"}}}`,
+		)
+		service, err := settingspkg.NewService(
+			testHomePaths(t),
+			settingspkg.Dependencies{
+				WorkspaceResolver: state.workspaceResolver,
+				ProfileResolver:   state.profiles,
+				MCPConsent:        settingsMCPConsent{state: state},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: nativeTestSessionManager(consentReq.WorkspaceID), Workspaces: state.workspaceResolver, Settings: func() core.SettingsService { return service }}, nativeApproveAllPolicyInputs())
+		readReq := settingspkg.CollectionRequest{
+			Collection:        settingspkg.CollectionMCPServers,
+			Scope:             settingspkg.ScopeProfile,
+			ProfileName:       "default",
+			WorkspaceID:       consentReq.WorkspaceID,
+			SkipRuntimeStatus: true,
+		}
+		listed, err := service.ListCollection(t.Context(), readReq)
+		if err != nil || len(listed.MCPServers) != 1 || listed.MCPServers[0].Approval.Reason != "new" {
+			t.Fatalf("new approval payload=%+v, %v", listed.MCPServers, err)
+		}
+		first := listed.MCPServers[0].Approval.DefinitionDigest
+		if _, err := (settingsMCPConsent{state: state}).ApproveMCP(t.Context(), consentReq, first, false); err != nil {
+			t.Fatal(err)
+		}
+		writeMCPDeclarationFile(
+			t,
+			consentReq.Server.DefinitionSource,
+			`{"mcpServers":{"sentry":{"command":"fixture","args":["changed"]}}}`,
+		)
+		state.workspaceResolver.InvalidateAll()
+		listed, err = service.ListCollection(t.Context(), readReq)
+		if err != nil || len(listed.MCPServers) != 1 || listed.MCPServers[0].Approval.Reason != "changed" {
+			t.Fatalf("changed approval payload=%+v, %v", listed.MCPServers, err)
+		}
+		writeMCPDeclarationFile(
+			t,
+			consentReq.Server.DefinitionSource,
+			`{"mcpServers":{"sentry":{"command":"fixture"}}}`,
+		)
+		state.workspaceResolver.InvalidateAll()
+		if _, err := (settingsMCPConsent{state: state}).ApproveMCP(t.Context(), consentReq, "", true); err != nil {
+			t.Fatal(err)
+		}
+
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:   nativeTestSessionManager(consentReq.WorkspaceID),
+				Workspaces: state.workspaceResolver,
+				Settings:   func() core.SettingsService { return service },
+			},
+			nativeApproveAllPolicyInputs(),
+		)
 		decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), consentReq)
 		if err != nil {
 			t.Fatal(err)
 		}
-		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: consentReq.WorkspaceID, ProfileID: store.DefaultProfileID}
+		scope := toolspkg.Scope{
+			SessionID:   "sess-1",
+			WorkspaceID: consentReq.WorkspaceID,
+			ProfileID:   store.DefaultProfileID,
+		}
 		for _, action := range []string{"allow", "revoke"} {
-			input, err := json.Marshal(map[string]string{"server_name": "sentry", "decision": action, "definition_digest": decision.DefinitionDigest})
+			input, err := json.Marshal(
+				map[string]string{
+					"server_name":       "sentry",
+					"decision":          action,
+					"definition_digest": decision.DefinitionDigest,
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDMCPAllow, Input: input})
+			result, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDMCPAllow, Input: input},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -676,15 +746,31 @@ func TestDaemonNativeMCPAllow(t *testing.T) {
 				t.Fatal(err)
 			}
 			current, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), consentReq)
-			if err != nil || current.Admitted != (action == "allow") || (payload.Approval.State == "allowed") != current.Admitted {
+			if err != nil || current.Admitted != (action == "allow") ||
+				(payload.Approval.State == "allowed") != current.Admitted {
 				t.Fatalf("%s: %+v %s %v", action, current, result.Structured, err)
 			}
 		}
 		restricted := nativeApproveAllPolicyInputs()
 		restricted.Session.Enforced = true
 		restricted.Session.Tools = []toolspkg.ToolID{"compozy__mcp_list"}
-		narrowed := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: nativeTestSessionManager(consentReq.WorkspaceID), Workspaces: state.workspaceResolver, Settings: func() core.SettingsService { return service }}, restricted)
-		_, err = narrowed.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDMCPAllow, Input: json.RawMessage(`{"server_name":"sentry","decision":"revoke"}`)})
+		narrowed := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:   nativeTestSessionManager(consentReq.WorkspaceID),
+				Workspaces: state.workspaceResolver,
+				Settings:   func() core.SettingsService { return service },
+			},
+			restricted,
+		)
+		_, err = narrowed.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMCPAllow,
+				Input:  json.RawMessage(`{"server_name":"sentry","decision":"revoke"}`),
+			},
+		)
 		failure, ok := errors.AsType[*toolspkg.ToolError](err)
 		if !ok || !slices.Contains(failure.ReasonCodes, toolspkg.ReasonSessionDenied) {
 			t.Fatalf("narrowed call=%v", err)
@@ -890,4 +976,304 @@ func newRuntimeMCPCopyFixture(t *testing.T, source string) runtimeMCPCopyFixture
 		t.Fatal("settings does not provide runtime MCP copy")
 	}
 	return runtimeMCPCopyFixture{root: root, home: home, readContext: readContext, inventory: inventory, service: service, importer: importer, secrets: secrets}
+}
+
+// Invariant: the session catalog retains blocked rows while projections remain callable-only and reads never discover. Owner: daemon MCP read model; UT-053, UT-080–082, UT-084, UT-091.
+func TestSessionMCPReadModel(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                                           string
+		pending, sameCount, restricted, signedOut, off bool
+	}{
+		{name: "Should retain waiting zero-tool records without discovery UT-080"},
+		{name: "Should show pending activation UT-081", pending: true},
+		{name: "Should show a schema change with equal tool counts UT-081", pending: true, sameCount: true},
+		{name: "Should explain a parent restriction UT-082", restricted: true},
+		{name: "Should retain a signed-out only server UT-084", signedOut: true},
+		{name: "Should mark runtime servers off UT-053", off: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			model, manager, executor, settings := newSessionMCPReadFixture(t)
+			if tc.pending {
+				manager.runtime.Pending = true
+				manager.runtime.BoundServers = map[string]int{}
+				if tc.sameCount {
+					manager.runtime.BoundServers = map[string]int{"linear": 1, "sentry": 1}
+					manager.runtime.PendingServers = map[string]bool{"linear": true}
+				}
+			}
+			if tc.restricted {
+				model.authority = sessionMCPAuthorityStub{servers: []string{"linear"}}
+			}
+			if tc.signedOut {
+				settings.servers = []settingspkg.MCPServerItem{
+					{
+						Name:        "linear",
+						RuntimeName: "linear",
+						Owner:       "manual",
+						AuthStatus:  &mcpauth.Status{Status: "needs_login"},
+					},
+				}
+			}
+			if tc.off {
+				manager.runtime.Mode = "off"
+				manager.runtime.Inventory.RuntimeMCP.CanDisable = true
+				manager.runtime.Inventory.Servers = []runtimemcp.Server{
+					{Name: "native", EnabledInRuntime: true, Transport: "stdio", Scope: "user"},
+				}
+			}
+			before := executor.discoveries
+			result, err := model.ListSessionMCP(t.Context(), "sess-1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if executor.discoveries != before || !settings.lastRequest.SkipRuntimeStatus {
+				t.Fatalf("read discovered or probed: %d -> %d, %+v", before, executor.discoveries, settings.lastRequest)
+			}
+			rows := map[string]session.MCPServerRow{}
+			for _, row := range result.Compozy {
+				rows[row.Name] = row
+			}
+			switch {
+			case tc.signedOut:
+				if result.Usable != 0 || result.Attention != 1 || rows["linear"].State != "needs_sign_in" {
+					t.Fatalf("signed out=%+v", result)
+				}
+			case tc.restricted:
+				if rows["sentry"].State != "not_available" || rows["sentry"].Reason != "Limited by the parent session" {
+					t.Fatalf("restricted=%+v", rows)
+				}
+			case tc.off:
+				if result.RuntimeServers.Servers[0].State != "off_in_compozy_sessions" {
+					t.Fatalf("runtime=%+v", result.RuntimeServers)
+				}
+			case tc.pending:
+				if !result.PendingReload || rows["linear"].State != "applies_next_message" {
+					t.Fatalf("pending=%+v", result)
+				}
+			default:
+				if result.Usable != 2 || result.Attention != 1 || rows["linear"].State != "ready" ||
+					rows["sentry"].State != "ready" ||
+					rows["waiting"].State != "waiting_approval" ||
+					rows["waiting"].ToolCount != 0 {
+					t.Fatalf("catalog=%+v", result)
+				}
+			}
+		})
+	}
+	t.Run("Should default the native MCP read to the caller UT-091", func(t *testing.T) {
+		t.Parallel()
+		model, manager, _, _ := newSessionMCPReadFixture(t)
+		manager.reader = model
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{Sessions: manager},
+			nativeApproveAllPolicyInputs(),
+		)
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-auth", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionMCPList, Input: json.RawMessage(`{}`)},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload session.SessionMCP
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.SessionID != "sess-1" || payload.Usable != 2 {
+			t.Fatalf("native=%+v", payload)
+		}
+	})
+	// Invariant: poll cadence coalesces changes and equal summaries never notify twice; owner: daemon summary publisher.
+	t.Run("Should debounce summary changes per bound session", func(t *testing.T) {
+		t.Parallel()
+		model, manager, _, settings := newSessionMCPReadFixture(t)
+		if err := model.refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := model.refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if len(manager.changes) != 1 {
+			t.Fatalf("unchanged notifications=%+v", manager.changes)
+		}
+		manager.runtime.Pending = true
+		manager.runtime.Pending = false // Intermediate state is coalesced before the next cadence.
+		if err := model.refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if len(manager.changes) != 1 {
+			t.Fatal("coalesced changes notified")
+		}
+		settings.servers = []settingspkg.MCPServerItem{
+			{Name: "linear", AuthStatus: &mcpauth.Status{Status: "needs_login"}},
+		}
+		if err := model.refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := model.refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if len(manager.changes) != 2 || manager.changes[1].Usable != 0 || manager.changes[1].Attention != 1 {
+			t.Fatalf("auth notifications=%+v", manager.changes)
+		}
+	})
+	// Invariant: explicit session ids cannot cross the trusted workspace/profile; owner: native adapter.
+	for _, scope := range []toolspkg.Scope{{WorkspaceID: "foreign", ProfileID: store.DefaultProfileID}, {WorkspaceID: "ws-auth", ProfileID: "foreign-profile"}} {
+		t.Run("Should reject a foreign native session scope "+scope.WorkspaceID+scope.ProfileID, func(t *testing.T) {
+			t.Parallel()
+			model, manager, _, _ := newSessionMCPReadFixture(t)
+			manager.reader = model
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{Sessions: manager},
+				nativeApproveAllPolicyInputs(),
+			)
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionMCPList,
+					Input:  json.RawMessage(`{"session_id":"sess-1"}`),
+				},
+			)
+			if !errors.Is(err, session.ErrSessionNotFound) {
+				t.Fatalf("foreign scope err=%v", err)
+			}
+		})
+	}
+
+}
+
+type sessionMCPAuthorityStub struct{ servers []string }
+
+var _ session.MCPAuthorityResolver = sessionMCPAuthorityStub{}
+
+func (s sessionMCPAuthorityStub) EffectiveMCPAuthority(context.Context, string) (store.SessionPermissionPolicy, error) {
+	return store.SessionPermissionPolicy{MCPServers: s.servers}, nil
+}
+
+type sessionMCPManagerStub struct {
+	core.SessionManager
+	runtime session.MCPRuntimeSnapshot
+	reader  session.MCPReader
+	changes []session.MCPSummary
+}
+
+var _ session.MCPReader = (*sessionMCPManagerStub)(nil)
+
+func (s *sessionMCPManagerStub) BoundMCPSessionIDs() []string { return []string{"sess-1"} }
+func (s *sessionMCPManagerStub) RecordMCPChanged(_ context.Context, _ string, summary session.MCPSummary) error {
+	s.changes = append(s.changes, summary)
+	return nil
+}
+
+func (s *sessionMCPManagerStub) MCPReadSnapshot(
+	context.Context,
+	string,
+	toolspkg.AdvertisedCatalog,
+) (session.MCPRuntimeSnapshot, error) {
+	return s.runtime, nil
+}
+func (s *sessionMCPManagerStub) ListSessionMCP(ctx context.Context, id string) (session.SessionMCP, error) {
+	return s.reader.ListSessionMCP(ctx, id)
+}
+
+type sessionMCPExecutorStub struct{ discoveries int }
+
+var _ toolspkg.MCPCallExecutor = (*sessionMCPExecutorStub)(nil)
+
+func (s *sessionMCPExecutorStub) ListTools(context.Context, toolspkg.SourceRef) ([]toolspkg.MCPToolDescriptor, error) {
+	s.discoveries++
+	return []toolspkg.MCPToolDescriptor{
+		{RawName: "echo", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)},
+	}, nil
+}
+
+func (*sessionMCPExecutorStub) CallTool(
+	context.Context,
+	toolspkg.SourceRef,
+	toolspkg.MCPToolCallRequest,
+) (toolspkg.ToolResult, error) {
+	return toolspkg.ToolResult{}, errors.New("unexpected call")
+}
+
+func newSessionMCPReadFixture(
+	t *testing.T,
+) (*sessionMCPReadModel, *sessionMCPManagerStub, *sessionMCPExecutorStub, *nativeMCPSettingsService) {
+	t.Helper()
+	executor := &sessionMCPExecutorStub{}
+	sources := []toolspkg.SourceRef{}
+	for _, name := range []string{"linear", "sentry", "waiting"} {
+		sources = append(
+			sources,
+			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: name, RawServerName: name, Scope: "user"},
+		)
+	}
+	provider, err := toolspkg.NewMCPProvider(
+		toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) { return sources, nil }),
+		executor,
+		nil,
+		toolspkg.WithMCPConsent(func(_ context.Context, source toolspkg.SourceRef, _ string) (bool, error) {
+			return source.Owner != "waiting", nil
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputs := nativeApproveAllPolicyInputs()
+	inputs.ExternalDefault = toolspkg.ExternalDefaultEnabled
+	registry, err := toolspkg.NewRegistry(
+		toolspkg.WithProviders(provider),
+		toolspkg.WithPolicyInputs(inputs, toolspkg.ToolsetCatalog{}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope := toolspkg.Scope{
+		SessionID:   "sess-1",
+		ProfileID:   store.DefaultProfileID,
+		WorkspaceID: "ws-auth",
+		AgentName:   "coder",
+	}
+	views, err := registry.SessionProjection(t.Context(), scope)
+	if err != nil || len(views) != 2 {
+		t.Fatalf("warm projection=%+v, %v", views, err)
+	}
+	settings := &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{
+		{
+			Name:        "linear",
+			RuntimeName: "linear",
+			Owner:       "manual",
+		},
+		{Name: "sentry", RuntimeName: "sentry", Owner: "manual"},
+		{
+			Name:        "waiting",
+			RuntimeName: "waiting",
+			Owner:       "manual",
+			Approval:    settingspkg.MCPApprovalState{State: "waiting"},
+		},
+	}}
+	manager := &sessionMCPManagerStub{
+		SessionManager: nativeTestSessionManager("ws-auth"),
+		runtime: session.MCPRuntimeSnapshot{
+			Mode:         "load",
+			Bound:        true,
+			BoundServers: map[string]int{"linear": 1, "sentry": 1},
+			Inventory:    runtimemcp.Snapshot{Runtime: "claude"},
+		},
+	}
+	state := &bootState{sessions: manager}
+	state.deps.Settings = settings
+	model := &sessionMCPReadModel{
+		state:     state,
+		authority: sessionMCPAuthorityStub{servers: []string{"linear", "sentry"}},
+		registry:  registry,
+		summaries: map[string]session.MCPSummary{},
+	}
+	manager.reader = model
+	return model, manager, executor, settings
 }

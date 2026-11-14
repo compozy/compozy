@@ -1083,7 +1083,7 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		state, req := newMCPConsentFixture(t)
 		consent := settingsMCPConsent{state: state}
 		waiting, err := consent.MCPConsent(t.Context(), req)
-		if err != nil || !waiting.Waiting || waiting.Admitted {
+		if err != nil || !waiting.Waiting || waiting.Admitted || waiting.Reason != "new" {
 			t.Fatalf("waiting=%+v %v", waiting, err)
 		}
 		epoch := state.toolProjectionEpoch.Current()
@@ -1102,6 +1102,12 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		allowed, err := consent.MCPConsent(t.Context(), req)
 		if err != nil || !allowed.Admitted || allowed.Waiting || state.toolProjectionEpoch.Current() <= epoch {
 			t.Fatalf("allowed=%+v %v", allowed, err)
+		}
+		changedDefinition := req
+		changedDefinition.Server.Args = []string{"updated"}
+		changedDecision, err := consent.MCPConsent(t.Context(), changedDefinition)
+		if err != nil || changedDecision.Reason != "changed" {
+			t.Fatalf("changed approval reason=%+v, %v", changedDecision, err)
 		}
 		for _, change := range []func(*settingspkg.MCPConsentRequest){
 			func(r *settingspkg.MCPConsentRequest) { r.Server.Args = []string{"changed"} },
@@ -1127,8 +1133,20 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		}
 		// Removing a record does not remove its approval. Restoring identical bytes remains admitted.
 		state.mcpServerCatalog.Replace(2, nil)
-		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: req.Server.Name, RawServerName: req.Server.Name, WorkspaceID: req.WorkspaceID, ProfileID: store.DefaultProfileID, ResourceID: "workspace-server"}
-		if err := requireMCPSourceConsent(t.Context(), state, source); err == nil || !strings.Contains(err.Error(), "was removed from CompozyOS") {
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         req.Server.Name,
+			RawServerName: req.Server.Name,
+			WorkspaceID:   req.WorkspaceID,
+			ProfileID:     store.DefaultProfileID,
+			ResourceID:    "workspace-server",
+		}
+		if err := requireMCPSourceConsent(
+			t.Context(),
+			state,
+			source,
+		); err == nil ||
+			!strings.Contains(err.Error(), "was removed from CompozyOS") {
 			t.Fatalf("removed error=%v", err)
 		}
 		restored, err := consent.MCPConsent(t.Context(), req)
@@ -1198,7 +1216,11 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		}
 		otherWorkspace := req
 		otherWorkspace.WorkspaceID = second.ID
-		otherWorkspace.Server.DefinitionSource = filepath.Join(second.RootDir, compozyconfig.DirName, compozyconfig.MCPJSONName)
+		otherWorkspace.Server.DefinitionSource = filepath.Join(
+			second.RootDir,
+			compozyconfig.DirName,
+			compozyconfig.MCPJSONName,
+		)
 		other, err = consent.MCPConsent(t.Context(), otherWorkspace)
 		if err != nil || other.Admitted {
 			t.Fatalf("workspace leaked=%+v %v", other, err)
@@ -1211,7 +1233,13 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 			projected := req
 			projected.Scope = "workspace_profile"
 			projected.ProfileName = "default"
-			projected.Server.DefinitionSource = filepath.Join(root.RootDir, compozyconfig.DirName, compozyconfig.ProfilesDirName, "default", file)
+			projected.Server.DefinitionSource = filepath.Join(
+				root.RootDir,
+				compozyconfig.DirName,
+				compozyconfig.ProfilesDirName,
+				"default",
+				file,
+			)
 			other, err = consent.MCPConsent(t.Context(), projected)
 			if err != nil || other.Admitted || !other.Waiting {
 				t.Fatalf("project default layer admitted=%+v %v", other, err)
@@ -1225,7 +1253,11 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		writeMCPDeclarationFile(t, filepath.Join(root.RootDir, compozyconfig.DirName, compozyconfig.ConfigName), "[tools.policy]\nexternal_default = \"enabled\"\n")
+		writeMCPDeclarationFile(
+			t,
+			filepath.Join(root.RootDir, compozyconfig.DirName, compozyconfig.ConfigName),
+			"[tools.policy]\nexternal_default = \"enabled\"\n",
+		)
 		decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
 		if err != nil || !decision.Admitted || decision.Waiting {
 			t.Fatalf("enabled=%+v %v", decision, err)
@@ -1236,11 +1268,28 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		for _, fail := range []bool{false, true} {
 			t.Run(fmt.Sprint(fail), func(t *testing.T) {
 				state, req := newMCPConsentFixture(t)
-				recorder := &recordingMCPApprovalRegistry{Registry: state.registry, MCPApprovalStore: state.registry.(MCPApprovalStore), path: req.Server.DefinitionSource, fail: fail}
+				recorder := &recordingMCPApprovalRegistry{
+					Registry:         state.registry,
+					MCPApprovalStore: state.registry.(MCPApprovalStore),
+					path:             req.Server.DefinitionSource,
+					fail:             fail,
+				}
 				state.registry = recorder
-				warning, err := (settingsMCPConsent{state: state}).RecordWorkspaceMCPWrite(t.Context(), settingspkg.WorkspaceMCPWrite{WorkspaceID: req.WorkspaceID, SourceID: req.Server.DefinitionSource, Server: req.Server, Write: func() error {
-					return os.WriteFile(req.Server.DefinitionSource, []byte(`{"mcpServers":{"sentry":{"command":"fixture"}}}`), 0o600)
-				}})
+				warning, err := (settingsMCPConsent{state: state}).RecordWorkspaceMCPWrite(
+					t.Context(),
+					settingspkg.WorkspaceMCPWrite{
+						WorkspaceID: req.WorkspaceID,
+						SourceID:    req.Server.DefinitionSource,
+						Server:      req.Server,
+						Write: func() error {
+							return os.WriteFile(
+								req.Server.DefinitionSource,
+								[]byte(`{"mcpServers":{"sentry":{"command":"fixture"}}}`),
+								0o600,
+							)
+						},
+					},
+				)
 				if err != nil || recorder.puts != 1 || !recorder.filePresent || (warning != "") != fail {
 					t.Fatalf("write result=%q %v recorder=%+v", warning, err, recorder)
 				}

@@ -61,13 +61,20 @@ func (s *bootState) invalidateMCPApprovals(profileID, workspaceID string) {
 	s.toolProjectionEpoch.Advance()
 }
 
-func mcpDefinitionConsent(ctx context.Context, state *bootState, scope toolspkg.Scope, record resources.Record[config.MCPServer], server config.MCPServer) (ConsentDecision, error) {
+func mcpDefinitionConsent(
+	ctx context.Context,
+	state *bootState,
+	scope toolspkg.Scope,
+	record resources.Record[config.MCPServer],
+	server config.MCPServer,
+) (ConsentDecision, error) {
 	digest, err := config.MCPDefinitionDigest(server)
 	if err != nil {
 		return ConsentDecision{}, err
 	}
 	decision := ConsentDecision{DefinitionDigest: digest}
-	if record.Owner.Kind == extensionResourceOwnerKind || record.Scope.Kind == resources.ResourceScopeKindUser || record.Scope.Kind == resources.ResourceScopeKindProfile {
+	if record.Owner.Kind == extensionResourceOwnerKind || record.Scope.Kind == resources.ResourceScopeKindUser ||
+		record.Scope.Kind == resources.ResourceScopeKindProfile {
 		decision.Admitted = true
 		return decision, nil
 	}
@@ -102,6 +109,7 @@ func mcpDefinitionConsent(ctx context.Context, state *bootState, scope toolspkg.
 		return decision, nil
 	}
 	decision.Waiting = true
+	decision.Reason = "new"
 	records, err := state.mcpApprovalRecords(ctx, profileID, workspaceID)
 	if err != nil {
 		return decision, err
@@ -110,16 +118,21 @@ func mcpDefinitionConsent(ctx context.Context, state *bootState, scope toolspkg.
 	if err != nil {
 		return decision, err
 	}
+	return matchMCPApproval(decision, records, server.Name, sourceID, digest), nil
+}
+
+func matchMCPApproval(decision ConsentDecision, records []MCPApproval, name, sourceID, digest string) ConsentDecision {
 	for _, approval := range records {
-		if approval.ServerName == server.Name && approval.SourceID == sourceID && approval.DefinitionDigest == digest {
-			decision.Admitted = true
-			decision.Waiting = false
-			return decision, nil
+		if approval.ServerName != name || approval.SourceID != sourceID {
+			continue
 		}
+		if approval.DefinitionDigest == digest {
+			decision.Admitted, decision.Waiting, decision.Reason = true, false, ""
+			return decision
+		}
+		decision.Reason = "changed"
 	}
-	decision.Admitted = externalDefault == config.ToolsExternalDefaultEnabled
-	decision.Waiting = !decision.Admitted
-	return decision, nil
+	return decision
 }
 
 func mcpResourceProjectionWorkspace(scope resources.ResourceScope) (string, string, error) {

@@ -480,3 +480,37 @@ func TestRuntimeCodexPluginSelection(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: public targets contain neither command arguments nor URL credentials or paths. Owner: runtime inventory; canonical decoder suite.
+func TestRuntimeMCPTarget(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose only executable basename and remote hostname", func(t *testing.T) {
+		t.Parallel()
+		c := fixtureContext(t)
+		putFile(
+			t,
+			filepath.Join(c.Home, ".claude.json"),
+			`{"mcpServers":{"local":{"command":"/private/bin/runner --token hidden","args":["hidden-arg"]},"remote":{"type":"http","url":"https://user:password@example.test:8443/private?token=hidden#fragment"}}}`,
+		)
+		inventory, _, err := (Reader{}).List(t.Context(), Request{Context: c, Runtime: "claude"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		targets := map[string]string{}
+		for _, server := range inventory.Runtimes[0].Servers {
+			targets[server.Name] = server.Target
+		}
+		if targets["local"] != "runner" || targets["remote"] != "example.test" {
+			t.Fatalf("targets=%+v", targets)
+		}
+		data, err := json.Marshal(inventory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, private := range []string{"password", "hidden", "hidden-arg", "/private/bin", "8443", "fragment"} {
+			if strings.Contains(string(data), private) {
+				t.Fatalf("inventory leaked %q", private)
+			}
+		}
+	})
+}

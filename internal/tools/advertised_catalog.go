@@ -10,8 +10,9 @@ import (
 
 // AdvertisedCatalog records entitlement independently of transient backend health.
 type AdvertisedCatalog struct {
-	Digest  string         `json:"digest"`
-	Servers map[string]int `json:"servers"`
+	Digest        string            `json:"digest"`
+	Servers       map[string]int    `json:"servers"`
+	ServerDigests map[string]string `json:"-"`
 }
 
 // AdvertisedCatalogDigest hashes external source identity, tool names and input schemas only.
@@ -35,7 +36,12 @@ func AdvertisedCatalogDigest(views []ToolView) string {
 
 // NewAdvertisedCatalog captures the digest and per-source tool counts of one advertised revision.
 func NewAdvertisedCatalog(views []ToolView) AdvertisedCatalog {
-	catalog := AdvertisedCatalog{Digest: AdvertisedCatalogDigest(views), Servers: make(map[string]int)}
+	catalog := AdvertisedCatalog{
+		Digest:        AdvertisedCatalogDigest(views),
+		Servers:       make(map[string]int),
+		ServerDigests: make(map[string]string),
+	}
+	servers := make(map[string][]ToolView)
 	for _, view := range views {
 		source := view.Descriptor.Source
 		if source.Kind != SourceMCP && source.Kind != SourceExtension {
@@ -46,6 +52,10 @@ func NewAdvertisedCatalog(views []ToolView) AdvertisedCatalog {
 			name = source.Owner
 		}
 		catalog.Servers[name]++
+		servers[name] = append(servers[name], view)
+	}
+	for name, entries := range servers {
+		catalog.ServerDigests[name] = AdvertisedCatalogDigest(entries)
 	}
 	return catalog
 }

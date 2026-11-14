@@ -6,7 +6,12 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"maps"
+	"net/url"
+	"path/filepath"
 	"slices"
+	"strings"
+
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 type object = map[string]any
@@ -103,8 +108,23 @@ func describeServer(runtime, name, scope, path, label string, definition object)
 	if boolean(definition["disabled"]) {
 		enabled = false
 	}
-	s := Server{Runtime: runtime, Name: name, Scope: scope, Transport: transport, SourcePath: path, SourceLabel: label,
-		EnabledInRuntime: enabled, Approval: "not_required", Auth: "unknown", EnvKeys: keys(env), HeaderKeys: keys(headers)}
+	s := Server{
+		Runtime:     runtime,
+		Name:        name,
+		Scope:       scope,
+		Transport:   transport,
+		SourcePath:  path,
+		SourceLabel: label,
+		Target: serverTarget(
+			transport,
+			definition,
+		),
+		EnabledInRuntime: enabled,
+		Approval:         "not_required",
+		Auth:             "unknown",
+		EnvKeys:          keys(env),
+		HeaderKeys:       keys(headers),
+	}
 	s.EnvKeys = append(s.EnvKeys, names(definition["env_vars"])...)
 	for _, value := range obj(definition["env_http_headers"]) {
 		if name := str(value); name != "" {
@@ -152,4 +172,27 @@ func serverTransport(runtime string, definition object) (string, error) {
 		return "", errors.New("missing MCP URL")
 	}
 	return transport, nil
+}
+
+func serverTarget(transport string, definition object) string {
+	if transport == "stdio" {
+		if parts := names(definition["command"]); len(parts) > 0 {
+			return filepath.Base(strings.ReplaceAll(parts[0], "\\", "/"))
+		}
+		command := str(definition["command"])
+		parts, err := shellquote.Split(strings.ReplaceAll(command, "\\", "/"))
+		if err != nil || len(parts) == 0 {
+			return ""
+		}
+		return filepath.Base(strings.ReplaceAll(parts[0], "\\", "/"))
+	}
+	raw := str(definition["url"])
+	if raw == "" {
+		raw = str(definition["httpUrl"])
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return parsed.Hostname()
 }

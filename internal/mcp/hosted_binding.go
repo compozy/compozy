@@ -63,6 +63,7 @@ func (s *HostedService) Bind(
 		active.initialToolDigest = projection.Catalog.Digest
 		active.initialCatalog = tools.AdvertisedCatalog{
 			Digest: projection.Catalog.Digest, Servers: maps.Clone(projection.Catalog.Servers),
+			ServerDigests: maps.Clone(projection.Catalog.ServerDigests),
 		}
 	}
 	s.mu.Unlock()

@@ -40,6 +40,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/compozy/compozy/internal/worktree"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -3294,14 +3295,37 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		marker := filepath.Join(t.TempDir(), "mcp-starts")
-		server := compozyconfig.MCPServer{Name: "sentry", Command: os.Args[0], Args: []string{"-test.run=^TestMCPConsentStdioHelperProcess$"}, Env: map[string]string{"COMPOZY_TEST_DAEMON_EXTENSION_HELPER": "1", "COMPOZY_TEST_CONSENT_STARTS": marker}}
-		data, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"sentry": map[string]any{"command": server.Command, "args": server.Args, "env": server.Env}}})
+		server := compozyconfig.MCPServer{
+			Name:    "sentry",
+			Command: os.Args[0],
+			Args:    []string{"-test.run=^TestMCPConsentStdioHelperProcess$"},
+			Env: map[string]string{
+				"COMPOZY_TEST_DAEMON_EXTENSION_HELPER": "1",
+				"COMPOZY_TEST_CONSENT_STARTS":          marker,
+			},
+		}
+		data, err := json.Marshal(
+			map[string]any{
+				"mcpServers": map[string]any{
+					"sentry": map[string]any{"command": server.Command, "args": server.Args, "env": server.Env},
+				},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-			MockAgents: []e2etest.MockAgentSpec{{FixturePath: mockFixturePath(t, "hosted_native_tools_fixture.json"), FixtureAgent: "hosted-native", AgentName: "mock-consent"}},
-			Workspace:  e2etest.WorkspaceSeedOptions{Root: root, Files: map[string]string{filepath.Join(compozyconfig.DirName, compozyconfig.MCPJSONName): string(data)}},
+			MockAgents: []e2etest.MockAgentSpec{
+				{
+					FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+					FixtureAgent: "hosted-native",
+					AgentName:    "mock-consent",
+				},
+			},
+			Workspace: e2etest.WorkspaceSeedOptions{
+				Root:  root,
+				Files: map[string]string{filepath.Join(compozyconfig.DirName, compozyconfig.MCPJSONName): string(data)},
+			},
 			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultDisabled
 			}},
@@ -3315,30 +3339,60 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 		if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/mcp-servers"+query, nil, &listing); err != nil {
 			t.Fatal(err)
 		}
-		if len(listing.MCPServers) != 1 || listing.MCPServers[0].Approval.State != "waiting" || listing.MCPServers[0].CallableInSessions {
+		if len(listing.MCPServers) != 1 || listing.MCPServers[0].Approval.State != "waiting" ||
+			listing.MCPServers[0].CallableInSessions {
 			t.Fatalf("waiting listing=%+v", listing.MCPServers)
 		}
-		createBoundFixtureBackedSession(t, ctx, harness, "mock-consent", "waiting")
+		waitingSession := createBoundFixtureBackedSession(t, ctx, harness, "mock-consent", "waiting")
+		registration, ok := harness.MockAgentRegistration("mock-consent")
+		if !ok {
+			t.Fatal("missing mock registration")
+		}
+		waitingDiagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitingClient := startHostedMCPClient(
+			t,
+			ctx,
+			requireHostedMCPStdioServer(t, waitingDiagnostics, hostedMCPServerLatest),
+			&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+		)
+		assertSessionMCPConsentReadParity(t, ctx, harness, waitingClient, waitingSession.ID, "waiting_approval")
+		if err := waitingClient.Close(); err != nil {
+			t.Fatal(err)
+		}
 		if starts, err := os.ReadFile(marker); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("waiting record started: %q %v", starts, err)
 		}
 		var approval compozycontract.SettingsMCPApprovalResponse
-		if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/mcp-servers/sentry/approval", compozycontract.SettingsMCPApprovalRequest{WorkspaceID: harness.WorkspaceID, Profile: "default", DefinitionDigest: listing.MCPServers[0].Approval.DefinitionDigest}, &approval); err != nil {
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPut,
+			"/api/settings/mcp-servers/sentry/approval",
+			compozycontract.SettingsMCPApprovalRequest{
+				WorkspaceID:      harness.WorkspaceID,
+				Profile:          "default",
+				DefinitionDigest: listing.MCPServers[0].Approval.DefinitionDigest,
+			},
+			&approval,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if approval.Approval.State != "allowed" {
 			t.Fatalf("approval=%+v", approval)
 		}
-		createBoundFixtureBackedSession(t, ctx, harness, "mock-consent", "allowed")
-		registration, ok := harness.MockAgentRegistration("mock-consent")
-		if !ok {
-			t.Fatal("missing mock registration")
-		}
+		allowedSession := createBoundFixtureBackedSession(t, ctx, harness, "mock-consent", "allowed")
 		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 		if err != nil {
 			t.Fatal(err)
 		}
-		client := startHostedMCPClient(t, ctx, requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerLatest), &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}})
+		client := startHostedMCPClient(
+			t,
+			ctx,
+			requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerLatest),
+			&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+		)
 		defer func() {
 			if err := client.Close(); err != nil {
 				t.Error(err)
@@ -3360,7 +3414,11 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 			})
 		}
 		assertListed(true)
-		result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: "mcp__sentry__echo", Arguments: map[string]any{"message": "consent"}})
+		assertSessionMCPConsentReadParity(t, ctx, harness, client, allowedSession.ID, "ready")
+		result, err := client.CallTool(
+			ctx,
+			&sdkmcp.CallToolParams{Name: "mcp__sentry__echo", Arguments: map[string]any{"message": "consent"}},
+		)
 		if err != nil || result.IsError {
 			t.Fatalf("allowed call=%+v %v", result, err)
 		}
@@ -3368,11 +3426,23 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 		if err != nil || len(before) == 0 {
 			t.Fatalf("allowed server did not start: %q %v", before, err)
 		}
-		if err := harness.HTTPJSON(ctx, http.MethodDelete, "/api/settings/mcp-servers/sentry/approval?workspace_id="+url.QueryEscape(harness.WorkspaceID)+"&profile=default", nil, nil); err != nil {
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodDelete,
+			"/api/settings/mcp-servers/sentry/approval?workspace_id="+url.QueryEscape(
+				harness.WorkspaceID,
+			)+"&profile=default",
+			nil,
+			nil,
+		); err != nil {
 			t.Fatal(err)
 		}
 		assertListed(false)
-		result, err = client.CallTool(ctx, &sdkmcp.CallToolParams{Name: "mcp__sentry__echo", Arguments: map[string]any{"message": "revoked"}})
+		assertSessionMCPConsentReadParity(t, ctx, harness, client, allowedSession.ID, "waiting_approval")
+		result, err = client.CallTool(
+			ctx,
+			&sdkmcp.CallToolParams{Name: "mcp__sentry__echo", Arguments: map[string]any{"message": "revoked"}},
+		)
 		if err == nil && !result.IsError {
 			t.Fatal("revoked source remained callable")
 		}
@@ -3384,13 +3454,27 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 		var mutation struct {
 			Warnings []string `json:"warnings"`
 		}
-		if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/mcp-servers/sentry"+query, compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{Name: "sentry", Command: server.Command, Args: server.Args, Env: server.Env}}, &mutation); err != nil {
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPut,
+			"/api/settings/mcp-servers/sentry"+query,
+			compozycontract.PutSettingsMCPServerRequest{
+				Server: compozycontract.SettingsMCPServerPayload{
+					Name:    "sentry",
+					Command: server.Command,
+					Args:    server.Args,
+					Env:     server.Env,
+				},
+			},
+			&mutation,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if len(mutation.Warnings) != 0 {
 			t.Fatalf("Settings approval warnings=%v", mutation.Warnings)
 		}
 		assertListed(true)
+		assertSessionMCPConsentReadParity(t, ctx, harness, client, allowedSession.ID, "ready")
 	})
 }
 
@@ -4331,5 +4415,243 @@ func testDaemonRuntimeMCPSwitch(t *testing.T) {
 	}
 	if activationEventCount(events.Events, session.EventTypeMCPReloaded) != 1 {
 		t.Fatal("switch did not emit exactly one reload")
+	}
+}
+
+// Invariant: session MCP transports share scoped truth and runtime changes affect only their execution context. Owner: daemon public surfaces and ACP; IT-011, IT-014.
+func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+	t.Run("Should share HTTP native and CLI bodies and isolate worktrees IT-011 IT-014", func(t *testing.T) {
+		t.Parallel()
+		driver, err := acpmock.DefaultDriverPath()
+		if err != nil {
+			t.Fatal(err)
+		}
+		alias := filepath.Join(t.TempDir(), "claude-agent-acp")
+		if err := os.Symlink(driver, alias); err != nil {
+			t.Fatal(err)
+		}
+		home := e2etest.NewHomePaths(t)
+		fixture := mockFixturePath(t, "hosted_native_tools_fixture.json")
+		registration, err := acpmock.Register(
+			home,
+			acpmock.RegisterOptions{
+				FixturePath:  fixture,
+				FixtureAgent: "hosted-native",
+				AgentName:    "session-mcp",
+				ProviderName: "claude",
+				DriverPath:   alias,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := initWorktreeE2ERepository(t)
+		if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, ".compozy", compozyconfig.MCPJSONName),
+			[]byte(`{"mcpServers":{"waiting":{"command":"must-never-start-waiting-mcp"}}}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			HomePaths: home, Workspace: e2etest.WorkspaceSeedOptions{Root: root},
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+				for id := range compozyconfig.BuiltinProviders() {
+					provider := cfg.Providers[id]
+					provider.Models.Discovery.Enabled = new(false)
+					cfg.Providers[id] = provider
+				}
+				provider := acpmock.ProviderConfig(alias)
+				provider.Models.Discovery.Command = acpmock.BuildCommand(alias, fixture, "hosted-native", "", "claude")
+				provider.Models.Discovery.Enabled = new(true)
+				cfg.Providers["claude"] = provider
+			}},
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
+		defer cancel()
+		upstream := httptest.NewServer(mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler())
+		t.Cleanup(upstream.Close)
+		for _, name := range []string{"linear", "sentry"} {
+			definition := compozycontract.PutSettingsMCPServerRequest{
+				Server: compozycontract.SettingsMCPServerPayload{Name: name, Transport: "http", URL: upstream.URL},
+			}
+			if err := harness.HTTPJSON(
+				ctx,
+				http.MethodPut,
+				"/api/settings/mcp-servers/"+name+"?scope=user",
+				definition,
+				nil,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		makeClient := func(id string) *sdkmcp.ClientSession {
+			t.Helper()
+			records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			records = acpmock.DiagnosticsForCompozySession(records, id)
+			return startHostedMCPClient(
+				t,
+				ctx,
+				requireHostedMCPStdioServer(t, records, hostedMCPServerLatest),
+				&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+			)
+		}
+		active := createBoundFixtureBackedSession(t, ctx, harness, "session-mcp", "read-model")
+		client := makeClient(active.ID)
+		defer func() {
+			if err := client.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if _, err := client.ListTools(ctx, nil); err != nil {
+			t.Fatal(err)
+		}
+		var httpBody, nativeBody, cliBody compozycontract.SessionMCPResponse
+		route := "/api/workspaces/" + active.WorkspaceID + "/sessions/" + active.ID + "/mcp"
+		if err := harness.HTTPJSON(ctx, http.MethodGet, route, nil, &httpBody); err != nil {
+			t.Fatal(err)
+		}
+		callHostedMCPToolJSON(t, ctx, client, toolspkg.ToolIDSessionMCPList.String(), map[string]any{}, &nativeBody)
+		if err := harness.CLI.RunJSON(ctx, &cliBody, "session", "mcp", active.ID, "-o", "json"); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(httpBody, nativeBody) || !reflect.DeepEqual(httpBody, cliBody) {
+			t.Fatalf("surface bodies differ: HTTP=%+v native=%+v CLI=%+v", httpBody, nativeBody, cliBody)
+		}
+		states := map[string]string{}
+		for _, row := range httpBody.Compozy {
+			states[row.Name] = row.State
+		}
+		if states["linear"] != "ready" || states["sentry"] != "ready" || states["waiting"] != "waiting_approval" {
+			t.Fatalf("states=%+v", states)
+		}
+
+		sessions := []compozycontract.SessionPayload{}
+		paths := []string{}
+		for _, name := range []string{"native-a", "native-b"} {
+			wt := createWorktreeE2E(t, ctx, harness, harness.WorkspaceID, name)
+			ready := waitForWorktreeE2EState(t, ctx, harness, harness.WorkspaceID, wt.ID, worktree.StateReady)
+			if err := os.WriteFile(
+				filepath.Join(ready.Worktree.Path, ".mcp.json"),
+				[]byte(`{"mcpServers":{"`+name+`":{"command":"must-never-run-native-inventory"}}}`),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			created, err := harness.CreateSession(
+				ctx,
+				compozycontract.CreateSessionRequest{
+					AgentName: "session-mcp",
+					Name:      name,
+					Workspace: harness.WorkspaceID,
+					Worktree:  wt.ID,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bound := bindFixtureBackedSession(t, ctx, harness, created, "noop")
+			sessions = append(sessions, bound)
+			paths = append(paths, ready.Worktree.Path)
+			peer := makeClient(bound.ID)
+			if _, err := peer.ListTools(ctx, nil); err != nil {
+				t.Fatal(err)
+			}
+			if err := peer.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for i, bound := range sessions {
+			var result compozycontract.SessionMCPResponse
+			if err := harness.HTTPJSON(
+				ctx,
+				http.MethodGet,
+				"/api/workspaces/"+bound.WorkspaceID+"/sessions/"+bound.ID+"/mcp",
+				nil,
+				&result,
+			); err != nil {
+				t.Fatal(err)
+			}
+			own, foreign := false, false
+			for _, row := range result.RuntimeServers.Servers {
+				own = own || row.Name == []string{"native-a", "native-b"}[i]
+				foreign = foreign || row.Name == []string{"native-b", "native-a"}[i]
+			}
+			if !own || foreign {
+				t.Fatalf("session context leaked: %+v", result.RuntimeServers)
+			}
+		}
+		if err := os.WriteFile(
+			filepath.Join(paths[0], ".mcp.json"),
+			[]byte(`{"mcpServers":{"native-a-changed":{"command":"must-never-run-native-inventory"}}}`),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for i, bound := range sessions {
+			before, err := harness.SessionEvents(ctx, bound.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.PromptSession(ctx, bound.ID, "noop"); err != nil {
+				t.Fatal(err)
+			}
+			after, err := harness.SessionEvents(ctx, bound.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			delta := activationEventCount(
+				after.Events,
+				session.EventTypeMCPReloaded,
+			) - activationEventCount(
+				before.Events,
+				session.EventTypeMCPReloaded,
+			)
+			want := 0
+			if i == 0 {
+				want = 1
+			}
+			if delta != want {
+				t.Fatalf("worktree %d reloads=%d want=%d", i, delta, want)
+			}
+		}
+	})
+}
+
+// IT-011 reuses the real execution-consent fixture for waiting, allowed and revoked states.
+func assertSessionMCPConsentReadParity(
+	t *testing.T,
+	ctx context.Context,
+	h *e2etest.RuntimeHarness,
+	client *sdkmcp.ClientSession,
+	id, state string,
+) {
+	t.Helper()
+	var httpBody, nativeBody compozycontract.SessionMCPResponse
+	if err := h.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/workspaces/"+h.WorkspaceID+"/sessions/"+id+"/mcp",
+		nil,
+		&httpBody,
+	); err != nil {
+		t.Fatal(err)
+	}
+	callHostedMCPToolJSON(t, ctx, client, toolspkg.ToolIDSessionMCPList.String(), map[string]any{}, &nativeBody)
+	wantState := state
+	if state == "ready" && httpBody.PendingReload {
+		wantState = "applies_next_message"
+	}
+	if !reflect.DeepEqual(httpBody, nativeBody) || len(httpBody.Compozy) != 1 ||
+		httpBody.Compozy[0].State != wantState {
+		t.Fatalf("MCP bodies: HTTP=%+v native=%+v want=%s", httpBody, nativeBody, state)
 	}
 }

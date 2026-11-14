@@ -4,7 +4,9 @@
 OpenCode, Kimi CLI, Qwen Code, Copilot CLI, Cursor Agent, Antigravity and Pi. It never
 executes a runtime, connects to an MCP endpoint or reads credential stores. Authentication
 is always `unknown`. Environment and header values stay inside the reader; public rows
-contain their key names and definition digests.
+contain their key names and definition digests. `target` contains only the executable
+basename for stdio or the remote URL host. It excludes arguments, directories, userinfo,
+paths, ports, query strings and fragments.
 
 ## Context and consumers
 
@@ -57,8 +59,12 @@ Automatic target selection, workspace approval recording and commit-aware secret
 Copying never changes native runtime files or transfers runtime OAuth credentials.
 
 The inventory API is `GET /api/settings/runtime-mcp-servers` on HTTP and UDS. The CLI is
-`compozy mcp list`; the native tool is `compozy__mcp_list`. Session read-model integration
-belongs to S6. The shared specification's Impact Analysis owns the cross-surface audit;
+`compozy mcp list`; the native tool is `compozy__mcp_list`. The session read model uses `GET /api/workspaces/{ws}/sessions/{id}/mcp`,
+`compozy session mcp <id>` and `compozy__session_mcp_list`. It joins the complete scoped
+CompozyOS catalog with cached callable tools, consent, authority and auth state. Reads
+never discover tools or probe servers. A bound session reuses its accepted launch context;
+other sessions resolve their own provider home and execution CWD. Only detail reads expose
+`mcp_summary`; durable `session.mcp_changed` events carry summary changes. The shared specification's Impact Analysis owns the cross-surface audit;
 generated OpenAPI, Go/TypeScript clients, native catalog and CLI docs ship with the inventory. End-to-end UI scenarios and release QA remain with S9.
 
 ## Session launch switch

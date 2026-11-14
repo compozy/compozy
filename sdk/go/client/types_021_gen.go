@@ -4,6 +4,80 @@ package client
 
 import "time"
 
+// SessionUsageTurnPayload is a daemon API value.
+type SessionUsageTurnPayload struct {
+	TurnID   string                      `json:"turn_id"`
+	Sequence int64                       `json:"sequence"`
+	Usage    *TokenUsagePayload          `json:"usage,omitzero"`
+	Injected *SessionTurnInjectedPayload `json:"injected,omitzero"`
+}
+
+// SessionUsageTurnsResponse is a daemon API value.
+type SessionUsageTurnsResponse struct {
+	Turns       []SessionUsageTurnPayload  `json:"turns"`
+	Compactions []SessionCompactionPayload `json:"compactions"`
+}
+
+// SessionWaitRequest is a daemon API value.
+type SessionWaitRequest struct {
+	Until     []string `json:"until,omitempty"`
+	TimeoutMS int64    `json:"timeout_ms"`
+	Epoch     int64    `json:"epoch,omitzero"`
+	ResumeID  string   `json:"resume_id,omitempty"`
+}
+
+// SessionWaitResponse is a daemon API value.
+type SessionWaitResponse struct {
+	SessionID string   `json:"session_id"`
+	Outcome   string   `json:"outcome"`
+	State     string   `json:"state,omitempty"`
+	WaitedMS  int64    `json:"waited_ms"`
+	Until     []string `json:"until,omitempty"`
+	Revision  int64    `json:"revision"`
+	ResumeID  string   `json:"resume_id,omitempty"`
+}
+
+// SessionWorkLinkRequest is a daemon API value.
+type SessionWorkLinkRequest struct {
+	Repository string `json:"repository,omitempty"`
+	Branch     string `json:"branch"`
+	PRNumber   int    `json:"pr_number,omitempty"`
+}
+
+// SessionWorkTimePayload is a daemon API value.
+type SessionWorkTimePayload struct {
+	ActiveDurationMS    int64  `json:"active_duration_ms"`
+	TurnCount           int64  `json:"turn_count"`
+	LastCompletedTurnID string `json:"last_completed_turn_id,omitempty"`
+}
+
+// SessionWorkspaceFacetsPayload is a daemon API value.
+type SessionWorkspaceFacetsPayload struct {
+	WorkspaceID string                      `json:"workspace_id"`
+	Facets      SessionCatalogFacetsPayload `json:"facets"`
+}
+
+// SessionsResponse is a daemon API value.
+type SessionsResponse struct {
+	Sessions []SessionPayload `json:"sessions"`
+}
+
+// SetExtensionEnablementRequest is a daemon API value.
+type SetExtensionEnablementRequest struct {
+	Profile string `json:"profile"`
+	Enabled bool   `json:"enabled"`
+}
+
+// SetExtensionSecretsRequest is a daemon API value.
+type SetExtensionSecretsRequest struct {
+	Bindings []ExtensionSecretBindingInput `json:"bindings"`
+}
+
+// SetSessionParentRequest is a daemon API value.
+type SetSessionParentRequest struct {
+	ParentSessionID string `json:"parent_session_id"`
+}
+
 // SetSessionRuntimeRequest is a daemon API value.
 type SetSessionRuntimeRequest struct {
 	Runtime          PromptRuntimeSelectionPayload `json:"runtime"`
@@ -364,86 +438,4 @@ type SettingsInstalledExtensionPaletteViewPayload struct {
 	Title     string `json:"title"`
 	Available bool   `json:"available"`
 	Reason    string `json:"reason,omitempty"`
-}
-
-// SettingsInstalledExtensionPayload is a daemon API value.
-type SettingsInstalledExtensionPayload struct {
-	Name          string                                    `json:"name"`
-	Version       string                                    `json:"version,omitempty"`
-	Enabled       bool                                      `json:"enabled"`
-	State         string                                    `json:"state,omitempty"`
-	Health        string                                    `json:"health,omitempty"`
-	HealthMessage string                                    `json:"health_message,omitempty"`
-	LastError     string                                    `json:"last_error,omitempty"`
-	RequiresEnv   []string                                  `json:"requires_env,omitempty"`
-	MissingEnv    []string                                  `json:"missing_env,omitempty"`
-	Palette       *SettingsInstalledExtensionPalettePayload `json:"palette,omitzero"`
-}
-
-// SettingsLayeredScopeKind is a daemon API value.
-type SettingsLayeredScopeKind string
-
-// SettingsLimitsPayload is a daemon API value.
-type SettingsLimitsPayload struct {
-	MaxConcurrentAgents int `json:"max_concurrent_agents"`
-}
-
-// SettingsLogTailCapabilityPayload is a daemon API value.
-type SettingsLogTailCapabilityPayload struct {
-	Available bool                    `json:"available"`
-	StreamURL string                  `json:"stream_url,omitempty"`
-	Transport SettingsStreamTransport `json:"transport,omitempty"`
-}
-
-// SettingsLogTailEventPayload is a daemon API value.
-type SettingsLogTailEventPayload struct {
-	Line string `json:"line"`
-}
-
-// SettingsMCPApprovalPayload is a daemon API value.
-type SettingsMCPApprovalPayload struct {
-	ServerName  string    `json:"server_name"`
-	WorkspaceID string    `json:"workspace_id"`
-	Profile     string    `json:"profile"`
-	State       string    `json:"state"`
-	ApprovedAt  time.Time `json:"approved_at,omitzero"`
-}
-
-// SettingsMCPApprovalRequest is a daemon API value.
-type SettingsMCPApprovalRequest struct {
-	WorkspaceID      string `json:"workspace_id"`
-	Profile          string `json:"profile,omitempty"`
-	DefinitionDigest string `json:"definition_digest"`
-}
-
-// SettingsMCPApprovalResponse is a daemon API value.
-type SettingsMCPApprovalResponse struct {
-	Approval SettingsMCPApprovalPayload `json:"approval"`
-}
-
-// SettingsMCPApprovalStatePayload is a daemon API value.
-type SettingsMCPApprovalStatePayload struct {
-	Required         bool   `json:"required"`
-	State            string `json:"state"`
-	DefinitionDigest string `json:"definition_digest"`
-}
-
-// SettingsMCPAuthBeginMode is a daemon API value.
-type SettingsMCPAuthBeginMode string
-
-// SettingsMCPAuthBeginRequest is a daemon API value.
-type SettingsMCPAuthBeginRequest struct {
-	DefinitionDigest       string                   `json:"definition_digest,omitempty"`
-	Mode                   SettingsMCPAuthBeginMode `json:"mode"`
-	ApprovedScopes         []string                 `json:"approved_scopes,omitempty"`
-	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitzero"`
-}
-
-// SettingsMCPAuthBeginResponse is a daemon API value.
-type SettingsMCPAuthBeginResponse struct {
-	AuthorizationURL string    `json:"authorization_url"`
-	State            string    `json:"state"`
-	ExpiresAt        time.Time `json:"expires_at"`
-	CallbackURL      string    `json:"callback_url"`
-	ManualSupported  bool      `json:"manual_supported"`
 }

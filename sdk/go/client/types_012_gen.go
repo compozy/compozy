@@ -206,6 +206,23 @@ type MCPAuthSummary struct {
 	Scopes       []string `json:"scopes,omitempty"`
 }
 
+// MCPReloadRecord is a daemon API value.
+type MCPReloadRecord struct {
+	At      time.Time `json:"at"`
+	Outcome string    `json:"outcome"`
+	Reason  string    `json:"reason"`
+}
+
+// MCPServerRow is a daemon API value.
+type MCPServerRow struct {
+	Name          string `json:"name"`
+	Owner         string `json:"owner"`
+	State         string `json:"state"`
+	ToolCount     int    `json:"tool_count"`
+	CallableCount int    `json:"callable_count"`
+	Reason        string `json:"reason"`
+}
+
 // MCPServerStatusPayload is a daemon API value.
 type MCPServerStatusPayload struct {
 	Name          string `json:"name"`
@@ -221,6 +238,13 @@ type MCPServerStatusPayload struct {
 	Diagnostic    string `json:"diagnostic,omitempty"`
 	Transport     string `json:"transport,omitempty"`
 	RuntimeStatus string `json:"runtime_status"`
+}
+
+// MCPSummary is a daemon API value.
+type MCPSummary struct {
+	Usable        int  `json:"usable"`
+	Attention     int  `json:"attention"`
+	PendingReload bool `json:"pending_reload"`
 }
 
 // ManagedExtensionRemovePayload is a daemon API value.
@@ -419,29 +443,4 @@ type MarketplaceSourcePreviewPayload struct {
 // MarketplaceSourceResponse is a daemon API value.
 type MarketplaceSourceResponse struct {
 	Source MarketplaceSourcePayload `json:"source"`
-}
-
-// MarketplaceSourceSummary is a daemon API value.
-type MarketplaceSourceSummary struct {
-	Name       string     `json:"name"`
-	Kind       string     `json:"kind"`
-	State      string     `json:"state"`
-	Count      int        `json:"count"`
-	LastReadAt *time.Time `json:"last_read_at,omitempty"`
-}
-
-// MarketplaceSourcesResponse is a daemon API value.
-type MarketplaceSourcesResponse struct {
-	Sources []MarketplaceSourcePayload `json:"sources"`
-}
-
-// Mergeable is a daemon API value.
-type Mergeable string
-
-// Meta is a daemon API value.
-type Meta struct {
-	Name        string      `json:"name"`
-	Version     int         `json:"version,omitzero"`
-	Description string      `json:"description,omitempty"`
-	Catalog     CatalogMeta `json:"catalog"`
 }

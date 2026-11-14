@@ -11,6 +11,25 @@ import (
 	"strings"
 )
 
+// ImportRuntimeMCPServer Copy a runtime MCP server into CompozyOS
+func (c *Client) ImportRuntimeMCPServer(ctx context.Context, params ImportRuntimeMCPServerParams, body RuntimeMCPImportRequest) (*RuntimeMCPImportResponse, error) {
+	path := "/api/settings/runtime-mcp-servers/{runtime}/{name}/import"
+	path = strings.ReplaceAll(path, "{runtime}", url.PathEscape(params.Runtime))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out RuntimeMCPImportResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectRunParams carries the path, query, and header parameters.
+type InspectRunParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // InspectRun Inspect one task run with diagnostics
 func (c *Client) InspectRun(ctx context.Context, params InspectRunParams) (*TaskInspectResponse, error) {
 	path := "/api/runs/{id}/inspect"
@@ -404,45 +423,4 @@ type ListAgentInstancesParams struct {
 	Limit         *string `url:"limit"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// ListAgentInstances List agent instances
-func (c *Client) ListAgentInstances(ctx context.Context, params ListAgentInstancesParams) (*AgentInstanceListResponse, error) {
-	path := "/api/agent-instances"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", *params.AllWorkspaces)
-	}
-	if params.Peers != nil {
-		query.Set("peers", *params.Peers)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", *params.Limit)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

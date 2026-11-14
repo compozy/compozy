@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// ReorderSessionFoldersRequest is a daemon API value.
+type ReorderSessionFoldersRequest struct {
+	FolderIDs []string `json:"folder_ids"`
+}
+
+// ReorderSessionsRequest is a daemon API value.
+type ReorderSessionsRequest struct {
+	FolderID   string   `json:"folder_id,omitempty"`
+	SessionIDs []string `json:"session_ids"`
+}
+
+// ReorderWorkspaceFoldersRequest is a daemon API value.
+type ReorderWorkspaceFoldersRequest struct {
+	FolderIDs []string `json:"folder_ids"`
+}
+
 // ReorderWorkspacesRequest is a daemon API value.
 type ReorderWorkspacesRequest struct {
 	FolderID     string   `json:"folder_id,omitempty"`
@@ -430,18 +446,3 @@ type RunArtifact struct {
 	Ref          string               `json:"ref,omitempty"`
 	Availability ArtifactAvailability `json:"availability"`
 }
-
-// RunDesignationSummary is a daemon API value.
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
-}
-
-// RunEventKind is a daemon API value.
-type RunEventKind string
-
-// RunID is a daemon API value.
-type RunID string
-
-// RunKind is a daemon API value.
-type RunKind string

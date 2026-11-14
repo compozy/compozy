@@ -12,11 +12,13 @@ import (
 
 type ConsentDecision struct {
 	Admitted         bool
+	Reason           string
 	Waiting          bool
 	DefinitionDigest string
 }
 
 type MCPApprovalState struct {
+	Reason           string `json:"reason,omitempty"`
 	Required         bool   `json:"required"`
 	State            string `json:"state"`
 	DefinitionDigest string `json:"definition_digest"`
@@ -74,7 +76,19 @@ func approvalState(decision ConsentDecision, required bool) MCPApprovalState {
 	} else if required && decision.Admitted {
 		state = "allowed"
 	}
-	return MCPApprovalState{Required: required, State: state, DefinitionDigest: decision.DefinitionDigest}
+	reason := ""
+	if decision.Waiting {
+		reason = decision.Reason
+		if reason == "" {
+			reason = "new"
+		}
+	}
+	return MCPApprovalState{
+		Required:         required,
+		State:            state,
+		Reason:           reason,
+		DefinitionDigest: decision.DefinitionDigest,
+	}
 }
 
 func consentRequestForTarget(target mcpauth.Target, server config.MCPServer) MCPConsentRequest {

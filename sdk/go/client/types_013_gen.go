@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+// MarketplaceSourceSummary is a daemon API value.
+type MarketplaceSourceSummary struct {
+	Name       string     `json:"name"`
+	Kind       string     `json:"kind"`
+	State      string     `json:"state"`
+	Count      int        `json:"count"`
+	LastReadAt *time.Time `json:"last_read_at,omitempty"`
+}
+
+// MarketplaceSourcesResponse is a daemon API value.
+type MarketplaceSourcesResponse struct {
+	Sources []MarketplaceSourcePayload `json:"sources"`
+}
+
+// Mergeable is a daemon API value.
+type Mergeable string
+
+// Meta is a daemon API value.
+type Meta struct {
+	Name        string      `json:"name"`
+	Version     int         `json:"version,omitzero"`
+	Description string      `json:"description,omitempty"`
+	Catalog     CatalogMeta `json:"catalog"`
+}
+
 // MetaField is a daemon API value.
 type MetaField struct {
 	Label    string            `json:"label"`
@@ -422,20 +447,4 @@ type OverviewAttentionPayload struct {
 	Total    int                            `json:"total"`
 	ByKind   map[string]int                 `json:"by_kind"`
 	Items    []OverviewAttentionItemPayload `json:"items"`
-}
-
-// OverviewLongestSessionPayload is a daemon API value.
-type OverviewLongestSessionPayload struct {
-	SessionID       string `json:"session_id"`
-	AgentName       string `json:"agent_name"`
-	DurationSeconds int64  `json:"duration_seconds"`
-	Date            string `json:"date"`
-}
-
-// OverviewOutcomeDayPayload is a daemon API value.
-type OverviewOutcomeDayPayload struct {
-	Date      string `json:"date"`
-	Completed int    `json:"completed"`
-	Failed    int    `json:"failed"`
-	Canceled  int    `json:"canceled"`
 }

@@ -2964,6 +2964,21 @@
     "full_output_schema_digest": "2d5d1fd161998e466ee627b8bb67d61f103ba5af8ecba76fccae5d0bac8a8f00"
   },
   {
+    "tool_id": "compozy__session_mcp_list",
+    "native_name": "session_mcp_list",
+    "toolsets": [
+      "compozy__mcp"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "41380213341dec43602cdaffb47eff6b675f7409fa2f722c34c02a60434379c7",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "caller_bounded"
+  },
+  {
     "tool_id": "compozy__session_move",
     "native_name": "session_move",
     "toolsets": [

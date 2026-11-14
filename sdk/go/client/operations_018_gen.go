@@ -9,6 +9,47 @@ import (
 	"strings"
 )
 
+// ListAgentInstances List agent instances
+func (c *Client) ListAgentInstances(ctx context.Context, params ListAgentInstancesParams) (*AgentInstanceListResponse, error) {
+	path := "/api/agent-instances"
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", *params.AllWorkspaces)
+	}
+	if params.Peers != nil {
+		query.Set("peers", *params.Peers)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", *params.Limit)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAgentMemoryHistoryParams carries the path, query, and header parameters.
 type ListAgentMemoryHistoryParams struct {
 	Name      string  `url:"name"`
@@ -395,56 +436,4 @@ type ListAutomationRunsParams struct {
 	Limit         *int      `url:"limit"`
 	Profile       *string   `url:"profile"`
 	AllProfiles   *bool     `url:"all_profiles"`
-}
-
-// ListAutomationRuns List automation runs
-func (c *Client) ListAutomationRuns(ctx context.Context, params ListAutomationRunsParams) (*RunsResponse, error) {
-	path := "/api/automation/runs"
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.JobID != nil {
-		query.Set("job_id", *params.JobID)
-	}
-	if params.TriggerID != nil {
-		query.Set("trigger_id", *params.TriggerID)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Until != nil {
-		query.Set("until", *params.Until)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RunsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -366,6 +366,36 @@ func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistory
 	return &out, nil
 }
 
+// GetSessionMCPParams carries the path, query, and header parameters.
+type GetSessionMCPParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetSessionMCP Read session MCP availability without discovery
+func (c *Client) GetSessionMCP(ctx context.Context, params GetSessionMCPParams) (*SessionMCP, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionMCP
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSessionOwnerParams carries the path, query, and header parameters.
 type GetSessionOwnerParams struct {
 	SessionID   string  `url:"session_id"`
@@ -399,39 +429,6 @@ type GetSessionRecapParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionRecap Get a deterministic session recap
-func (c *Client) GetSessionRecap(ctx context.Context, params GetSessionRecapParams) (*SessionRecapResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/recap"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionRecapResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionStatusParams carries the path, query, and header parameters.
-type GetSessionStatusParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// ProviderModelConfigurationPayload is a daemon API value.
+type ProviderModelConfigurationPayload struct {
+	ReasoningEffort *Effort `json:"reasoning_effort,omitempty"`
+	Fast            *bool   `json:"fast,omitempty"`
+	Thinking        *bool   `json:"thinking,omitempty"`
+}
+
+// ProviderModelCurationRequest is a daemon API value.
+type ProviderModelCurationRequest struct {
+	ModelID                string  `json:"model_id"`
+	Hidden                 *bool   `json:"hidden,omitzero"`
+	Featured               *bool   `json:"featured,omitzero"`
+	Deprecated             *bool   `json:"deprecated,omitzero"`
+	DefaultReasoningEffort *Effort `json:"default_effort,omitzero"`
+	DefaultSpeed           *Speed  `json:"default_speed,omitzero"`
+}
+
 // ProviderModelCurationResponse is a daemon API value.
 type ProviderModelCurationResponse struct {
 	Model        ProviderModelPayload  `json:"model"`
@@ -429,20 +446,4 @@ type RenameSessionRequest struct {
 // RenameWorkspaceFolderRequest is a daemon API value.
 type RenameWorkspaceFolderRequest struct {
 	Name string `json:"name"`
-}
-
-// ReorderSessionFoldersRequest is a daemon API value.
-type ReorderSessionFoldersRequest struct {
-	FolderIDs []string `json:"folder_ids"`
-}
-
-// ReorderSessionsRequest is a daemon API value.
-type ReorderSessionsRequest struct {
-	FolderID   string   `json:"folder_id,omitempty"`
-	SessionIDs []string `json:"session_ids"`
-}
-
-// ReorderWorkspaceFoldersRequest is a daemon API value.
-type ReorderWorkspaceFoldersRequest struct {
-	FolderIDs []string `json:"folder_ids"`
 }

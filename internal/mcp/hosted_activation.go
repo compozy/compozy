@@ -76,7 +76,23 @@ func (s *HostedService) BoundActivationCatalog(sessionID string) (tools.Advertis
 		return tools.AdvertisedCatalog{}, false
 	}
 	return tools.AdvertisedCatalog{
-		Digest:  record.initialCatalog.Digest,
-		Servers: maps.Clone(record.initialCatalog.Servers),
+		Digest:        record.initialCatalog.Digest,
+		Servers:       maps.Clone(record.initialCatalog.Servers),
+		ServerDigests: maps.Clone(record.initialCatalog.ServerDigests),
 	}, true
+}
+
+// ServedCatalogDigest reads the last accepted tools/list receipt without rebuilding its projection.
+func (s *HostedService) ServedCatalogDigest(sessionID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	launch := s.launches[sessionID]
+	if launch == nil {
+		return ""
+	}
+	record := s.binds[launch.bindID]
+	if record == nil {
+		return ""
+	}
+	return record.servedDigest
 }

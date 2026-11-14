@@ -32,6 +32,7 @@ type Server struct {
 	Name              string   `json:"name"`
 	Scope             string   `json:"scope"`
 	Transport         string   `json:"transport"`
+	Target            string   `json:"target"`
 	SourcePath        string   `json:"source_path"`
 	SourceLabel       string   `json:"source_label"`
 	EnabledInRuntime  bool     `json:"enabled_in_runtime"`

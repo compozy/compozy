@@ -257,6 +257,9 @@ func (r *RuntimeRegistry) DiagnosticGet(ctx context.Context, scope Scope, id Too
 
 // Call runs the central provider-agnostic registry dispatch pipeline.
 func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest) (result ToolResult, err error) {
+	if req.ToolID == ToolIDSessionMCPList {
+		ctx = WithCachedMCPProjection(ctx)
+	}
 	if r != nil && r.projectionInvalidator != nil {
 		defer r.projectionInvalidator()
 	}

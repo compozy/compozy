@@ -30,17 +30,19 @@ type reloadRecord struct {
 }
 
 type activationState struct {
-	boundDigest    string
-	boundServers   map[string]int
-	servedDigest   string
-	runtimeMCP     string
-	runtimeDigest  string
-	runtimeRequest *runtimemcp.Request
-	lastReload     *reloadRecord
+	boundDigest        string
+	boundServers       map[string]int
+	boundServerDigests map[string]string
+	servedDigest       string
+	runtimeMCP         string
+	runtimeDigest      string
+	runtimeRequest     *runtimemcp.Request
+	lastReload         *reloadRecord
 }
 
 func (a activationState) clone() activationState {
 	a.boundServers = maps.Clone(a.boundServers)
+	a.boundServerDigests = maps.Clone(a.boundServerDigests)
 	if a.runtimeRequest != nil {
 		a.runtimeRequest = new(*a.runtimeRequest)
 		a.runtimeRequest.Context.Env = maps.Clone(a.runtimeRequest.Context.Env)
@@ -174,11 +176,13 @@ func (m *Manager) commitActivation(s *Session, runtime *sessionStartRuntime) {
 	s.activation.runtimeRequest = runtime.activationRequest
 	s.activation.boundDigest = ""
 	s.activation.boundServers = nil
+	s.activation.boundServerDigests = nil
 	if runtime.activationCatalog != nil {
 		s.activation.boundDigest = activationFingerprint(
 			runtime.activationCatalog.Digest, runtime.activationMode, runtime.activationDigest,
 		)
 		s.activation.boundServers = maps.Clone(runtime.activationCatalog.Servers)
+		s.activation.boundServerDigests = maps.Clone(runtime.activationCatalog.ServerDigests)
 	}
 }
 

@@ -4,12 +4,45 @@ package client
 
 import "time"
 
+// SendPromptResultPayload is a daemon API value.
+type SendPromptResultPayload struct {
+	HeldReason            string                `json:"held_reason,omitempty"`
+	HeldInstanceID        string                `json:"held_instance_id,omitempty"`
+	TargetSessionID       string                `json:"target_session_id,omitempty"`
+	ReplyWatch            *ReplyWatchRefPayload `json:"reply_watch,omitempty"`
+	TargetWorkspaceID     string                `json:"target_workspace_id,omitempty"`
+	Disposition           Disposition           `json:"disposition,omitempty"`
+	SteerDelivery         SteerDeliveryMode     `json:"steer_delivery,omitempty"`
+	TurnID                string                `json:"turn_id,omitempty"`
+	EntryID               string                `json:"entry_id,omitempty"`
+	Status                string                `json:"status"`
+	Mode                  PromptMode            `json:"mode,omitempty"`
+	Delivery              PromptDelivery        `json:"delivery"`
+	MessageID             string                `json:"message_id"`
+	IdempotencyKey        string                `json:"idempotency_key"`
+	Replayed              bool                  `json:"replayed"`
+	QueueEntryID          string                `json:"queue_entry_id,omitempty"`
+	QueuePosition         int                   `json:"queue_position"`
+	QueueGeneration       int64                 `json:"queue_generation,omitzero"`
+	EstimatedSendAt       *time.Time            `json:"estimated_send_at,omitempty"`
+	PreviousTurnID        string                `json:"previous_turn_id,omitempty"`
+	NewTurnID             string                `json:"new_turn_id,omitempty"`
+	CanceledQueuedEntries int                   `json:"canceled_queued_entries,omitzero"`
+	Goal                  *GoalCommandResult    `json:"goal,omitzero"`
+}
+
+// SendPromptResultResponse is a daemon API value.
+type SendPromptResultResponse struct {
+	Prompt SendPromptResultPayload `json:"prompt"`
+}
+
 // Server is a daemon API value.
 type Server struct {
 	Runtime           string   `json:"runtime"`
 	Name              string   `json:"name"`
 	Scope             string   `json:"scope"`
 	Transport         string   `json:"transport"`
+	Target            string   `json:"target"`
 	SourcePath        string   `json:"source_path"`
 	SourceLabel       string   `json:"source_label"`
 	EnabledInRuntime  bool     `json:"enabled_in_runtime"`
@@ -410,30 +443,4 @@ type SessionDerivationPayload struct {
 	NativeState     string      `json:"native_state,omitempty"`
 	NativeForkError string      `json:"native_fork_error,omitempty"`
 	FirstPrompt     string      `json:"first_prompt"`
-}
-
-// SessionDeriveCutPayload is a daemon API value.
-type SessionDeriveCutPayload struct {
-	MessageID   string `json:"message_id"`
-	TurnID      string `json:"turn_id"`
-	TurnSettled bool   `json:"turn_settled"`
-}
-
-// SessionDerivePreviewResponse is a daemon API value.
-type SessionDerivePreviewResponse struct {
-	MessageCount         int                      `json:"message_count"`
-	SourceMessageCount   int                      `json:"source_message_count"`
-	ReplayBytes          int                      `json:"replay_bytes"`
-	Truncated            bool                     `json:"truncated"`
-	OmittedCount         int                      `json:"omitted_count"`
-	SourceTurnInProgress bool                     `json:"source_turn_in_progress"`
-	NativeForkPossible   bool                     `json:"native_fork_possible"`
-	Cut                  *SessionDeriveCutPayload `json:"cut,omitzero"`
-	Transcript           SessionTranscriptFences  `json:"transcript"`
-}
-
-// SessionDeriveResponse is a daemon API value.
-type SessionDeriveResponse struct {
-	Session *SessionPayload       `json:"session,omitzero"`
-	Derived SessionDerivedPayload `json:"derived"`
 }

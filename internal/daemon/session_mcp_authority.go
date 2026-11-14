@@ -135,6 +135,7 @@ func sourcePolicyAdmitted(result string) bool {
 
 func bindSessionMCPAuthority(state *bootState, resolver *nativeToolPolicyResolver, registry *toolspkg.RuntimeRegistry) {
 	resolver.scopeTools = registry.PolicyProjection
+	bindSessionMCPReader(state, resolver, registry)
 	if manager, ok := state.sessions.(interface {
 		SetMCPAuthorityResolver(session.MCPAuthorityResolver)
 	}); ok {

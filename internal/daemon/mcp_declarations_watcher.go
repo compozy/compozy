@@ -107,6 +107,14 @@ func (d *Daemon) bootMCPDeclarationWatcher(ctx context.Context, state *bootState
 			} else {
 				delay = interval
 			}
+			if state.sessionMCPReadModel != nil {
+				if err := state.sessionMCPReadModel.refresh(
+					workerCtx,
+				); err != nil && workerCtx.Err() == nil &&
+					state.logger != nil {
+					state.logger.DebugContext(workerCtx, "daemon: session MCP summary refresh deferred")
+				}
+			}
 			ticker.Reset(delay)
 			select {
 			case <-workerCtx.Done():

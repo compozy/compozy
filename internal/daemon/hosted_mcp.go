@@ -172,3 +172,7 @@ func (l hostedMCPLauncherAdapter) ActivationCatalog(
 func (l hostedMCPLauncherAdapter) BoundActivationCatalog(sessionID string) (toolspkg.AdvertisedCatalog, bool) {
 	return l.service.BoundActivationCatalog(sessionID)
 }
+
+func (l hostedMCPLauncherAdapter) ServedCatalogDigest(sessionID string) string {
+	return l.service.ServedCatalogDigest(sessionID)
+}

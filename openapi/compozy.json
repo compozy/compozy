@@ -18412,6 +18412,57 @@
         ],
         "type": "object"
       },
+      "MCPReloadRecord": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "outcome",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "MCPServerRow": {
+        "properties": {
+          "callable_count": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "tool_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "callable_count",
+          "name",
+          "owner",
+          "reason",
+          "state",
+          "tool_count"
+        ],
+        "type": "object"
+      },
       "MCPServerStatusPayload": {
         "properties": {
           "auth_status": {
@@ -18461,6 +18512,25 @@
           "runtime_status",
           "scope",
           "state"
+        ],
+        "type": "object"
+      },
+      "MCPSummary": {
+        "properties": {
+          "attention": {
+            "type": "integer"
+          },
+          "pending_reload": {
+            "type": "boolean"
+          },
+          "usable": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "attention",
+          "pending_reload",
+          "usable"
         ],
         "type": "object"
       },
@@ -25222,6 +25292,29 @@
         ],
         "type": "object"
       },
+      "RuntimeMCPRow": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "scope",
+          "state",
+          "transport"
+        ],
+        "type": "object"
+      },
       "RuntimeMatch": {
         "properties": {
           "complexity": {
@@ -25953,6 +26046,9 @@
           "source_path": {
             "type": "string"
           },
+          "target": {
+            "type": "string"
+          },
           "transport": {
             "type": "string"
           }
@@ -25972,6 +26068,7 @@
           "scope",
           "source_label",
           "source_path",
+          "target",
           "transport"
         ],
         "type": "object"
@@ -28582,6 +28679,57 @@
         ],
         "type": "object"
       },
+      "SessionMCP": {
+        "properties": {
+          "attention": {
+            "type": "integer"
+          },
+          "compozy": {
+            "items": {
+              "$ref": "#/components/schemas/MCPServerRow"
+            },
+            "type": "array"
+          },
+          "last_reload": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MCPReloadRecord"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "pending_reload": {
+            "type": "boolean"
+          },
+          "runtime": {
+            "type": "string"
+          },
+          "runtime_servers": {
+            "$ref": "#/components/schemas/SessionRuntimeMCP"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "usable": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "attention",
+          "compozy",
+          "pending_reload",
+          "runtime",
+          "runtime_servers",
+          "session_id",
+          "usable"
+        ],
+        "type": "object"
+      },
       "SessionMonitorPayload": {
         "properties": {
           "branch": {
@@ -28951,6 +29099,19 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/SessionLinkedWorkSummary"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "mcp_summary": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MCPSummary"
               },
               {
                 "enum": [
@@ -29971,6 +30132,24 @@
         },
         "required": [
           "session"
+        ],
+        "type": "object"
+      },
+      "SessionRuntimeMCP": {
+        "properties": {
+          "runtime_mcp": {
+            "type": "string"
+          },
+          "servers": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeMCPRow"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "runtime_mcp",
+          "servers"
         ],
         "type": "object"
       },
@@ -32386,6 +32565,9 @@
       "SettingsMCPApprovalStatePayload": {
         "properties": {
           "definition_digest": {
+            "type": "string"
+          },
+          "reason": {
             "type": "string"
           },
           "required": {
@@ -102994,6 +103176,98 @@
           }
         },
         "summary": "Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp": {
+      "get": {
+        "operationId": "getSessionMCP",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMCP"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session MCP read model unavailable"
+          }
+        },
+        "summary": "Read session MCP availability without discovery",
         "tags": [
           "sessions"
         ],

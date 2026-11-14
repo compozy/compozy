@@ -235,9 +235,13 @@ func waitHostedProjectionFlight(
 // cloneHostedProjectionResponse detaches a shared snapshot before it reaches a caller that may mutate it.
 func cloneHostedProjectionResponse(response HostedProjectionResponse) HostedProjectionResponse {
 	return HostedProjectionResponse{
-		Catalog: tools.AdvertisedCatalog{Digest: response.Catalog.Digest, Servers: maps.Clone(response.Catalog.Servers)},
-		Tools:   cloneToolViews(response.Tools),
-		Digest:  response.Digest,
+		Catalog: tools.AdvertisedCatalog{
+			Digest:        response.Catalog.Digest,
+			Servers:       maps.Clone(response.Catalog.Servers),
+			ServerDigests: maps.Clone(response.Catalog.ServerDigests),
+		},
+		Tools:  cloneToolViews(response.Tools),
+		Digest: response.Digest,
 	}
 }
 

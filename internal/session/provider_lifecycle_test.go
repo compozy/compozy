@@ -944,11 +944,20 @@ type activationHostedLauncher struct {
 func (l *activationHostedLauncher) ActivationCatalog(context.Context, string) (tools.AdvertisedCatalog, string, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return tools.AdvertisedCatalog{Digest: l.catalog.Digest, Servers: maps.Clone(l.catalog.Servers)}, l.served, nil
+	return tools.AdvertisedCatalog{
+		Digest:        l.catalog.Digest,
+		Servers:       maps.Clone(l.catalog.Servers),
+		ServerDigests: maps.Clone(l.catalog.ServerDigests),
+	}, l.served, nil
 }
 func (l *activationHostedLauncher) BoundActivationCatalog(string) (tools.AdvertisedCatalog, bool) {
 	catalog, _, _ := l.ActivationCatalog(context.Background(), "")
 	return catalog, true
+}
+func (l *activationHostedLauncher) ServedCatalogDigest(string) string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.served
 }
 func (l *activationHostedLauncher) setCatalog(servers ...string) {
 	l.mu.Lock()
@@ -1029,6 +1038,60 @@ func TestPromptMCPActivationDecision(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: equal tool counts do not hide changed advertised schemas; owner: session activation snapshot (UT-081).
+func TestMCPReadSnapshotCatalogChanges(t *testing.T) {
+	t.Parallel()
+	t.Run("Should identify only the server whose schema changed", func(t *testing.T) {
+		t.Parallel()
+		h, launcher := newActivationHarness(t)
+		launcher.setCatalog("linear", "sentry")
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		active.mu.Lock()
+		active.hostedMCPRequiresReload = true
+		active.mu.Unlock()
+		launcher.mu.Lock()
+		before := launcher.catalog
+		launcher.mu.Unlock()
+		changed := tools.NewAdvertisedCatalog([]tools.ToolView{
+			{
+				Descriptor: tools.Descriptor{
+					ID:                "mcp__linear__echo",
+					InputSchemaDigest: "changed-schema",
+					Source: tools.SourceRef{
+						Kind:          tools.SourceMCP,
+						Owner:         "linear",
+						RawServerName: "linear",
+						RawToolName:   "echo",
+					},
+				},
+			},
+			{
+				Descriptor: tools.Descriptor{
+					ID:                "mcp__sentry__echo",
+					InputSchemaDigest: "object",
+					Source: tools.SourceRef{
+						Kind:          tools.SourceMCP,
+						Owner:         "sentry",
+						RawServerName: "sentry",
+						RawToolName:   "echo",
+					},
+				},
+			},
+		})
+		if !maps.Equal(before.Servers, changed.Servers) {
+			t.Fatal("fixture must retain tool counts")
+		}
+		result, err := h.manager.MCPReadSnapshot(t.Context(), active.ID, changed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.Pending || !result.PendingServers["linear"] || result.PendingServers["sentry"] {
+			t.Fatalf("schema change=%+v", result)
+		}
+	})
 }
 
 // Invariant: reload releases its writer, keeps history, records its outcome, and attempts at most once per prompt.
@@ -1422,6 +1485,50 @@ func TestPromptRuntimeMCPActivation(t *testing.T) {
 		collectEvents(t, events)
 		if len(h.driver.startCalls) != 2 || !h.driver.startCalls[1].IsolateProviderMCP || active.activation.runtimeMCP != "off" {
 			t.Fatal("switch was not applied on the next launch")
+		}
+	})
+}
+
+// Invariant: a summary notification is replayable before it reaches live readers. Owner: session event ledger; canonical lifecycle suite.
+func TestMCPChangedDurableNotification(t *testing.T) {
+	t.Parallel()
+	t.Run("Should persist the MCP summary before stream delivery", func(t *testing.T) {
+		t.Parallel()
+		h, _ := newActivationHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		ctx, stop := context.WithTimeout(t.Context(), 5*time.Second)
+		defer stop()
+		events, cancel, err := h.manager.SubscribeSessionEvents(ctx, active.ID, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		want := MCPSummary{Usable: 2, Attention: 1, PendingReload: true}
+		if err := h.manager.RecordMCPChanged(t.Context(), active.ID, want); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case event := <-events:
+			if event.Type != "session.mcp_changed" || event.Sequence <= 0 {
+				t.Fatalf("stream event=%+v", event)
+			}
+			stored := readStoredEvents(t, active)
+			persisted := storedEventByType(t, stored, "session.mcp_changed")
+			if persisted.ID != event.ID || persisted.Sequence != event.Sequence {
+				t.Fatalf("event broadcast without durable identity: %+v %+v", event, persisted)
+			}
+			var payload struct {
+				MCPSummary MCPSummary `json:"mcp_summary"`
+			}
+			if err := json.Unmarshal([]byte(persisted.Content), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.MCPSummary != want {
+				t.Fatalf("summary=%+v", payload)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
 		}
 	})
 }

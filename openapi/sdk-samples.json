@@ -1506,6 +1506,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "getSessionMCP": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionMCP({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionMCP(ctx, client.GetSessionMCPParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "getSessionOwner": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionOwner({ path: { \"session_id\": \"session_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionOwner(ctx, client.GetSessionOwnerParams{SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",

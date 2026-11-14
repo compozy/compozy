@@ -5199,6 +5199,21 @@ export type MCPAuthSummary = {
   scopes?: Array<string>;
 };
 
+export type MCPReloadRecord = {
+  at: string;
+  outcome: string;
+  reason: string;
+};
+
+export type MCPServerRow = {
+  callable_count: number;
+  name: string;
+  owner: string;
+  reason: string;
+  state: string;
+  tool_count: number;
+};
+
 export type MCPServerStatusPayload = {
   auth_status?: string;
   configured: boolean;
@@ -5213,6 +5228,12 @@ export type MCPServerStatusPayload = {
   tool_count?: number;
   transport?: string;
   workspace_id?: string;
+};
+
+export type MCPSummary = {
+  attention: number;
+  pending_reload: boolean;
+  usable: number;
 };
 
 export type ManagedExtensionRemovePayload = {
@@ -7098,6 +7119,13 @@ export type RuntimeMCPImportResponse = {
   warnings?: Array<string>;
 };
 
+export type RuntimeMCPRow = {
+  name: string;
+  scope: string;
+  state: string;
+  transport: string;
+};
+
 export type RuntimeMatch = {
   complexity?: string;
   id?: string;
@@ -7292,6 +7320,7 @@ export type Server = {
   scope: string;
   source_label: string;
   source_path: string;
+  target: string;
   transport: string;
 };
 
@@ -7948,6 +7977,17 @@ export type SessionLinkedWorkSummary = {
   total: number;
 };
 
+export type SessionMCP = {
+  attention: number;
+  compozy: Array<MCPServerRow>;
+  last_reload?: MCPReloadRecord | null;
+  pending_reload: boolean;
+  runtime: string;
+  runtime_servers: SessionRuntimeMCP;
+  session_id: string;
+  usable: number;
+};
+
 export type SessionMonitorPayload = {
   branch?: string;
   created_at: string;
@@ -8037,6 +8077,7 @@ export type SessionPayload = {
   later?: SessionLaterPayload | null;
   lineage?: SessionLineagePayload | null;
   linked_work?: SessionLinkedWorkSummary | null;
+  mcp_summary?: MCPSummary | null;
   monitor_summary?: SessionMonitorSummaryPayload | null;
   name?: string;
   parent_title?: string;
@@ -8278,6 +8319,11 @@ export type SessionRepairResponse = {
 
 export type SessionResponse = {
   session: SessionPayload;
+};
+
+export type SessionRuntimeMCP = {
+  runtime_mcp: string;
+  servers: Array<RuntimeMCPRow>;
 };
 
 export type SessionRuntimePayload = {
@@ -9047,6 +9093,7 @@ export type SettingsMCPApprovalResponse = {
 
 export type SettingsMCPApprovalStatePayload = {
   definition_digest: string;
+  reason?: string;
   required: boolean;
   state: string;
 };
@@ -40842,6 +40889,57 @@ export type MarkSessionSeenResponses = {
 };
 
 export type MarkSessionSeenResponse = MarkSessionSeenResponses[keyof MarkSessionSeenResponses];
+
+export type GetSessionMCPData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp";
+};
+
+export type GetSessionMCPErrors = {
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session MCP read model unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetSessionMCPError = GetSessionMCPErrors[keyof GetSessionMCPErrors];
+
+export type GetSessionMCPResponses = {
+  /**
+   * OK
+   */
+  200: SessionMCP;
+};
+
+export type GetSessionMCPResponse = GetSessionMCPResponses[keyof GetSessionMCPResponses];
 
 export type ListSessionMonitorsData = {
   body?: never;

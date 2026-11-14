@@ -4,6 +4,89 @@ package client
 
 import "time"
 
+// SettingsInstalledExtensionPayload is a daemon API value.
+type SettingsInstalledExtensionPayload struct {
+	Name          string                                    `json:"name"`
+	Version       string                                    `json:"version,omitempty"`
+	Enabled       bool                                      `json:"enabled"`
+	State         string                                    `json:"state,omitempty"`
+	Health        string                                    `json:"health,omitempty"`
+	HealthMessage string                                    `json:"health_message,omitempty"`
+	LastError     string                                    `json:"last_error,omitempty"`
+	RequiresEnv   []string                                  `json:"requires_env,omitempty"`
+	MissingEnv    []string                                  `json:"missing_env,omitempty"`
+	Palette       *SettingsInstalledExtensionPalettePayload `json:"palette,omitzero"`
+}
+
+// SettingsLayeredScopeKind is a daemon API value.
+type SettingsLayeredScopeKind string
+
+// SettingsLimitsPayload is a daemon API value.
+type SettingsLimitsPayload struct {
+	MaxConcurrentAgents int `json:"max_concurrent_agents"`
+}
+
+// SettingsLogTailCapabilityPayload is a daemon API value.
+type SettingsLogTailCapabilityPayload struct {
+	Available bool                    `json:"available"`
+	StreamURL string                  `json:"stream_url,omitempty"`
+	Transport SettingsStreamTransport `json:"transport,omitempty"`
+}
+
+// SettingsLogTailEventPayload is a daemon API value.
+type SettingsLogTailEventPayload struct {
+	Line string `json:"line"`
+}
+
+// SettingsMCPApprovalPayload is a daemon API value.
+type SettingsMCPApprovalPayload struct {
+	ServerName  string    `json:"server_name"`
+	WorkspaceID string    `json:"workspace_id"`
+	Profile     string    `json:"profile"`
+	State       string    `json:"state"`
+	ApprovedAt  time.Time `json:"approved_at,omitzero"`
+}
+
+// SettingsMCPApprovalRequest is a daemon API value.
+type SettingsMCPApprovalRequest struct {
+	WorkspaceID      string `json:"workspace_id"`
+	Profile          string `json:"profile,omitempty"`
+	DefinitionDigest string `json:"definition_digest"`
+}
+
+// SettingsMCPApprovalResponse is a daemon API value.
+type SettingsMCPApprovalResponse struct {
+	Approval SettingsMCPApprovalPayload `json:"approval"`
+}
+
+// SettingsMCPApprovalStatePayload is a daemon API value.
+type SettingsMCPApprovalStatePayload struct {
+	Reason           string `json:"reason,omitempty"`
+	Required         bool   `json:"required"`
+	State            string `json:"state"`
+	DefinitionDigest string `json:"definition_digest"`
+}
+
+// SettingsMCPAuthBeginMode is a daemon API value.
+type SettingsMCPAuthBeginMode string
+
+// SettingsMCPAuthBeginRequest is a daemon API value.
+type SettingsMCPAuthBeginRequest struct {
+	DefinitionDigest       string                   `json:"definition_digest,omitempty"`
+	Mode                   SettingsMCPAuthBeginMode `json:"mode"`
+	ApprovedScopes         []string                 `json:"approved_scopes,omitempty"`
+	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitzero"`
+}
+
+// SettingsMCPAuthBeginResponse is a daemon API value.
+type SettingsMCPAuthBeginResponse struct {
+	AuthorizationURL string    `json:"authorization_url"`
+	State            string    `json:"state"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	CallbackURL      string    `json:"callback_url"`
+	ManualSupported  bool      `json:"manual_supported"`
+}
+
 // SettingsMCPAuthConfigPayload is a daemon API value.
 type SettingsMCPAuthConfigPayload struct {
 	Registration    string   `json:"registration,omitempty"`
@@ -363,82 +446,4 @@ type SettingsProviderUsagePayload struct {
 type SettingsProviderUsageProviderPayload struct {
 	Enabled        *bool `json:"enabled,omitempty"`
 	KeychainAccess *bool `json:"keychain_access,omitempty"`
-}
-
-// SettingsProviderUsageResponse is a daemon API value.
-type SettingsProviderUsageResponse struct {
-	KeychainSupported bool                         `json:"keychain_supported"`
-	Section           SettingsSectionName          `json:"section"`
-	Scope             SettingsUserScopeKind        `json:"scope"`
-	AvailableScopes   []SettingsUserScopeKind      `json:"available_scopes"`
-	Config            SettingsProviderUsagePayload `json:"config"`
-}
-
-// SettingsProviderUsageUpdateRequest is a daemon API value.
-type SettingsProviderUsageUpdateRequest struct {
-	Config SettingsProviderUsagePayload `json:"config"`
-}
-
-// SettingsProviderWritePayload is a daemon API value.
-type SettingsProviderWritePayload struct {
-	SessionEnv        map[string]SessionEnvBindingPayload     `json:"session_env,omitzero"`
-	AutoCompactWindow *int                                    `json:"auto_compact_window,omitempty"`
-	SteerCapability   SteerCapability                         `json:"steer_capability,omitempty"`
-	Command           string                                  `json:"command,omitempty"`
-	DisplayName       string                                  `json:"display_name,omitempty"`
-	Models            *SettingsProviderModelsPayload          `json:"models,omitzero"`
-	Harness           string                                  `json:"harness,omitempty"`
-	RuntimeProvider   string                                  `json:"runtime_provider,omitempty"`
-	Transport         string                                  `json:"transport,omitempty"`
-	BaseURL           string                                  `json:"base_url,omitempty"`
-	AuthMode          string                                  `json:"auth_mode,omitempty"`
-	EnvPolicy         string                                  `json:"env_policy,omitempty"`
-	RuntimeMCP        string                                  `json:"runtime_mcp,omitempty"`
-	HomePolicy        string                                  `json:"home_policy,omitempty"`
-	AuthStatusCmd     string                                  `json:"auth_status_command,omitempty"`
-	AuthLoginCmd      *string                                 `json:"auth_login_command,omitzero"`
-	AuthACPMethod     *string                                 `json:"auth_acp_method,omitzero"`
-	CredentialSlots   []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
-}
-
-// SettingsProvidersResponse is a daemon API value.
-type SettingsProvidersResponse struct {
-	Collection      SettingsCollectionName        `json:"collection"`
-	Scope           SettingsUserScopeKind         `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind       `json:"available_scopes"`
-	Providers       []SettingsProviderItemPayload `json:"providers"`
-}
-
-// SettingsRedactPayload is a daemon API value.
-type SettingsRedactPayload struct {
-	Enabled bool `json:"enabled"`
-}
-
-// SettingsRoleConfigPayload is a daemon API value.
-type SettingsRoleConfigPayload struct {
-	Enabled         bool                          `json:"enabled"`
-	Agent           string                        `json:"agent"`
-	Provider        string                        `json:"provider"`
-	Model           string                        `json:"model"`
-	ReasoningEffort string                        `json:"reasoning_effort"`
-	Speed           *Speed                        `json:"speed,omitzero"`
-	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
-	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
-}
-
-// SettingsRoleFallbackPayload is a daemon API value.
-type SettingsRoleFallbackPayload struct {
-	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider        string                              `json:"provider"`
-	Model           string                              `json:"model"`
-	ReasoningEffort string                              `json:"reasoning_effort"`
-	Speed           *Speed                              `json:"speed,omitzero"`
-	ACPOptions      []AgentACPOptionSelection           `json:"acp_options"`
-	Command         string                              `json:"command"`
-}
-
-// SettingsRolesConfigPayload is a daemon API value.
-type SettingsRolesConfigPayload struct {
-	Coordinator SettingsCoordinatorRoleConfigPayload `json:"coordinator"`
-	AutoTitle   SettingsRoleConfigPayload            `json:"auto_title"`
 }
