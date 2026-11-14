@@ -212,7 +212,7 @@ func (s *subagentParityService) Cancel(
 
 // Delete refuses a provider-native row exactly as the owner service does; the
 // transport must surface that mapping identically on HTTP and UDS.
-func (s *subagentParityService) Delete(_ context.Context, workspaceID, id string) error {
+func (s *subagentParityService) Delete(_ context.Context, _ session.SubagentActor, workspaceID, id string) error {
 	if workspaceID != "ws-registry" {
 		return errors.New("unexpected delete workspace")
 	}

@@ -112,10 +112,10 @@ func subagentClientError(err error, notFoundCode, notFoundMessage string) error 
 		return err
 	}
 	if apiError.statusCode == http.StatusNotFound {
-		return fmt.Errorf("%s: %s", notFoundCode, notFoundMessage)
+		return fmt.Errorf("%s: %s: %w", notFoundCode, notFoundMessage, err)
 	}
 	if apiError.payload.Code != "" {
-		return fmt.Errorf("%s: %s", apiError.payload.Code, apiError.payload.Error)
+		return fmt.Errorf("%s: %s: %w", apiError.payload.Code, apiError.payload.Error, err)
 	}
 	return err
 }

@@ -5624,7 +5624,8 @@ func TestSubagentClientRequests(t *testing.T) {
 			})},
 		}
 		err := client.DeleteSubagent(t.Context(), "ws", "native")
-		if err == nil || !strings.HasPrefix(err.Error(), "subagent_not_deletable:") {
+		apiErr, ok := errors.AsType[*daemonAPIError](err)
+		if !ok || apiErr.statusCode != 409 || apiErr.payload.Code != "subagent_not_deletable" {
 			t.Fatalf("error=%v", err)
 		}
 	})

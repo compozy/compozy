@@ -248,6 +248,13 @@ func TestGlobalDBSubagents(t *testing.T) {
 		if _, _, err := port.ReserveSubagent(ctx, native); err != nil {
 			t.Fatal(err)
 		}
+		registerSubagentSession(t, db, workspace, "child", parent, store.SubagentSpawnRole, now)
+		if _, err := port.LinkChild(ctx, "delegated", "child", now); err != nil {
+			t.Fatalf("link child: %v", err)
+		}
+		if _, err := port.GetSubagentByChild(ctx, "child"); err != nil {
+			t.Fatalf("linked child lookup: %v", err)
+		}
 		if err := port.DeleteSubagent(ctx, "foreign", "delegated"); !errors.Is(err, store.ErrSubagentNotFound) {
 			t.Fatalf("cross-workspace delete=%v", err)
 		}

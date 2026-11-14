@@ -5182,6 +5182,12 @@ func TestSubagentCommands(t *testing.T) {
 			if exitCode != 0 || !strings.Contains(stdout, tc.want) {
 				t.Fatalf("output=%s exit=%d stderr=%s, want %q", stdout, exitCode, stderr, tc.want)
 			}
+			if strings.HasPrefix(tc.name, "delete") {
+				if len(client.deleted) != 1 || client.deleted[0].WorkspaceID != "ws-subagents" ||
+					client.deleted[0].ID != "sub-1" {
+					t.Fatalf("deleted calls = %+v", client.deleted)
+				}
+			}
 			if tc.name == "list table" {
 				for _, column := range []string{"TITLE", "RUNTIME", "STATUS", "ELAPSED", "codex/gpt-6.1-sol", "7s"} {
 					if !strings.Contains(stdout, column) {
@@ -5204,7 +5210,15 @@ func TestSubagentCommands(t *testing.T) {
 	})
 }
 
-type subagentCommandStub struct{ DaemonClient }
+type subagentDeleteCall struct {
+	WorkspaceID string
+	ID          string
+}
+
+type subagentCommandStub struct {
+	DaemonClient
+	deleted []subagentDeleteCall
+}
 
 var _ sessionSubagentsClient = (*subagentCommandStub)(nil)
 
@@ -5235,22 +5249,24 @@ func (s *subagentCommandStub) CancelSubagent(
 	return contract.SubagentCancelPayload{SubagentID: id, Status: "cancel_requested"}, nil
 }
 
-func (s *subagentCommandStub) DeleteSubagent(_ context.Context, _, id string) error {
+func (s *subagentCommandStub) DeleteSubagent(_ context.Context, workspaceID, id string) error {
 	if id == "native" {
 		return errors.New(
 			"subagent_not_deletable: provider-native subagents cannot be deleted; stop the parent turn instead",
 		)
 	}
+	s.deleted = append(s.deleted, subagentDeleteCall{WorkspaceID: workspaceID, ID: id})
 	return nil
 }
 func subagentCLIRecord() contract.SubagentPayload {
 	return contract.SubagentPayload{
-		SubagentID: "sub-1",
-		Title:      "Review",
-		Status:     "running",
-		Runtime:    contract.SubagentRuntimePayload{Provider: "codex", Model: "gpt-6.1-sol"},
-		StartedAt:  new(fixedTestNow.Add(-7 * time.Second)),
-		Result:     new("Recommendation"),
+		SubagentID:  "sub-1",
+		WorkspaceID: "ws-subagents",
+		Title:       "Review",
+		Status:      "running",
+		Runtime:     contract.SubagentRuntimePayload{Provider: "codex", Model: "gpt-6.1-sol"},
+		StartedAt:   new(fixedTestNow.Add(-7 * time.Second)),
+		Result:      new("Recommendation"),
 	}
 }
 

@@ -115,7 +115,8 @@ type subagentService struct {
 	awaitingFacts sync.Map
 	// deletingChildren holds child sessions whose deletion owns their settlement, so the
 	// OnChildSettled callback that a delete triggers never finalizes or hooks the row it removes.
-	deletingChildren sync.Map
+	deletingChildrenMu sync.Mutex
+	deletingChildren   map[string]int
 }
 
 var _ SubagentService = (*subagentService)(nil)

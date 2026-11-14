@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
+import { useCallback } from "react";
 
 import { toast } from "@compozy/ui";
 
@@ -7,24 +8,14 @@ import { cancelSubagent, deleteSubagent } from "../adapters/subagent-api";
 import type { SubagentView } from "../components/subagents/types";
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateWorkspaceSessionCatalog } from "../lib/session-query-invalidation";
+import { applySubagentRemoved, type SubagentRoster } from "../lib/subagent-roster";
 import {
-  applySubagentRemoved,
-  EMPTY_SUBAGENT_ROSTER,
-  type SubagentRoster,
-} from "../lib/subagent-roster";
+  sessionSubagentActionsLogic,
+  type PendingSubagentDelete,
+  type SubagentActionScope,
+} from "../stores/session-subagent-actions-store";
 
-/** The parent row a subagent verb acts on: its own workspace, session, and profile. */
-export interface SubagentActionScope {
-  workspaceId: string;
-  sessionId: string;
-  profile: string;
-}
-
-/** What one confirmation holds while its DELETE flies. */
-interface PendingDelete {
-  subagent: SubagentView;
-  scope: SubagentActionScope;
-}
+export type { SubagentActionScope } from "../stores/session-subagent-actions-store";
 
 /** The confirmation one subagent delete shows; `failure` stays on screen with the dialog open. */
 export interface SubagentDeleteDialogModel {
@@ -57,21 +48,22 @@ function hasSubagentScope(scope: SubagentActionScope): boolean {
  * The caller supplies each row's scope, so this owner lives above the threads
  * and outlives the branch whose row opened it: a delete drops the row from the
  * roster the parent stream owns, then rereads that parent's branch, list and
- * the operator catalogs; a stop leaves the roster to the stream.
+ * the operator catalogs; a stop leaves the roster to the stream. The dialog state
+ * lives in the owning XState store, not in React state.
  */
 export function useSessionSubagentActions(): SessionSubagentActionsModel {
   const queryClient = useQueryClient();
-  const [pending, setPending] = useState<PendingDelete | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
+  const store = useStore(sessionSubagentActionsLogic);
+  const { pending, failure } = useSelector(store, snapshot => snapshot.context);
 
   const deletion = useMutation({
-    mutationFn: ({ subagent, scope }: PendingDelete) =>
+    mutationFn: ({ subagent, scope }: PendingSubagentDelete) =>
       deleteSubagent(scope.workspaceId, subagent.id, scope.profile),
     onSuccess: (_data, { subagent, scope }) => {
       const { workspaceId, sessionId } = scope;
       queryClient.setQueryData<SubagentRoster>(
         sessionKeys.subagentRoster(workspaceId, sessionId),
-        existing => applySubagentRemoved(existing ?? EMPTY_SUBAGENT_ROSTER, subagent.id)
+        existing => (existing ? applySubagentRemoved(existing, subagent.id) : existing)
       );
       void queryClient.invalidateQueries({
         queryKey: sessionKeys.subagentBranch(workspaceId, sessionId),
@@ -79,35 +71,34 @@ export function useSessionSubagentActions(): SessionSubagentActionsModel {
       void queryClient.invalidateQueries({
         queryKey: sessionKeys.subagents(workspaceId, sessionId),
       });
-      void queryClient.invalidateQueries({
-        queryKey: sessionKeys.subagentRoster(workspaceId, sessionId),
-      });
       void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
-      setPending(null);
-      setFailure(null);
+      store.trigger.deleteClosed();
     },
     onError: error => {
       console.error("Failed to delete subagent", error);
-      setFailure(error instanceof Error && error.message ? error.message : null);
+      store.trigger.deleteFailed({
+        failure: error instanceof Error && error.message ? error.message : null,
+      });
       toast.error("Could not delete subagent");
     },
   });
 
-  const openDelete = useCallback((subagent: SubagentView, scope: SubagentActionScope) => {
-    setFailure(null);
-    setPending({ subagent, scope });
-  }, []);
+  const openDelete = useCallback(
+    (subagent: SubagentView, scope: SubagentActionScope) => {
+      store.trigger.deleteOpened({ pending: { subagent, scope } });
+    },
+    [store]
+  );
 
   const onOpenChange = useCallback(
     (open: boolean) => {
       if (open) return;
       // The dialog owns the wait: a dismissal during the request would hide its outcome.
       if (deletion.isPending) return;
-      setPending(null);
-      setFailure(null);
+      store.trigger.deleteClosed();
     },
-    [deletion.isPending]
+    [deletion.isPending, store]
   );
 
   const onConfirm = useCallback(() => {

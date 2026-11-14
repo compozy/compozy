@@ -14,10 +14,13 @@ Owner: subagent menu feature, web half (backend half landed in the same branch).
 - The web consumes the backend's already-listed additive surfaces: `DELETE
   /api/workspaces/{workspace_id}/subagents/{subagent_id}?profile=…` (204; 409 `subagent_not_deletable`),
   the `compozy session subagents delete` CLI verb, and the `subagent_removed` session-stream event
-  (`{session_id, subagent_id}`). No schema, migration, config, hook, extension SDK or native tool change
-  in this half; no workspace-data-isolation change beyond the existing profile-scoped route. Official
-  skill `skills/compozy/`: `runtime-operations.md` and `native-tools.md` document the delete verb, route
-  and `subagent_removed`; no `compozy__*` tool was added.
+  (`{session_id, subagent_id}`). An agent caller may delete only a delegation of its own session; an
+  operator deletes any delegated row in the workspace. The delete rewrites a queued completion message
+  without the removed row, cancels an empty batch, and settles the parent on the new roster. No schema,
+  migration, config, hook, extension SDK or native tool change in this half; no workspace-data-isolation
+  change beyond the existing profile-scoped route. Official skill `skills/compozy/`:
+  `runtime-operations.md` and `native-tools.md` document the delete verb, route and `subagent_removed`;
+  no `compozy__*` tool was added.
 
 ## Grouped menus with List and Kanban parity — 2026-11-13
 

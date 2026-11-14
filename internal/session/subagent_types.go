@@ -41,6 +41,13 @@ type SubagentCaller struct {
 }
 
 // SubagentActor is the caller of operator-reachable operations (CLI/HTTP/UDS or agent).
+const (
+	// SubagentActorOperator is an operator-driven lifecycle change.
+	SubagentActorOperator = "operator"
+	// SubagentActorAgent is a change made by an agent session on its own delegation.
+	SubagentActorAgent = "agent"
+)
+
 type SubagentActor struct {
 	Kind   string // "agent" | "operator"
 	ID     string
@@ -207,8 +214,9 @@ type SubagentService interface {
 	Status(ctx context.Context, caller SubagentCaller, id string) (Subagent, error)
 	Cancel(ctx context.Context, actor SubagentActor, id, reason string) (SubagentCancelOutcome, error)
 	// Delete permanently removes a delegated subagent and its child session history.
-	// Provider-native rows are refused with ErrSubagentNotDeletable.
-	Delete(ctx context.Context, workspaceID, id string) error
+	// Provider-native rows are refused with ErrSubagentNotDeletable. An agent actor may
+	// only delete a subagent delegated by its own session.
+	Delete(ctx context.Context, actor SubagentActor, workspaceID, id string) error
 	Get(ctx context.Context, workspaceID, id string) (Subagent, error)
 	List(ctx context.Context, q store.SubagentListQuery) (store.SubagentPage, error)
 	Summaries(ctx context.Context, parentIDs []string) (map[string]store.SubagentSummary, error)

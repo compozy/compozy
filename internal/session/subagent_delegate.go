@@ -159,6 +159,12 @@ func (s *subagentService) startDelegation(
 	current, readErr := s.store.GetSubagent(ctx, row.WorkspaceID, row.ID)
 	if readErr != nil {
 		unlock()
+		if errors.Is(readErr, store.ErrSubagentNotFound) {
+			// A delete won before the child was linked: the child session is the only
+			// leftover, so remove it instead of finalizing a row that no longer exists.
+			s.deleteOrphanChild(ctx, child)
+			return Subagent{}, ErrSubagentNotFound
+		}
 		return s.failDelegation(ctx, row, child, readErr)
 	}
 	if store.IsSubagentStatusTerminal(current.Status) {
@@ -176,6 +182,11 @@ func (s *subagentService) startDelegation(
 	}
 	unlock()
 	if err != nil {
+		if errors.Is(err, store.ErrSubagentNotFound) {
+			// The roster row was deleted between the read and the link.
+			s.deleteOrphanChild(ctx, child)
+			return Subagent{}, ErrSubagentNotFound
+		}
 		return s.failDelegation(ctx, row, child, err)
 	}
 	finishFlight()
@@ -256,6 +267,17 @@ func (s *subagentService) handleSubagentSpawnFailure(
 		return Subagent{}, err
 	}
 	return s.failDelegation(ctx, row, child, err)
+}
+
+// deleteOrphanChild removes a child session whose delegation row was deleted while
+// the provider was spawning it. The cleanup survives request cancellation.
+func (s *subagentService) deleteOrphanChild(ctx context.Context, child string) {
+	if child == "" {
+		return
+	}
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	s.logError(ctx, "delete_orphan_child", s.runtime.DeleteSession(cleanup, child))
 }
 
 func (s *subagentService) failDelegation(

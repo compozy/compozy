@@ -64,7 +64,7 @@ func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
 		h.respondSubagentError(c, session.ErrSubagentNotCancelable)
 		return
 	}
-	actor := session.SubagentActor{Kind: "operator"}
+	actor := session.SubagentActor{Kind: session.SubagentActorOperator}
 	credentials := agentCallerCredentialsFromRequest(c)
 	if hasAgentCallerIdentityCredentials(credentials) {
 		caller, err := h.resolveAgentCallerForWorkspace(
@@ -77,9 +77,15 @@ func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
 			h.respondError(c, StatusForAgentIdentityError(err), err)
 			return
 		}
-		actor = session.SubagentActor{Kind: "agent", ID: caller.Session.ID, Caller: &session.SubagentCaller{
-			WorkspaceID: caller.Session.WorkspaceID, SessionID: caller.Session.ID, AgentName: caller.Session.AgentName,
-		}}
+		actor = session.SubagentActor{
+			Kind: session.SubagentActorAgent,
+			ID:   caller.Session.ID,
+			Caller: &session.SubagentCaller{
+				WorkspaceID: caller.Session.WorkspaceID,
+				SessionID:   caller.Session.ID,
+				AgentName:   caller.Session.AgentName,
+			},
+		}
 	}
 	outcome, err := h.Subagents.Cancel(c.Request.Context(), actor, row.ID, request.Reason)
 	if err != nil {
@@ -96,7 +102,30 @@ func (h *BaseHandlers) DeleteSubagent(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.Subagents.Delete(c.Request.Context(), row.WorkspaceID, row.ID); err != nil {
+	actor := session.SubagentActor{Kind: session.SubagentActorOperator}
+	credentials := agentCallerCredentialsFromRequest(c)
+	if hasAgentCallerIdentityCredentials(credentials) {
+		caller, err := h.resolveAgentCallerForWorkspace(
+			c.Request.Context(),
+			credentials,
+			"subagent.delete",
+			row.WorkspaceID,
+		)
+		if err != nil {
+			h.respondError(c, StatusForAgentIdentityError(err), err)
+			return
+		}
+		actor = session.SubagentActor{
+			Kind: session.SubagentActorAgent,
+			ID:   caller.Session.ID,
+			Caller: &session.SubagentCaller{
+				WorkspaceID: caller.Session.WorkspaceID,
+				SessionID:   caller.Session.ID,
+				AgentName:   caller.Session.AgentName,
+			},
+		}
+	}
+	if err := h.Subagents.Delete(c.Request.Context(), actor, row.WorkspaceID, row.ID); err != nil {
 		h.respondSubagentError(c, err)
 		return
 	}

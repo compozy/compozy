@@ -23,7 +23,7 @@ func (s *subagentService) Cancel(
 			return SubagentCancelOutcome{}, err
 		}
 		workspace = actor.Caller.WorkspaceID
-	} else if actor.Kind != "operator" {
+	} else if actor.Kind != SubagentActorOperator {
 		return SubagentCancelOutcome{}, ErrSubagentNotFound
 	}
 	var row store.SessionSubagent
