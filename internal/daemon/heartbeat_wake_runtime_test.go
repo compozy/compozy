@@ -30,6 +30,7 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -1123,6 +1124,7 @@ func newHeartbeatSourceRuntime(
 	h.manager, err = session.NewManager(
 		session.WithLifecycleContext(t.Context()),
 		session.WithHomePaths(home),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithDriver(session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(providers.NewPreStarter())))),
 		session.WithWorkspaceResolver(resolver),
 		session.WithAgentResolver(agents),

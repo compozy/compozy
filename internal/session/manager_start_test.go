@@ -1160,6 +1160,52 @@ func TestSessionLeanEnvironment(t *testing.T) {
 // Owner: session startup; canonical suite: manager start (UT-070, UT-071, UT-073, UT-075).
 func TestRuntimeMCPStartup(t *testing.T) {
 	t.Parallel()
+	// Invariant: session inventory identities come from the injected installation key, never a fallback.
+	// Owner: session runtime inventory boundary; canonical suite: manager start.
+	t.Run("Should require an inventory dependency for a native runtime", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{}
+		_, err := manager.readRuntimeMCP(t.Context(), runtimemcp.Request{Runtime: "claude"})
+		if err == nil || !strings.Contains(err.Error(), "inventory is not configured") {
+			t.Fatalf("missing inventory dependency = %v", err)
+		}
+	})
+	t.Run("Should preserve injected inventory digests across manager recreation", func(t *testing.T) {
+		t.Parallel()
+		root, systemRoot := t.TempDir(), t.TempDir()
+		writeRuntimeMCPFixture(t, filepath.Join(root, ".claude.json"),
+			`{"mcpServers":{"native":{"command":"echo"}}}`)
+		key := []byte("installation-runtime-mcp-test-key")
+		request := runtimemcp.Request{
+			Runtime: "claude",
+			Context: runtimemcp.ReadContext{Home: root, CWD: root, SystemRoot: systemRoot},
+		}
+		reader, err := runtimemcp.NewReader(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, _, err := reader.List(t.Context(), request)
+		if err != nil || len(expected.Runtimes) != 1 || len(expected.Runtimes[0].Servers) != 1 {
+			t.Fatalf("keyed inventory = %+v, %v", expected, err)
+		}
+		want := expected.Runtimes[0]
+		if want.ActivationDigest == "" || want.Servers[0].DefinitionDigest == "" {
+			t.Fatalf("keyed inventory lacks identity: %+v", want)
+		}
+		for range 2 {
+			recreated, err := runtimemcp.NewReader(key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manager := &Manager{}
+			WithRuntimeMCPReader(recreated)(manager)
+			got, err := manager.readRuntimeMCP(t.Context(), request)
+			if err != nil || len(got.Servers) != 1 || got.ActivationDigest != want.ActivationDigest ||
+				got.Servers[0].DefinitionDigest != want.Servers[0].DefinitionDigest {
+				t.Fatalf("session inventory = %+v, %v; want keyed identity %+v", got, err, want)
+			}
+		}
+	})
 	// Invariant: absent native-inventory support never scans another runtime's files or changes launch options.
 	// Owner: session runtime capability boundary; canonical suite: manager start.
 	for _, provider := range []string{"", "custom-acp"} {

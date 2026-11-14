@@ -40,6 +40,13 @@ The custom-provider branch of `TestDaemonSessionMCPReadSurfaces` verifies the HT
 real daemon and ACP process; `TestRuntimeMCPStartup` and `TestMCPReadSnapshotCatalogChanges` cover the
 empty identity and configured native-runtime alias boundaries.
 
+For a known native runtime, compare its session inventory with Settings and copy one native server
+from the session popover. Restart the isolated daemon with the same `COMPOZY_HOME`: the definition
+digest must stay equal to the listed source, copying must still succeed, and the unchanged native
+configuration must not acquire a pending-reload marker. Session managers consume the daemon's keyed
+inventory; missing inventory wiring must fail instead of generating a new identity. The keyed
+identity boundary is covered by `TestRuntimeMCPStartup`.
+
 Steps:
 
 1. Session with: echo (ready), an OAuth server not signed in, the waiting `sentry` project fixture,

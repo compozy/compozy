@@ -76,12 +76,24 @@ func (m *Manager) dispatchSpawnPreCreate(
 	opts.AgentName = strings.TrimSpace(result.AgentName)
 	opts.SpawnRole = normalizeSpawnRole(result.SpawnRole)
 	opts.TTL = time.Duration(result.TTLSeconds) * time.Second
-	previousPolicy := store.NormalizeSessionPermissionPolicy(opts.PermissionPolicy)
 	narrowed := policyFromHookPermissionSet(result.ChildPermissions)
 	if err := ValidatePermissionSubset(childPolicy, narrowed); err != nil {
 		return SpawnOpts{}, nil, err
 	}
-	opts.PermissionPolicy = previousPolicy
+	applySpawnHookPermissions(&opts, childPolicy, narrowed)
+	normalized, err := normalizeSpawnOpts(&opts)
+	if err != nil {
+		return SpawnOpts{}, nil, err
+	}
+	lineage, err = m.spawnLineage(ctx, parent, &normalized)
+	if err != nil {
+		return SpawnOpts{}, nil, err
+	}
+	return normalized, lineage, nil
+}
+
+func applySpawnHookPermissions(opts *SpawnOpts, childPolicy, narrowed store.SessionPermissionPolicy) {
+	opts.PermissionPolicy = store.NormalizeSessionPermissionPolicy(opts.PermissionPolicy)
 	opts.PermissionPolicy.Skills = narrowed.Skills
 	opts.PermissionPolicy.WorkspacePaths = narrowed.WorkspacePaths
 	if !slices.Equal(childPolicy.Tools, narrowed.Tools) {
@@ -93,15 +105,6 @@ func (m *Manager) dispatchSpawnPreCreate(
 		opts.PermissionPolicy.MCPServers = narrowed.MCPServers
 		opts.PermissionPolicy.MCPServersMode = store.PermissionList
 	}
-	normalized, err := normalizeSpawnOpts(&opts)
-	if err != nil {
-		return SpawnOpts{}, nil, err
-	}
-	lineage, err = m.spawnLineage(ctx, parent, &normalized)
-	if err != nil {
-		return SpawnOpts{}, nil, err
-	}
-	return normalized, lineage, nil
 }
 
 func validateSubagentSpawnHook(

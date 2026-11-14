@@ -731,6 +731,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		driver := newIntegrationACPDriver(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
 		manager, err := NewManager(
 			WithHomePaths(homePaths),
+			WithRuntimeMCPInventory(runtimeMCPFileInventory{systemRoot: t.TempDir()}),
 			WithWorkspaceResolver(resolver),
 			WithDriver(NewACPDriverAdapter(driver)),
 			WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),

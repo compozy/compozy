@@ -3,6 +3,7 @@ package session
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -18,14 +19,27 @@ type RuntimeMCPInventory interface {
 	List(context.Context, runtimemcp.Request) (runtimemcp.Inventory, error)
 }
 
-// WithRuntimeMCPInventory shares the daemon inventory cache with session admission.
 const (
 	runtimeMCPQwenCode = "qwen-code"
 	runtimeMCPOff      = "off"
 )
 
+// WithRuntimeMCPInventory shares the daemon inventory cache with session admission.
 func WithRuntimeMCPInventory(inventory RuntimeMCPInventory) Option {
 	return func(m *Manager) { m.runtimeMCPInventory = inventory }
+}
+
+// WithRuntimeMCPReader supplies a standalone reader with the installation's digest key.
+// Daemon managers use WithRuntimeMCPInventory to share their cached inventory instead.
+func WithRuntimeMCPReader(reader runtimemcp.Reader) Option {
+	return WithRuntimeMCPInventory(runtimeMCPReaderInventory{reader: reader})
+}
+
+type runtimeMCPReaderInventory struct{ reader runtimemcp.Reader }
+
+func (i runtimeMCPReaderInventory) List(ctx context.Context, request runtimemcp.Request) (runtimemcp.Inventory, error) {
+	inventory, _, err := i.reader.List(ctx, request)
+	return inventory, err
 }
 
 func runtimeMCPDescriptor(agent compozyconfig.ResolvedAgent) (runtimemcp.Descriptor, bool) {
@@ -63,13 +77,10 @@ func (m *Manager) readRuntimeMCP(ctx context.Context, request runtimemcp.Request
 		}, nil
 	}
 	descriptor := descriptors[index]
-	var inventory runtimemcp.Inventory
-	var err error
-	if m.runtimeMCPInventory != nil {
-		inventory, err = m.runtimeMCPInventory.List(ctx, request)
-	} else {
-		inventory, _, err = (runtimemcp.Reader{}).List(ctx, request)
+	if m.runtimeMCPInventory == nil {
+		return runtimemcp.Snapshot{}, errors.New("session: runtime MCP inventory is not configured")
 	}
+	inventory, err := m.runtimeMCPInventory.List(ctx, request)
 	if err != nil {
 		return runtimemcp.Snapshot{}, err
 	}

@@ -170,6 +170,7 @@ func newManagerWithHarness(t testing.TB, h *harness, extraOpts ...Option) *Manag
 
 	opts := []Option{
 		WithHomePaths(h.homePaths),
+		WithRuntimeMCPInventory(runtimeMCPFileInventory{systemRoot: t.TempDir()}),
 		WithDriver(h.driver),
 		WithNotifier(h.notifier),
 		WithPromptAssembler(

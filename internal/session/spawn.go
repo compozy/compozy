@@ -271,12 +271,28 @@ func (m *Manager) validateSpawnWorkspace(
 		}
 		targetWorkspaceID = resolvedID
 	}
+	if err := m.authorizeSpawnWorkspace(ctx, parent, targetWorkspaceID); err != nil {
+		return SpawnOpts{}, err
+	}
+	opts.Workspace = targetWorkspaceID
+	if targetWorkspaceID == "" {
+		opts.Workspace = workspaceaccess.UserSelector
+		if opts.IsolatedWorktreeID != "" {
+			return SpawnOpts{}, spawnValidation("User scope does not support worktrees")
+		}
+		opts.InheritedWorktreeID = ""
+	}
+	opts.WorkspacePath = ""
+	return opts, nil
+}
+
+func (m *Manager) authorizeSpawnWorkspace(ctx context.Context, parent *Info, targetWorkspaceID string) error {
 	parentWorkspaceID := strings.TrimSpace(parent.WorkspaceID)
 
 	if parentWorkspaceID != targetWorkspaceID {
 		policy := m.workspaceAccessPolicy()
 		if policy == nil {
-			return SpawnOpts{}, spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
+			return spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
 		}
 		decision, authorizeErr := policy.Authorize(ctx, workspaceaccess.Request{
 			Actor: workspaceaccess.ActorRef{
@@ -289,7 +305,7 @@ func (m *Manager) validateSpawnWorkspace(
 			Seam:   workspaceaccess.SeamSpawn,
 		})
 		if authorizeErr != nil {
-			return SpawnOpts{}, fmt.Errorf(
+			return fmt.Errorf(
 				"%w: authorize child workspace %q: %w",
 				ErrSpawnValidation,
 				targetWorkspaceID,
@@ -297,19 +313,10 @@ func (m *Manager) validateSpawnWorkspace(
 			)
 		}
 		if !decision.Allowed {
-			return SpawnOpts{}, spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
+			return spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
 		}
 	}
-	opts.Workspace = targetWorkspaceID
-	if targetWorkspaceID == "" {
-		opts.Workspace = workspaceaccess.UserSelector
-		if opts.IsolatedWorktreeID != "" {
-			return SpawnOpts{}, spawnValidation("User scope does not support worktrees")
-		}
-		opts.InheritedWorktreeID = ""
-	}
-	opts.WorkspacePath = ""
-	return opts, nil
+	return nil
 }
 
 func (m *Manager) spawnLineage(

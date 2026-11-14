@@ -30,6 +30,7 @@ import (
 	observepkg "github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -5127,6 +5128,7 @@ Review the workspace changes carefully.
 
 	sessionOptions := []session.Option{
 		session.WithHomePaths(homePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithDriver(driver),
 		session.WithNotifier(observer),
 		session.WithWorkspaceResolver(workspaces),
@@ -5588,6 +5590,7 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 
 	sessions, err := session.NewManager(
 		session.WithHomePaths(e.homePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithDriver(e.driver),
 		session.WithWorkspaceResolver(e.workspaces),
 		session.WithStore(storeSessionDB),

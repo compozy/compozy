@@ -20,6 +20,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/providerexec"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -978,8 +979,15 @@ func newHarnessIntegrationManager(
 ) *session.Manager {
 	t.Helper()
 
+	inventoryOption := session.WithRuntimeMCPInventory(deps.RuntimeMCPInventory)
+	if deps.RuntimeMCPInventory == nil {
+		inventoryOption = session.WithRuntimeMCPReader(runtimemcp.Reader{
+			DigestKey: []byte("session-runtime-mcp-test-key"),
+		})
+	}
 	opts := []session.Option{
 		session.WithHomePaths(homePaths),
+		inventoryOption,
 		session.WithDriver(driver),
 		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace}),
 		session.WithStore(
