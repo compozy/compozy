@@ -159,3 +159,10 @@ step 6 covers, behind a confirmation, and drops the row from its stream roster o
 `session-list.test.tsx`, `SubagentDeleteDialog` in `subagent-components.test.tsx`, the `deleteSubagent`
 adapter case, and the `subagent_removed` case in `use-session-live-tail.test.tsx`. The backend walk in
 step 6 is unchanged.
+
+QA impact 2026-11-14 (delete settlement): deleting a settled row also removes it from a queued
+completion message (rewriting the batch, or canceling it when empty) and deleting the last live child
+settles the parent on the new roster under the same parent lock. A failed child delete leaves the row
+visible and retryable. Automated coverage: `TestSubagentDelete` (wake rewrite, parent settlement,
+suppression, native refusal, agent ownership, out-of-workspace refusal) and the store test that links
+a child before removing the row.
