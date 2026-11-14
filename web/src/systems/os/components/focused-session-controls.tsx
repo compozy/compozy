@@ -33,6 +33,8 @@ export interface FocusedSessionControlsHostProps {
  * The Sessions dialog with the sessions list and rail state of the focused window. Both are kept
  * per window, under the window's own scope (`FocusedWindowScope` above), so this leaf re-renders
  * when focus moves; the shell body does not; its gestures read `controlsRef` when they run.
+ * The list's Archived or Later shelf is the focused window's too: the dialog opens on it, a shelf
+ * picked here switches that window's rail, and session cycling steps through it.
  */
 export function FocusedSessionControlsHost({
   controlsRef,

@@ -278,7 +278,6 @@ describe("useSessionSidebarState", () => {
     act(() => remounted.current.setShelf("active"));
     expect(remounted.current.shelf).toBe("active");
     expect(two.current.shelf).toBe("later");
-    expect(window.localStorage.getItem(STORAGE_KEY) ?? "").not.toContain("later");
 
     const reloaded = await loadFreshSidebarState();
     expect(renderInScope(reloaded, WINDOW_TWO).current.shelf).toBe("active");

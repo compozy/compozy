@@ -41,6 +41,8 @@ not children and are not parked with it.
    open; choosing the active list again returns to the normal sessions.
 3. Expect the view is per window: a second session window keeps its own view, a new window starts
    on the normal list, and a page reload returns every window to the normal list.
+4. With a window's rail on Later, open the Sessions dialog. Expect it opens on Later; choosing
+   Archived there switches that window's rail to Archived too.
 
 ## Dialog: Markdown reason and date picker (#1086)
 

@@ -5,7 +5,8 @@
 // model renders an inapplicable stored grouping as none and serves a stored `manual` sort as
 // `last_activity` outside one pair, without rewriting either preference. A collapsed group stays
 // collapsed when the list remounts (selecting a session remounts the window's content) and opens
-// only on the operator's toggle. Workspace working marks
+// only on the operator's toggle; the window's Archived or Later shelf survives that remount too
+// (#1706). Workspace working marks
 // read the same all-workspaces aggregate instead of one catalog read per workspace.
 // Owning layer: session-list query hooks; session catalog I/O is the mocked boundary.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -554,6 +555,42 @@ describe("useSessionListView", () => {
     act(() => remounted.result.current.toggleGroup(key));
     expect(remounted.result.current.collapsedGroupKeys.has(key)).toBe(false);
     expect(settingsWrites()).toEqual([]);
+  });
+
+  // Issue #1706: opening a session from the Archived or Later view remounts the list the same way;
+  // the shelf is the window's too, so the remounted list keeps reading that population.
+  it("Should keep each window's Archived or Later shelf across a selection remount", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const inWindow = (scopeId: string) => {
+      const withClient = clientWrapper(client);
+      return ({ children }: { children: ReactNode }) =>
+        createElement(
+          WindowScopeContext,
+          { value: scopeId },
+          createElement(withClient, null, children)
+        );
+    };
+    const later = renderHook(() => useSessionListView(), { wrapper: inWindow("w-1706-later") });
+    const archive = renderHook(() => useSessionListView(), { wrapper: inWindow("w-1706-archive") });
+    act(() => later.result.current.setShelf("later"));
+    act(() => archive.result.current.setShelf("archive"));
+    later.unmount();
+    archive.unmount();
+
+    const laterAgain = renderHook(() => useSessionListView(), {
+      wrapper: inWindow("w-1706-later"),
+    });
+    const archiveAgain = renderHook(() => useSessionListView(), {
+      wrapper: inWindow("w-1706-archive"),
+    });
+    expect(laterAgain.result.current.shelf).toBe("later");
+    expect(laterAgain.result.current.groupFilters).toMatchObject({ later: "only" });
+    expect(archiveAgain.result.current.shelf).toBe("archive");
+    expect(archiveAgain.result.current.groupFilters).toMatchObject({ archive: "only" });
+
+    act(() => laterAgain.result.current.setShelf("active"));
+    expect(laterAgain.result.current.groupFilters).not.toHaveProperty("later");
+    expect(archiveAgain.result.current.shelf).toBe("archive");
   });
 
   it("W-15: Should preserve each window's folds when a provisional profile resolves", async () => {

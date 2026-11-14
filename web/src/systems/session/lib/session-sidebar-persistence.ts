@@ -100,12 +100,22 @@ export function prunedSessionSidebarScopes(
       changed = true;
     }
   }
-  for (const [scopeId, owner] of Object.entries(partitionByScope)) {
-    if (owner === partition && !live.has(scopeId)) {
-      delete partitionByScope[scopeId];
-      delete byScope[scopeId];
-      changed = true;
-    }
+  for (const scopeId of closedSessionSidebarScopes(partitionByScope, partition, liveScopeIds)) {
+    delete partitionByScope[scopeId];
+    delete byScope[scopeId];
+    changed = true;
   }
   return changed ? { byScope, partitionByScope } : undefined;
+}
+
+/** Windows of one partition that its live window set no longer lists: closed. */
+export function closedSessionSidebarScopes(
+  partitionByScope: Readonly<Record<string, string>>,
+  partition: string,
+  liveScopeIds: readonly string[]
+): string[] {
+  const live = new Set(liveScopeIds);
+  return Object.entries(partitionByScope).flatMap(([scopeId, owner]) =>
+    owner === partition && !live.has(scopeId) ? [scopeId] : []
+  );
 }

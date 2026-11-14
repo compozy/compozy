@@ -9,6 +9,7 @@ import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 import type { SessionListGroupBy, SessionListSort } from "../lib/session-list-preferences";
 import { sessionListShelfStore, type SessionListShelf } from "../lib/session-list-shelf";
 import {
+  closedSessionSidebarScopes,
   mergeSessionSidebarPreferences,
   migrateSessionSidebarPreferences,
   prunedSessionSidebarScopes,
@@ -308,10 +309,10 @@ export function pruneSessionSidebarScopes(
   partition: string,
   liveScopeIds: readonly string[]
 ): void {
-  const live = new Set(liveScopeIds);
-  const owners = sessionSidebarStore.getSnapshot().context.partitionByScope;
-  const closed = Object.entries(owners).flatMap(([scopeId, owner]) =>
-    owner === partition && !live.has(scopeId) ? [scopeId] : []
+  const closed = closedSessionSidebarScopes(
+    sessionSidebarStore.getSnapshot().context.partitionByScope,
+    partition,
+    liveScopeIds
   );
   sessionSidebarStore.trigger.scopesPruned({ partition, liveScopeIds });
   // A closed window's shelf goes with its rail entry.
