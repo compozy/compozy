@@ -45,23 +45,22 @@ func (d *Driver) applyConfigOption(
 	if d != nil && d.configSettleBudget > 0 {
 		budget = d.configSettleBudget
 	}
-	for attempt := range configSettleAttempts {
+	for range configSettleAttempts {
 		if err := apply(ctx); err != nil {
 			return err
 		}
 		if confirmed() {
 			return nil
 		}
-		if attempt == configSettleAttempts-1 {
-			break
-		}
-		// The response merge itself bumps the revision, so the wait starts after it:
-		// only an update the provider publishes later counts as new information.
+		// Every send keeps its confirmation window, including the last one: a
+		// provider may publish the value after any of them. The response merge
+		// itself bumps the revision, so the wait starts after it and only a later
+		// update counts as new information.
 		since, _ := process.configRevisionAndChange()
 		if err := waitForConfigRevision(ctx, process, since, budget); err != nil {
 			if errors.Is(err, errConfigSettleTimeout) {
 				// No newer revision arrived: re-sending would just repeat the same call.
-				break
+				return errConfigOptionUnconfirmed
 			}
 			return err
 		}
