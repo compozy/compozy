@@ -8025,6 +8025,31 @@ func (s *agentMCPApprovalSettings) RecordWorkspaceMCPWrite(
 // Invariant: MCP summary decorates detail only and scoped reads authorize before reading inventory. Owner: session HTTP core; canonical handler suite (UT-083).
 func TestSessionMCPDetailAndScope(t *testing.T) {
 	t.Parallel()
+	t.Run("Should return the session without a summary when the MCP read model fails", func(t *testing.T) {
+		t.Parallel()
+		info := testutil.NewSessionInfo("sess-mcp")
+		info.WorkspaceID = "ws-mcp"
+		info.ProfileID = store.DefaultProfileID
+		base := &testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+		}
+		fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.Sessions = &sessionMCPHandlerStub{
+			SessionManager: fixture.Handlers.Sessions,
+			err:            errors.New("session: MCP read model unavailable"),
+		}
+		detail := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp", nil)
+		if detail.Code != http.StatusOK {
+			t.Fatalf("detail %d: %s", detail.Code, detail.Body.String())
+		}
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(detail.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Session.ID != info.ID || payload.Session.MCPSummary != nil {
+			t.Fatalf("session=%+v", payload.Session)
+		}
+	})
 	for _, count := range []int{0, 1} {
 		t.Run(fmt.Sprintf("Should decorate only detail for %d servers UT-083", count), func(t *testing.T) {
 			t.Parallel()
@@ -8087,6 +8112,7 @@ func TestSessionMCPDetailAndScope(t *testing.T) {
 type sessionMCPHandlerStub struct {
 	core.SessionManager
 	result session.MCP
+	err    error
 	reads  int
 }
 
@@ -8094,5 +8120,5 @@ var _ session.MCPReader = (*sessionMCPHandlerStub)(nil)
 
 func (s *sessionMCPHandlerStub) ListSessionMCP(context.Context, string) (session.MCP, error) {
 	s.reads++
-	return s.result, nil
+	return s.result, s.err
 }

@@ -37,7 +37,14 @@ func (h *BaseHandlers) withSessionMCPSummary(ctx context.Context, payload *contr
 	}
 	result, err := reader.ListSessionMCP(tools.WithCachedMCPProjection(ctx), payload.ID)
 	if err != nil {
-		return err
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		// The summary decorates the session; a read-model failure must not hide the session itself.
+		if h.Logger != nil {
+			h.Logger.Warn("api: session MCP summary unavailable", "session_id", payload.ID, "error", err)
+		}
+		return nil
 	}
 	if len(result.CompozyServers)+len(result.RuntimeServers.Servers) > 0 {
 		payload.MCPSummary = &result.MCPSummary
