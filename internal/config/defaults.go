@@ -95,6 +95,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Scheduler:            DefaultSchedulerConfig(),
 		},
 		Worktrees: DefaultWorktreesConfig(),
+		Client:    DefaultClientConfig(),
 	}
 }
 

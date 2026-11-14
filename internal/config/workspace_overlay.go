@@ -77,6 +77,9 @@ func validateWorkspaceConfigOverlay(path string, overlay *configOverlay) error {
 	if overlay.Marketplace != nil {
 		return fmt.Errorf("workspace config %q: marketplace catalog settings are global-only", path)
 	}
+	if overlay.Client.RequestTimeout != nil {
+		return fmt.Errorf("workspace config %q: client settings are global-only", path)
+	}
 	if overlay.Gateway != nil {
 		return fmt.Errorf("workspace config %q: gateway settings are global-only", path)
 	}

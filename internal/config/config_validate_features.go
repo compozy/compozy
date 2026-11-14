@@ -33,6 +33,9 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 	if err := c.Marketplace.Validate(); err != nil {
 		return err
 	}
+	if err := c.Client.Validate(); err != nil {
+		return err
+	}
 	if err := c.Automation.validateWithEnv(lookup); err != nil {
 		return fmt.Errorf("validate automation config: %w", err)
 	}

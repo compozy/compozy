@@ -18,9 +18,30 @@ import (
 
 func (d commandDeps) withDefaults() commandDeps {
 	d = d.withRegistryDefaults()
+	d = d.withClientTimeoutDefaults()
 	d = d.withRuntimeDefaults()
 	d = d.withBootstrapDefaults()
 	d = d.withTimingDefaults()
+	d = d.withMCPRunnerDefaults()
+	return d
+}
+
+// withClientTimeoutDefaults wires the daemon client before any closure that
+// captures commandDeps, and after the config loader it resolves the budget from.
+// A later client default would leave the MCP runner holding a nil factory.
+func (d commandDeps) withClientTimeoutDefaults() commandDeps {
+	if d.getenv == nil {
+		d.getenv = os.Getenv
+	}
+	if d.newClient == nil {
+		d.newClient = func(target ClientTarget) (DaemonClient, error) {
+			timeout, err := resolveClientRequestTimeout(d.getenv, d.loadConfig)
+			if err != nil {
+				return nil, err
+			}
+			return newClientWithTimeout(target, timeout)
+		}
+	}
 	return d
 }
 
@@ -53,9 +74,6 @@ func (d commandDeps) withGatewayRuntimeDefaults() commandDeps {
 	if d.runInstallWizard == nil {
 		d.runInstallWizard = runInstallWizard
 	}
-	if d.newClient == nil {
-		d.newClient = NewClient
-	}
 	if d.writeGatewayCredential == nil {
 		d.writeGatewayCredential = WriteGatewayCredential
 	}
@@ -78,12 +96,18 @@ func (d commandDeps) withGatewayRuntimeDefaults() commandDeps {
 }
 
 func (d commandDeps) withMCPRuntimeDefaults() commandDeps {
+	return d.withProviderAuthDefaults()
+}
+
+// withMCPRunnerDefaults installs the MCP runner last: its closure captures the
+// whole dependency set, so every other default has to exist first.
+func (d commandDeps) withMCPRunnerDefaults() commandDeps {
 	if d.runMCPServe == nil {
 		d.runMCPServe = func(ctx context.Context, opts mcpServeOptions) error {
 			return runMCPServe(ctx, d, opts)
 		}
 	}
-	return d.withProviderAuthDefaults()
+	return d
 }
 
 func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
