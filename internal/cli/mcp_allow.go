@@ -73,22 +73,7 @@ func newMCPAllowCommand(deps commandDeps) *cobra.Command {
 					State:       "waiting",
 				}
 			}
-			return writeCommandOutput(cmd, outputBundle{jsonValue: result,
-				jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
-				toon: func() (string, error) {
-					return renderToonObject(
-						"approval",
-						[]string{"server_name", automationWorkspaceIDKey, profileFlagName, appTokenStateFlag},
-						[]string{
-							result.Approval.ServerName,
-							result.Approval.WorkspaceID,
-							result.Approval.Profile,
-							result.Approval.State,
-						},
-					), nil
-				}, human: func() (string, error) {
-					return formatMCPApprovalOutput(args[0], label, profile, revoke), nil
-				}})
+			return writeMCPApprovalOutput(cmd, result, args[0], label, profile, revoke)
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Project workspace (ID, name, or path)")
@@ -145,4 +130,25 @@ func formatMCPApprovalOutput(name, label, profile string, revoke bool) string {
 		profile,
 		suffix,
 	)
+}
+
+func writeMCPApprovalOutput(
+	cmd *cobra.Command, result contract.SettingsMCPApprovalResponse, name, label, profile string, revoke bool,
+) error {
+	return writeCommandOutput(cmd, outputBundle{jsonValue: result,
+		jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+		toon: func() (string, error) {
+			return renderToonObject(
+				"approval",
+				[]string{"server_name", automationWorkspaceIDKey, profileFlagName, appTokenStateFlag},
+				[]string{
+					result.Approval.ServerName,
+					result.Approval.WorkspaceID,
+					result.Approval.Profile,
+					result.Approval.State,
+				},
+			), nil
+		}, human: func() (string, error) {
+			return formatMCPApprovalOutput(name, label, profile, revoke), nil
+		}})
 }

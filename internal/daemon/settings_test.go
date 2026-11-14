@@ -272,13 +272,7 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 			}
 		}()
 
-		manager, err := newSettingsMCPAuthManagerWithConfig(
-			reopened,
-			nil,
-			nil,
-			nil,
-			compozyconfig.MCPOAuthConfig{},
-		)
+		manager, err := newSettingsMCPAuthManagerWithConfig(reopened, nil)
 		if err != nil {
 			t.Fatalf("newSettingsMCPAuthManagerWithConfig() error = %v", err)
 		}
@@ -347,13 +341,7 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 				t.Fatalf("Close() error = %v", err)
 			}
 		}()
-		manager, err := newSettingsMCPAuthManagerWithConfig(
-			database,
-			nil,
-			database,
-			nil,
-			compozyconfig.MCPOAuthConfig{},
-		)
+		manager, err := newSettingsMCPAuthManagerWithConfig(database, database)
 		if err != nil {
 			t.Fatalf("newSettingsMCPAuthManagerWithConfig() error = %v", err)
 		}
@@ -413,13 +401,7 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 	t.Run("Should keep bare status available after the token database closes", func(t *testing.T) {
 		t.Parallel()
 		database := openDaemonTestGlobalDB(t)
-		manager, err := newSettingsMCPAuthManagerWithConfig(
-			database,
-			nil,
-			database,
-			nil,
-			compozyconfig.MCPOAuthConfig{},
-		)
+		manager, err := newSettingsMCPAuthManagerWithConfig(database, database)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -579,7 +561,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		store := openDaemonTestGlobalDB(t)
-		manager, err := newSettingsMCPAuthManagerWithConfig(store, nil, store, nil, compozyconfig.MCPOAuthConfig{})
+		manager, err := newSettingsMCPAuthManagerWithConfig(store, store)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1658,7 +1640,7 @@ func TestSettingsMCPSecretURLStatus(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		manager, err := newSettingsMCPAuthManagerWithConfig(db, nil, db, nil, compozyconfig.MCPOAuthConfig{})
+		manager, err := newSettingsMCPAuthManagerWithConfig(db, db)
 		if err != nil {
 			t.Fatal(err)
 		}

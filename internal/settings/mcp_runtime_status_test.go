@@ -228,7 +228,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 			},
 		}
 
-		cloned := cloneMCPServerItem(source)
+		cloned := cloneMCPServerItem(&source)
 		cloned.Args[0] = "changed"
 		cloned.EnvKeys[0] = "changed"
 		cloned.SecretEnvKeys[0] = "changed"
@@ -1216,8 +1216,8 @@ func (f *blockingMCPRuntimeProvider) startedCount() int {
 
 func mcpItemNames(items []MCPServerItem) []string {
 	names := make([]string, 0, len(items))
-	for _, item := range items {
-		names = append(names, item.Name)
+	for i := range items {
+		names = append(names, items[i].Name)
 	}
 	return names
 }

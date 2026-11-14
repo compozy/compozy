@@ -29,7 +29,8 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 		return []contract.SettingsMCPServerItemPayload{}
 	}
 	payloads := make([]contract.SettingsMCPServerItemPayload, 0, len(values))
-	for _, value := range values {
+	for i := range values {
+		value := &values[i]
 		payloads = append(payloads, contract.SettingsMCPServerItemPayload{
 			Approval: contract.SettingsMCPApprovalStatePayload{
 				Reason:           value.Approval.Reason,
@@ -124,7 +125,7 @@ func mcpSecretValuesFromPayload(payload *contract.SettingsMCPSecretValuesPayload
 	}
 }
 
-func settingsMCPRuntimeName(value settingspkg.MCPServerItem) string {
+func settingsMCPRuntimeName(value *settingspkg.MCPServerItem) string {
 	if name := strings.TrimSpace(value.RuntimeName); name != "" {
 		return name
 	}

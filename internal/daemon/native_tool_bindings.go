@@ -78,6 +78,13 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.resourceToolBindings(availability.resources))
 	addNativeToolBindings(bindings, n.terminalToolBindings(availability.terminal))
 	addNativeToolBindings(bindings, n.windowManagerToolBindings(availability.windowManager))
+	addNativeToolBindings(bindings, n.mcpListToolBindings())
+	addNativeToolBindings(bindings, n.mcpAuthToolBindings(availability.mcpStatus, availability.mcpAuth))
+	return bindings
+}
+
+func (n *daemonNativeTools) mcpListToolBindings() map[toolspkg.ToolID]nativeToolBinding {
+	bindings := make(map[toolspkg.ToolID]nativeToolBinding, 2)
 	bindings[toolspkg.ToolIDSessionMCPList] = nativeToolBinding{
 		call:         n.sessionMCPList,
 		availability: n.dependencyAvailability(func() bool { _, ok := n.deps.Sessions.(session.MCPReader); return ok }),
@@ -88,6 +95,5 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 			func() bool { return n.deps.Settings != nil && n.deps.Settings() != nil },
 		),
 	}
-	addNativeToolBindings(bindings, n.mcpAuthToolBindings(availability.mcpStatus, availability.mcpAuth))
 	return bindings
 }

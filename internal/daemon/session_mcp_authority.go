@@ -123,17 +123,7 @@ func (r *nativeToolPolicyResolver) effectiveScopeTools(
 		}
 	}
 	if policy.ToolsMode == store.PermissionList {
-		allowedMCP := make(map[string]bool)
-		for i := range views {
-			view := &views[i]
-			if view.Descriptor.Source.Kind == toolspkg.SourceMCP {
-				name := mcpAuthoritySourceName(view.Descriptor.Source, names)
-				allowedMCP[view.Descriptor.ID.String()] = slices.Contains(policy.MCPServers, name)
-			}
-		}
-		return slices.DeleteFunc(slices.Clone(policy.Tools), func(id string) bool {
-			return denied[id] || strings.HasPrefix(id, "mcp__") && !allowedMCP[id]
-		}), nil
+		return listedMCPAuthorityTools(policy, views, names, denied), nil
 	}
 	ids := slices.DeleteFunc(slices.Clone(policy.Tools), func(id string) bool {
 		return !strings.HasPrefix(id, "compozy__") || denied[id]
@@ -185,4 +175,20 @@ func bindSessionMCPAuthority(state *bootState, resolver *nativeToolPolicyResolve
 	}); ok {
 		manager.SetMCPAuthorityResolver(resolver)
 	}
+}
+
+func listedMCPAuthorityTools(
+	policy store.SessionPermissionPolicy, views []toolspkg.ToolView, names map[string]string, denied map[string]bool,
+) []string {
+	allowedMCP := make(map[string]bool)
+	for i := range views {
+		view := &views[i]
+		if view.Descriptor.Source.Kind == toolspkg.SourceMCP {
+			name := mcpAuthoritySourceName(view.Descriptor.Source, names)
+			allowedMCP[view.Descriptor.ID.String()] = slices.Contains(policy.MCPServers, name)
+		}
+	}
+	return slices.DeleteFunc(slices.Clone(policy.Tools), func(id string) bool {
+		return denied[id] || strings.HasPrefix(id, "mcp__") && !allowedMCP[id]
+	})
 }

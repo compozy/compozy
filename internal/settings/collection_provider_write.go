@@ -71,7 +71,7 @@ func (s *service) buildMCPServerItems(
 	})
 	result := make([]MCPServerItem, 0, len(items))
 	for index := range items {
-		result = append(result, cloneMCPServerItem(items[index].item))
+		result = append(result, cloneMCPServerItem(&items[index].item))
 	}
 	return result, nil
 }

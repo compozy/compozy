@@ -12,21 +12,11 @@ import (
 )
 
 func newSettingsMCPAuthManagerWithConfig(
-	store mcpauth.TokenStore,
-	notifier mcpauth.LifecycleNotifier,
-	registrations mcpauth.RegistrationStore,
-	secretResolver mcpauth.SecretRefResolver,
-	oauthConfig compozyconfig.MCPOAuthConfig,
-	generation ...*mcpauth.MutationGeneration,
+	store mcpauth.TokenStore, registrations mcpauth.RegistrationStore,
 ) (*mcpauth.Manager, error) {
 	return newSettingsMCPAuthManagerWithAuthorization(
-		store,
-		notifier,
-		registrations,
-		secretResolver,
-		oauthConfig,
-		nil,
-		generation...)
+		store, nil, registrations, nil, compozyconfig.MCPOAuthConfig{}, nil,
+	)
 }
 
 func newSettingsMCPAuthManagerWithAuthorization(

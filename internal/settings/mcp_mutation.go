@@ -113,64 +113,13 @@ func (s *service) putMCPServer(
 		})
 	} else {
 		err = commit()
-		if err == nil && workspaceID != "" {
-			approvalWarning = "MCP server saved but approval is unavailable; waiting for approval"
-		}
+		approvalWarning = unavailableMCPWriteApprovalWarning(workspaceID, err)
 	}
-	var importWarning string
-	if err != nil {
-		if !importing || mutationOutcome != mcpDefinitionMutationCommitted {
-			var rollbackErr error
-			if mutationOutcome != mcpDefinitionMutationCommitted {
-				rollbackErr = s.rollbackUnreferencedMCPSecrets(ctx, scope, workspaceID, profileName, secretMutations)
-			}
-			return MutationResult{}, errors.Join(err, rollbackErr)
-		}
-		importWarning = mcpImportCleanupWarning(name)
-	}
-	var cleanupWarnings []string
-	if importWarning == "" {
-		cleanupWarnings, err = s.executeMCPSecretCleanupPlan(
-			ctx,
-			scope,
-			workspaceID,
-			profileName,
-			root,
-			name,
-			target,
-			secretCleanup,
-			secretMutations,
-			importing,
-		)
-		if err != nil {
-			return MutationResult{}, err
-		}
-	}
-
-	result := mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind())
-	result.ProfileName = profileName
-	result = mutationResultAtPath(result, target.Path())
-	result.Warnings = append(result.Warnings, cleanupWarnings...)
-	if importWarning != "" {
-		result.Warnings = append(result.Warnings, importWarning)
-	}
-	if approvalWarning != "" {
-		result.Warnings = append(result.Warnings, approvalWarning)
-	}
-	normalized.DefinitionSource = target.Path()
-	result.MCPServer = new(committedMCPServerItem(normalized, scope, workspaceID, profileName, target.Kind(), sources))
-	if s.mcpConsent != nil {
-		_, committed, readErr := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
-		if readErr == nil {
-			if entry, ok := mcpSourceForTarget(name, target.Kind(), committed); ok {
-				readErr = s.populateMCPServerStatuses(ctx, result.MCPServer, entry, true)
-			}
-		}
-		if readErr != nil {
-			result.Warnings = append(result.Warnings, "MCP server saved but consent status could not be loaded")
-		}
-	}
-	return result, nil
+	return s.finishMCPServerWrite(
+		ctx, MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName, Name: name},
+		root, target, sources, normalized, &secretCleanup, secretMutations,
+		importing, mutationOutcome, approvalWarning, err,
+	)
 }
 
 func normalizeMCPClientSecretOwner(server *compozyconfig.MCPServer, scope ScopeKind, scopeID, name string) error {
@@ -356,4 +305,82 @@ func upsertMCPServer(servers []compozyconfig.MCPServer, server compozyconfig.MCP
 		return servers
 	}
 	return append(servers, server)
+}
+
+func (s *service) finishMCPServerWrite(
+	ctx context.Context,
+	req MCPAuthTargetRequest,
+	root string,
+	target compozyconfig.WriteTarget,
+	sources map[string][]mcpSourceEntry,
+	normalized compozyconfig.MCPServer,
+	secretCleanup *mcpSecretCleanupPlan,
+	secretMutations []mcpSecretMutation,
+	importing bool,
+	mutationOutcome mcpDefinitionMutationOutcome,
+	approvalWarning string,
+	err error,
+) (MutationResult, error) {
+	scope, workspaceID, profileName, name := req.Scope, req.WorkspaceID, req.ProfileName, req.Name
+	var importWarning string
+	if err != nil {
+		if !importing || mutationOutcome != mcpDefinitionMutationCommitted {
+			var rollbackErr error
+			if mutationOutcome != mcpDefinitionMutationCommitted {
+				rollbackErr = s.rollbackUnreferencedMCPSecrets(ctx, scope, workspaceID, profileName, secretMutations)
+			}
+			return MutationResult{}, errors.Join(err, rollbackErr)
+		}
+		importWarning = mcpImportCleanupWarning(name)
+	}
+	var cleanupWarnings []string
+	if importWarning == "" {
+		cleanupWarnings, err = s.executeMCPSecretCleanupPlan(
+			ctx,
+			scope,
+			workspaceID,
+			profileName,
+			root,
+			name,
+			target,
+			*secretCleanup,
+			secretMutations,
+			importing,
+		)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
+
+	result := mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind())
+	result.ProfileName = profileName
+	result = mutationResultAtPath(result, target.Path())
+	result.Warnings = append(result.Warnings, cleanupWarnings...)
+	if importWarning != "" {
+		result.Warnings = append(result.Warnings, importWarning)
+	}
+	if approvalWarning != "" {
+		result.Warnings = append(result.Warnings, approvalWarning)
+	}
+	normalized.DefinitionSource = target.Path()
+	result.MCPServer = new(committedMCPServerItem(normalized, scope, workspaceID, profileName, target.Kind(), sources))
+	if s.mcpConsent != nil {
+		_, committed, readErr := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
+		if readErr == nil {
+			if entry, ok := mcpSourceForTarget(name, target.Kind(), committed); ok {
+				readErr = s.populateMCPServerStatuses(ctx, result.MCPServer, entry, true)
+			}
+		}
+		if readErr != nil {
+			result.Warnings = append(result.Warnings, "MCP server saved but consent status could not be loaded")
+		}
+	}
+	return result, nil
+}
+
+func unavailableMCPWriteApprovalWarning(workspaceID string, err error) string {
+	if err == nil && workspaceID != "" {
+		return "MCP server saved but approval is unavailable; waiting for approval"
+	}
+	return ""
 }
