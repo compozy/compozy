@@ -71,10 +71,22 @@ func (n *daemonNativeTools) sessionCleanup(
 		if !found {
 			return structuredResult(response, "no cleanup has run since the daemon started")
 		}
+		if err := n.requireSessionCleanupRunScope(ctx, scope, req.ToolID, input, run); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 		payload := core.HistoryCleanupRunPayload(run)
 		response.Run = &payload
 		return structuredResult(response, sessionCleanupRunPreview(payload))
 	case toolspkg.SessionCleanupActionStop:
+		current, found, err := cleaner.HistoryCleanupRun(profileID)
+		if err != nil {
+			return toolspkg.ToolResult{}, sessionCleanupError(req.ToolID, err)
+		}
+		if found {
+			if err := n.requireSessionCleanupRunScope(ctx, scope, req.ToolID, input, current); err != nil {
+				return toolspkg.ToolResult{}, err
+			}
+		}
 		run, err := cleaner.StopHistoryCleanup(ctx, profileID)
 		if err != nil {
 			return toolspkg.ToolResult{}, sessionCleanupError(req.ToolID, err)
@@ -176,6 +188,38 @@ func (n *daemonNativeTools) sessionCleanupRequest(
 	}
 	request.ArchivedBefore = cutoff
 	return request, nil
+}
+
+// requireSessionCleanupRunScope admits a status or stop call only for a caller
+// that could have started the run: the profile's run may belong to another
+// workspace, and its failures name that workspace's sessions. A run across every
+// workspace needs that reach; a run in one workspace needs it to be the call's
+// workspace, which the registry already authorized from the workspace input.
+func (n *daemonNativeTools) requireSessionCleanupRunScope(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	id toolspkg.ToolID,
+	input sessionCleanupInput,
+	run sessioncleanup.Run,
+) error {
+	reachesAll, err := n.sessionCleanupReachesAllWorkspaces(ctx, scope)
+	if err != nil {
+		return err
+	}
+	if reachesAll {
+		return nil
+	}
+	if run.Scope.AllWorkspaces || input.AllWorkspaces {
+		return nativeWorkspaceAccessDeniedError(id)
+	}
+	workspaceID, err := n.sessionCleanupWorkspaceID(ctx, scope, id, input.Workspace)
+	if err != nil {
+		return err
+	}
+	if workspaceID != run.Scope.WorkspaceID {
+		return nativeWorkspaceAccessDeniedError(id)
+	}
+	return nil
 }
 
 func (n *daemonNativeTools) sessionCleanupWorkspaceID(

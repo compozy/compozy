@@ -228,7 +228,9 @@ func planCounts(roots []*cleanupNode, selection Selection) Counts {
 
 // planThread decides which sessions of one thread go. A session goes when the
 // selection names its kind or its parent goes; a session still in the list or
-// in Later never goes, and nor does anything under it.
+// in Later never goes, and nor does anything under it within this thread. An
+// archived session under a live one is a row of its own in the Archived list,
+// so buildForest makes it the head of its own thread.
 func planThread(root *cleanupNode, selection Selection) (Thread, int) {
 	thread := Thread{RootID: root.row.ID, WorkspaceID: root.row.WorkspaceID, Title: root.row.Name}
 	kept := 0

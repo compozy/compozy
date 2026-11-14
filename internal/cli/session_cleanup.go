@@ -269,7 +269,7 @@ func sessionCleanupRunBundle(response contract.SessionHistoryCleanupRunResponse)
 		},
 		toon: func() (string, error) {
 			if response.Run == nil {
-				return renderToonObject("run", []string{"state"}, []string{"none"}), nil
+				return renderToonObject("run", []string{appTokenStateFlag}, []string{"none"}), nil
 			}
 			return renderToonObject("run", sessionCleanupRunFields(), sessionCleanupRunValues(*response.Run)), nil
 		},
@@ -289,7 +289,7 @@ func sessionCleanupPlanRows(plan contract.SessionHistoryCleanupPlan) []keyValue 
 }
 
 func sessionCleanupPlanFields() []string {
-	return []string{"archived_before", "total", "sessions", "children", "subagents", "threads", "kept_live"}
+	return []string{"archived_before", listTotalField, "sessions", "children", "subagents", "threads", "kept_live"}
 }
 
 func sessionCleanupPlanValues(plan contract.SessionHistoryCleanupPlan) []string {
@@ -318,7 +318,7 @@ func sessionCleanupRunRows(run contract.SessionHistoryCleanupRun) []keyValue {
 }
 
 func sessionCleanupRunFields() []string {
-	return []string{"id", "state", "done", "total", "deleted", "skipped", "failed_threads"}
+	return []string{"id", appTokenStateFlag, "done", listTotalField, cliDeletedKey, "skipped", "failed_threads"}
 }
 
 func sessionCleanupRunValues(run contract.SessionHistoryCleanupRun) []string {
@@ -340,7 +340,7 @@ func sessionCleanupFailureTable(failures []contract.SessionHistoryCleanupFailure
 	}
 	return renderHumanTable(
 		"Failed threads (retry with --session <id>)",
-		[]string{"Session", "Title", "Reason"},
+		[]string{"Session", "Title", authoredContextReasonValue},
 		rows,
 	)
 }
