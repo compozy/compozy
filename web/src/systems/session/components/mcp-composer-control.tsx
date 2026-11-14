@@ -15,7 +15,7 @@ import {
   PopoverTrigger,
 } from "@compozy/ui";
 
-import { ProviderLogo } from "@/systems/settings/components/provider-logo";
+import { ProviderLogo } from "@/systems/settings";
 
 import type {
   SessionMCPResponse,
@@ -117,6 +117,7 @@ function CompozyRow({
             type="button"
             variant="neutral"
             disabled={acting}
+            aria-label={`${ACTION_LABELS[action]} ${row.name}`}
             onClick={() => onAction(row, action)}
           >
             {ACTION_LABELS[action]}

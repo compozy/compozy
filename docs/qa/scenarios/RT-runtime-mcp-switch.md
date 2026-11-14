@@ -42,10 +42,6 @@ Then: `compozy config set providers.codex.runtime_mcp off` fails with `runtime_m
 Codex's group shows "Codex always loads its own servers" and no switch. With a managed
 `managed-mcp.json` on the lab machine, Claude's group shows the note and no switch.
 
-Open risk to verify here: Qwen Code's canonical provider ID is `qwen-code` while config validation
-admits `off` only for `qwen` (see `_s9a-report.md`). Record whether `providers.qwen-code.runtime_mcp
-= "off"` is accepted.
-
 Pass: all three runtimes verified under ACP, or the failing runtime ships `CanDisableRuntimeMCP=false`
 per the spec's fallback.
 

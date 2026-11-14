@@ -2,6 +2,8 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+const runtimeMCPQueryLocation = "query"
+
 func listRuntimeMCPServersOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
@@ -14,7 +16,10 @@ func listRuntimeMCPServersOperationSpec() OperationSpec {
 			TransportHTTP,
 			TransportUDS,
 		},
-		Parameters: append(settingsLayeredParameters(), ParameterSpec{Name: "runtime", In: "query", Kind: "string"}),
+		Parameters: append(
+			settingsLayeredParameters(),
+			ParameterSpec{Name: "runtime", In: runtimeMCPQueryLocation, Kind: "string"},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.RuntimeMCPServersResponse{}},
 			{Status: 400, Description: "Invalid runtime or settings scope", Body: contract.ErrorPayload{}},

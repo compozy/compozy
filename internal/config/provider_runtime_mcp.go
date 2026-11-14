@@ -15,7 +15,7 @@ func (p ProviderConfig) EffectiveRuntimeMCP() string {
 // CanDisableRuntimeMCP reports whether the provider's runtime can be launched without its own MCP servers.
 // Aliases resolve to the builtin provider id first, so "qwen" and "qwen-code" agree.
 func CanDisableRuntimeMCP(provider string) bool {
-	return slices.Contains([]string{"claude", "copilot", "qwen-code"}, CanonicalProviderName(provider))
+	return slices.Contains([]string{providerClaudeKey, "copilot", "qwen-code"}, CanonicalProviderName(provider))
 }
 
 func validateRuntimeMCP(name string, provider ProviderConfig) error {

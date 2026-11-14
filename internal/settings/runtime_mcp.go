@@ -44,8 +44,8 @@ func (s *service) ListRuntimeMCP(
 		return runtimemcp.Inventory{}, err
 	}
 	names := make([]string, 0, len(collection.MCPServers))
-	for _, server := range collection.MCPServers {
-		names = append(names, server.Name)
+	for i := range collection.MCPServers {
+		names = append(names, collection.MCPServers[i].Name)
 	}
 	return s.runtimeMCP.List(
 		ctx,

@@ -54,7 +54,7 @@ describe("MCPComposerControl", () => {
     expect(rows[0]).toHaveAttribute("data-testid", "composer-mcp-notion");
     const notion = screen.getByTestId("composer-mcp-notion");
     expect(notion).toHaveTextContent("Needs sign-in");
-    await user.click(within(notion).getByRole("button", { name: "Sign in" }));
+    await user.click(within(notion).getByRole("button", { name: "Sign in notion" }));
     expect(onAction).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ name: "notion", state: "needs_sign_in" }),
       "sign_in"

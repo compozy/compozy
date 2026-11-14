@@ -16,7 +16,7 @@ func (r *reader) contained(root, path string) bool {
 
 func (r *reader) claudePlugins(settings object, entries map[string]entry) {
 	root := r.context.homeDir("CLAUDE_CONFIG_DIR", ".claude")
-	value, ok := r.load(filepath.Join(root, "plugins/installed_plugins.json"))
+	value, ok := r.load(filepath.Join(root, "plugins", "installed_plugins.json"))
 	if !ok {
 		return
 	}
@@ -24,7 +24,10 @@ func (r *reader) claudePlugins(settings object, entries map[string]entry) {
 		if !boolean(obj(settings["enabledPlugins"])[key]) {
 			continue
 		}
-		installs, _ := items.([]any)
+		installs, ok := items.([]any)
+		if !ok {
+			continue
+		}
 		for _, install := range installs {
 			item := obj(install)
 			path := str(item["installPath"])
@@ -35,7 +38,7 @@ func (r *reader) claudePlugins(settings object, entries map[string]entry) {
 				continue
 			}
 			plugin, _, _ := strings.Cut(key, "@")
-			r.pluginServers("claude", plugin, path, entries)
+			r.pluginServers(runtimeClaude, plugin, path, entries)
 		}
 	}
 }
@@ -50,7 +53,7 @@ func (r *reader) codexPlugins(doc object, entries map[string]entry) {
 		if fileutil.ValidatePathComponent(plugin) != nil || fileutil.ValidatePathComponent(market) != nil {
 			continue
 		}
-		cache := filepath.Join(root, "plugins/cache", market, plugin)
+		cache := filepath.Join(root, "plugins", "cache", market, plugin)
 		// The cache root is observed so installing a new version invalidates existing contexts.
 		r.paths[cache] = struct{}{}
 		dir, err := fileutil.OpenDirectory(cache)
@@ -68,7 +71,7 @@ func (r *reader) codexPlugins(doc object, entries map[string]entry) {
 			continue
 		}
 		if version := activeCodexPluginVersion(cache, versions); version != "" {
-			r.pluginServers("codex", plugin, filepath.Join(cache, version), entries)
+			r.pluginServers(runtimeCodex, plugin, filepath.Join(cache, version), entries)
 		}
 	}
 }
@@ -76,8 +79,8 @@ func (r *reader) codexPlugins(doc object, entries map[string]entry) {
 func (r *reader) pluginServers(runtime, plugin, root string, entries map[string]entry) {
 	paths := []string{
 		filepath.Join(root, ".mcp.json"),
-		filepath.Join(root, ".claude-plugin/plugin.json"),
-		filepath.Join(root, ".codex-plugin/plugin.json"),
+		filepath.Join(root, ".claude-plugin", "plugin.json"),
+		filepath.Join(root, ".codex-plugin", "plugin.json"),
 	}
 	for _, path := range paths {
 		value, ok := r.load(path)
@@ -129,12 +132,12 @@ func (r *reader) pluginDeclaration(runtime, plugin, root, path string, declarati
 		return
 	}
 	for name, definition := range definitions {
-		if runtime == "claude" {
+		if runtime == runtimeClaude {
 			name = "plugin:" + plugin + ":" + name
 		}
-		if _, exists := entries[name]; exists && runtime == "codex" {
+		if _, exists := entries[name]; exists && runtime == runtimeCodex {
 			continue
 		}
-		r.add(runtime, source{path, "plugin"}, object{name: definition}, entries)
+		r.add(runtime, source{path, scopePlugin}, object{name: definition}, entries)
 	}
 }

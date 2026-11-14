@@ -38,6 +38,8 @@ type MCPAuthExchangeRequest struct {
 }
 
 // GetMCPAuthStatus returns redacted auth state for one exact configured MCP server.
+const mcpManualOwner = "manual"
+
 func (s *service) GetMCPAuthStatus(
 	ctx context.Context,
 	req MCPAuthTargetRequest,
@@ -296,7 +298,7 @@ func (s *service) resolveMCPAuthDefinition(
 	if err != nil {
 		return mcpAuthDefinition{}, err
 	}
-	if target.Owner != "manual" {
+	if target.Owner != mcpManualOwner {
 		resolved, server, err := s.resolveExtensionMCPAuthTarget(ctx, req)
 		if err != nil {
 			return mcpAuthDefinition{}, err

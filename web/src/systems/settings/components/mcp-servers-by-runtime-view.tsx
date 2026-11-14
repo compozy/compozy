@@ -185,11 +185,21 @@ function MCPServersByRuntimeGroups({
       (filter === MCP_FILTER_ALL || filter === snapshot.runtime) &&
       (snapshot.servers.length > 0 || isRuntimeUnreadable(snapshot))
   );
+  // The search can empty just the picked group while other groups still match: say so under the
+  // filter instead of leaving the pills alone on the page.
+  const compozyShown =
+    showCompozy && (compozy.servers.length === 0 || compozy.visibleServers.length > 0);
+  const noMatch =
+    props.query.trim() !== "" &&
+    (runtimes.state === "ready" || filter === MCP_FILTER_COMPOZY) &&
+    !compozyShown &&
+    groups.length === 0;
   return (
     <div className="flex flex-col gap-4">
       {hasRuntimes ? (
         <MCPRuntimeFilter onChange={props.onFilterChange} options={options} value={filter} />
       ) : null}
+      {noMatch ? <MCPServersNoMatch onClearQuery={props.onClearQuery} query={props.query} /> : null}
       {showCompozy ? <CompozyGroup {...compozy} /> : null}
       {runtimes.state === "pending" && filter === MCP_FILTER_ALL ? <RuntimeGroupsSkeleton /> : null}
       {runtimes.state === "error" ? <MCPRuntimesReadError runtimes={runtimes} /> : null}

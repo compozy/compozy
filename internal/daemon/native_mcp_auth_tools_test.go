@@ -644,7 +644,7 @@ func TestRuntimeMCPInventory(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(
-			filepath.Join(root, ".codex/config.toml"),
+			filepath.Join(root, ".codex", "config.toml"),
 			[]byte("[mcp_servers.savee]\nurl = \"https://example.test/mcp\"\n"),
 			0o600,
 		); err != nil {
@@ -1198,7 +1198,7 @@ func TestSessionMCPReadModel(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var payload session.SessionMCP
+		var payload session.MCP
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatal(err)
 		}
@@ -1264,7 +1264,6 @@ func TestSessionMCPReadModel(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 type sessionMCPAuthorityStub struct{ servers []string }
@@ -1297,7 +1296,7 @@ func (s *sessionMCPManagerStub) MCPReadSnapshot(
 ) (session.MCPRuntimeSnapshot, error) {
 	return s.runtime, nil
 }
-func (s *sessionMCPManagerStub) ListSessionMCP(ctx context.Context, id string) (session.SessionMCP, error) {
+func (s *sessionMCPManagerStub) ListSessionMCP(ctx context.Context, id string) (session.MCP, error) {
 	return s.reader.ListSessionMCP(ctx, id)
 }
 

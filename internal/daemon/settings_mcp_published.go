@@ -31,7 +31,7 @@ func (s settingsMCPConsent) PublishedMCPDefinitions(
 		}
 		requestedProfile := req.ProfileName
 		if requestedProfile == "" {
-			requestedProfile = "default"
+			requestedProfile = daemonDefaultProfileName
 		}
 		if record.Scope.Kind == resources.ResourceScopeKindWorkspaceProfile && profile != requestedProfile {
 			continue

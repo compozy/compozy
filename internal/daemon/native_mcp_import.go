@@ -32,7 +32,7 @@ func (n *daemonNativeTools) mcpImport(
 		return toolspkg.ToolResult{}, fmt.Errorf("daemon: MCP copy unavailable")
 	}
 	body := contract.RuntimeMCPImportRequest{Scope: contract.SettingsScopeKind(input.Scope), Name: input.Name}
-	if input.Workspace != "" || scope.WorkspaceID != "" || input.Scope == "workspace" {
+	if input.Workspace != "" || scope.WorkspaceID != "" || input.Scope == resourceScopeWorkspaceKind {
 		resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
@@ -42,7 +42,8 @@ func (n *daemonNativeTools) mcpImport(
 		}
 		body.WorkspaceID = resolved.ID
 	}
-	if input.Scope == "profile" && scope.ProfileID != "" && scope.ProfileID != store.DefaultProfileID {
+	if input.Scope == nativeProfileToolsProfileKey && scope.ProfileID != "" &&
+		scope.ProfileID != store.DefaultProfileID {
 		if n.deps.Profiles == nil {
 			return toolspkg.ToolResult{}, fmt.Errorf("daemon: profile resolver unavailable")
 		}

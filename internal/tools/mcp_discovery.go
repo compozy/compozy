@@ -38,7 +38,10 @@ func (p *MCPProvider) cachedSourceDescriptors(source SourceRef) []Descriptor {
 	if !ok {
 		return nil
 	}
-	return cloneDescriptors(value.([]Descriptor))
+	if descriptors, ok := value.([]Descriptor); ok {
+		return cloneDescriptors(descriptors)
+	}
+	panic("invariant: discovered MCP descriptors have an unexpected type")
 }
 
 func cloneDescriptors(descriptors []Descriptor) []Descriptor {
@@ -51,7 +54,11 @@ func cloneDescriptors(descriptors []Descriptor) []Descriptor {
 
 func (p *MCPProvider) forgetDiscovered(retire func(SourceRef) bool) {
 	p.discovered.Range(func(key, _ any) bool {
-		if retire(key.(SourceRef)) {
+		source, ok := key.(SourceRef)
+		if !ok {
+			panic("invariant: discovered MCP source has an unexpected type")
+		}
+		if retire(source) {
 			p.discovered.Delete(key)
 		}
 		return true

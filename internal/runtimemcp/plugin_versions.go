@@ -26,8 +26,8 @@ func activeCodexPluginVersion(root string, candidates []string) string {
 		}
 		versions = append(versions, version)
 	}
-	if slices.Contains(versions, "local") {
-		return "local"
+	if slices.Contains(versions, scopeLocal) {
+		return scopeLocal
 	}
 	slices.SortFunc(versions, func(a, b string) int {
 		left, leftErr := semver.StrictNewVersion(a)

@@ -53,9 +53,9 @@ func cursorApprovalKey(root, name string, item entry, key ...[]byte) string {
 	if definition == nil || digest(definition, key...) != item.server.DefinitionDigest {
 		return ""
 	}
-	fields := []string{"type", "command", "args", "env", "cwd"}
-	if !has(item.definition, "command") {
-		fields = []string{"type", "url", "headers", "auth", "tls", "placement"}
+	fields := []string{fieldType, fieldCommand, fieldArgs, fieldEnv, "cwd"}
+	if !has(item.definition, fieldCommand) {
+		fields = []string{fieldType, fieldURL, fieldHeaders, fieldAuth, "tls", "placement"}
 	}
 	var server bytes.Buffer
 	server.WriteByte('{')
@@ -70,7 +70,10 @@ func cursorApprovalKey(root, name string, item entry, key ...[]byte) string {
 		if server.Len() > 1 {
 			server.WriteByte(',')
 		}
-		key, _ := json.Marshal(field)
+		key, err := json.Marshal(field)
+		if err != nil {
+			return ""
+		}
 		server.Write(key)
 		server.WriteByte(':')
 		encoded, err := json.Marshal(value)
@@ -80,7 +83,10 @@ func cursorApprovalKey(root, name string, item entry, key ...[]byte) string {
 		server.Write(encoded)
 	}
 	server.WriteByte('}')
-	path, _ := json.Marshal(root)
+	path, err := json.Marshal(root)
+	if err != nil {
+		return ""
+	}
 	payload := append([]byte(`{"path":`), path...)
 	payload = append(payload, []byte(`,"server":`)...)
 	payload = append(payload, server.Bytes()...)

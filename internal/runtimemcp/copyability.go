@@ -10,11 +10,11 @@ import (
 )
 
 func copyBlocked(s Server, d object) string {
-	ownedScopes := []string{"plugin", "connector", "builtin", "managed", "enterprise", "account", "dynamic"}
+	ownedScopes := []string{scopePlugin, "connector", "builtin", scopeManaged, "enterprise", "account", "dynamic"}
 	if slices.Contains(ownedScopes, s.Scope) || strings.HasPrefix(s.Name, "plugin:") {
 		return s.Name + " is provided by a runtime-owned source and can't be copied"
 	}
-	if s.Transport != "stdio" && s.Transport != "http" {
+	if s.Transport != transportStdio && s.Transport != transportHTTP {
 		return "CompozyOS runs stdio and HTTP servers; " + s.Name + " uses " + strings.ToUpper(s.Transport)
 	}
 	if reason := blockedRuntimeFields(d); reason != "" {
@@ -30,8 +30,23 @@ func copyBlocked(s Server, d object) string {
 		return s.Name + " uses environment indirection, which CompozyOS servers can't keep"
 	}
 	allowed := []string{
-		"type", "command", "args", "env", "environment", "url", "httpUrl", "headers", "http_headers",
-		"header", "oauth", "auth", "enabled", "disabled", "description", "name", "tools",
+		fieldType,
+		fieldCommand,
+		fieldArgs,
+		fieldEnv,
+		fieldEnvironment,
+		fieldURL,
+		fieldHTTPURL,
+		fieldHeaders,
+		fieldHTTPHeaders,
+		fieldHeader,
+		authOAuth,
+		fieldAuth,
+		"enabled",
+		"disabled",
+		"description",
+		"name",
+		"tools",
 	}
 	for _, key := range keys(d) {
 		if !slices.Contains(allowed, key) {
@@ -55,7 +70,7 @@ func blockedRuntimeFields(d object) string {
 		{
 			[]string{"enabled_tools", "disabled_tools", "enabledTools", "disabledTools", "includeTools", "excludeTools",
 				"toolExposure", "omit_tools_from", "filterMapping"},
-			"uses tool filters, which CompozyOS servers can't keep",
+			toolFiltersCopyReason,
 		},
 	}
 	for _, check := range checks {
@@ -66,18 +81,18 @@ func blockedRuntimeFields(d object) string {
 		}
 	}
 	if tools, ok := d["tools"]; ok && str(tools) != "*" {
-		return "uses tool filters, which CompozyOS servers can't keep"
+		return toolFiltersCopyReason
 	}
 	if str(d["exposure"]) == "hidden" {
-		return "uses tool filters, which CompozyOS servers can't keep"
+		return toolFiltersCopyReason
 	}
 	return ""
 }
 
 func blockedRemoteDefinition(d object) string {
-	if endpoint := cmp.Or(str(d["url"]), str(d["httpUrl"])); endpoint != "" {
+	if endpoint := cmp.Or(str(d[fieldURL]), str(d[fieldHTTPURL])); endpoint != "" {
 		parsed, err := url.Parse(endpoint)
-		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != transportHTTP) || parsed.Host == "" {
 			return "has a URL CompozyOS can't represent"
 		}
 		if parsed.RawQuery != "" || parsed.ForceQuery || parsed.User != nil || parsed.Fragment != "" {
@@ -87,8 +102,8 @@ func blockedRemoteDefinition(d object) string {
 			return "has a URL CompozyOS can't represent"
 		}
 	}
-	customAuth := has(d, "auth") && str(d["auth"]) != "oauth"
-	customOAuth := has(d, "oauth") && (obj(d["oauth"]) == nil || len(obj(d["oauth"])) > 0)
+	customAuth := has(d, fieldAuth) && str(d[fieldAuth]) != authOAuth
+	customOAuth := has(d, authOAuth) && (obj(d[authOAuth]) == nil || len(obj(d[authOAuth])) > 0)
 	if customOAuth || customAuth || has(d, "authProviderType") || has(d, "authProvider") {
 		return "uses a custom OAuth client, which CompozyOS servers can't keep"
 	}
@@ -96,7 +111,7 @@ func blockedRemoteDefinition(d object) string {
 }
 
 func usesEnvironmentIndirection(d object) bool {
-	for _, key := range []string{"env", "environment", "headers", "http_headers", "header"} {
+	for _, key := range []string{fieldEnv, fieldEnvironment, fieldHeaders, fieldHTTPHeaders, fieldHeader} {
 		for _, value := range obj(d[key]) {
 			text, ok := value.(string)
 			if !ok || environmentReference(text) {
@@ -104,14 +119,12 @@ func usesEnvironmentIndirection(d object) bool {
 			}
 		}
 	}
-	for _, key := range []string{"command", "args", "url", "httpUrl"} {
+	for _, key := range []string{fieldCommand, fieldArgs, fieldURL, fieldHTTPURL} {
 		if environmentReference(str(d[key])) {
 			return true
 		}
-		for _, value := range names(d[key]) {
-			if environmentReference(value) {
-				return true
-			}
+		if slices.ContainsFunc(names(d[key]), environmentReference) {
+			return true
 		}
 	}
 	return false

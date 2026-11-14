@@ -1167,12 +1167,12 @@ func TestRuntimeMCPStartup(t *testing.T) {
 			systemRoot := t.TempDir()
 			writeRuntimeMCPFixture(
 				t,
-				filepath.Join(root, ".copilot/mcp-config.json"),
+				filepath.Join(root, ".copilot", "mcp-config.json"),
 				`{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo","enabled":false}}}`,
 			)
 			writeRuntimeMCPFixture(
 				t,
-				filepath.Join(root, ".qwen/settings.json"),
+				filepath.Join(root, ".qwen", "settings.json"),
 				`{"mcpServers":{"native one":{"command":"echo"},"native-two":{"command":"echo"}}}`,
 			)
 			cfg := runtimeMCPTestConfig(t)
@@ -1181,7 +1181,7 @@ func TestRuntimeMCPStartup(t *testing.T) {
 				agent: compozyconfig.ResolvedAgent{Provider: provider, Harness: compozyconfig.ProviderHarnessACP},
 			}
 			manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: systemRoot}}
-			spec := &sessionStartSpec{cwd: root, workspace: workspaceForRuntimeMCP(root, cfg)}
+			spec := &sessionStartSpec{cwd: root, workspace: workspaceForRuntimeMCP(root, &cfg)}
 			opts, err := manager.prepareRuntimeMCPStartup(
 				t.Context(),
 				spec,
@@ -1220,7 +1220,7 @@ func TestRuntimeMCPStartup(t *testing.T) {
 		h := newHarness(t)
 		cfg := runtimeMCPTestConfig(t)
 		spec := &sessionStartSpec{
-			workspace:   workspaceForRuntimeMCP(h.workspace, cfg),
+			workspace:   workspaceForRuntimeMCP(h.workspace, &cfg),
 			cwd:         h.workspace,
 			sessionType: SessionTypeUser,
 		}
@@ -1246,7 +1246,7 @@ func TestRuntimeMCPStartup(t *testing.T) {
 		root, systemRoot := t.TempDir(), t.TempDir()
 		writeRuntimeMCPFixture(
 			t,
-			filepath.Join(systemRoot, "ClaudeCode/managed-mcp.json"),
+			filepath.Join(systemRoot, "ClaudeCode", "managed-mcp.json"),
 			`{"mcpServers":{"managed":{"command":"echo"}}}`,
 		)
 		cfg := runtimeMCPTestConfig(t)
@@ -1255,7 +1255,7 @@ func TestRuntimeMCPStartup(t *testing.T) {
 			t.Fatal(err)
 		}
 		manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: systemRoot}}
-		spec := &sessionStartSpec{workspace: workspaceForRuntimeMCP(root, cfg)}
+		spec := &sessionStartSpec{workspace: workspaceForRuntimeMCP(root, &cfg)}
 		runtime := &sessionStartRuntime{agent: compozyconfig.ResolvedAgent{Provider: "claude"}}
 		opts, err := manager.prepareRuntimeMCPStartup(
 			t.Context(),
@@ -1291,8 +1291,8 @@ func writeRuntimeMCPFixture(t *testing.T, path, contents string) {
 		t.Fatal(err)
 	}
 }
-func workspaceForRuntimeMCP(root string, cfg compozyconfig.Config) workspacepkg.ResolvedWorkspace {
-	return workspacepkg.ResolvedWorkspace{RootDir: root, Config: cfg}
+func workspaceForRuntimeMCP(root string, cfg *compozyconfig.Config) workspacepkg.ResolvedWorkspace {
+	return workspacepkg.ResolvedWorkspace{RootDir: root, Config: *cfg}
 }
 
 func runtimeMCPTestConfig(t *testing.T) compozyconfig.Config {

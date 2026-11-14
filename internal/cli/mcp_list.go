@@ -27,7 +27,7 @@ func (c *daemonClient) ListRuntimeMCPServers(
 		query.Set("scope", "workspace")
 	}
 	if profile != "" {
-		query.Set("profile", profile)
+		query.Set(profileFlagName, profile)
 	}
 	if runtime != "" {
 		query.Set("runtime", runtime)
@@ -40,7 +40,7 @@ func (c *daemonClient) ListRuntimeMCPServers(
 func newMCPListCommand(deps commandDeps) *cobra.Command {
 	var runtime, workspace string
 	var compozyOnly, runtimeOnly bool
-	cmd := &cobra.Command{Use: "list", Short: "List CompozyOS and runtime MCP servers", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: agentListKey, Short: "List CompozyOS and runtime MCP servers", Args: cobra.NoArgs}
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		if compozyOnly && runtimeOnly {
 			return errors.New("--compozy-only and --runtime-only cannot be combined")
@@ -91,7 +91,7 @@ func newMCPListCommand(deps commandDeps) *cobra.Command {
 		return writeCommandOutput(cmd, mcpListBundle(result))
 	}
 	cmd.Flags().StringVar(&runtime, "runtime", "", "Filter by runtime ID")
-	cmd.Flags().StringVar(&workspace, "workspace", "", "Workspace ID, name, or path")
+	cmd.Flags().StringVar(&workspace, workspaceSkillSource, "", "Workspace ID, name, or path")
 	cmd.Flags().BoolVar(&compozyOnly, "compozy-only", false, "Show only CompozyOS servers")
 	cmd.Flags().BoolVar(&runtimeOnly, "runtime-only", false, "Show only runtime servers")
 	return cmd
@@ -117,11 +117,12 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 				}
 				for _, s := range group.Servers {
 					state := "—"
-					if !s.EnabledInRuntime {
+					switch {
+					case !s.EnabledInRuntime:
 						state = "Off in " + group.DisplayName
-					} else if s.AlsoInCompozy {
+					case s.AlsoInCompozy:
 						state = "Also in CompozyOS"
-					} else if s.Approval == "pending" {
+					case s.Approval == statusOTelPending:
 						state = "Waiting for approval"
 					}
 					fmt.Fprintf(
@@ -155,7 +156,7 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 			}
 			return renderToonArray(
 				"mcp_servers",
-				[]string{"runtime", "name", "scope", "transport", "approval", "source"},
+				[]string{"runtime", automationNameKey, "scope", "transport", "approval", cmdPaletteSourceFlag},
 				rows,
 			), nil
 		},

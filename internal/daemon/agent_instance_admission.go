@@ -151,7 +151,7 @@ func (a *instanceAdmission) ResolveAdopt(
 	if err := json.Unmarshal([]byte(instance.PermissionCeiling), &ceiling); err != nil {
 		return agentinstance.Instance{}, err
 	}
-	if err := a.validateAdoptionAuthority(ctx, info, ceiling, policy); err != nil {
+	if err := a.validateAdoptionAuthority(ctx, &info, ceiling, policy); err != nil {
 		return agentinstance.Instance{}, err
 	}
 	policy = agentinstance.IntersectPermissions(ceiling, policy)
@@ -169,7 +169,7 @@ func (a *instanceAdmission) ResolveAdopt(
 }
 
 func (a *instanceAdmission) validateAdoptionAuthority(
-	ctx context.Context, info store.SessionInfo, ceiling, candidate store.SessionPermissionPolicy,
+	ctx context.Context, info *store.SessionInfo, ceiling, candidate store.SessionPermissionPolicy,
 ) error {
 	if a.authority != nil {
 		var err error

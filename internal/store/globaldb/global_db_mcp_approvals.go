@@ -42,7 +42,11 @@ func (g *GlobalDB) ListMCPServerApprovals(
 func (g *GlobalDB) PutMCPServerApproval(ctx context.Context, a store.MCPApproval) error {
 	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
 		return sqlcgen.New(tx).
-			PutMCPServerApproval(ctx, sqlcgen.PutMCPServerApprovalParams{ID: a.ID, ProfileID: a.ProfileID, WorkspaceID: a.WorkspaceID, ServerName: a.ServerName, SourceID: a.SourceID, DefinitionDigest: a.DefinitionDigest, ApprovedAt: store.FormatTimestamp(a.ApprovedAt)})
+			PutMCPServerApproval(ctx, sqlcgen.PutMCPServerApprovalParams{
+				ID: a.ID, ProfileID: a.ProfileID, WorkspaceID: a.WorkspaceID,
+				ServerName: a.ServerName, SourceID: a.SourceID, DefinitionDigest: a.DefinitionDigest,
+				ApprovedAt: store.FormatTimestamp(a.ApprovedAt),
+			})
 	})
 }
 
@@ -52,6 +56,8 @@ func (g *GlobalDB) DeleteMCPServerApproval(
 ) error {
 	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
 		return sqlcgen.New(tx).
-			DeleteMCPServerApproval(ctx, sqlcgen.DeleteMCPServerApprovalParams{ProfileID: profileID, WorkspaceID: workspaceID, ServerName: serverName, SourceID: sourceID})
+			DeleteMCPServerApproval(ctx, sqlcgen.DeleteMCPServerApprovalParams{
+				ProfileID: profileID, WorkspaceID: workspaceID, ServerName: serverName, SourceID: sourceID,
+			})
 	})
 }

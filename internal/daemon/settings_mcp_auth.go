@@ -206,7 +206,11 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 	}
 	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, rendered, s.secretResolver)
 	cfg.ConsentScope = mcpauth.ConsentScopeFromContext(ctx)
-	cfg.DefinitionDigest, _ = compozyconfig.MCPDefinitionDigest(server)
+	if digest, digestErr := compozyconfig.MCPDefinitionDigest(server); digestErr == nil {
+		cfg.DefinitionDigest = digest
+	} else {
+		cfg.DefinitionDigest = ""
+	}
 	if err != nil {
 		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
 	}

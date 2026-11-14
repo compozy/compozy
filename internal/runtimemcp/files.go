@@ -97,12 +97,12 @@ func (c ReadContext) systemDir(name string) string {
 	}
 	switch runtime.GOOS {
 	case "darwin":
-		return filepath.Join("/Library/Application Support", name)
+		return filepath.Join(string(filepath.Separator), "Library", "Application Support", name)
 	case "windows":
-		if name == "codex" {
+		if name == runtimeCodex {
 			return "C:/ProgramData/OpenAI/Codex"
 		}
-		return filepath.Join("C:/Program Files", name)
+		return filepath.Join("C:"+string(filepath.Separator), "Program Files", name)
 	default:
 		switch name {
 		case "ClaudeCode":
@@ -110,75 +110,75 @@ func (c ReadContext) systemDir(name string) string {
 		case "GeminiCli":
 			return "/etc/gemini-cli"
 		}
-		return filepath.Join("/etc", strings.ToLower(name))
+		return filepath.Join(string(filepath.Separator), "etc", strings.ToLower(name))
 	}
 }
 
 func sources(c ReadContext, id string) []source {
 	home, cwd := c.Home, c.CWD
-	user := func(path string) source { return source{path, "user"} }
-	project := func(path string) source { return source{path, "project"} }
+	user := func(path string) source { return source{path, scopeUser} }
+	project := func(path string) source { return source{path, scopeProject} }
 	var list []source
 	switch id {
-	case "claude":
+	case runtimeClaude:
 		return claudeSources(c)
-	case "codex":
+	case runtimeCodex:
 		return codexSources(c)
-	case "opencode":
+	case runtimeOpenCode:
 		return opencodeSources(c)
-	case "gemini", "qwen-code":
-		name := "gemini"
-		if id == "qwen-code" {
-			name = "qwen"
+	case runtimeGemini, runtimeQwenCode:
+		name := runtimeGemini
+		if id == runtimeQwenCode {
+			name = runtimeQwen
 		}
-		if name == "gemini" {
-			list = append(list, source{filepath.Join(c.systemDir("GeminiCli"), "system-defaults.json"), "managed"})
+		if name == runtimeGemini {
+			list = append(list, source{filepath.Join(c.systemDir("GeminiCli"), "system-defaults.json"), scopeManaged})
 		}
 		list = append(list, user(filepath.Join(home, "."+name, "settings.json")))
 		if cwd != "" {
 			list = append(list, project(filepath.Join(cwd, "."+name, "settings.json")))
-			if name == "qwen" {
+			if name == runtimeQwen {
 				list = append(list, project(filepath.Join(cwd, ".mcp.json")))
 			}
 		}
-		if name == "gemini" {
+		if name == runtimeGemini {
 			system := cmp.Or(
 				c.Env["GEMINI_CLI_SYSTEM_SETTINGS_PATH"],
 				filepath.Join(c.systemDir("GeminiCli"), "settings.json"),
 			)
-			list = append(list, source{system, "managed"})
+			list = append(list, source{system, scopeManaged})
 		}
 	case "kimi-cli":
 		list = append(
 			list,
-			user(filepath.Join(home, ".kimi/mcp.json")),
+			user(filepath.Join(home, ".kimi", "mcp.json")),
 			user(filepath.Join(c.homeDir("KIMI_CODE_HOME", ".kimi-code"), "mcp.json")),
 		)
 		if cwd != "" {
 			list = append(
 				list,
 				project(filepath.Join(cmp.Or(c.WorktreeRoot, c.GitRoot, cwd), ".mcp.json")),
-				source{filepath.Join(cwd, ".kimi-code/mcp.json"), "local"},
+				source{filepath.Join(cwd, ".kimi-code", "mcp.json"), scopeLocal},
 			)
 		}
-	case "copilot":
+	case runtimeCopilot:
 		list = append(list, user(filepath.Join(c.homeDir("COPILOT_HOME", ".copilot"), "mcp-config.json")))
 		for _, dir := range ancestorDirs(cwd, cmp.Or(c.WorktreeRoot, c.GitRoot)) {
 			for _, name := range []string{".mcp.json", ".github/mcp.json"} {
 				list = append(list, project(filepath.Join(dir, name)))
 			}
 		}
-	case "cursor":
-		list = append(list, user(filepath.Join(home, ".cursor/mcp.json")))
+	case runtimeCursor:
+		list = append(list, user(filepath.Join(home, ".cursor", "mcp.json")))
 		if cwd != "" {
-			list = append(list, project(filepath.Join(cmp.Or(c.WorktreeRoot, c.GitRoot, cwd), ".cursor/mcp.json")))
+			list = append(list, project(filepath.Join(cmp.Or(c.WorktreeRoot, c.GitRoot, cwd), ".cursor", "mcp.json")))
 		}
-	case "agy":
-		list = append(list, user(filepath.Join(home, ".gemini/config/mcp_config.json")))
+	case runtimeAntigravity:
+		list = append(list, user(filepath.Join(home, ".gemini", "config", "mcp_config.json")))
 	case "pi":
 		list = append(list, user(filepath.Join(c.homeDir("PI_CODING_AGENT_DIR", ".pi/agent"), "mcp.json")))
 		if cwd != "" {
-			list = append(list, project(filepath.Join(cwd, ".pi/mcp.json")))
+			list = append(list, project(filepath.Join(cwd, ".pi", "mcp.json")))
 		}
 	}
 	return list

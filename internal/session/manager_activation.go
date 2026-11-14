@@ -113,7 +113,7 @@ func (m *Manager) needsActivationReload(ctx context.Context, s *Session) (bool, 
 	s.mu.RLock()
 	state, process := s.activation.clone(), s.process
 	s.mu.RUnlock()
-	if state.lastReload != nil && state.lastReload.Outcome == "failed" {
+	if state.lastReload != nil && state.lastReload.Outcome == string(BadgeFailed) {
 		return true, state.lastReload.Reason
 	}
 	if process == nil {
@@ -211,7 +211,7 @@ func (m *Manager) reloadActivationRuntime(
 	defer func() {
 		outcome := "applied"
 		if err != nil {
-			outcome = "failed"
+			outcome = string(BadgeFailed)
 		} else if plan != nil && plan.replayed {
 			outcome = "replayed"
 		}
@@ -245,10 +245,10 @@ func (m *Manager) reloadActivationRuntime(
 	if err != nil {
 		return nil, err
 	}
-	if err = m.validateExplicitStartModel(ctx, &plan.runtime, &plan.spec); err != nil {
+	if err := m.validateExplicitStartModel(ctx, &plan.runtime, &plan.spec); err != nil {
 		return nil, err
 	}
-	if err = m.releaseBoundRuntime(ctx, s); err != nil {
+	if err := m.releaseBoundRuntime(ctx, s); err != nil {
 		return nil, err
 	}
 	released := s.runtimeBindingSnapshot()

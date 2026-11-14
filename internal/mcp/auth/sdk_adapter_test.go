@@ -1649,8 +1649,8 @@ func TestOAuthNetworkConsentRevalidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		client := service.sdkHTTPClientFor(ServerConfig{})
-		for attempt := 0; attempt < 2; attempt++ {
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
+		for attempt := range 2 {
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, http.NoBody)
 			if err != nil {
 				t.Fatal(err)
 			}

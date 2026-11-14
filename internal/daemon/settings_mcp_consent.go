@@ -41,7 +41,7 @@ func (s settingsMCPConsent) MCPConsent(
 		return ConsentDecision{}, err
 	}
 	scope := resources.ResourceScope{Kind: resources.ResourceScopeKind(req.Scope), ID: req.WorkspaceID}
-	if req.Scope == "profile" {
+	if req.Scope == nativeProfileToolsProfileKey {
 		scope.ID = profileID
 	}
 	if req.Scope == "workspace_profile" {
@@ -49,8 +49,8 @@ func (s settingsMCPConsent) MCPConsent(
 		scope.ID = req.WorkspaceID + "@pf:" + req.ProfileName
 	}
 	owner := resources.ResourceOwner{}
-	if strings.HasPrefix(req.Owner, "extension:") {
-		owner = *extensionOwner(strings.TrimPrefix(req.Owner, "extension:"))
+	if extension, ok := strings.CutPrefix(req.Owner, "extension:"); ok {
+		owner = *extensionOwner(extension)
 	}
 	return mcpDefinitionConsent(
 		ctx,
@@ -67,7 +67,7 @@ func (s settingsMCPConsent) ApproveMCP(
 	digest string,
 	revoke bool,
 ) (MCPApproval, error) {
-	if req.WorkspaceID == "" || (req.Scope == "user" || req.Scope == "profile") ||
+	if req.WorkspaceID == "" || (req.Scope == "user" || req.Scope == nativeProfileToolsProfileKey) ||
 		strings.HasPrefix(req.Owner, "extension:") {
 		return MCPApproval{}, &settingspkg.MCPApprovalError{
 			Code:    "mcp_approval_not_required",
