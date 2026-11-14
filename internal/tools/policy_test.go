@@ -371,6 +371,32 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 			t.Fatalf("by-server admission was lost: %+v", decision)
 		}
 	})
+	t.Run("Should deny MCP tools under a native-only override without by-server authority", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		descriptor.ID = "mcp__docs__lookup"
+		descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: "lookup"}
+		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveAll,
+			ExternalDefault:      ExternalDefaultEnabled,
+			Session: SessionToolPolicy{
+				Enforced:    true,
+				Tools:       []ToolID{ToolIDSkillView},
+				MCPServers:  []string{"docs"},
+				MCPByServer: false,
+			},
+		}, ToolsetCatalog{}, []ToolID{descriptor.ID, ToolIDSkillView})
+		if err != nil {
+			t.Fatal(err)
+		}
+		decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decision.Callable || !slices.Contains(decision.ReasonCodes, ReasonSessionDenied) {
+			t.Fatalf("native-only tool override was widened: %+v", decision)
+		}
+	})
 
 	t.Run("Should narrow MCP tools by the session server allowlist", func(t *testing.T) {
 		t.Parallel()

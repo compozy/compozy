@@ -152,6 +152,9 @@ func statusForWorkspaceError(err error) int {
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func statusForSessionError(err error) int {
+	if errors.Is(err, context.Canceled) {
+		return statusClientClosedRequest
+	}
 	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
 		return http.StatusConflict
 	}

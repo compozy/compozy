@@ -139,7 +139,7 @@ func (s *service) SetMCPApproval(
 		}
 	}
 	if !revoke {
-		resolved, err := selectMCPApprovalDefinition(req.Name, definitions, digest)
+		resolved, err := s.selectMCPApprovalDefinition(ctx, req.Name, req.ProfileName, definitions, digest)
 		if err != nil {
 			return store.MCPApproval{}, err
 		}

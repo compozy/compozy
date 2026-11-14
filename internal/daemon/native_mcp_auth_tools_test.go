@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -555,6 +556,32 @@ func (p *nativeMCPAuthStatusProvider) Status(
 
 func TestRuntimeMCPInventory(t *testing.T) {
 	t.Parallel()
+	// Invariant: distinct context reads have bounded retention; owner: daemon inventory cache.
+	t.Run("Should evict old context snapshots at the cache limit", func(t *testing.T) {
+		t.Parallel()
+		inventory := newRuntimeMCPInventory()
+		root := t.TempDir()
+		for i := range runtimeMCPCacheLimit + 2 {
+			_, err := inventory.List(
+				t.Context(),
+				runtimemcp.Request{
+					Runtime: "claude",
+					Context: runtimemcp.ReadContext{
+						Home:       root,
+						SystemRoot: filepath.Join(root, "system"),
+						CWD:        filepath.Join(root, fmt.Sprint(i)),
+					},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(inventory.cache) > runtimeMCPCacheLimit {
+				t.Fatal("unbounded cache")
+			}
+		}
+	})
+
 	// Invariant: file changes invalidate only their context and snapshots cannot be mutated by callers. Owner: daemon inventory; UT-054.
 	t.Run("Should invalidate runtime snapshots on file replacement UT-054", func(t *testing.T) {
 		t.Parallel()

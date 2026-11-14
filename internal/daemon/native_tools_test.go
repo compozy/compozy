@@ -11691,6 +11691,175 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
+	// Invariant: effective inherited authority applies agent restrictions before delegation; owner: daemon policy projection.
+	t.Run("Should exclude agent denied tools and refresh native root tools", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		agent := &nativeToolPolicyAgentResolverStub{
+			agent: compozyconfig.AgentDef{
+				Name:      "restricted",
+				Provider:  "opencode",
+				Prompt:    "Restricted test agent",
+				DenyTools: []string{"compozy__session_stop", "ext__demo__blocked"},
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg, AgentResolver: agent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = func(ctx context.Context, _ toolspkg.Scope, inputs toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			ids := []toolspkg.ToolID{
+				"compozy__session_list",
+				"compozy__session_stop",
+				"compozy__mcp_list",
+				"ext__demo__blocked",
+				"ext__demo__allowed",
+			}
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(inputs, toolspkg.ToolsetCatalog{}, ids)
+			if err != nil {
+				return nil, err
+			}
+			views := make([]toolspkg.ToolView, 0, len(ids))
+			for _, id := range ids {
+				source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"}
+				backend := toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: id.String()}
+				if strings.HasPrefix(id.String(), "ext__") {
+					source = toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"}
+				}
+				d := toolspkg.Descriptor{
+					ID:          id,
+					Source:      source,
+					Backend:     backend,
+					Description: "Read",
+					InputSchema: json.RawMessage(`{"type":"object"}`),
+					Visibility:  toolspkg.VisibilityModel,
+					Risk:        toolspkg.RiskRead,
+					ReadOnly:    true,
+				}
+				decision, err := evaluator.Evaluate(ctx, toolspkg.Scope{}, d)
+				if err != nil {
+					return nil, err
+				}
+				views = append(views, toolspkg.ToolView{Descriptor: d, Decision: decision})
+			}
+			return views, nil
+		}
+		for _, mode := range []store.PermissionIntent{store.PermissionInherit, store.PermissionList} {
+			info := &session.Info{
+				ID:        "root",
+				Type:      session.SessionTypeUser,
+				AgentName: "restricted",
+				Lineage: &store.SessionLineage{
+					Kind: store.LineageKindRoot,
+					PermissionPolicy: store.SessionPermissionPolicy{
+						ToolsMode:      mode,
+						MCPServersMode: store.PermissionInherit,
+						Tools:          []string{"compozy__session_list", "compozy__session_stop", "compozy__removed"},
+					},
+				},
+			}
+			got, err := resolver.EffectiveMCPAuthority(session.WithMCPAuthoritySession(t.Context(), info), info.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if slices.Contains(got.Tools, "compozy__session_stop") || slices.Contains(got.Tools, "ext__demo__blocked") {
+				t.Fatalf("agent deny leaked: %+v", got)
+			}
+			if slices.Contains(got.Tools, "compozy__mcp_list") != (mode == store.PermissionInherit) {
+				t.Fatalf("native root tools=%+v", got)
+			}
+			if mode == store.PermissionInherit && slices.Contains(got.Tools, "compozy__removed") {
+				t.Fatal("removed native tool retained")
+			}
+			if !slices.Contains(got.Tools, "compozy__session_list") {
+				t.Fatal("allowed native tool removed")
+			}
+			if mode == store.PermissionInherit {
+				// A different child agent cannot turn inheritance into a parent-policy bypass.
+				agent.agent.DenyTools = nil
+				child := &session.Info{
+					ID:        "child",
+					Type:      session.SessionTypeSpawned,
+					AgentName: "restricted",
+					Lineage: &store.SessionLineage{
+						Kind:            store.LineageKindSpawn,
+						ParentSessionID: "root",
+						PermissionPolicy: store.SessionPermissionPolicy{
+							ToolsMode:      store.PermissionInherit,
+							MCPServersMode: store.PermissionInherit,
+							Tools:          got.Tools,
+						},
+					},
+				}
+				childAuthority, err := resolver.EffectiveMCPAuthority(
+					session.WithMCPAuthoritySession(t.Context(), child),
+					child.ID,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if failure, ok := errors.AsType[*session.SpawnPermissionError](
+					session.ValidatePermissionSubset(got, childAuthority),
+				); !ok ||
+					failure.Value != "ext__demo__blocked" {
+					t.Fatalf("an unrestricted child escaped its parent's extension ceiling: %v", failure)
+				}
+				agent.agent.DenyTools = []string{"compozy__session_stop", "ext__demo__blocked"}
+			}
+		}
+	})
+	// Invariant: list decoration resolves admitted names once per scope without rebuilding catalogs; owner: daemon read model.
+	t.Run("Should reuse one read scope and isolate authority failures", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.MCPServers = []compozyconfig.MCPServer{{Name: "live", Command: "echo"}}
+		calls := map[string]int{}
+		resolver, err := newNativeToolPolicyResolver(
+			nativeToolPolicyResolverDeps{
+				Config: &cfg,
+				WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(
+					func(_ context.Context, workspace, _ string) (workspacepkg.ResolvedAgentConfig, error) {
+						calls[workspace]++
+						if workspace == "broken" {
+							return workspacepkg.ResolvedAgentConfig{}, errors.New("invalid config")
+						}
+						return workspacepkg.ResolvedAgentConfig{Config: cfg}, nil
+					},
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			t.Fatal("session read rebuilt tool projection")
+			return nil, nil
+		}
+		ctx := resolver.MCPAuthorityReadContext(t.Context())
+		for _, workspace := range []string{"good", "broken", "good", "broken"} {
+			info := &session.Info{
+				ID:          "read",
+				Type:        session.SessionTypeUser,
+				WorkspaceID: workspace,
+				Lineage: &store.SessionLineage{
+					PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit},
+				},
+			}
+			got, err := resolver.EffectiveMCPAuthority(session.WithMCPAuthoritySession(ctx, info), info.ID)
+			if (err != nil) != (workspace == "broken") {
+				t.Fatalf("scope=%s err=%v", workspace, err)
+			}
+			if workspace == "good" && !slices.Equal(got.MCPServers, []string{"live"}) {
+				t.Fatalf("authority=%+v", got)
+			}
+		}
+		if calls["good"] != 1 || calls["broken"] != 1 {
+			t.Fatalf("scope resolutions=%v", calls)
+		}
+	})
 
 	// Invariant: live MCP authority uses only the current child row and its own admitted scope.
 	// Owner: daemon composition; canonical suite: native runtime policy resolver.

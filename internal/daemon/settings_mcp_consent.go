@@ -74,7 +74,7 @@ func (s settingsMCPConsent) ApproveMCP(
 			Message: fmt.Sprintf("%s does not need approval: it was added through CompozyOS", req.Server.Name),
 		}
 	}
-	current, err := config.MCPDefinitionDigest(req.Server)
+	current, err := s.state.mcpDefinitionDigest(req.Server)
 	if err != nil {
 		return MCPApproval{}, err
 	}

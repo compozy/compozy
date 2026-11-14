@@ -10,9 +10,9 @@ import (
 
 var ErrInvalidRuntime = errors.New("invalid_runtime")
 
-type Reader struct{}
+type Reader struct{ DigestKey []byte }
 
-func (Reader) List(ctx context.Context, req Request) (Inventory, []string, error) {
+func (r Reader) List(ctx context.Context, req Request) (Inventory, []string, error) {
 	req.Context = ResolveContext(req.Context)
 	descriptors := Descriptors()
 	if req.Runtime != "" &&
@@ -28,7 +28,7 @@ func (Reader) List(ctx context.Context, req Request) (Inventory, []string, error
 		if req.Runtime != "" && req.Runtime != d.Runtime {
 			continue
 		}
-		snapshot, files := read(req.Context, d)
+		snapshot, files := read(req.Context, d, r.DigestKey)
 		paths = append(paths, files...)
 		if mode := req.Modes[d.Runtime]; mode != "" {
 			snapshot.RuntimeMCP.Mode = mode

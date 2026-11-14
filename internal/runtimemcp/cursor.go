@@ -11,8 +11,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-
-	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func cursorProjectSlug(root string) string {
@@ -27,7 +25,7 @@ func (r *reader) applyCursorApprovals(entries map[string]entry) {
 	disabled, _ := r.load(filepath.Join(dir, "mcp-disabled.json"))
 	for name, item := range entries {
 		item.server.Approval = "pending"
-		if key := cursorApprovalKey(root, name, item); key != "" && slices.Contains(approved, key) {
+		if key := cursorApprovalKey(root, name, item, r.digestKey); key != "" && slices.Contains(approved, key) {
 			item.server.Approval = "approved"
 		}
 		if contains(disabled, name) {
@@ -40,8 +38,8 @@ func (r *reader) applyCursorApprovals(entries map[string]entry) {
 // Cursor 2026.09.26 hashes JSON.stringify({path: projectRoot, server: parsedServer}).
 // Its schema establishes field order; nested header/env order comes from the file.
 // Definitions needing process-environment expansion stay pending rather than claiming a grant.
-func cursorApprovalKey(root, name string, item entry) string {
-	data, _, err := fileutil.ReadRegularFile(item.server.SourcePath, maxFileBytes)
+func cursorApprovalKey(root, name string, item entry, key ...[]byte) string {
+	data, err := readRuntimeFile(item.server.SourcePath)
 	if err != nil {
 		return ""
 	}
@@ -52,7 +50,7 @@ func cursorApprovalKey(root, name string, item entry) string {
 		return ""
 	}
 	definition := doc.Servers[name]
-	if definition == nil || digest(definition) != item.server.DefinitionDigest {
+	if definition == nil || digest(definition, key...) != item.server.DefinitionDigest {
 		return ""
 	}
 	fields := []string{"type", "command", "args", "env", "cwd"}

@@ -16,9 +16,11 @@ func (d *Daemon) newDaemonMCPToolProvider(
 	}
 	resolver := newDaemonMCPServerResolver(state)
 	options := []mcppkg.CallExecutorOption{
-		mcppkg.WithConsentCheck(func(ctx context.Context, source toolspkg.SourceRef) error {
-			return requireMCPSourceConsent(ctx, state, source)
-		}),
+		mcppkg.WithConsentCheck(
+			func(ctx context.Context, source toolspkg.SourceRef, resolved mcppkg.ResolvedServer) error {
+				return requireResolvedMCPConsent(ctx, state, source, &resolved)
+			},
+		),
 	}
 	options = append(
 		options,

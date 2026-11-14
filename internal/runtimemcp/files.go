@@ -18,16 +18,17 @@ const maxFileBytes int64 = 8 << 20
 
 type source struct{ path, scope string }
 type reader struct {
-	context ReadContext
-	paths   map[string]struct{}
-	files   []string
-	failure string
+	digestKey []byte
+	context   ReadContext
+	paths     map[string]struct{}
+	files     []string
+	failure   string
 }
 
 func (r *reader) load(path string) (any, bool) {
 	path = filepath.Clean(path)
 	r.paths[path] = struct{}{}
-	data, _, err := fileutil.ReadRegularFile(path, maxFileBytes)
+	data, err := readRuntimeFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false
 	}
@@ -45,7 +46,7 @@ func (r *reader) load(path string) (any, bool) {
 		data = stripJSONComments(data)
 		err = json.Unmarshal(data, &value)
 		if err != nil { // Runtime files may be replaced while they are being read.
-			if retry, _, readErr := fileutil.ReadRegularFile(path, maxFileBytes); readErr == nil {
+			if retry, readErr := readRuntimeFile(path); readErr == nil {
 				err = json.Unmarshal(stripJSONComments(retry), &value)
 			}
 		}
@@ -181,4 +182,13 @@ func sources(c ReadContext, id string) []source {
 		}
 	}
 	return list
+}
+
+func readRuntimeFile(path string) ([]byte, error) {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return nil, err
+	}
+	data, _, err := fileutil.ReadRegularFile(resolved, maxFileBytes)
+	return data, err
 }

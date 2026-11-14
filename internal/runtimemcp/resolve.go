@@ -18,7 +18,7 @@ type ResolvedServer struct{ value entry }
 
 func (s ResolvedServer) Metadata() Server { return s.value.server }
 
-func (Reader) Resolve(ctx context.Context, req Request, name string, previous *Server) (ResolvedServer, error) {
+func (r Reader) Resolve(ctx context.Context, req Request, name string, previous *Server) (ResolvedServer, error) {
 	if err := ctx.Err(); err != nil {
 		return ResolvedServer{}, err
 	}
@@ -28,11 +28,13 @@ func (Reader) Resolve(ctx context.Context, req Request, name string, previous *S
 			continue
 		}
 		label = descriptor.DisplayName
-		snapshot, _, entries := readDefinitions(ResolveContext(req.Context), descriptor)
+		snapshot, _, entries := readDefinitions(ResolveContext(req.Context), descriptor, r.DigestKey)
 		if value, ok := entries[name]; ok && snapshot.ReadState == "ok" {
 			if previous != nil &&
 				(previous.DefinitionDigest != value.server.DefinitionDigest || previous.SourcePath != value.server.SourcePath) {
-				break
+				return ResolvedServer{}, &ImportError{Code: "mcp_server_not_found", Message: fmt.Sprintf(
+					"The server %s changed in %s. List it again before copying", name, previous.SourceLabel,
+				)}
 			}
 			return ResolvedServer{value: value}, nil
 		}

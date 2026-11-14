@@ -181,17 +181,13 @@ func (s *settingsRuntimeSurface) MCPAuthLogout(
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (mcpauth.Status, error) {
-	if err := s.requireMCPConsent(ctx, target, server); err != nil {
-		return mcpauth.Status{}, err
-	}
 	if s.mcpAuthManager == nil {
 		return mcpauth.Status{}, errors.New("daemon: MCP auth manager is unavailable")
 	}
-	cfg, err := s.mcpAuthServerConfig(ctx, target, server)
-	if err != nil {
-		return mcpauth.Status{}, err
+	if err := s.mcpAuthManager.DeleteState(ctx, target); err != nil {
+		return mcpauth.Status{}, fmt.Errorf("daemon: delete MCP auth state: %w", err)
 	}
-	return s.mcpAuthManager.Logout(ctx, cfg)
+	return s.MCPAuthStatus(ctx, target, server)
 }
 
 func (s *settingsRuntimeSurface) mcpAuthServerConfig(

@@ -62,3 +62,21 @@ func PopulateEffectiveMCPAuthority(ctx context.Context, resolver MCPAuthorityRes
 	info.Lineage.EffectiveMCPServers = append([]string{}, policy.MCPServers...)
 	return nil
 }
+
+func (m *Manager) mcpAuthorityReadContext(ctx context.Context) context.Context {
+	if resolver, ok := m.mcpAuthority.(interface {
+		MCPAuthorityReadContext(context.Context) context.Context
+	}); ok {
+		return resolver.MCPAuthorityReadContext(ctx)
+	}
+	return ctx
+}
+
+func (m *Manager) decorateMCPAuthority(ctx context.Context, info *Info) {
+	if err := m.populateEffectiveMCPAuthority(ctx, info); err != nil {
+		info.Lineage = store.CloneSessionLineage(store.NormalizeSessionLineage(info.ID, info.Lineage))
+		info.Lineage.EffectiveMCPServers = []string{}
+		m.logger.WarnContext(ctx, "session.mcp_authority_unavailable", "session_id", info.ID,
+			"profile_id", info.ProfileID, "workspace_id", info.WorkspaceID, "error", err)
+	}
+}

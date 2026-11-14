@@ -52,6 +52,8 @@ func (c *daemonClient) ImportRuntimeMCPServer(
 	return result, err
 }
 
+const mcpTransportKey = "transport"
+
 func newMCPImportCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, scope, name string
 	cmd := &cobra.Command{
@@ -101,41 +103,55 @@ func newMCPImportCommand(deps commandDeps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
-			display := runtime
-			for _, descriptor := range runtimemcp.Descriptors() {
-				if descriptor.Runtime == runtime {
-					display = descriptor.DisplayName
-				}
-			}
-			label := map[string]string{"user": "Personal", "workspace": "Project", "profile": "Profile"}[scope]
-			output := fmt.Sprintf(
-				"Copied %s from %s (%s) to CompozyOS (%s).\n",
-				result.MCPServer.Name,
-				display,
-				result.Source.SourceLabel,
-				label,
-			)
-			if result.MCPServer.AuthStatus != nil && result.MCPServer.AuthStatus.Status == "needs_login" {
-				output += fmt.Sprintf(
-					"%s uses OAuth: sign in with `compozy mcp auth login %s`.\n",
-					result.MCPServer.Name,
-					result.MCPServer.Name,
-				)
-			}
-			for _, note := range result.Notes {
+		return writeCommandOutput(cmd, outputBundle{jsonValue: result,
+			jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+			toon: func() (string, error) {
+				return renderToonObject(
+					"mcp_server",
+					[]string{automationNameKey, automationScopeKey, mcpTransportKey, loopRuntimeKey, cliSourceKey},
+					[]string{
+						result.MCPServer.Name,
+						string(result.MCPServer.Scope),
+						result.MCPServer.Transport,
+						result.Source.Runtime,
+						result.Source.SourceLabel,
+					},
+				), nil
+			}, human: func() (string, error) {
+				display := runtime
 				for _, descriptor := range runtimemcp.Descriptors() {
-					if descriptor.Runtime == runtime && descriptor.CanDisableRuntimeMCP {
-						note += fmt.Sprintf("; turn off \"Use %s's own MCP servers\" to avoid duplicates", display)
+					if descriptor.Runtime == runtime {
+						display = descriptor.DisplayName
 					}
 				}
-				output += note + ".\n"
-			}
-			for _, warning := range result.Warnings {
-				output += warning + "\n"
-			}
-			return output, nil
-		}})
+				label := map[string]string{"user": "Personal", "workspace": "Project", "profile": "Profile"}[scope]
+				output := []string{fmt.Sprintf(
+					"Copied %s from %s (%s) to CompozyOS (%s).\n",
+					result.MCPServer.Name,
+					display,
+					result.Source.SourceLabel,
+					label,
+				)}
+				if result.MCPServer.AuthStatus != nil && result.MCPServer.AuthStatus.Status == "needs_login" {
+					output = append(output, fmt.Sprintf(
+						"%s uses OAuth: sign in with `compozy mcp auth login %s`.\n",
+						result.MCPServer.Name,
+						result.MCPServer.Name,
+					))
+				}
+				for _, note := range result.Notes {
+					for _, descriptor := range runtimemcp.Descriptors() {
+						if descriptor.Runtime == runtime && descriptor.CanDisableRuntimeMCP {
+							note += fmt.Sprintf("; turn off \"Use %s's own MCP servers\" to avoid duplicates", display)
+						}
+					}
+					output = append(output, note+".\n")
+				}
+				for _, warning := range result.Warnings {
+					output = append(output, warning+"\n")
+				}
+				return strings.Join(output, ""), nil
+			}})
 	}
 	cmd.Flags().StringVar(&scope, "scope", "user", "Target scope (user, profile, workspace)")
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace ID, name, or path")

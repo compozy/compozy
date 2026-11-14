@@ -136,8 +136,16 @@ func buildHostedProjection(
 				var catalogViews []tools.ToolView
 				catalogViews, err = advertised.AdvertisedSessionProjection(ctx, record.scope())
 				if err == nil {
-					response.Catalog = tools.NewAdvertisedCatalog(catalogViews)
-					response.Digest += ":" + response.Catalog.Digest
+					// Keep entitled external tools advertised during health-only outages.
+					native := make([]tools.ToolView, 0, len(views)+len(catalogViews))
+					for i := range views {
+						view := &views[i]
+						if view.Descriptor.Source.Kind != tools.SourceMCP &&
+							view.Descriptor.Source.Kind != tools.SourceExtension {
+							native = append(native, *view)
+						}
+					}
+					response = hostedProjectionResponse(append(native, catalogViews...), record.digestMemo)
 				}
 			}
 		}

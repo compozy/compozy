@@ -53,6 +53,20 @@ func sessionMCPBundle(result contract.SessionMCPResponse) outputBundle {
 	return outputBundle{jsonValue: result,
 		json:  func(cmd *cobra.Command) error { return writeJSONWithoutWorkspaceResolution(cmd, result) },
 		jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+		toon: func() (string, error) {
+			rows := make([][]string, 0, len(result.CompozyServers)+len(result.RuntimeServers.Servers))
+			for _, server := range result.CompozyServers {
+				rows = append(rows, []string{"compozy", server.Name, server.State, server.Reason})
+			}
+			for _, server := range result.RuntimeServers.Servers {
+				rows = append(rows, []string{result.Runtime, server.Name, server.State, ""})
+			}
+			return renderToonArray(
+				"mcp_servers",
+				[]string{loopRuntimeKey, automationNameKey, appTokenStateFlag, loopReasonKey},
+				rows,
+			), nil
+		},
 		human: func() (string, error) {
 			var out strings.Builder
 			runtimeName := result.Runtime
@@ -105,9 +119,9 @@ func sessionMCPStateLabel(state string) string {
 	case "waiting_approval":
 		return "Waiting for approval"
 	case "failed":
-		return "Failed"
+		return "Couldn't connect"
 	case "not_available":
-		return "Not available"
+		return "Not available in this session"
 	case "loaded_by_runtime":
 		return "Loaded by runtime"
 	case "off_in_compozy_sessions":

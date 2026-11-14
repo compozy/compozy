@@ -655,6 +655,27 @@ func TestSecretRefValidationSupportsSessionNamespace(t *testing.T) {
 
 func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 	t.Parallel()
+	// Invariant: public MCP digests retain an installation secret across restarts; owner: local secret storage.
+	t.Run("Should persist a private independent MCP digest key", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		first, err := NewMCPDigestKeyProvider(home).Key()
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := NewMCPDigestKeyProvider(home).Key()
+		if err != nil || !bytes.Equal(first, again) {
+			t.Fatalf("restart changed key: %v", err)
+		}
+		info, err := os.Stat(filepath.Join(home, "mcp-digest.key"))
+		if err != nil || info.Mode().Perm() != 0o600 {
+			t.Fatalf("private key mode: %v", err)
+		}
+		other, err := NewMCPDigestKeyProvider(t.TempDir()).Key()
+		if err != nil || bytes.Equal(first, other) {
+			t.Fatalf("shared installation key: %v", err)
+		}
+	})
 
 	t.Run("Should load supported COMPOZY_VAULT_KEY encodings", func(t *testing.T) {
 		t.Parallel()

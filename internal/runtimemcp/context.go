@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func ResolveContext(c ReadContext) ReadContext {
@@ -26,7 +24,7 @@ func ResolveContext(c ReadContext) ReadContext {
 		}
 		c.GitRoot = dir
 		if info.Mode().IsRegular() {
-			data, _, err := fileutil.ReadRegularFile(path, maxFileBytes)
+			data, err := readRuntimeFile(path)
 			if err != nil {
 				break
 			}
@@ -37,7 +35,7 @@ func ResolveContext(c ReadContext) ReadContext {
 			if !filepath.IsAbs(gitdir) {
 				gitdir = filepath.Join(dir, gitdir)
 			}
-			common, _, err := fileutil.ReadRegularFile(filepath.Join(gitdir, "commondir"), maxFileBytes)
+			common, err := readRuntimeFile(filepath.Join(gitdir, "commondir"))
 			if err != nil {
 				break
 			}

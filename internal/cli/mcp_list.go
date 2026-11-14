@@ -24,6 +24,7 @@ func (c *daemonClient) ListRuntimeMCPServers(
 	query := url.Values{}
 	if workspace != "" {
 		query.Set("workspace_id", workspace)
+		query.Set("scope", "workspace")
 	}
 	if profile != "" {
 		query.Set("profile", profile)

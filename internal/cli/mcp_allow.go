@@ -99,20 +99,33 @@ func newMCPAllowCommand(deps commandDeps) *cobra.Command {
 					State:       "waiting",
 				}
 			}
-			return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
-				suffix := "Sessions can use it from their next message."
-				if revoke {
-					suffix = "Its tools stop working on the next call."
-				}
-				return fmt.Sprintf(
-					"%s %s in %s for profile %s. %s\n",
-					map[bool]string{true: "Revoked", false: "Allowed"}[revoke],
-					args[0],
-					label,
-					profile,
-					suffix,
-				), nil
-			}})
+			return writeCommandOutput(cmd, outputBundle{jsonValue: result,
+				jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+				toon: func() (string, error) {
+					return renderToonObject(
+						"approval",
+						[]string{"server_name", automationWorkspaceIDKey, profileFlagName, appTokenStateFlag},
+						[]string{
+							result.Approval.ServerName,
+							result.Approval.WorkspaceID,
+							result.Approval.Profile,
+							result.Approval.State,
+						},
+					), nil
+				}, human: func() (string, error) {
+					suffix := "Sessions can use it from their next message."
+					if revoke {
+						suffix = "Its tools stop working on the next call."
+					}
+					return fmt.Sprintf(
+						"%s %s in %s for profile %s. %s\n",
+						map[bool]string{true: "Revoked", false: "Allowed"}[revoke],
+						args[0],
+						label,
+						profile,
+						suffix,
+					), nil
+				}})
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Project workspace (ID, name, or path)")

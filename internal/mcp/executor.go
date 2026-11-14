@@ -57,14 +57,14 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	defer func() {
 		err = redactMCPError(err)
 	}()
-	if e.consent != nil {
-		if err := e.consent(ctx, source); err != nil {
-			return nil, "", err
-		}
-	}
 	resolved, err := e.resolveServer(ctx, source, "")
 	if err != nil {
 		return nil, "", err
+	}
+	if e.consent != nil {
+		if err := e.consent(ctx, source, resolved); err != nil {
+			return nil, "", err
+		}
 	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
 	var runtimeHealthErr error
@@ -169,14 +169,14 @@ func (e *CallExecutor) CallTool(
 	defer func() {
 		err = redactMCPError(err)
 	}()
-	if e.consent != nil {
-		if err := e.consent(ctx, source); err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-	}
 	resolved, err := e.resolveServer(ctx, source, "")
 	if err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if e.consent != nil {
+		if err := e.consent(ctx, source, resolved); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
 	var runtimeHealthErr error
