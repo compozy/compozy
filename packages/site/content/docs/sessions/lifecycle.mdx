@@ -924,6 +924,56 @@ Removing a session leaves its child sessions in place as top-level sessions. Add
 (`with_children=true` over HTTP and UDS) to remove them too, deepest first. Removal is not atomic: on
 a failure, the sessions it did not reach remain and the error names the child that failed.
 
+### Cleaning up archived history
+
+Archived sessions pile up. To delete many at once, open the Archived view in the sessions sidebar
+and choose **Clean up history…** in its footer. Pick what to delete and how old it must be:
+
+- **Everything** deletes each archived session with its child sessions and subagents. It is the
+  default, and it includes the other two choices.
+- **Child sessions** or **Subagents** alone delete only those and keep the main sessions.
+- **Archived** picks sessions archived more than 7, 15, or 30 days ago (7 is the default), before a
+  date you choose, or at any time. Child sessions and subagents follow their main session's
+  archive date.
+
+The dialog counts every session the cleanup deletes before you confirm, and the Delete button shows
+the same number. Above 100 sessions you type that number to confirm. Under All projects the count is
+also broken down per project.
+
+The cleanup runs in the background, a few sessions at a time, through the same path as a single
+removal. You can close the dialog while it runs; the footer shows `Deleting… X of N`, and **Stop**
+ends it after the deletes in progress. Sessions already deleted stay deleted.
+
+Only archived sessions are deleted:
+
+- A child session that is still in your session list or in Later stays, along with everything
+  under it.
+- A session restored after the cleanup started is skipped.
+- An always-on agent's main session is never deleted.
+- Worktrees stay, as they do when you remove one session.
+
+If some sessions can't be deleted, the dialog lists each archived session that kept them, and
+**Try again** retries only those.
+
+The same cleanup is available to scripts and agents. It previews by default; nothing is deleted
+until you ask for it:
+
+```bash
+compozy session cleanup                                  # preview the current workspace
+compozy session cleanup --older-than 30 --all-workspaces --yes
+compozy session cleanup --subagents --any-time --yes     # keep main sessions
+compozy session cleanup status
+compozy session cleanup stop
+```
+
+Over HTTP and UDS, `POST /api/sessions/history-cleanup` previews with `dry_run: true` and otherwise
+starts the run (`202`). `GET /api/sessions/history-cleanup` reads the profile's running or latest
+run, and `POST /api/sessions/history-cleanup/stop` stops it. Each profile runs one cleanup at a
+time; a second start returns `409`. These routes are operator-only. Agents use
+`compozy__session_cleanup`: it previews unless `dry_run` is `false`, and deleting needs approval.
+While a run progresses, the catalog stream sends `session_catalog_changed` with kind
+`history_cleanup` for its profile, and a `deleted` event for each session it removes.
+
 ## Failure diagnostics
 
 Stop reasons answer "why did the CompozyOS session stop?" Failure diagnostics answer "what kind of

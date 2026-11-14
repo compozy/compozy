@@ -132,7 +132,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
 `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
+`compozy__session_unarchive`, `compozy__session_cleanup`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`, `compozy__session_changes`.
 
@@ -536,8 +536,18 @@ recursively, in one transaction; continued and forked sessions are never include
 inside the session's workspace and profile, `stop` and `processes` cover the included children, and
 a failed stop archives nothing. A tree containing the calling session is denied. Unarchive restores
 subagent families only, so restore other children one by one.
-The CLI fallback is `compozy session archive <id> [--stop] [--with-children]`. Unarchive before prompting or
-resuming a session. `compozy__session_later` moves a session to Later: it stops the session and
+The CLI fallback is `compozy session archive <id> [--stop] [--with-children]`. Unarchive before
+prompting or resuming a session. `compozy__session_cleanup` deletes the profile's archived history in bulk. Its default
+`action: "plan"` with `dry_run` true only previews and runs without approval: every count is a
+number of sessions, and `kept_live` counts child sessions still in the session list or in Later,
+which always stay with everything under them. `dry_run: false` asks for approval, then deletes in
+the daemon's background, a few archived sessions at a time; `action: "status"` follows the run and
+`action: "stop"` ends it early (deleted sessions stay deleted). The range defaults to threads
+archived more than 7 days ago (`older_than_days`, `archived_before`, or `any_time`); `delete`
+defaults to everything, or narrows to `children` and `subagents` while keeping main sessions.
+It defaults to the caller's workspace; `all_workspaces` needs unrestricted workspace access.
+Worktrees stay, as with a single delete. Retry failed threads with `session_ids`. The CLI fallback is
+`compozy session cleanup [--yes]`, with `status` and `stop` subcommands. `compozy__session_later` moves a session to Later: it stops the session and
 its hierarchy children (forks and continues are not children), cancels their monitors and pending
 wakes, terminates their processes and terminals, and parks them with an optional one-line `reason`
 and optional `return_at` that brings the session back into Needs you with a notification. Parking

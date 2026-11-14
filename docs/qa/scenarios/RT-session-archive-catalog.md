@@ -91,3 +91,33 @@ stops the grandchild and archives the tree, while the continued session stays. A
 A stop that fails archives nothing and reports `session_archive_stop_failed`. Unarchiving the parent
 leaves non-subagent children archived; restore them one by one. In the web, archive shows a
 confirmation only when the target has children, with the checkbox checked and the count.
+
+## Clean up archived history (#1717)
+
+Fill one project's archive with threads archived 3, 10, 20 and 40 days ago. Include child
+sessions, subagents, one child that is still live (unarchived) under an archived parent, and one
+always-on agent's archived main session. In the sessions sidebar open Archived. The footer shows
+**Clean up history…** and the archived count; the Active and Later views show no footer verb.
+
+1. Open the dialog. Everything, Child sessions and Subagents are checked, and the last two are
+   locked. The range is 7+ days ago. The headline count equals the Delete button's count and
+   matches `compozy session cleanup -o json` for the same scope. The 3-day thread is not counted,
+   and the preview says the live child stays.
+2. Switch to Child sessions only and 30+ days ago: the count drops, and the main sessions stay
+   after the run. Pick Before a date and Any time: the count follows. With nothing checked the
+   preview asks to choose something and Delete stays off.
+3. Under All projects with more than 100 sessions selected, the preview breaks the count down
+   per project, and Delete stays off until the exact count is typed (separators optional).
+4. Confirm, then close the dialog right away. The footer shows `Deleting… X of N`, rows disappear
+   live, and the run ends in a "Deleted N sessions from …" toast. The live child, its subtree,
+   the 3-day thread, the always-on main session (never counted in the preview) and every
+   worktree remain.
+5. Make one thread fail mid-run (for example, hold its session directory open read-only): the run
+   ends under "Some sessions weren't deleted", listing that archived session, and **Try again**
+   retries only that thread.
+6. Start a large run and press **Stop**: it ends after the deletes in flight, and what was deleted
+   stays deleted. Restore one archived thread while a run is going: it is skipped, not deleted.
+7. Through the CLI, `compozy session cleanup` only previews. `--yes` starts the run;
+   `cleanup status` and `cleanup stop` follow it, and a second `--yes` while one runs returns
+   `409`. Over HTTP an agent identity gets `403`. `compozy__session_cleanup` previews without
+   approval, and with `dry_run: false` it asks for approval before it deletes.
