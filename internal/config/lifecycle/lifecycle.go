@@ -144,6 +144,8 @@ var Matrix = []Rule{
 	{Pattern: "log.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "redact.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "terminal.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	// The CLI resolves the client budget per invocation, so a change applies live.
+	{Pattern: "client.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 }
 

@@ -57,18 +57,16 @@ func TestResolveClientRequestTimeout(t *testing.T) {
 			want:       defaultUnixSocketClientTimeout,
 		},
 		{
-			name:   "Should clamp a config value below the floor",
-			getenv: env(""),
-			loadConfig: staticConfig(
-				time.Second,
-			),
-			want: compozyconfig.MinClientRequestTimeout,
+			name:            "Should reject an environment value below the floor",
+			getenv:          env("1s"),
+			loadConfig:      staticConfig(0),
+			wantErrContains: "must be between",
 		},
 		{
-			name:       "Should clamp a config value above the ceiling",
-			getenv:     env(""),
-			loadConfig: staticConfig(2 * time.Hour),
-			want:       compozyconfig.MaxClientRequestTimeout,
+			name:            "Should reject an environment value above the ceiling",
+			getenv:          env("2h"),
+			loadConfig:      staticConfig(0),
+			wantErrContains: "must be between",
 		},
 		{
 			name:            "Should reject an unparsable environment value",

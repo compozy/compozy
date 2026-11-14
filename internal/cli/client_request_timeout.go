@@ -29,7 +29,18 @@ func resolveClientRequestTimeout(
 		return 0, err
 	}
 	if overridden {
-		return clampClientRequestTimeout(override), nil
+		if override < compozyconfig.MinClientRequestTimeout || override > compozyconfig.MaxClientRequestTimeout {
+			// Both sources reject an out-of-range value: silently clamping would change
+			// what the operator asked for.
+			return 0, fmt.Errorf(
+				"cli: %s must be between %s and %s, got %s",
+				ClientRequestTimeoutEnv,
+				compozyconfig.MinClientRequestTimeout,
+				compozyconfig.MaxClientRequestTimeout,
+				override,
+			)
+		}
+		return override, nil
 	}
 
 	timeout := defaultUnixSocketClientTimeout
@@ -46,7 +57,7 @@ func resolveClientRequestTimeout(
 			return 0, err
 		}
 	}
-	return clampClientRequestTimeout(timeout), nil
+	return timeout, nil
 }
 
 func clientRequestTimeoutFromEnvironment(getenv func(string) string) (time.Duration, bool, error) {
@@ -65,10 +76,6 @@ func clientRequestTimeoutFromEnvironment(getenv func(string) string) (time.Durat
 		return 0, false, fmt.Errorf("cli: %s must be positive, got %q", ClientRequestTimeoutEnv, raw)
 	}
 	return parsed, true, nil
-}
-
-func clampClientRequestTimeout(timeout time.Duration) time.Duration {
-	return min(max(timeout, compozyconfig.MinClientRequestTimeout), compozyconfig.MaxClientRequestTimeout)
 }
 
 func isClientRequestTimeoutConfigError(err error) bool {
