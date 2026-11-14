@@ -9,10 +9,20 @@
 // equivalent for every drag (Move ▸ Left/Right within the pin range, Split with ▸, Arrange ▸),
 // leaves out items that cannot apply and the submenus they empty, and offers no retired control.
 // A session tab's tile shows its agent's face (an always-on main's instance avatar, else the
-// agent's configured appearance) and keeps the generic mark for a session with no agent (#1709).
+// agent's configured appearance, from the list or the open window's detail read) and keeps the
+// generic mark for a session with no agent (#1709).
 // Owning layer: OsTabBar + useOsTabBar over the shell projection. Width rules: lib/tab-width.
 // Boundary OUT: runtime command execution and daemon reducers.
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,7 +33,8 @@ import type { AgentIdentitySource } from "@/systems/agent/lib/agent-identity";
 import { AgentIdentityCatalogContext } from "@/systems/agent/lib/agent-identity-context";
 import { agentInstanceFixture } from "@/systems/agent/mocks";
 import type { AgentInstancePayload } from "@/systems/agent";
-import type { SessionPayload } from "@/systems/session";
+import { useProfileReadScopeParams } from "@/systems/profiles";
+import { sessionScopedDetailOptions, type SessionPayload } from "@/systems/session";
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
@@ -47,6 +58,7 @@ vi.mock("@/systems/workspace", async importOriginal => ({
 let sessionRows: SessionPayload[] = [];
 let instanceRows: AgentInstancePayload[] = [];
 let agentCatalog: AgentIdentitySource[] | undefined;
+let queryClient: QueryClient;
 
 vi.mock("@/systems/session", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/session")>()),
@@ -263,15 +275,17 @@ function renderBar(options: BarOptions = {}) {
   };
   const shell = { projection, manager, coordinator } as unknown as OsShellHandle;
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <AgentIdentityCatalogContext value={() => agentCatalog}>
-      <OsShellContext.Provider value={shell}>
-        <TooltipProvider delay={0}>
-          {children}
-          {/* A focus target past the bar, standing in for the window content. */}
-          <button type="button">Outside</button>
-        </TooltipProvider>
-      </OsShellContext.Provider>
-    </AgentIdentityCatalogContext>
+    <QueryClientProvider client={queryClient}>
+      <AgentIdentityCatalogContext value={() => agentCatalog}>
+        <OsShellContext.Provider value={shell}>
+          <TooltipProvider delay={0}>
+            {children}
+            {/* A focus target past the bar, standing in for the window content. */}
+            <button type="button">Outside</button>
+          </TooltipProvider>
+        </OsShellContext.Provider>
+      </AgentIdentityCatalogContext>
+    </QueryClientProvider>
   );
   render(<OsTabBar />, { wrapper });
   /** Replaces the projection, as a daemon snapshot or client view update would. */
@@ -284,6 +298,7 @@ beforeEach(() => {
   sessionRows = [];
   instanceRows = [];
   agentCatalog = undefined;
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 });
 
@@ -785,6 +800,16 @@ describe("OsTabBar", () => {
       session("sess-review", "reviewer"),
       session("sess-plain", ""),
     ];
+    // An open session older than the list's first page: its window's detail read holds it.
+    const { result: scope } = renderHook(() => useProfileReadScopeParams(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    queryClient.setQueryData(
+      sessionScopedDetailOptions("sess-old", scope.current).queryKey,
+      session("sess-old", "reviewer")
+    );
     instanceRows = [
       agentInstanceFixture({
         agent_name: "maestro",
@@ -809,6 +834,7 @@ describe("OsTabBar", () => {
       sessionWindow("w-main", "sess-main"),
       sessionWindow("w-review-session", "sess-review"),
       sessionWindow("w-plain", "sess-plain"),
+      sessionWindow("w-old", "sess-old"),
     ];
     renderBar({
       tabs: [...TABS, ...sessionWindows.map(item => solo(`tab:${item.id}`, item.id))],
@@ -830,6 +856,8 @@ describe("OsTabBar", () => {
     expect(review).toHaveAttribute("aria-label", "Code Reviewer");
     expect(review?.querySelector('[data-background="plate"]')).not.toBeNull();
     expect(review?.querySelector("use")?.getAttribute("href")).toMatch(/#search-check$/);
+    // A session missing from the list still shows its agent, from the detail its window reads.
+    expect(markOf("tab:w-old")).toHaveAttribute("aria-label", "Code Reviewer");
     // A session with no agent and every non-session tab keep their generic mark.
     expect(markOf("tab:w-plain")).toBeNull();
     expect(markOf("tab:tasks")).toBeNull();

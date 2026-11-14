@@ -1,8 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 import { useEffect, useState } from "react";
 
-import { type SessionPayload, useSessions } from "@/systems/session";
+import { useProfileReadScopeParams } from "@/systems/profiles";
+import { sessionScopedDetailOptions, type SessionPayload, useSessions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import type {
@@ -108,6 +110,21 @@ export function useTabSessions(hasSession: boolean): ReadonlyMap<string, Session
   const byId = new Map<string, SessionPayload>();
   for (const session of sessions.data ?? []) byId.set(session.id, session);
   return byId;
+}
+
+/**
+ * The tab's session: the bar's list read, else the detail its window reads, for an open session
+ * older than the list's first page. Only such a miss reads, without the window's live tail.
+ */
+export function useTabSession(sessionId: string, listed: SessionPayload | undefined) {
+  const params = useProfileReadScopeParams();
+  const detail = useQuery(
+    sessionScopedDetailOptions(sessionId, params, {
+      enabled: listed === undefined && sessionId !== "",
+      liveTail: false,
+    })
+  );
+  return listed ?? detail.data;
 }
 
 /** Measures the strip and shares its width among the tabs (UT-030 rules in `tab-width`). */
