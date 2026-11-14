@@ -78,6 +78,11 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
+	if req.Replace {
+		if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor); err != nil {
+			return preparedDaemonExtensionInstall{}, err
+		}
+	}
 	cfg := s.marketplaceConfig()
 	if err := extensionpkg.ValidateUnverifiedSideLoad(
 		manifest.Name,

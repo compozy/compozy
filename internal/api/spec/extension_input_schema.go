@@ -45,7 +45,8 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 	if replace := schema.Properties["replace"]; replace != nil && replace.Value != nil {
 		replace.Value.Default = false
 		replace.Value.Description = "Replace an installed extension of the same name. " +
-			"The previous version stays installed when the replacement fails."
+			"The previous version stays installed when the replacement fails. Replacing a package " +
+			"attached outside the caller's workspace requires operator authority."
 	}
 }
 
