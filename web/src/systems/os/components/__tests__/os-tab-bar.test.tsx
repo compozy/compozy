@@ -8,6 +8,8 @@
 // items (Pin, Move ▸, Split with ▸, Arrange ▸, Close tab, Close ▸, Reopen closed tab), offers a menu
 // equivalent for every drag (Move ▸ Left/Right within the pin range, Split with ▸, Arrange ▸),
 // leaves out items that cannot apply and the submenus they empty, and offers no retired control.
+// A session tab's tile shows its agent's face (an always-on main's instance avatar, else the
+// agent's configured appearance) and keeps the generic mark for a session with no agent (#1709).
 // Owning layer: OsTabBar + useOsTabBar over the shell projection. Width rules: lib/tab-width.
 // Boundary OUT: runtime command execution and daemon reducers.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -16,6 +18,13 @@ import type * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@compozy/ui";
+
+import type { AgentIdentitySource } from "@/systems/agent/lib/agent-identity";
+import { AgentIdentityCatalogContext } from "@/systems/agent/lib/agent-identity-context";
+import { agentInstanceFixture } from "@/systems/agent/mocks";
+import type { AgentInstancePayload } from "@/systems/agent";
+import type { SessionPayload } from "@/systems/session";
+import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import type { WindowManagerCommandOutcome, WindowManagerController } from "../../lib/os-types";
@@ -35,9 +44,18 @@ vi.mock("@/systems/workspace", async importOriginal => ({
   useActiveWorkspace: () => ({ runtimeWorkspaceId: null }),
 }));
 
+let sessionRows: SessionPayload[] = [];
+let instanceRows: AgentInstancePayload[] = [];
+let agentCatalog: AgentIdentitySource[] | undefined;
+
 vi.mock("@/systems/session", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/session")>()),
-  useSessions: () => ({ data: [] }),
+  useSessions: () => ({ data: sessionRows }),
+}));
+
+vi.mock("@/systems/agent", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent")>()),
+  useAgentInstances: () => instanceRows,
 }));
 
 const CONFIG: WindowManagerConfig = {
@@ -98,7 +116,8 @@ function snapshot(
   tabs: LayoutTab[] = TABS,
   closedEntryCount = 1,
   activeTabId = "tab:tasks",
-  secondDesktop = false
+  secondDesktop = false,
+  extraWindows: WindowManagerWindow[] = []
 ): WindowManagerSnapshot {
   // A second desktop, "Review", holding one tab of its own: a Move ▸ To desktop destination.
   const review = { ...win("w-review", "tasks", "tab:review"), desktopId: "desktop:review" };
@@ -127,6 +146,7 @@ function snapshot(
       "w-loops": win("w-loops", "loops", "tab:split"),
       "w-vault": win("w-vault", "vault", "tab:vault"),
       ...(secondDesktop ? { "w-review": review } : {}),
+      ...Object.fromEntries(extraWindows.map(extra => [extra.id, extra])),
     },
     closedEntryCount,
     overrides: {},
@@ -161,6 +181,8 @@ interface BarOptions {
   activeTabId?: string;
   /** Adds the "Review" desktop, a destination for Move ▸ To desktop. */
   secondDesktop?: boolean;
+  /** Windows the extra `tabs` hold beyond the fixed set, e.g. session windows. */
+  extraWindows?: WindowManagerWindow[];
 }
 
 function barState(options: BarOptions) {
@@ -170,7 +192,8 @@ function barState(options: BarOptions) {
       options.tabs,
       options.closedEntryCount,
       options.activeTabId,
-      options.secondDesktop
+      options.secondDesktop,
+      options.extraWindows
     ),
     globalConfig: CONFIG,
     client: {
@@ -240,13 +263,15 @@ function renderBar(options: BarOptions = {}) {
   };
   const shell = { projection, manager, coordinator } as unknown as OsShellHandle;
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <OsShellContext.Provider value={shell}>
-      <TooltipProvider delay={0}>
-        {children}
-        {/* A focus target past the bar, standing in for the window content. */}
-        <button type="button">Outside</button>
-      </TooltipProvider>
-    </OsShellContext.Provider>
+    <AgentIdentityCatalogContext value={() => agentCatalog}>
+      <OsShellContext.Provider value={shell}>
+        <TooltipProvider delay={0}>
+          {children}
+          {/* A focus target past the bar, standing in for the window content. */}
+          <button type="button">Outside</button>
+        </TooltipProvider>
+      </OsShellContext.Provider>
+    </AgentIdentityCatalogContext>
   );
   render(<OsTabBar />, { wrapper });
   /** Replaces the projection, as a daemon snapshot or client view update would. */
@@ -256,6 +281,9 @@ function renderBar(options: BarOptions = {}) {
 
 beforeEach(() => {
   stripWidth = 1200;
+  sessionRows = [];
+  instanceRows = [];
+  agentCatalog = undefined;
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 });
 
@@ -736,5 +764,75 @@ describe("OsTabBar", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Vault" }));
 
     expect(coordinator.userFocus).toHaveBeenCalledWith("w-vault");
+  });
+
+  it("Should mark each session tab with its agent's face and keep the generic mark without one [#1709]", () => {
+    const sessionWindow = (id: string, sessionId: string): WindowManagerWindow => ({
+      ...win(id, "session", `tab:${id}`),
+      instanceKey: sessionId,
+      route: { pathname: `/sessions/${sessionId}`, search: {} },
+    });
+    const session = (id: string, agentName: string): SessionPayload => ({
+      ...primarySessionFixture,
+      id,
+      name: id,
+      agent_name: agentName,
+      workspace_id: "ws-compozy",
+      profile_name: "default",
+    });
+    sessionRows = [
+      session("sess-main", "maestro"),
+      session("sess-review", "reviewer"),
+      session("sess-plain", ""),
+    ];
+    instanceRows = [
+      agentInstanceFixture({
+        agent_name: "maestro",
+        label: "Maestro",
+        main_session_id: "sess-main",
+        resolved_appearance: { version: 1, avatar: "icon", icon: "crown", color: "#e0a030" },
+      }),
+    ];
+    agentCatalog = [
+      {
+        name: "reviewer",
+        label: "Code Reviewer",
+        resolved_appearance: {
+          version: 1,
+          avatar: "icon",
+          icon: "search-check",
+          color: "#3a7bd5",
+        },
+      },
+    ];
+    const sessionWindows = [
+      sessionWindow("w-main", "sess-main"),
+      sessionWindow("w-review-session", "sess-review"),
+      sessionWindow("w-plain", "sess-plain"),
+    ];
+    renderBar({
+      tabs: [...TABS, ...sessionWindows.map(item => solo(`tab:${item.id}`, item.id))],
+      extraWindows: sessionWindows,
+    });
+
+    const markOf = (tabId: string) =>
+      screen
+        .getByTestId(`os-tab-${tabId}`)
+        .querySelector<HTMLElement>('[data-slot="agent-avatar"]');
+    const main = markOf("tab:w-main");
+    const review = markOf("tab:w-review-session");
+
+    // The always-on main shows its instance's avatar, background plate and glyph together.
+    expect(main).toHaveAttribute("aria-label", "Maestro");
+    expect(main?.querySelector('[data-background="plate"]')).not.toBeNull();
+    expect(main?.querySelector("use")?.getAttribute("href")).toMatch(/#crown$/);
+    // Another agent's session shows that agent's configured icon, not the always-on face.
+    expect(review).toHaveAttribute("aria-label", "Code Reviewer");
+    expect(review?.querySelector('[data-background="plate"]')).not.toBeNull();
+    expect(review?.querySelector("use")?.getAttribute("href")).toMatch(/#search-check$/);
+    // A session with no agent and every non-session tab keep their generic mark.
+    expect(markOf("tab:w-plain")).toBeNull();
+    expect(markOf("tab:tasks")).toBeNull();
+    expect(markOf("tab:split")).toBeNull();
   });
 });

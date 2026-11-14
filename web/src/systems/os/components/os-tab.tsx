@@ -12,6 +12,13 @@ import { X } from "@compozy/ui/icons";
 import { Fragment, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  AgentMark,
+  agentAvatarAppearance,
+  alwaysOnMainInstance,
+  useAgentIdentityView,
+  useAgentInstances,
+} from "@/systems/agent";
 import type { SessionPayload } from "@/systems/session";
 
 import { TAB_TILE_PEEK, TAB_TILE_STACK_MAX, TAB_TILE_WIDTH } from "../hooks/use-os-tab-bar";
@@ -38,8 +45,13 @@ function sessionProvider(session: SessionPayload | undefined): string | null {
   return provider?.trim() ? provider : null;
 }
 
-/** The mark on a window's front tile: a session's provider, else its app's icon. */
-function TileMark({ win, session }: { win: OsWindow; session: SessionPayload | undefined }) {
+interface TileMarkProps {
+  win: OsWindow;
+  session: SessionPayload | undefined;
+}
+
+/** The fallback mark: a session's provider, else its app's icon. */
+function GenericTileMark({ win, session }: TileMarkProps) {
   const provider = sessionProvider(session);
   if (provider !== null) {
     return (
@@ -48,6 +60,56 @@ function TileMark({ win, session }: { win: OsWindow; session: SessionPayload | u
   }
   const AppIcon = getOsAppDescriptor(win.app).icon;
   return <AppIcon aria-hidden="true" className="size-3 text-fg-2" />;
+}
+
+/** The size of an agent's face on a 20px tile, as the sessions list draws it (#1709). */
+const TILE_AGENT_MARK_SIZE = 16;
+
+/** A defined agent's face from the cached catalog, scoped to the session's recorded owner. */
+function AgentTileMark({ session }: { session: SessionPayload }) {
+  const agent = useAgentIdentityView(session.agent_name ?? "", {
+    workspace: session.workspace_id,
+    profile: session.profile_name,
+  });
+  return (
+    <AgentMark
+      aria-hidden="true"
+      appearance={agent.appearance}
+      label={agent.label}
+      quietIdle
+      size={TILE_AGENT_MARK_SIZE}
+      state="unknown"
+    />
+  );
+}
+
+/**
+ * A session window's mark: an always-on main shows its instance's avatar as the session head does,
+ * any other agent session its agent's face, and a session with no agent the generic mark (#1709).
+ * Both reads share the instance and catalog queries the shell already holds, never one per tab.
+ */
+function SessionTileMark({ win, session }: TileMarkProps) {
+  const instance = alwaysOnMainInstance(useAgentInstances(), win.instanceKey ?? "");
+  if (instance) {
+    return (
+      <AgentMark
+        aria-hidden="true"
+        appearance={agentAvatarAppearance(instance.resolved_appearance, instance.agent_name)}
+        label={instance.label}
+        quietIdle
+        size={TILE_AGENT_MARK_SIZE}
+        state="unknown"
+      />
+    );
+  }
+  if (session?.agent_name) return <AgentTileMark session={session} />;
+  return <GenericTileMark win={win} session={session} />;
+}
+
+/** The mark on a window's front tile: a session's agent, else its provider or app icon. */
+function TileMark({ win, session }: TileMarkProps) {
+  if (win.app === "session") return <SessionTileMark win={win} session={session} />;
+  return <GenericTileMark win={win} session={session} />;
 }
 
 /** The raised tile that stands for one window; a split stacks one per member behind the lead. */
