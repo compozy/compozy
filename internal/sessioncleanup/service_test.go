@@ -171,7 +171,11 @@ func TestServiceStart(t *testing.T) {
 			archivedRow("a-child", "a", 10),
 			archivedRow("b", "", 10),
 		}
-		deleter := &fakeDeleter{results: map[string]error{"a-child": errors.New("disk full")}}
+		// The reported reason is the root cause, without the daemon's wrapping path.
+		stage := fmt.Errorf(
+			"session: stage %q for deletion: %w", "/var/folders/x/sess_a-child", errors.New("disk full"),
+		)
+		deleter := &fakeDeleter{results: map[string]error{"a-child": stage}}
 		h := newServiceHarness(t, rows, deleter)
 		if _, _, err := h.service.Start(context.Background(), serviceRequest()); err != nil {
 			t.Fatalf("Start() error = %v", err)
@@ -277,7 +281,7 @@ func TestServiceStop(t *testing.T) {
 		// A canceled wait returns at once, after Stop has already asked the run to stop.
 		canceled, cancel := context.WithCancel(context.Background())
 		cancel()
-		if _, err := h.service.Stop(canceled, testProfile); !errors.Is(err, context.Canceled) {
+		if _, err := h.service.Stop(canceled, testProfile, ""); !errors.Is(err, context.Canceled) {
 			t.Fatalf("Stop() error = %v, want the canceled wait", err)
 		}
 		deleter.release()
@@ -293,7 +297,7 @@ func TestServiceStop(t *testing.T) {
 	t.Run("Should report no active run when nothing is running", func(t *testing.T) {
 		t.Parallel()
 		h := newServiceHarness(t, nil, &fakeDeleter{})
-		if _, err := h.service.Stop(context.Background(), testProfile); !errors.Is(err, ErrNoActiveRun) {
+		if _, err := h.service.Stop(context.Background(), testProfile, ""); !errors.Is(err, ErrNoActiveRun) {
 			t.Fatalf("Stop() error = %v, want ErrNoActiveRun", err)
 		}
 	})

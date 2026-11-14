@@ -199,12 +199,17 @@ func (s *Service) Current(profileID string) (Run, bool) {
 }
 
 // Stop asks the profile's running cleanup to stop after the deletes in flight
-// and waits for it to settle; what it deleted stays deleted.
-func (s *Service) Stop(ctx context.Context, profileID string) (Run, error) {
+// and waits for it to settle; what it deleted stays deleted. A non-empty runID
+// stops only that run, so a caller that checked one run never stops another
+// that replaced it.
+func (s *Service) Stop(ctx context.Context, profileID, runID string) (Run, error) {
 	s.mu.Lock()
 	run := s.runs[strings.TrimSpace(profileID)]
 	s.mu.Unlock()
 	if run == nil || !run.running() {
+		return Run{}, ErrNoActiveRun
+	}
+	if runID = strings.TrimSpace(runID); runID != "" && run.run.ID != runID {
 		return Run{}, ErrNoActiveRun
 	}
 	run.cancel()

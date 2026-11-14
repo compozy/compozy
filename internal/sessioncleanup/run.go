@@ -154,9 +154,15 @@ func failureCode(err error) FailureCode {
 	return FailureDeleteFailed
 }
 
+// failureMessage reports the root cause a person can act on ("operation not
+// permitted", "database is locked"); the wrapping context names daemon paths
+// and stays in the daemon log.
 func failureMessage(err error) string {
 	if errors.Is(err, store.ErrSessionIsInstanceMain) {
 		return "It is an always-on agent's main session."
+	}
+	for next := errors.Unwrap(err); next != nil; next = errors.Unwrap(next) {
+		err = next
 	}
 	message := strings.TrimSpace(err.Error())
 	if message == "" {

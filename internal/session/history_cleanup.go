@@ -44,13 +44,14 @@ func (m *Manager) HistoryCleanupRun(profileID string) (sessioncleanup.Run, bool,
 	return run, ok, nil
 }
 
-// StopHistoryCleanup stops the profile's running cleanup after its deletes in flight.
-func (m *Manager) StopHistoryCleanup(ctx context.Context, profileID string) (sessioncleanup.Run, error) {
+// StopHistoryCleanup stops the profile's running cleanup after its deletes in
+// flight; a non-empty runID stops only that run.
+func (m *Manager) StopHistoryCleanup(ctx context.Context, profileID, runID string) (sessioncleanup.Run, error) {
 	service, err := m.historyCleanupService()
 	if err != nil {
 		return sessioncleanup.Run{}, err
 	}
-	return service.Stop(ctx, profileID)
+	return service.Stop(ctx, profileID, runID)
 }
 
 // historyCleanupService builds the cleanup service on first use; the manager

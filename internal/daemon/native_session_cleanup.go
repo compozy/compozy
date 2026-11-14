@@ -82,12 +82,14 @@ func (n *daemonNativeTools) sessionCleanup(
 		if err != nil {
 			return toolspkg.ToolResult{}, sessionCleanupError(req.ToolID, err)
 		}
-		if found {
-			if err := n.requireSessionCleanupRunScope(ctx, scope, req.ToolID, input, current); err != nil {
-				return toolspkg.ToolResult{}, err
-			}
+		if !found {
+			return toolspkg.ToolResult{}, sessionCleanupError(req.ToolID, sessioncleanup.ErrNoActiveRun)
 		}
-		run, err := cleaner.StopHistoryCleanup(ctx, profileID)
+		if err := n.requireSessionCleanupRunScope(ctx, scope, req.ToolID, input, current); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		// Stop exactly the run that passed the scope check, never one that replaced it.
+		run, err := cleaner.StopHistoryCleanup(ctx, profileID, current.ID)
 		if err != nil {
 			return toolspkg.ToolResult{}, sessionCleanupError(req.ToolID, err)
 		}

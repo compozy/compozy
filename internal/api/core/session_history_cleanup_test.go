@@ -63,7 +63,7 @@ func (m *historyCleanupStubManager) HistoryCleanupRun(string) (sessioncleanup.Ru
 	return sessioncleanup.Run{}, false, nil
 }
 
-func (m *historyCleanupStubManager) StopHistoryCleanup(context.Context, string) (sessioncleanup.Run, error) {
+func (m *historyCleanupStubManager) StopHistoryCleanup(context.Context, string, string) (sessioncleanup.Run, error) {
 	return sessioncleanup.Run{}, sessioncleanup.ErrNoActiveRun
 }
 

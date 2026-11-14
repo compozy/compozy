@@ -16052,8 +16052,12 @@ func (s *nativeCleanupSessions) HistoryCleanupRun(string) (sessioncleanup.Run, b
 	return *s.run, true, nil
 }
 
-func (s *nativeCleanupSessions) StopHistoryCleanup(context.Context, string) (sessioncleanup.Run, error) {
-	if s.run == nil || s.run.State != sessioncleanup.RunRunning {
+func (s *nativeCleanupSessions) StopHistoryCleanup(
+	_ context.Context,
+	_ string,
+	runID string,
+) (sessioncleanup.Run, error) {
+	if s.run == nil || s.run.State != sessioncleanup.RunRunning || s.run.ID != runID {
 		return sessioncleanup.Run{}, sessioncleanup.ErrNoActiveRun
 	}
 	s.stops++

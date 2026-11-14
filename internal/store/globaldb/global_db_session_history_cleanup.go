@@ -11,8 +11,10 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-// sessionHistoryCleanupSelect reads every archived session in scope and every
-// unarchived session hanging from an archived parent. Daemon-internal
+// sessionHistoryCleanupSelect reads every archived session in scope, every
+// unarchived session hanging from an archived parent, and every unarchived
+// parent of an archived session, so the planner sees the live sessions an
+// archived one hangs from and never mistakes them for gone. Daemon-internal
 // auto-title sessions are never tree members, so they are left out.
 const sessionHistoryCleanupSelect = `SELECT id, workspace_id, name,
 	COALESCE(parent_session_id, ''), COALESCE(spawn_role, ''), lineage_kind, archived_at,
@@ -22,7 +24,10 @@ FROM sessions`
 const sessionHistoryCleanupMembership = `(archived_at IS NOT NULL OR EXISTS(
 	SELECT 1 FROM sessions p
 	WHERE p.id = sessions.parent_session_id AND p.workspace_id = sessions.workspace_id
-		AND p.archived_at IS NOT NULL))`
+		AND p.archived_at IS NOT NULL) OR EXISTS(
+	SELECT 1 FROM sessions c
+	WHERE c.parent_session_id = sessions.id AND c.workspace_id = sessions.workspace_id
+		AND c.archived_at IS NOT NULL))`
 
 const sessionHistoryCleanupNotInternal = `LOWER(TRIM(COALESCE(spawn_role, ''))) <> 'auto-title'`
 

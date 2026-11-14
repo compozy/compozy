@@ -31,7 +31,8 @@ type SessionHistoryCleanupManager interface {
 		request sessioncleanup.Request,
 	) (sessioncleanup.Run, sessioncleanup.Plan, error)
 	HistoryCleanupRun(profileID string) (sessioncleanup.Run, bool, error)
-	StopHistoryCleanup(ctx context.Context, profileID string) (sessioncleanup.Run, error)
+	// StopHistoryCleanup stops the profile's running cleanup; a non-empty runID stops only that run.
+	StopHistoryCleanup(ctx context.Context, profileID, runID string) (sessioncleanup.Run, error)
 }
 
 // PlanSessionHistoryCleanup previews a cleanup of the selected profile's
@@ -99,7 +100,7 @@ func (h *BaseHandlers) StopSessionHistoryCleanup(c *gin.Context) {
 	if !ok {
 		return
 	}
-	run, err := cleaner.StopHistoryCleanup(c.Request.Context(), profileID)
+	run, err := cleaner.StopHistoryCleanup(c.Request.Context(), profileID, "")
 	if err != nil {
 		h.respondError(c, statusForHistoryCleanupError(err), err)
 		return

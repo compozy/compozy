@@ -1158,6 +1158,30 @@ func TestGlobalDBListSessionHistoryCleanupRows(t *testing.T) {
 		}
 	})
 
+	t.Run("Should read the live parent of an archived session", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		registerSubagentSession(t, db, workspace, "archived-sub", parent, store.SubagentSpawnRole, now)
+		archiveSessionRowForCleanupTest(t, db, "archived-sub", now)
+		rows, err := db.ListSessionHistoryCleanupRows(t.Context(), store.SessionHistoryCleanupQuery{
+			ProfileID: store.DefaultProfileID, WorkspaceID: workspace,
+		})
+		if err != nil {
+			t.Fatalf("ListSessionHistoryCleanupRows() error = %v", err)
+		}
+		got := make(map[string]store.SessionHistoryCleanupRow, len(rows))
+		for _, row := range rows {
+			got[row.ID] = row
+		}
+		// The live parent keeps the archived subagent attached in the plan.
+		if row, ok := got[parent]; !ok || row.ArchivedAt != nil {
+			t.Fatalf("rows = %v, want the live parent %q unarchived", rows, parent)
+		}
+		if _, ok := got["archived-sub"]; !ok || len(got) != 2 {
+			t.Fatalf("rows = %v, want the live parent and its archived subagent", rows)
+		}
+	})
+
 	t.Run("Should mark an always-on agent's main session", func(t *testing.T) {
 		t.Parallel()
 		db, workspace, parent, now := subagentFixture(t)
