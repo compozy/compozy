@@ -2218,4 +2218,35 @@ func TestSubagentWorktreePayload(t *testing.T) {
 			t.Fatalf("child activity = %s", raw)
 		}
 	})
+	// Invariant: a child session deleted leaves a NULL child_session_id, so a
+	// terminal row can never still report a live cached child.
+	t.Run("Should report a terminal orphaned child activity as stopped", func(t *testing.T) {
+		t.Parallel()
+		child := "child"
+		for _, status := range []string{
+			store.SubagentStatusCompleted, store.SubagentStatusFailed,
+			store.SubagentStatusCanceled, store.SubagentStatusInterrupted,
+		} {
+			for _, activity := range []store.SubagentChildActivity{
+				store.SubagentChildActivityWorking, store.SubagentChildActivityIdle,
+			} {
+				row := session.Subagent{}
+				row.Status, row.ChildActivity = status, activity
+				if got := contract.SubagentFromDomain(&row).ChildActivity; got != "stopped" {
+					t.Fatalf("orphan status=%s activity=%s: got %q", status, activity, got)
+				}
+				row.ChildSessionID = &child
+				if got := contract.SubagentFromDomain(&row).ChildActivity; got !=
+					contract.SubagentChildActivity(activity.String()) {
+					t.Fatalf("live status=%s activity=%s: got %q", status, activity, got)
+				}
+				row.ChildSessionID = nil
+				row.Status = store.SubagentStatusRunning
+				if got := contract.SubagentFromDomain(&row).ChildActivity; got !=
+					contract.SubagentChildActivity(activity.String()) {
+					t.Fatalf("running activity=%s: got %q", activity, got)
+				}
+			}
+		}
+	})
 }

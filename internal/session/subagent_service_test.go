@@ -676,6 +676,54 @@ func TestSubagentLifecycle(t *testing.T) {
 			}
 		})
 	})
+	// Invariant: a deleted child session cannot leave a settled row reporting a
+	// live cached activity.
+	t.Run("Should record stopped when the child session is gone", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			settleTestChild(t, s, runtime, &row)
+			settled := db.rows[row.ID]
+			if settled.Status != store.SubagentStatusCompleted ||
+				settled.ChildActivity != store.SubagentChildActivityIdle {
+				t.Fatal(settled)
+			}
+			updates, cancel, err := s.SubscribeSubagentUpdates(t.Context(), "parent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancel()
+			before := len(runtime.publishes)
+			child := *row.ChildSessionID
+			runtime.mu.Lock()
+			delete(runtime.snapshots, child)
+			runtime.mu.Unlock()
+			if err := s.OnChildSettled(t.Context(), child); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			got := db.rows[row.ID]
+			if got.ChildActivity != store.SubagentChildActivityStopped ||
+				got.Status != settled.Status ||
+				!got.SettledAt.Equal(*settled.SettledAt) ||
+				*got.Result != *settled.Result {
+				t.Fatalf("row=%+v", got)
+			}
+			select {
+			case update := <-updates:
+				if update.Subagent.ChildActivity != store.SubagentChildActivityStopped ||
+					update.Subagent.Status != settled.Status {
+					t.Fatalf("update=%+v", update)
+				}
+			default:
+				t.Fatal("stopped child activity was not published")
+			}
+			if len(runtime.publishes) != before+1 {
+				t.Fatalf("parent catalog publishes = %d, want %d", len(runtime.publishes), before+1)
+			}
+		})
+	})
 	t.Run("Should coalesce progress to latest value UT-060", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {

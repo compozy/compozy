@@ -121,7 +121,7 @@ func SubagentFromDomain(row *session.Subagent) SubagentPayload {
 		ParentSessionID: row.ParentSessionID, ParentTurnID: row.ParentTurnID,
 		ChildSessionID: row.ChildSessionID, Origin: row.Origin, ProviderToolCallID: toolCallID,
 		Title: row.Title, Role: row.Role, Status: row.Status, WorkState: row.WorkState,
-		ChildActivity: SubagentChildActivity(row.ChildActivity.String()),
+		ChildActivity: subagentChildActivity(row),
 		Runtime: SubagentRuntimePayload{Agent: row.RuntimeAgent, Provider: row.RuntimeProvider,
 			Model: row.RuntimeModel, ReasoningEffort: row.RuntimeEffort, Speed: runtimeSpeed},
 		Usage: subagentUsagePayload(row.Usage),
@@ -130,6 +130,19 @@ func SubagentFromDomain(row *session.Subagent) SubagentPayload {
 		Hint: hint, Delivery: row.Delivery, StartedAt: row.StartedAt,
 		SettledAt: row.SettledAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
+}
+
+// subagentChildActivity projects the cached child liveness. Deleting the child
+// session nulls child_session_id (ON DELETE SET NULL) and leaves the cached
+// value frozen, so a terminal row without a child can only be stopped.
+func subagentChildActivity(row *session.Subagent) SubagentChildActivity {
+	if row.ChildSessionID == nil && store.IsSubagentStatusTerminal(row.Status) {
+		switch row.ChildActivity {
+		case store.SubagentChildActivityWorking, store.SubagentChildActivityIdle:
+			return SubagentChildActivity(store.SubagentChildActivityStopped.String())
+		}
+	}
+	return SubagentChildActivity(row.ChildActivity.String())
 }
 
 func subagentUsagePayload(usage *store.SubagentUsage) *SubagentUsagePayload {
