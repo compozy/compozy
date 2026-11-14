@@ -143,7 +143,8 @@ export function useArchivedCleanup({
 
   const setOpen = (next: boolean) => {
     if (next) store.trigger.opened();
-    else store.trigger.closed({ finishedRunId: run && !active ? run.id : null });
+    // Only the outcome this dialog showed is seen; another scope's stays for its own list.
+    else store.trigger.closed({ finishedRunId: ended?.id ?? null });
   };
 
   return {
@@ -182,7 +183,10 @@ function useCleanupPreview({
   enabled: boolean;
   projectName: (workspaceId: string) => string;
 }): Pick<ArchivedCleanupModel, "impact" | "counts" | "counting" | "previewError"> & {
-  /** The cutoff the dry run resolved; confirming pins a relative range to it. */
+  /**
+   * What the dry run counted up to: its resolved cutoff, or for Any time the moment it answered.
+   * Confirming pins the range to it.
+   */
   cutoff?: string;
 } {
   const unchecked = nothingChecked(options.what);
@@ -199,7 +203,10 @@ function useCleanupPreview({
     counts: plan?.choices,
     counting: previewable && (preview.isFetching || preview.isPlaceholderData),
     previewError: preview.error ? errorText(preview.error, "The count failed.") : null,
-    cutoff: plan?.archived_before ?? undefined,
+    cutoff: plan
+      ? (plan.archived_before ??
+        (options.range === "all" ? new Date(preview.dataUpdatedAt).toISOString() : undefined))
+      : undefined,
   };
 }
 

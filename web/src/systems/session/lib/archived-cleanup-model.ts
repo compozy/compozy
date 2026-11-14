@@ -105,8 +105,9 @@ export function cleanupRequest(
 }
 
 /**
- * The start request for what the dialog counted: a relative range is pinned to the cutoff the dry
- * run resolved, so a session archived after the count can't join the run.
+ * The start request for what the dialog counted: a relative range, and Any time, are pinned to
+ * the cutoff the dry run counted up to, so a session archived after the count can't join the run.
+ * A picked day is already a fixed cutoff.
  */
 export function confirmedRequest(
   options: CleanupOptions,
@@ -114,7 +115,7 @@ export function confirmedRequest(
   previewCutoff: string | undefined
 ): SessionHistoryCleanupRequest {
   const request = cleanupRequest(options, scope);
-  if (request.older_than_days === undefined || !previewCutoff) return request;
+  if (options.range === "before" || !previewCutoff) return request;
   const pinned: SessionHistoryCleanupRequest = { ...request, archived_before: previewCutoff };
   delete pinned.older_than_days;
   return pinned;

@@ -68,7 +68,7 @@ describe("cleanupRequest", () => {
 });
 
 describe("confirmedRequest", () => {
-  it("Should pin a relative range to the dry run's cutoff and leave other ranges as chosen", () => {
+  it("Should pin a relative range and Any time to the dry run's cutoff, and keep a picked day", () => {
     const cutoff = "2026-11-07T12:00:00Z";
     expect(confirmedRequest(DEFAULT_CLEANUP_OPTIONS, { workspaceId: "ws-1" }, cutoff)).toEqual({
       workspace_id: "ws-1",
@@ -76,8 +76,13 @@ describe("confirmedRequest", () => {
       archived_before: cutoff,
     });
     const anyTime = { ...DEFAULT_CLEANUP_OPTIONS, range: "all" as const };
-    expect(confirmedRequest(anyTime, { workspaceId: "ws-1" }, cutoff)).toEqual(
-      cleanupRequest(anyTime, { workspaceId: "ws-1" })
+    expect(confirmedRequest(anyTime, { workspaceId: "ws-1" }, cutoff)).toEqual({
+      ...cleanupRequest(anyTime, { workspaceId: "ws-1" }),
+      archived_before: cutoff,
+    });
+    const day = { ...DEFAULT_CLEANUP_OPTIONS, range: "before" as const, before: new Date(0) };
+    expect(confirmedRequest(day, { workspaceId: "ws-1" }, cutoff)).toEqual(
+      cleanupRequest(day, { workspaceId: "ws-1" })
     );
   });
 });
