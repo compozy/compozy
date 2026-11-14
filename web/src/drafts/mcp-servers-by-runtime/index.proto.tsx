@@ -12,7 +12,8 @@ import {
 } from "@/systems/settings/mocks/runtime-mcp-fixtures";
 import type { SettingsMCPServerEntry } from "@/systems/settings/types";
 
-import { COMPOZY_SERVERS, MCPServersByRuntimePage, type MCPPageProps } from "./mcp-page";
+import { MCPServersByRuntimePage, type MCPPageProps } from "./mcp-page";
+import { COMPOZY_SERVERS } from "./mcp-page-fixtures";
 
 const DEFAULT_RUNTIMES = runtimeMCPInventoryFixture().runtimes;
 

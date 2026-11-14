@@ -4,9 +4,9 @@
  * the system's fixtures. Marketplace › MCPs reuses the same body.
  */
 import { Plus, Settings } from "@compozy/ui/icons";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { Button, HelpTip, ListingToolbar, PillGroup, Toaster, toast } from "@compozy/ui";
+import { Button, HelpTip, ListingToolbar, PillGroup, Toaster } from "@compozy/ui";
 
 import { SettingsWindowNav } from "@/systems/os/apps/settings/settings-window-nav";
 import { MCPCopyToCompozyDialog } from "@/systems/settings/components/mcp-copy-to-compozy-dialog";
@@ -19,23 +19,12 @@ import {
   matchesMCPQuery,
   MCP_FILTER_ALL,
   type MCPApprovalNote,
-  type MCPCopyFailure,
 } from "@/systems/settings/lib/mcp-runtime-view-model";
-import { mcpManagementServerFixtures } from "@/systems/settings/mocks/fixtures";
-import type {
-  RuntimeMCPServer,
-  RuntimeMCPSnapshot,
-  SettingsMCPServerEntry,
-} from "@/systems/settings/types";
+import type { RuntimeMCPSnapshot, SettingsMCPServerEntry } from "@/systems/settings/types";
 
 import { DraftShell } from "../always-on-agents-shared/draft-shell";
-
-export const COMPOZY_SERVERS: readonly SettingsMCPServerEntry[] = mcpManagementServerFixtures.slice(
-  0,
-  5
-);
-
-export type CopyDialogCase = "default" | "name-taken" | "source-changed" | "submitting";
+import { useCopyDialog } from "./hooks/use-copy-dialog";
+import { copyFailure, type CopyDialogCase } from "./mcp-page-fixtures";
 
 export interface MCPPageProps {
   compozy: readonly SettingsMCPServerEntry[];
@@ -50,25 +39,8 @@ export interface MCPPageProps {
   copied?: SettingsMCPServerEntry;
 }
 
-function copyFailure(which: CopyDialogCase | undefined, server: RuntimeMCPServer | undefined) {
-  if (!server) return null;
-  if (which === "name-taken") {
-    return {
-      code: "mcp_import_name_taken",
-      message: `A CompozyOS server named ${server.name} already exists in Personal`,
-    } satisfies MCPCopyFailure;
-  }
-  if (which === "source-changed") {
-    return {
-      code: "mcp_server_not_found",
-      message: `The server ${server.name} is no longer in ${server.source_label}`,
-    } satisfies MCPCopyFailure;
-  }
-  return null;
-}
-
 export function MCPServersByRuntimePage({
-  compozy,
+  compozy: initialServers,
   runtimes,
   approvalNotes = {},
   loading = false,
@@ -79,23 +51,9 @@ export function MCPServersByRuntimePage({
 }: MCPPageProps) {
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState(initialFilter);
-  const [servers, setServers] = useState(compozy);
+  const [servers, setServers] = useState(initialServers);
   const [modes, setModes] = useState<Record<string, string>>({});
-  const firstGroup = runtimes[0];
-  const initialCopy = copy
-    ? firstGroup?.servers.find(
-        server => server.copyable && server.env_keys.length + server.header_keys.length > 0
-      )
-    : undefined;
-  const [copying, setCopying] = useState<{
-    snapshot: RuntimeMCPSnapshot;
-    server: RuntimeMCPServer;
-  } | null>(firstGroup && initialCopy ? { snapshot: firstGroup, server: initialCopy } : null);
-
-  useEffect(() => {
-    if (!copied) return;
-    toast.success(`${copied.name} copied. Sessions can use it from their next message.`);
-  }, [copied]);
+  const [copying, setCopying] = useCopyDialog(runtimes, copy, copied);
 
   const visible = servers.filter(server =>
     matchesMCPQuery([server.name, server.owner, server.runtime_name], query)

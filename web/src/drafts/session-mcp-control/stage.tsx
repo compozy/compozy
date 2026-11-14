@@ -86,11 +86,6 @@ export function SessionMCPStage({
           ) : null}
         </TranscriptColumn>
         <DraftComposer
-          children={
-            reload?.outcome === "failed"
-              ? "Now check the checkout errors in Sentry, please."
-              : undefined
-          }
           environmentControl={
             <MCPComposerControl
               summary={sessionMCPSummaryFixture(data)}
@@ -104,7 +99,11 @@ export function SessionMCPStage({
           }
           placeholder={`Message ${composerRuntime.label}`}
           runtime={composerRuntime}
-        />
+        >
+          {reload?.outcome === "failed"
+            ? "Now check the checkout errors in Sentry, please."
+            : undefined}
+        </DraftComposer>
       </div>
     </SessionsWindow>
   );

@@ -127,7 +127,7 @@ function CompozyRow({
   );
 }
 
-function Section({ label, children }: { label: ReactNode; children: ReactNode }) {
+function MCPControlSection({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-0.5">
       <span className="flex items-center gap-1.5 px-0.5 pb-0.5 text-eyebrow text-faint">
@@ -204,7 +204,7 @@ function MCPComposerBody({
         </Alert>
       ) : null}
       {view.compozy.length > 0 ? (
-        <Section label="CompozyOS">
+        <MCPControlSection label="CompozyOS">
           {view.compozy.map(row => (
             <CompozyRow
               key={`${row.owner}:${row.name}`}
@@ -214,7 +214,7 @@ function MCPComposerBody({
               acting={actionsDisabled || actingName === row.name}
             />
           ))}
-        </Section>
+        </MCPControlSection>
       ) : null}
       {view.unavailable.length > 0 ? (
         <Disclosure label={`Not available in this session (${view.unavailable.length})`}>
@@ -231,7 +231,7 @@ function MCPComposerBody({
         </Disclosure>
       ) : null}
       {view.runtimeServers.length > 0 ? (
-        <Section
+        <MCPControlSection
           label={
             <>
               <ProviderLogo
@@ -243,7 +243,7 @@ function MCPComposerBody({
           }
         >
           <RuntimeRows rows={view.runtimeServers} runtime={runtime} />
-        </Section>
+        </MCPControlSection>
       ) : null}
     </div>
   );
