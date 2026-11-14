@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspace"
 )
 
 var _ session.MCPAuthorityResolver = (*nativeToolPolicyResolver)(nil)
@@ -42,7 +44,10 @@ func (r *nativeToolPolicyResolver) EffectiveMCPAuthority(
 	inputs := base.inputs
 	if scope.AgentName != "" && !mcpAuthorityRead(ctx) {
 		if err := r.applyAgentToolPolicy(&inputs, scope.AgentName, base.workspace, base.cfg); err != nil {
-			return store.SessionPermissionPolicy{}, err
+			// Existing delegated sessions retain their stored ceiling if the agent was removed.
+			if info.Lineage == nil || !errors.Is(err, workspace.ErrAgentNotAvailable) {
+				return store.SessionPermissionPolicy{}, err
+			}
 		}
 	}
 	lineage := store.NormalizeSessionLineage(id, info.Lineage)

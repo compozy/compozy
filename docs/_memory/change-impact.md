@@ -6176,8 +6176,8 @@ path is policy-routed away from the main-table default device (Cloudflare WARP, 
 spec directory's `_s*-report.md` files.
 
 - **Native tools.** New `compozy__mcp_list` and `compozy__session_mcp_list` (read) and
-  `compozy__mcp_allow` and `compozy__mcp_import` (mutating, approval per permission mode), all in the
-  `compozy__mcp` toolset. `compozy__mcp_status.callable_discovery_note` points to
+  `compozy__mcp_allow` (mutating, always requires operator approval) and `compozy__mcp_import`
+  (mutating, approval per permission mode), all in the `compozy__mcp` toolset. `compozy__mcp_status.callable_discovery_note` points to
   `compozy__session_mcp_list`. `compozy__session_prompt` can return `session_mcp_reload_failed`
   (`retryable`, `client_message_id`, `provider_error`). Blocked calls carry repair messages
   (`source_disabled` waiting/removed, `mcp_auth_required`).
@@ -6222,3 +6222,24 @@ spec directory's `_s*-report.md` files.
   `ET-session-mcp-control-states`, `RT-mcp-reload-failure-recovery`, `ET-cli-mcp-runtime-verbs`.
   QA impact notes on `ET-cli-mcp-authorize`, `ET-web-mcp-authorize`, `ET-web-mcp-authorize-manual`,
   `ET-api-mcp-oauth-endpoints`, `ET-web-mcp-status-matrix`, `RT-mcp-stdio-session-reuse`.
+
+CI round 2 repairs retain this impact scope. Default-profile session reads select User/workspace
+Settings overlays, config-source consent keeps logical names without resource IDs, and MCP reload
+and change events carry durable turn identities. Reloads preserve the accepted provider command.
+Failed discovery retains advertised views but disables execution until recovery; one hosted refresh
+window shares its discovery listing. Invalid MCP definitions remain readable without auth probing.
+The existing QA scenarios and official MCP references reflect these backend corrections; no new Web
+surface, hook, config key, SDK shape or database migration is introduced by this repair.
+
+Backend review fixes preserve this scope: consent checks the exact resolved transport definition;
+agent policy bounds inherited authority while roots follow current native tools. Session list/status
+reads degrade one failing MCP scope and share scope resolution within the request. Sign-out removes
+local credentials without network access or an approval gate. Public definition digests use an
+installation HMAC key in the private `mcp-digest.key` file; approvals and runtime inventory share it.
+Runtime config symlinks resolve through the existing bounded regular-file reader, and inventory
+caches are bounded. Hosted projection revisions remain opaque; activation and served receipts use
+`Catalog.Digest` for the external tools actually installed. Missing initial list receipts do not
+restart list-changed runtimes. Reload/receipt telemetry failures preserve successful operations.
+CLI allow/import/session MCP support JSONL and TOON; changed runtime definitions have a distinct
+Copy error. `_rf-backend-report.md` records focused evidence, including the real isolated daemon
+HTTP/native/CLI read-surfaces check. No additional wire shape, hook/config key or migration is added.

@@ -77,7 +77,7 @@ func asksAtEditLevel(id ToolID) bool {
 		ToolIDSessionApprove, ToolIDSessionClarifyAnswer,
 		ToolIDSessionReparent, ToolIDAgentCreate, ToolIDAgentInstanceCreate, ToolIDAgentInstanceEnsureMain,
 		ToolIDAgentInstancePause, ToolIDAgentInstanceResume, ToolIDCmdPaletteInvoke,
-		ToolIDSessionArchive, ToolIDWorkspaceArchive, ToolIDTaskExecutionProfileSet:
+		ToolIDSessionArchive, ToolIDWorkspaceArchive, ToolIDTaskExecutionProfileSet, ToolIDMCPAllow, ToolIDMCPImport:
 		return true
 	}
 	for _, prefix := range selfEscalationToolPrefixes {

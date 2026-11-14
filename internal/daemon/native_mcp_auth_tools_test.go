@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -657,14 +658,14 @@ func TestRuntimeMCPInventory(t *testing.T) {
 		registry := newDaemonNativeRegistry(
 			t,
 			&daemonNativeToolsDeps{
-				Sessions: nativeTestSessionManager("ws-auth"),
+				Sessions: nativeTestSessionManager(""),
 				Settings: func() core.SettingsService { return settings },
 			},
 			nativeApproveAllPolicyInputs(),
 		)
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-auth"},
+			toolspkg.Scope{SessionID: "sess-1"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMCPList,
 				Input:  json.RawMessage(`{"runtime":"codex","include_runtimes":true}`),
@@ -716,9 +717,10 @@ func TestDaemonNativeMCPAllow(t *testing.T) {
 		service, err := settingspkg.NewService(
 			testHomePaths(t),
 			settingspkg.Dependencies{
-				WorkspaceResolver: state.workspaceResolver,
-				ProfileResolver:   state.profiles,
-				MCPConsent:        settingsMCPConsent{state: state},
+				WorkspaceResolver:       state.workspaceResolver,
+				ProfileResolver:         state.profiles,
+				AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+				MCPConsent:              settingsMCPConsent{state: state},
 			},
 		)
 		if err != nil {
@@ -726,8 +728,7 @@ func TestDaemonNativeMCPAllow(t *testing.T) {
 		}
 		readReq := settingspkg.CollectionRequest{
 			Collection:        settingspkg.CollectionMCPServers,
-			Scope:             settingspkg.ScopeProfile,
-			ProfileName:       "default",
+			Scope:             settingspkg.ScopeWorkspace,
 			WorkspaceID:       consentReq.WorkspaceID,
 			SkipRuntimeStatus: true,
 		}
@@ -759,14 +760,21 @@ func TestDaemonNativeMCPAllow(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		registry := newDaemonNativeRegistry(
+		tokens := toolspkg.NewApprovalTokenStore(time.Minute)
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
 			t,
 			&daemonNativeToolsDeps{
 				Sessions:   nativeTestSessionManager(consentReq.WorkspaceID),
 				Workspaces: state.workspaceResolver,
 				Settings:   func() core.SettingsService { return service },
 			},
-			nativeApproveAllPolicyInputs(),
+			toolspkg.NewStaticPolicyInputResolver(func() toolspkg.PolicyInputs {
+				inputs := nativeApproveAllPolicyInputs()
+				inputs.ApprovalAvailable = true
+				return inputs
+			}()),
+			nil,
+			toolspkg.WithApprovalBridge(newToolApprovalBridge(nil, time.Minute, tokens, nil, discardLogger())),
 		)
 		decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), consentReq)
 		if err != nil {
@@ -788,10 +796,27 @@ func TestDaemonNativeMCPAllow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			issuer := &boundToolApprovalIssuer{
+				tokens:   tokens,
+				registry: registry,
+				binder: newNativeWorkspaceInputBinder(
+					state.workspaceResolver,
+					nativeTestSessionManager(consentReq.WorkspaceID),
+					nil,
+					nil,
+				),
+			}
+			grant, err := issuer.CreateToolApproval(t.Context(), scope, toolspkg.ApprovalTokenRequest{
+				ToolID: toolspkg.ToolIDMCPAllow, Input: input,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			result, err := registry.Call(
 				t.Context(),
 				scope,
-				toolspkg.CallRequest{ToolID: toolspkg.ToolIDMCPAllow, Input: input},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDMCPAllow, Input: input, ApprovalToken: grant.ApprovalToken},
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -952,7 +977,8 @@ func TestRuntimeMCPCopy(t *testing.T) {
 		}
 		reloaded, err := settingspkg.NewService(
 			fixture.home,
-			settingspkg.Dependencies{ProviderSecrets: fixture.secrets},
+			settingspkg.Dependencies{ProviderSecrets: fixture.secrets,
+				ProfileResolver: fixture.profiles, AttentionWorkspaceMutes: fixture.db},
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -1019,8 +1045,13 @@ func TestRuntimeMCPCopy(t *testing.T) {
 			}
 		})
 	}
-	for _, source := range []string{`{"mcpServers":{}}`, `{"mcpServers":{"advos":{"command":"changed"}}}`} {
-		t.Run("Should refuse a source changed since listing UT-065", func(t *testing.T) {
+	// Invariant: stale Copy refuses both removed and edited definitions with the matching repair message.
+	// Owner: daemon runtime MCP copy; canonical suite: TestRuntimeMCPCopy.
+	for _, tc := range []struct{ name, source, message string }{
+		{"removed", `{"mcpServers":{}}`, "The server advos is no longer in ~/.claude.json"},
+		{"edited", `{"mcpServers":{"advos":{"command":"changed"}}}`, "The server advos changed in ~/.claude.json. List it again before copying"},
+	} {
+		t.Run("Should refuse a "+tc.name+" source since listing UT-065", func(t *testing.T) {
 			t.Parallel()
 			fixture := newRuntimeMCPCopyFixture(t, `{"mcpServers":{"advos":{"command":"echo"}}}`)
 			if _, err := fixture.inventory.List(
@@ -1029,7 +1060,7 @@ func TestRuntimeMCPCopy(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(fixture.root, ".claude.json"), []byte(source), 0o600); err != nil {
+			if err := os.WriteFile(filepath.Join(fixture.root, ".claude.json"), []byte(tc.source), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			_, err := fixture.importer.ImportRuntimeMCP(
@@ -1038,7 +1069,7 @@ func TestRuntimeMCPCopy(t *testing.T) {
 			)
 			failure, ok := errors.AsType[*runtimemcp.ImportError](err)
 			if !ok || failure.Code != "mcp_server_not_found" ||
-				failure.Message != "The server advos is no longer in ~/.claude.json" {
+				failure.Message != tc.message {
 				t.Fatalf("wrong stale-source error: %v", err)
 			}
 		})
@@ -1046,6 +1077,8 @@ func TestRuntimeMCPCopy(t *testing.T) {
 }
 
 type runtimeMCPCopyFixture struct {
+	profiles    *profilepkg.Manager
+	db          *globaldb.GlobalDB
 	root        string
 	home        compozyconfig.HomePaths
 	readContext runtimemcp.ReadContext
@@ -1064,19 +1097,27 @@ func newRuntimeMCPCopyFixture(t *testing.T, source string) runtimeMCPCopyFixture
 	if err := os.WriteFile(filepath.Join(root, ".claude.json"), []byte(source), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	secrets, err := vault.NewService(openDaemonTestGlobalDB(t), vault.NewFileKeyProvider(t.TempDir(), nil))
+	db := openDaemonTestGlobalDB(t)
+	secrets, err := vault.NewService(db, vault.NewFileKeyProvider(t.TempDir(), nil))
 	if err != nil {
 		t.Fatal(err)
 	}
 	inventory := newRuntimeMCPInventory()
 	readContext := runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")}
 	home := testHomePaths(t)
+	profiles, err := profilepkg.NewManager(profilepkg.WithStore(db), profilepkg.WithHomePaths(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	service, err := settingspkg.NewService(
 		home,
 		settingspkg.Dependencies{
-			RuntimeMCPInventory: inventory,
-			ProviderSecrets:     secrets,
-			RuntimeMCPContext:   func() (runtimemcp.ReadContext, error) { return readContext, nil },
+			RuntimeMCPInventory:     inventory,
+			ProfileResolver:         profiles,
+			AttentionWorkspaceMutes: db,
+			ProviderSecrets:         secrets,
+			RuntimeMCPContext:       func() (runtimemcp.ReadContext, error) { return readContext, nil },
 		},
 	)
 	if err != nil {
@@ -1087,6 +1128,7 @@ func newRuntimeMCPCopyFixture(t *testing.T, source string) runtimeMCPCopyFixture
 		t.Fatal("settings does not provide runtime MCP copy")
 	}
 	return runtimeMCPCopyFixture{
+		profiles: profiles, db: db,
 		root:        root,
 		home:        home,
 		readContext: readContext,
@@ -1100,6 +1142,36 @@ func newRuntimeMCPCopyFixture(t *testing.T, source string) runtimeMCPCopyFixture
 // Invariant: the session catalog retains blocked rows while projections remain callable-only and reads never discover. Owner: daemon MCP read model; UT-053, UT-080–082, UT-084, UT-091.
 func TestSessionMCPReadModel(t *testing.T) {
 	t.Parallel()
+	for _, userScope := range []bool{false, true} {
+		name := "Should read MCP settings for a default-profile workspace session"
+		if userScope {
+			name = "Should read MCP settings for a default-profile User session"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			state, req := newMCPConsentFixture(t)
+			model, manager, _, _ := newSessionMCPReadFixture(t)
+			workspaceID := req.WorkspaceID
+			if userScope {
+				workspaceID = ""
+			}
+			manager.SessionManager = nativeTestSessionManager(workspaceID)
+			service, err := settingspkg.NewService(testHomePaths(t), settingspkg.Dependencies{
+				WorkspaceResolver: state.workspaceResolver, ProfileResolver: state.profiles,
+				AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			model.state.profiles = state.profiles
+			model.state.deps.Settings = service
+			result, err := model.ListSessionMCP(t.Context(), "sess-1")
+			if err != nil || result.SessionID != "sess-1" {
+				t.Fatalf("default-profile MCP read = %+v, %v", result, err)
+			}
+		})
+	}
+
 	for _, tc := range []struct {
 		name                                           string
 		pending, sameCount, restricted, signedOut, off bool

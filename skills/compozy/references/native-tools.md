@@ -945,7 +945,7 @@ live in `references/tools-and-skills.md`.
   caller's workspace): CompozyOS servers with `approval{required,state,definition_digest}` and
   `callable_in_sessions`, plus one read-only group per runtime. A `runtime` filter returns only that
   runtime group. It reads files only.
-- `compozy__mcp_allow` (mutating, approval per permission mode): `server_name`, `decision`
+- `compozy__mcp_allow` (mutating, always requires operator approval): `server_name`, `decision`
   (`allow`|`revoke`), `workspace`, and for `allow` the `definition_digest` copied from
   `compozy__mcp_list`. A missing or stale digest fails `mcp_approval_definition_changed` and approves
   nothing; list again and send the new digest. `mcp_approval_not_required` means the server was

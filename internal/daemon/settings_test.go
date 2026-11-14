@@ -1789,7 +1789,7 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 		settingspkg.Dependencies{
 			WorkspaceResolver:       state.workspaceResolver,
 			ProfileResolver:         state.profiles,
-			AttentionWorkspaceMutes: state.registry,
+			AttentionWorkspaceMutes: state.registry.(settingspkg.AttentionWorkspaceMuteStore),
 			MCPConsent:              settingsMCPConsent{state: state},
 			MCPAuth:                 surface,
 			MCPRuntime:              surface,

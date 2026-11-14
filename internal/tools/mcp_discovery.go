@@ -60,6 +60,7 @@ func (p *MCPProvider) forgetDiscovered(retire func(SourceRef) bool) {
 		}
 		if retire(source) {
 			p.discovered.Delete(key)
+			p.discoveryFailures.Delete(key)
 		}
 		return true
 	})

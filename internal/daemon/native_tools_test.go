@@ -11541,6 +11541,9 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		state.sessions = &fakeSessionManager{infos: []*session.Info{{
 			ID: "sess-approval", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
 			State: session.StateActive,
+			Lineage: &store.SessionLineage{PermissionPolicy: store.SessionPermissionPolicy{
+				ToolsMode: store.PermissionList, Tools: []string{toolspkg.ToolIDWorkspaceInfo.String()},
+			}},
 		}}}
 		daemon := &Daemon{homePaths: homePaths}
 		cleanup := &bootCleanup{}
@@ -11898,7 +11901,10 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 					},
 				},
 			}
-			before := store.CloneSessionLineage(info.Lineage)
+			before, err := json.Marshal(info.Lineage)
+			if err != nil {
+				t.Fatal(err)
+			}
 			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
 				Config:       &cfg,
 				ProfileNames: promptSkillsProfileNameResolver{store.DefaultProfileID: "default"},
@@ -11933,7 +11939,11 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			if err != nil || !slices.Equal(policy.MCPServers, tc.want) {
 				t.Fatalf("authority=%+v err=%v", policy, err)
 			}
-			if !reflect.DeepEqual(info.Lineage, before) {
+			after, err := json.Marshal(info.Lineage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(after, before) {
 				t.Fatal("authority evaluation rewrote lineage")
 			}
 			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: info.ID})
@@ -12027,11 +12037,17 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
 		id := toolspkg.ToolID("extension__demo__new_tool")
 		descriptor := toolspkg.Descriptor{
-			ID:         id,
-			Source:     toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"},
-			Visibility: toolspkg.VisibilityModel,
-			ReadOnly:   true,
-			Risk:       toolspkg.RiskRead,
+			ID: id,
+			Backend: toolspkg.BackendRef{
+				Kind:        toolspkg.BackendExtensionHost,
+				ExtensionID: "demo",
+				Handler:     "new_tool",
+			},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+			Source:      toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"},
+			Visibility:  toolspkg.VisibilityModel,
+			ReadOnly:    true,
+			Risk:        toolspkg.RiskRead,
 		}
 		for _, tc := range []struct {
 			name    string
@@ -12245,6 +12261,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				ProfileID: store.DefaultProfileID,
 				AgentName: "coder",
 				State:     session.StateActive,
+				Lineage:   nativeRootToolLineage(),
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
@@ -12573,6 +12590,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				ProfileID: store.DefaultProfileID,
 				AgentName: "catalog-only",
 				State:     session.StateActive,
+				Lineage:   nativeRootToolLineage(),
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
@@ -12813,6 +12831,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				ID:        "sess-root",
 				AgentName: "coder",
 				State:     session.StateActive,
+				Lineage:   nativeRootToolLineage(),
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
@@ -19094,4 +19113,15 @@ type mcpAuthoritySessionReaderFunc func(context.Context, string) (*session.Info,
 
 func (f mcpAuthoritySessionReaderFunc) Status(ctx context.Context, id string) (*session.Info, error) {
 	return f(ctx, id)
+}
+
+func nativeRootToolLineage() *store.SessionLineage {
+	var ids []string
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		ids = append(ids, descriptor.ID.String())
+	}
+	return &store.SessionLineage{PermissionPolicy: store.SessionPermissionPolicy{
+		MCPServersMode: store.PermissionInherit, ToolsMode: store.PermissionInherit,
+		Tools: ids, MaterializedTools: true,
+	}}
 }

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -239,7 +240,7 @@ func (m *Manager) reloadActivationRuntime(
 	}()
 	command, env := "", snapshot.acceptedSessionEnv
 	if runtimeSelectionsEqual(snapshot.selection, selection) {
-		command = snapshot.acceptedCommand
+		command = cmp.Or(snapshot.acceptedCommand, s.providerRoutingSnapshot().Command)
 	}
 	plan, err = m.preparePromptRuntimePlanForRoute(ctx, s, selection, command, env)
 	if err != nil {
@@ -252,6 +253,7 @@ func (m *Manager) reloadActivationRuntime(
 		return nil, err
 	}
 	released := s.runtimeBindingSnapshot()
+	released.acceptedCommand = plan.spec.command
 	return m.rebindReleasedRuntime(ctx, s, &released, plan)
 }
 
@@ -288,8 +290,15 @@ func (m *Manager) recordMCPReload(
 	s.mu.Lock()
 	s.activation.lastReload = &reloadRecord{At: m.now(), Outcome: outcome, Reason: reason}
 	s.mu.Unlock()
+	turnID := s.CurrentTurnID()
+	if turnID == "" {
+		turnID, err = m.newPromptTurnID()
+		if err != nil {
+			return err
+		}
+	}
 	persisted, _, err := m.appendDurableSessionEvent(ctx, s.ID, store.SessionEvent{
-		ID: eventID, SessionID: s.ID, TurnID: s.CurrentTurnID(), AgentName: s.AgentName,
+		ID: eventID, SessionID: s.ID, TurnID: turnID, AgentName: s.AgentName,
 		Type: EventTypeMCPReloaded, Content: string(content), Timestamp: m.now(),
 	})
 	if err != nil {

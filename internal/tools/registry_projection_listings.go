@@ -46,6 +46,14 @@ func WithProjectionListings(ctx context.Context, listings *ProjectionListings) c
 	return context.WithValue(ctx, projectionListingsKey{}, listings)
 }
 
+// EnsureProjectionListings preserves a refresh window's listing share when one is already present.
+func EnsureProjectionListings(ctx context.Context) context.Context {
+	if listings, ok := ctx.Value(projectionListingsKey{}).(*ProjectionListings); ok && listings != nil {
+		return ctx
+	}
+	return WithProjectionListings(ctx, NewProjectionListings())
+}
+
 // listProvider returns sorted, validated descriptors that callers must clone before mutating.
 func (r *RuntimeRegistry) listProvider(
 	ctx context.Context,

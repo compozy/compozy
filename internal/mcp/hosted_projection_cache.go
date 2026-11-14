@@ -126,7 +126,7 @@ func buildHostedProjection(
 	var err error
 	profiling.Do(ctx, func(ctx context.Context) {
 		var views []tools.ToolView
-		ctx = tools.WithProjectionListings(ctx, tools.NewProjectionListings())
+		ctx = tools.EnsureProjectionListings(ctx)
 		views, err = registry.List(ctx, record.scope())
 		if err == nil {
 			response = hostedProjectionResponse(views, record.digestMemo)

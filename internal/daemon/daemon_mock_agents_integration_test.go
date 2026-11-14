@@ -4595,7 +4595,7 @@ func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
 		}
 		home := e2etest.NewHomePaths(t)
 		fixture := mockFixturePath(t, "hosted_native_tools_fixture.json")
-		registration, err := acpmock.Register(
+		_, err = acpmock.Register(
 			home,
 			acpmock.RegisterOptions{
 				FixturePath:  fixture,
@@ -4651,36 +4651,49 @@ func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		makeClient := func(id string) *sdkmcp.ClientSession {
+		readNativeBody := func(id string) compozycontract.SessionMCPResponse {
 			t.Helper()
-			records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+			page, err := harness.SessionTranscript(ctx, id)
 			if err != nil {
 				t.Fatal(err)
 			}
-			records = acpmock.DiagnosticsForCompozySession(records, id)
-			return startHostedMCPClient(
-				t,
-				ctx,
-				requireHostedMCPStdioServer(t, records, hostedMCPServerLatest),
-				&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
-			)
+			for _, entry := range page.Entries {
+				for _, part := range entry.Message.Parts {
+					if part.ToolCallID != "hosted-mcp-list" || part.State != "output-available" {
+						continue
+					}
+					var envelope struct {
+						Raw struct {
+							RawOutput compozycontract.SessionMCPResponse `json:"raw_output"`
+						} `json:"raw"`
+					}
+					if err := jsonv2.Unmarshal(part.Output, &envelope); err != nil {
+						t.Fatal(err)
+					}
+					return envelope.Raw.RawOutput
+				}
+			}
+			t.Fatalf("session %s has no successful hosted MCP list result", id)
+			return compozycontract.SessionMCPResponse{}
 		}
 		active := createBoundFixtureBackedSession(t, ctx, harness, "session-mcp", "read-model")
-		client := makeClient(active.ID)
-		defer func() {
-			if err := client.Close(); err != nil {
-				t.Error(err)
-			}
-		}()
-		if _, err := client.ListTools(ctx, nil); err != nil {
+		// Invariant: default-profile session detail resolves MCP summary through its workspace scope.
+		// Owner: daemon HTTP session read; canonical suite: session MCP read surfaces.
+		var detail compozycontract.SessionResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet,
+			"/api/workspaces/"+active.WorkspaceID+"/sessions/"+active.ID, nil, &detail); err != nil {
 			t.Fatal(err)
 		}
-		var httpBody, nativeBody, cliBody compozycontract.SessionMCPResponse
+		if detail.Session.ProfileID != store.DefaultProfileID || detail.Session.MCPSummary == nil {
+			t.Fatalf("default-profile session detail lacks MCP summary: %+v", detail.Session)
+		}
+
+		var httpBody, cliBody compozycontract.SessionMCPResponse
+		nativeBody := readNativeBody(active.ID)
 		route := "/api/workspaces/" + active.WorkspaceID + "/sessions/" + active.ID + "/mcp"
 		if err := harness.HTTPJSON(ctx, http.MethodGet, route, nil, &httpBody); err != nil {
 			t.Fatal(err)
 		}
-		callHostedMCPToolJSON(t, ctx, client, toolspkg.ToolIDSessionMCPList.String(), map[string]any{}, &nativeBody)
 		if err := harness.CLI.RunJSON(ctx, &cliBody, "session", "mcp", active.ID, "-o", "json"); err != nil {
 			t.Fatal(err)
 		}
@@ -4692,7 +4705,7 @@ func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
 			states[row.Name] = row.State
 		}
 		if states["linear"] != "ready" || states["sentry"] != "ready" || states["waiting"] != "waiting_approval" {
-			t.Fatalf("states=%+v", states)
+			t.Fatalf("states=%+v, servers=%+v", states, httpBody.CompozyServers)
 		}
 
 		sessions := []compozycontract.SessionPayload{}
@@ -4722,12 +4735,8 @@ func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
 			bound := bindFixtureBackedSession(t, ctx, harness, created, "noop")
 			sessions = append(sessions, bound)
 			paths = append(paths, ready.Worktree.Path)
-			peer := makeClient(bound.ID)
-			if _, err := peer.ListTools(ctx, nil); err != nil {
-				t.Fatal(err)
-			}
-			if err := peer.Close(); err != nil {
-				t.Fatal(err)
+			if body := readNativeBody(bound.ID); body.SessionID != bound.ID {
+				t.Fatalf("hosted MCP session identity = %s, want %s", body.SessionID, bound.ID)
 			}
 		}
 		for i, bound := range sessions {

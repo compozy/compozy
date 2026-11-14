@@ -1143,6 +1143,15 @@ func newHeartbeatSourceRuntime(
 	if err != nil {
 		t.Fatal(err)
 	}
+	authority, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+		Config: &cfg, Sessions: h.manager, WorkspaceResolver: resolver,
+		ProfileNames: nativeProfileReaderStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.manager.SetMCPAuthorityResolver(authority)
+
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -3064,8 +3073,11 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					WorkspaceResolver: h.env.definitions.workspaces,
 					ProfileNames:      nativeProfileReaderStub{},
 					AgentResolver:     &nativeToolPolicyAgentResolverStub{agent: def},
+					MCPResourceNames:  func() map[string]string { return map[string]string{"fixture-resource": "fixture"} },
 					MCPSourceGrants: func(context.Context, tools.Scope) ([]tools.SourceGrant, error) {
-						return []tools.SourceGrant{{Kind: tools.SourceMCP, Owner: "fixture"}}, nil
+						return []tools.SourceGrant{
+							{Kind: tools.SourceMCP, Owner: "fixture", ResourceID: "fixture-resource"},
+						}, nil
 					},
 				},
 			)
@@ -3073,6 +3085,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			resolver.instanceCallers = h.db.Instances()
+			h.manager.SetMCPAuthorityResolver(resolver)
 
 			registry, err := tools.NewRegistry(
 				tools.WithProviders(provider),

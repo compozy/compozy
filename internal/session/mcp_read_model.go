@@ -227,6 +227,13 @@ func (m *Manager) RecordMCPChanged(ctx context.Context, id string, summary MCPSu
 	if err != nil {
 		return err
 	}
+	turnID := s.CurrentTurnID()
+	if turnID == "" {
+		turnID, err = m.newPromptTurnID()
+		if err != nil {
+			return err
+		}
+	}
 	persisted, _, err := m.appendDurableSessionEvent(
 		ctx,
 		id,
@@ -234,7 +241,7 @@ func (m *Manager) RecordMCPChanged(ctx context.Context, id string, summary MCPSu
 			ID:        eventID,
 			SessionID: id,
 			AgentName: s.AgentName,
-			TurnID:    s.CurrentTurnID(),
+			TurnID:    turnID,
 			Type:      EventTypeMCPChanged,
 			Content:   string(content),
 			Timestamp: m.now(),

@@ -96,6 +96,7 @@ func (p *MCPProvider) listSourceDescriptors(
 		if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
 			return nil, false, contextError
 		}
+		p.discoveryFailures.Store(source, struct{}{})
 		if tracked && p.reliability != nil {
 			if recordErr := p.reliability.service.RecordFailure(
 				ctx,
@@ -118,6 +119,7 @@ func (p *MCPProvider) listSourceDescriptors(
 		}
 		descriptors = append(descriptors, descriptor)
 	}
+	p.discoveryFailures.Delete(source)
 	p.discovered.Store(source, cloneDescriptors(descriptors))
 	if tracked && p.reliability != nil {
 		if err := p.reliability.service.RecordSuccess(ctx, key); err != nil {

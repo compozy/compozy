@@ -36,7 +36,9 @@ Steps:
    `reason: "new"`, `callable_in_sessions: false`; record `definition_digest`.
 4. In the session, "call sentry echo": the error reads "sentry is waiting for approval in <ws>.
    Allow it in Settings → MCP servers."
-5. Click Allow in the MCP control. Send "call sentry echo". It succeeds; `starts.log` has one line.
+5. An agent calling `compozy__mcp_allow` must receive an operator approval request in every
+   permission mode, including `approve-all`; without an approval bridge the call fails closed.
+   Click Allow in the MCP control. Send "call sentry echo". It succeeds; `starts.log` has one line.
 6. Edit an argument in `.compozy/mcp.json`. The row returns to "Waiting for approval · Changed since
    you allowed it"; the old digest is refused:
    `compozy mcp allow sentry --workspace <ws> --digest <old>` → `mcp_approval_definition_changed`.

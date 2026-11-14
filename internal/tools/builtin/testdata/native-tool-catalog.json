@@ -2234,7 +2234,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "9676d1eeff4b6635ea3fc3ea1f16226b40d0dabc06448b85ff6f9776ef302da3",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
   },
   {
     "tool_id": "compozy__mcp_auth_status",
@@ -2262,7 +2264,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "e150c967dcc09b5cd51507c1e6d84e5237ad6c87e72d1f1081df8e9ef23fec04",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
   },
   {
     "tool_id": "compozy__mcp_list",
@@ -2275,7 +2279,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "217fc8a778d525599fb15b3d47821d52c919d011f8c0eac2d3cfdd8819b1293e",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "caller_bounded"
   },
   {
     "tool_id": "compozy__mcp_status",

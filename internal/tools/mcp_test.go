@@ -1689,6 +1689,7 @@ func TestMCPConsentPrecedesDiscovery(t *testing.T) {
 		RawServerName: "remote",
 		WorkspaceID:   "ws",
 		ResourceID:    "record",
+		Scope:         "workspace",
 	}
 	admitted := false
 	provider, err := NewMCPProvider(
@@ -1756,6 +1757,7 @@ func TestMCPProviderAdvertisedDiscoveryRetention(t *testing.T) {
 		}
 		policy := DefaultPolicyInputs()
 		policy.ExternalDefault = ExternalDefaultEnabled
+		policy.SystemPermissionMode = PermissionModeApproveAll
 		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(policy, ToolsetCatalog{}))
 		if err != nil {
 			t.Fatal(err)

@@ -36,10 +36,17 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 			return session.MCP{}, err
 		}
 	}
-	collection, err := r.state.deps.Settings.ListCollection(ctx, settingspkg.CollectionRequest{
-		Collection: settingspkg.CollectionMCPServers, Scope: settingspkg.ScopeProfile,
-		ProfileName: profile, WorkspaceID: info.WorkspaceID, SkipRuntimeStatus: true,
-	})
+	request := settingspkg.CollectionRequest{
+		Collection: settingspkg.CollectionMCPServers, Scope: settingspkg.ScopeUser,
+		WorkspaceID: info.WorkspaceID, SkipRuntimeStatus: true,
+	}
+	if info.WorkspaceID != "" {
+		request.Scope = settingspkg.ScopeWorkspace
+	}
+	if profile != "" && profile != daemonDefaultProfileName {
+		request.Scope, request.ProfileName = settingspkg.ScopeProfile, profile
+	}
+	collection, err := r.state.deps.Settings.ListCollection(ctx, request)
 	if err != nil {
 		return session.MCP{}, err
 	}

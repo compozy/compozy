@@ -50,6 +50,7 @@ func (p *MCPProvider) projectionAvailability(
 				auth:        p.auth,
 				scope:       scope,
 				reliability: p.reliability,
+				provider:    p,
 			}
 			availability = handle.Availability(ctx, scope)
 			sources[key] = availability
