@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -94,11 +95,22 @@ func (s *subagentService) retireCanceledChild(
 	return outcome, errors.Join(descendantErr, s.stopChildSession(cleanup, *row.ChildSessionID))
 }
 
+// stopBudget covers the whole cooperative stop ladder: a shorter bound would
+// make Cancel return before forced termination even starts.
+func (s *subagentService) stopBudget() time.Duration {
+	if s.runtime != nil {
+		if budget := s.runtime.TerminationBudget(); budget > 0 {
+			return budget
+		}
+	}
+	return defaultLifecycleTimeout
+}
+
 // stopChildSession retires a child session with its own bounded context: the
 // cancel request may arrive with a context that is already expiring, and an
 // already stopped session is not a failure.
 func (s *subagentService) stopChildSession(ctx context.Context, child string) error {
-	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.stopBudget())
 	defer cancel()
 	err := s.runtime.Stop(stopCtx, child)
 	if errors.Is(err, ErrSessionNotActive) || errors.Is(err, ErrSessionNotFound) {

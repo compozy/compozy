@@ -3377,6 +3377,7 @@ func TestSubagentCancelLifetime(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)
 		row := requireSubagent(t, s, subagentTestRequest())
+		runtime.terminationBudget = 30 * time.Second
 		var stopCtx context.Context
 		var stopCtxErr error
 		s.runtime = cancelStopRuntime{
@@ -3402,8 +3403,14 @@ func TestSubagentCancelLifetime(t *testing.T) {
 		if stopCtxErr != nil {
 			t.Fatal("stop inherited request cancellation", stopCtxErr)
 		}
-		if _, ok := stopCtx.Deadline(); !ok {
+		deadline, ok := stopCtx.Deadline()
+		if !ok {
 			t.Fatal("stop context has no deadline")
+		}
+		// A shorter bound would return before the cooperative ladder reaches
+		// forced termination.
+		if remaining := time.Until(deadline); remaining < 25*time.Second {
+			t.Fatalf("stop deadline in %s, want the 30s termination budget", remaining)
 		}
 		if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
 			t.Fatal(runtime.stopped)

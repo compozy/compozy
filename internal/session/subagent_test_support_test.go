@@ -447,6 +447,7 @@ type subagentTestRuntime struct {
 	permissionLimit                 *SubagentPermissionLimit
 	permissionLimitErr              error
 	stopDescendants                 func(context.Context, string) error
+	terminationBudget               time.Duration
 	inputStatuses                   map[string]string
 	errorResume                     error
 	mu                              sync.Mutex
@@ -538,6 +539,13 @@ func (r *subagentTestRuntime) HasAdmission(_ context.Context, row store.SessionS
 	_, ok := r.admitted[row.ID]
 	return ok, nil
 }
+func (r *subagentTestRuntime) TerminationBudget() time.Duration {
+	if r.terminationBudget > 0 {
+		return r.terminationBudget
+	}
+	return defaultLifecycleTimeout
+}
+
 func (r *subagentTestRuntime) Stop(ctx context.Context, id string) error {
 	// The runtime boundary owns cascading just as Manager.Stop does in production.
 	if r.stopDescendants != nil {

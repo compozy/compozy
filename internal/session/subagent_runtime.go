@@ -7,6 +7,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -149,6 +150,10 @@ func (r managerSubagentRuntime) HasAdmission(ctx context.Context, row store.Sess
 	return found, err
 }
 func (r managerSubagentRuntime) Stop(ctx context.Context, id string) error { return r.m.Stop(ctx, id) }
+
+func (r managerSubagentRuntime) TerminationBudget() time.Duration {
+	return TerminationBudget(r.m.stopConfig)
+}
 func (r managerSubagentRuntime) NativeTurnEvents(
 	ctx context.Context, parentID, turnID string, types []string, afterSequence int64, limit int,
 ) ([]store.SessionEvent, error) {

@@ -34,6 +34,9 @@ type subagentRuntime interface {
 	HasAdmission(context.Context, store.SessionSubagent) (bool, error)
 	ResumeChild(context.Context, store.SessionSubagent) error
 	Stop(context.Context, string) error
+	// TerminationBudget covers every phase of the cooperative stop ladder, so a
+	// caller that bounds a stop never fires its deadline before forced termination.
+	TerminationBudget() time.Duration
 	Result(context.Context, string) (subagentTurnResult, error)
 	QueueWake(context.Context, store.SessionSubagentWake, []store.SessionSubagent) (string, error)
 	CancelWake(context.Context, store.SessionSubagentWake) error
