@@ -168,9 +168,34 @@ func InstallLocalManaged(
 		return err
 	}
 
+	published, err := publishManagedInstall(
+		registry,
+		manifest,
+		stagingDir,
+		finalDir,
+		installConfig,
+		opts,
+	)
+	if published {
+		cleanupStaging = false
+	}
+	return err
+}
+
+// publishManagedInstall publishes the staged tree at finalDir and persists its registry
+// row. When the installed version was staged aside, any failure restores it instead of
+// leaving the extension absent. The bool reports whether the staged tree was consumed.
+func publishManagedInstall(
+	registry managedInstallRegistry,
+	manifest *Manifest,
+	stagingDir string,
+	finalDir string,
+	installConfig installConfig,
+	opts []InstallOption,
+) (published bool, err error) {
 	change, err := stageManagedInstallBackup(finalDir, installConfig.replaceExisting)
 	if err != nil {
-		return err
+		return false, err
 	}
 	restoreInstall := func(baseErr error, contextSuffix string) error {
 		if !installConfig.replaceExisting {
@@ -190,22 +215,21 @@ func InstallLocalManaged(
 			err,
 		)
 		if installConfig.replaceExisting {
-			return restoreInstall(moveErr, "")
+			return false, restoreInstall(moveErr, "")
 		}
-		return moveErr
+		return false, moveErr
 	}
 	logLocalInstallCleanupDiagnostics(moveResult.CleanupDiagnostics)
-	cleanupStaging = false
 	if err := observeManagedInstallBoundary(
 		installConfig.boundaryObserver,
 		managedInstallBoundaryFinalMoved,
 	); err != nil {
-		return restoreInstall(err, "after final move interruption")
+		return true, restoreInstall(err, "after final move interruption")
 	}
 
 	installedChecksum, err := ComputeDirectoryChecksum(finalDir)
 	if err != nil {
-		return restoreInstall(
+		return true, restoreInstall(
 			fmt.Errorf("extension: compute installed checksum %q: %w", finalDir, err),
 			"after checksum error",
 		)
@@ -216,7 +240,10 @@ func InstallLocalManaged(
 		installOpts = append(append([]InstallOption(nil), opts...), WithInstallReplaceExisting())
 	}
 	if err := registry.Install(manifest, finalDir, installedChecksum, installOpts...); err != nil {
-		return restoreInstall(fmt.Errorf("extension: persist managed extension %q: %w", manifest.Name, err), "")
+		return true, restoreInstall(
+			fmt.Errorf("extension: persist managed extension %q: %w", manifest.Name, err),
+			"",
+		)
 	}
 
 	if err := change.Commit(); err != nil {
@@ -226,7 +253,7 @@ func InstallLocalManaged(
 			"error", err,
 		)
 	}
-	return nil
+	return true, nil
 }
 
 // stageManagedInstallBackup moves the installed version aside before a replacement publishes.
