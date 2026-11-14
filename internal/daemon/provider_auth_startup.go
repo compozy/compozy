@@ -28,6 +28,8 @@ type providerAuthStartup struct {
 	// config reads the active configuration, so a provider edited during the check is not probed
 	// or recorded with its boot-time settings.
 	config func(context.Context) (config.Config, error)
+	// limit bounds concurrent status commands across the startup pass and later re-checks.
+	limit chan struct{}
 }
 
 // bootProviderAuthStartup runs the startup sign-in check as an owned worker that shutdown joins.
@@ -51,6 +53,7 @@ func (d *Daemon) bootProviderAuthStartup(ctx context.Context, state *bootState, 
 		logger: state.logger,
 		now:    func() time.Time { return d.now().UTC() },
 		config: activeConfigSource(state),
+		limit:  make(chan struct{}, providerAuthStartupConcurrency),
 	}
 	workerCtx, cancel := context.WithCancel(ctx)
 	worker := newOwnedWorkerGroup(cancel)
@@ -86,6 +89,12 @@ func (p providerAuthStartup) recheck(ctx context.Context, worker *ownedWorkerGro
 	}
 	go func() {
 		defer complete()
+		select {
+		case p.limit <- struct{}{}:
+		case <-ctx.Done():
+			return
+		}
+		defer func() { <-p.limit }()
 		p.probe(ctx, name)
 	}()
 }
@@ -107,7 +116,7 @@ func (p providerAuthStartup) run(ctx context.Context) {
 		p.logger.Warn("provider_auth.startup_probe", "error", err)
 		return
 	}
-	limit := make(chan struct{}, providerAuthStartupConcurrency)
+	limit := p.limit
 	var wg sync.WaitGroup
 	var probed, skipped atomic.Int32
 	for _, name := range config.ProviderInventoryNames(&cfg) {

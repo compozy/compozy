@@ -43,6 +43,7 @@ func newStartupProbeFixture(run providers.ProviderAuthCommandRunner, installed .
 		},
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		now:    time.Now,
+		limit:  make(chan struct{}, providerAuthStartupConcurrency),
 	}
 	return f
 }
