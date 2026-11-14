@@ -1,4 +1,5 @@
 import { MonitorX } from "@compozy/ui/icons";
+import { shallowEqual } from "@xstate/store";
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 
@@ -12,7 +13,7 @@ import {
   type DeskDesktopModel,
   type OsDeskLayerModel,
 } from "../hooks/use-os-desk-layer";
-import { useTabSessions } from "../hooks/use-os-tab-bar";
+import { tabSessionIds, useTabSessions } from "../hooks/use-os-tab-bar";
 import { useDesktop } from "../hooks/use-desktop";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useOsSplitSeam } from "../hooks/use-os-split-seam";
@@ -298,10 +299,8 @@ export function OsDeskLayer({
   onTransitionComplete,
 }: OsDeskLayerProps) {
   const { layerRef, desktops, viewportState } = model;
-  const hasSession = useDesktop(state =>
-    Object.values(state.windows).some(win => win.app === "session")
-  );
-  const sessionById = useTabSessions(hasSession);
+  const sessionIds = useDesktop(state => tabSessionIds(Object.values(state.windows)), shallowEqual);
+  const sessionById = useTabSessions(sessionIds);
   const sessionOf = (win: OsWindow) =>
     win.app === "session" ? sessionById.get(win.instanceKey ?? "") : undefined;
   return (

@@ -62,13 +62,22 @@ let instanceRows: AgentInstancePayload[] = [];
 let agentCatalog: AgentIdentitySource[] | undefined;
 let queryClient: QueryClient;
 
-vi.mock("@/systems/session", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/session")>()),
+// The hooks' own modules: their barrels load the shell back through their imports, so a barrel
+// mock would not reach this bar.
+vi.mock("@/systems/session/hooks/use-sessions", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/hooks/use-sessions")>()),
   useSessions: () => ({ data: sessionRows }),
 }));
 
-// The hook's own module: the barrel loads the shell back through its imports, so a barrel mock
-// would not reach this bar.
+// The detail read's I/O boundary: an open session the list page misses fetches through it.
+const { fetchSessionById } = vi.hoisted(() => ({
+  fetchSessionById: vi.fn<(id: string) => Promise<SessionPayload>>(),
+}));
+vi.mock("@/systems/session/adapters/session-owner-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/adapters/session-owner-api")>()),
+  fetchSessionById,
+}));
+
 vi.mock("@/systems/agent/hooks/use-agent-instances", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/hooks/use-agent-instances")>()),
   useAgentInstances: () => instanceRows,
@@ -302,6 +311,7 @@ beforeEach(() => {
   sessionRows = [];
   instanceRows = [];
   agentCatalog = undefined;
+  fetchSessionById.mockReset();
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 });
@@ -785,7 +795,7 @@ describe("OsTabBar", () => {
     expect(coordinator.userFocus).toHaveBeenCalledWith("w-vault");
   });
 
-  it("Should mark each session tab with its agent's face and keep the generic mark without one [#1709]", () => {
+  it("Should mark each session tab with its agent's face and keep the generic mark without one [#1709]", async () => {
     const sessionWindow = (id: string, sessionId: string): WindowManagerWindow => ({
       ...win(id, "session", `tab:${id}`),
       instanceKey: sessionId,
@@ -814,6 +824,8 @@ describe("OsTabBar", () => {
       sessionScopedDetailOptions("sess-old", scope.current).queryKey,
       session("sess-old", "reviewer")
     );
+    // A cold one: nothing cached, so its detail is fetched once the list has answered.
+    fetchSessionById.mockImplementation(async id => session(id, "reviewer"));
     instanceRows = [
       agentInstanceFixture({
         agent_name: "maestro",
@@ -839,6 +851,7 @@ describe("OsTabBar", () => {
       sessionWindow("w-review-session", "sess-review"),
       sessionWindow("w-plain", "sess-plain"),
       sessionWindow("w-old", "sess-old"),
+      sessionWindow("w-cold", "sess-cold"),
     ];
     renderBar({
       tabs: [...TABS, ...sessionWindows.map(item => solo(`tab:${item.id}`, item.id))],
@@ -860,8 +873,17 @@ describe("OsTabBar", () => {
     expect(review).toHaveAttribute("aria-label", "Code Reviewer");
     expect(review?.querySelector('[data-background="plate"]')).not.toBeNull();
     expect(review?.querySelector("use")?.getAttribute("href")).toMatch(/#search-check$/);
-    // A session missing from the list still shows its agent, from the detail its window reads.
+    // A session missing from the list still shows its agent, from the detail its window reads,
+    // cached or fetched; a listed session never reads its detail.
     expect(markOf("tab:w-old")).toHaveAttribute("aria-label", "Code Reviewer");
+    await waitFor(() =>
+      expect(markOf("tab:w-cold")).toHaveAttribute("aria-label", "Code Reviewer")
+    );
+    const fetched = fetchSessionById.mock.calls.map(([id]) => id);
+    expect(fetched).toContain("sess-cold");
+    expect(fetched).not.toContain("sess-main");
+    expect(fetched).not.toContain("sess-review");
+    expect(fetched).not.toContain("sess-plain");
     // A session with no agent and every non-session tab keep their generic mark.
     expect(markOf("tab:w-plain")).toBeNull();
     expect(markOf("tab:tasks")).toBeNull();

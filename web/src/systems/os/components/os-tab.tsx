@@ -21,12 +21,7 @@ import {
 } from "@/systems/agent";
 import type { SessionPayload } from "@/systems/session";
 
-import {
-  TAB_TILE_PEEK,
-  TAB_TILE_STACK_MAX,
-  TAB_TILE_WIDTH,
-  useTabSession,
-} from "../hooks/use-os-tab-bar";
+import { TAB_TILE_PEEK, TAB_TILE_STACK_MAX, TAB_TILE_WIDTH } from "../hooks/use-os-tab-bar";
 import { useOsTabPlate } from "../hooks/use-os-tab-plate";
 import type { TabRovingProps } from "../hooks/use-tab-bar-roving";
 import { getOsAppDescriptor } from "../lib/app-catalog";
@@ -93,8 +88,7 @@ function AgentTileMark({ session }: { session: SessionPayload }) {
  * any other agent session its agent's face, and a session with no agent the generic mark (#1709).
  * Both reads share the instance and catalog queries the shell already holds, never one per tab.
  */
-function SessionTileMark({ win, session: listed }: TileMarkProps) {
-  const session = useTabSession(win.instanceKey ?? "", listed);
+function SessionTileMark({ win, session }: TileMarkProps) {
   const instance = alwaysOnMainInstance(useAgentInstances(), win.instanceKey ?? "");
   if (instance) {
     return (
