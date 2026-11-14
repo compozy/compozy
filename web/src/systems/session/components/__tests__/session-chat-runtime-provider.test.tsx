@@ -2290,8 +2290,9 @@ describe("SessionChatRuntimeProvider", () => {
     answer.resolve(
       jsonResponse(
         {
+          // The daemon's own sentence (`MCPReloadError.Error`), code suffix included.
           error:
-            "Couldn't start Claude Code with the new MCP servers: exit status 1. Your message wasn't sent.",
+            "Couldn't start Claude Code with the new MCP servers: exit status 1. Your message wasn't sent. (session_mcp_reload_failed)",
           code: "session_mcp_reload_failed",
           retryable: true,
           client_message_id: lastPromptMessageID,

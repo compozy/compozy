@@ -184,7 +184,11 @@ function MCPServerRow({
       data-testid={rowTestId}
       data-owner={server.owner ?? "manual"}
       data-approval={waiting ? "waiting" : undefined}
-      className={cn(ROW_CLASS, selected || highlighted ? "bg-selected" : "hover:bg-surface-2")}
+      data-highlighted={highlighted && !selected ? "" : undefined}
+      className={cn(
+        ROW_CLASS,
+        selected ? "bg-selected" : highlighted ? "bg-success-tint" : "hover:bg-surface-2"
+      )}
     >
       <div className={SERVER_CELL_CLASS}>
         <span

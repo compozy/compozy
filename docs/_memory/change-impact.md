@@ -6201,8 +6201,8 @@ spec directory's `_s*-report.md` files.
   caller's workspace and profile first. Runtime inventory reads the operator home plus the selected
   workspace root (Settings) or the session's own provider home and working directory (sessions);
   no secret value leaves the daemon.
-- **User state.** Append-only migration 00200 (`mcp_server_approvals`, starts empty) and 00201
-  (idempotent lineage/instance-ceiling marker backfill). The boundary decoder for unmarked rows stays
+- **User state.** Append-only migrations `00201_schema.sql` (`mcp_server_approvals`, starts empty)
+  and `00202_permission_intent.sql` (idempotent lineage/instance-ceiling marker backfill). The boundary decoder for unmarked rows stays
   one more release and is removed in the release after next (SD-013 user-state regime). Copy writes
   Vault secrets and Settings files; runtime files are never written.
 - **Web.** Settings → MCP servers and Marketplace → MCPs group servers by runtime with a filter,

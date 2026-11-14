@@ -54,7 +54,7 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
         onRetry={model.retry}
         onAction={actions.act}
         actingName={actions.actingName}
-        actionsDisabled={actions.resolving}
+        actionsDisabled={actions.resolving || actions.allowing}
         onManage={manage}
         onOpenChange={setOpen}
       />
