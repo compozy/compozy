@@ -5,6 +5,7 @@ import type {
   SettingsHookListFilter,
   SettingsMCPServerListFilter,
   SettingsMCPServerGetFilter,
+  RuntimeMCPInventoryFilter,
   SettingsPersonaFilter,
   SettingsSectionName,
   SettingsSectionSlug,
@@ -118,6 +119,18 @@ export const settingsKeys = {
       filter.scope ?? "",
       normalizeText(filter.workspace_id),
       normalizeText(filter.profile),
+    ] as const,
+
+  // Under `mcpRoot` on purpose: every MCP mutation (approval, copy, runtime switch, manual edits)
+  // invalidates the root, so the runtime groups and the CompozyOS list reread together.
+  mcpRuntimeInventory: (filter: RuntimeMCPInventoryFilter = {}) =>
+    [
+      ...settingsKeys.mcpRoot(),
+      "runtime-inventory",
+      filter.scope ?? "",
+      normalizeText(filter.workspace_id),
+      normalizeText(filter.profile),
+      normalizeText(filter.runtime),
     ] as const,
 
   restartRoot: () => [...settingsKeys.all, "restart"] as const,

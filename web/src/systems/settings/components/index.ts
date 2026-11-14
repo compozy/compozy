@@ -14,6 +14,20 @@ export type { MCPOverrideEditorProps } from "./mcp-override-editor";
 export { MCPServersTable, MCPServersTableSkeleton } from "./mcp-servers-table";
 export type { MCPServersTableProps } from "./mcp-servers-table";
 export { MCPServersManagementBody, MCPServersManagementDialogs } from "./mcp-servers-management";
+export { MCPApprovalCell } from "./mcp-approval-cell";
+export { MCPCopyToCompozyDialog } from "./mcp-copy-to-compozy-dialog";
+export type { MCPCopyToCompozyDialogProps } from "./mcp-copy-to-compozy-dialog";
+export { MCPRuntimeFilter } from "./mcp-runtime-filter";
+export { MCPRuntimeGroup } from "./mcp-runtime-group";
+export type { MCPRuntimeGroupProps } from "./mcp-runtime-group";
+export { MCPRuntimeModeSwitch } from "./mcp-runtime-mode-switch";
+export { MCPRuntimeModeSwitchView } from "./mcp-runtime-mode-switch-view";
+export { MCPRuntimeServerRow } from "./mcp-runtime-server-row";
+export {
+  MCPServersByRuntimeSkeleton,
+  MCPServersByRuntimeView,
+} from "./mcp-servers-by-runtime-view";
+export type { MCPServersByRuntimeViewProps } from "./mcp-servers-by-runtime-view";
 export { SettingsPageRestartNotice } from "./settings-page-restart-notice";
 export {
   isExtensionOwnedMCPServer,
