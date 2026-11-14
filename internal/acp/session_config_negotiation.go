@@ -19,11 +19,6 @@ const (
 	sessionModeBypassPermissions = "bypassPermissions"
 )
 
-const (
-	modelCatalogFirstBackoff = 250 * time.Millisecond
-	modelCatalogMaxBackoff   = 2 * time.Second
-)
-
 func (d *Driver) applySessionMode(
 	ctx context.Context,
 	process *AgentProcess,
