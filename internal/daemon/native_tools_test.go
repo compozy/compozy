@@ -11451,6 +11451,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 			}
 			calls := 0
 			state := &bootState{
+				mcpDigestKeys:     vault.NewMCPDigestKeyProvider(t.TempDir()),
 				cfg:               cfg,
 				registry:          registry,
 				workspaceResolver: resolver,
@@ -11532,7 +11533,13 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		state := &bootState{cfg: cfg, registry: registry, workspaceResolver: resolver, profiles: profiles}
+		state := &bootState{
+			mcpDigestKeys:     vault.NewMCPDigestKeyProvider(t.TempDir()),
+			cfg:               cfg,
+			registry:          registry,
+			workspaceResolver: resolver,
+			profiles:          profiles,
+		}
 		if err := registry.RegisterSession(t.Context(), new(store.SessionInfo{
 			ID: "sess-approval", AgentName: "general", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
 			State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
@@ -11650,6 +11657,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		cfg := testConfig(t, homePaths)
 		skillsRegistry := newLoadedNativeSkillRegistry(t)
 		state := &bootState{
+			mcpDigestKeys:  vault.NewMCPDigestKeyProvider(t.TempDir()),
 			cfg:            cfg,
 			registry:       &recordingRegistry{},
 			skillsRegistry: skillsRegistry,
