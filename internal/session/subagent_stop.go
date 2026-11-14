@@ -46,7 +46,9 @@ func (s *subagentService) Cancel(
 		return SubagentCancelOutcome{}, ErrSubagentNotCancelable
 	}
 	if store.IsSubagentStatusTerminal(row.Status) {
-		return SubagentCancelOutcome{ID: id, Status: row.Status}, nil
+		// A terminal row can still own a running child: that residual lane is
+		// exactly what cancellation must retire.
+		return s.stopCanceledChild(ctx, row)
 	}
 	unlock := s.lock(row.ParentSessionID)
 	// Delegation links the child and settlement finalizes the row under this
@@ -58,7 +60,7 @@ func (s *subagentService) Cancel(
 	}
 	if store.IsSubagentStatusTerminal(row.Status) {
 		unlock()
-		return SubagentCancelOutcome{ID: id, Status: row.Status}, nil
+		return s.stopCanceledChild(ctx, row)
 	}
 	err = s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: row.ParentSessionID, IDs: []string{id}})
 	if err == nil {
@@ -69,18 +71,46 @@ func (s *subagentService) Cancel(
 	if err != nil {
 		return SubagentCancelOutcome{}, err
 	}
-	if row.ChildSessionID != nil {
-		// Freeze every live descendant before any stop signal can turn an
-		// in-flight delegation admission into a provider failure.
-		cascadeErr := s.cancelDescendants(ctx, *row.ChildSessionID)
-		s.launch(func() {
-			s.logError(s.ctx, "cancel_child", s.runtime.Stop(s.ctx, *row.ChildSessionID))
-		})
-		if cascadeErr != nil {
-			return SubagentCancelOutcome{}, cascadeErr
-		}
+	outcome := SubagentCancelOutcome{ID: id, Status: "cancel_requested"}
+	if row.ChildSessionID == nil {
+		return outcome, nil
 	}
-	return SubagentCancelOutcome{ID: id, Status: "cancel_requested"}, nil
+	// Freeze every live descendant before any stop signal can turn an
+	// in-flight delegation admission into a provider failure, and retire the
+	// child even when that cleanup fails: a canceled row must not leave a live
+	// session behind. Both steps own a bounded context, so a canceled request
+	// cannot cut the cleanup short.
+	cleanup, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancelCleanup()
+	descendantErr := s.cancelDescendants(cleanup, *row.ChildSessionID)
+	return outcome, errors.Join(descendantErr, s.stopChildSession(cleanup, *row.ChildSessionID))
+}
+
+func (s *subagentService) stopCanceledChild(
+	ctx context.Context,
+	row store.SessionSubagent,
+) (SubagentCancelOutcome, error) {
+	outcome := SubagentCancelOutcome{ID: row.ID, Status: row.Status}
+	if row.ChildSessionID == nil {
+		return outcome, nil
+	}
+	cleanup, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancelCleanup()
+	descendantErr := s.cancelDescendants(cleanup, *row.ChildSessionID)
+	return outcome, errors.Join(descendantErr, s.stopChildSession(cleanup, *row.ChildSessionID))
+}
+
+// stopChildSession retires a child session with its own bounded context: the
+// cancel request may arrive with a context that is already expiring, and an
+// already stopped session is not a failure.
+func (s *subagentService) stopChildSession(ctx context.Context, child string) error {
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	err := s.runtime.Stop(stopCtx, child)
+	if errors.Is(err, ErrSessionNotActive) || errors.Is(err, ErrSessionNotFound) {
+		return nil
+	}
+	return err
 }
 func (s *subagentService) OnParentStopped(ctx context.Context, parent string) error {
 	unlock := s.lock(parent)
