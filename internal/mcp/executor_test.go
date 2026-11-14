@@ -2826,7 +2826,11 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			InputValues: map[string]compozyconfig.MCPInputValue{"TENANT": {Value: "private-tenant"}},
 		}
 		executor := newTestMCPExecutor(t, server, WithDefinitionDigestKey(key))
-		cfg, err := executor.serverAuthConfig(t.Context(), ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}, nil)
+		cfg, err := executor.serverAuthConfig(
+			t.Context(),
+			&ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)},
+			nil,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
