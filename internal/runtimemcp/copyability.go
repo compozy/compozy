@@ -2,6 +2,7 @@ package runtimemcp
 
 import (
 	"cmp"
+	"github.com/compozy/compozy/internal/mcppolicy"
 	"net/url"
 	"slices"
 	"strings"
@@ -20,6 +21,9 @@ func copyBlocked(s Server, d object) string {
 	}
 	if reason := blockedRemoteDefinition(d); reason != "" {
 		return s.Name + " " + reason
+	}
+	if !representableCopyShape(s.Transport, d) {
+		return s.Name + " has a definition CompozyOS can't represent"
 	}
 	if usesEnvironmentIndirection(d) {
 		return s.Name + " uses environment indirection, which CompozyOS servers can't keep"
@@ -77,6 +81,9 @@ func blockedRemoteDefinition(d object) string {
 		}
 		if parsed.RawQuery != "" || parsed.ForceQuery || parsed.User != nil || parsed.Fragment != "" {
 			return "uses a URL query or credentials, which CompozyOS servers can't keep"
+		}
+		if mcppolicy.ValidateRemoteURL(endpoint) != nil {
+			return "has a URL CompozyOS can't represent"
 		}
 	}
 	customAuth := has(d, "auth") && str(d["auth"]) != "oauth"

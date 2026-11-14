@@ -5,6 +5,7 @@ import toolspkg "github.com/compozy/compozy/internal/tools"
 const mcpKey = "mcp"
 
 var mcpTools = []toolspkg.Descriptor{
+	nativeDescriptor(toolspkg.ToolIDMCPImport, "mcp_import", "Copy MCP Server", "Copy one representable runtime MCP server into CompozyOS without modifying its source. Literal credentials move into Vault; OAuth requires a new sign-in.", mcpImportInputSchema, toolspkg.RiskMutating, false, false, false, []toolspkg.ToolsetID{toolspkg.ToolsetIDMCP}, []string{"mcp", "copy", "import"}, []string{"copy runtime mcp", "import mcp"}),
 	nativeDescriptor(toolspkg.ToolIDMCPList, "mcp_list", "MCP Servers",
 		"List CompozyOS and runtime MCP server definitions without starting or probing them.",
 		mcpListInputSchema, toolspkg.RiskRead, true, false, false, []toolspkg.ToolsetID{toolspkg.ToolsetIDMCP},
@@ -33,3 +34,5 @@ func mcpDescriptors() []toolspkg.Descriptor {
 const mcpListInputSchema = `{"type":"object","properties":{"runtime":{"type":"string"},"include_runtimes":{"type":"boolean","default":true},"workspace":{"type":"string"}},"additionalProperties":false}`
 
 const mcpAllowInputSchema = `{"type":"object","required":["server_name","decision"],"properties":{"server_name":{"type":"string"},"workspace":{"type":"string"},"decision":{"type":"string","enum":["allow","revoke"]},"definition_digest":{"type":"string"}},"additionalProperties":false}`
+
+const mcpImportInputSchema = `{"type":"object","required":["runtime","server_name"],"properties":{"runtime":{"type":"string","minLength":1},"server_name":{"type":"string","minLength":1},"scope":{"type":"string","enum":["user","profile","workspace"],"default":"user"},"workspace":{"type":"string"},"name":{"type":"string"}},"additionalProperties":false}`

@@ -33,6 +33,7 @@ func registrySettingsOperations() []OperationSpec {
 		updateSettingsHooksExtensionsOperationSpec(),
 		listSettingsMCPServersOperationSpec(),
 		listRuntimeMCPServersOperationSpec(),
+		importRuntimeMCPServerOperationSpec(),
 		getSettingsMCPServerOperationSpec(),
 		putSettingsMCPServerOperationSpec(),
 		deleteSettingsMCPServerOperationSpec(),

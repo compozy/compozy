@@ -48,8 +48,12 @@ remain pending because this inventory does not resolve arbitrary process secrets
 `Copyable` is conservative: only exactly representable stdio and HTTP definitions qualify.
 Runtime-owned/plugin/managed sources, other transports, CWD, header helpers, environment
 indirection, tool filters, URL queries/credentials and custom OAuth settings are blocked.
-Unknown behavior fields are blocked as well. Copy execution and secret movement belong to
-S4b; this package's current public API exposes no raw-definition resolver.
+Unknown behavior fields are blocked as well. `Reader.Resolve` rereads one effective definition
+inside the daemon copy path and rejects a changed or removed row from the last inventory.
+Its opaque result exposes safe metadata and a copy definition only to the Settings importer.
+Raw values never enter snapshots, DTOs or the browser. Settings owns Vault writes,
+Automatic target selection, workspace approval recording and commit-aware secret cleanup.
+Copying never changes native runtime files or transfers runtime OAuth credentials.
 
 The inventory API is `GET /api/settings/runtime-mcp-servers` on HTTP and UDS. The CLI is
 `compozy mcp list`; the native tool is `compozy__mcp_list`. Launch wiring belongs to S5 and

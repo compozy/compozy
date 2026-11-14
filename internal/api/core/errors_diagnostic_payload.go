@@ -11,6 +11,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
@@ -22,6 +23,10 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if failure, ok := errors.AsType[*runtimemcp.ImportError](err); ok {
+		payload.Code = failure.Code
+		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(failure.Message))
+	}
 	if approval, ok := errors.AsType[*settingspkg.MCPApprovalError](err); ok {
 		payload.Code = approval.Code
 	}

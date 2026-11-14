@@ -222,6 +222,7 @@ type ShellScopeRevisionStore interface {
 }
 
 type service struct {
+	mcpMutationMu               sync.Mutex
 	runtimeMCP                  RuntimeMCPInventory
 	runtimeMCPContext           func() (runtimemcp.ReadContext, error)
 	mcpConsent                  MCPConsentProvider

@@ -7080,6 +7080,21 @@ export type RuntimeLimits = {
   summary_max_bytes: number;
 };
 
+export type RuntimeMCPImportRequest = {
+  name?: string;
+  profile?: string;
+  scope?: "user" | "profile" | "workspace" | "agent";
+  workspace_id?: string;
+};
+
+export type RuntimeMCPImportResponse = {
+  mcp_server: SettingsMCPServerItemPayload;
+  notes: Array<string>;
+  partial: boolean;
+  source: Server;
+  warnings?: Array<string>;
+};
+
 export type RuntimeMatch = {
   complexity?: string;
   id?: string;
@@ -29031,6 +29046,61 @@ export type ListRuntimeMCPServersResponses = {
 
 export type ListRuntimeMCPServersResponse =
   ListRuntimeMCPServersResponses[keyof ListRuntimeMCPServersResponses];
+
+export type ImportRuntimeMCPServerData = {
+  /**
+   * JSON request body
+   */
+  body: RuntimeMCPImportRequest;
+  path: {
+    /**
+     * Source runtime
+     */
+    runtime: string;
+    /**
+     * URL-escaped runtime server name
+     */
+    name: string;
+  };
+  query?: never;
+  url: "/api/settings/runtime-mcp-servers/{runtime}/{name}/import";
+};
+
+export type ImportRuntimeMCPServerErrors = {
+  /**
+   * Invalid import request
+   */
+  400: ErrorPayload;
+  /**
+   * Runtime server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Target name already exists
+   */
+  409: ErrorPayload;
+  /**
+   * Runtime source, transport or definition cannot be copied
+   */
+  422: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type ImportRuntimeMCPServerError =
+  ImportRuntimeMCPServerErrors[keyof ImportRuntimeMCPServerErrors];
+
+export type ImportRuntimeMCPServerResponses = {
+  /**
+   * Copied, possibly with partial cleanup warnings
+   */
+  201: RuntimeMCPImportResponse;
+};
+
+export type ImportRuntimeMCPServerResponse =
+  ImportRuntimeMCPServerResponses[keyof ImportRuntimeMCPServerResponses];
 
 export type GetSettingsShellData = {
   body?: never;

@@ -20,10 +20,11 @@ import (
 const runtimeMCPCacheTTL = 45 * time.Second
 
 type runtimeMCPCacheEntry struct {
-	inventory runtimemcp.Inventory
-	paths     []string
-	stamps    map[string]filesnap.Snapshot
-	expires   time.Time
+	readContext string
+	inventory   runtimemcp.Inventory
+	paths       []string
+	stamps      map[string]filesnap.Snapshot
+	expires     time.Time
 }
 
 type runtimeMCPInventory struct {
@@ -75,7 +76,11 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 				}
 			}
 		}
-		cached = runtimeMCPCacheEntry{inventory: inventory, paths: paths, stamps: after, expires: s.now().Add(runtimeMCPCacheTTL)}
+		contextData, err := json.Marshal(req.Context, json.Deterministic(true))
+		if err != nil {
+			return runtimemcp.Inventory{}, err
+		}
+		cached = runtimeMCPCacheEntry{readContext: string(contextData), inventory: inventory, paths: paths, stamps: after, expires: s.now().Add(runtimeMCPCacheTTL)}
 		if !sameRuntimeMCPStamps(before, after) {
 			cached.expires = time.Time{}
 		}
@@ -160,3 +165,36 @@ func cloneRuntimeMCPInventory(value runtimemcp.Inventory) runtimemcp.Inventory {
 	}
 	return value
 }
+
+func (s *runtimeMCPInventory) Resolve(ctx context.Context, req runtimemcp.Request, name string) (runtimemcp.ResolvedServer, error) {
+	req.Context = runtimemcp.ResolveContext(req.Context)
+	data, err := json.Marshal(req.Context, json.Deterministic(true))
+	if err != nil {
+		return runtimemcp.ResolvedServer{}, err
+	}
+	var previous *runtimemcp.Server
+	var latest time.Time
+	s.mu.Lock()
+	for _, cached := range s.cache {
+		if cached.readContext != string(data) || !cached.inventory.GeneratedAt.After(latest) {
+			continue
+		}
+		for _, runtime := range cached.inventory.Runtimes {
+			if runtime.Runtime != req.Runtime {
+				continue
+			}
+			latest = cached.inventory.GeneratedAt
+			previous = nil
+			for _, server := range runtime.Servers {
+				if server.Name == name {
+					previous = new(server)
+					break
+				}
+			}
+		}
+	}
+	s.mu.Unlock()
+	return (runtimemcp.Reader{}).Resolve(ctx, req, name, previous)
+}
+
+var _ settingspkg.RuntimeMCPResolver = (*runtimeMCPInventory)(nil)

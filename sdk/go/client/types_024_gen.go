@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerMutationResponse is a daemon API value.
+type SettingsWindowManagerMutationResponse struct {
+	Section            SettingsSectionName                      `json:"section"`
+	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
+	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
+	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string][]string                      `json:"defaults"`
+	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
+	Apply              SettingsApplyResponse                    `json:"apply"`
+}
+
 // SettingsWindowManagerResponse is a daemon API value.
 type SettingsWindowManagerResponse struct {
 	Section            SettingsSectionName                      `json:"section"`
@@ -430,13 +447,4 @@ type SubagentCancelPayload struct {
 // SubagentCancelRequest is a daemon API value.
 type SubagentCancelRequest struct {
 	Reason string `json:"reason"`
-}
-
-// SubagentChildActivity is a daemon API value.
-type SubagentChildActivity string
-
-// SubagentListPayload is a daemon API value.
-type SubagentListPayload struct {
-	Subagents  []SubagentPayload `json:"subagents"`
-	NextCursor *string           `json:"next_cursor"`
 }

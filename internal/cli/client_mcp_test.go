@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -307,4 +308,42 @@ func TestMCPApprovalClientRoutes(t *testing.T) {
 	if calls != 2 {
 		t.Fatalf("calls=%d", calls)
 	}
+}
+
+// Invariant: import preserves daemon error codes and escaped names. Owner: CLI transport; UT-095.
+func TestMCPImportCommand(t *testing.T) {
+	t.Parallel()
+	t.Run("Should surface a missing runtime server UT-095", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			if req.Method != http.MethodPost || req.URL.Path != "/api/settings/runtime-mcp-servers/claude/nope/import" {
+				return nil, fmt.Errorf("unexpected import route %s %s", req.Method, req.URL.Path)
+			}
+			return newHTTPResponse(http.StatusNotFound, `{"code":"mcp_server_not_found","error":"No MCP server named nope in Claude Code"}`), nil
+		})}}
+		_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "mcp", "import", "claude/nope")
+		if cliExitCodeForError(err) != 1 || err == nil || !strings.Contains(err.Error(), "mcp_server_not_found") || !strings.Contains(err.Error(), "No MCP server named nope in Claude Code") {
+			t.Fatalf("wrong missing server error: %v", err)
+		}
+	})
+	t.Run("Should escape a source name and forward the target name", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.EscapedPath() != "/api/settings/runtime-mcp-servers/claude/plugin%3Afigma%3Afigma/import" {
+				return nil, fmt.Errorf("unexpected import path %s", req.URL.EscapedPath())
+			}
+			var body contract.RuntimeMCPImportRequest
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				return nil, err
+			}
+			if body.Scope != "user" || body.Name != "renamed" {
+				return nil, fmt.Errorf("import lost target identity")
+			}
+			return newHTTPResponse(http.StatusUnprocessableEntity, `{"code":"mcp_import_unsupported_source","error":"plugin source cannot be copied"}`), nil
+		})}}
+		_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "mcp", "import", "claude/plugin:figma:figma", "--name", "renamed")
+		if err == nil || !strings.Contains(err.Error(), "mcp_import_unsupported_source") {
+			t.Fatalf("wrong source error: %v", err)
+		}
+	})
 }

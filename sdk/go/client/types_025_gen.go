@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// SubagentChildActivity is a daemon API value.
+type SubagentChildActivity string
+
+// SubagentListPayload is a daemon API value.
+type SubagentListPayload struct {
+	Subagents  []SubagentPayload `json:"subagents"`
+	NextCursor *string           `json:"next_cursor"`
+}
+
 // SubagentPayload is a daemon API value.
 type SubagentPayload struct {
 	Isolation          string                   `json:"isolation"`

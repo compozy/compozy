@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -3468,4 +3469,128 @@ func TestDaemonWorkspaceMCPApprovalWriteFailure(t *testing.T) {
 			t.Fatalf("restart changed committed file: %s %v", after, err)
 		}
 	})
+}
+
+// Invariant: the public copy path persists Vault references and never writes runtime files. Owner: daemon integration.
+func TestDaemonRuntimeMCPCopy(t *testing.T) {
+	t.Run("Should import through HTTP with redacted Vault-backed settings IT-009", func(t *testing.T) {
+		t.Parallel()
+		sourceHome := t.TempDir()
+		source := `{"mcpServers":{"advos":{"command":"echo","env":{"TOKEN":"integration-copy-secret"}}}}`
+		sourcePath := filepath.Join(sourceHome, ".claude.json")
+		if err := os.WriteFile(sourcePath, []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{Env: map[string]string{"CLAUDE_CONFIG_DIR": sourceHome}})
+		copied := importRuntimeMCPHTTP(t, harness, "advos")
+		if copied.MCPServer.Name != "advos" || copied.MCPServer.Owner != "manual" || copied.MCPServer.Scope != "user" || copied.Partial {
+			t.Fatal("copy response lost its definition identity")
+		}
+		var metadata compozycontract.VaultSecretResponse
+		if err := harness.HTTPJSON(t.Context(), http.MethodGet, "/api/vault/secrets/metadata?ref="+url.QueryEscape("vault:mcp/user/advos/env/TOKEN"), nil, &metadata); err != nil {
+			t.Fatal(err)
+		}
+		if !metadata.Secret.Present || metadata.Secret.Kind != "mcp_env" {
+			t.Fatal("copy did not create a Vault entry")
+		}
+		var listed compozycontract.SettingsMCPServersResponse
+		if err := harness.HTTPJSON(t.Context(), http.MethodGet, "/api/settings/mcp-servers?scope=user", nil, &listed); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, server := range listed.MCPServers {
+			if server.Name == "advos" {
+				found = slices.Contains(server.SecretEnvKeys, "TOKEN") && len(server.EnvKeys) == 0
+			}
+		}
+		if !found {
+			t.Fatal("copied definition was not listed with a secret binding")
+		}
+		payload, err := json.Marshal(listed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(payload), "integration-copy-secret") {
+			t.Fatal("settings exposed the source credential")
+		}
+		after, err := os.ReadFile(sourcePath)
+		if err != nil || string(after) != source {
+			t.Fatal("runtime file was modified")
+		}
+	})
+	t.Run("Should preserve an Authorization binding across a daemon restart IT-012", func(t *testing.T) {
+		t.Parallel()
+		var authenticated atomic.Bool
+		mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "copy-header", Version: "1.0.0"}, nil)
+		transport := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server { return mcpServer }, &sdkmcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true})
+		endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer integration-header-secret" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			authenticated.Store(true)
+			transport.ServeHTTP(w, r)
+		}))
+		t.Cleanup(endpoint.Close)
+		sourceHome := t.TempDir()
+		definition, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"advos": map[string]any{"type": "http", "url": endpoint.URL, "headers": map[string]string{"Authorization": "Bearer integration-header-secret"}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sourcePath := filepath.Join(sourceHome, ".claude.json")
+		if err := os.WriteFile(sourcePath, definition, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{Env: map[string]string{"CLAUDE_CONFIG_DIR": sourceHome}})
+		copied := importRuntimeMCPHTTP(t, harness, "advos")
+		if !copied.MCPServer.HeadersConfigured || copied.Partial {
+			t.Fatal("copied headers were not configured")
+		}
+		config, err := os.ReadFile(harness.HomePaths.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(config), "secret_headers") || strings.Contains(string(config), "integration-header-secret") {
+			t.Fatal("Automatic did not store a redacted config binding")
+		}
+		harness.Restart(t)
+		authenticated.Store(false)
+		var listed compozycontract.SettingsMCPServersResponse
+		if err := harness.UDSJSON(t.Context(), http.MethodGet, "/api/settings/mcp-servers?scope=user", nil, &listed); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, server := range listed.MCPServers {
+			if server.Name == "advos" {
+				found = server.HeadersConfigured && server.RuntimeStatus != nil && server.RuntimeStatus.Initialized
+			}
+		}
+		if !found || !authenticated.Load() {
+			t.Fatal("restarted daemon did not load the copied header from Vault")
+		}
+		after, err := os.ReadFile(sourcePath)
+		if err != nil || !bytes.Equal(after, definition) {
+			t.Fatal("runtime file changed")
+		}
+	})
+}
+
+func importRuntimeMCPHTTP(t *testing.T, harness *e2etest.RuntimeHarness, name string) compozycontract.RuntimeMCPImportResponse {
+	t.Helper()
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, harness.HTTPURL("/api/settings/runtime-mcp-servers/claude/"+url.PathEscape(name)+"/import"), strings.NewReader(`{"scope":"user"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := harness.HTTPClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result compozycontract.RuntimeMCPImportResponse
+	decodeErr := json.NewDecoder(response.Body).Decode(&result)
+	closeErr := response.Body.Close()
+	if decodeErr != nil || closeErr != nil || response.StatusCode != http.StatusCreated {
+		t.Fatalf("copy HTTP status=%d decode=%v close=%v", response.StatusCode, decodeErr, closeErr)
+	}
+	return result
 }

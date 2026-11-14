@@ -4,6 +4,29 @@ package client
 
 import "time"
 
+// SettingsMCPAuthConfigPayload is a daemon API value.
+type SettingsMCPAuthConfigPayload struct {
+	Registration    string   `json:"registration,omitempty"`
+	IssuerURL       string   `json:"issuer_url,omitempty"`
+	ClientID        string   `json:"client_id,omitempty"`
+	ClientSecretRef string   `json:"client_secret_ref,omitempty"`
+	Scopes          []string `json:"scopes,omitempty"`
+}
+
+// SettingsMCPAuthConfigViewPayload is a daemon API value.
+type SettingsMCPAuthConfigViewPayload struct {
+	Registration           string   `json:"registration,omitempty"`
+	IssuerURL              string   `json:"issuer_url,omitempty"`
+	ClientID               string   `json:"client_id,omitempty"`
+	ClientSecretConfigured bool     `json:"client_secret_configured"`
+	Scopes                 []string `json:"scopes,omitempty"`
+}
+
+// SettingsMCPAuthExchangeRequest is a daemon API value.
+type SettingsMCPAuthExchangeRequest struct {
+	RedirectURL string `json:"redirect_url"`
+}
+
 // SettingsMCPAuthStatusPayload is a daemon API value.
 type SettingsMCPAuthStatusPayload struct {
 	ServerName   string     `json:"server_name"`
@@ -418,27 +441,4 @@ type SettingsRoleFallbackPayload struct {
 type SettingsRolesConfigPayload struct {
 	Coordinator SettingsCoordinatorRoleConfigPayload `json:"coordinator"`
 	AutoTitle   SettingsRoleConfigPayload            `json:"auto_title"`
-}
-
-// SettingsRolesResponse is a daemon API value.
-type SettingsRolesResponse struct {
-	Section         SettingsSectionName          `json:"section"`
-	Scope           SettingsWorkspaceScopeKind   `json:"scope"`
-	WorkspaceID     string                       `json:"workspace_id,omitempty"`
-	AvailableScopes []SettingsWorkspaceScopeKind `json:"available_scopes"`
-	Config          SettingsRolesConfigPayload   `json:"config"`
-}
-
-// SettingsScopeKind is a daemon API value.
-type SettingsScopeKind string
-
-// SettingsSectionName is a daemon API value.
-type SettingsSectionName string
-
-// SettingsShellAppearancePayload is a daemon API value.
-type SettingsShellAppearancePayload struct {
-	UIFont        *string                     `json:"ui_font,omitempty"`
-	MonoFont      *string                     `json:"mono_font,omitempty"`
-	TextSize      *SettingsShellTextSize      `json:"text_size,omitempty"`
-	LetterSpacing *SettingsShellLetterSpacing `json:"letter_spacing,omitempty"`
 }

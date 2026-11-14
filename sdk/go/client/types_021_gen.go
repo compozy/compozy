@@ -4,6 +4,36 @@ package client
 
 import "time"
 
+// SetSessionRuntimeRequest is a daemon API value.
+type SetSessionRuntimeRequest struct {
+	Runtime          PromptRuntimeSelectionPayload `json:"runtime"`
+	ExpectedRevision *int64                        `json:"expected_revision"`
+}
+
+// SetSettingsProviderEnabledRequest is a daemon API value.
+type SetSettingsProviderEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+// SettingsActionMetadataPayload is a daemon API value.
+type SettingsActionMetadataPayload struct {
+	Name      string                   `json:"name"`
+	Available bool                     `json:"available"`
+	Behavior  SettingsMutationBehavior `json:"behavior"`
+}
+
+// SettingsApplyFailurePayload is a daemon API value.
+type SettingsApplyFailurePayload struct {
+	Subsystem  string         `json:"subsystem"`
+	Diagnostic DiagnosticItem `json:"diagnostic"`
+}
+
+// SettingsApplyLifecycle is a daemon API value.
+type SettingsApplyLifecycle string
+
+// SettingsApplyNextAction is a daemon API value.
+type SettingsApplyNextAction string
+
 // SettingsApplyResponse is a daemon API value.
 type SettingsApplyResponse struct {
 	Section          SettingsApplyTargetName       `json:"section,omitempty"`
@@ -416,27 +446,4 @@ type SettingsMCPAuthBeginResponse struct {
 	ExpiresAt        time.Time `json:"expires_at"`
 	CallbackURL      string    `json:"callback_url"`
 	ManualSupported  bool      `json:"manual_supported"`
-}
-
-// SettingsMCPAuthConfigPayload is a daemon API value.
-type SettingsMCPAuthConfigPayload struct {
-	Registration    string   `json:"registration,omitempty"`
-	IssuerURL       string   `json:"issuer_url,omitempty"`
-	ClientID        string   `json:"client_id,omitempty"`
-	ClientSecretRef string   `json:"client_secret_ref,omitempty"`
-	Scopes          []string `json:"scopes,omitempty"`
-}
-
-// SettingsMCPAuthConfigViewPayload is a daemon API value.
-type SettingsMCPAuthConfigViewPayload struct {
-	Registration           string   `json:"registration,omitempty"`
-	IssuerURL              string   `json:"issuer_url,omitempty"`
-	ClientID               string   `json:"client_id,omitempty"`
-	ClientSecretConfigured bool     `json:"client_secret_configured"`
-	Scopes                 []string `json:"scopes,omitempty"`
-}
-
-// SettingsMCPAuthExchangeRequest is a daemon API value.
-type SettingsMCPAuthExchangeRequest struct {
-	RedirectURL string `json:"redirect_url"`
 }

@@ -13,11 +13,13 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/runtimemcp"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
@@ -688,4 +690,204 @@ func TestDaemonNativeMCPAllow(t *testing.T) {
 			t.Fatalf("narrowed call=%v", err)
 		}
 	})
+}
+
+// Invariant: copies resolve current files, preserve definitions and reject unsupported sources. Owner: daemon copy service.
+func TestRuntimeMCPCopy(t *testing.T) {
+	t.Parallel()
+	// Invariant: import dispatch exposes safe structured results and respects session narrowing. Owner: native adapter; canonical suite: TestRuntimeMCPCopy.
+	t.Run("Should dispatch the import through the native registry", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRuntimeMCPCopyFixture(t, `{"mcpServers":{"native":{"command":"echo","env":{"TOKEN":"native-private-value"}}}}`)
+		deps := &daemonNativeToolsDeps{Sessions: nativeTestSessionManager(""), Settings: func() core.SettingsService { return fixture.service }}
+		request := toolspkg.CallRequest{ToolID: toolspkg.ToolIDMCPImport, Input: json.RawMessage(`{"runtime":"claude","server_name":"native","scope":"user"}`)}
+		scope := toolspkg.Scope{SessionID: "sess-1", ProfileID: store.DefaultProfileID}
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(), scope, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload contract.RuntimeMCPImportResponse
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.MCPServer.Name != "native" || !slices.Contains(payload.MCPServer.SecretEnvKeys, "TOKEN") || strings.Contains(string(result.Structured), "native-private-value") {
+			t.Fatal("native import returned an unsafe or incomplete result")
+		}
+		_, err = registry.Call(t.Context(), scope, request)
+		failure, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || string(failure.Code) != "mcp_import_name_taken" {
+			t.Fatalf("native import lost its domain error: %v", err)
+		}
+		policy := nativeApproveAllPolicyInputs()
+		policy.Session.Enforced = true
+		policy.Session.Tools = []toolspkg.ToolID{toolspkg.ToolIDMCPList}
+		restricted := newDaemonNativeRegistry(t, deps, policy)
+		_, err = restricted.Call(t.Context(), scope, request)
+		failure, ok = errors.AsType[*toolspkg.ToolError](err)
+		if !ok || !slices.Contains(failure.ReasonCodes, toolspkg.ReasonSessionDenied) {
+			t.Fatalf("native import bypassed session policy: %v", err)
+		}
+	})
+
+	t.Run("Should copy a manual HTTP definition UT-061", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRuntimeMCPCopyFixture(t, `{"mcpServers":{"advos":{"type":"http","url":"https://example.test/mcp"}}}`)
+		result, err := fixture.importer.ImportRuntimeMCP(t.Context(), settingspkg.RuntimeMCPImportRequest{Runtime: "claude", ServerName: "advos"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := result.Mutation.MCPServer
+		if item == nil || item.Name != "advos" || item.Owner != "manual" || item.Scope != settingspkg.ScopeUser || item.Transport != "http" {
+			t.Fatalf("unexpected copied definition: %+v", item)
+		}
+		collection, err := fixture.service.ListCollection(t.Context(), settingspkg.CollectionRequest{Collection: settingspkg.CollectionMCPServers, SkipRuntimeStatus: true})
+		if err != nil || len(collection.MCPServers) != 1 || collection.MCPServers[0].Name != "advos" {
+			t.Fatalf("persisted copy missing: %v", err)
+		}
+	})
+	t.Run("Should move literal values into Vault and require fresh OAuth UT-062", func(t *testing.T) {
+		t.Parallel()
+		source := `{"mcpServers":{"local":{"command":"echo","env":{"TOKEN":"private-env","EMPTY":""}},"oauth":{"type":"http","url":"https://example.test/mcp","auth":"oauth"},"headers":{"type":"http","url":"https://example.test/mcp","headers":{"Authorization":"Bearer private-header"}}}}`
+		fixture := newRuntimeMCPCopyFixture(t, source)
+		for _, name := range []string{"local", "oauth", "headers"} {
+			result, err := fixture.importer.ImportRuntimeMCP(t.Context(), settingspkg.RuntimeMCPImportRequest{Runtime: "claude", ServerName: name})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if name == "oauth" && (result.Mutation.MCPServer.AuthStatus == nil || result.Mutation.MCPServer.AuthStatus.Status != "needs_login" || result.Mutation.MCPServer.AuthStatus.TokenPresent) {
+				t.Fatal("copy inherited OAuth credentials")
+			}
+		}
+		for ref, want := range map[string]string{"vault:mcp/user/local/env/TOKEN": "private-env", "vault:mcp/user/local/env/EMPTY": "", "vault:mcp/user/headers/headers/617574686f72697a6174696f6e": "Bearer private-header"} {
+			got, err := fixture.secrets.ResolveRef(t.Context(), ref)
+			if err != nil || got != want {
+				t.Fatalf("copied secret did not resolve: %v", err)
+			}
+		}
+		sidecar, err := os.ReadFile(filepath.Join(fixture.home.HomeDir, "mcp.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		config, err := os.ReadFile(fixture.home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, raw := range []string{string(sidecar), string(config)} {
+			if strings.Contains(raw, "private-env") || strings.Contains(raw, "private-header") {
+				t.Fatal("definition leaked literal credentials")
+			}
+		}
+		if strings.Contains(string(sidecar), `"env"`) || !strings.Contains(string(sidecar), `"secret_env"`) {
+			t.Fatal("env values were not replaced with references")
+		}
+		reloaded, err := settingspkg.NewService(fixture.home, settingspkg.Dependencies{ProviderSecrets: fixture.secrets})
+		if err != nil {
+			t.Fatal(err)
+		}
+		collection, err := reloaded.ListCollection(t.Context(), settingspkg.CollectionRequest{Collection: settingspkg.CollectionMCPServers, SkipRuntimeStatus: true})
+		if err != nil || len(collection.MCPServers) != 3 {
+			t.Fatalf("copy did not survive service reopen: %v", err)
+		}
+		after, err := os.ReadFile(filepath.Join(fixture.root, ".claude.json"))
+		if err != nil || string(after) != source {
+			t.Fatal("copy modified the runtime source")
+		}
+	})
+	t.Run("Should refuse an occupied target name without overwriting it UT-063", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRuntimeMCPCopyFixture(t, `{"mcpServers":{"savee":{"command":"echo"}}}`)
+		req := settingspkg.RuntimeMCPImportRequest{Runtime: "claude", ServerName: "savee"}
+		if _, err := fixture.importer.ImportRuntimeMCP(t.Context(), req); err != nil {
+			t.Fatal(err)
+		}
+		_, err := fixture.importer.ImportRuntimeMCP(t.Context(), req)
+		failure, ok := errors.AsType[*runtimemcp.ImportError](err)
+		if !ok || failure.Code != "mcp_import_name_taken" || failure.Message != "A CompozyOS server named savee already exists in Personal" {
+			t.Fatalf("wrong conflict: %v", err)
+		}
+		req.Name = "savee-copy"
+		if _, err := fixture.importer.ImportRuntimeMCP(t.Context(), req); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, tc := range []struct{ name, definition, server, code, message string }{
+		{"Should reject a plugin source UT-064", `{"command":"echo"}`, "plugin:figma:figma", "mcp_import_unsupported_source", "plugin:figma:figma is provided by a Claude Code plugin and can't be copied"},
+		{"Should reject SSE UT-064", `{"type":"sse","url":"https://example.test/mcp"}`, "legacy", "mcp_import_unsupported_transport", "CompozyOS runs stdio and HTTP servers; legacy uses SSE"},
+		{"Should reject malformed arguments UT-064", `{"command":"echo","args":["kept",3]}`, "invalid-args", "mcp_import_unsupported_definition", "invalid-args has a definition CompozyOS can't represent"},
+		{"Should reject overlapping env aliases UT-064", `{"command":"echo","env":{"A":"x"},"environment":{"B":"y"}}`, "aliases", "mcp_import_unsupported_definition", "aliases has a definition CompozyOS can't represent"},
+		{"Should reject forbidden env UT-064", `{"command":"echo","env":{"NODE_OPTIONS":"--require=module"}}`, "forbidden", "mcp_import_unsupported_definition", "forbidden has a definition CompozyOS can't represent"},
+		{"Should reject runtime CWD UT-064", `{"command":"echo","cwd":"/tmp"}`, "local-scripts", "mcp_import_unsupported_definition", "local-scripts runs in its own working directory (cwd), which CompozyOS servers can't keep"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newRuntimeMCPCopyFixture(t, `{"mcpServers":{"`+tc.server+`":`+tc.definition+`}}`)
+			inventory, err := fixture.inventory.List(t.Context(), runtimemcp.Request{Runtime: "claude", Context: fixture.readContext})
+			if err != nil || len(inventory.Runtimes) != 1 || len(inventory.Runtimes[0].Servers) != 1 || inventory.Runtimes[0].Servers[0].Copyable {
+				t.Fatalf("inventory permitted a nonrepresentable copy: %v", err)
+			}
+			_, err = fixture.importer.ImportRuntimeMCP(t.Context(), settingspkg.RuntimeMCPImportRequest{Runtime: "claude", ServerName: tc.server})
+			failure, ok := errors.AsType[*runtimemcp.ImportError](err)
+			if !ok || failure.Code != tc.code || failure.Message != tc.message {
+				t.Fatalf("wrong copy refusal: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(fixture.home.HomeDir, "mcp.json")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("refused copy wrote a definition")
+			}
+		})
+	}
+	for _, source := range []string{`{"mcpServers":{}}`, `{"mcpServers":{"advos":{"command":"changed"}}}`} {
+		t.Run("Should refuse a source changed since listing UT-065", func(t *testing.T) {
+			t.Parallel()
+			fixture := newRuntimeMCPCopyFixture(t, `{"mcpServers":{"advos":{"command":"echo"}}}`)
+			if _, err := fixture.inventory.List(t.Context(), runtimemcp.Request{Runtime: "claude", Context: fixture.readContext}); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(fixture.root, ".claude.json"), []byte(source), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := fixture.importer.ImportRuntimeMCP(t.Context(), settingspkg.RuntimeMCPImportRequest{Runtime: "claude", ServerName: "advos"})
+			failure, ok := errors.AsType[*runtimemcp.ImportError](err)
+			if !ok || failure.Code != "mcp_server_not_found" || failure.Message != "The server advos is no longer in ~/.claude.json" {
+				t.Fatalf("wrong stale-source error: %v", err)
+			}
+		})
+	}
+}
+
+type runtimeMCPCopyFixture struct {
+	root        string
+	home        compozyconfig.HomePaths
+	readContext runtimemcp.ReadContext
+	inventory   *runtimeMCPInventory
+	service     settingspkg.Service
+	importer    core.RuntimeMCPImporter
+	secrets     *vault.Service
+}
+
+func newRuntimeMCPCopyFixture(t *testing.T, source string) runtimeMCPCopyFixture {
+	t.Helper()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".claude.json"), []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	secrets, err := vault.NewService(openDaemonTestGlobalDB(t), vault.NewFileKeyProvider(t.TempDir(), nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inventory := newRuntimeMCPInventory()
+	readContext := runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")}
+	home := testHomePaths(t)
+	service, err := settingspkg.NewService(home, settingspkg.Dependencies{RuntimeMCPInventory: inventory, ProviderSecrets: secrets, RuntimeMCPContext: func() (runtimemcp.ReadContext, error) { return readContext, nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	importer, ok := service.(core.RuntimeMCPImporter)
+	if !ok {
+		t.Fatal("settings does not provide runtime MCP copy")
+	}
+	return runtimeMCPCopyFixture{root: root, home: home, readContext: readContext, inventory: inventory, service: service, importer: importer, secrets: secrets}
 }

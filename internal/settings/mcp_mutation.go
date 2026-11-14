@@ -21,16 +21,30 @@ func (s *service) putMCPServer(
 	secrets MCPSecretValues,
 	preservation MCPSecretPreservation,
 	envPreservation []string,
+	importing bool,
 ) (MutationResult, error) {
+	s.mcpMutationMu.Lock()
+	defer s.mcpMutationMu.Unlock()
 	root, sources, err := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
 	if err != nil {
 		return MutationResult{}, err
+	}
+	if importing {
+		if err := s.validateMCPImportName(ctx, scope, workspaceID, profileName, name, sources); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	target, err := s.resolveMCPPutTarget(scope, root, profileName, name, selector, sources)
 	if err != nil {
 		return MutationResult{}, err
 	}
 
+	if importing && len(secrets.SecretHeaders) > 0 && isMCPDefinitionSidecarTarget(target.Kind()) {
+		target, err = compozyconfig.ResolveConfigWriteTarget(s.homePaths, root, scope.configWriteScope(), profileName)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
 	normalized, err := s.normalizeAndValidateMCPServerWrite(
 		ctx, scope, workspaceID, profileName, name, target.Kind(), sources, server, preservation, envPreservation,
 	)
@@ -44,6 +58,9 @@ func (s *service) putMCPServer(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	if err := normalized.Validate("mcp_servers"); err != nil {
+		return MutationResult{}, validationError(err)
+	}
 	if err := normalizeMCPClientSecretOwner(&normalized, scope, scopeID, name); err != nil {
 		return MutationResult{}, err
 	}
@@ -55,7 +72,8 @@ func (s *service) putMCPServer(
 	}
 	secretMutations, err := s.storeMCPSecrets(ctx, secretWrites)
 	if err != nil {
-		return MutationResult{}, err
+		rollbackErr := s.rollbackUnreferencedMCPSecrets(ctx, scope, workspaceID, profileName, secretMutations)
+		return MutationResult{}, errors.Join(err, rollbackErr)
 	}
 	mutationOutcome := mcpDefinitionMutationUnchanged
 	var approvalWarning string
@@ -85,32 +103,32 @@ func (s *service) putMCPServer(
 			approvalWarning = "MCP server saved but approval is unavailable; waiting for approval"
 		}
 	}
+	var importWarning string
 	if err != nil {
-		var rollbackErr error
-		if mutationOutcome != mcpDefinitionMutationCommitted {
-			rollbackErr = s.rollbackMCPSecretMutations(ctx, secretMutations)
+		if !importing || mutationOutcome != mcpDefinitionMutationCommitted {
+			var rollbackErr error
+			if mutationOutcome != mcpDefinitionMutationCommitted {
+				rollbackErr = s.rollbackUnreferencedMCPSecrets(ctx, scope, workspaceID, profileName, secretMutations)
+			}
+			return MutationResult{}, errors.Join(err, rollbackErr)
 		}
-		return MutationResult{}, errors.Join(err, rollbackErr)
+		importWarning = mcpImportCleanupWarning(name)
 	}
-	cleanupWarnings, err := s.executeMCPSecretCleanupPlan(
-		ctx,
-		scope,
-		workspaceID,
-		profileName,
-		root,
-		name,
-		target,
-		secretCleanup,
-		secretMutations,
-	)
-	if err != nil {
-		return MutationResult{}, err
+	var cleanupWarnings []string
+	if importWarning == "" {
+		cleanupWarnings, err = s.executeMCPSecretCleanupPlan(ctx, scope, workspaceID, profileName, root, name, target, secretCleanup, secretMutations, importing)
+		if err != nil {
+			return MutationResult{}, err
+		}
 	}
 
 	result := mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind())
 	result.ProfileName = profileName
 	result = mutationResultAtPath(result, target.Path())
 	result.Warnings = append(result.Warnings, cleanupWarnings...)
+	if importWarning != "" {
+		result.Warnings = append(result.Warnings, importWarning)
+	}
 	if approvalWarning != "" {
 		result.Warnings = append(result.Warnings, approvalWarning)
 	}
@@ -323,6 +341,8 @@ func (s *service) deleteMCPServer(
 	name string,
 	selector TargetSelector,
 ) (MutationResult, error) {
+	s.mcpMutationMu.Lock()
+	defer s.mcpMutationMu.Unlock()
 	root, sources, err := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
 	if err != nil {
 		return MutationResult{}, err

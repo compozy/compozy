@@ -203,6 +203,23 @@ type RuntimeLimits struct {
 	ContextMaxBytes   int   `json:"context_body_max_bytes"`
 }
 
+// RuntimeMCPImportRequest is a daemon API value.
+type RuntimeMCPImportRequest struct {
+	Scope       SettingsScopeKind `json:"scope,omitempty"`
+	WorkspaceID string            `json:"workspace_id,omitempty"`
+	Profile     string            `json:"profile,omitempty"`
+	Name        string            `json:"name,omitempty"`
+}
+
+// RuntimeMCPImportResponse is a daemon API value.
+type RuntimeMCPImportResponse struct {
+	MCPServer SettingsMCPServerItemPayload `json:"mcp_server"`
+	Source    Server                       `json:"source"`
+	Notes     []string                     `json:"notes"`
+	Partial   bool                         `json:"partial"`
+	Warnings  []string                     `json:"warnings,omitempty"`
+}
+
 // RuntimeMatch is a daemon API value.
 type RuntimeMatch struct {
 	ID         string `json:"id,omitempty"`
@@ -414,23 +431,4 @@ type SendPromptResultPayload struct {
 // SendPromptResultResponse is a daemon API value.
 type SendPromptResultResponse struct {
 	Prompt SendPromptResultPayload `json:"prompt"`
-}
-
-// Server is a daemon API value.
-type Server struct {
-	Runtime           string   `json:"runtime"`
-	Name              string   `json:"name"`
-	Scope             string   `json:"scope"`
-	Transport         string   `json:"transport"`
-	SourcePath        string   `json:"source_path"`
-	SourceLabel       string   `json:"source_label"`
-	EnabledInRuntime  bool     `json:"enabled_in_runtime"`
-	Approval          string   `json:"approval"`
-	Auth              string   `json:"auth"`
-	EnvKeys           []string `json:"env_keys"`
-	HeaderKeys        []string `json:"header_keys"`
-	AlsoInCompozy     bool     `json:"also_in_compozy"`
-	Copyable          bool     `json:"copyable"`
-	CopyBlockedReason string   `json:"copy_blocked_reason"`
-	DefinitionDigest  string   `json:"definition_digest"`
 }

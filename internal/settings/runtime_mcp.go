@@ -20,13 +20,7 @@ func (s *service) ListRuntimeMCP(ctx context.Context, req CollectionRequest, run
 	if err != nil {
 		return runtimemcp.Inventory{}, err
 	}
-	var readContext runtimemcp.ReadContext
-	if s.runtimeMCPContext != nil {
-		readContext, err = s.runtimeMCPContext()
-	} else {
-		readContext.Home, err = os.UserHomeDir()
-		readContext.Env = runtimemcp.Environment(os.Environ())
-	}
+	readContext, err := s.operatorRuntimeMCPContext()
 	if err != nil {
 		return runtimemcp.Inventory{}, err
 	}
@@ -50,4 +44,12 @@ func (s *service) ListRuntimeMCP(ctx context.Context, req CollectionRequest, run
 		names = append(names, server.Name)
 	}
 	return s.runtimeMCP.List(ctx, runtimemcp.Request{Context: readContext, Runtime: runtime, Modes: modes, CompozyNames: names})
+}
+
+func (s *service) operatorRuntimeMCPContext() (runtimemcp.ReadContext, error) {
+	if s.runtimeMCPContext != nil {
+		return s.runtimeMCPContext()
+	}
+	home, err := os.UserHomeDir()
+	return runtimemcp.ReadContext{Home: home, Env: runtimemcp.Environment(os.Environ())}, err
 }

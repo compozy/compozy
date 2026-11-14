@@ -56,7 +56,8 @@ func (n *daemonNativeTools) mcpAuthToolBindings(
 	authAvailability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDMCPAllow: {call: n.mcpAllow, availability: n.dependencyAvailability(func() bool { _, ok := n.settingsService().(core.MCPSettingsApproval); return ok })},
+		toolspkg.ToolIDMCPImport: {call: n.mcpImport, availability: n.dependencyAvailability(func() bool { _, ok := n.settingsService().(core.RuntimeMCPImporter); return ok })},
+		toolspkg.ToolIDMCPAllow:  {call: n.mcpAllow, availability: n.dependencyAvailability(func() bool { _, ok := n.settingsService().(core.MCPSettingsApproval); return ok })},
 		toolspkg.ToolIDMCPStatus: {
 			call:         n.mcpStatus,
 			availability: statusAvailability,

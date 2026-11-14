@@ -14,6 +14,11 @@ type entry struct {
 }
 
 func read(c ReadContext, descriptor Descriptor) (Snapshot, []string) {
+	snapshot, paths, _ := readDefinitions(c, descriptor)
+	return snapshot, paths
+}
+
+func readDefinitions(c ReadContext, descriptor Descriptor) (Snapshot, []string, map[string]entry) {
 	r := reader{context: c, paths: map[string]struct{}{}}
 	snapshot := Snapshot{Runtime: descriptor.Runtime, DisplayName: descriptor.DisplayName, Installed: installed(c, descriptor),
 		RuntimeMCP: RuntimeMode{Mode: "load", CanDisable: descriptor.CanDisableRuntimeMCP}, ReadState: "ok", ConfigFiles: []string{}, Servers: []Server{}}
@@ -53,7 +58,7 @@ func read(c ReadContext, descriptor Descriptor) (Snapshot, []string) {
 		paths = append(paths, path)
 	}
 	slices.Sort(paths)
-	return snapshot, paths
+	return snapshot, paths, entries
 }
 
 func sortedNames(entries map[string]entry) []string {

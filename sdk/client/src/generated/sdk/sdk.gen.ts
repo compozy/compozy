@@ -804,6 +804,9 @@ import type {
   HeartbeatAgentTaskRunData,
   HeartbeatAgentTaskRunErrors,
   HeartbeatAgentTaskRunResponses,
+  ImportRuntimeMCPServerData,
+  ImportRuntimeMCPServerErrors,
+  ImportRuntimeMCPServerResponses,
   InspectRunData,
   InspectRunErrors,
   InspectRunResponses,
@@ -7348,6 +7351,33 @@ export class settings extends HeyApiClient {
       responseStyle: "data",
       url: "/api/settings/runtime-mcp-servers",
       ...options,
+    });
+  }
+
+  /**
+   * Copy a runtime MCP server into CompozyOS
+   */
+  public importRuntimeMCPServer<ThrowOnError extends boolean = true>(
+    options: Options<ImportRuntimeMCPServerData, ThrowOnError>
+  ): RequestResult<
+    ImportRuntimeMCPServerResponses,
+    ImportRuntimeMCPServerErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ImportRuntimeMCPServerResponses,
+      ImportRuntimeMCPServerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/runtime-mcp-servers/{runtime}/{name}/import",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 

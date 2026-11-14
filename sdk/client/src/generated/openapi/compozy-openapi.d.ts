@@ -3904,6 +3904,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/runtime-mcp-servers/{runtime}/{name}/import": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Copy a runtime MCP server into CompozyOS */
+    post: operations["importRuntimeMCPServer"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/shell": {
     parameters: {
       query?: never;
@@ -15330,6 +15347,20 @@ export interface components {
       /** Format: int64 */
       max_runtime_seconds: number;
       summary_max_bytes: number;
+    };
+    RuntimeMCPImportRequest: {
+      name?: string;
+      profile?: string;
+      /** @enum {string} */
+      scope?: "user" | "profile" | "workspace" | "agent";
+      workspace_id?: string;
+    };
+    RuntimeMCPImportResponse: {
+      mcp_server: components["schemas"]["SettingsMCPServerItemPayload"];
+      notes: string[];
+      partial: boolean;
+      source: components["schemas"]["Server"];
+      warnings?: string[];
     };
     RuntimeMatch: {
       complexity?: string;
@@ -42784,6 +42815,81 @@ export interface operations {
       };
       /** @description Workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  importRuntimeMCPServer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Source runtime */
+        runtime: string;
+        /** @description URL-escaped runtime server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RuntimeMCPImportRequest"];
+      };
+    };
+    responses: {
+      /** @description Copied, possibly with partial cleanup warnings */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RuntimeMCPImportResponse"];
+        };
+      };
+      /** @description Invalid import request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Runtime server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Target name already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Runtime source, transport or definition cannot be copied */
+      422: {
         headers: {
           [name: string]: unknown;
         };

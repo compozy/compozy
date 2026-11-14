@@ -25158,6 +25158,61 @@
         ],
         "type": "object"
       },
+      "RuntimeMCPImportRequest": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "user",
+              "profile",
+              "workspace",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RuntimeMCPImportResponse": {
+        "properties": {
+          "mcp_server": {
+            "$ref": "#/components/schemas/SettingsMCPServerItemPayload"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Server"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "mcp_server",
+          "notes",
+          "partial",
+          "source"
+        ],
+        "type": "object"
+      },
       "RuntimeMatch": {
         "properties": {
           "complexity": {
@@ -80066,6 +80121,113 @@
           }
         },
         "summary": "List runtime MCP servers from native configuration files",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/runtime-mcp-servers/{runtime}/{name}/import": {
+      "post": {
+        "operationId": "importRuntimeMCPServer",
+        "parameters": [
+          {
+            "description": "Source runtime",
+            "in": "path",
+            "name": "runtime",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "URL-escaped runtime server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeMCPImportRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeMCPImportResponse"
+                }
+              }
+            },
+            "description": "Copied, possibly with partial cleanup warnings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid import request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Runtime server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Target name already exists"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Runtime source, transport or definition cannot be copied"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Copy a runtime MCP server into CompozyOS",
         "tags": [
           "settings"
         ],
