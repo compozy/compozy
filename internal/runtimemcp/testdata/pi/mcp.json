@@ -1,1 +1,1 @@
-{"mcpServers":{"pi":{"command":"echo","enabled":false}}}
+{ "mcpServers": { "pi": { "command": "echo", "enabled": false } } }

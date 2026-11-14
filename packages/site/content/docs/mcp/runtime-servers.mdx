@@ -34,11 +34,11 @@ project to include that project's runtime files.
 Each row shows the name, transport, scope, source file and the names (never values) of its environment
 variables and headers, plus what the runtime's files say:
 
-| Label                       | Meaning                                                                       |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| Off in Claude Code          | The runtime's own settings turn it off.                                       |
-| Not approved in Claude Code | A project server the runtime itself hasn't approved yet.                      |
-| Also in CompozyOS           | A CompozyOS server has the same name, so the agent may see both.              |
+| Label                       | Meaning                                                          |
+| --------------------------- | ---------------------------------------------------------------- |
+| Off in Claude Code          | The runtime's own settings turn it off.                          |
+| Not approved in Claude Code | A project server the runtime itself hasn't approved yet.         |
+| Also in CompozyOS           | A CompozyOS server has the same name, so the agent may see both. |
 
 From the CLI:
 
@@ -100,13 +100,13 @@ Use `--scope profile` or `--scope workspace --workspace <project>` for other tar
 The row shows the reason instead of **Copy to CompozyOS** when CompozyOS can't represent the server
 exactly:
 
-| Source                                                                         | Error code                            |
-| ------------------------------------------------------------------------------ | ------------------------------------- |
-| Plugins, claude.ai connectors, built-in or managed servers                     | `mcp_import_unsupported_source`       |
-| SSE or WebSocket transport                                                     | `mcp_import_unsupported_transport`    |
-| A working directory (`cwd`), a headers helper, env passthrough, per-tool filters, a URL with a query string, or a runtime-specific OAuth client | `mcp_import_unsupported_definition`   |
-| The name already exists at the target                                          | `mcp_import_name_taken` (use `--name`) |
-| The server changed or left the file since you listed it                        | `mcp_server_not_found` (list again)   |
+| Source                                                                                                                                          | Error code                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Plugins, claude.ai connectors, built-in or managed servers                                                                                      | `mcp_import_unsupported_source`        |
+| SSE or WebSocket transport                                                                                                                      | `mcp_import_unsupported_transport`     |
+| A working directory (`cwd`), a headers helper, env passthrough, per-tool filters, a URL with a query string, or a runtime-specific OAuth client | `mcp_import_unsupported_definition`    |
+| The name already exists at the target                                                                                                           | `mcp_import_name_taken` (use `--name`) |
+| The server changed or left the file since you listed it                                                                                         | `mcp_server_not_found` (list again)    |
 
 Add those servers by hand in **Settings → MCP servers → Add MCP server** if you need them in
 CompozyOS.
@@ -134,12 +134,12 @@ way. The key is described in [`config.toml`](/docs/configuration/config-toml#pro
 
 ## Troubleshooting
 
-| Symptom                                                         | Fix                                                                                                                                       |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| A runtime you use has no group.                                 | It has no MCP servers in its files. Settings only shows runtimes that have servers or a file it couldn't read.                            |
-| A server shows "—" for its status.                              | Runtime servers' sign-in status is only known inside a session. Open the session's **MCP** control.                                       |
-| The agent sees a tool twice after a copy.                       | The runtime still loads its own copy. Turn its runtime switch off, or remove the server from the runtime's file.                          |
-| A runtime server keeps asking to sign in inside sessions.       | CompozyOS can't sign in to runtime servers. Copy it to CompozyOS and sign in there, then turn the runtime switch off.                      |
+| Symptom                                                   | Fix                                                                                                                   |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| A runtime you use has no group.                           | It has no MCP servers in its files. Settings only shows runtimes that have servers or a file it couldn't read.        |
+| A server shows "—" for its status.                        | Runtime servers' sign-in status is only known inside a session. Open the session's **MCP** control.                   |
+| The agent sees a tool twice after a copy.                 | The runtime still loads its own copy. Turn its runtime switch off, or remove the server from the runtime's file.      |
+| A runtime server keeps asking to sign in inside sessions. | CompozyOS can't sign in to runtime servers. Copy it to CompozyOS and sign in there, then turn the runtime switch off. |
 
 ## Next steps
 

@@ -26,11 +26,11 @@ message, CompozyOS reloads the agent's runtime first if the runtime can't pick u
 keeping the whole conversation. A turn that is already running is never interrupted. The transcript
 then shows one quiet line:
 
-| Line                                                                                  | What happened                                                                                      |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **MCP servers updated** · `sentry` added                                              | The runtime reloaded with the new tools.                                                           |
-| **MCP servers updated** · conversation continued from history                         | The runtime couldn't resume its own conversation, so CompozyOS continued it from the transcript.   |
-| **Couldn't start Claude Code with the new MCP servers** · your message wasn't sent    | No runtime could start. The message goes back to the composer; send it again to retry.            |
+| Line                                                                               | What happened                                                                                    |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **MCP servers updated** · `sentry` added                                           | The runtime reloaded with the new tools.                                                         |
+| **MCP servers updated** · conversation continued from history                      | The runtime couldn't resume its own conversation, so CompozyOS continued it from the transcript. |
+| **Couldn't start Claude Code with the new MCP servers** · your message wasn't sent | No runtime could start. The message goes back to the composer; send it again to retry.           |
 
 Forks, continued sessions and child sessions follow the current server set too. A child session
 stays limited only when it was started with an explicit list of MCP servers.
@@ -81,16 +81,16 @@ server; they report what CompozyOS already knows.
 
 ## States and fixes
 
-| State                             | Meaning                                                              | Fix                                                                                                              |
-| --------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Ready**                         | The agent can call its tools.                                        | —                                                                                                                |
-| **Applies on your next message**  | Added or changed since the runtime started.                          | Send your next message.                                                                                          |
-| **Needs sign-in**                 | The server uses OAuth and has no valid sign-in.                      | **Sign in** in the MCP control or Settings, or `compozy mcp auth login <name>`.                                  |
-| **Waiting for approval**          | A project-file server you haven't allowed, or one that changed.      | **Allow**, or `compozy mcp allow <name> --workspace <project>`.                                                   |
-| **Failed** (Couldn't connect)     | CompozyOS couldn't start or reach the server.                        | Open the server in Settings → MCP servers and read its status.                                                   |
-| **Not available in this session** | The session was started with a list of servers that leaves it out.  | Start a new session without that limit.                                                                          |
-| **Loaded by Claude Code**         | A runtime server the runtime loads by itself.                        | Manage it in the runtime, or [copy it to CompozyOS](/docs/mcp/runtime-servers#step-2-copy-a-server-to-compozyos).       |
-| **Off in CompozyOS sessions**     | A runtime server that `runtime_mcp = "off"` keeps out of sessions.  | Turn the runtime's switch back on.                                                                               |
+| State                             | Meaning                                                            | Fix                                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| **Ready**                         | The agent can call its tools.                                      | —                                                                                                                 |
+| **Applies on your next message**  | Added or changed since the runtime started.                        | Send your next message.                                                                                           |
+| **Needs sign-in**                 | The server uses OAuth and has no valid sign-in.                    | **Sign in** in the MCP control or Settings, or `compozy mcp auth login <name>`.                                   |
+| **Waiting for approval**          | A project-file server you haven't allowed, or one that changed.    | **Allow**, or `compozy mcp allow <name> --workspace <project>`.                                                   |
+| **Failed** (Couldn't connect)     | CompozyOS couldn't start or reach the server.                      | Open the server in Settings → MCP servers and read its status.                                                    |
+| **Not available in this session** | The session was started with a list of servers that leaves it out. | Start a new session without that limit.                                                                           |
+| **Loaded by Claude Code**         | A runtime server the runtime loads by itself.                      | Manage it in the runtime, or [copy it to CompozyOS](/docs/mcp/runtime-servers#step-2-copy-a-server-to-compozyos). |
+| **Off in CompozyOS sessions**     | A runtime server that `runtime_mcp = "off"` keeps out of sessions. | Turn the runtime's switch back on.                                                                                |
 
 When an agent calls a tool it can't use, the error names the fix, for example
 `sentry is waiting for approval in compozy. Allow it in Settings → MCP servers.` or

@@ -81,7 +81,8 @@ line:
 ```text
 MCP servers updated · everything added
 ```
- Run
+
+Run
 `compozy session mcp <session-id>` again: `everything` is **Ready** with its tool count.
 
 ## Step 5: Sign in to an OAuth server
@@ -112,14 +113,14 @@ If the extension's server uses OAuth, sign in to it once.
 
 ## Troubleshooting
 
-| Symptom                                                                                         | Fix                                                                                                                                                                                                     |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The row says **Waiting for approval**.                                                          | The server comes from a project file. Allow it: [Project servers need approval](/docs/mcp/project-servers).                                                                                            |
-| The row says **Not available in this session**.                                                 | The session was started with an explicit list of MCP servers (for example a child session created with one). Start a new session without that list.                                                     |
-| The transcript says **Couldn't start … with the new MCP servers · your message wasn't sent**.   | The message is back in the composer. Send it again; the next message retries. If it keeps failing, check the runtime itself (`compozy provider auth status <provider>`).                               |
-| The transcript says **conversation continued from history**.                                     | Nothing to fix. The runtime couldn't resume its own conversation, so CompozyOS continued it from the transcript with the new tools.                                                                     |
-| The agent says the tool doesn't exist, but the row is **Ready**.                                 | The change applies at the start of a message. Send a new message instead of continuing the same turn.                                                                                                  |
-| A server is **Failed** (Couldn't connect).                                                       | Open it in Settings → MCP servers to read the probe error, fix the command or URL, and send another message.                                                                                           |
+| Symptom                                                                                       | Fix                                                                                                                                                                      |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The row says **Waiting for approval**.                                                        | The server comes from a project file. Allow it: [Project servers need approval](/docs/mcp/project-servers).                                                              |
+| The row says **Not available in this session**.                                               | The session was started with an explicit list of MCP servers (for example a child session created with one). Start a new session without that list.                      |
+| The transcript says **Couldn't start … with the new MCP servers · your message wasn't sent**. | The message is back in the composer. Send it again; the next message retries. If it keeps failing, check the runtime itself (`compozy provider auth status <provider>`). |
+| The transcript says **conversation continued from history**.                                  | Nothing to fix. The runtime couldn't resume its own conversation, so CompozyOS continued it from the transcript with the new tools.                                      |
+| The agent says the tool doesn't exist, but the row is **Ready**.                              | The change applies at the start of a message. Send a new message instead of continuing the same turn.                                                                    |
+| A server is **Failed** (Couldn't connect).                                                    | Open it in Settings → MCP servers to read the probe error, fix the command or URL, and send another message.                                                             |
 
 ## Next steps
 

@@ -1,3 +1,12 @@
-{ // v2
- "mcp":{"servers":{"x":{"type":"local","command":["node","server.js"],"environment":{"TOKEN":"s3cr3t"},},},},
+{
+    // v2
+    "mcp": {
+        "servers": {
+            "x": {
+                "type": "local",
+                "command": ["node", "server.js"],
+                "environment": { "TOKEN": "s3cr3t" },
+            },
+        },
+    },
 }

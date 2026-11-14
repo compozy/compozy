@@ -51,7 +51,12 @@ compozy mcp list --workspace my-project --compozy-only -o json
       "name": "sentry",
       "scope": "workspace",
       "transport": "stdio",
-      "approval": { "required": true, "state": "waiting", "reason": "new", "definition_digest": "3f9c…" },
+      "approval": {
+        "required": true,
+        "state": "waiting",
+        "reason": "new",
+        "definition_digest": "3f9c…"
+      },
       "callable_in_sessions": false
     }
   ],
@@ -127,22 +132,22 @@ Calls fail with `sentry is waiting for approval in my-project. Allow it in Setti
 [`tools.policy.external_default`](/docs/configuration/config-toml#toolspolicy) now applies only to
 servers without your consent, which means project servers waiting for approval:
 
-| Value                  | Waiting project servers                                    | Servers with consent                    |
-| ---------------------- | ---------------------------------------------------------- | --------------------------------------- |
-| `disabled` (default)   | Wait for approval; never started.                          | Callable.                               |
-| `ask`                  | Wait for approval; never started.                          | Callable, with an approval prompt on each call. |
-| `enabled`              | Callable without approval.                                 | Callable.                               |
+| Value                | Waiting project servers           | Servers with consent                            |
+| -------------------- | --------------------------------- | ----------------------------------------------- |
+| `disabled` (default) | Wait for approval; never started. | Callable.                                       |
+| `ask`                | Wait for approval; never started. | Callable, with an approval prompt on each call. |
+| `enabled`            | Callable without approval.        | Callable.                                       |
 
 Dynamic tools stay denied whatever the value.
 
 ## Troubleshooting
 
-| Symptom                                                                    | Fix                                                                                                                                         |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `linear does not need approval: it was added through CompozyOS`            | Nothing to approve. The server is already callable; if a session can't use it, read its state with `compozy session mcp <session-id>`.      |
-| `multiple MCP declarations named sentry; use --digest to select …`         | Two project files declare `sentry`. Read both digests with `compozy mcp list --workspace <project> -o json` and pass the one you want.      |
-| The server is allowed in one project but waiting in another.               | Approvals never carry across projects or profiles. Allow it in each one.                                                                    |
-| Saving a project server in Settings shows a warning about its approval.   | The file was saved but the approval couldn't be recorded. The server stays waiting; allow it from its row.                                  |
+| Symptom                                                                 | Fix                                                                                                                                    |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `linear does not need approval: it was added through CompozyOS`         | Nothing to approve. The server is already callable; if a session can't use it, read its state with `compozy session mcp <session-id>`. |
+| `multiple MCP declarations named sentry; use --digest to select …`      | Two project files declare `sentry`. Read both digests with `compozy mcp list --workspace <project> -o json` and pass the one you want. |
+| The server is allowed in one project but waiting in another.            | Approvals never carry across projects or profiles. Allow it in each one.                                                               |
+| Saving a project server in Settings shows a warning about its approval. | The file was saved but the approval couldn't be recorded. The server stays waiting; allow it from its row.                             |
 
 ## Next steps
 

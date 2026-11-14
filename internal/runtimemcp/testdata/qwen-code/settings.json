@@ -1,1 +1,1 @@
-{"mcpServers":{"qwen":{"command":"echo"}},"mcp":{"excluded":["qwen"]}}
+{ "mcpServers": { "qwen": { "command": "echo" } }, "mcp": { "excluded": ["qwen"] } }

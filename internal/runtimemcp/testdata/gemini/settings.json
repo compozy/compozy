@@ -1,1 +1,7 @@
-{"mcpServers":{"http":{"httpUrl":"https://example.test/mcp"},"sse":{"url":"https://example.test/sse"},"local":{"command":"echo"}}}
+{
+    "mcpServers": {
+        "http": { "httpUrl": "https://example.test/mcp" },
+        "sse": { "url": "https://example.test/sse" },
+        "local": { "command": "echo" }
+    }
+}
