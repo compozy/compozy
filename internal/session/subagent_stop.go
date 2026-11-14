@@ -48,7 +48,7 @@ func (s *subagentService) Cancel(
 	if store.IsSubagentStatusTerminal(row.Status) {
 		// A terminal row can still own a running child: that residual lane is
 		// exactly what cancellation must retire.
-		return s.stopCanceledChild(ctx, row)
+		return s.retireCanceledChild(ctx, row, row.Status)
 	}
 	unlock := s.lock(row.ParentSessionID)
 	// Delegation links the child and settlement finalizes the row under this
@@ -60,7 +60,7 @@ func (s *subagentService) Cancel(
 	}
 	if store.IsSubagentStatusTerminal(row.Status) {
 		unlock()
-		return s.stopCanceledChild(ctx, row)
+		return s.retireCanceledChild(ctx, row, row.Status)
 	}
 	err = s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: row.ParentSessionID, IDs: []string{id}})
 	if err == nil {
@@ -71,26 +71,20 @@ func (s *subagentService) Cancel(
 	if err != nil {
 		return SubagentCancelOutcome{}, err
 	}
-	outcome := SubagentCancelOutcome{ID: id, Status: "cancel_requested"}
-	if row.ChildSessionID == nil {
-		return outcome, nil
-	}
-	// Freeze every live descendant before any stop signal can turn an
-	// in-flight delegation admission into a provider failure, and retire the
-	// child even when that cleanup fails: a canceled row must not leave a live
-	// session behind. Both steps own a bounded context, so a canceled request
-	// cannot cut the cleanup short.
-	cleanup, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-	defer cancelCleanup()
-	descendantErr := s.cancelDescendants(cleanup, *row.ChildSessionID)
-	return outcome, errors.Join(descendantErr, s.stopChildSession(cleanup, *row.ChildSessionID))
+	return s.retireCanceledChild(ctx, row, "cancel_requested")
 }
 
-func (s *subagentService) stopCanceledChild(
+// retireCanceledChild freezes every live descendant before any stop signal can
+// turn an in-flight delegation admission into a provider failure, and retires
+// the child even when that cleanup fails: a canceled row must not leave a live
+// session behind. Both steps own a bounded context, so a canceled request
+// cannot cut the cleanup short.
+func (s *subagentService) retireCanceledChild(
 	ctx context.Context,
 	row store.SessionSubagent,
+	status string,
 ) (SubagentCancelOutcome, error) {
-	outcome := SubagentCancelOutcome{ID: row.ID, Status: row.Status}
+	outcome := SubagentCancelOutcome{ID: row.ID, Status: status}
 	if row.ChildSessionID == nil {
 		return outcome, nil
 	}

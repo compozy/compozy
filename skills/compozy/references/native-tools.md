@@ -418,7 +418,10 @@ when it settles, or settles `interrupted` (still waking you) when it cannot resu
 settles a running subagent `failed`. A waiting subagent does not wake you: the operator approves it, or you
 call `compozy__session_approve` or `compozy__session_clarify_answer` on its `child_session_id` after
 status reports `waiting`. `compozy__subagent_cancel {subagent_id, reason?}` returns `cancel_requested`
-for a live subagent, otherwise its terminal status; Claude's own Agent/Task subagents
+for a live subagent, otherwise its terminal status. Cancel also retires the child session and its live
+descendants, including from a terminal row: a `completed` child that stayed idle stops and becomes
+non-resumable. A stop failure is returned as an error with the row already `canceled`; retrying is
+safe because an already stopped or missing child counts as success. Claude's own Agent/Task subagents
 (`origin: "provider_native"`) return `subagent_not_cancelable`; a background one stays `running` until
 its own task finishes, then reads `completed`, `failed`, or `canceled` with the task's summary as
 `result` once Claude reports it (briefly `null` before that); one with no task report settles

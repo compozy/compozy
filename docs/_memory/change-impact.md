@@ -1,5 +1,24 @@
 # Compozy Change Impact
 
+## Subagent cancel retires the child session — 2026-11-14
+
+Owner: PR #1688, branch `fix/cancel-stops-child`.
+
+- **Native tools.** `compozy__subagent_cancel` also stops the child session and its live descendants,
+  including when the row is already terminal: a `completed` child that stayed idle is retired and
+  becomes non-resumable. The outcome shape is unchanged (`cancel_requested` for a live row, its
+  terminal status otherwise). A stop failure is returned as an error with the row already `canceled`;
+  retrying is safe because an already stopped or missing child counts as success.
+- **CLI/HTTP/UDS.** No verb, route, or DTO change; cancel responses keep their shape.
+- **Extensibility and hooks.** No hook, SDK, or extension-definition change.
+- **Config.** No key change.
+- **User state.** No schema or migration change. A terminal row's child session ends stopped instead
+  of idle and can no longer be resumed.
+- **Web.** No change.
+- **Official skill.** `skills/compozy/references/native-tools.md` documents the extended cancel
+  contract and the safe retry.
+- **QA.** `docs/qa/scenarios/RT-subagent-delegate.md` gains a cancel-after-completion step.
+
 ## Per-model reasoning effort ceiling — 2026-11-14
 
 Owner: `fix/model-effort-levels`. Web-only bug fix (internal regime, SD-013).
