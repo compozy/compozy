@@ -29,11 +29,7 @@ func (Reader) List(ctx context.Context, req Request) (Inventory, []string, error
 		}
 		snapshot, files := read(req.Context, d)
 		paths = append(paths, files...)
-		providerID := d.Runtime
-		if providerID == "qwen-code" {
-			providerID = "qwen"
-		}
-		if mode := req.Modes[providerID]; mode != "" {
+		if mode := req.Modes[d.Runtime]; mode != "" {
 			snapshot.RuntimeMCP.Mode = mode
 		}
 		for i := range snapshot.Servers {

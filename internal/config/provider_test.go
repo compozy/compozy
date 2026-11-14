@@ -4307,7 +4307,7 @@ func TestProviderRuntimeMCP(t *testing.T) {
 		if (ProviderConfig{}).EffectiveRuntimeMCP() != "load" {
 			t.Fatal("wrong default")
 		}
-		for _, name := range []string{"claude", "copilot", "qwen"} {
+		for _, name := range []string{"claude", "copilot", "qwen", "qwen-code"} {
 			if err := validateRuntimeMCP(name, ProviderConfig{RuntimeMCP: "off"}); err != nil {
 				t.Fatal(err)
 			}
