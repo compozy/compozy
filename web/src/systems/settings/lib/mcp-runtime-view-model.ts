@@ -4,6 +4,11 @@ import { deriveMCPManagementFilter } from "./mcp-management-target";
 /** Why a CompozyOS row waits for Allow: a new project-file server, or one changed since allowed. */
 export type MCPApprovalReason = "added" | "changed";
 
+/** Why the daemon says a row waits; a refused Allow can still learn "changed" first. */
+export function mcpApprovalReason(server: SettingsMCPServerEntry): MCPApprovalReason {
+  return server.approval.reason === "changed" ? "changed" : "added";
+}
+
 /** Per-row approval note: the reason it waits and the last refused Allow. */
 export interface MCPApprovalNote {
   reason: MCPApprovalReason;

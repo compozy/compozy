@@ -22,6 +22,8 @@ export function runtimeMCPServerFixture(
     copyable: true,
     copy_blocked_reason: "",
     definition_digest: `sha256:${partial.runtime}-${partial.name}`,
+    // The executable basename for a command, the URL host for a remote server.
+    target: (partial.transport ?? "stdio") === "stdio" ? "npx" : `mcp.${partial.name}.com`,
     ...partial,
   };
 }
