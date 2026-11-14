@@ -16,7 +16,7 @@ import (
 // parent of an archived session, so the planner sees the live sessions an
 // archived one hangs from and never mistakes them for gone. Daemon-internal
 // auto-title sessions are never tree members, so they are left out.
-const sessionHistoryCleanupSelect = `SELECT id, workspace_id, name,
+const sessionHistoryCleanupSelect = `SELECT id, workspace_id, COALESCE(name, ''),
 	COALESCE(parent_session_id, ''), COALESCE(spawn_role, ''), lineage_kind, archived_at,
 	EXISTS(SELECT 1 FROM agent_instances a WHERE a.main_session_id = sessions.id AND a.archived_at IS NULL)
 FROM sessions`
