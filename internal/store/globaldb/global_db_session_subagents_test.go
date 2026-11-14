@@ -734,7 +734,8 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 					t.Fatalf("urgency order = %v, want %v", order, wantOrder)
 				}
 				survivor, err := db.GetSubagent(ctx, workspace, "survivor")
-				if err != nil || survivor.ChildSessionID == nil || survivor.ChildActivity != store.SubagentChildActivityWorking {
+				if err != nil || survivor.ChildSessionID == nil ||
+					survivor.ChildActivity != store.SubagentChildActivityWorking {
 					t.Fatal(survivor, err)
 				}
 			})
