@@ -104,6 +104,9 @@ func (e *EffectivePolicyEvaluator) applyRestrictions(d Descriptor, decision *Eff
 	}
 	if e.inputs.Session.Enforced {
 		_, allowed := e.sessionAllowed[d.ID]
+		if d.Source.Kind == SourceExtension && e.inputs.Session.ExtensionsInherit {
+			allowed = true
+		}
 		if d.Source.Kind == SourceMCP {
 			allowed = e.sessionAllowsMCP(d)
 		}

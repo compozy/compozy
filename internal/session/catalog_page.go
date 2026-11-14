@@ -190,6 +190,11 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		candidates = candidates[:normalized.Limit]
 	}
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
+	for _, info := range page.Sessions {
+		if err := m.populateEffectiveMCPAuthority(ctx, info); err != nil {
+			return ListPage{}, err
+		}
+	}
 	if err := m.populateCatalogRelations(
 		ctx,
 		normalized,

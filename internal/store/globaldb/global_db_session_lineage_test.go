@@ -579,3 +579,67 @@ func TestGlobalDBSessionProfileMoves(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: an explicit empty ancestor ceiling survives real persistence, reopen and ancestor deletion.
+// Owner: global session storage; canonical suite: session lineage (UT-111).
+func TestGlobalDBEmptyMCPCeilingPersists(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	db, err := OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if db != nil {
+			if err := db.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+	workspaceID := registerWorkspaceForGlobalTests(t, db, "empty-ceiling", t.TempDir())
+	now := time.Now().UTC()
+	ttl := now.Add(time.Hour)
+	for _, id := range []string{"ancestor-root", "ancestor-parent"} {
+		if err := db.RegisterSession(ctx, &store.SessionInfo{
+			ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude", WorkspaceID: workspaceID,
+			SessionType: "user", State: "stopped", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ceiling := store.IntersectMCPCeiling(new([]string{"linear"}), []string{"sentry"})
+	if err := db.RegisterSession(ctx, &store.SessionInfo{
+		ID: "bounded-child", ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude", WorkspaceID: workspaceID,
+		SessionType: "spawned", State: "stopped", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now,
+		Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn, ParentSessionID: "ancestor-parent", RootSessionID: "ancestor-root", SpawnDepth: 2, TTLExpiresAt: &ttl,
+			PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit, ToolsMode: store.PermissionInherit, AncestorMCPCeiling: ceiling}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	db, err = OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEmpty := func() {
+		t.Helper()
+		rows, err := db.ListSessions(ctx, store.SessionListQuery{ID: "bounded-child", ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("read child: %+v, %v", rows, err)
+		}
+		policy := rows[0].Lineage.PermissionPolicy
+		if policy.AncestorMCPCeiling == nil || len(*policy.AncestorMCPCeiling) != 0 || len(store.BoundMCPServers(policy, []string{"linear", "sentry", "new-server"})) != 0 {
+			t.Fatalf("empty ceiling widened: %+v", policy)
+		}
+	}
+	assertEmpty()
+	for _, id := range []string{"ancestor-parent", "ancestor-root"} {
+		if err := db.DeleteSession(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+		assertEmpty()
+	}
+}

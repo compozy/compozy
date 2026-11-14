@@ -11692,6 +11692,195 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: live MCP authority uses only the current child row and its own admitted scope.
+	// Owner: daemon composition; canonical suite: native runtime policy resolver.
+	for _, tc := range []struct {
+		name     string
+		kind     store.LineageKind
+		mode     store.PermissionIntent
+		stored   []string
+		ancestor *[]string
+		want     []string
+	}{
+		{name: "Should let a fork inherit new scope servers without writes [UT-012]", kind: store.LineageKindFork, mode: store.PermissionInherit, want: []string{"linear", "sentry"}},
+		{name: "Should let continue inherit new scope servers without writes [UT-012]", kind: store.LineageKindContinue, mode: store.PermissionInherit, want: []string{"linear", "sentry"}},
+		{name: "Should restore a removed named server without widening [UT-015]", kind: store.LineageKindSpawn, mode: store.PermissionList, stored: []string{"linear"}, want: []string{"linear"}},
+		{name: "Should resolve a child with an archived parent from its own scope [UT-017]", kind: store.LineageKindSpawn, mode: store.PermissionList, stored: []string{"linear", "other"}, ancestor: new([]string{"linear"}), want: []string{"linear"}},
+		{name: "Should retain a list ancestor ceiling after parent deletion [UT-103]", kind: store.LineageKindSpawn, mode: store.PermissionInherit, ancestor: new([]string{"linear"}), want: []string{"linear"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := testConfig(t, testHomePaths(t))
+			cfg.Tools.Policy.ExternalDefault = "enabled"
+			info := &session.Info{ID: "child", Type: session.SessionTypeUser, WorkspaceID: "child-scope", ProfileID: store.DefaultProfileID,
+				Lineage: &store.SessionLineage{Kind: tc.kind, ParentSessionID: "unreadable-parent", RootSessionID: "deleted-root",
+					PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: tc.mode, ToolsMode: store.PermissionList, MCPServers: tc.stored, AncestorMCPCeiling: tc.ancestor}}}
+			before := store.CloneSessionLineage(info.Lineage)
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config: &cfg, ProfileNames: promptSkillsProfileNameResolver{store.DefaultProfileID: "default"},
+				Sessions: mcpAuthoritySessionReaderFunc(func(_ context.Context, id string) (*session.Info, error) {
+					if id != info.ID {
+						t.Fatalf("ancestor read: %s", id)
+					}
+					return info, nil
+				}),
+				WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(func(_ context.Context, workspace, profile string) (workspacepkg.ResolvedAgentConfig, error) {
+					if workspace != "child-scope" || profile != "default" {
+						t.Fatalf("foreign scope: %s/%s", profile, workspace)
+					}
+					return workspacepkg.ResolvedAgentConfig{Config: cfg}, nil
+				}),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The named server is absent until re-added to this scope.
+			initial, err := resolver.EffectiveMCPAuthority(t.Context(), info.ID)
+			if err != nil || len(initial.MCPServers) != 0 {
+				t.Fatalf("absent server authority=%+v err=%v", initial, err)
+			}
+			cfg.MCPServers = []compozyconfig.MCPServer{{Name: "linear", Command: "test"}, {Name: "sentry", Command: "test"}}
+			policy, err := resolver.EffectiveMCPAuthority(t.Context(), info.ID)
+			if err != nil || !slices.Equal(policy.MCPServers, tc.want) {
+				t.Fatalf("authority=%+v err=%v", policy, err)
+			}
+			if !reflect.DeepEqual(info.Lineage, before) {
+				t.Fatal("authority evaluation rewrote lineage")
+			}
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: info.ID})
+			if err != nil || !inputs.Session.MCPByServer || !slices.Equal(inputs.Session.MCPServers, tc.want) {
+				t.Fatalf("tool gate bypassed authority: %+v, %v", inputs.Session, err)
+			}
+		})
+	}
+
+	// Invariant: listed MCP tool names cannot exceed the session's effective server set.
+	// Owner: daemon authority resolution; canonical suite: native runtime policy resolver.
+	t.Run("Should bound named MCP tools without rewriting stored intent", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.MCPServers = []compozyconfig.MCPServer{{Name: "linear", Command: "test"}}
+		stored := store.SessionPermissionPolicy{
+			MCPServersMode: store.PermissionList, MCPServers: []string{"linear"}, ToolsMode: store.PermissionList,
+			Tools: []string{"compozy__session_list", "mcp__linear__read", "mcp__sentry__read"},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			views := []toolspkg.ToolView{}
+			for _, name := range []string{"linear", "sentry"} {
+				views = append(views, toolspkg.ToolView{Descriptor: toolspkg.Descriptor{
+					ID:     toolspkg.ToolID("mcp__" + name + "__read"),
+					Source: toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: name},
+				}})
+			}
+			return views, nil
+		}
+		ctx := session.WithMCPAuthoritySession(t.Context(), &session.Info{
+			ID: "child", Type: session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn, PermissionPolicy: stored},
+		})
+		got, err := resolver.EffectiveMCPAuthority(ctx, "child")
+		if err != nil || !slices.Equal(got.Tools, []string{"compozy__session_list", "mcp__linear__read"}) {
+			t.Fatalf("effective tools=%v err=%v", got.Tools, err)
+		}
+		if len(stored.Tools) != 3 {
+			t.Fatal("stored tool intent mutated")
+		}
+	})
+
+	// Invariant: User scope also reloads its own current profile configuration.
+	// Owner: daemon scope resolution; canonical suite: native runtime policy resolver.
+	t.Run("Should resolve live User scope rather than a boot snapshot", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		live := cfg
+		live.MCPServers = []compozyconfig.MCPServer{{Name: "new-server", Command: "test"}}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config: &cfg, ProfileNames: promptSkillsProfileNameResolver{store.DefaultProfileID: "default"},
+			WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(func(_ context.Context, workspace, profile string) (workspacepkg.ResolvedAgentConfig, error) {
+				if workspace != workspaceaccess.UserSelector || profile != "default" {
+					t.Fatalf("foreign scope %s/%s", profile, workspace)
+				}
+				return workspacepkg.ResolvedAgentConfig{Config: live}, nil
+			}),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := session.WithMCPAuthoritySession(t.Context(), &session.Info{
+			ID: "user", ProfileID: store.DefaultProfileID, Type: session.SessionTypeUser,
+			Lineage: &store.SessionLineage{PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit}},
+		})
+		got, err := resolver.EffectiveMCPAuthority(ctx, "user")
+		if err != nil || !slices.Equal(got.MCPServers, []string{"new-server"}) {
+			t.Fatalf("User authority=%+v err=%v", got, err)
+		}
+	})
+
+	// Invariant: only inherited tools gain newly admitted extension tools, independent of ancestors.
+	// Owner: effective tool authority; canonical suite: native runtime policy resolver (UT-106/108).
+	t.Run("Should propagate extension intent to children and legacy instances [UT-106]", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		id := toolspkg.ToolID("extension__demo__new_tool")
+		descriptor := toolspkg.Descriptor{ID: id, Source: toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"}, Visibility: toolspkg.VisibilityModel, ReadOnly: true, Risk: toolspkg.RiskRead}
+		for _, tc := range []struct {
+			name    string
+			policy  store.SessionPermissionPolicy
+			allowed bool
+		}{
+			{"child", store.SessionPermissionPolicy{ToolsMode: store.PermissionInherit, MCPServersMode: store.PermissionInherit}, true},
+			{"legacy depth zero instance", store.DecodeInstanceCeilingIntent(store.SessionPermissionPolicy{}, 0), true},
+			{"narrowed grandchild with deleted parent [UT-108]", store.SessionPermissionPolicy{ToolsMode: store.PermissionList, MCPServersMode: store.PermissionInherit, Tools: []string{"compozy__session_list", "compozy__session_spawn"}}, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				info := &session.Info{ID: "child", Type: session.SessionTypeSpawned, Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn, ParentSessionID: "deleted", PermissionPolicy: tc.policy}}
+				resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg, Sessions: &nativeToolPolicySessionStub{info: info}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				enabled := false
+				resolver.scopeTools = func(_ context.Context, scope toolspkg.Scope, _ toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+					if scope.SessionID != "" {
+						t.Fatal("scope tool enumeration included child restriction")
+					}
+					if !enabled {
+						return nil, nil
+					}
+					return []toolspkg.ToolView{{Descriptor: descriptor, Decision: toolspkg.EffectiveToolDecision{SourcePolicyResult: "allowed"}}}, nil
+				}
+				before, err := resolver.EffectiveMCPAuthority(t.Context(), "child")
+				if err != nil || slices.Contains(before.Tools, id.String()) {
+					t.Fatalf("unpublished tool: %+v, %v", before, err)
+				}
+				enabled = true
+				policy, err := resolver.EffectiveMCPAuthority(t.Context(), "child")
+				if err != nil || slices.Contains(policy.Tools, id.String()) != tc.allowed {
+					t.Fatalf("inherited tools=%+v, %v", policy, err)
+				}
+				inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: "child"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				evaluator, err := toolspkg.NewEffectivePolicyEvaluator(inputs, toolspkg.ToolsetCatalog{}, []toolspkg.ToolID{id})
+				if err != nil {
+					t.Fatal(err)
+				}
+				decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+				if err != nil || decision.Callable != tc.allowed {
+					t.Fatalf("extension decision=%+v, %v", decision, err)
+				}
+			})
+		}
+	})
+
 	// Invariant: resource-backed grant names refresh independently of allocated runtime tool names.
 	// Owner: daemon policy inputs; canonical suite: native runtime policy resolver.
 	t.Run("Should refresh logical MCP grant names from the current catalog", func(t *testing.T) {
@@ -18678,4 +18867,10 @@ func (s *correctedOutputGrantStore) PutApprovalGrant(
 	toolspkg.ApprovalGrant,
 ) (toolspkg.ApprovalGrant, error) {
 	return s.grants[0], nil
+}
+
+type mcpAuthoritySessionReaderFunc func(context.Context, string) (*session.Info, error)
+
+func (f mcpAuthoritySessionReaderFunc) Status(ctx context.Context, id string) (*session.Info, error) {
+	return f(ctx, id)
 }

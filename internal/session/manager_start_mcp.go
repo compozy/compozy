@@ -57,12 +57,16 @@ func (m *Manager) sessionMCPServers(
 			"configured_mcp_servers", len(resolved.MCPServers),
 		)
 		servers, err := m.resolveStartMCPServers(ctx, &spec.workspace, agentDef, resolved.MCPServers)
-		if spec.sessionType == SessionTypeSpawned || spec.sessionType == SessionTypeCoordinator {
-			policy := store.NormalizeSessionLineage(spec.sessionID, spec.lineage).PermissionPolicy
-			servers = slices.DeleteFunc(servers, func(server compozyconfig.MCPServer) bool {
-				return !slices.Contains(policy.MCPServers, server.Name)
-			})
+		if err != nil {
+			return nil, err
 		}
+		policy, err := m.effectiveStartAuthority(ctx, spec)
+		if err != nil {
+			return nil, err
+		}
+		servers = slices.DeleteFunc(servers, func(server compozyconfig.MCPServer) bool {
+			return !slices.Contains(policy.MCPServers, server.Name)
+		})
 		return servers, err
 	}
 	hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{

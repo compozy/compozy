@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -211,6 +212,44 @@ func newManagerWithHarness(t testing.TB, h *harness, extraOpts ...Option) *Manag
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	// The production composition root owns live source admission. Session tests replace that
+	// I/O boundary with the fixture's configured and explicitly granted server names.
+	manager.SetMCPAuthorityResolver(lineageAuthorityFunc(func(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
+		info := MCPAuthoritySession(ctx, id)
+		if info == nil {
+			var err error
+			info, err = manager.StoredStatus(ctx, id)
+			if err != nil {
+				return store.SessionPermissionPolicy{}, err
+			}
+		}
+		lineage := store.NormalizeSessionLineage(id, info.Lineage)
+		policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+		names := slices.Clone(policy.MCPServers)
+		workspace, err := h.resolver.Resolve(ctx, info.WorkspaceID)
+		if err == nil {
+			var agent compozyconfig.AgentDef
+			for _, candidate := range workspace.Agents {
+				if candidate.Name == info.AgentName {
+					agent = candidate
+					break
+				}
+			}
+			resolved, resolveErr := workspace.Config.ResolveAgent(agent)
+			if resolveErr != nil {
+				return store.SessionPermissionPolicy{}, resolveErr
+			}
+			servers, resolveErr := manager.resolveStartMCPServers(ctx, &workspace, agent, resolved.MCPServers)
+			if resolveErr != nil {
+				return store.SessionPermissionPolicy{}, resolveErr
+			}
+			for _, server := range servers {
+				names = append(names, server.Name)
+			}
+		}
+		policy.MCPServers = store.BoundMCPServers(policy, names)
+		return policy, nil
+	}))
 	installAbsentWorkSources(manager)
 	return manager
 }

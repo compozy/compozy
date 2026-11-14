@@ -69,7 +69,7 @@ SELECT id, parent_session_id, instance_id FROM sessions WHERE id=sqlc.arg(sessio
 UNION
 SELECT s.id, s.parent_session_id, s.instance_id FROM sessions s JOIN ancestry a ON s.id=a.parent_session_id
 )
-SELECT s.id, s.agent_name, s.profile_id, s.permission_policy_json, s.effective_workspace_access,
+SELECT s.id, s.agent_name, s.profile_id, s.permission_policy_json, s.effective_workspace_access, s.lineage_kind, s.session_type,
 COALESCE((SELECT i.id FROM ancestry a JOIN agent_instances i ON i.id=a.instance_id LIMIT 1),'') AS originating_instance_id,
 COALESCE((SELECT MAX(i.depth) FROM ancestry a JOIN agent_instances i ON i.id=a.instance_id),0) AS instance_depth
 FROM sessions s WHERE s.id=sqlc.arg(session_id);

@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -64,18 +65,19 @@ func HierarchyParentSessionID(lineage *SessionLineage) string {
 
 // SessionLineage is the persisted parent/root metadata used for safe spawned sessions.
 type SessionLineage struct {
-	ParentSessionID  string                  `json:"parent_session_id,omitempty"`
-	RootSessionID    string                  `json:"root_session_id,omitempty"`
-	SpawnDepth       int                     `json:"spawn_depth"`
-	SpawnRole        string                  `json:"spawn_role,omitempty"`
-	Kind             LineageKind             `json:"kind,omitempty"`
-	OriginMessageID  string                  `json:"origin_message_id,omitempty"`
-	OriginAgentName  string                  `json:"origin_agent_name,omitempty"`
-	TTLExpiresAt     *time.Time              `json:"ttl_expires_at,omitempty"`
-	AutoStopOnParent bool                    `json:"auto_stop_on_parent"`
-	NotifyCreator    bool                    `json:"notify_creator"`
-	SpawnBudget      SessionSpawnBudget      `json:"spawn_budget"`
-	PermissionPolicy SessionPermissionPolicy `json:"permission_policy"`
+	EffectiveMCPServers []string                `json:"-"`
+	ParentSessionID     string                  `json:"parent_session_id,omitempty"`
+	RootSessionID       string                  `json:"root_session_id,omitempty"`
+	SpawnDepth          int                     `json:"spawn_depth"`
+	SpawnRole           string                  `json:"spawn_role,omitempty"`
+	Kind                LineageKind             `json:"kind,omitempty"`
+	OriginMessageID     string                  `json:"origin_message_id,omitempty"`
+	OriginAgentName     string                  `json:"origin_agent_name,omitempty"`
+	TTLExpiresAt        *time.Time              `json:"ttl_expires_at,omitempty"`
+	AutoStopOnParent    bool                    `json:"auto_stop_on_parent"`
+	NotifyCreator       bool                    `json:"notify_creator"`
+	SpawnBudget         SessionSpawnBudget      `json:"spawn_budget"`
+	PermissionPolicy    SessionPermissionPolicy `json:"permission_policy"`
 }
 
 // CloneSessionLineage returns a deep copy of lineage metadata.
@@ -84,6 +86,7 @@ func CloneSessionLineage(lineage *SessionLineage) *SessionLineage {
 		return nil
 	}
 	cloned := *lineage
+	cloned.EffectiveMCPServers = slices.Clone(lineage.EffectiveMCPServers)
 	if lineage.TTLExpiresAt != nil {
 		cloned.TTLExpiresAt = new(lineage.TTLExpiresAt.UTC())
 	}

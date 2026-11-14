@@ -183,7 +183,7 @@ func (m *Manager) prepareSpawn(
 		return SpawnOpts{}, nil, nil, err
 	}
 
-	normalized.PermissionPolicy, err = m.resolveSpawnPermissionPolicy(parent, normalized)
+	normalized.PermissionPolicy, err = m.resolveSpawnPermissionPolicy(ctx, parent, normalized)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
@@ -191,7 +191,7 @@ func (m *Manager) prepareSpawn(
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
-	if err := ValidatePermissionSubset(parent.Lineage.PermissionPolicy, normalized.PermissionPolicy); err != nil {
+	if err := m.validateEffectiveSpawnSubset(ctx, parent, normalized); err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
 
@@ -207,7 +207,7 @@ func (m *Manager) prepareSpawn(
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
-	if err := ValidatePermissionSubset(parent.Lineage.PermissionPolicy, normalized.PermissionPolicy); err != nil {
+	if err := m.validateEffectiveSpawnSubset(ctx, parent, normalized); err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
 	return normalized, parent, lineage, nil

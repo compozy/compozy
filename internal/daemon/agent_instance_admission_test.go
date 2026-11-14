@@ -214,7 +214,10 @@ func TestInstanceCreateAdmission(t *testing.T) {
 			if err := json.Unmarshal([]byte(got.PermissionCeiling), &policy); err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(policy, narrow) || got.GrantCeiling != "" || got.Depth != 1 {
+			wantPolicy := store.NormalizeSessionPermissionPolicy(narrow)
+			wantPolicy.MCPServersMode, wantPolicy.ToolsMode = store.PermissionList, store.PermissionList
+			wantPolicy.AncestorMCPCeiling = new([]string{"docs"})
+			if !reflect.DeepEqual(policy, wantPolicy) || got.GrantCeiling != "" || got.Depth != 1 {
 				t.Fatalf("admission widened authority: %#v, policy %#v", got, policy)
 			}
 		})
@@ -1668,4 +1671,67 @@ func TestNativeInstanceListCapacity(t *testing.T) {
 			t.Fatalf("filtered list capacity = %+v", page)
 		}
 	})
+}
+
+// Invariant: authored instance ceilings retain intent across later scope changes.
+// Owner: instance definition/admission; canonical suite: instance admission (UT-100/101).
+func TestInstancePermissionIntent(t *testing.T) {
+	t.Parallel()
+	for _, named := range []bool{false, true} {
+		name := "Should inherit newly added MCP servers at the next occurrence [UT-100]"
+		if named {
+			name = "Should retain an authored MCP list [UT-101]"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			definitions, _ := newInstanceDefinitionsFixture(t, nil)
+			definitions.agents = stubSessionCommandAgentResolver(func(name string, _ *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+				agent := compozyconfig.AgentDef{Name: name, Kind: "always_on", Provider: "claude", Prompt: "Review work."}
+				if named {
+					agent.MCPServers = []compozyconfig.MCPServer{{Name: "linear", Command: "test"}}
+				}
+				return agent, nil
+			})
+			admission := &instanceAdmission{definitions: definitions, reach: &instanceAdmissionInputs{}}
+			instance, err := admission.ResolveCreate(t.Context(), agentinstance.CreateRequest{
+				Agent: "coder", Profile: store.DefaultProfileID, Workspace: "ws-instance-paths", Actor: workspaceaccess.ActorRef{Operator: true},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var policy store.SessionPermissionPolicy
+			if err := json.Unmarshal([]byte(instance.PermissionCeiling), &policy); err != nil {
+				t.Fatal(err)
+			}
+			want := store.PermissionInherit
+			if named {
+				want = store.PermissionList
+			}
+			if policy.MCPServersMode != want || policy.ToolsMode != store.PermissionInherit {
+				t.Fatalf("ceiling intent=%+v", policy)
+			}
+			cfg := testConfig(t, testHomePaths(t))
+			cfg.Tools.Policy.ExternalDefault = "enabled"
+			cfg.MCPServers = []compozyconfig.MCPServer{{Name: "linear", Command: "test"}}
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := session.WithMCPAuthoritySession(t.Context(), &session.Info{ID: "occurrence", Type: session.SessionTypeSystem,
+				Lineage: &store.SessionLineage{PermissionPolicy: policy}})
+			first, err := resolver.EffectiveMCPAuthority(ctx, "occurrence")
+			if err != nil || !reflect.DeepEqual(first.MCPServers, []string{"linear"}) {
+				t.Fatalf("initial occurrence=%+v, %v", first, err)
+			}
+			cfg.MCPServers = append(cfg.MCPServers, compozyconfig.MCPServer{Name: "sentry", Command: "test"})
+			later, err := resolver.EffectiveMCPAuthority(ctx, "occurrence")
+			wantNames := []string{"linear", "sentry"}
+			if named {
+				wantNames = []string{"linear"}
+			}
+			if err != nil || !reflect.DeepEqual(later.MCPServers, wantNames) {
+				t.Fatalf("later occurrence=%+v, %v", later, err)
+			}
+		})
+	}
 }

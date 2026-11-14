@@ -1,19 +1,26 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // resolveSpawnPermissionPolicy turns the public spawn permission inputs into the
 // concrete child policy. Inheritance and toolsets only select atoms from the
 // parent's ceiling; ValidatePermissionSubset still guards the result.
-func (m *Manager) resolveSpawnPermissionPolicy(parent *Info, opts SpawnOpts) (store.SessionPermissionPolicy, error) {
-	ceiling := store.NormalizeSessionLineage(parent.ID, parent.Lineage).PermissionPolicy
+func (m *Manager) resolveSpawnPermissionPolicy(
+	ctx context.Context, parent *Info, opts SpawnOpts,
+) (store.SessionPermissionPolicy, error) {
+	ceiling, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, parent), parent.ID)
+	if err != nil {
+		return store.SessionPermissionPolicy{}, err
+	}
 	policy := opts.PermissionPolicy
 	inheritTools := false
 	if opts.InheritPermissions {
@@ -47,6 +54,57 @@ func (m *Manager) resolveSpawnPermissionPolicy(parent *Info, opts SpawnOpts) (st
 		}
 		policy.Tools = append(slices.Clone(base), selected...)
 		policy.MaterializedTools = false
+	}
+	return bindSpawnPermissionIntent(parent, opts, ceiling, policy)
+}
+
+// bindSpawnPermissionIntent records the immutable inherited bounds, separately from live authority.
+func bindSpawnPermissionIntent(
+	parent *Info, opts SpawnOpts, ceiling, policy store.SessionPermissionPolicy,
+) (store.SessionPermissionPolicy, error) {
+	lineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
+	stored := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(parent.Type))
+	sameScope := opts.Workspace == "" || opts.Workspace == parent.WorkspaceID ||
+		(opts.Workspace == workspaceaccess.UserSelector && parent.WorkspaceID == "")
+	mcpNamed := opts.PermissionPolicy.MCPServersMode == store.PermissionList ||
+		(len(opts.PermissionPolicy.MCPServers) > 0 && opts.PermissionPolicy.MCPServersMode != store.PermissionInherit) ||
+		(opts.PermissionNarrowing != nil && opts.PermissionNarrowing.MCPServers != nil)
+	toolsNamed := len(opts.Toolsets) > 0 || opts.PermissionPolicy.ToolsMode == store.PermissionList ||
+		(len(opts.PermissionPolicy.Tools) > 0 && opts.PermissionPolicy.ToolsMode != store.PermissionInherit) ||
+		(opts.PermissionNarrowing != nil && opts.PermissionNarrowing.Tools != nil)
+	if toolsNamed {
+		if err := validatePermissionAtoms("tools", ceiling.Tools, policy.Tools); err != nil {
+			return store.SessionPermissionPolicy{}, err
+		}
+	}
+	if mcpNamed {
+		if err := validatePermissionAtoms("mcp_servers", ceiling.MCPServers, policy.MCPServers); err != nil {
+			return store.SessionPermissionPolicy{}, err
+		}
+	}
+	policy.AncestorMCPCeiling = stored.AncestorMCPCeiling
+	if stored.MCPServersMode == store.PermissionList {
+		policy.AncestorMCPCeiling = store.IntersectMCPCeiling(policy.AncestorMCPCeiling, stored.MCPServers)
+	}
+	if !sameScope {
+		policy.AncestorMCPCeiling = store.IntersectMCPCeiling(policy.AncestorMCPCeiling, ceiling.MCPServers)
+	}
+	policy.MCPServersMode = store.PermissionInherit
+	if mcpNamed {
+		policy.MCPServersMode = store.PermissionList
+	}
+	policy.ToolsMode = store.PermissionList
+	if stored.ToolsMode == store.PermissionInherit && sameScope && !toolsNamed {
+		policy.ToolsMode = store.PermissionInherit
+	}
+	if !toolsNamed {
+		policy.Tools = stored.Tools
+		if !sameScope {
+			policy.Tools = ceiling.Tools
+		}
+	}
+	if policy.MCPServersMode == store.PermissionInherit {
+		policy.MCPServers = nil
 	}
 	policy.MaterializedMCPServers = false
 	return store.NormalizeSessionPermissionPolicy(policy), nil

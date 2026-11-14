@@ -39,10 +39,6 @@ func (m *Manager) ensurePromptRuntime(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.refreshRootMCPPolicy(ctx, session); err != nil {
-		m.sessionLogger(session).
-			WarnContext(ctx, "session: MCP delegation budget refresh deferred", "reason", "configuration_unavailable")
-	}
 	snapshot := session.runtimeBindingSnapshot()
 	if reservedProcess != snapshot.process {
 		return nil, errors.New("session: runtime process changed while reserving prompt")
