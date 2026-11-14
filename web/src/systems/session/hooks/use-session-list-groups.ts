@@ -249,3 +249,22 @@ export function useSessionListLaterCount({
   // The daemon omits the total when nothing is parked.
   return data ? (data.later ?? 0) : undefined;
 }
+
+/**
+ * How many sessions the list's scope holds in the archive — the "Clean up history" footer's
+ * count (#1717). Read only while the archive shelf shows; `undefined` until it loads.
+ */
+export function useSessionListArchivedCount({
+  scope,
+  lens,
+  enabled,
+}: {
+  scope: DataScope | null;
+  lens: ProfileScopeParams;
+  enabled: boolean;
+}): number | undefined {
+  return useQuery({
+    ...sessionFacetsOptions(sessionListFacetFilters({ scope, lens, shelf: "archive" })),
+    enabled: enabled && scope !== null,
+  }).data?.facets.all;
+}

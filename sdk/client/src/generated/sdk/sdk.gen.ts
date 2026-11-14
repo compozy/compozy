@@ -647,6 +647,9 @@ import type {
   GetSessionHealthData,
   GetSessionHealthErrors,
   GetSessionHealthResponses,
+  GetSessionHistoryCleanupData,
+  GetSessionHistoryCleanupErrors,
+  GetSessionHistoryCleanupResponses,
   GetSessionHistoryData,
   GetSessionHistoryErrors,
   GetSessionHistoryResponses,
@@ -1158,6 +1161,9 @@ import type {
   PinCmdPaletteCommandData,
   PinCmdPaletteCommandErrors,
   PinCmdPaletteCommandResponses,
+  PlanSessionHistoryCleanupData,
+  PlanSessionHistoryCleanupErrors,
+  PlanSessionHistoryCleanupResponses,
   PrepareProfileArchiveData,
   PrepareProfileArchiveErrors,
   PrepareProfileArchiveResponses,
@@ -1538,6 +1544,9 @@ import type {
   SteerSessionPromptResponses,
   StopSessionData,
   StopSessionErrors,
+  StopSessionHistoryCleanupData,
+  StopSessionHistoryCleanupErrors,
+  StopSessionHistoryCleanupResponses,
   StopSessionResponses,
   SubmitTaskRunReviewVerdictData,
   SubmitTaskRunReviewVerdictErrors,
@@ -8117,6 +8126,79 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/sessions/facets",
+      ...options,
+    });
+  }
+
+  /**
+   * Get the selected profile's running or most recent archived-history cleanup
+   */
+  public getSessionHistoryCleanup<ThrowOnError extends boolean = true>(
+    options?: Options<GetSessionHistoryCleanupData, ThrowOnError>
+  ): RequestResult<
+    GetSessionHistoryCleanupResponses,
+    GetSessionHistoryCleanupErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      GetSessionHistoryCleanupResponses,
+      GetSessionHistoryCleanupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/history-cleanup",
+      ...options,
+    });
+  }
+
+  /**
+   * Preview (dry_run) or start the background deletion of archived sessions archived before a cutoff: whole threads, or only their child sessions or subagents
+   */
+  public planSessionHistoryCleanup<ThrowOnError extends boolean = true>(
+    options: Options<PlanSessionHistoryCleanupData, ThrowOnError>
+  ): RequestResult<
+    PlanSessionHistoryCleanupResponses,
+    PlanSessionHistoryCleanupErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PlanSessionHistoryCleanupResponses,
+      PlanSessionHistoryCleanupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/history-cleanup",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Stop the selected profile's running cleanup; sessions already deleted stay deleted
+   */
+  public stopSessionHistoryCleanup<ThrowOnError extends boolean = true>(
+    options?: Options<StopSessionHistoryCleanupData, ThrowOnError>
+  ): RequestResult<
+    StopSessionHistoryCleanupResponses,
+    StopSessionHistoryCleanupErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).post<
+      StopSessionHistoryCleanupResponses,
+      StopSessionHistoryCleanupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/history-cleanup/stop",
       ...options,
     });
   }

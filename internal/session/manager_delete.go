@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -14,7 +15,19 @@ import (
 var ErrDeleteStopAccepted = errors.New("session: delete stop accepted")
 
 // Delete removes one session from active runtime state and persisted history.
-func (m *Manager) Delete(ctx context.Context, id string) (err error) {
+func (m *Manager) Delete(ctx context.Context, id string) error {
+	return m.deleteSession(ctx, id, nil)
+}
+
+// DeleteArchived removes one session only while it is archived and owned by the
+// expected profile and workspace: it is refused before anything stops, and the
+// catalog row goes only if the deleting transaction still finds it archived, so
+// a session restored meanwhile is never deleted.
+func (m *Manager) DeleteArchived(ctx context.Context, target store.ArchivedSessionDelete) error {
+	return m.deleteSession(ctx, target.SessionID, &target)
+}
+
+func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.ArchivedSessionDelete) (err error) {
 	if m == nil {
 		return errors.New("session: manager is required")
 	}
@@ -39,6 +52,11 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	if err := m.guardInstanceMain(ctx, target); err != nil {
 		return err
 	}
+	if archived != nil {
+		if err := m.requireArchivedDelete(ctx, target, *archived); err != nil {
+			return err
+		}
+	}
 
 	// Stop settlement and its subagent/Goal callbacks can acquire lifecycleMu.
 	// Keep them outside the global staging lock. The conversation operation
@@ -57,7 +75,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	}
 
 	if m.sessionCatalog != nil {
-		if err := m.sessionCatalog.DeleteSession(ctx, target); err != nil {
+		if err := m.deleteSessionCatalogRow(ctx, target, archived); err != nil {
 			deleteErr := fmt.Errorf("session: delete catalog state for %q: %w", target, err)
 			if rollbackErr := m.rollbackStagedSessionDeletes(ctx, []stagedSessionDelete{staged}); rollbackErr != nil {
 				return errors.Join(deleteErr, rollbackErr)
@@ -97,6 +115,42 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 		m.scheduleDeletedSessionWindowRetry(deletedSessionWindowRetryPath(staged))
 	}
 	return nil
+}
+
+// requireArchivedDelete refuses an archived-only delete of a session that was
+// restored, moved, or never matched the expected owner.
+func (m *Manager) requireArchivedDelete(
+	ctx context.Context,
+	target string,
+	archived store.ArchivedSessionDelete,
+) error {
+	info, err := m.Status(ctx, target)
+	if err != nil {
+		return err
+	}
+	if info.ArchivedAt == nil ||
+		strings.TrimSpace(info.ProfileID) != strings.TrimSpace(archived.ProfileID) ||
+		strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(archived.WorkspaceID) {
+		return fmt.Errorf("session: delete %q: %w", target, store.ErrSessionNotArchived)
+	}
+	return nil
+}
+
+func (m *Manager) deleteSessionCatalogRow(
+	ctx context.Context,
+	target string,
+	archived *store.ArchivedSessionDelete,
+) error {
+	if archived == nil {
+		return m.sessionCatalog.DeleteSession(ctx, target)
+	}
+	cleanupStore, ok := m.sessionCatalog.(store.SessionHistoryCleanupStore)
+	if !ok {
+		return ErrSessionArchiveUnavailable
+	}
+	guarded := *archived
+	guarded.SessionID = target
+	return cleanupStore.DeleteArchivedSession(ctx, guarded)
 }
 
 // prepareSessionDelete settles execution and owned Goals before reversible history removal.

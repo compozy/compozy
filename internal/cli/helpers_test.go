@@ -150,8 +150,14 @@ type stubClient struct {
 	archiveSessionFn          func(
 		context.Context, string, bool, bool, contract.SessionProcessPolicy,
 	) (SessionRecord, error)
-	unarchiveSessionFn               func(context.Context, string) (SessionRecord, error)
-	moveSessionToLaterFn             func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
+	unarchiveSessionFn             func(context.Context, string) (SessionRecord, error)
+	moveSessionToLaterFn           func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
+	previewSessionHistoryCleanupFn func(
+		context.Context, contract.SessionHistoryCleanupRequest,
+	) (contract.SessionHistoryCleanupPreviewResponse, error)
+	startSessionHistoryCleanupFn func(
+		context.Context, contract.SessionHistoryCleanupRequest,
+	) (contract.SessionHistoryCleanupStartResponse, error)
 	resumeSessionFromLaterFn         func(context.Context, string, bool) (SessionRecord, error)
 	markSessionSeenFn                func(context.Context, string) (SessionRecord, error)
 	renameSessionFn                  func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
@@ -1347,6 +1353,34 @@ func (s *stubClient) UnarchiveSession(ctx context.Context, id string) (SessionRe
 		return s.unarchiveSessionFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected UnarchiveSession call")
+}
+
+func (s *stubClient) PreviewSessionHistoryCleanup(
+	ctx context.Context,
+	request contract.SessionHistoryCleanupRequest,
+) (contract.SessionHistoryCleanupPreviewResponse, error) {
+	if s.previewSessionHistoryCleanupFn != nil {
+		return s.previewSessionHistoryCleanupFn(ctx, request)
+	}
+	return contract.SessionHistoryCleanupPreviewResponse{}, errors.New("unexpected PreviewSessionHistoryCleanup call")
+}
+
+func (s *stubClient) StartSessionHistoryCleanup(
+	ctx context.Context,
+	request contract.SessionHistoryCleanupRequest,
+) (contract.SessionHistoryCleanupStartResponse, error) {
+	if s.startSessionHistoryCleanupFn != nil {
+		return s.startSessionHistoryCleanupFn(ctx, request)
+	}
+	return contract.SessionHistoryCleanupStartResponse{}, errors.New("unexpected StartSessionHistoryCleanup call")
+}
+
+func (s *stubClient) GetSessionHistoryCleanup(context.Context) (contract.SessionHistoryCleanupRunResponse, error) {
+	return contract.SessionHistoryCleanupRunResponse{}, errors.New("unexpected GetSessionHistoryCleanup call")
+}
+
+func (s *stubClient) StopSessionHistoryCleanup(context.Context) (contract.SessionHistoryCleanupRunResponse, error) {
+	return contract.SessionHistoryCleanupRunResponse{}, errors.New("unexpected StopSessionHistoryCleanup call")
 }
 
 func (s *stubClient) MoveSessionToLater(

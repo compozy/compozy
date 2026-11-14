@@ -6,6 +6,7 @@ var singleResultSession = map[toolspkg.ToolID]SingleResultReason{
 	toolspkg.ToolIDSessionApprove:             SingleResultMinimal,
 	toolspkg.ToolIDSessionChanges:             SingleResultContent,
 	toolspkg.ToolIDSessionClarifyAnswer:       SingleResultMinimal,
+	toolspkg.ToolIDSessionCleanup:             SingleResultMinimal,
 	toolspkg.ToolIDSessionCompact:             SingleResultMinimal,
 	toolspkg.ToolIDSessionEvents:              SingleResultContent,
 	toolspkg.ToolIDSessionFolderCreate:        SingleResultMinimal,
