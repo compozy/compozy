@@ -59,6 +59,9 @@ func (m *Manager) prepareSessionLaunch(
 	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
 	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
 	startOpts = m.prepareHostedMCPStartup(session, runtime, startOpts)
+	if err := m.prepareActivationCatalog(ctx, session, runtime, spec); err != nil {
+		return acp.StartOpts{}, err
+	}
 	m.constrainTriageLaunch(spec, runtime, &startOpts)
 
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {

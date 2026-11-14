@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -40,6 +41,8 @@ func (f MCPSourceListerFunc) ListMCPSources(ctx context.Context) ([]SourceRef, e
 
 // MCPProvider adapts daemon-owned MCP discovery and calls into registry descriptors.
 type MCPProvider struct {
+	discovered sync.Map // source identity -> last discovered descriptors
+
 	consent         func(context.Context, SourceRef, string) (bool, error)
 	discoveryBudget time.Duration
 	source          SourceRef
@@ -202,10 +205,10 @@ func (h *mcpHandle) Availability(ctx context.Context, scope Scope) Availability 
 	if h == nil || isNilInterface(h.exec) {
 		return Unavailable(ReasonBackendNotExecutable)
 	}
-	if h.reliability != nil && h.reliability.dead(ctx, h.descriptor.Source, scope.ProfileID) {
-		return Unavailable(ReasonBackendDead)
-	}
 	if isNilInterface(h.auth) {
+		if h.reliability != nil && h.reliability.dead(ctx, h.descriptor.Source, scope.ProfileID) {
+			return Unavailable(ReasonBackendDead)
+		}
 		return Available()
 	}
 	status, err := h.auth.Status(ctx, h.descriptor.Source, "")
@@ -214,6 +217,9 @@ func (h *mcpHandle) Availability(ctx context.Context, scope Scope) Availability 
 	}
 	reason, ok := MCPAuthStatusReason(status)
 	if !ok || reason == ReasonMCPAuthUnconfigured {
+		if h.reliability != nil && h.reliability.dead(ctx, h.descriptor.Source, scope.ProfileID) {
+			return Unavailable(ReasonBackendDead)
+		}
 		return Available()
 	}
 	return Availability{

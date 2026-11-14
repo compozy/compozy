@@ -8428,6 +8428,9 @@
             },
             "type": "array"
           },
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -8458,6 +8461,12 @@
           },
           "error": {
             "type": "string"
+          },
+          "provider_error": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "unknown_keys": {
             "items": {
@@ -27279,6 +27288,9 @@
           "child_session_id": {
             "type": "string"
           },
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -27309,6 +27321,12 @@
           },
           "error": {
             "type": "string"
+          },
+          "provider_error": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "unknown_keys": {
             "items": {
@@ -29569,6 +29587,9 @@
           "cause": {
             "type": "string"
           },
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -29602,6 +29623,12 @@
           },
           "message": {
             "type": "string"
+          },
+          "provider_error": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "unknown_keys": {
             "items": {
@@ -39965,6 +39992,9 @@
             },
             "type": "array"
           },
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -39998,6 +40028,12 @@
           },
           "field": {
             "type": "string"
+          },
+          "provider_error": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "unknown_keys": {
             "items": {
@@ -43583,6 +43619,9 @@
       },
       "ToolErrorPayload": {
         "properties": {
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "enum": [
               "agent_instance_not_found",
@@ -43672,6 +43711,9 @@
                 "nullable": true
               }
             ]
+          },
+          "provider_error": {
+            "type": "string"
           },
           "reason_codes": {
             "items": {
@@ -43764,6 +43806,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "tool_id": {
             "type": "string"

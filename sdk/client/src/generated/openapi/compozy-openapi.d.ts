@@ -10438,6 +10438,7 @@ export interface components {
     };
     ErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -10446,6 +10447,8 @@ export interface components {
       };
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     ExecutionPolicy: {
@@ -15923,6 +15926,7 @@ export interface components {
     SessionDeriveErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       child_session_id?: string;
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -15931,6 +15935,8 @@ export interface components {
       };
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     SessionDerivePreviewResponse: {
@@ -16494,6 +16500,7 @@ export interface components {
     SessionPullRequestErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       cause?: string;
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -16503,6 +16510,8 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       message: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     SessionPullRequestLookupPayload: {
@@ -19572,6 +19581,7 @@ export interface components {
     };
     TaskQueryErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -19581,6 +19591,8 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       field: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     TaskQueueDepthPayload: {
@@ -20781,6 +20793,7 @@ export interface components {
       visibility: "internal" | "operator" | "session" | "model";
     };
     ToolErrorPayload: {
+      client_message_id?: string;
       /** @enum {string} */
       code:
         | "agent_instance_not_found"
@@ -20851,6 +20864,7 @@ export interface components {
       layer?: string;
       message: string;
       partial_result?: components["schemas"]["ToolResult"] | null;
+      provider_error?: string;
       reason_codes?: (
         | "approval_canceled"
         | "approval_rejected"
@@ -20937,6 +20951,7 @@ export interface components {
         | "worktree_not_found"
         | "worktree_not_ready"
       )[];
+      retryable?: boolean;
       tool_id?: string;
     };
     ToolErrorResponse: {

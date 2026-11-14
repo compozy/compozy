@@ -21,6 +21,7 @@ type promptRuntimePlan struct {
 	reloadACPSessionID string
 	// replayHistory carries the transcript into a bind that cannot load the prior session.
 	replayHistory bool
+	replayed      bool
 }
 
 // ensurePromptRuntime reserves runtime configuration and replaces auth-failed bindings before considering reuse.
@@ -46,15 +47,17 @@ func (m *Manager) ensurePromptRuntime(
 	if err := m.releaseAuthFailedRuntime(ctx, session, &snapshot); err != nil {
 		return nil, err
 	}
-	mcpChanged := m.hostedMCPToolsChanged(ctx, session)
+	mcpChanged, reloadReason := false, ""
+	if activationCheckDue(ctx) {
+		mcpChanged, reloadReason = m.needsActivationReload(ctx, session)
+	}
+	if mcpChanged {
+		return m.reloadActivationRuntime(ctx, session, &snapshot, *selection, reloadReason)
+	}
 	if canReusePromptRuntime(&snapshot, *selection, mcpChanged) {
 		return snapshot.process, nil
 	}
-	command, sessionEnv := "", compozyconfig.SessionEnv(nil)
-	if mcpChanged && runtimeSelectionsEqual(snapshot.selection, *selection) {
-		command, sessionEnv = snapshot.acceptedCommand, snapshot.acceptedSessionEnv
-	}
-	plan, err := m.preparePromptRuntimePlanForRoute(ctx, session, *selection, command, sessionEnv)
+	plan, err := m.preparePromptRuntimePlanForRoute(ctx, session, *selection, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -68,13 +71,6 @@ func (m *Manager) ensurePromptRuntime(
 		if proc, handled, err := m.bindUnboundPromptRuntime(ctx, session, &snapshot, plan); handled {
 			return proc, err
 		}
-	}
-	if mcpChanged {
-		if err := m.releaseBoundRuntime(ctx, session); err != nil {
-			return nil, err
-		}
-		released := session.runtimeBindingSnapshot()
-		return m.rebindReleasedRuntime(ctx, session, &released, plan)
 	}
 	if snapshot.process != nil &&
 		strings.TrimSpace(snapshot.selection.Provider) == strings.TrimSpace(plan.selection.Provider) {
@@ -296,6 +292,8 @@ func (m *Manager) replacePromptRuntime(
 		return nil, acp.WrapAcceptedStart(candidate.SessionID, errors.Join(err, restoreErr, stopErr))
 	}
 
+	m.commitActivation(session, &runtime)
+	plan.replayed = plan.spec.resumeReplay
 	session.setProviderRouting(runtime.agent)
 	if plan.spec.resumeReplay {
 		m.stageResumeReplay(session.ID, plan.spec.resumeReplayBlock)
@@ -356,6 +354,13 @@ func (m *Manager) stopReplacedRuntime(session *Session, proc *AgentProcess, emit
 		defer cancel()
 		if err := m.driver.Stop(stopCtx, proc); err != nil {
 			return err
+		}
+		verified, err := m.processExitVerified(proc)
+		if err != nil {
+			return err
+		}
+		if !verified {
+			return ErrStopVerificationFailed
 		}
 	}
 	if emitHook {

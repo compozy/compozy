@@ -158,6 +158,7 @@ export type Error = {
 
 export type ErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -166,6 +167,8 @@ export type ErrorPayload = {
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 

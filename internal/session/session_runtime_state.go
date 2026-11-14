@@ -12,6 +12,7 @@ import (
 )
 
 type runtimeBindingSnapshot struct {
+	activation              activationState
 	hostedMCPDigest         string
 	directMCPDigest         string
 	hostedMCPRequiresReload bool
@@ -49,6 +50,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return runtimeBindingSnapshot{
+		activation:              s.activation.clone(),
 		hostedMCPDigest:         s.hostedMCPDigest,
 		directMCPDigest:         s.directMCPDigest,
 		hostedMCPRequiresReload: s.hostedMCPRequiresReload,
@@ -295,6 +297,7 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	if s.failure == nil && snapshot.sessionFailure != nil && snapshot.sessionFailure.Kind == store.FailureProviderAuth {
 		s.failure = store.CloneSessionFailure(snapshot.sessionFailure)
 	}
+	s.activation = snapshot.activation.clone()
 	s.hostedMCPDigest = snapshot.hostedMCPDigest
 	s.directMCPDigest = snapshot.directMCPDigest
 	s.hostedMCPRequiresReload = snapshot.hostedMCPRequiresReload

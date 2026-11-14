@@ -3,12 +3,14 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -30,6 +32,8 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subprocess"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -3468,4 +3472,659 @@ func TestDaemonWorkspaceMCPApprovalWriteFailure(t *testing.T) {
 			t.Fatalf("restart changed committed file: %s %v", after, err)
 		}
 	})
+}
+
+// Invariant: live declarations reload cached hosts once, preserve history and refuse failed preparation before acceptance.
+// Owner: daemon prompt admission and catalog integration; canonical suite: daemon acpmock (IT-001/IT-002/IT-004/IT-015).
+func TestDaemonMCPHotActivation(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+	for _, change := range []string{"settings", "file", "launch failure"} {
+		t.Run("Should activate an MCP after "+change, func(t *testing.T) {
+			t.Parallel()
+			fixture, err := os.ReadFile(mockFixturePath(t, "hosted_native_tools_fixture.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixturePath := filepath.Join(t.TempDir(), "activation.json")
+			if err := os.WriteFile(fixturePath, fixture, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			upstream := httptest.NewServer(mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler())
+			t.Cleanup(upstream.Close)
+			watchInterval := 3 * time.Second
+			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				MockAgents: []e2etest.MockAgentSpec{
+					{FixturePath: fixturePath, FixtureAgent: "hosted-native", AgentName: "mock-activation"},
+				},
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Skills.PollInterval = watchInterval
+				}},
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+			defer cancel()
+			active := createBoundFixtureBackedSession(t, ctx, harness, "mock-activation", "activation")
+			before, err := harness.SessionEvents(ctx, active.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			definition := compozycontract.PutSettingsMCPServerRequest{
+				Server: compozycontract.SettingsMCPServerPayload{Name: "echo", Transport: "http", URL: upstream.URL},
+			}
+			if change == "file" {
+				declaration, err := json.Marshal(
+					map[string]any{
+						"mcpServers": map[string]any{"echo": map[string]any{"transport": "http", "url": upstream.URL}},
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(
+					filepath.Join(harness.HomePaths.HomeDir, compozyconfig.MCPJSONName),
+					declaration,
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/mcp-servers/echo?scope=user", definition, nil); err != nil {
+				t.Fatal(err)
+			}
+			// The file declaration must become callable within two configured watcher intervals.
+			waitForRuntimeCondition(t, "new MCP in existing session projection", 2*watchInterval, func() bool {
+				return activationSessionHasTool(ctx, harness, active.ID, "mcp__echo__echo")
+			})
+			request := compozycontract.SendPromptRequest{
+				Message:        "noop",
+				MessageID:      "activation-message",
+				IdempotencyKey: "activation-send",
+			}
+			if change == "launch failure" {
+				// ACPmock reads its fixture at process launch, so corrupting only this test's copy injects a pre-initialize fault.
+				if err := os.WriteFile(fixturePath, []byte("invalid fixture"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				status, body := activationPromptHTTP(t, ctx, harness, active.ID, request)
+				var refusal compozycontract.ErrorPayload
+				if err := json.Unmarshal(body, &refusal); err != nil {
+					t.Fatal(err)
+				}
+				if status != http.StatusConflict || refusal.Code != session.MCPReloadFailedCode || !refusal.Retryable ||
+					refusal.ClientMessageID != request.MessageID ||
+					refusal.ProviderError == "" {
+					t.Fatalf("reload refusal %d: %s", status, body)
+				}
+				failed, err := harness.SessionEvents(ctx, active.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if activationEventCount(
+					failed.Events,
+					acp.EventTypeUserMessage,
+				) != activationEventCount(
+					before.Events,
+					acp.EventTypeUserMessage,
+				) {
+					t.Fatal("failed message durably accepted")
+				}
+				if activationEventCount(failed.Events, session.EventTypeMCPReloaded) != 1 {
+					t.Fatal("failed attempt not durably recorded once")
+				}
+				if err := os.WriteFile(fixturePath, fixture, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			status, body := activationPromptHTTP(t, ctx, harness, active.ID, request)
+			if status != http.StatusOK {
+				t.Fatalf("retry/activation status %d: %s", status, body)
+			}
+			after, err := harness.SessionEvents(ctx, active.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			expected := 1
+			if change == "launch failure" {
+				expected = 2
+			}
+			if activationEventCount(after.Events, session.EventTypeMCPReloaded) != expected {
+				t.Fatalf("reload count = %d", activationEventCount(after.Events, session.EventTypeMCPReloaded))
+			}
+			if activationEventCount(
+				after.Events,
+				acp.EventTypeUserMessage,
+			) != activationEventCount(
+				before.Events,
+				acp.EventTypeUserMessage,
+			)+1 {
+				t.Fatal("reload lost history or duplicated prompt")
+			}
+			var reload compozycontract.SessionEventPayload
+			for _, event := range after.Events {
+				if event.Type == session.EventTypeMCPReloaded {
+					reload = event
+				}
+			}
+			var content struct {
+				Outcome        string
+				Added, Removed []string
+			}
+			if err := json.Unmarshal(reload.Content, &content); err != nil {
+				t.Fatal(err)
+			}
+			if content.Outcome != "applied" || !slices.Equal(content.Added, []string{"echo"}) ||
+				len(content.Removed) != 0 {
+				t.Fatalf("reload event = %s", reload.Content)
+			}
+			for _, previous := range before.Events {
+				if !slices.ContainsFunc(after.Events, func(event compozycontract.SessionEventPayload) bool {
+					return event.ID == previous.ID && bytes.Equal(event.Content, previous.Content)
+				}) {
+					t.Fatal("reload rewrote history")
+				}
+			}
+			activationCallHostedTool(
+				t,
+				ctx,
+				harness,
+				"mock-activation",
+				active.ID,
+				"mcp__echo__echo",
+				map[string]any{"message": "hot"},
+			)
+		})
+	}
+}
+
+func activationSessionHasTool(ctx context.Context, harness *e2etest.RuntimeHarness, sessionID, tool string) bool {
+	var response compozycontract.ToolsResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/workspaces/"+harness.WorkspaceID+"/sessions/"+sessionID+"/tools",
+		nil,
+		&response,
+	); err != nil {
+		return false
+	}
+	return slices.ContainsFunc(response.Tools, func(view compozycontract.ToolPayload) bool {
+		return view.Descriptor.ToolID.String() == tool && view.Decision.Callable
+	})
+}
+
+func activationEventCount(events []compozycontract.SessionEventPayload, kind string) int {
+	count := 0
+	for _, event := range events {
+		if event.Type == kind {
+			count++
+		}
+	}
+	return count
+}
+
+func activationPromptHTTP(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	id string,
+	input compozycontract.SendPromptRequest,
+) (int, []byte) {
+	t.Helper()
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		harness.HTTPURL("/api/workspaces/"+harness.WorkspaceID+"/sessions/"+id+"/prompt"),
+		bytes.NewReader(encoded),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	response, err := harness.HTTPClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response.StatusCode, body
+}
+
+func activationHostedClient(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	agent, id string,
+) *sdkmcp.ClientSession {
+	t.Helper()
+	registration, ok := harness.MockAgentRegistration(agent)
+	if !ok {
+		t.Fatal("missing activation mock registration")
+	}
+	records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records = acpmock.DiagnosticsForCompozySession(records, id)
+	return startHostedMCPClient(
+		t,
+		ctx,
+		requireHostedMCPStdioServer(t, records, hostedMCPServerLatest),
+		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+	)
+}
+
+func activationCallHostedTool(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	agent, id, tool string,
+	input map[string]any,
+) *sdkmcp.CallToolResult {
+	t.Helper()
+	client := activationHostedClient(t, ctx, harness, agent, id)
+	defer func() {
+		if err := client.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	var listed *sdkmcp.ListToolsResult
+	waitForRuntimeCondition(t, "activated hosted tool", 10*time.Second, func() bool {
+		var err error
+		listed, err = client.ListTools(ctx, nil)
+		return err == nil &&
+			slices.ContainsFunc(listed.Tools, func(view *sdkmcp.Tool) bool { return view.Name == tool })
+	})
+	result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: tool, Arguments: input})
+	if err != nil || result.IsError {
+		t.Fatalf("activated tool %s = %+v, %v", tool, result, err)
+	}
+	return result
+}
+
+// Invariant: late MCP and extension entitlement reaches inherited branches, legacy continues and always-on mains.
+// Owner: daemon lineage/catalog integration; canonical suite: daemon acpmock (IT-003/IT-005/IT-006).
+func TestDaemonMCPHotActivationInheritance(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+	t.Run(
+		"Should activate late sources across inherited sessions and keep an explicit child narrow",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+			defer cancel()
+			upstream := httptest.NewServer(mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler())
+			t.Cleanup(upstream.Close)
+			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				MockAgents: []e2etest.MockAgentSpec{
+					{
+						FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+						FixtureAgent: "hosted-native",
+						AgentName:    "mock-inherit",
+					},
+				},
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Extensions.Trust.AllowUnverified = true
+					cfg.Tools.Policy.TrustedSources = []string{"extension:activation"}
+				}},
+			})
+			root := createBoundFixtureBackedSession(t, ctx, harness, "mock-inherit", "inherit-root")
+			derive := func(kind string) compozycontract.SessionPayload {
+				t.Helper()
+				var response compozycontract.SessionDeriveResponse
+				body := map[string]any{"idempotency_key": "derive-" + kind, "name": kind}
+				if kind == "continue" {
+					body["agent_name"] = "mock-inherit"
+					body["message"] = "noop"
+				}
+				if err := harness.HTTPJSON(
+					ctx,
+					http.MethodPost,
+					"/api/workspaces/"+harness.WorkspaceID+"/sessions/"+root.ID+"/"+kind,
+					body,
+					&response,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if response.Session == nil {
+					t.Fatal("derive omitted session")
+				}
+				return *response.Session
+			}
+			forked := derive("fork")
+			continued := derive("continue")
+			// Seed the pre-marker continued row only while this isolated test daemon is stopped.
+			if err := harness.Stop(ctx); err != nil {
+				t.Fatal(err)
+			}
+			metaPath := filepath.Join(harness.HomePaths.SessionsDir, continued.ID, store.SessionMetaName)
+			raw, err := os.ReadFile(metaPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var meta map[string]any
+			if err := json.Unmarshal(raw, &meta); err != nil {
+				t.Fatal(err)
+			}
+			lineage, ok := meta["lineage"].(map[string]any)
+			if !ok {
+				t.Fatal("continued lineage missing")
+			}
+			policy, ok := lineage["permission_policy"].(map[string]any)
+			if !ok {
+				t.Fatal("continued policy missing")
+			}
+			delete(policy, "mcp_servers_mode")
+			delete(policy, "tools_mode")
+			policy["mcp_servers"] = []string{}
+			policy["materialized_tools"] = true
+			raw, err = json.Marshal(meta)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(metaPath, raw, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			encodedPolicy, err := json.Marshal(policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db, err := sql.Open("sqlite", harness.HomePaths.DatabaseFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, seedErr := db.ExecContext(
+				ctx,
+				"UPDATE sessions SET permission_policy_json=? WHERE id=?",
+				string(encodedPolicy),
+				continued.ID,
+			)
+			closeErr := db.Close()
+			if seedErr != nil || closeErr != nil {
+				t.Fatal(errors.Join(seedErr, closeErr))
+			}
+			harness.Restart(t)
+			for _, id := range []string{forked.ID, continued.ID} {
+				if _, err := harness.ResumeSession(ctx, id); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := harness.PromptSession(ctx, id, "noop"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			spawn := func(narrow bool) string {
+				t.Helper()
+				input := map[string]any{
+					"agent_name":          "mock-inherit",
+					"ttl_seconds":         600,
+					"auto_stop_on_parent": false,
+					"inherit_permissions": true,
+				}
+				if narrow {
+					input["tools"] = []string{"compozy__session_list"}
+				}
+				result := activationCallHostedTool(
+					t,
+					ctx,
+					harness,
+					"mock-inherit",
+					continued.ID,
+					"compozy__session_spawn",
+					input,
+				)
+				payload, err := json.Marshal(result.StructuredContent)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var child struct {
+					SessionID string `json:"session_id"`
+				}
+				if err := json.Unmarshal(payload, &child); err != nil || child.SessionID == "" {
+					t.Fatalf("spawn result = %s, %v", payload, err)
+				}
+				if _, err := harness.PromptSession(ctx, child.SessionID, "noop"); err != nil {
+					t.Fatal(err)
+				}
+				return child.SessionID
+			}
+			child, narrow := spawn(false), spawn(true)
+			registration := harness.RegisterMockAgent(
+				t,
+				e2etest.MockAgentSpec{
+					FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+					FixtureAgent: "hosted-native",
+					AgentName:    "mock-always",
+				},
+			)
+			definition, err := os.ReadFile(registration.AgentDefPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			definition = bytes.Replace(
+				definition,
+				[]byte("name: mock-always\n"),
+				[]byte("name: mock-always\nkind: always_on\n"),
+				1,
+			)
+			if err := os.WriteFile(registration.AgentDefPath, definition, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var instance compozycontract.AgentInstanceResponse
+			waitForRuntimeCondition(t, "always-on definition", 10*time.Second, func() bool {
+				return harness.HTTPJSON(
+					ctx,
+					http.MethodPost,
+					"/api/agent-instances",
+					compozycontract.AgentInstanceCreateRequest{Agent: "mock-always", Workspace: harness.WorkspaceRoot},
+					&instance,
+				) == nil
+			})
+			mainID := instance.Instance.MainSessionID
+			if mainID == "" {
+				if err := harness.HTTPJSON(
+					ctx,
+					http.MethodPost,
+					"/api/agent-instances/"+instance.Instance.ID+"/ensure-main",
+					nil,
+					&instance,
+				); err != nil {
+					t.Fatal(err)
+				}
+				mainID = instance.Instance.MainSessionID
+			}
+			if mainID == "" {
+				t.Fatal("always-on instance omitted main session")
+			}
+			if _, err := harness.PromptSession(ctx, mainID, "noop"); err != nil {
+				t.Fatal(err)
+			}
+			// Install and exercise enablement after all cached hosts have bound.
+			source := filepath.Join(t.TempDir(), "activation")
+			if err := os.MkdirAll(source, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			manifest := map[string]any{
+				"extension": map[string]any{
+					"name":                "activation",
+					"version":             "0.1.0",
+					"min_compozy_version": "0.0.0",
+				},
+				"capabilities": map[string]any{"provides": []string{"tool.provider"}},
+				"subprocess": map[string]any{
+					"command": os.Args[0],
+					"args":    []string{"-test.run=^TestMCPActivationExtensionHelperProcess$"},
+					"env":     map[string]string{"COMPOZY_TEST_ACTIVATION_EXTENSION": "1"},
+				},
+				"resources": map[string]any{
+					"tools": map[string]any{
+						"ping": map[string]any{
+							"description":  "Ping activation fixture",
+							"read_only":    true,
+							"visibility":   "session",
+							"risk":         "read",
+							"backend":      map[string]any{"kind": "extension_host", "handler": "ping"},
+							"input_schema": map[string]any{"type": "object"},
+						},
+					},
+				},
+			}
+			payload, err := json.Marshal(manifest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(source, "extension.json"), payload, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := harness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				"/api/extensions",
+				compozycontract.InstallExtensionRequest{
+					Source:          compozycontract.InstallExtensionSourceLocalPath,
+					Ref:             source,
+					Scope:           "global",
+					AllowUnverified: true,
+				},
+				nil,
+			); err != nil {
+				t.Fatal(err)
+			}
+			for _, enabled := range []bool{false, true} {
+				if err := harness.HTTPJSON(
+					ctx,
+					http.MethodPut,
+					"/api/extensions/activation/enablement",
+					compozycontract.SetExtensionEnablementRequest{Profile: "default", Enabled: enabled},
+					nil,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Both changes occur before the next prompt and must coalesce into one reload.
+			if err := harness.HTTPJSON(
+				ctx,
+				http.MethodPut,
+				"/api/settings/mcp-servers/echo?scope=user",
+				compozycontract.PutSettingsMCPServerRequest{
+					Server: compozycontract.SettingsMCPServerPayload{
+						Name:      "echo",
+						Transport: "http",
+						URL:       upstream.URL,
+					},
+				},
+				nil,
+			); err != nil {
+				t.Fatal(err)
+			}
+			for _, target := range []struct{ id, agent string }{{forked.ID, "mock-inherit"}, {continued.ID, "mock-inherit"}, {child, "mock-inherit"}, {mainID, "mock-always"}} {
+				waitForRuntimeCondition(t, "inherited late catalog", 10*time.Second, func() bool {
+					return activationSessionHasTool(ctx, harness, target.id, "mcp__echo__echo") &&
+						activationSessionHasTool(ctx, harness, target.id, "ext__activation__ping")
+				})
+				before, err := harness.SessionEvents(ctx, target.id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := harness.PromptSession(ctx, target.id, "noop"); err != nil {
+					t.Fatal(err)
+				}
+				after, err := harness.SessionEvents(ctx, target.id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if activationEventCount(
+					after.Events,
+					session.EventTypeMCPReloaded,
+				) != activationEventCount(
+					before.Events,
+					session.EventTypeMCPReloaded,
+				)+1 {
+					t.Fatalf("late tools did not reload %s once", target.id)
+				}
+				activationCallHostedTool(
+					t,
+					ctx,
+					harness,
+					target.agent,
+					target.id,
+					"mcp__echo__echo",
+					map[string]any{"message": "inherited"},
+				)
+				activationCallHostedTool(
+					t,
+					ctx,
+					harness,
+					target.agent,
+					target.id,
+					"ext__activation__ping",
+					map[string]any{},
+				)
+			}
+			if activationSessionHasTool(ctx, harness, narrow, "ext__activation__ping") {
+				t.Fatal("explicit child gained an extension tool")
+			}
+		},
+	)
+}
+
+// A genuine extension subprocess speaks the same initialize, discovery and call protocol as a packaged provider.
+func TestMCPActivationExtensionHelperProcess(t *testing.T) {
+	if os.Getenv("COMPOZY_TEST_ACTIVATION_EXTENSION") != "1" {
+		return
+	}
+	server := newDaemonExtensionHelperServer("", "")
+	for server.scanner.Scan() {
+		var req daemonExtensionHelperRequest
+		if err := json.Unmarshal(server.scanner.Bytes(), &req); err != nil {
+			os.Exit(1)
+		}
+		var result any
+		switch req.Method {
+		case "initialize":
+			var init subprocess.InitializeRequest
+			if err := json.Unmarshal(req.Params, &init); err != nil {
+				os.Exit(1)
+			}
+			result = daemonExtensionInitializeResponse(init)
+		case "provide_tools":
+			digest, err := toolspkg.SchemaDigest(json.RawMessage(`{"type":"object"}`))
+			if err != nil {
+				os.Exit(1)
+			}
+			result = toolspkg.ExtensionProvideToolsResponse{
+				Tools: []toolspkg.ExtensionToolRuntimeDescriptor{
+					{
+						ID:                "ext__activation__ping",
+						Handler:           "ping",
+						InputSchemaDigest: digest,
+						ReadOnly:          true,
+						Risk:              toolspkg.RiskRead,
+					},
+				},
+			}
+		case "tools/call":
+			result = toolspkg.ExtensionToolCallResponse{
+				Result: toolspkg.ToolResult{Content: []toolspkg.ToolContent{{Type: "text", Text: "pong"}}},
+			}
+		default:
+			exit, err := server.handleRequest(req)
+			if err != nil || exit {
+				os.Exit(1)
+			}
+			continue
+		}
+		if err := server.sendResult(req.ID, result); err != nil {
+			os.Exit(1)
+		}
+	}
+	os.Exit(0)
 }

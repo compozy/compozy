@@ -2303,6 +2303,7 @@ export type Error = {
 
 export type ErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -2311,6 +2312,8 @@ export type ErrorPayload = {
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -7610,6 +7613,7 @@ export type SessionDeriveCutPayload = {
 export type SessionDeriveErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
   child_session_id?: string;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -7618,6 +7622,8 @@ export type SessionDeriveErrorPayload = {
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -8174,6 +8180,7 @@ export type SessionPullRequestChecksPayload = {
 export type SessionPullRequestErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
   cause?: string;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -8183,6 +8190,8 @@ export type SessionPullRequestErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   message: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -11215,6 +11224,7 @@ export type TaskPayload = {
 
 export type TaskQueryErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -11224,6 +11234,8 @@ export type TaskQueryErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   field: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -12364,6 +12376,7 @@ export type ToolDescriptorPayload = {
 };
 
 export type ToolErrorPayload = {
+  client_message_id?: string;
   code:
     | "agent_instance_not_found"
     | "agent_instance_starting"
@@ -12433,6 +12446,7 @@ export type ToolErrorPayload = {
   layer?: string;
   message: string;
   partial_result?: ToolResult | null;
+  provider_error?: string;
   reason_codes?: Array<
     | "approval_canceled"
     | "approval_rejected"
@@ -12519,6 +12533,7 @@ export type ToolErrorPayload = {
     | "worktree_not_found"
     | "worktree_not_ready"
   >;
+  retryable?: boolean;
   tool_id?: string;
 };
 

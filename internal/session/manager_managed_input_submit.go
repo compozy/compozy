@@ -81,7 +81,7 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		return
 	}
 	defer session.finishPromptSetup()
-	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(setup.leaseCtx, true)
+	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(withActivationAdmission(setup.leaseCtx), true)
 	// Goal, continuation and compaction turns are session turns too: same span, duration and write totals.
 	promptExecutionCtx, turnTrace := startPromptTurnTrace(promptExecutionCtx, session, setup.request)
 	var err error

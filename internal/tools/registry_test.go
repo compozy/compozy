@@ -447,6 +447,65 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 func TestRuntimeRegistryProjections(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: entitlement changes the advertised catalog, transient health never does (UT-029/UT-113).
+	// Owner: registry projection; canonical suite: TestRuntimeRegistryProjections.
+	t.Run("Should retain advertised extension tools through health loss and withdraw auth or policy loss", func(t *testing.T) {
+		t.Parallel()
+		descriptor := descriptorWithID("ext__notes__ping", "Ping")
+		descriptor.Source = SourceRef{Kind: SourceExtension, Owner: "notes"}
+		descriptor.Backend = BackendRef{Kind: BackendExtensionHost, ExtensionID: "notes", Handler: "ping"}
+		availability := Available()
+		provider := &projectionAvailabilityTestProvider{
+			registryTestProvider: providerWithDescriptors(descriptor.Source, descriptor),
+			availability: func(context.Context, Scope, []ToolID) map[ToolID]Availability {
+				return map[ToolID]Availability{descriptor.ID: availability}
+			},
+		}
+		inputs := DefaultPolicyInputs()
+		inputs.ExternalDefault = ExternalDefaultEnabled
+		resolver := &mutablePolicyInputResolver{inputs: inputs}
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputResolver(resolver, ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope := Scope{SessionID: "session-catalog"}
+		digest := func() string {
+			t.Helper()
+			views, err := registry.AdvertisedSessionProjection(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return AdvertisedCatalogDigest(views)
+		}
+		bound := digest()
+		empty := AdvertisedCatalogDigest(nil)
+		if bound == empty {
+			t.Fatal("entitled extension missing")
+		}
+		for _, health := range []Availability{Unavailable(ReasonBackendUnhealthy), Unavailable(ReasonBackendDead), Unavailable(ReasonExtensionInactive), Available()} {
+			availability = health
+			if got := digest(); got != bound {
+				t.Fatal("health changed advertised catalog")
+			}
+		}
+		for _, withdrawal := range []Availability{Unavailable(ReasonMCPAuthRequired), {Enabled: false, ReasonCodes: []ReasonCode{ReasonSourceDisabled}}} {
+			availability = withdrawal
+			if got := digest(); got != empty {
+				t.Fatal("withdrawn entitlement remained advertised")
+			}
+		}
+		availability = Available()
+		resolver.inputs.Session = SessionToolPolicy{Enforced: true, Tools: []ToolID{ToolIDToolList}}
+		if digest() != empty {
+			t.Fatal("narrowed session kept extension")
+		}
+		resolver.inputs.Session = SessionToolPolicy{}
+		resolver.inputs.ExternalDefault = ExternalDefaultDisabled
+		if digest() != empty {
+			t.Fatal("revoked source policy kept extension")
+		}
+	})
+
 	t.Run(
 		"Should batch only allowed tools by provider instance and refresh availability on every projection",
 		func(t *testing.T) {
