@@ -237,6 +237,18 @@ describe("useDesktopChrome", () => {
     expect(useProfileSwitchWindowSweep).toHaveBeenLastCalledWith(result.current.shell, "ws_a");
   });
 
+  it("Should hand the All projects partition to the terminal close guard", async () => {
+    // #1712: the desktop controller names no terminal workspace under All projects;
+    // the guard must still know it is the aggregate, or unbound windows are trapped.
+    // Imported here so the module graph loads in the order the mocks above expect.
+    const { TerminalWindowClose } = await import("../../lib/terminal-window-close");
+    const guard = vi.spyOn(TerminalWindowClose.prototype, "guard");
+    renderHook(() => useDesktopChrome("global", null), { wrapper: wrapper() });
+
+    expect(guard).toHaveBeenLastCalledWith("global", expect.anything());
+    guard.mockRestore();
+  });
+
   it("Should read no workspace overlay on the User partition", () => {
     renderHook(() => useDesktopChrome("user"), { wrapper: wrapper() });
 
