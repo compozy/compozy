@@ -17,9 +17,11 @@ import {
   cleanupPhase,
   cleanupPreviewable,
   cleanupRequest,
+  confirmedRequest,
   deletedSentence,
   nothingChecked,
   runCleanupOptions,
+  runInScope,
   stoppedSentence,
   type CleanupChoiceCounts,
   type CleanupImpact,
@@ -126,8 +128,10 @@ export function useArchivedCleanup({
   const { open, options, dismissedRunId } = useSelector(store, snapshot => snapshot.context);
   const run = useQuery(sessionHistoryCleanupRunOptions(profile)).data ?? null;
   const active = run?.state === "running" ? run : null;
-  const phase = active || run?.id !== dismissedRunId ? cleanupPhase(run) : FORM_PHASE;
-  const preview = useCleanupPreview({
+  // A finished run's outcome shows in its own scope until seen; progress shows everywhere.
+  const ended = run && !active && run.id !== dismissedRunId && runInScope(run, scope) ? run : null;
+  const phase = cleanupPhase(active ?? ended);
+  const { cutoff, ...preview } = useCleanupPreview({
     profile,
     scope,
     options,
@@ -153,15 +157,13 @@ export function useArchivedCleanup({
     phase,
     starting: start.isPending,
     progress: active ? { done: active.done, total: active.total } : null,
-    confirm: () => start.mutate(cleanupRequest(options, scope)),
+    confirm: () => start.mutate(confirmedRequest(options, scope, cutoff)),
     retry: () => {
-      if (run) start.mutate(retryRequest(run));
+      if (ended) start.mutate(retryRequest(ended));
     },
     stop: () => stop.mutate(),
   };
 }
-
-const FORM_PHASE: CleanupPhase = { kind: "form" };
 
 /**
  * The live count behind the dialog: the daemon's dry run for the current choices. Each check's
@@ -180,7 +182,10 @@ function useCleanupPreview({
   options: CleanupOptions;
   enabled: boolean;
   projectName: (workspaceId: string) => string;
-}): Pick<ArchivedCleanupModel, "impact" | "counts" | "counting" | "previewError"> {
+}): Pick<ArchivedCleanupModel, "impact" | "counts" | "counting" | "previewError"> & {
+  /** The cutoff the dry run resolved; confirming pins a relative range to it. */
+  cutoff?: string;
+} {
   const unchecked = nothingChecked(options.what);
   const counted = unchecked ? { ...options, what: DEFAULT_CLEANUP_OPTIONS.what } : options;
   const previewable = cleanupPreviewable(counted);
@@ -195,6 +200,7 @@ function useCleanupPreview({
     counts: plan?.choices ?? NO_COUNTS,
     counting: previewable && (preview.isFetching || preview.isPlaceholderData),
     previewError: preview.error ? errorText(preview.error, "The count failed.") : null,
+    cutoff: plan?.archived_before,
   };
 }
 
@@ -232,18 +238,22 @@ function useRunEndAnnouncement(
 ) {
   const watched = useRef<string | null>(null);
   const announce = useEffectEvent((ended: SessionHistoryCleanupRun) => {
+    // Every list watches the profile's run; one id makes their toasts one toast.
+    const id = `history-cleanup-${ended.id}`;
     if (ended.state === "completed") {
       // The run's own scope: the list may show another project by the time it ends.
       toast.success(
         deletedSentence(
           ended.deleted,
           ended.all_workspaces ? ALL_PROJECTS : projectName(ended.workspace_id ?? "")
-        )
+        ),
+        { id }
       );
     } else if (ended.state === "stopped") {
-      toast.message(stoppedSentence(ended));
+      toast.message(stoppedSentence(ended), { id });
     } else {
       toast.error("Some sessions weren’t deleted", {
+        id,
         description: "Open Clean up history to see which, and try them again.",
       });
     }

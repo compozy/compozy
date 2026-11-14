@@ -749,8 +749,7 @@ describe("useSessionCatalogStreams", () => {
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLayouts() });
     expect(invalidate).not.toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
-      expect.anything()
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") })
     );
   });
 
@@ -777,8 +776,7 @@ describe("useSessionCatalogStreams", () => {
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.historyCleanup() });
     expect(invalidate).not.toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
-      expect.anything()
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") })
     );
   });
 

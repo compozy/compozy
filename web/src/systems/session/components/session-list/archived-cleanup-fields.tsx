@@ -104,7 +104,7 @@ export function WhatChecks({
           <CheckRow
             checked={what.everything || what.subagents}
             count={counts.subagents}
-            description={what.everything ? included : "Every session stays."}
+            description={what.everything ? included : "Main and child sessions stay."}
             disabled={disabled || what.everything}
             id="archived-cleanup-what-subagents"
             label="Subagents"

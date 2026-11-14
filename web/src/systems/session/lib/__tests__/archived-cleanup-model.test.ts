@@ -2,6 +2,8 @@
 // range become one dry-run/start body (Everything always carries its locked parts; "7+ days"
 // is a day count, "Before a date" an instant, "Any time" no cutoff), and the profile's run
 // decides the dialog's phase: a running run shows progress, a run that kept sessions lists them.
+// Confirming deletes only what the dry run counted: a relative range is pinned to the dry run's
+// cutoff, and a finished run's outcome belongs to the scope it cleaned.
 // Owning layer: the pure cleanup model behind the dialog and its container.
 import { describe, expect, it } from "vitest";
 
@@ -10,7 +12,9 @@ import {
   DEFAULT_CLEANUP_OPTIONS,
   cleanupPhase,
   cleanupRequest,
+  confirmedRequest,
   runCleanupOptions,
+  runInScope,
 } from "../archived-cleanup-model";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -63,7 +67,31 @@ describe("cleanupRequest", () => {
   });
 });
 
+describe("confirmedRequest", () => {
+  it("Should pin a relative range to the dry run's cutoff and leave other ranges as chosen", () => {
+    const cutoff = "2026-11-07T12:00:00Z";
+    expect(confirmedRequest(DEFAULT_CLEANUP_OPTIONS, { workspaceId: "ws-1" }, cutoff)).toEqual({
+      workspace_id: "ws-1",
+      delete: { everything: true, children: true, subagents: true },
+      archived_before: cutoff,
+    });
+    const anyTime = { ...DEFAULT_CLEANUP_OPTIONS, range: "all" as const };
+    expect(confirmedRequest(anyTime, { workspaceId: "ws-1" }, cutoff)).toEqual(
+      cleanupRequest(anyTime, { workspaceId: "ws-1" })
+    );
+  });
+});
+
 describe("cleanup run", () => {
+  it("Should belong only to the scope it cleaned", () => {
+    expect(runInScope(cleanupRun(), { workspaceId: "ws-1" })).toBe(true);
+    expect(runInScope(cleanupRun(), { workspaceId: "ws-2" })).toBe(false);
+    expect(runInScope(cleanupRun(), { allWorkspaces: true })).toBe(false);
+    const across = cleanupRun({ all_workspaces: true, workspace_id: "" });
+    expect(runInScope(across, { allWorkspaces: true })).toBe(true);
+    expect(runInScope(across, { workspaceId: "ws-1" })).toBe(false);
+  });
+
   it("Should show a running run's progress and its own range", () => {
     const run = cleanupRun({
       archived_before: new Date(Date.parse("2026-11-14T12:00:00Z") - 15 * DAY_MS).toISOString(),

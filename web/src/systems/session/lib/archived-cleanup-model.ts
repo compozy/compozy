@@ -104,6 +104,28 @@ export function cleanupRequest(
   }
 }
 
+/**
+ * The start request for what the dialog counted: a relative range is pinned to the cutoff the dry
+ * run resolved, so a session archived after the count can't join the run.
+ */
+export function confirmedRequest(
+  options: CleanupOptions,
+  scope: CleanupScope,
+  previewCutoff: string | undefined
+): SessionHistoryCleanupRequest {
+  const request = cleanupRequest(options, scope);
+  if (request.older_than_days === undefined || !previewCutoff) return request;
+  const pinned: SessionHistoryCleanupRequest = { ...request, archived_before: previewCutoff };
+  delete pinned.older_than_days;
+  return pinned;
+}
+
+/** The run cleaned the list's own scope: the same project, or All projects. */
+export function runInScope(run: SessionHistoryCleanupRun, scope: CleanupScope): boolean {
+  if ("allWorkspaces" in scope) return Boolean(run.all_workspaces);
+  return !run.all_workspaces && run.workspace_id === scope.workspaceId;
+}
+
 /** The run's own checks and range, so a dialog reopened mid-run shows what is being deleted. */
 export function runCleanupOptions(run: SessionHistoryCleanupRun): CleanupOptions {
   const what = run.delete.everything
@@ -164,6 +186,11 @@ export function formatCleanupDay(day: Date): string {
   return DAY_FORMAT.format(day);
 }
 
+/** "Before a date" means before that day starts here, whatever time the picker carried. */
+export function cleanupDay(day: Date): Date {
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate());
+}
+
 /** The range as a sentence's tail: " more than 7 days ago", " before Nov 3", "". */
 export function rangePhrase(options: CleanupOptions): string {
   switch (options.range) {
@@ -212,7 +239,9 @@ export function cleanupDetail(what: CleanupWhat, impact: CleanupImpact, kept = "
     sentences.push(`${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}.`);
   }
   if (!what.everything) {
-    sentences.push(what.children ? "The main sessions stay." : "Every session stays.");
+    sentences.push(
+      what.children ? "The main sessions stay." : "The main sessions and child sessions stay."
+    );
   }
   if (kept) sentences.push(kept);
   sentences.push("Deleted sessions can’t be brought back.");

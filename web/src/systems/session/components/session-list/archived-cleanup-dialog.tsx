@@ -29,6 +29,7 @@ import {
   CLEANUP_RANGE_ITEMS,
   TYPED_CONFIRM_THRESHOLD,
   cleanupActionLabel,
+  cleanupDay,
   cleanupDetail,
   cleanupHeadline,
   emptyReason,
@@ -247,7 +248,7 @@ function CleanupForm({
             disabled={locked}
             formatValue={day => `Before ${formatCleanupDay(day)}`}
             id="archived-cleanup-before"
-            onValueChange={before => update({ before })}
+            onValueChange={before => update({ before: before && cleanupDay(before) })}
             placeholder="Pick a date"
             value={options.before}
           />
