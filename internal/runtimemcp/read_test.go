@@ -258,6 +258,26 @@ func TestRuntimeDecoders(t *testing.T) {
 
 func TestRuntimeInventorySafety(t *testing.T) {
 	t.Parallel()
+	// Invariant: explicit public runtime targets are validated; an omitted target reads configured runtimes.
+	// Owner: public inventory reader; canonical suite: runtime inventory safety.
+	t.Run("Should reject unknown runtime targets and preserve unfiltered inventory", func(t *testing.T) {
+		t.Parallel()
+		c := fixtureContext(t)
+		putFile(t, filepath.Join(c.Home, ".claude.json"), `{"mcpServers":{}}`)
+		if _, _, err := (Reader{}).List(
+			t.Context(),
+			Request{Context: c, Runtime: "custom-acp"},
+		); !errors.Is(
+			err,
+			ErrInvalidRuntime,
+		) {
+			t.Fatalf("unknown runtime error = %v", err)
+		}
+		inventory, _, err := (Reader{}).List(t.Context(), Request{Context: c})
+		if err != nil || len(inventory.Runtimes) != 1 || inventory.Runtimes[0].Runtime != "claude" {
+			t.Fatalf("unfiltered inventory = %+v, %v", inventory, err)
+		}
+	})
 	t.Run("Should keep auth unknown and never execute file commands UT-045 UT-055 UT-058", func(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)

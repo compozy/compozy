@@ -1160,6 +1160,35 @@ func TestSessionLeanEnvironment(t *testing.T) {
 // Owner: session startup; canonical suite: manager start (UT-070, UT-071, UT-073, UT-075).
 func TestRuntimeMCPStartup(t *testing.T) {
 	t.Parallel()
+	// Invariant: absent native-inventory support never scans another runtime's files or changes launch options.
+	// Owner: session runtime capability boundary; canonical suite: manager start.
+	for _, provider := range []string{"", "custom-acp"} {
+		t.Run("Should leave native inventory empty for provider "+provider, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeRuntimeMCPFixture(t, filepath.Join(root, ".claude.json"),
+				`{"mcpServers":{"unrelated":{"command":"must-never-start"}}}`)
+			calls := 0
+			manager := &Manager{runtimeMCPInventory: runtimeMCPFileInventory{systemRoot: t.TempDir(), calls: &calls}}
+			snapshot, err := manager.readRuntimeMCP(t.Context(), runtimemcp.Request{
+				Runtime: provider, Context: runtimemcp.ReadContext{Home: root},
+			})
+			if err != nil || snapshot.Runtime != provider || snapshot.DisplayName != provider ||
+				snapshot.ReadState != "ok" || snapshot.RuntimeMCP.CanDisable || len(snapshot.Servers) != 0 || calls != 0 {
+				t.Fatalf("unsupported inventory = %+v, %v", snapshot, err)
+			}
+			cfg := runtimeMCPTestConfig(t)
+			cfg.Providers[provider] = compozyconfig.ProviderConfig{RuntimeMCP: "off"}
+			runtime := &sessionStartRuntime{agent: compozyconfig.ResolvedAgent{Provider: provider}}
+			opts, err := manager.prepareRuntimeMCPStartup(t.Context(),
+				&sessionStartSpec{workspace: workspaceForRuntimeMCP(root, &cfg)}, runtime,
+				acp.StartOpts{Command: "accepted-driver --acp", Cwd: root})
+			if err != nil || opts.Command != "accepted-driver --acp" || opts.IsolateProviderMCP ||
+				runtime.activationRequest != nil || runtime.activationDigest != "" || calls != 0 {
+				t.Fatalf("unsupported launch = %+v, %+v, %v", opts, runtime, err)
+			}
+		})
+	}
 	for _, provider := range []string{"claude", "copilot", "qwen"} {
 		t.Run("Should disable native servers for "+provider, func(t *testing.T) {
 			t.Parallel()
@@ -1273,11 +1302,17 @@ func TestRuntimeMCPStartup(t *testing.T) {
 	})
 }
 
-type runtimeMCPFileInventory struct{ systemRoot string }
+type runtimeMCPFileInventory struct {
+	systemRoot string
+	calls      *int
+}
 
 var _ RuntimeMCPInventory = runtimeMCPFileInventory{}
 
 func (i runtimeMCPFileInventory) List(ctx context.Context, req runtimemcp.Request) (runtimemcp.Inventory, error) {
+	if i.calls != nil {
+		*i.calls++
+	}
 	req.Context.SystemRoot = i.systemRoot
 	result, _, err := (runtimemcp.Reader{}).List(ctx, req)
 	return result, err

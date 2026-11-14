@@ -160,6 +160,16 @@ func (m *Manager) readMCPRuntimeContext(
 	if provider == "" {
 		provider = meta.Provider
 	}
+	provider = compozyconfig.CanonicalProviderName(provider)
+	configured := workspace.Config.Providers[provider]
+	if _, supported := runtimeMCPDescriptor(compozyconfig.ResolvedAgent{
+		Provider: provider, RuntimeProvider: configured.RuntimeProvider, Harness: configured.EffectiveHarness(),
+	}); !supported {
+		if accepted != nil {
+			return configured.EffectiveRuntimeMCP(), accepted, nil
+		}
+		return configured.EffectiveRuntimeMCP(), &runtimemcp.Request{Runtime: provider}, nil
+	}
 	providerConfig, err := workspace.Config.ResolveProvider(provider)
 	if err != nil {
 		return "", nil, err

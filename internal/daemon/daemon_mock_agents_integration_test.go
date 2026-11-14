@@ -4583,6 +4583,57 @@ func testDaemonRuntimeMCPSwitch(t *testing.T) {
 func TestDaemonSessionMCPReadSurfaces(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
+	// Invariant: custom-provider sessions remain readable without runtime-native inventory.
+	// Owner: daemon HTTP session read; canonical suite: session MCP read surfaces.
+	t.Run("Should return MCP summary for a provider without native inventory", func(t *testing.T) {
+		t.Parallel()
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+				FixtureAgent: "hosted-native",
+				AgentName:    "custom-mcp",
+			}},
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+		defer cancel()
+		upstream := httptest.NewServer(mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler())
+		t.Cleanup(upstream.Close)
+		if err := harness.HTTPJSON(ctx, http.MethodPut, "/api/settings/mcp-servers/shared?scope=user",
+			compozycontract.PutSettingsMCPServerRequest{Server: compozycontract.SettingsMCPServerPayload{
+				Name: "shared", Transport: "http", URL: upstream.URL,
+			}}, nil); err != nil {
+			t.Fatal(err)
+		}
+		active, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+			AgentName: "custom-mcp", Name: "custom-provider-mcp", WorkspacePath: harness.WorkspaceRoot,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		route := "/api/workspaces/" + active.WorkspaceID + "/sessions/" + active.ID
+		for _, phase := range []string{"created", "bound"} {
+			if phase == "bound" {
+				if _, err := harness.PromptSession(ctx, active.ID, "noop"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var detail compozycontract.SessionResponse
+			if err := harness.HTTPJSON(ctx, http.MethodGet, route, nil, &detail); err != nil {
+				t.Fatalf("%s session GET: %v", phase, err)
+			}
+			if detail.Session.MCPSummary == nil {
+				t.Fatalf("%s custom-provider detail lacks MCP summary: %+v", phase, detail.Session)
+			}
+			var inventory compozycontract.SessionMCPResponse
+			if err := harness.HTTPJSON(ctx, http.MethodGet, route+"/mcp", nil, &inventory); err != nil {
+				t.Fatal(err)
+			}
+			if inventory.Runtime != acpmock.ProviderName || inventory.RuntimeDisplayName != acpmock.ProviderName ||
+				inventory.RuntimeServers.Servers == nil || len(inventory.RuntimeServers.Servers) != 0 {
+				t.Fatalf("custom provider acquired runtime-native inventory: %+v", inventory)
+			}
+		}
+	})
 	t.Run("Should share HTTP native and CLI bodies and isolate worktrees IT-011 IT-014", func(t *testing.T) {
 		t.Parallel()
 		driver, err := acpmock.DefaultDriverPath()

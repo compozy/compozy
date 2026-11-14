@@ -50,6 +50,19 @@ func runtimeMCPNeedsDigest(descriptor runtimemcp.Descriptor, mode string) bool {
 }
 
 func (m *Manager) readRuntimeMCP(ctx context.Context, request runtimemcp.Request) (runtimemcp.Snapshot, error) {
+	descriptors := runtimemcp.Descriptors()
+	index := slices.IndexFunc(descriptors, func(descriptor runtimemcp.Descriptor) bool {
+		return descriptor.Runtime == request.Runtime
+	})
+	if index < 0 {
+		// Session providers are extensible; only known runtimes have native inventory.
+		// In particular, an empty session provider must not request every runtime.
+		return runtimemcp.Snapshot{
+			Runtime: request.Runtime, DisplayName: request.Runtime, ReadState: "ok",
+			Servers: []runtimemcp.Server{},
+		}, nil
+	}
+	descriptor := descriptors[index]
 	var inventory runtimemcp.Inventory
 	var err error
 	if m.runtimeMCPInventory != nil {
@@ -65,16 +78,9 @@ func (m *Manager) readRuntimeMCP(ctx context.Context, request runtimemcp.Request
 			return snapshot, nil
 		}
 	}
-	canDisable, displayName := false, ""
-	for _, descriptor := range runtimemcp.Descriptors() {
-		if descriptor.Runtime == request.Runtime {
-			canDisable, displayName = descriptor.CanDisableRuntimeMCP, descriptor.DisplayName
-			break
-		}
-	}
 	return runtimemcp.Snapshot{
-		Runtime: request.Runtime, DisplayName: displayName, ReadState: "ok",
-		RuntimeMCP:       runtimemcp.RuntimeMode{CanDisable: canDisable},
+		Runtime: request.Runtime, DisplayName: descriptor.DisplayName, ReadState: "ok",
+		RuntimeMCP:       runtimemcp.RuntimeMode{CanDisable: descriptor.CanDisableRuntimeMCP},
 		ActivationDigest: activationFingerprint("", request.Runtime, ""),
 	}, nil
 }

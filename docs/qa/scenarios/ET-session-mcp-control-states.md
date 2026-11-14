@@ -30,6 +30,16 @@ must expose their MCP inventory. `GET /api/workspaces/{ws}/sessions/{id}` return
 as a profile-scoped Settings overlay. The canonical real-daemon check is
 `TestDaemonSessionMCPReadSurfaces`; `TestSessionMCPReadModel` covers both scope selectors.
 
+Repeat the session-detail and `/mcp` reads with a custom ACP provider (the isolated `acpmock`
+provider is the automated fixture), with a configured CompozyOS MCP source, before and after its
+first prompt. Both return 200, session detail
+includes `mcp_summary`, and the MCP runtime section has an empty server list with the provider ID as
+its display name. Unsupported or empty session provider identity must not scan another runtime's
+native files. Explicit unknown runtime filters on the Settings inventory route still fail validation.
+The custom-provider branch of `TestDaemonSessionMCPReadSurfaces` verifies the HTTP behavior with a
+real daemon and ACP process; `TestRuntimeMCPStartup` and `TestMCPReadSnapshotCatalogChanges` cover the
+empty identity and configured native-runtime alias boundaries.
+
 Steps:
 
 1. Session with: echo (ready), an OAuth server not signed in, the waiting `sentry` project fixture,
