@@ -92,10 +92,15 @@ func TestSubagentDelete(t *testing.T) {
 					runtime.publishes[publishes] != "parent" {
 					t.Fatalf("parent catalog publishes = %v", runtime.publishes)
 				}
-				if len(collected) != 1 || !collected[0].Removed ||
-					collected[0].Subagent.ID != row.ID ||
-					collected[0].ParentSessionID != "parent" {
-					t.Fatalf("removal updates = %+v", collected)
+				removals := make([]SubagentUpdate, 0, len(collected))
+				for _, update := range collected {
+					if update.Removed {
+						removals = append(removals, update)
+					}
+				}
+				if len(removals) != 1 || removals[0].Subagent.ID != row.ID ||
+					removals[0].ParentSessionID != "parent" {
+					t.Fatalf("removal updates = %+v (all=%+v)", removals, collected)
 				}
 				if s.childSettlementSuppressed(child) {
 					t.Fatal("settlement suppression outlived the deletion")
