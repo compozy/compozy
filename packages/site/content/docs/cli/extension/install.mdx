@@ -22,7 +22,7 @@ compozy extension install <source> [flags]
   -h, --help                                 help for install
       --input stringArray                    Set a manifest input as id=value (repeatable)
       --input-file string                    Read input values from a JSON object of {value} or {vault_ref} envelopes
-      --replace                              Replace the installed extension of the same name; local paths only, since published sources replace implicitly. A failed replacement keeps the previous version
+      --replace                              Replace the installed extension of the same name; local paths only, since published sources replace implicitly. The previous version stays installed only when the replacement fails before the reinstall transaction completes; a failure after it returns, such as enable failing, does not restore it
       --scope string                         Install globally or in one workspace: global, workspace
       --version string                       Install a specific registry version
       --workspace string                     Override workspace context

@@ -87,6 +87,11 @@ func (p *PreparedLocalManagedInstall) ensureStaged() error {
 	if p.install.stagingDir != "" {
 		return nil
 	}
+	// Preparation validated the source before the caller waited for the package lock;
+	// revalidate here so the staged bytes are the ones the caller approved.
+	if err := verifyManagedInstallSource(p.install.sourceDir, p.install.checksum); err != nil {
+		return fmt.Errorf("extension: verify prepared local bundle %q before staging: %w", p.install.sourceDir, err)
+	}
 	stagingDir, err := NewManagedInstallStagingDir(p.install.homePaths)
 	if err != nil {
 		return err

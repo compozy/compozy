@@ -1256,7 +1256,7 @@ func TestInstallLocalManagedReplaceTransaction(t *testing.T) {
 	}
 	prepareReplacement := func(
 		t *testing.T, homePaths compozyconfig.HomePaths, registry *replaceManagedInstallRegistry, name string,
-	) *PreparedLocalManagedInstall {
+	) (*PreparedLocalManagedInstall, string) {
 		t.Helper()
 		sourceDir := writeReplaceFixture(t, name, "2.0.0")
 		checksum, err := ComputeDirectoryChecksum(sourceDir)
@@ -1279,7 +1279,7 @@ func TestInstallLocalManagedReplaceTransaction(t *testing.T) {
 				t.Errorf("prepared.Close() error = %v", closeErr)
 			}
 		})
-		return prepared
+		return prepared, sourceDir
 	}
 
 	t.Run("Should keep the staged backup until the completion step succeeds", func(t *testing.T) {
@@ -1289,7 +1289,7 @@ func TestInstallLocalManagedReplaceTransaction(t *testing.T) {
 		registry := &replaceManagedInstallRegistry{}
 		name := "replace-transaction-ext"
 		firstChecksum := installReplaceFixture(t, homePaths, registry, name, "1.0.0")
-		prepared := prepareReplacement(t, homePaths, registry, name)
+		prepared, _ := prepareReplacement(t, homePaths, registry, name)
 		installed, err := registry.Get(name)
 		if err != nil {
 			t.Fatalf("registry.Get() error = %v", err)
@@ -1342,7 +1342,7 @@ func TestInstallLocalManagedReplaceTransaction(t *testing.T) {
 		registry := &replaceManagedInstallRegistry{}
 		name := "replace-transaction-clean-ext"
 		installReplaceFixture(t, homePaths, registry, name, "1.0.0")
-		prepared := prepareReplacement(t, homePaths, registry, name)
+		prepared, _ := prepareReplacement(t, homePaths, registry, name)
 		installed, err := registry.Get(name)
 		if err != nil {
 			t.Fatalf("registry.Get() error = %v", err)
@@ -1440,6 +1440,129 @@ func TestInstallLocalManagedReplaceTransaction(t *testing.T) {
 		if !errors.Is(err, ErrExtensionExists) {
 			t.Fatalf("InstallLocalManaged(bundled replace) error = %v, want ErrExtensionExists", err)
 		}
+	})
+}
+
+// Invariant: a prepared local bundle is revalidated against the prepared checksum immediately
+// before it is staged, so a source that changed while the caller waited for the package lock
+// fails with a checksum mismatch instead of publishing bytes the caller never approved.
+// Owner: extension local install preparation.
+// Canonical suite: TestInstallLocalManagedRefusesStaleSource.
+func TestInstallLocalManagedRefusesStaleSource(t *testing.T) {
+	t.Parallel()
+
+	newHome := func(t *testing.T) compozyconfig.HomePaths {
+		t.Helper()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		return homePaths
+	}
+
+	t.Run("Should refuse a fresh commit from a source changed after preparation", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newHome(t)
+		registry := &replaceManagedInstallRegistry{}
+		name := "stale-commit-ext"
+		sourceDir := writeReplaceFixture(t, name, "1.0.0")
+		checksum, err := ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+		}
+		prepared, err := PrepareLocalManagedInstall(
+			homePaths,
+			registry,
+			&Manifest{Name: name, Version: "1.0.0"},
+			sourceDir,
+			checksum,
+		)
+		if err != nil {
+			t.Fatalf("PrepareLocalManagedInstall() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := prepared.Close(); closeErr != nil {
+				t.Errorf("prepared.Close() error = %v", closeErr)
+			}
+		})
+		writeFile(t, filepath.Join(sourceDir, "bundle.txt"), "changed after preparation\n")
+
+		if err := prepared.Commit(); !errors.Is(err, ErrExtensionChecksumMismatch) {
+			t.Fatalf("Commit() error = %v, want %v", err, ErrExtensionChecksumMismatch)
+		}
+		if _, err := os.Stat(ManagedInstallPath(homePaths, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("managed install path after refused commit error = %v, want not exist", err)
+		}
+		if registry.info != nil {
+			t.Fatalf("registry record after refused commit = %#v, want none", registry.info)
+		}
+	})
+
+	t.Run("Should refuse a replacement from a source changed after preparation", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newHome(t)
+		registry := &replaceManagedInstallRegistry{}
+		name := "stale-replace-ext"
+		firstChecksum := installReplaceFixture(t, homePaths, registry, name, "1.0.0")
+
+		sourceDir := writeReplaceFixture(t, name, "2.0.0")
+		checksum, err := ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+		}
+		prepared, err := PrepareLocalManagedInstall(
+			homePaths,
+			registry,
+			&Manifest{Name: name, Version: "2.0.0"},
+			sourceDir,
+			checksum,
+			WithInstallReplaceExisting(),
+		)
+		if err != nil {
+			t.Fatalf("PrepareLocalManagedInstall() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := prepared.Close(); closeErr != nil {
+				t.Errorf("prepared.Close() error = %v", closeErr)
+			}
+		})
+		installed, err := registry.Get(name)
+		if err != nil {
+			t.Fatalf("registry.Get() error = %v", err)
+		}
+		writeFile(t, filepath.Join(sourceDir, "bundle.txt"), "changed after preparation\n")
+
+		if _, err := prepared.Reinstall(t.Context(), installed, nil, nil, nil, nil, nil); !errors.Is(
+			err,
+			ErrExtensionChecksumMismatch,
+		) {
+			t.Fatalf("Reinstall() error = %v, want %v", err, ErrExtensionChecksumMismatch)
+		}
+
+		finalDir := ManagedInstallPath(homePaths, name)
+		installedChecksum, err := ComputeDirectoryChecksum(finalDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(installed) error = %v", err)
+		}
+		if installedChecksum != firstChecksum {
+			t.Fatalf("installed checksum after refused replacement = %q, want previous %q",
+				installedChecksum, firstChecksum)
+		}
+		manifest, err := LoadManifest(finalDir)
+		if err != nil {
+			t.Fatalf("LoadManifest(installed) error = %v", err)
+		}
+		if manifest.Version != "1.0.0" {
+			t.Fatalf("installed manifest version after refused replacement = %q, want 1.0.0",
+				manifest.Version)
+		}
+		if registry.info == nil || registry.info.Version != "1.0.0" ||
+			registry.info.Checksum != firstChecksum {
+			t.Fatalf("registry record after refused replacement = %#v, want version 1.0.0", registry.info)
+		}
+		assertNoManagedInstallBackups(t, homePaths, name)
 	})
 }
 

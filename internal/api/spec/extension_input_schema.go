@@ -46,8 +46,10 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 		replace.Value.Default = false
 		replace.Value.Description = "Replace the installed extension of the same name. Applies to local_path " +
 			"installs only, since published sources replace implicitly. The previous version stays installed " +
-			"when the replacement fails, and a marketplace-owned name is refused with extension_name_conflict. " +
-			"Replacing a package attached outside the caller's workspace requires operator authority."
+			"only when the replacement fails before the reinstall transaction completes; a failure after it " +
+			"returns, such as enable failing, does not restore it. A marketplace-owned name is refused with " +
+			"extension_name_conflict. Replacing a package attached outside the caller's workspace requires " +
+			"operator authority."
 	}
 }
 

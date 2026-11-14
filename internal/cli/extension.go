@@ -161,7 +161,8 @@ func (f *extensionInstallFlags) register(cmd *cobra.Command) {
 		"replace",
 		false,
 		"Replace the installed extension of the same name; local paths only, since published sources replace "+
-			"implicitly. A failed replacement keeps the previous version",
+			"implicitly. The previous version stays installed only when the replacement fails before the reinstall "+
+			"transaction completes; a failure after it returns, such as enable failing, does not restore it",
 	)
 	f.inputs.register(cmd)
 	cmd.Flags().StringVar(&f.scope, "scope", "", "Install globally or in one workspace: global, workspace")
