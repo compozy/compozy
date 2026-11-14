@@ -52,18 +52,30 @@ func (m *Manager) applyInstanceCeiling(
 		return err
 	}
 	policy := ceiling.Policy
-	policy.Tools = agentinstance.IntersectPermissions(ceiling.Policy, store.SessionPermissionPolicy{Tools: tools}).Tools
-	if err := ValidatePermissionSubset(ceiling.Policy, policy); err != nil {
+	if spec.lineage != nil && (spec.sessionType == SessionTypeSpawned || spec.startAction == sessionStartActionResume) {
+		policy = agentinstance.IntersectPermissions(policy, spec.lineage.PermissionPolicy)
+	}
+	definitionPolicy := store.SessionPermissionPolicy{Tools: tools, ToolsMode: store.PermissionInherit}
+	if resolved.ToolPolicyEnforced || len(resolved.Tools) > 0 || len(resolved.Toolsets) > 0 {
+		definitionPolicy.ToolsMode = store.PermissionList
+	}
+	policy.Tools = agentinstance.IntersectPermissions(policy, definitionPolicy).Tools
+	effective, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, &Info{
+		ID: spec.sessionID, ProfileID: spec.profileID, WorkspaceID: spec.workspace.ID,
+		AgentName: spec.agentName, Type: spec.sessionType,
+		Lineage: &store.SessionLineage{PermissionPolicy: policy},
+	}), spec.sessionID)
+	if err != nil {
 		return err
 	}
-	policy.WorkspacePaths = withManagedWorktree(ceiling.Policy, spec)
+	policy.WorkspacePaths = withManagedWorktree(policy, spec)
 	resolved.ToolPolicyEnforced = true
 	resolved.Tools = slices.Clone(policy.Tools)
 	resolved.Toolsets = nil
 	resolved.MCPServers = slices.DeleteFunc(
 		slices.Clone(resolved.MCPServers),
 		func(server compozyconfig.MCPServer) bool {
-			return !slices.Contains(policy.MCPServers, server.Name)
+			return !slices.Contains(effective.MCPServers, server.Name)
 		},
 	)
 	spec.instancePermissionCeiling = &policy

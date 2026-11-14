@@ -86,6 +86,7 @@ func (d *Daemon) bootToolRegistry(
 	if err != nil {
 		return fmt.Errorf("daemon: create tool registry: %w", err)
 	}
+	bindSessionMCPAuthority(state, policyResolver, registry)
 	state.toolRegistry = registry
 	state.toolsets = registry
 	state.toolApprovals = &boundToolApprovalIssuer{tokens: approvalTokens, registry: registry, binder: workspaceBinder}

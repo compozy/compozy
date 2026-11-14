@@ -1199,6 +1199,7 @@ func TestInstanceCallerLineage(t *testing.T) {
 			}
 			caller, err := db.Instances().InstanceCaller(t.Context(), id)
 			expected := store.SessionPermissionPolicy{
+				MCPServersMode: store.PermissionList, ToolsMode: store.PermissionList,
 				Tools:          []string{"read"},
 				Skills:         []string{"review"},
 				MCPServers:     []string{"docs"},

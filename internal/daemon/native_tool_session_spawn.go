@@ -56,6 +56,11 @@ func (n *daemonNativeTools) sessionSpawn(
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	info := child.Info()
+	if authority, ok := n.deps.Sessions.(session.MCPAuthorityResolver); ok {
+		if err := session.PopulateEffectiveMCPAuthority(ctx, authority, info); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	if info == nil || info.Lineage == nil || info.Lineage.TTLExpiresAt == nil {
 		return toolspkg.ToolResult{}, errors.New("daemon: spawned session is missing lineage")
 	}

@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json/v2"
 	"errors"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -39,9 +40,14 @@ func (r *InstanceRepo) AdmitCreate(
 	if err := r.checkReady(ctx, "admit instance"); err != nil {
 		return agentinstance.Instance{}, false, err
 	}
+	var err error
+	input.PermissionCeiling, err = instanceCeilingIntent(input.PermissionCeiling, input.Depth)
+	if err != nil {
+		return agentinstance.Instance{}, false, err
+	}
 	var result agentinstance.Instance
 	created := false
-	err := store.ExecuteWriteOperation(ctx, r.db, "admit instance", func(ctx context.Context, tx *store.WriteTx) error {
+	err = store.ExecuteWriteOperation(ctx, r.db, "admit instance", func(ctx context.Context, tx *store.WriteTx) error {
 		q := sqlcgen.New(tx)
 		existing, err := q.FindLiveAgentInstance(
 			ctx,
@@ -129,6 +135,10 @@ func instanceFromRow(row sqlcgen.AgentInstance) (agentinstance.Instance, error) 
 		CreatedAt:         created,
 		UpdatedAt:         updated,
 	}
+	result.PermissionCeiling, err = instanceCeilingIntent(row.PermissionCeiling, result.Depth)
+	if err != nil {
+		return agentinstance.Instance{}, err
+	}
 	if row.ArchivedAt.Valid {
 		archived, err := store.ParseTimestamp(row.ArchivedAt.String)
 		if err != nil {
@@ -148,4 +158,14 @@ func (r *InstanceRepo) InstanceMainAttempt(ctx context.Context, instanceID strin
 		return "", nil
 	}
 	return id, err
+}
+
+// instanceCeilingIntent upgrades markers without tightening the legacy ceiling's atom encoding.
+func instanceCeilingIntent(raw string, depth int) (string, error) {
+	var policy store.SessionPermissionPolicy
+	if err := json.Unmarshal([]byte(raw), &policy); err != nil {
+		return "", err
+	}
+	encoded, err := json.Marshal(store.DecodeInstanceCeilingIntent(policy, depth))
+	return string(encoded), err
 }

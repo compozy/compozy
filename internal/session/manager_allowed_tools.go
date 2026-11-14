@@ -68,6 +68,7 @@ func (s *sessionStartSpec) applyAllowedToolsOverride(
 	lineage := store.NormalizeSessionLineage(s.sessionID, s.lineage)
 	lineage.PermissionPolicy.Tools = append([]string(nil), override...)
 	lineage.PermissionPolicy.MaterializedTools = false
+	lineage.PermissionPolicy.ToolsMode = store.PermissionList
 	lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 	if err := store.ValidateSessionLineage(s.sessionID, lineage); err != nil {
 		return fmt.Errorf("%w: allowed_tools override lineage policy: %w", ErrValidation, err)
@@ -82,7 +83,7 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 	catalog toolspkg.ToolsetCatalog,
 	universe []toolspkg.ToolID,
 ) error {
-	if s == nil || s.instancePermissionCeiling != nil || strings.EqualFold(s.runtimeMode, RuntimeModeVerdictOnly) {
+	if s == nil || s.startAction == sessionStartActionResume || s.instancePermissionCeiling != nil || strings.EqualFold(s.runtimeMode, RuntimeModeVerdictOnly) {
 		return nil
 	}
 	switch normalizeSessionType(s.sessionType) {
@@ -91,10 +92,6 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 		return nil
 	}
 	lineage := store.NormalizeSessionLineage(s.sessionID, s.lineage)
-	// Spawned sessions retain their parent-authorized policy.
-	if store.HierarchyParentSessionID(lineage) != "" {
-		return nil
-	}
 	if len(lineage.PermissionPolicy.Tools) == 0 && resolved.SessionMCP {
 		tools, err := concreteDelegationTools(resolved, catalog, universe)
 		if err != nil {
@@ -102,14 +99,6 @@ func (s *sessionStartSpec) materializeRootDelegationPolicy(
 		}
 		lineage.PermissionPolicy.Tools = tools
 		lineage.PermissionPolicy.MaterializedTools = true
-	}
-	// Unknown legacy and authored ceilings are never inferred from coincidentally matching names.
-	if lineage.PermissionPolicy.MaterializedMCPServers || !s.preserveDelegationPolicy {
-		lineage.PermissionPolicy.MCPServers = nil
-		for _, server := range resolved.MCPServers {
-			lineage.PermissionPolicy.MCPServers = append(lineage.PermissionPolicy.MCPServers, server.Name)
-		}
-		lineage.PermissionPolicy.MaterializedMCPServers = true
 	}
 	// Preserve authored resource grants after the existing native-tool materialization.
 	if s.preserveDelegationPolicy {

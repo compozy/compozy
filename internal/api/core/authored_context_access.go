@@ -203,6 +203,11 @@ func (h *BaseHandlers) heartbeatWakeEvents(
 func SessionPayloadWithQueue(ctx context.Context, reader interface {
 	InputQueueSummary(context.Context, string) (session.InputQueueSummary, error)
 }, info *session.Info) (contract.SessionPayload, error) {
+	if authority, ok := reader.(session.MCPAuthorityResolver); ok {
+		if err := session.PopulateEffectiveMCPAuthority(ctx, authority, info); err != nil {
+			return contract.SessionPayload{}, err
+		}
+	}
 	if relations, ok := reader.(interface {
 		PopulateSessionRelations(context.Context, *session.Info) error
 	}); ok {

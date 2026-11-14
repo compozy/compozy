@@ -33,6 +33,7 @@ type instanceAdmission struct {
 	definitions instanceDefinitionReader
 	callers     agentinstance.CallerReader
 	sessions    instanceAdoptionReader
+	authority   session.MCPAuthorityResolver
 	reach       instanceReach
 }
 
@@ -59,7 +60,7 @@ func (a *instanceAdmission) ResolveCreate(
 		CreatedByKind: string(req.Actor.Kind),
 		CreatedByID:   req.Actor.SessionID,
 	}
-	policy := definition.Policy
+	policy := store.DecodeInstanceCeilingIntent(definition.Policy, 0)
 	if req.Actor.Operator {
 		if req.Workspace == "" {
 			result.GrantCeiling = definition.Grant
@@ -78,8 +79,18 @@ func (a *instanceAdmission) ResolveCreate(
 		if caller.InstanceDepth >= 1 {
 			return agentinstance.Instance{}, agentinstance.ErrDepth
 		}
+		if a.authority != nil {
+			caller.PermissionPolicy, err = a.authority.EffectiveMCPAuthority(ctx, req.Actor.SessionID)
+			if err != nil {
+				return agentinstance.Instance{}, err
+			}
+		}
 		result.Depth = 1
-		policy = agentinstance.IntersectPermissions(caller.PermissionPolicy, definition.Policy)
+		callerPolicy := caller.PermissionPolicy
+		callerPolicy.MCPServersMode, callerPolicy.ToolsMode = store.PermissionList, store.PermissionList
+		policy = agentinstance.IntersectPermissions(callerPolicy, policy)
+		policy.MCPServersMode, policy.ToolsMode = store.PermissionList, store.PermissionList
+		policy.AncestorMCPCeiling = store.IntersectMCPCeiling(policy.AncestorMCPCeiling, caller.PermissionPolicy.MCPServers)
 		if err := session.ValidatePermissionSubset(caller.PermissionPolicy, policy); err != nil {
 			return agentinstance.Instance{}, err
 		}
@@ -137,9 +148,10 @@ func (a *instanceAdmission) ResolveAdopt(
 	if err := json.Unmarshal([]byte(instance.PermissionCeiling), &ceiling); err != nil {
 		return agentinstance.Instance{}, err
 	}
-	if err := session.ValidatePermissionSubset(ceiling, policy); err != nil {
-		return agentinstance.Instance{}, agentinstance.ErrWorkspaceAccessDenied
+	if err := a.validateAdoptionAuthority(ctx, info, ceiling, policy); err != nil {
+		return agentinstance.Instance{}, err
 	}
+	policy = agentinstance.IntersectPermissions(ceiling, policy)
 	if info.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted &&
 		instance.GrantCeiling != workspaceaccess.Unrestricted {
 		return agentinstance.Instance{}, agentinstance.ErrWorkspaceAccessDenied
@@ -151,4 +163,27 @@ func (a *instanceAdmission) ResolveAdopt(
 	}
 	instance.PermissionCeiling = string(encoded)
 	return instance, nil
+}
+
+func (a *instanceAdmission) validateAdoptionAuthority(
+	ctx context.Context, info store.SessionInfo, ceiling, candidate store.SessionPermissionPolicy,
+) error {
+	if a.authority != nil {
+		var err error
+		candidate, err = a.authority.EffectiveMCPAuthority(ctx, info.ID)
+		if err != nil {
+			return err
+		}
+		pending := &session.Info{ID: info.ID, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID,
+			AgentName: info.AgentName, Type: session.Type(info.SessionType),
+			Lineage: &store.SessionLineage{PermissionPolicy: ceiling}}
+		ceiling, err = a.authority.EffectiveMCPAuthority(session.WithMCPAuthoritySession(ctx, pending), info.ID)
+		if err != nil {
+			return err
+		}
+	}
+	if err := session.ValidatePermissionSubset(ceiling, candidate); err != nil {
+		return agentinstance.ErrWorkspaceAccessDenied
+	}
+	return nil
 }

@@ -10,8 +10,11 @@ import (
 )
 
 func (r *spawnReaper) dispatchReasonHook(ctx context.Context, candidate spawnReapCandidate) {
-	payload := r.spawnLifecyclePayload(candidate, nil)
-	var err error
+	payload, err := r.spawnLifecyclePayload(ctx, candidate, nil)
+	if err != nil {
+		r.logAuthorityError(err)
+		return
+	}
 	switch candidate.reason {
 	case spawnReapReasonTTLExpired:
 		payload.Event = hookspkg.HookSpawnTTLExpired
@@ -26,7 +29,11 @@ func (r *spawnReaper) dispatchReasonHook(ctx context.Context, candidate spawnRea
 }
 
 func (r *spawnReaper) dispatchReapedHook(ctx context.Context, candidate spawnReapCandidate, reapErr error) {
-	payload := r.spawnLifecyclePayload(candidate, reapErr)
+	payload, err := r.spawnLifecyclePayload(ctx, candidate, reapErr)
+	if err != nil {
+		r.logAuthorityError(err)
+		return
+	}
 	payload.Event = hookspkg.HookSpawnReaped
 	if _, err := r.hooksOrNoop().DispatchSpawnReaped(ctx, payload); err != nil &&
 		r.logger != nil {
@@ -35,9 +42,10 @@ func (r *spawnReaper) dispatchReapedHook(ctx context.Context, candidate spawnRea
 }
 
 func (r *spawnReaper) spawnLifecyclePayload(
+	ctx context.Context,
 	candidate spawnReapCandidate,
 	reapErr error,
-) hookspkg.SpawnLifecyclePayload {
+) (hookspkg.SpawnLifecyclePayload, error) {
 	child := candidate.child
 	lineage := store.NormalizeSessionLineage("", nil)
 	if child != nil {
@@ -79,7 +87,30 @@ func (r *spawnReaper) spawnLifecyclePayload(
 	if reapErr != nil {
 		payload.Error = reapErr.Error()
 	}
-	return payload
+	if resolver, ok := r.sessions.(session.MCPAuthorityResolver); ok {
+		for _, target := range []struct {
+			info        *session.Info
+			permissions **hookspkg.PermissionSet
+		}{
+			{child, &payload.ChildPermissions}, {candidate.parent, &payload.ParentPermissions},
+		} {
+			if target.info == nil {
+				continue
+			}
+			policy, err := resolver.EffectiveMCPAuthority(session.WithMCPAuthoritySession(ctx, target.info), target.info.ID)
+			if err != nil {
+				return payload, err
+			}
+			*target.permissions = spawnReaperPermissionSet(policy)
+		}
+	}
+	return payload, nil
+}
+
+func (r *spawnReaper) logAuthorityError(err error) {
+	if r.logger != nil {
+		r.logger.Warn("daemon: resolve spawn hook authority failed", "error", err)
+	}
 }
 
 func (r *spawnReaper) hooksOrNoop() session.SpawnHooks {

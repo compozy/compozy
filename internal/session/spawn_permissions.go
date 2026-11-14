@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -130,4 +131,35 @@ func durationSecondsCeil(duration time.Duration) int64 {
 
 func spawnValidation(message string) error {
 	return fmt.Errorf("%w: %s", ErrSpawnValidation, strings.TrimSpace(message))
+}
+
+// effectiveSpawnAuthority resolves the pending child's own scope before its row exists.
+func (m *Manager) effectiveSpawnAuthority(
+	ctx context.Context, parent *Info, opts SpawnOpts,
+) (store.SessionPermissionPolicy, error) {
+	workspaceID := parent.WorkspaceID
+	if opts.Workspace != "" {
+		workspaceID = opts.Workspace
+	}
+	if workspaceID == workspaceaccess.UserSelector {
+		workspaceID = ""
+	}
+	child := &Info{
+		ID: parent.ID + "/pending-spawn", ProfileID: parent.ProfileID, WorkspaceID: workspaceID,
+		AgentName: opts.AgentName, Type: SessionTypeSpawned,
+		Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn, PermissionPolicy: opts.PermissionPolicy},
+	}
+	return m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, child), child.ID)
+}
+
+func (m *Manager) validateEffectiveSpawnSubset(ctx context.Context, parent *Info, opts SpawnOpts) error {
+	ceiling, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, parent), parent.ID)
+	if err != nil {
+		return err
+	}
+	child, err := m.effectiveSpawnAuthority(ctx, parent, opts)
+	if err != nil {
+		return err
+	}
+	return ValidatePermissionSubset(ceiling, child)
 }

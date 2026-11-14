@@ -64,7 +64,14 @@ func (h *BaseHandlers) AgentSpawn(c *gin.Context) {
 		return
 	}
 
-	payload, err := agentSpawnPayloadFromSession(child.Info())
+	info := child.Info()
+	if authority, ok := h.Sessions.(session.MCPAuthorityResolver); ok {
+		if err := session.PopulateEffectiveMCPAuthority(ctx, authority, info); err != nil {
+			h.respondError(c, http.StatusInternalServerError, err)
+			return
+		}
+	}
+	payload, err := agentSpawnPayloadFromSession(info)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return

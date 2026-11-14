@@ -1188,6 +1188,27 @@ func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
 	}
 	sessionScope := Scope{SessionID: "sess-1", AgentName: "coder"}
 
+	// Invariant: a pre-resolved scope projection never reenters policy resolution.
+	// Owner: registry policy boundary; canonical suite: dynamic policy resolver.
+	t.Run("Should project supplied policy without resolving it again", func(t *testing.T) {
+		before := resolver.resolveCalls
+		inputs := DefaultPolicyInputs()
+		inputs.Session = SessionToolPolicy{Enforced: true, Tools: []ToolID{ToolIDToolList}}
+		views, err := registry.PolicyProjection(ctx, sessionScope, inputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resolver.resolveCalls != before {
+			t.Fatal("supplied policy reentered the resolver")
+		}
+		for _, view := range views {
+			want := view.Descriptor.ID == ToolIDToolList
+			if (view.Decision.SessionPolicyResult == "allowed") != want {
+				t.Fatalf("supplied policy ignored: %+v", view.Decision)
+			}
+		}
+	})
+
 	t.Run("Should project full catalog until agent policy narrows the allowlist", func(t *testing.T) {
 		resolver.inputs = PolicyInputs{
 			SystemPermissionMode: PermissionModeApproveAll,
