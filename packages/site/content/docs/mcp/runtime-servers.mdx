@@ -124,7 +124,11 @@ compozy config set providers.claude.runtime_mcp off
 
 The change applies to open sessions on their next message. CompozyOS servers keep working. The
 runtime's rows read **Off in CompozyOS sessions**, and the runtime's own use outside CompozyOS is not
-affected. Set it back with `runtime_mcp load`.
+affected. Turn them back on with the same switch or:
+
+```bash
+compozy config set providers.claude.runtime_mcp load
+```
 
 The switch exists only for runtimes that can turn their own servers off per session: Claude Code,
 GitHub Copilot CLI and Qwen Code. Other runtimes always load their own servers; their header says so

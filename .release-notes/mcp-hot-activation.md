@@ -46,6 +46,15 @@ native tools `compozy__mcp_list`, `compozy__mcp_allow`, `compozy__mcp_import` an
   unapproved project server used to be callable after a per-call prompt; it now waits for approval and
   is never started. Servers with consent still prompt on each call under `ask`. `enabled` still admits
   project servers without approval.
+- **`external_default = "disabled"` no longer blocks servers you set up yourself.** With `disabled`
+  (the default), only project servers waiting for approval stay blocked. Servers you add through
+  CompozyOS, servers in your own `~/.compozy` files, servers of enabled extensions and project servers
+  you allowed are now callable. If you relied on `disabled` to block every external MCP server,
+  disable or remove the servers you don't want sessions to use.
+- **Spawned sessions inherit the parent's MCP servers and tools by default.** A child session or
+  subagent spawned without an explicit MCP server or tool list now follows its parent's current
+  servers and tools instead of starting with none. It never gets more than its parent. To keep a child
+  narrower, name its MCP servers and tools when you spawn it.
 - **Session MCP limits are stored as intent.** Stored sessions and always-on instance ceilings are
   upgraded in place by an automatic database migration that records whether each one follows the
   current server set or keeps an explicit list. Nothing is lost, and archived sessions and stopped
