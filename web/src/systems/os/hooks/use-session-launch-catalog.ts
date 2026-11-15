@@ -23,7 +23,8 @@ export function useSessionLaunchCatalog(): SessionLaunchCatalog {
   const { runtimeWorkspaceId, pending } = useActiveWorkspace();
   const workspaceId = runtimeWorkspaceId?.trim() || null;
   const { params } = useProfileReadScope();
-  const query = useInfiniteQuery({
+  // A fetching-state wake must not replace the dock's activation callback.
+  const { data, isLoading, refetch } = useInfiniteQuery({
     ...sessionCatalogOptions({
       workspace_id: workspaceId ?? undefined,
       limit: 1,
@@ -35,11 +36,11 @@ export function useSessionLaunchCatalog(): SessionLaunchCatalog {
     enabled: !pending,
   });
   return {
-    sessions: query.data?.pages[0]?.sessions ?? [],
-    ready: !pending && !query.isLoading,
+    sessions: data?.pages[0]?.sessions ?? [],
+    ready: !pending && !isLoading,
     workspaceId,
     resolveLatest: async () => {
-      const result = await query.refetch({ throwOnError: true, cancelRefetch: false });
+      const result = await refetch({ throwOnError: true, cancelRefetch: false });
       return pickLastCreatedSession(result.data?.pages[0]?.sessions ?? []);
     },
   };

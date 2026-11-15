@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 
 import { PillCount, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
@@ -78,16 +78,21 @@ const ITEM_INTERACTIVE =
   "hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none";
 const ITEM_ACTIVE = "bg-rail-selected text-fg hover:bg-rail-selected";
 
-function DockItem({
-  item,
+// Compare each item's values so a focus change cannot rebuild every closed context menu.
+const DockItem = memo(function DockItem({
+  id,
+  name,
+  icon,
+  running,
+  active,
+  badge,
   tabStop,
   onFocusItem,
   onSelect,
   onPreload,
   disabled,
   renderItemMenu,
-}: {
-  item: OsDockItemData;
+}: OsDockItemData & {
   tabStop: boolean;
   onFocusItem: (id: string) => void;
   onSelect?: OsDockProps["onSelect"];
@@ -95,9 +100,10 @@ function DockItem({
   disabled?: boolean;
   renderItemMenu?: OsDockProps["renderItemMenu"];
 }) {
+  const item = { id, name, icon, running, active, badge };
   const preload = useCallback(() => onPreload?.(item.id), [item.id, onPreload]);
   const intent = useIntentPreload(preload, !!onPreload && !!onSelect && !disabled);
-  const name = dockItemAccessibleName(item);
+  const accessibleName = dockItemAccessibleName(item);
   const classes = cn(ITEM_BASE, onSelect && ITEM_INTERACTIVE, item.active && ITEM_ACTIVE);
   const tip = (
     <TooltipContent side="right" sideOffset={RAIL_TIP_SIDE_OFFSET}>
@@ -135,7 +141,7 @@ function DockItem({
             data-slot="os-dock-item"
             data-app={item.id}
             data-state={dockItemState(item)}
-            aria-label={name}
+            aria-label={accessibleName}
             aria-current={item.active ? "true" : undefined}
             tabIndex={tabStop ? 0 : -1}
             disabled={disabled}
@@ -160,7 +166,7 @@ function DockItem({
     </Tooltip>
   );
   return renderItemMenu ? <>{renderItemMenu(item, interactiveItem)}</> : interactiveItem;
-}
+});
 
 export interface OsRailButtonProps extends Omit<React.ComponentProps<"button">, "children"> {
   /** Accessible name and the tooltip beside the rail. */
@@ -228,7 +234,7 @@ export function OsDock({
         {items.map(item => (
           <DockItem
             key={item.id}
-            item={item}
+            {...item}
             tabStop={item.id === tabStopId}
             onFocusItem={setFocusedId}
             onSelect={onSelect}

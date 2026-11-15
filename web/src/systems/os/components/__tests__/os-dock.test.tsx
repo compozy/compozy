@@ -19,7 +19,7 @@ import { paletteRegistryFixture, resolvedPaletteCommand } from "../../mocks/cmd-
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { DesktopDock } from "../desktop-dock";
-import { OsDock } from "../os-dock";
+import { OsDock, type OsDockItemData } from "../os-dock";
 import { OsDockTabBar } from "../os-dock-tab-bar";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
@@ -329,6 +329,48 @@ describe("OsDock", () => {
     setDockState({ ...desktopState(), hydration: "pending" });
     await act(async () => result.current.handlePreload("agents"));
     expect(onPreload).not.toHaveBeenCalled();
+  });
+
+  // Invariant: changing the active app updates only affected launcher menus, while a new
+  // activation callback takes effect even when item values are unchanged. Owner: OsDock's
+  // item render boundary; canonical suite: OS dock state (this file).
+  it("Should preserve unchanged launcher menus when focus changes", () => {
+    const items: OsDockItemData[] = [
+      { id: "tasks", name: "Tasks", icon: "tasks", running: true, active: true },
+      {
+        id: "dashboard",
+        name: "Dashboard",
+        icon: "dashboard",
+        running: true,
+        active: false,
+      },
+      { id: "agents", name: "Agents", icon: "agents", active: false },
+    ];
+    const onSelect = vi.fn();
+    const renderItemMenu = vi.fn((_item: OsDockItemData, children: React.ReactNode) => children);
+    const view = render(
+      <OsDock items={items} onSelect={onSelect} renderItemMenu={renderItemMenu} />,
+      { wrapper: ({ children }) => <TooltipProvider delay={0}>{children}</TooltipProvider> }
+    );
+    renderItemMenu.mockClear();
+    const switched = items.map(item => ({ ...item, active: item.id === "dashboard" }));
+
+    view.rerender(<OsDock items={switched} onSelect={onSelect} renderItemMenu={renderItemMenu} />);
+
+    expect(renderItemMenu.mock.calls.map(([item]) => item.id)).toEqual(["tasks", "dashboard"]);
+    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Tasks" })).not.toHaveAttribute("aria-current");
+    const nextSelect = vi.fn();
+    view.rerender(
+      <OsDock
+        items={switched.map(item => ({ ...item }))}
+        onSelect={nextSelect}
+        renderItemMenu={renderItemMenu}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Agents" }));
+    expect(nextSelect).toHaveBeenCalledExactlyOnceWith("agents", undefined);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("Should expose the real closed, running, and focused state for each launcher", () => {

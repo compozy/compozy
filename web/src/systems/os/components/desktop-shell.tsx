@@ -493,7 +493,7 @@ function DesktopShellScopedBody({
         workspaceName={model.agentCreate.workspaceName}
         workspaces={model.agentCreate.workspaces}
       />
-      {/* Profile lifecycle dialogs stay available without opening Settings. */}
+      {/* Shell-level profile dialogs let command-palette flows work with Settings closed. */}
       <ProfileLifecycleHost {...profileLifecycleActions} />
     </div>
   );
