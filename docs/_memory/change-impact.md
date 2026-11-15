@@ -42,6 +42,21 @@ configuration, hook, extension, schema, workspace-isolation, Web or official-ski
 The existing `TestDaemonSearchSessionFilesWorktreeBoundIT005` integration owns the observable
 contract; `RT-session-parent-provenance` records the QA walk. CI proof remains pending.
 
+## Release main-health: Tasks toolbar measurement
+
+Owner: release `rel/main-health`, E2E-023 performance diagnosis.
+
+- Web: the Tasks toolbar consumes the initial and subsequent ResizeObserver measurements instead
+  of forcing synchronous layout in its React layout effect. The same width thresholds keep one
+  active-status representation and a usable search field in tiled panes.
+- Native tools, CLI/HTTP/UDS, hooks, extension APIs, configuration, persisted workspace data and
+  isolation, schema, and official skill `skills/compozy/` are unchanged.
+- Test invariant: pane-width changes preserve the status and search controls. Owner: Tasks listing
+  toolbar; canonical suite: `tasks-list-surface.test.tsx`. Existing assertions now receive browser
+  ResizeObserver entries at the I/O boundary. E2E-023 retains its 50 ms budget and owns performance
+  acceptance in CI; the profile attributed about 34 ms of forced layout to the removed read.
+- QA: `ET-web-route-chrome-topbar`, Tasks pane resize walk. No local verification in release mode.
+
 ## Per-model reasoning effort ceiling — 2026-11-14
 
 Owner: `fix/model-effort-levels`. Web-only bug fix (internal regime, SD-013).

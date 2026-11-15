@@ -2,10 +2,10 @@ import * as React from "react";
 
 /**
  * An element's own inline size — the pane-width question a viewport media
- * query cannot answer for a tiled window. The node is measured before paint
- * (no first-frame flash) and then follows resizes. An unmeasured element (no
- * layout yet, or no `ResizeObserver`) reads as `null`, so callers default to
- * the full control set.
+ * query cannot answer for a tiled window. ResizeObserver supplies the initial
+ * size and later resizes without forcing layout during React commits. An
+ * unmeasured element (no layout yet, or no `ResizeObserver`) reads as `null`,
+ * so callers default to the full control set.
  */
 export function useInlineSize<T extends HTMLElement>(): readonly [
   (node: T | null) => void,
@@ -17,7 +17,6 @@ export function useInlineSize<T extends HTMLElement>(): readonly [
   React.useLayoutEffect(() => {
     if (!node) return;
     const update = (next: number) => setWidth(next === 0 ? null : next);
-    update(node.getBoundingClientRect().width);
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(entries => {
       const entry = entries[0];

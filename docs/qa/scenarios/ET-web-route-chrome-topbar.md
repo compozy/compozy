@@ -41,3 +41,10 @@ report's session matrix in a future QA cycle.
 qa-impact: 2026-11-13 window-tabs-split S10. Minimize and Zoom are retired and the per-pane deck row is gone (tabs live on one tab bar per desktop). Expected rewritten: every window head carries Close window, and a window inside a split also carries Move to new tab. Walk: a window alone in a tab (Close window only), then two windows in a split (both controls on each head; Move to new tab returns that window to its own tab); confirm identity, trail, toolbar and focus dimming are unchanged. Reset for the current build.
 
 qa-impact: 2026-11-13 window-tabs-split S10. This scenario owns the retired-controls-absent check (US-018.AC-1). Walk: with a single-window tab and a split tab, inspect each window head, open Window, a tab's context menu, a dock icon's menu, ⌘K (search "minimize", "zoom", "float", "tile") and Help › Keyboard shortcuts: none offers minimize, zoom, float or a corner tile. A retired palette ID invoked directly (`window.zoom`) still resolves as a deprecated no-op until v0.8.0; that path is ET-window-retired-surfaces-deprecations.
+
+qa-impact: 2026-11-15 release main-health. Tasks measures its toolbar through ResizeObserver
+without a synchronous layout read on mount. Resize a Tasks pane from at least 672px to 400px,
+then 300px and back: the selected status appears once (quick pill or Filter chip), search folds
+to its named toggle below 336px, and a live query keeps its field visible. Switch away and back
+and confirm the controls adapt to the restored pane width. The owning component suite and
+E2E-023 run in CI; local QA is prohibited during release mode, so this walk remains unverified.
