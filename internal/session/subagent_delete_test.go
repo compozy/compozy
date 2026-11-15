@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -75,6 +76,15 @@ func (d *failingRosterDelete) GetSubagent(
 		return store.SessionSubagent{}, err
 	}
 	return d.memorySubagents.GetSubagent(ctx, workspaceID, id)
+}
+
+func (d *failingRosterDelete) RecordSubagentWorktreeFacts(
+	ctx context.Context, observed store.SessionSubagent,
+) (store.SessionSubagent, error) {
+	if err := ctx.Err(); err != nil {
+		return store.SessionSubagent{}, err
+	}
+	return d.memorySubagents.RecordSubagentWorktreeFacts(ctx, observed)
 }
 
 // Invariant: deleting a delegated subagent removes its child session and then its roster row, and
@@ -308,6 +318,9 @@ func TestSubagentDelete(t *testing.T) {
 							}
 							if len(runtime.queues) != 0 {
 								t.Fatal("retained result escaped before checkout observation finished")
+							}
+							if waitForDeadline {
+								time.Sleep(defaultLifecycleTimeout + time.Nanosecond)
 							}
 						},
 					}

@@ -230,26 +230,30 @@ func (s *subagentService) prepareDeletingDelivery(ctx context.Context, row store
 	release := s.suppressDeletingDelivery(row.ID)
 	unlock()
 	return func(failed bool) {
-		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-		defer cancel()
 		if failed {
-			current, err := s.store.GetSubagent(cleanup, row.WorkspaceID, row.ID)
+			factsCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+			current, err := s.store.GetSubagent(factsCtx, row.WorkspaceID, row.ID)
 			if err == nil && current.CreatedAt.Equal(row.CreatedAt) &&
 				current.WorktreeState().ID == row.WorktreeState().ID {
 				// Keep delivery suppressed while observing the retained checkout. Preserve
 				// the captured row's identity and live status for deletion reconciliation.
-				observed := s.observeSettledWorktree(cleanup, current)
+				observed := s.observeSettledWorktree(factsCtx, current)
 				row.Worktree = observed.Worktree
-				_, err = s.persistTerminalWorktreeFacts(cleanup, row, current)
+				unlockFacts := s.lock(row.ParentSessionID)
+				_, err = s.persistTerminalWorktreeFacts(factsCtx, row, current)
+				unlockFacts()
 			}
 			if !errors.Is(err, store.ErrSubagentNotFound) {
-				s.logError(cleanup, "delete_worktree_facts", err)
+				s.logError(factsCtx, "delete_worktree_facts", err)
 			}
+			cancel()
 		}
 		unlock := s.lock(row.ParentSessionID)
 		release()
 		unlock()
 		if failed {
+			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+			defer cancel()
 			s.logError(cleanup, "delete_delivery_reconcile", s.onChildSessionDeleted(cleanup, row))
 		}
 	}
