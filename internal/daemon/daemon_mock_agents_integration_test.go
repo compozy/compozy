@@ -3461,6 +3461,35 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 		}()
 		assertListed := func(want bool) {
 			t.Helper()
+			defer func() {
+				if !t.Failed() {
+					return
+				}
+				if err := harness.HTTPJSON(
+					ctx,
+					http.MethodGet,
+					"/api/settings/mcp-servers"+query,
+					nil,
+					&listing,
+				); err != nil {
+					t.Logf("consent listing diagnostics: %v", err)
+					return
+				}
+				for _, item := range listing.MCPServers {
+					t.Logf("MCP consent = %+v, callable = %t", item.Approval, item.CallableInSessions)
+				}
+				var tools compozycontract.ToolsResponse
+				path := "/api/workspaces/" + harness.WorkspaceID + "/sessions/" + allowedSession.ID + "/tools"
+				if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &tools); err != nil {
+					t.Logf("session tools diagnostics: %v", err)
+					return
+				}
+				for _, tool := range tools.Tools {
+					if tool.Descriptor.ToolID.String() == "mcp__sentry__echo" {
+						t.Logf("MCP callable = %t, reasons = %v", tool.Decision.Callable, tool.Decision.ReasonCodes)
+					}
+				}
+			}()
 			waitForRuntimeCondition(t, "consented MCP listing", 15*time.Second, func() bool {
 				found := false
 				for tool, err := range client.Tools(ctx, nil) {
