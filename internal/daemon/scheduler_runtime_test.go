@@ -22,6 +22,7 @@ import (
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/procutil"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -1387,138 +1388,219 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldRenewLongGate(t *testin
 	t.Parallel()
 	t.Run("Should keep one gate attempt alive past its original lease and persist its verdict", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t)
-		root := t.TempDir()
-		db := openDaemonTestGlobalDB(t)
-		now := time.Now().UTC()
-		var elapsed atomic.Int64
-		clock := func() time.Time { return now.Add(time.Duration(elapsed.Load())) }
-		const workspaceID = "ws-long-gate"
-		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
-			ID: workspaceID, Name: workspaceID, RootDir: root, CreatedAt: now, UpdatedAt: now,
-		}); err != nil {
-			t.Fatal(err)
-		}
-		resolved, err := looppkg.NewCompiler().Compile(loopdsl.Definition{
-			APIVersion: loopdsl.APIVersion, Kind: loopdsl.KindLoop,
-			Meta: loopdsl.Meta{Name: "long-gate"},
-			Graph: loopdsl.Graph{Nodes: []loopdsl.Node{{
-				ID: "slow", Class: loopdsl.NodeClassControl, Kind: string(loopdsl.ControlGate),
-				Criteria: []loopdsl.GateCriterion{{ID: "check", Type: loopdsl.CriterionCommand,
-					Check: "echo start >> attempts; while [ ! -f release ]; do sleep 0.05; done", Expect: "exit_zero"}},
-				VerdictPolicy: loopdsl.VerdictPolicyFixedPasses,
-			}}},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		run := looppkg.Run{
-			ID: "looprun-long-gate", WorkspaceID: workspaceID, LoopName: "long-gate",
-			Status: looppkg.StatusRunning, IterationCap: 2,
-			ReattemptStrategy: looppkg.ReattemptFailedOnly, BudgetOnExceeded: loopdsl.BudgetExceededHalt,
-			CreatedAt: now, StartedAt: now, LastProgressAt: now,
-		}
-		applyResolvedLoopRunPinningForTest(t, &run, now, resolved)
-		if _, err := db.CreateLoopRunForStart(ctx, run, loopdsl.ConcurrencyAllow); err != nil {
-			t.Fatal(err)
-		}
-		commands := loopGateCommandRunner{
-			workspaceResolver: loopActionBinderWorkspaceResolver{
-				byID: map[string]workspacepkg.ResolvedWorkspace{
-					workspaceID: {Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: root}},
-				},
-			}, processRegistry: toolruntime.NewRegistry(db),
-		}
-		coordinator, err := looppkg.NewCoordinatorRunner(db, db, db, discardLogger(),
-			looppkg.WithCoordinatorGateEvaluator(gate.NewEvaluator(gate.WithCommandRunner(commands))))
-		if err != nil {
-			t.Fatal(err)
-		}
-		manager, err := taskpkg.NewManager(
-			taskpkg.WithStore(db), taskpkg.WithManagerNow(clock), taskpkg.WithCoordinatorRunner(coordinator),
-			taskpkg.WithGenerationStateFinalizer(looppkg.NewStoreFinalizer()),
-			taskpkg.WithCoordinatorTerminalStatusValidator(func(status string) bool {
-				return looppkg.Status(status).Valid()
-			}),
-			taskpkg.WithCoordinatorTerminalHookStatusValidator(func(status string) bool {
-				return looppkg.Status(status).Terminal()
-			}),
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		actor := schedulerCoordinatorActorContextForTest(t)
-		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID, RunKind: taskpkg.RunKindCoordinator,
-			ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: loopCoordinatorActorRef},
-			LeaseDuration: taskpkg.DefaultRunLeaseDuration, Now: now,
-		}, actor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		finished := make(chan error, 1)
-		joined := make(chan struct{})
-		go func() {
-			defer close(joined)
-			_, err := manager.StartRun(ctx, claim.Run.ID, taskpkg.StartRun{
-				ClaimToken: claim.ClaimToken, IdempotencyKey: claim.Run.IdempotencyKey,
-			}, actor)
-			finished <- err
-		}()
-		t.Cleanup(func() {
-			manager.InterruptLoopCoordinatorRuns(string(run.ID), "test cleanup")
-			testutil.Receive(t, "coordinator cleanup joined", 10*time.Second, joined)
-		})
-		testutil.Eventually(t, "gate start", 5*time.Second, func() bool {
-			_, fileErr := os.Stat(filepath.Join(root, "attempts"))
-			processes, err := db.ListProcessRecords(ctx, toolruntime.ProcessQuery{})
-			return fileErr == nil && err == nil && len(processes) == 1
-		})
-		processes, err := db.ListProcessRecords(ctx, toolruntime.ProcessQuery{})
-		if err != nil || len(processes) != 1 || processes[0].PID <= 0 ||
-			processes[0].ProcessGroupID != processes[0].PID || processes[0].Owner.ToolCallID == "" {
-			t.Fatalf("gate process ownership = %#v, %v", processes, err)
-		}
-		for step := 1; step <= 6; step++ {
-			elapsed.Store(int64(time.Duration(step) * 100 * time.Second))
-			testutil.Eventually(t, "durable gate progress", 5*time.Second, func() bool {
-				current, err := db.GetLoopRunByID(ctx, run.ID)
-				return err == nil && !current.LastProgressAt.Before(clock())
-			})
-			recovered, err := db.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
-				Now: clock(), Reason: "lease test",
-			})
-			if err != nil || len(recovered) != 0 {
-				t.Fatalf("lease recovery = %#v, %v", recovered, err)
-			}
-		}
-		started, err := (schedulerTaskSource{manager: manager, store: db}).RunLoopCoordinatorBackstop(
-			ctx, clock(), actor,
-		)
-		if err != nil || started != 0 {
-			t.Fatalf("backstop = %d, %v, want no duplicate", started, err)
-		}
-		if err := os.WriteFile(filepath.Join(root, "release"), nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if err := testutil.Receive(t, "coordinator settlement", 5*time.Second, finished); err != nil {
-			t.Fatal(err)
-		}
-		current, err := db.GetLoopRunByID(ctx, run.ID)
-		if err != nil || current.Status != looppkg.StatusDone {
-			t.Fatalf("Loop = %#v, %v", current, err)
-		}
-		verdicts, err := db.ListGateVerdicts(ctx, string(run.WorkspaceID), string(run.ID), 1)
-		if err != nil || len(verdicts) != 1 || verdicts[0].Outcome != gate.VerdictOutcomeApproved {
-			t.Fatalf("gate verdicts = %#v, %v", verdicts, err)
-		}
-		attempts, err := db.ListNodeAttempts(ctx, run.WorkspaceID, run.ID)
-		if err != nil || len(attempts) != 1 {
-			t.Fatalf("node attempts = %#v, %v", attempts, err)
-		}
-		starts, err := os.ReadFile(filepath.Join(root, "attempts"))
-		if err != nil || string(starts) != "start\n" {
-			t.Fatalf("command starts = %q, %v", starts, err)
-		}
+		testSchedulerLongGate(t, false)
 	})
+	// Invariant: committed Loop cancellation reaches a registered command with
+	// its original cause and reaps the group. Owner: daemon coordinator integration.
+	t.Run("Should interrupt a registered gate through real Loop cancellation", func(t *testing.T) {
+		t.Parallel()
+		testSchedulerLongGate(t, true)
+	})
+}
+
+func testSchedulerLongGate(t *testing.T, cancelLoop bool) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	root := t.TempDir()
+	db := openDaemonTestGlobalDB(t)
+	now := time.Now().UTC()
+	var elapsed atomic.Int64
+	clock := func() time.Time { return now.Add(time.Duration(elapsed.Load())) }
+	const workspaceID = "ws-long-gate"
+	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID: workspaceID, Name: workspaceID, RootDir: root, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := looppkg.NewCompiler().Compile(loopdsl.Definition{
+		APIVersion: loopdsl.APIVersion, Kind: loopdsl.KindLoop,
+		Meta: loopdsl.Meta{Name: "long-gate"},
+		Graph: loopdsl.Graph{Nodes: []loopdsl.Node{{
+			ID: "slow", Class: loopdsl.NodeClassControl, Kind: string(loopdsl.ControlGate),
+			Criteria: []loopdsl.GateCriterion{{ID: "check", Type: loopdsl.CriterionCommand,
+				Check: "echo start >> attempts; while [ ! -f release ]; do sleep 0.05; done", Expect: "exit_zero"}},
+			VerdictPolicy: loopdsl.VerdictPolicyFixedPasses,
+		}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := looppkg.Run{
+		ID: "looprun-long-gate", WorkspaceID: workspaceID, LoopName: "long-gate",
+		Status: looppkg.StatusRunning, IterationCap: 2,
+		ReattemptStrategy: looppkg.ReattemptFailedOnly, BudgetOnExceeded: loopdsl.BudgetExceededHalt,
+		CreatedAt: now, StartedAt: now, LastProgressAt: now,
+	}
+	applyResolvedLoopRunPinningForTest(t, &run, now, resolved)
+	if _, err := db.CreateLoopRunForStart(ctx, run, loopdsl.ConcurrencyAllow); err != nil {
+		t.Fatal(err)
+	}
+	commands := loopGateCommandRunner{
+		shutdownGrace: 50 * time.Millisecond,
+		workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				workspaceID: {Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: root}},
+			},
+		}, processRegistry: toolruntime.NewRegistry(db),
+	}
+	commandFinished := make(chan error, 1)
+	observedCommands := schedulerGateCommandObserver{CommandRunner: commands, finished: commandFinished}
+	coordinator, err := looppkg.NewCoordinatorRunner(db, db, db, discardLogger(),
+		looppkg.WithCoordinatorGateEvaluator(gate.NewEvaluator(gate.WithCommandRunner(observedCommands))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ownershipPollCeiling time.Duration
+	if cancelLoop {
+		// A five-second receive cannot be satisfied by the periodic liveness poll.
+		ownershipPollCeiling = time.Hour
+	}
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithCoordinatorPollCeiling(ownershipPollCeiling),
+		taskpkg.WithStore(db), taskpkg.WithManagerNow(clock), taskpkg.WithCoordinatorRunner(coordinator),
+		taskpkg.WithGenerationStateFinalizer(looppkg.NewStoreFinalizer()),
+		taskpkg.WithCoordinatorTerminalStatusValidator(func(status string) bool {
+			return looppkg.Status(status).Valid()
+		}),
+		taskpkg.WithCoordinatorTerminalHookStatusValidator(func(status string) bool {
+			return looppkg.Status(status).Terminal()
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := schedulerCoordinatorActorContextForTest(t)
+	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID, RunKind: taskpkg.RunKindCoordinator,
+		ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: loopCoordinatorActorRef},
+		LeaseDuration: taskpkg.DefaultRunLeaseDuration, Now: now,
+	}, actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := make(chan error, 1)
+	joined := make(chan struct{})
+	go func() {
+		defer close(joined)
+		_, err := manager.StartRun(ctx, claim.Run.ID, taskpkg.StartRun{
+			ClaimToken: claim.ClaimToken, IdempotencyKey: claim.Run.IdempotencyKey,
+		}, actor)
+		finished <- err
+	}()
+	t.Cleanup(func() {
+		manager.InterruptLoopCoordinatorRuns(string(run.ID), "test cleanup")
+		testutil.Receive(t, "coordinator cleanup joined", 10*time.Second, joined)
+	})
+	testutil.Eventually(t, "gate start", 5*time.Second, func() bool {
+		_, fileErr := os.Stat(filepath.Join(root, "attempts"))
+		processes, err := db.ListProcessRecords(ctx, toolruntime.ProcessQuery{})
+		return fileErr == nil && err == nil && len(processes) == 1
+	})
+	processes, err := db.ListProcessRecords(ctx, toolruntime.ProcessQuery{})
+	if err != nil || len(processes) != 1 || processes[0].PID <= 0 ||
+		processes[0].ProcessGroupID != processes[0].PID || processes[0].Owner.ToolCallID == "" {
+		t.Fatalf("gate process ownership = %#v, %v", processes, err)
+	}
+	if cancelLoop {
+		testSchedulerCancelLongGate(t, db, manager, run, resolved, clock, commandFinished, finished)
+		if err := procutil.WaitForProcessGroupIDExit(processes[0].ProcessGroupID, time.Second); err != nil {
+			t.Fatalf("gate group survived Loop cancellation: %v", err)
+		}
+		return
+	}
+	for step := 1; step <= 6; step++ {
+		elapsed.Store(int64(time.Duration(step) * 100 * time.Second))
+		testutil.Eventually(t, "durable gate progress", 5*time.Second, func() bool {
+			current, err := db.GetLoopRunByID(ctx, run.ID)
+			return err == nil && !current.LastProgressAt.Before(clock())
+		})
+		recovered, err := db.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
+			Now: clock(), Reason: "lease test",
+		})
+		if err != nil || len(recovered) != 0 {
+			t.Fatalf("lease recovery = %#v, %v", recovered, err)
+		}
+	}
+	started, err := (schedulerTaskSource{manager: manager, store: db}).RunLoopCoordinatorBackstop(
+		ctx, clock(), actor,
+	)
+	if err != nil || started != 0 {
+		t.Fatalf("backstop = %d, %v, want no duplicate", started, err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "release"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := testutil.Receive(t, "coordinator settlement", 5*time.Second, finished); err != nil {
+		t.Fatal(err)
+	}
+	current, err := db.GetLoopRunByID(ctx, run.ID)
+	if err != nil || current.Status != looppkg.StatusDone {
+		t.Fatalf("Loop = %#v, %v", current, err)
+	}
+	verdicts, err := db.ListGateVerdicts(ctx, string(run.WorkspaceID), string(run.ID), 1)
+	if err != nil || len(verdicts) != 1 || verdicts[0].Outcome != gate.VerdictOutcomeApproved {
+		t.Fatalf("gate verdicts = %#v, %v", verdicts, err)
+	}
+	attempts, err := db.ListNodeAttempts(ctx, run.WorkspaceID, run.ID)
+	if err != nil || len(attempts) != 1 {
+		t.Fatalf("node attempts = %#v, %v", attempts, err)
+	}
+	starts, err := os.ReadFile(filepath.Join(root, "attempts"))
+	if err != nil || string(starts) != "start\n" {
+		t.Fatalf("command starts = %q, %v", starts, err)
+	}
+}
+
+// Observe the real adapter result without replacing its subprocess or persistence.
+type schedulerGateCommandObserver struct {
+	gate.CommandRunner
+	finished chan<- error
+}
+
+func (r schedulerGateCommandObserver) RunCommand(
+	ctx context.Context, req gate.CommandRequest,
+) (gate.CommandResult, error) {
+	result, err := r.CommandRunner.RunCommand(ctx, req)
+	r.finished <- err
+	return result, err
+}
+
+func testSchedulerCancelLongGate(
+	t *testing.T, db *globaldb.GlobalDB, manager *taskpkg.Service, run looppkg.Run,
+	resolved *looppkg.ResolvedDefinition, clock func() time.Time,
+	commandFinished, coordinatorFinished <-chan error,
+) {
+	t.Helper()
+	aggregate, err := looppkg.NewService(db,
+		looppkg.DefinitionResolverFunc(func(
+			context.Context, looppkg.WorkspaceID, string, string,
+		) (*looppkg.ResolvedDefinition, error) {
+			return resolved, nil
+		}),
+		newGoalRunPolicyResolver(testHomePaths(t), nil),
+		looppkg.WithClock(clock),
+		looppkg.WithCoordinatorInterrupter(loopCoordinatorInterrupter{
+			state: &bootState{tasks: &taskRuntime{manager: manager}},
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := aggregate.CancelRun(
+		t.Context(), run.WorkspaceID, run.ID, "cancel running gate", schedulerCoordinatorActorContextForTest(t),
+	); err != nil {
+		t.Fatal(err)
+	}
+	commandErr := testutil.Receive(t, "raw gate cancellation", 5*time.Second, commandFinished)
+	if !errors.Is(commandErr, taskpkg.ErrCoordinatorInterrupted) {
+		t.Fatalf("RunCommand() error = %v, want Loop interruption cause", commandErr)
+	}
+	if err := testutil.Receive(t, "canceled coordinator settlement", 5*time.Second, coordinatorFinished); err != nil &&
+		!errors.Is(err, taskpkg.ErrCoordinatorInterrupted) {
+		t.Fatalf("StartRun() error = %v, want interrupted settlement", err)
+	}
+	current, err := db.GetLoopRunByID(t.Context(), run.ID)
+	if err != nil || current.Status != looppkg.StatusCanceled {
+		t.Fatalf("Loop after cancellation = %#v, %v", current, err)
+	}
 }

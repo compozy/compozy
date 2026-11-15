@@ -10252,7 +10252,7 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 		synctest.Test(t, func(t *testing.T) {
 			store := newInMemoryManagerStore()
 			runner := &recordingCoordinatorRunner{}
-			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
+			runner.run = func(ctx context.Context, _ RunID) (CoordinatorCompletionPlan, error) {
 				synctest.Wait()
 				store.mu.Lock()
 				store.coordinatorRunActive = func() bool { return false }
