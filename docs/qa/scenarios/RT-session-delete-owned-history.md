@@ -116,3 +116,9 @@ restore the staged history even after the reader-wait budget has elapsed.
 `TestManagerDelete` owns these regressions over the real read-only pool and SQLite. Verification
 for this change is CI-only; local tests and daemon labs are prohibited by the dispatch. This
 addition does not promote the historical manual scenario verdict.
+
+Release main-health diagnostic check: navigating away from or deleting a session cancels its
+outstanding reads. These expected cancellations must not produce MCP authority failure warnings;
+genuine resolver failures still warn and expose no additional server authority. The existing
+session-hardening browser suite keeps its sensitive-data checks on console, network and daemon logs.
+Validation for this repair is pending in main CI; no local lab was run.

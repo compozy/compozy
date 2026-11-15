@@ -2167,32 +2167,46 @@ func (c *pagedRecordingSessionCatalog) AggregateSessionsByAgent(
 
 func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	t.Parallel()
-	// Invariant: unavailable authority degrades decoration without hiding sessions or blocking stop; owner: session queries.
-	t.Run("Should preserve list and status when authority resolution fails", func(t *testing.T) {
-		t.Parallel()
-		h := newHarness(t)
-		active := createSession(t, h)
-		h.manager.SetMCPAuthorityResolver(
-			lineageAuthorityFunc(func(context.Context, string) (store.SessionPermissionPolicy, error) {
-				return store.SessionPermissionPolicy{}, errors.New("workspace config unavailable")
-			}),
-		)
-		info, err := h.manager.Status(t.Context(), active.ID)
-		if err != nil || info.ID != active.ID || len(info.Lineage.EffectiveMCPServers) != 0 {
-			t.Fatalf("status=%+v err=%v", info, err)
-		}
-		infos, err := h.manager.ListAll(t.Context())
-		if err != nil || len(infos) != 1 || infos[0].ID != active.ID {
-			t.Fatalf("list=%+v err=%v", infos, err)
-		}
-		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
-			t.Fatal(err)
-		}
-		info, err = h.manager.Status(t.Context(), active.ID)
-		if err != nil || info.State != StateStopped {
-			t.Fatalf("stopped status=%+v err=%v", info, err)
-		}
-	})
+	// Invariant: authority reads fail closed; only operational failures warn. Owner: session queries.
+	for _, tc := range []struct {
+		name string
+		err  error
+		warn bool
+	}{
+		{"Should preserve list and status when authority resolution fails", errors.New("workspace config unavailable"), true},
+		{"Should preserve list and status without warning for a canceled authority read", fmt.Errorf("workspace read: %w", context.Canceled), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			active := createSession(t, h)
+			var logs bytes.Buffer
+			h.manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+			h.manager.SetMCPAuthorityResolver(
+				lineageAuthorityFunc(func(context.Context, string) (store.SessionPermissionPolicy, error) {
+					return store.SessionPermissionPolicy{}, tc.err
+				}),
+			)
+			info, err := h.manager.Status(t.Context(), active.ID)
+			if err != nil || info.ID != active.ID || len(info.Lineage.EffectiveMCPServers) != 0 {
+				t.Fatalf("status=%+v err=%v", info, err)
+			}
+			infos, err := h.manager.ListAll(t.Context())
+			if err != nil || len(infos) != 1 || infos[0].ID != active.ID {
+				t.Fatalf("list=%+v err=%v", infos, err)
+			}
+			if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+				t.Fatal(err)
+			}
+			info, err = h.manager.Status(t.Context(), active.ID)
+			if err != nil || info.State != StateStopped {
+				t.Fatalf("stopped status=%+v err=%v", info, err)
+			}
+			if warned := strings.Contains(logs.String(), "session.mcp_authority_unavailable"); warned != tc.warn {
+				t.Fatalf("authority warning = %v, want %v: %s", warned, tc.warn, logs.String())
+			}
+		})
+	}
 
 	h := newHarness(t)
 	session := createSession(t, h)

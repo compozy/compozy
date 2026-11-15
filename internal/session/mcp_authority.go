@@ -76,6 +76,9 @@ func (m *Manager) decorateMCPAuthority(ctx context.Context, info *Info) {
 	if err := m.populateEffectiveMCPAuthority(ctx, info); err != nil {
 		info.Lineage = store.CloneSessionLineage(store.NormalizeSessionLineage(info.ID, info.Lineage))
 		info.Lineage.EffectiveMCPServers = []string{}
+		if errors.Is(err, context.Canceled) {
+			return
+		}
 		m.logger.WarnContext(ctx, "session.mcp_authority_unavailable", "session_id", info.ID,
 			"profile_id", info.ProfileID, "workspace_id", info.WorkspaceID, "error", err)
 	}

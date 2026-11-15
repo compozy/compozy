@@ -6345,3 +6345,12 @@ existing instance and lineage contracts. The existing `TestInstanceNativeCreateJ
 runtime/persisted ceiling equality; the approval transport fixture explicitly inherits the workspace
 paths before narrowing its permission level. Main CI owns validation in release mode. The affected
 QA scenario is `RT-mcp-hot-activation-lineage`; no local verification or runtime lab was run.
+
+## Release main-health: canceled authority reads
+
+Canceled session reads retain an empty effective MCP server set without logging an operational
+authority failure. Other resolver failures still warn with session/profile/workspace correlation.
+No native tool, CLI/HTTP/UDS shape, hook, extension API, config, schema, official skill or workspace
+isolation contract changes. Web navigation and deletion keep their existing request cancellation.
+`TestManagerStatusReturnsActiveAndStoredSessions` owns fail-closed reads and diagnostic behavior;
+the session-hardening Web E2E retains its unchanged sensitive-data assertions. Main CI owns validation.
