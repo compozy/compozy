@@ -20,6 +20,15 @@ const (
 // budget. Callers treat it as a final unconfirmed readback, not as a provider error.
 var errConfigSettleTimeout = errors.New("acp: config revision wait timed out")
 
+// WithModelCatalogBudget bounds the startup wait for the provider's complete model catalog.
+func WithModelCatalogBudget(budget time.Duration) Option {
+	return func(driver *Driver) {
+		if budget > 0 {
+			driver.modelCatalogBudget = budget
+		}
+	}
+}
+
 // WithConfigSettleBudget overrides how long a configuration confirmation waits for
 // the provider to publish a newer revision.
 func WithConfigSettleBudget(budget time.Duration) Option {

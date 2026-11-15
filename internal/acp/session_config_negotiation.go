@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -86,6 +87,7 @@ func (d *Driver) applySessionModel(
 	ctx context.Context,
 	process *AgentProcess,
 	preferredModel string,
+	waitForCatalog bool,
 ) (bool, error) {
 	if ctx == nil || process == nil || process.conn == nil {
 		return false, nil
@@ -95,11 +97,10 @@ func (d *Driver) applySessionModel(
 		return false, nil
 	}
 
-	caps := process.CapsSnapshot()
-	if err := ValidateModelConfigValue(caps.ConfigOptions, modelID); err != nil {
+	option, err := d.awaitSessionModelOption(ctx, process, modelID, waitForCatalog)
+	if err != nil {
 		return false, err
 	}
-	option, _ := ModelConfigOption(caps.ConfigOptions)
 	if option.ReadOnly {
 		return false, newNegotiationError(
 			NegotiationCodeModelUnavailable,
@@ -124,6 +125,66 @@ func (d *Driver) applySessionModel(
 		)
 	}
 	return true, nil
+}
+
+// awaitSessionModelOption reads the model option from the current snapshot. During the
+// fresh startup bind the provider may still be publishing its catalog in a later
+// config_option_update, so that caller waits for a newer revision; runtime switches and
+// inspection pass waitForCatalog false and reject against the snapshot they have.
+func (d *Driver) awaitSessionModelOption(
+	ctx context.Context,
+	process *AgentProcess,
+	modelID string,
+	waitForCatalog bool,
+) (SessionConfigOption, error) {
+	options := process.CapsSnapshot().ConfigOptions
+	option, ok := ModelConfigOption(options)
+	if !ok {
+		return SessionConfigOption{}, ValidateModelConfigValue(options, modelID)
+	}
+	if configOptionAllowsValue(option, modelID) {
+		return option, nil
+	}
+	if !waitForCatalog || option.ReadOnly {
+		// Discovery-only options never gain writable values after session/new.
+		return SessionConfigOption{}, ValidateModelConfigValue(options, modelID)
+	}
+
+	budget := defaultModelCatalogBudget
+	if d != nil && d.modelCatalogBudget > 0 {
+		budget = d.modelCatalogBudget
+	}
+	deadline := time.Now().Add(budget)
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+		// Capture the revision before reading the snapshot: an update that lands
+		// between the two is then already newer than the revision we wait on, so the
+		// wait returns instead of blocking for the whole budget.
+		since, _ := process.configRevisionAndChange()
+		options = process.CapsSnapshot().ConfigOptions
+		if announced, found := ModelConfigOption(options); found &&
+			configOptionAllowsValue(announced, modelID) {
+			return announced, nil
+		}
+		if err := waitForConfigRevision(ctx, process, since, remaining); err != nil {
+			if errors.Is(err, errConfigSettleTimeout) {
+				break
+			}
+			return SessionConfigOption{}, err
+		}
+	}
+
+	// The budget elapsed without an announcement: the rejection is permanent, so
+	// report it against the freshest catalog the provider did publish.
+	options = process.CapsSnapshot().ConfigOptions
+	option, ok = ModelConfigOption(options)
+	if ok && configOptionAllowsValue(option, modelID) {
+		return option, nil
+	}
+	return SessionConfigOption{}, ValidateModelConfigValue(options, modelID)
 }
 
 // ValidateModelConfigValue verifies that modelID is an exact advertised ACP model value.
