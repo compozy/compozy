@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
@@ -196,6 +197,8 @@ func loopJudgeStopCause(err error) (session.StopCause, string) {
 
 type loopGateCommandRunner struct {
 	workspaceResolver workspacepkg.RuntimeResolver
+	// shutdownGrace bounds SIGTERM before the command's process group is killed; zero uses the default.
+	shutdownGrace time.Duration
 }
 
 var _ gate.CommandRunner = loopGateCommandRunner{}
@@ -236,14 +239,14 @@ func (r loopGateCommandRunner) RunCommand(
 	}
 	// #nosec G204 -- shell composition is the authored command contract. Runtime values can reach
 	// this boundary only through command templates whose emitted actions end in shellQuote.
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = rootDir
 	cmd.Env = acp.DaemonMatchedEnv(cmd.Environ())
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err = cmd.Run()
+	err = runLoopGateCommandTree(ctx, cmd, r.shutdownGrace)
 	exitCode := 0
 	if err != nil {
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {

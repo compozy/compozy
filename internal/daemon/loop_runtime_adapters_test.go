@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -671,6 +674,68 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 			strings.TrimSpace(result.Stdout) != "TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace" {
 			t.Fatalf("daemon executable command = %#v", result)
 		}
+	})
+
+	t.Run("Should reap a SIGTERM-ignoring process tree when the gate is interrupted", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		runner := loopGateCommandRunner{
+			workspaceResolver: loopActionBinderWorkspaceResolver{byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+			}},
+			shutdownGrace: 50 * time.Millisecond,
+		}
+		errLoopCanceled := errors.New("loop run canceled")
+		ctx, cancel := context.WithCancelCause(t.Context())
+		defer cancel(nil)
+		type commandOutcome struct {
+			result gate.CommandResult
+			err    error
+		}
+		done := make(chan commandOutcome, 1)
+		go func() {
+			result, err := runner.RunCommand(ctx, gate.CommandRequest{
+				WorkspaceID: "ws-command",
+				// Both the shell and its descendant ignore SIGTERM, so only a process-group SIGKILL
+				// (never a single-pid kill) can reap the tree.
+				Command: `trap '' TERM; sh -c 'trap "" TERM; while :; do sleep 0.2; done' &` +
+					` echo $! > child.pid; wait`,
+			})
+			done <- commandOutcome{result: result, err: err}
+		}()
+		childPID := waitForLoopGateChildPID(t, filepath.Join(rootDir, "child.pid"))
+
+		cancel(errLoopCanceled)
+		var outcome commandOutcome
+		select {
+		case outcome = <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatal("RunCommand() did not return after interruption")
+		}
+		if !errors.Is(outcome.err, errLoopCanceled) {
+			t.Fatalf("RunCommand(interrupted) = %#v, %v; want the interruption cause", outcome.result, outcome.err)
+		}
+		requireLoopGateProcessGone(t, childPID)
+	})
+
+	t.Run("Should reap descendants the shell leaves running after it exits", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+			},
+		}}
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command",
+			Command:     `sleep 60 >/dev/null 2>&1 & echo $! > child.pid`,
+		})
+		if err != nil || result.ExitCode != 0 {
+			t.Fatalf("RunCommand() = %#v, %v; want exit 0", result, err)
+		}
+		requireLoopGateProcessGone(t, waitForLoopGateChildPID(t, filepath.Join(rootDir, "child.pid")))
 	})
 
 	t.Run("Should fail before execution when the workspace cannot be resolved", func(t *testing.T) {
@@ -2405,4 +2470,50 @@ func TestCreateOptionsFromProfileKeepsGrantCeiling(t *testing.T) {
 			}
 		})
 	}
+}
+
+func waitForLoopGateChildPID(t *testing.T, path string) int {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			if pid, parseErr := strconv.Atoi(strings.TrimSpace(string(data))); parseErr == nil && pid > 0 {
+				return pid
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("gate command child pid was not written to %s", path)
+	return 0
+}
+
+func requireLoopGateProcessGone(t *testing.T, pid int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if loopGateProcessReaped(pid) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("gate command descendant pid %d survived; want its process group reaped", pid)
+}
+
+// loopGateProcessReaped reports a pid that can no longer run. A zombie still answers signal 0, so
+// Linux checks its stat state instead of waiting on the reaper that inherited it.
+func loopGateProcessReaped(pid int) bool {
+	process, err := os.FindProcess(pid)
+	if err != nil || process.Signal(syscall.Signal(0)) != nil {
+		return true
+	}
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return false
+	}
+	_, state, found := strings.CutLast(string(data), ") ")
+	if !found {
+		return false
+	}
+	return strings.HasPrefix(state, "Z")
 }
