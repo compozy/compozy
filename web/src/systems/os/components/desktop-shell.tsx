@@ -182,8 +182,8 @@ type DesktopWorktreeScope = ReturnType<typeof useDesktopWorktreeScope>;
  * so they get the entry that selection comes from (`readScopeId`), the same while focus moves
  * between windows that never chose a worktree. (Attention also reads the modal's order there, for
  * the modal query it never runs.) Everything kept per window acts on the focused window itself:
- * the chrome under `FocusedWindowScope`, the sessions list and rail in
- * `FocusedSessionControlsHost`, and gestures reading the focused scope when they run.
+ * the sessions list and rail in `FocusedSessionControlsHost`, worktree-dialog writes under
+ * `FocusedWindowScope`, and gestures reading the focused scope when they run.
  */
 function DesktopShellBody(props: DesktopShellBodyProps) {
   const worktreeScope = useDesktopWorktreeScope(props.model.worktreeListing);
@@ -198,7 +198,7 @@ function DesktopShellBody(props: DesktopShellBodyProps) {
   );
 }
 
-/** The focused window's scope for the chrome below; on a focus change only its readers render. */
+/** Exact window identity for per-window controls and writes, outside the shared chrome. */
 function FocusedWindowScope({ children }: { children: ReactNode }) {
   return <WindowScopeContext value={useFocusedWorktreeScopeId()}>{children}</WindowScopeContext>;
 }
@@ -247,162 +247,162 @@ function DesktopShellScopedBody({
     client,
   });
   return (
-    <FocusedWindowScope>
+    <div
+      ref={desktopRef}
+      id="app-content"
+      data-testid="os-desktop"
+      data-first-run={firstRun ? "true" : undefined}
+      inert={firstRun}
+      tabIndex={-1}
+      // Topbar across the full width; the rail beside the desktop's tab bar and
+      // the desk below it; the compact dock tab bar takes the last row. Each
+      // dock presentation claims its own track. The grid paints the chrome, so
+      // topbar, rail and tab bar read as one surface around the inset desk panel.
+      className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-rail focus-visible:shadow-focus-inset focus-visible:outline-none"
+    >
+      <DesktopMenubar
+        // Dimmed while setup blocks: readable enough to see what you unlock,
+        // never bright enough to read as available.
+        className={cn(
+          "col-span-full transition-opacity duration-shell-slow motion-reduce:transition-none",
+          firstRun && "opacity-68"
+        )}
+        // The desktop follows the destination: a project's partition, `user`
+        // for User, and the focused project's (or `global`) under All projects.
+        layoutUnbound={!model.pending && model.desktopWorkspaceId === null}
+        workspaces={model.workspaces}
+        activeWorkspace={model.activeWorkspace}
+        chip={model.chip}
+        breadthMode={model.breadthMode}
+        focus={model.focus}
+        scopePending={model.pending}
+        focusWorkspaceName={model.rememberedWorkspace?.name ?? null}
+        onToggleAllProjects={model.toggleAllProjects}
+        onSelectWorkspace={workspaceId =>
+          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeOf() })
+        }
+        onFocusUser={() => model.focusDestination({ kind: "user" })}
+        onEnableAllProjects={model.enableAllProjects}
+        onAddWorkspace={model.openWorkspaceSetup}
+        onRunCommand={commandId => void paletteDispatch.runById(commandId)}
+        activeOverlay={overlays.activeOverlay}
+        onOverlayOpenChange={overlays.setOverlayOpen}
+        attention={attention}
+        update={update}
+        worktreesByWorkspace={worktreesByWorkspace}
+        workingSessionsByWorkspace={workingSessionsByWorkspace}
+        userHomeDir={model.userHomeDir}
+        worktreeSelection={worktreeSelection}
+        onSelectWorktree={(workspaceId, entry) => {
+          // A discovered row is the adoption gesture; anything else scopes.
+          if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
+          if (entry.worktree) {
+            selectWorktreeForScope(worktreeScopeOf(), workspaceId, entry.worktree.id);
+          }
+        }}
+        onCreateWorktree={model.openWorktreeCreate}
+        onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
+        onOpenWorktreeContext={worktreeDialogs.requestContext}
+        onRemoveWorktree={worktreeDialogs.requestRemove}
+        onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
+        pager={
+          <DesktopIndicatorsSurface
+            activeDesktopId={pager.activeDesktopId}
+            desktops={pager.desktops}
+            needsYouDesktopIds={pager.needsYouDesktopIds}
+            canSwitchDesktop={pager.canSwitchDesktop}
+            onSelectDesktop={desktopId => manager.switchDesktop(desktopId)}
+            onOpenOverview={onOpenDesktopOverview}
+          />
+        }
+      />
+      <ShellDesktopDock
+        dormant={firstRun}
+        onNewSession={openNewSession}
+        badges={attention.badges}
+        contextMenusEnabled={overlays.activeOverlay === null}
+        profileSwitcher={
+          <ProfileSwitcherSlot
+            onOpenSettings={() => void paletteDispatch.runById("settings.profiles")}
+          />
+        }
+        onOpenSettings={() => void paletteDispatch.runById("settings.general")}
+      />
+      <OsTabBar
+        className={cn(
+          "row-start-2 min-w-0",
+          desktop.presentation === "compact" ? "col-span-full" : "col-start-2"
+        )}
+      />
       <div
-        ref={desktopRef}
-        id="app-content"
-        data-testid="os-desktop"
-        data-first-run={firstRun ? "true" : undefined}
-        inert={firstRun}
-        tabIndex={-1}
-        // Topbar across the full width; the rail beside the desktop's tab bar and
-        // the desk below it; the compact dock tab bar takes the last row. Each
-        // dock presentation claims its own track. The grid paints the chrome, so
-        // topbar, rail and tab bar read as one surface around the inset desk panel.
-        className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-rail focus-visible:shadow-focus-inset focus-visible:outline-none"
+        data-slot="os-desk"
+        className={cn(
+          // The desk is a panel inset into the chrome: a hairline where it meets
+          // the tab bar and rail, flush with the window's right and bottom edges.
+          // It clips its children so split panes follow the rounded corner; the
+          // desk layer sits inside the border, so projection never sees it. The
+          // upgrade notice takes its height above the content area.
+          "relative row-start-3 flex min-h-0 flex-col overflow-hidden border-t border-line",
+          desktop.presentation !== "compact"
+            ? "col-start-2 rounded-tl-lg border-l"
+            : "col-span-full"
+        )}
       >
-        <DesktopMenubar
-          // Dimmed while setup blocks: readable enough to see what you unlock,
-          // never bright enough to read as available.
-          className={cn(
-            "col-span-full transition-opacity duration-shell-slow motion-reduce:transition-none",
-            firstRun && "opacity-68"
-          )}
-          // The desktop follows the destination: a project's partition, `user`
-          // for User, and the focused project's (or `global`) under All projects.
-          layoutUnbound={!model.pending && model.desktopWorkspaceId === null}
-          workspaces={model.workspaces}
-          activeWorkspace={model.activeWorkspace}
-          chip={model.chip}
-          breadthMode={model.breadthMode}
-          focus={model.focus}
-          scopePending={model.pending}
-          focusWorkspaceName={model.rememberedWorkspace?.name ?? null}
-          onToggleAllProjects={model.toggleAllProjects}
-          onSelectWorkspace={workspaceId =>
-            model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeOf() })
-          }
-          onFocusUser={() => model.focusDestination({ kind: "user" })}
-          onEnableAllProjects={model.enableAllProjects}
-          onAddWorkspace={model.openWorkspaceSetup}
-          onRunCommand={commandId => void paletteDispatch.runById(commandId)}
-          activeOverlay={overlays.activeOverlay}
-          onOverlayOpenChange={overlays.setOverlayOpen}
-          attention={attention}
-          update={update}
-          worktreesByWorkspace={worktreesByWorkspace}
-          workingSessionsByWorkspace={workingSessionsByWorkspace}
-          userHomeDir={model.userHomeDir}
-          worktreeSelection={worktreeSelection}
-          onSelectWorktree={(workspaceId, entry) => {
-            // A discovered row is the adoption gesture; anything else scopes.
-            if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
-            if (entry.worktree) {
-              selectWorktreeForScope(worktreeScopeOf(), workspaceId, entry.worktree.id);
-            }
-          }}
-          onCreateWorktree={model.openWorktreeCreate}
-          onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
-          onOpenWorktreeContext={worktreeDialogs.requestContext}
-          onRemoveWorktree={worktreeDialogs.requestRemove}
-          onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
-          pager={
-            <DesktopIndicatorsSurface
-              activeDesktopId={pager.activeDesktopId}
-              desktops={pager.desktops}
-              needsYouDesktopIds={pager.needsYouDesktopIds}
-              canSwitchDesktop={pager.canSwitchDesktop}
-              onSelectDesktop={desktopId => manager.switchDesktop(desktopId)}
-              onOpenOverview={onOpenDesktopOverview}
+        <OsUpgradeNotice />
+        <div data-slot="os-desk-content" className="relative min-h-0 flex-1">
+          <OsWallpaper wallpaper={desktop.wallpaper} />
+          <DaemonRecoveryNoticeHost className="absolute top-3 left-1/2 z-30 w-[min(42rem,calc(100%-1.5rem))] -translate-x-1/2 shadow-pop" />
+          {model.activeWorkspaceId !== null ? (
+            <WorkspaceProfilesHint
+              hints={model.workspaceProfileHints}
+              workspaceId={model.activeWorkspaceId}
             />
-          }
-        />
-        <ShellDesktopDock
-          dormant={firstRun}
-          onNewSession={openNewSession}
-          badges={attention.badges}
-          contextMenusEnabled={overlays.activeOverlay === null}
-          profileSwitcher={
-            <ProfileSwitcherSlot
-              onOpenSettings={() => void paletteDispatch.runById("settings.profiles")}
-            />
-          }
-          onOpenSettings={() => void paletteDispatch.runById("settings.general")}
-        />
-        <OsTabBar
-          className={cn(
-            "row-start-2 min-w-0",
-            desktop.presentation === "compact" ? "col-span-full" : "col-start-2"
-          )}
-        />
-        <div
-          data-slot="os-desk"
-          className={cn(
-            // The desk is a panel inset into the chrome: a hairline where it meets
-            // the tab bar and rail, flush with the window's right and bottom edges.
-            // It clips its children so split panes follow the rounded corner; the
-            // desk layer sits inside the border, so projection never sees it. The
-            // upgrade notice takes its height above the content area.
-            "relative row-start-3 flex min-h-0 flex-col overflow-hidden border-t border-line",
-            desktop.presentation !== "compact"
-              ? "col-start-2 rounded-tl-lg border-l"
-              : "col-span-full"
-          )}
-        >
-          <OsUpgradeNotice />
-          <div data-slot="os-desk-content" className="relative min-h-0 flex-1">
-            <OsWallpaper wallpaper={desktop.wallpaper} />
-            <DaemonRecoveryNoticeHost className="absolute top-3 left-1/2 z-30 w-[min(42rem,calc(100%-1.5rem))] -translate-x-1/2 shadow-pop" />
-            {model.activeWorkspaceId !== null ? (
-              <WorkspaceProfilesHint
-                hints={model.workspaceProfileHints}
-                workspaceId={model.activeWorkspaceId}
-              />
-            ) : null}
-            {desktop.windowIds.map(windowId => (
-              <OsAppPreloader key={windowId} windowId={windowId} />
-            ))}
-            <LiveOsDeskLayer
-              reducedMotion={reducedMotion}
-              transition={transition}
-              onTransitionComplete={onTransitionComplete}
-            />
-          </div>
+          ) : null}
+          {desktop.windowIds.map(windowId => (
+            <OsAppPreloader key={windowId} windowId={windowId} />
+          ))}
+          <LiveOsDeskLayer
+            reducedMotion={reducedMotion}
+            transition={transition}
+            onTransitionComplete={onTransitionComplete}
+          />
         </div>
-        <DesktopManagerSurfaces
-          // The overview covers the tab bar and the desk, as the window-desktops prototype does.
-          className={cn(
-            "row-span-2 row-start-2",
-            desktop.presentation !== "compact" ? "col-start-2 rounded-tl-lg" : "col-span-full"
-          )}
-          model={managerSurfaces}
-          needsYouDesktopIds={pager.needsYouDesktopIds}
-          switchShortcuts={desktopSwitchShortcuts}
-          onCreateDesktop={() => manager.createDesktop()}
-          onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
-          onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
-          onReorderDesktop={(desktopId, order) => manager.reorderDesktop(desktopId, order)}
-          onDeleteDesktop={(desktopId, destinationId) =>
-            manager.deleteDesktop(desktopId, destinationId)
-          }
-          onMoveTab={(windowId, destinationDesktopId) =>
-            manager.moveWindowToDesktop(windowId, destinationDesktopId)
-          }
-          onOpenChange={onDesktopManagerOpenChange}
-          onRetry={() => manager.refreshSnapshot()}
-          onResolveConflict={() => {
-            manager.clearConflict();
-            manager.refreshSnapshot();
-          }}
-        />
-        {/* Route matches mount here as sync-controllers; they render null. */}
-        <Outlet />
-        <OsCommandPalette
-          client={client}
-          open={overlays.activeOverlay === "palette"}
-          onOpenChange={open => overlays.setOverlayOpen("palette", open)}
-          dispatch={paletteDispatch}
-        />
+      </div>
+      <DesktopManagerSurfaces
+        // The overview covers the tab bar and the desk, as the window-desktops prototype does.
+        className={cn(
+          "row-span-2 row-start-2",
+          desktop.presentation !== "compact" ? "col-start-2 rounded-tl-lg" : "col-span-full"
+        )}
+        model={managerSurfaces}
+        needsYouDesktopIds={pager.needsYouDesktopIds}
+        switchShortcuts={desktopSwitchShortcuts}
+        onCreateDesktop={() => manager.createDesktop()}
+        onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
+        onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
+        onReorderDesktop={(desktopId, order) => manager.reorderDesktop(desktopId, order)}
+        onDeleteDesktop={(desktopId, destinationId) =>
+          manager.deleteDesktop(desktopId, destinationId)
+        }
+        onMoveTab={(windowId, destinationDesktopId) =>
+          manager.moveWindowToDesktop(windowId, destinationDesktopId)
+        }
+        onOpenChange={onDesktopManagerOpenChange}
+        onRetry={() => manager.refreshSnapshot()}
+        onResolveConflict={() => {
+          manager.clearConflict();
+          manager.refreshSnapshot();
+        }}
+      />
+      {/* Route matches mount here as sync-controllers; they render null. */}
+      <Outlet />
+      <OsCommandPalette
+        client={client}
+        open={overlays.activeOverlay === "palette"}
+        onOpenChange={open => overlays.setOverlayOpen("palette", open)}
+        dispatch={paletteDispatch}
+      />
+      <FocusedWindowScope>
         <FocusedSessionControlsHost
           controlsRef={sessionControls}
           dataScope={model.dataScope}
@@ -414,86 +414,87 @@ function DesktopShellScopedBody({
           attentionDisconnected={attention.sessionsDisconnected}
           onNewSession={options => sessionCreate.openForAgent("", options)}
         />
-        <OsShortcutsDialog
-          open={overlays.activeOverlay === "shortcuts"}
-          onOpenChange={open => overlays.setOverlayOpen("shortcuts", open)}
-        />
-        <ProcessesLeftRunningHost
-          open={overlays.activeOverlay === "left-running"}
-          onOpenChange={open => overlays.setOverlayOpen("left-running", open)}
-        />
-        <SessionParentPickerHost />
-        <OsAboutDialog
-          open={overlays.activeOverlay === "about"}
-          onOpenChange={open => overlays.setOverlayOpen("about", open)}
-        />
-        <OsWorkspacesOverview
-          open={overlays.activeOverlay === "workspaces"}
-          onOpenChange={open => overlays.setOverlayOpen("workspaces", open)}
-          shortcutLabels={{
-            picker: shortcutLabels.workspacePicker,
-            globalScope: shortcutLabels.globalScope,
-          }}
-          workspaces={model.workspaces}
-          activeWorkspaceId={model.activeWorkspaceId}
-          onSelectWorkspace={workspaceId =>
-            model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeOf() })
+      </FocusedWindowScope>
+      <OsShortcutsDialog
+        open={overlays.activeOverlay === "shortcuts"}
+        onOpenChange={open => overlays.setOverlayOpen("shortcuts", open)}
+      />
+      <ProcessesLeftRunningHost
+        open={overlays.activeOverlay === "left-running"}
+        onOpenChange={open => overlays.setOverlayOpen("left-running", open)}
+      />
+      <SessionParentPickerHost />
+      <OsAboutDialog
+        open={overlays.activeOverlay === "about"}
+        onOpenChange={open => overlays.setOverlayOpen("about", open)}
+      />
+      <OsWorkspacesOverview
+        open={overlays.activeOverlay === "workspaces"}
+        onOpenChange={open => overlays.setOverlayOpen("workspaces", open)}
+        shortcutLabels={{
+          picker: shortcutLabels.workspacePicker,
+          globalScope: shortcutLabels.globalScope,
+        }}
+        workspaces={model.workspaces}
+        activeWorkspaceId={model.activeWorkspaceId}
+        onSelectWorkspace={workspaceId =>
+          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeOf() })
+        }
+        onNewWorkspace={model.openWorkspaceSetup}
+        reducedMotion={reducedMotion}
+        worktreesByWorkspace={worktreesByWorkspace}
+        workingSessionsByWorkspace={workingSessionsByWorkspace}
+        userHomeDir={model.userHomeDir}
+        selectedWorktreeId={worktreeSelection.selectedWorktreeId}
+        onSelectWorktree={(workspaceId, entry) => {
+          if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
+          if (entry.worktree) {
+            selectWorktreeForScope(worktreeScopeOf(), workspaceId, entry.worktree.id);
           }
-          onNewWorkspace={model.openWorkspaceSetup}
-          reducedMotion={reducedMotion}
-          worktreesByWorkspace={worktreesByWorkspace}
-          workingSessionsByWorkspace={workingSessionsByWorkspace}
-          userHomeDir={model.userHomeDir}
-          selectedWorktreeId={worktreeSelection.selectedWorktreeId}
-          onSelectWorktree={(workspaceId, entry) => {
-            if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
-            if (entry.worktree) {
-              selectWorktreeForScope(worktreeScopeOf(), workspaceId, entry.worktree.id);
-            }
-          }}
-          onCreateWorktree={model.openWorktreeCreate}
-          onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
-          onRemoveWorktree={worktreeDialogs.requestRemove}
-          onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
-        />
-        <WorkspaceSetupDialogBoundary
-          defaults={workspaceSetupDefaults}
-          onOpenChange={model.setWorkspaceSetupOpen}
-          onWorkspaceResolved={model.setActiveWorkspaceId}
-          open={model.isWorkspaceSetupOpen}
-        />
+        }}
+        onCreateWorktree={model.openWorktreeCreate}
+        onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
+        onRemoveWorktree={worktreeDialogs.requestRemove}
+        onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
+      />
+      <WorkspaceSetupDialogBoundary
+        defaults={workspaceSetupDefaults}
+        onOpenChange={model.setWorkspaceSetupOpen}
+        onWorkspaceResolved={model.setActiveWorkspaceId}
+        open={model.isWorkspaceSetupOpen}
+      />
+      <FocusedWindowScope>
         <DesktopWorktreeDialogs model={model} worktreeDialogs={worktreeDialogs} />
-        <AgentCreateScreen
-          instanceCapacity={model.agentCreate.instanceCapacity}
-          draft={model.agentCreate.draft}
-          duplicateSourceName={model.agentCreate.duplicateSourceName}
-          entrySeed={model.agentCreate.entrySeed}
-          hasActiveWorkspace={model.agentCreate.hasActiveWorkspace}
-          isSubmitting={model.agentCreate.isSubmitting}
-          modelCatalogError={model.agentCreate.modelCatalogError}
-          modelCatalogLoading={model.agentCreate.modelCatalogLoading}
-          modelCatalogRefreshing={model.agentCreate.modelCatalogRefreshing}
-          onDraftChange={model.agentCreate.onDraftChange}
-          onOpenChange={model.agentCreate.onOpenChange}
-          onOpenCreatedAgent={model.agentCreate.onOpenCreatedAgent}
-          onOpenProviderSettings={model.agentCreate.onOpenProviderSettings}
-          onRefreshCatalog={model.agentCreate.onRefreshCatalog}
-          onSubmit={model.agentCreate.onSubmit}
-          open={model.agentCreate.open}
-          providerOptions={model.agentCreate.providerOptions}
-          providersError={model.agentCreate.providersError}
-          providersLoading={model.agentCreate.providersLoading}
-          runtimeModels={model.agentCreate.runtimeModels}
-          startFailure={model.agentCreate.startFailure}
-          submitError={model.agentCreate.submitError}
-          takenNames={model.agentCreate.takenNames}
-          workspaceName={model.agentCreate.workspaceName}
-          workspaces={model.agentCreate.workspaces}
-        />
-        {/* Profile lifecycle dialogs live at the shell so a flow started from the
-          command palette does not depend on Settings being open. */}
-        <ProfileLifecycleHost {...profileLifecycleActions} />
-      </div>
-    </FocusedWindowScope>
+      </FocusedWindowScope>
+      <AgentCreateScreen
+        instanceCapacity={model.agentCreate.instanceCapacity}
+        draft={model.agentCreate.draft}
+        duplicateSourceName={model.agentCreate.duplicateSourceName}
+        entrySeed={model.agentCreate.entrySeed}
+        hasActiveWorkspace={model.agentCreate.hasActiveWorkspace}
+        isSubmitting={model.agentCreate.isSubmitting}
+        modelCatalogError={model.agentCreate.modelCatalogError}
+        modelCatalogLoading={model.agentCreate.modelCatalogLoading}
+        modelCatalogRefreshing={model.agentCreate.modelCatalogRefreshing}
+        onDraftChange={model.agentCreate.onDraftChange}
+        onOpenChange={model.agentCreate.onOpenChange}
+        onOpenCreatedAgent={model.agentCreate.onOpenCreatedAgent}
+        onOpenProviderSettings={model.agentCreate.onOpenProviderSettings}
+        onRefreshCatalog={model.agentCreate.onRefreshCatalog}
+        onSubmit={model.agentCreate.onSubmit}
+        open={model.agentCreate.open}
+        providerOptions={model.agentCreate.providerOptions}
+        providersError={model.agentCreate.providersError}
+        providersLoading={model.agentCreate.providersLoading}
+        runtimeModels={model.agentCreate.runtimeModels}
+        startFailure={model.agentCreate.startFailure}
+        submitError={model.agentCreate.submitError}
+        takenNames={model.agentCreate.takenNames}
+        workspaceName={model.agentCreate.workspaceName}
+        workspaces={model.agentCreate.workspaces}
+      />
+      {/* Profile lifecycle dialogs stay available without opening Settings. */}
+      <ProfileLifecycleHost {...profileLifecycleActions} />
+    </div>
   );
 }
