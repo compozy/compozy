@@ -17,6 +17,7 @@ import (
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -820,19 +821,19 @@ func assertTerminalApprovalCorrelation(
 		applied.Approval != "approved_once" {
 		t.Fatalf("approval application correlation = %#v, found=%t", applied, found)
 	}
-	events, err := harness.SessionEvents(ctx, sessionID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	approved := false
-	for _, event := range decodeAgentEvents(t, events.Events) {
-		if event.RequestID == requestID && event.Decision == "allow-once" {
-			approved = true
+	// The prompt pump persists the permission transcript independently of tool completion.
+	testutil.Eventually(t, "operator decision for applied approval request", 5*time.Second, func() bool {
+		events, err := harness.SessionEvents(ctx, sessionID)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	if !approved {
-		t.Fatal("missing operator decision for applied approval request")
-	}
+		for _, event := range decodeAgentEvents(t, events.Events) {
+			if event.RequestID == requestID && event.Decision == "allow-once" {
+				return true
+			}
+		}
+		return false
+	})
 	var logs compozycontract.LogsListResponse
 	if err := harness.UDSJSON(
 		ctx,
