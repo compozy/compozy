@@ -113,8 +113,12 @@ func WaitForCommandProcessGroupExit(cmd *exec.Cmd, timeout time.Duration) error 
 	return WaitForProcessGroupIDExit(pgid, timeout)
 }
 
-// WaitForProcessGroupIDExit waits until no running members remain in the process group.
+// WaitForProcessGroupIDExit blocks until the process group identified by pgid no longer exists.
 func WaitForProcessGroupIDExit(pgid int, timeout time.Duration) error {
+	return waitForProcessGroupIDExit(pgid, timeout, false)
+}
+
+func waitForProcessGroupIDExit(pgid int, timeout time.Duration, killed bool) error {
 	if pgid <= 0 {
 		return fmt.Errorf("procutil: invalid process group id %d", pgid)
 	}
@@ -133,7 +137,7 @@ func WaitForProcessGroupIDExit(pgid int, timeout time.Duration) error {
 		if err != nil && !errors.Is(err, syscall.EPERM) {
 			return fmt.Errorf("check process group (pid %d): %w", pgid, err)
 		}
-		if err == nil && runtime.GOOS == "linux" {
+		if err == nil && killed && runtime.GOOS == "linux" {
 			members, enumerationErr := linuxProcessGroupMembers(pgid)
 			if enumerationErr == nil && len(members) == 0 {
 				return nil
@@ -158,7 +162,8 @@ func KillCommandProcessGroupAndWait(cmd *exec.Cmd, timeout time.Duration) error 
 // KillProcessGroupIDAndWait forcefully terminates any remaining members of a process group.
 func KillProcessGroupIDAndWait(pgid int, timeout time.Duration) error {
 	signalErr := SignalProcessGroupID(pgid, syscall.SIGKILL)
-	waitErr := WaitForProcessGroupIDExit(pgid, timeout)
+	// After successful SIGKILL, remaining zombies cannot fork another member.
+	waitErr := waitForProcessGroupIDExit(pgid, timeout, signalErr == nil)
 	return joinProcessGroupKillResult(signalErr, waitErr)
 }
 
@@ -199,6 +204,20 @@ func signalProcessGroupMembersLinux(pgid int, sig syscall.Signal, ignoreMissing 
 		waitForLinuxDescendantsToExit(pgid, processGroupDrainDeadline)
 	}
 
+	// Only SIGKILL may be repeated without shortening a descendant's grace period.
+	if sig != syscall.SIGKILL {
+		delivered, err := signalPID(pgid, sig, ignoreMissing)
+		if err != nil {
+			if errors.Is(err, syscall.ESRCH) && signaled {
+				return nil
+			}
+			return err
+		}
+		if delivered || ignoreMissing {
+			return nil
+		}
+		return syscall.ESRCH
+	}
 	// A leader can replace a signaled child while descendants drain.
 	if err := syscall.Kill(-pgid, sig); err != nil {
 		if errors.Is(err, syscall.ESRCH) && (signaled || ignoreMissing) {

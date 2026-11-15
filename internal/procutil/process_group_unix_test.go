@@ -124,23 +124,46 @@ func TestSignalProcessGroupIDStrict(t *testing.T) {
 			"sleep 600 & child=$!; echo $child; wait $child; sleep 600 & wait",
 		)
 		group.readPID(t)
-		if err := SignalProcessGroupIDStrict(group.pgid, syscall.SIGKILL); err != nil {
+		if err := KillProcessGroupIDAndWait(group.pgid, time.Second); err != nil {
 			t.Fatal(err)
 		}
-		if err := WaitForProcessGroupIDExit(group.pgid, time.Second); err != nil {
+	})
+
+	// Invariant: a catchable signal is delivered once per existing group member.
+	// Owning layer/canonical suite: procutil real-process group signaling.
+	t.Run("Should preserve one graceful signal delivery to a surviving descendant", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("ordered descendant signaling is Linux-specific")
+		}
+		child := `n=0
+trap 'n=$((n+1))' TERM
+trap 'echo "$n"' USR1
+echo $$
+while :; do read hold <&3; done`
+		script := "sh -c '" + strings.ReplaceAll(child, "'", "'\"'\"'") + "' & wait"
+		group := startNicenessProcessGroup(t, script)
+		pid := group.readPID(t)
+		if err := SignalProcessGroupIDStrict(group.pgid, syscall.SIGTERM); err != nil {
 			t.Fatal(err)
+		}
+		if err := Signal(pid, syscall.SIGUSR1); err != nil {
+			t.Fatal(err)
+		}
+		if count := group.readPID(t); count != 1 {
+			t.Fatalf("descendant received %d TERM signals, want one", count)
 		}
 	})
 
 	// Invariant: an unreaped zombie cannot execute and does not keep group cleanup pending.
 	// Owning layer/canonical suite: procutil real-process group signaling.
-	t.Run("Should finish waiting for an exited group before its leader is reaped", func(t *testing.T) {
+	t.Run("Should finish forced group cleanup before its leader is reaped", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS != "linux" {
 			t.Skip("zombie observation uses the Linux process table")
 		}
 		//nolint:noctx // This test retains the exited child until its cleanup Wait.
-		command := exec.Command("sh", "-c", "exit 0")
+		command := exec.Command("sh", "-c", "exec sleep 600")
 		ConfigureCommandProcessGroup(command)
 		if err := command.Start(); err != nil {
 			t.Fatal(err)
@@ -150,10 +173,12 @@ func TestSignalProcessGroupIDStrict(t *testing.T) {
 				t.Error(err)
 			}
 			if err := command.Wait(); err != nil {
-				t.Error(err)
+				if _, signaled := errors.AsType[*exec.ExitError](err); !signaled {
+					t.Error(err)
+				}
 			}
 		})
-		if err := WaitForProcessGroupIDExit(command.Process.Pid, time.Second); err != nil {
+		if err := KillProcessGroupIDAndWait(command.Process.Pid, time.Second); err != nil {
 			t.Fatal(err)
 		}
 	})
