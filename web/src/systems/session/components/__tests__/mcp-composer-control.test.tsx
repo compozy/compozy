@@ -46,7 +46,9 @@ describe("MCPComposerControl", () => {
     });
 
     const trigger = screen.getByRole("button", { name: "MCP servers: 3 ready, 1 need you" });
-    expect(trigger).toHaveTextContent("MCP3");
+    // Icon-only: the counts live in the name, and the attention dot stands in for the old warning tint.
+    expect(trigger.textContent).toBe("");
+    expect(trigger).toHaveAttribute("data-marker", "attention");
     await user.click(trigger);
     expect(onOpenChange).toHaveBeenLastCalledWith(true);
 

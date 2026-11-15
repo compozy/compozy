@@ -315,11 +315,11 @@ export function SessionComposerActionRow({
           {runtimeControl}
           {environmentControl}
           {contextControl}
-          {mcpControl}
           {subagentControl}
           {monitorControl}
           {processControl}
           {attachControl}
+          {mcpControl}
         </div>
       ) : null}
       {canPrompt ? <SessionComposerEnterHintLabel enterHint={actionState.enterHint} /> : null}

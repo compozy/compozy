@@ -466,6 +466,7 @@ interface ThreadStateOptions {
   liveDataEnabled?: boolean;
   contextControl?: ComponentProps<typeof SessionThread>["contextControl"];
   subagentControl?: ComponentProps<typeof SessionThread>["subagentControl"];
+  mcpControl?: ComponentProps<typeof SessionThread>["mcpControl"];
   origin?: SessionOriginContextValue | null;
   /** The Fork dialog host's request; absent outside a host ("Fork from here" hides). */
   forkRequest?: SessionForkRequest | null;
@@ -492,6 +493,7 @@ function threadStateElement(
     liveDataEnabled = true,
     contextControl,
     subagentControl,
+    mcpControl,
     origin = null,
     forkRequest = null,
     subagentNavigation = null,
@@ -556,6 +558,7 @@ function threadStateElement(
                 liveDataEnabled={liveDataEnabled}
                 contextControl={contextControl}
                 subagentControl={subagentControl}
+                mcpControl={mcpControl}
                 subagentNavigation={subagentNavigation}
               />
             </SessionForkContext>
@@ -600,22 +603,25 @@ describe("SessionThread transcript states", () => {
     ).not.toBeNull();
   });
 
-  // Invariant: the subagents control sits after the context ring and before Attach files (#766);
-  // owner: composer toolbar composition.
-  it("Should place the subagents control between the context action and Attach files", () => {
+  // Invariant: the subagents control sits after the context ring and before Attach files (#766),
+  // and the MCP control closes the tool group after Attach files; owner: composer toolbar composition.
+  it("Should order the context action, subagents, Attach files, then MCP servers", () => {
     renderThreadState({
       status: "success",
       contextControl: <button type="button">Inspect context</button>,
       subagentControl: <button type="button">Subagents</button>,
+      mcpControl: <button type="button">MCP servers</button>,
     });
     const order = [
       screen.getByRole("button", { name: "Inspect context" }),
       screen.getByRole("button", { name: "Subagents" }),
       screen.getByRole("button", { name: "Attach files" }),
+      screen.getByRole("button", { name: "MCP servers" }),
     ];
     for (const [before, after] of [
       [order[0]!, order[1]!],
       [order[1]!, order[2]!],
+      [order[2]!, order[3]!],
     ] as const) {
       expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }

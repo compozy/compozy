@@ -264,30 +264,35 @@ export function MCPComposerControl({
   const { summary, data, failed = false } = body;
   if (summary === null) return null;
   const warn = summary.attention > 0 || data?.last_reload?.outcome === "failed";
+  const label = sessionMCPControlLabel(summary);
+  // Icon-only and neutral like its toolbar neighbours; the count lives in the name and tooltip.
+  // A dot keeps what the label no longer shows: a server that needs the operator, else a change
+  // that applies on the next message.
+  const marker = warn ? "attention" : summary.pending_reload ? "pending" : null;
   return (
     <Popover defaultOpen={defaultOpen} onOpenChange={open => onOpenChange?.(open)}>
       <PopoverTrigger
         render={
           <InputGroupButton
             type="button"
-            size="tool"
-            aria-label={sessionMCPControlLabel(summary)}
+            size="tool-icon"
+            aria-label={label}
+            title={label}
             data-testid="composer-mcp-button"
-            className={cn(
-              "relative shrink-0 data-[popup-open]:bg-surface-2",
-              warn ? "text-warning" : "text-muted-foreground"
-            )}
+            data-marker={marker ?? undefined}
+            className="relative shrink-0 data-[popup-open]:bg-surface-2"
           />
         }
       >
-        <Plug aria-hidden="true" className="size-4" />
-        <span className="text-transcript-meta">MCP</span>
-        <span className="font-mono text-mono-id tabular-nums">{summary.usable}</span>
-        {summary.pending_reload ? (
+        <Plug aria-hidden="true" />
+        {marker ? (
           <span
             aria-hidden="true"
-            data-testid="composer-mcp-pending"
-            className="absolute top-1 right-1 size-1.5 rounded-full bg-info"
+            data-testid="composer-mcp-marker"
+            className={cn(
+              "absolute top-1 right-1 size-1.5 rounded-full",
+              marker === "attention" ? "bg-warning" : "bg-info"
+            )}
           />
         ) : null}
       </PopoverTrigger>
