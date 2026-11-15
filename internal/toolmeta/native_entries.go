@@ -147,6 +147,10 @@ var nativeEntries = map[string]Entry{
 	"compozy__loop_rerun":             nativeEntry("Rerunning", " ", false, "🔁", "auto"),
 	"compozy__loop_turns":             nativeEntry("Reading", " ", false, "🔁", "auto"),
 	"compozy__loop_validate":          nativeEntry("Validating", " ", false, "🔁", "auto"),
+	"compozy__mcp_list":               nativeEntry("Reading", " ", true, "🔌", "none"),
+	"compozy__mcp_allow":              nativeEntry("Updating", " ", false, "🔌", "auto"),
+	"compozy__mcp_import":             nativeEntry("Copying", " ", false, "🔌", "auto"),
+	"compozy__session_mcp_list":       nativeEntry("Reading", " ", true, "🔌", "none"),
 	"compozy__mcp_auth_status":        nativeEntry("Reading", " ", true, "🔌", previewHintNone),
 	"compozy__mcp_status":             nativeEntry("Reading", " ", false, "🔌", "auto"),
 

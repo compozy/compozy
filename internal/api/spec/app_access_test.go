@@ -12,6 +12,7 @@ func TestAppAccessPolicy(t *testing.T) {
 	t.Parallel()
 	decisions := map[AppAccess][]string{
 		AppAccessAllowed: {
+			"getSessionMCP",
 			"findFiles",
 			"findSessionFiles",
 			"searchFileContents",
@@ -229,6 +230,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"listRuntimeMCPServers", "importRuntimeMCPServer", "putSettingsMCPApproval", "deleteSettingsMCPApproval",
 			"getAgentHeartbeatAuthority",
 			"approveAgentHeartbeatAuthority",
 			"revokeAgentHeartbeatAuthority",

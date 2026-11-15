@@ -2336,6 +2336,12 @@
         "properties": {
           "agent": {
             "$ref": "#/components/schemas/AgentPayload"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -8422,6 +8428,9 @@
             },
             "type": "array"
           },
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -8452,6 +8461,12 @@
           },
           "error": {
             "type": "string"
+          },
+          "provider_error": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "unknown_keys": {
             "items": {
@@ -14503,6 +14518,25 @@
         ],
         "type": "object"
       },
+      "Inventory": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "runtimes": {
+            "items": {
+              "$ref": "#/components/schemas/Snapshot"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "runtimes"
+        ],
+        "type": "object"
+      },
       "IssueSeverity": {
         "enum": [
           "error",
@@ -18378,6 +18412,57 @@
         ],
         "type": "object"
       },
+      "MCPReloadRecord": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "outcome",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "MCPServerRow": {
+        "properties": {
+          "callable_count": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "tool_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "callable_count",
+          "name",
+          "owner",
+          "reason",
+          "state",
+          "tool_count"
+        ],
+        "type": "object"
+      },
       "MCPServerStatusPayload": {
         "properties": {
           "auth_status": {
@@ -18427,6 +18512,25 @@
           "runtime_status",
           "scope",
           "state"
+        ],
+        "type": "object"
+      },
+      "MCPSummary": {
+        "properties": {
+          "attention": {
+            "type": "integer"
+          },
+          "pending_reload": {
+            "type": "boolean"
+          },
+          "usable": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "attention",
+          "pending_reload",
+          "usable"
         ],
         "type": "object"
       },
@@ -25133,6 +25237,84 @@
         ],
         "type": "object"
       },
+      "RuntimeMCPImportRequest": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "user",
+              "profile",
+              "workspace",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RuntimeMCPImportResponse": {
+        "properties": {
+          "mcp_server": {
+            "$ref": "#/components/schemas/SettingsMCPServerItemPayload"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Server"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "mcp_server",
+          "notes",
+          "partial",
+          "source"
+        ],
+        "type": "object"
+      },
+      "RuntimeMCPRow": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "scope",
+          "state",
+          "transport"
+        ],
+        "type": "object"
+      },
       "RuntimeMatch": {
         "properties": {
           "complexity": {
@@ -25145,6 +25327,21 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "RuntimeMode": {
+        "properties": {
+          "can_disable": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "can_disable",
+          "mode"
+        ],
         "type": "object"
       },
       "RuntimePolicy": {
@@ -25796,6 +25993,83 @@
         },
         "required": [
           "prompt"
+        ],
+        "type": "object"
+      },
+      "Server": {
+        "properties": {
+          "also_in_compozy": {
+            "type": "boolean"
+          },
+          "approval": {
+            "type": "string"
+          },
+          "auth": {
+            "type": "string"
+          },
+          "copy_blocked_reason": {
+            "type": "string"
+          },
+          "copyable": {
+            "type": "boolean"
+          },
+          "definition_digest": {
+            "type": "string"
+          },
+          "enabled_in_runtime": {
+            "type": "boolean"
+          },
+          "env_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "header_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "runtime": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "source_label": {
+            "type": "string"
+          },
+          "source_path": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "also_in_compozy",
+          "approval",
+          "auth",
+          "copy_blocked_reason",
+          "copyable",
+          "definition_digest",
+          "enabled_in_runtime",
+          "env_keys",
+          "header_keys",
+          "name",
+          "runtime",
+          "scope",
+          "source_label",
+          "source_path",
+          "target",
+          "transport"
         ],
         "type": "object"
       },
@@ -27166,6 +27440,9 @@
           "child_session_id": {
             "type": "string"
           },
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -27196,6 +27473,12 @@
           },
           "error": {
             "type": "string"
+          },
+          "provider_error": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "unknown_keys": {
             "items": {
@@ -28702,6 +28985,61 @@
         ],
         "type": "object"
       },
+      "SessionMCP": {
+        "properties": {
+          "attention": {
+            "type": "integer"
+          },
+          "compozy_servers": {
+            "items": {
+              "$ref": "#/components/schemas/MCPServerRow"
+            },
+            "type": "array"
+          },
+          "last_reload": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MCPReloadRecord"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "pending_reload": {
+            "type": "boolean"
+          },
+          "runtime": {
+            "type": "string"
+          },
+          "runtime_display_name": {
+            "type": "string"
+          },
+          "runtime_servers": {
+            "$ref": "#/components/schemas/SessionRuntimeMCP"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "usable": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "attention",
+          "compozy_servers",
+          "pending_reload",
+          "runtime",
+          "runtime_display_name",
+          "runtime_servers",
+          "session_id",
+          "usable"
+        ],
+        "type": "object"
+      },
       "SessionMonitorPayload": {
         "properties": {
           "branch": {
@@ -29071,6 +29409,19 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/SessionLinkedWorkSummary"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "mcp_summary": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MCPSummary"
               },
               {
                 "enum": [
@@ -29762,6 +30113,9 @@
           "cause": {
             "type": "string"
           },
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -29795,6 +30149,12 @@
           },
           "message": {
             "type": "string"
+          },
+          "provider_error": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "unknown_keys": {
             "items": {
@@ -30082,6 +30442,24 @@
         },
         "required": [
           "session"
+        ],
+        "type": "object"
+      },
+      "SessionRuntimeMCP": {
+        "properties": {
+          "runtime_mcp": {
+            "type": "string"
+          },
+          "servers": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeMCPRow"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "runtime_mcp",
+          "servers"
         ],
         "type": "object"
       },
@@ -32438,6 +32816,84 @@
         ],
         "type": "object"
       },
+      "SettingsMCPApprovalPayload": {
+        "properties": {
+          "approved_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile",
+          "server_name",
+          "state",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SettingsMCPApprovalRequest": {
+        "properties": {
+          "definition_digest": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition_digest",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SettingsMCPApprovalResponse": {
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/SettingsMCPApprovalPayload"
+          }
+        },
+        "required": [
+          "approval"
+        ],
+        "type": "object"
+      },
+      "SettingsMCPApprovalStatePayload": {
+        "properties": {
+          "definition_digest": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition_digest",
+          "required",
+          "state"
+        ],
+        "type": "object"
+      },
       "SettingsMCPAuthBeginRequest": {
         "properties": {
           "approve_scope_escalation": {
@@ -32448,6 +32904,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "definition_digest": {
+            "type": "string"
           },
           "mode": {
             "enum": [
@@ -32675,6 +33134,9 @@
       },
       "SettingsMCPServerItemPayload": {
         "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/SettingsMCPApprovalStatePayload"
+          },
           "args": {
             "items": {
               "type": "string"
@@ -32706,6 +33168,9 @@
                 "nullable": true
               }
             ]
+          },
+          "callable_in_sessions": {
+            "type": "boolean"
           },
           "catalog_entry": {
             "type": "string"
@@ -32798,6 +33263,8 @@
           }
         },
         "required": [
+          "approval",
+          "callable_in_sessions",
           "name",
           "scope",
           "source_metadata",
@@ -33712,6 +34179,9 @@
               }
             ]
           },
+          "runtime_mcp": {
+            "type": "string"
+          },
           "runtime_provider": {
             "type": "string"
           },
@@ -33891,6 +34361,9 @@
                 "nullable": true
               }
             ]
+          },
+          "runtime_mcp": {
+            "type": "string"
           },
           "runtime_provider": {
             "type": "string"
@@ -36801,6 +37274,56 @@
           "edge_band",
           "exit_slack",
           "repeat_ratios"
+        ],
+        "type": "object"
+      },
+      "Snapshot": {
+        "properties": {
+          "config_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "read_error": {
+            "type": "string"
+          },
+          "read_state": {
+            "type": "string"
+          },
+          "runtime": {
+            "type": "string"
+          },
+          "runtime_mcp": {
+            "$ref": "#/components/schemas/RuntimeMode"
+          },
+          "servers": {
+            "items": {
+              "$ref": "#/components/schemas/Server"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "config_files",
+          "display_name",
+          "installed",
+          "read_state",
+          "runtime",
+          "runtime_mcp",
+          "servers"
         ],
         "type": "object"
       },
@@ -40016,6 +40539,9 @@
             },
             "type": "array"
           },
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -40049,6 +40575,12 @@
           },
           "field": {
             "type": "string"
+          },
+          "provider_error": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "unknown_keys": {
             "items": {
@@ -43634,6 +44166,9 @@
       },
       "ToolErrorPayload": {
         "properties": {
+          "client_message_id": {
+            "type": "string"
+          },
           "code": {
             "enum": [
               "agent_instance_not_found",
@@ -43723,6 +44258,9 @@
                 "nullable": true
               }
             ]
+          },
+          "provider_error": {
+            "type": "string"
           },
           "reason_codes": {
             "items": {
@@ -43815,6 +44353,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "retryable": {
+            "type": "boolean"
           },
           "tool_id": {
             "type": "string"
@@ -68425,6 +68966,16 @@
             },
             "description": "Forbidden"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
+          },
           "503": {
             "content": {
               "text/html": {
@@ -78531,6 +79082,179 @@
         ]
       }
     },
+    "/api/settings/mcp-servers/{name}/approval": {
+      "delete": {
+        "operationId": "deleteSettingsMCPApproval",
+        "parameters": [
+          {
+            "description": "Configured MCP server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace ID",
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Profile name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Approval not required"
+          }
+        },
+        "summary": "Revoke workspace MCP consent",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "put": {
+        "operationId": "putSettingsMCPApproval",
+        "parameters": [
+          {
+            "description": "Configured MCP server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsMCPApprovalRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsMCPApprovalResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid MCP OAuth request or session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP OAuth runtime is unavailable"
+          }
+        },
+        "summary": "Approve an exact workspace MCP definition",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/settings/mcp-servers/{name}/auth/begin": {
       "post": {
         "operationId": "beginSettingsMCPAuth",
@@ -78634,6 +79358,16 @@
               }
             },
             "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
           },
           "500": {
             "content": {
@@ -78771,6 +79505,16 @@
             },
             "description": "MCP server or workspace not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -78896,6 +79640,16 @@
             },
             "description": "MCP server or workspace not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -79020,6 +79774,16 @@
               }
             },
             "description": "MCP server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server waiting for approval or definition changed"
           },
           "500": {
             "content": {
@@ -80047,6 +80811,207 @@
           }
         },
         "summary": "Update the background-role routing settings section",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/runtime-mcp-servers": {
+      "get": {
+        "operationId": "listRuntimeMCPServers",
+        "parameters": [
+          {
+            "description": "Select the settings scope",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "enum": [
+                "user",
+                "profile",
+                "workspace"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the workspace context",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the profile layer",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "runtime",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inventory"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid runtime or settings scope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "List runtime MCP servers from native configuration files",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/runtime-mcp-servers/{runtime}/{name}/import": {
+      "post": {
+        "operationId": "importRuntimeMCPServer",
+        "parameters": [
+          {
+            "description": "Source runtime",
+            "in": "path",
+            "name": "runtime",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "URL-escaped runtime server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeMCPImportRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeMCPImportResponse"
+                }
+              }
+            },
+            "description": "Copied, possibly with partial cleanup warnings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid import request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Runtime server or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Target name already exists"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Runtime source, transport or definition cannot be copied"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Copy a runtime MCP server into CompozyOS",
         "tags": [
           "settings"
         ],
@@ -102768,6 +103733,98 @@
           }
         },
         "summary": "Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp": {
+      "get": {
+        "operationId": "getSessionMCP",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMCP"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session MCP read model unavailable"
+          }
+        },
+        "summary": "Read session MCP availability without discovery",
         "tags": [
           "sessions"
         ],

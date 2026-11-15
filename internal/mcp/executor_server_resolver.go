@@ -11,6 +11,7 @@ import (
 
 // ResolvedServer binds one MCP config to its OAuth credential owner.
 type ResolvedServer struct {
+	ConsentScope           mcpauth.ConsentScope
 	ReadOnlyOverrideOrigin *toolspkg.MCPReadOnlyOverrideOrigin
 	Server                 compozyconfig.MCPServer
 	Target                 mcpauth.Target
@@ -41,7 +42,7 @@ func (f ServerResolverFunc) ResolveMCPServer(
 	return f(ctx, source, definitionOwner)
 }
 
-func (r ResolvedServer) overrideOrigin() toolspkg.MCPReadOnlyOverrideOrigin {
+func (r *ResolvedServer) overrideOrigin() toolspkg.MCPReadOnlyOverrideOrigin {
 	if r.ReadOnlyOverrideOrigin == nil {
 		return ""
 	}

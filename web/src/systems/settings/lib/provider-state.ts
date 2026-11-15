@@ -132,3 +132,10 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
       };
   }
 }
+
+/** The summary shows the sign-in steps while the provider waits for a login it can describe. */
+export function providerShowsLogin(provider: SettingsProviderEntry): boolean {
+  return (
+    getProviderStateView(provider).label === "needs-sign-in" && Boolean(provider.auth_status?.login)
+  );
+}

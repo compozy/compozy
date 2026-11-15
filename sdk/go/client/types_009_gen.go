@@ -442,5 +442,8 @@ type InstallExtensionResponse struct {
 // InstallExtensionSource is a daemon API value.
 type InstallExtensionSource string
 
-// InvokeStatus is a daemon API value.
-type InvokeStatus string
+// Inventory is a daemon API value.
+type Inventory struct {
+	Runtimes    []Snapshot `json:"runtimes"`
+	GeneratedAt time.Time  `json:"generated_at"`
+}

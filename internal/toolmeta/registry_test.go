@@ -224,6 +224,10 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__loop_status":            expectedNativeEntry("Reading", " ", false, "🔁", "auto"),
 		"compozy__loop_turns":             expectedNativeEntry("Reading", " ", false, "🔁", "auto"),
 		"compozy__loop_validate":          expectedNativeEntry("Validating", " ", false, "🔁", "auto"),
+		"compozy__mcp_list":               expectedNativeEntry("Reading", " ", true, "🔌", "none"),
+		"compozy__mcp_allow":              expectedNativeEntry("Updating", " ", false, "🔌", "auto"),
+		"compozy__mcp_import":             expectedNativeEntry("Copying", " ", false, "🔌", "auto"),
+		"compozy__session_mcp_list":       expectedNativeEntry("Reading", " ", true, "🔌", "none"),
 		"compozy__mcp_auth_status":        expectedNativeEntry("Reading", " ", true, "🔌", "none"),
 		"compozy__mcp_status":             expectedNativeEntry("Reading", " ", false, "🔌", "auto"),
 

@@ -144,6 +144,7 @@ type sessionResumeRun struct {
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
 	checkInToolsDisabled       bool
+	mcpAuthority               MCPAuthorityResolver
 	instanceCeiling            InstanceCeilingReader
 	instancePaused             func(context.Context, store.InstancePauseTrip) error
 	metadataCacheMu            sync.Mutex
@@ -260,7 +261,10 @@ type Manager struct {
 	toolsetCatalog               toolspkg.ToolsetCatalog
 	toolUniverse                 []toolspkg.ToolID
 	mcpResolver                  MCPResolver
+	mcpConsentFilter             MCPConsentFilter
 	hostedMCP                    HostedMCPLauncher
+	runtimeMCPInventory          RuntimeMCPInventory
+	mcpReader                    MCPReader
 	soulStore                    SoulSnapshotStore
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore

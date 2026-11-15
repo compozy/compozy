@@ -488,6 +488,7 @@ export * from "./context";
 
 export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export { SessionComposerMonitors } from "./components/session-composer-monitors";
+export { SessionComposerMCP } from "./components/session-composer-mcp";
 
 export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-provider";
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";

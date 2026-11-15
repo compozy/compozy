@@ -54,6 +54,9 @@ const (
 )
 
 type bootState struct {
+	mcpDigestKeys       vault.KeyProvider
+	runtimeMCPInventory *runtimeMCPInventory
+	sessionMCPReadModel *sessionMCPReadModel
 	agentInstances      *core.AgentInstanceAPI
 	subagents           session.SubagentService
 	cfg                 compozyconfig.Config
@@ -135,6 +138,7 @@ type bootState struct {
 	extensionEnvBindings  extensionpkg.EnvBindingStore
 	extensionInputs       extensioninput.Store
 	extensionMCP          extensionmcp.Store
+	mcpApprovals          mcpApprovalCache
 	mcpAuthGeneration     *mcpauth.MutationGeneration
 	mcpAuthStatus         toolspkg.MCPAuthStatusProvider
 	mcpRuntimeHealth      *mcppkg.RuntimeHealthRegistry
@@ -189,8 +193,13 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	bootStarted := time.Now()
 
 	state := &bootState{
+		mcpDigestKeys:       vault.NewMCPDigestKeyProvider(d.homePaths.HomeDir),
 		mcpAuthGeneration:   mcpauth.NewMutationGeneration(),
 		toolProjectionEpoch: mcppkg.NewProjectionEpoch(),
+	}
+	state.runtimeMCPInventory, err = newRuntimeMCPInventory(state.mcpDigestKeys)
+	if err != nil {
+		return fmt.Errorf("daemon: initialize MCP definition digests: %w", err)
 	}
 	cleanup := &bootCleanup{}
 	defer cleanup.run(ctx, &err)

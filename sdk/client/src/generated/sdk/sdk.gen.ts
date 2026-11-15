@@ -298,6 +298,9 @@ import type {
   DeleteSettingsHookData,
   DeleteSettingsHookErrors,
   DeleteSettingsHookResponses,
+  DeleteSettingsMCPApprovalData,
+  DeleteSettingsMCPApprovalErrors,
+  DeleteSettingsMCPApprovalResponses,
   DeleteSettingsMCPServerData,
   DeleteSettingsMCPServerErrors,
   DeleteSettingsMCPServerResponses,
@@ -653,6 +656,9 @@ import type {
   GetSessionHistoryData,
   GetSessionHistoryErrors,
   GetSessionHistoryResponses,
+  GetSessionMCPData,
+  GetSessionMCPErrors,
+  GetSessionMCPResponses,
   GetSessionOwnerData,
   GetSessionOwnerErrors,
   GetSessionOwnerResponses,
@@ -804,6 +810,9 @@ import type {
   HeartbeatAgentTaskRunData,
   HeartbeatAgentTaskRunErrors,
   HeartbeatAgentTaskRunResponses,
+  ImportRuntimeMCPServerData,
+  ImportRuntimeMCPServerErrors,
+  ImportRuntimeMCPServerResponses,
   InspectRunData,
   InspectRunErrors,
   InspectRunResponses,
@@ -978,6 +987,9 @@ import type {
   ListRolesData,
   ListRolesErrors,
   ListRolesResponses,
+  ListRuntimeMCPServersData,
+  ListRuntimeMCPServersErrors,
+  ListRuntimeMCPServersResponses,
   ListSessionChangeBasesData,
   ListSessionChangeBasesErrors,
   ListSessionChangeBasesResponses,
@@ -1227,6 +1239,9 @@ import type {
   PutSettingsHookData,
   PutSettingsHookErrors,
   PutSettingsHookResponses,
+  PutSettingsMCPApprovalData,
+  PutSettingsMCPApprovalErrors,
+  PutSettingsMCPApprovalResponses,
   PutSettingsMCPServerData,
   PutSettingsMCPServerErrors,
   PutSettingsMCPServerResponses,
@@ -6863,6 +6878,56 @@ export class settings extends HeyApiClient {
   }
 
   /**
+   * Revoke workspace MCP consent
+   */
+  public deleteSettingsMCPApproval<ThrowOnError extends boolean = true>(
+    options: Options<DeleteSettingsMCPApprovalData, ThrowOnError>
+  ): RequestResult<
+    DeleteSettingsMCPApprovalResponses,
+    DeleteSettingsMCPApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      DeleteSettingsMCPApprovalResponses,
+      DeleteSettingsMCPApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/approval",
+      ...options,
+    });
+  }
+
+  /**
+   * Approve an exact workspace MCP definition
+   */
+  public putSettingsMCPApproval<ThrowOnError extends boolean = true>(
+    options: Options<PutSettingsMCPApprovalData, ThrowOnError>
+  ): RequestResult<
+    PutSettingsMCPApprovalResponses,
+    PutSettingsMCPApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).put<
+      PutSettingsMCPApprovalResponses,
+      PutSettingsMCPApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/approval",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * Begin daemon-mediated OAuth for one MCP server
    */
   public beginSettingsMCPAuth<ThrowOnError extends boolean = true>(
@@ -7270,6 +7335,56 @@ export class settings extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/settings/roles",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List runtime MCP servers from native configuration files
+   */
+  public listRuntimeMCPServers<ThrowOnError extends boolean = true>(
+    options?: Options<ListRuntimeMCPServersData, ThrowOnError>
+  ): RequestResult<
+    ListRuntimeMCPServersResponses,
+    ListRuntimeMCPServersErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListRuntimeMCPServersResponses,
+      ListRuntimeMCPServersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/runtime-mcp-servers",
+      ...options,
+    });
+  }
+
+  /**
+   * Copy a runtime MCP server into CompozyOS
+   */
+  public importRuntimeMCPServer<ThrowOnError extends boolean = true>(
+    options: Options<ImportRuntimeMCPServerData, ThrowOnError>
+  ): RequestResult<
+    ImportRuntimeMCPServerResponses,
+    ImportRuntimeMCPServerErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ImportRuntimeMCPServerResponses,
+      ImportRuntimeMCPServerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/runtime-mcp-servers/{runtime}/{name}/import",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -9222,6 +9337,24 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session MCP availability without discovery
+   */
+  public getSessionMCP<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionMCPData, ThrowOnError>
+  ): RequestResult<GetSessionMCPResponses, GetSessionMCPErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionMCPResponses,
+      GetSessionMCPErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp",
       ...options,
     });
   }

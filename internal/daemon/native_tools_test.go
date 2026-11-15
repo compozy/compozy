@@ -773,7 +773,7 @@ type nativeOrchestrationSessionManager struct {
 	requestStopFn  func(context.Context, string, session.StopCause, string) error
 	awaitStoppedFn func(context.Context, string) (session.StopOutcome, error)
 	waitFn         func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
-	spawnFn        func(context.Context, session.SpawnOpts) (*session.Session, error)
+	spawnFn        func(context.Context, *session.SpawnOpts) (*session.Session, error)
 	spawnPromptFn  func(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error)
 	spawnWsFn      func(context.Context, string, string) (string, error)
 }
@@ -1128,7 +1128,7 @@ func (m *nativeOrchestrationSessionManager) WaitForBadge(
 
 func (m *nativeOrchestrationSessionManager) Spawn(
 	ctx context.Context,
-	opts session.SpawnOpts,
+	opts *session.SpawnOpts,
 ) (*session.Session, error) {
 	return m.spawnFn(ctx, opts)
 }
@@ -1789,8 +1789,8 @@ func TestDaemonNativeTools(t *testing.T) {
 					Waited: 25 * time.Millisecond, Revision: 7,
 				}, nil
 			},
-			spawnFn: func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
-				spawnOpts = opts
+			spawnFn: func(_ context.Context, opts *session.SpawnOpts) (*session.Session, error) {
+				spawnOpts = *opts
 				return &session.Session{
 					ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: workspaceID,
 					State: session.StateActive, Type: session.SessionTypeSpawned,
@@ -2190,7 +2190,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+			spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 				return nil, errors.New("Spawn() must not run")
 			},
 		}
@@ -2251,7 +2251,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run across workspaces")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+			spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 				return nil, errors.New("Spawn() is not part of targeted cross-workspace calls")
 			},
 		}
@@ -2310,7 +2310,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run without workspace resolution")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+			spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 				return nil, errors.New("Spawn() must not run without workspace resolution")
 			},
 		}
@@ -11451,6 +11451,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 			}
 			calls := 0
 			state := &bootState{
+				mcpDigestKeys:     vault.NewMCPDigestKeyProvider(t.TempDir()),
 				cfg:               cfg,
 				registry:          registry,
 				workspaceResolver: resolver,
@@ -11532,7 +11533,13 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		state := &bootState{cfg: cfg, registry: registry, workspaceResolver: resolver, profiles: profiles}
+		state := &bootState{
+			mcpDigestKeys:     vault.NewMCPDigestKeyProvider(t.TempDir()),
+			cfg:               cfg,
+			registry:          registry,
+			workspaceResolver: resolver,
+			profiles:          profiles,
+		}
 		if err := registry.RegisterSession(t.Context(), new(store.SessionInfo{
 			ID: "sess-approval", AgentName: "general", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
 			State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
@@ -11542,6 +11549,9 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		state.sessions = &fakeSessionManager{infos: []*session.Info{{
 			ID: "sess-approval", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
 			State: session.StateActive,
+			Lineage: &store.SessionLineage{PermissionPolicy: store.SessionPermissionPolicy{
+				ToolsMode: store.PermissionList, Tools: []string{toolspkg.ToolIDWorkspaceInfo.String()},
+			}},
 		}}}
 		daemon := &Daemon{homePaths: homePaths}
 		cleanup := &bootCleanup{}
@@ -11647,6 +11657,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		cfg := testConfig(t, homePaths)
 		skillsRegistry := newLoadedNativeSkillRegistry(t)
 		state := &bootState{
+			mcpDigestKeys:  vault.NewMCPDigestKeyProvider(t.TempDir()),
 			cfg:            cfg,
 			registry:       &recordingRegistry{},
 			skillsRegistry: skillsRegistry,
@@ -11692,6 +11703,429 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
+	// Invariant: effective inherited authority applies agent restrictions before delegation; owner: daemon policy projection.
+	t.Run("Should exclude agent denied tools and refresh native root tools", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		agent := &nativeToolPolicyAgentResolverStub{
+			agent: compozyconfig.AgentDef{
+				Name:      "restricted",
+				Provider:  "opencode",
+				Prompt:    "Restricted test agent",
+				DenyTools: []string{"compozy__session_stop", "ext__demo__blocked"},
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg, AgentResolver: agent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = func(ctx context.Context, _ toolspkg.Scope, inputs toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			ids := []toolspkg.ToolID{
+				"compozy__session_list",
+				"compozy__session_stop",
+				"compozy__mcp_list",
+				"ext__demo__blocked",
+				"ext__demo__allowed",
+			}
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(inputs, toolspkg.ToolsetCatalog{}, ids)
+			if err != nil {
+				return nil, err
+			}
+			views := make([]toolspkg.ToolView, 0, len(ids))
+			for _, id := range ids {
+				source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"}
+				backend := toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: id.String()}
+				if strings.HasPrefix(id.String(), "ext__") {
+					source = toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"}
+				}
+				d := toolspkg.Descriptor{
+					ID:          id,
+					Source:      source,
+					Backend:     backend,
+					Description: "Read",
+					InputSchema: json.RawMessage(`{"type":"object"}`),
+					Visibility:  toolspkg.VisibilityModel,
+					Risk:        toolspkg.RiskRead,
+					ReadOnly:    true,
+				}
+				decision, err := evaluator.Evaluate(ctx, toolspkg.Scope{}, d)
+				if err != nil {
+					return nil, err
+				}
+				views = append(views, toolspkg.ToolView{Descriptor: d, Decision: decision})
+			}
+			return views, nil
+		}
+		for _, mode := range []store.PermissionIntent{store.PermissionInherit, store.PermissionList} {
+			info := &session.Info{
+				ID:        "root",
+				Type:      session.SessionTypeUser,
+				AgentName: "restricted",
+				Lineage: &store.SessionLineage{
+					Kind: store.LineageKindRoot,
+					PermissionPolicy: store.SessionPermissionPolicy{
+						ToolsMode:      mode,
+						MCPServersMode: store.PermissionInherit,
+						Tools:          []string{"compozy__session_list", "compozy__session_stop", "compozy__removed"},
+					},
+				},
+			}
+			got, err := resolver.EffectiveMCPAuthority(session.WithMCPAuthoritySession(t.Context(), info), info.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if slices.Contains(got.Tools, "compozy__session_stop") || slices.Contains(got.Tools, "ext__demo__blocked") {
+				t.Fatalf("agent deny leaked: %+v", got)
+			}
+			if slices.Contains(got.Tools, "compozy__mcp_list") != (mode == store.PermissionInherit) {
+				t.Fatalf("native root tools=%+v", got)
+			}
+			if mode == store.PermissionInherit && slices.Contains(got.Tools, "compozy__removed") {
+				t.Fatal("removed native tool retained")
+			}
+			if !slices.Contains(got.Tools, "compozy__session_list") {
+				t.Fatal("allowed native tool removed")
+			}
+			if mode == store.PermissionInherit {
+				// A different child agent cannot turn inheritance into a parent-policy bypass.
+				agent.agent.DenyTools = nil
+				child := &session.Info{
+					ID:        "child",
+					Type:      session.SessionTypeSpawned,
+					AgentName: "restricted",
+					Lineage: &store.SessionLineage{
+						Kind:            store.LineageKindSpawn,
+						ParentSessionID: "root",
+						PermissionPolicy: store.SessionPermissionPolicy{
+							ToolsMode:      store.PermissionInherit,
+							MCPServersMode: store.PermissionInherit,
+							Tools:          got.Tools,
+						},
+					},
+				}
+				childAuthority, err := resolver.EffectiveMCPAuthority(
+					session.WithMCPAuthoritySession(t.Context(), child),
+					child.ID,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if failure, ok := errors.AsType[*session.SpawnPermissionError](
+					session.ValidatePermissionSubset(got, childAuthority),
+				); !ok ||
+					failure.Value != "ext__demo__blocked" {
+					t.Fatalf("an unrestricted child escaped its parent's extension ceiling: %v", failure)
+				}
+				agent.agent.DenyTools = []string{"compozy__session_stop", "ext__demo__blocked"}
+			}
+		}
+	})
+	// Invariant: list decoration resolves admitted names once per scope without rebuilding catalogs; owner: daemon read model.
+	t.Run("Should reuse one read scope and isolate authority failures", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.MCPServers = []compozyconfig.MCPServer{{Name: "live", Command: "echo"}}
+		calls := map[string]int{}
+		resolver, err := newNativeToolPolicyResolver(
+			nativeToolPolicyResolverDeps{
+				Config: &cfg,
+				WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(
+					func(_ context.Context, workspace, _ string) (workspacepkg.ResolvedAgentConfig, error) {
+						calls[workspace]++
+						if workspace == "broken" {
+							return workspacepkg.ResolvedAgentConfig{}, errors.New("invalid config")
+						}
+						return workspacepkg.ResolvedAgentConfig{Config: cfg}, nil
+					},
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			t.Fatal("session read rebuilt tool projection")
+			return nil, nil
+		}
+		ctx := resolver.MCPAuthorityReadContext(t.Context())
+		for _, workspace := range []string{"good", "broken", "good", "broken"} {
+			info := &session.Info{
+				ID:          "read",
+				Type:        session.SessionTypeUser,
+				WorkspaceID: workspace,
+				Lineage: &store.SessionLineage{
+					PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit},
+				},
+			}
+			got, err := resolver.EffectiveMCPAuthority(session.WithMCPAuthoritySession(ctx, info), info.ID)
+			if (err != nil) != (workspace == "broken") {
+				t.Fatalf("scope=%s err=%v", workspace, err)
+			}
+			if workspace == "good" && !slices.Equal(got.MCPServers, []string{"live"}) {
+				t.Fatalf("authority=%+v", got)
+			}
+		}
+		if calls["good"] != 1 || calls["broken"] != 1 {
+			t.Fatalf("scope resolutions=%v", calls)
+		}
+	})
+
+	// Invariant: live MCP authority uses only the current child row and its own admitted scope.
+	// Owner: daemon composition; canonical suite: native runtime policy resolver.
+	for _, tc := range []struct {
+		name     string
+		kind     store.LineageKind
+		mode     store.PermissionIntent
+		stored   []string
+		ancestor *[]string
+		want     []string
+	}{
+		{name: "Should let a fork inherit new scope servers without writes [UT-012]", kind: store.LineageKindFork, mode: store.PermissionInherit, want: []string{"linear", "sentry"}},
+		{name: "Should let continue inherit new scope servers without writes [UT-012]", kind: store.LineageKindContinue, mode: store.PermissionInherit, want: []string{"linear", "sentry"}},
+		{name: "Should restore a removed named server without widening [UT-015]", kind: store.LineageKindSpawn, mode: store.PermissionList, stored: []string{"linear"}, want: []string{"linear"}},
+		{name: "Should resolve a child with an archived parent from its own scope [UT-017]", kind: store.LineageKindSpawn, mode: store.PermissionList, stored: []string{"linear", "other"}, ancestor: new([]string{"linear"}), want: []string{"linear"}},
+		{name: "Should retain a list ancestor ceiling after parent deletion [UT-103]", kind: store.LineageKindSpawn, mode: store.PermissionInherit, ancestor: new([]string{"linear"}), want: []string{"linear"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := testConfig(t, testHomePaths(t))
+			cfg.Tools.Policy.ExternalDefault = "enabled"
+			info := &session.Info{
+				ID:          "child",
+				Type:        session.SessionTypeUser,
+				WorkspaceID: "child-scope",
+				ProfileID:   store.DefaultProfileID,
+				Lineage: &store.SessionLineage{
+					Kind:            tc.kind,
+					ParentSessionID: "unreadable-parent",
+					RootSessionID:   "deleted-root",
+					PermissionPolicy: store.SessionPermissionPolicy{
+						MCPServersMode:     tc.mode,
+						ToolsMode:          store.PermissionList,
+						MCPServers:         tc.stored,
+						AncestorMCPCeiling: tc.ancestor,
+					},
+				},
+			}
+			before, err := json.Marshal(info.Lineage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config:       &cfg,
+				ProfileNames: promptSkillsProfileNameResolver{store.DefaultProfileID: "default"},
+				Sessions: mcpAuthoritySessionReaderFunc(func(_ context.Context, id string) (*session.Info, error) {
+					if id != info.ID {
+						t.Fatalf("ancestor read: %s", id)
+					}
+					return info, nil
+				}),
+				WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(
+					func(_ context.Context, workspace, profile string) (workspacepkg.ResolvedAgentConfig, error) {
+						if workspace != "child-scope" || profile != "default" {
+							t.Fatalf("foreign scope: %s/%s", profile, workspace)
+						}
+						return workspacepkg.ResolvedAgentConfig{Config: cfg}, nil
+					},
+				),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The named server is absent until re-added to this scope.
+			initial, err := resolver.EffectiveMCPAuthority(t.Context(), info.ID)
+			if err != nil || len(initial.MCPServers) != 0 {
+				t.Fatalf("absent server authority=%+v err=%v", initial, err)
+			}
+			cfg.MCPServers = []compozyconfig.MCPServer{
+				{Name: "linear", Command: "test"},
+				{Name: "sentry", Command: "test"},
+			}
+			policy, err := resolver.EffectiveMCPAuthority(t.Context(), info.ID)
+			if err != nil || !slices.Equal(policy.MCPServers, tc.want) {
+				t.Fatalf("authority=%+v err=%v", policy, err)
+			}
+			after, err := json.Marshal(info.Lineage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(after, before) {
+				t.Fatal("authority evaluation rewrote lineage")
+			}
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: info.ID})
+			if err != nil || !inputs.Session.MCPByServer || !slices.Equal(inputs.Session.MCPServers, tc.want) {
+				t.Fatalf("tool gate bypassed authority: %+v, %v", inputs.Session, err)
+			}
+		})
+	}
+
+	// Invariant: listed MCP tool names cannot exceed the session's effective server set.
+	// Owner: daemon authority resolution; canonical suite: native runtime policy resolver.
+	t.Run("Should bound named MCP tools without rewriting stored intent", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.MCPServers = []compozyconfig.MCPServer{{Name: "linear", Command: "test"}}
+		stored := store.SessionPermissionPolicy{
+			MCPServersMode: store.PermissionList, MCPServers: []string{"linear"}, ToolsMode: store.PermissionList,
+			Tools: []string{"compozy__session_list", "mcp__linear__read", "mcp__sentry__read"},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+			views := []toolspkg.ToolView{}
+			for _, name := range []string{"linear", "sentry"} {
+				views = append(views, toolspkg.ToolView{Descriptor: toolspkg.Descriptor{
+					ID:     toolspkg.ToolID("mcp__" + name + "__read"),
+					Source: toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: name},
+				}})
+			}
+			return views, nil
+		}
+		ctx := session.WithMCPAuthoritySession(t.Context(), &session.Info{
+			ID: "child", Type: session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn, PermissionPolicy: stored},
+		})
+		got, err := resolver.EffectiveMCPAuthority(ctx, "child")
+		if err != nil || !slices.Equal(got.Tools, []string{"compozy__session_list", "mcp__linear__read"}) {
+			t.Fatalf("effective tools=%v err=%v", got.Tools, err)
+		}
+		if len(stored.Tools) != 3 {
+			t.Fatal("stored tool intent mutated")
+		}
+	})
+
+	// Invariant: User scope also reloads its own current profile configuration.
+	// Owner: daemon scope resolution; canonical suite: native runtime policy resolver.
+	t.Run("Should resolve live User scope rather than a boot snapshot", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		live := cfg
+		live.MCPServers = []compozyconfig.MCPServer{{Name: "new-server", Command: "test"}}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:       &cfg,
+			ProfileNames: promptSkillsProfileNameResolver{store.DefaultProfileID: "default"},
+			WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(
+				func(_ context.Context, workspace, profile string) (workspacepkg.ResolvedAgentConfig, error) {
+					if workspace != workspaceaccess.UserSelector || profile != "default" {
+						t.Fatalf("foreign scope %s/%s", profile, workspace)
+					}
+					return workspacepkg.ResolvedAgentConfig{Config: live}, nil
+				},
+			),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := session.WithMCPAuthoritySession(t.Context(), &session.Info{
+			ID:        "user",
+			ProfileID: store.DefaultProfileID,
+			Type:      session.SessionTypeUser,
+			Lineage: &store.SessionLineage{
+				PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionInherit},
+			},
+		})
+		got, err := resolver.EffectiveMCPAuthority(ctx, "user")
+		if err != nil || !slices.Equal(got.MCPServers, []string{"new-server"}) {
+			t.Fatalf("User authority=%+v err=%v", got, err)
+		}
+	})
+
+	// Invariant: only inherited tools gain newly admitted extension tools, independent of ancestors.
+	// Owner: effective tool authority; canonical suite: native runtime policy resolver (UT-106/108).
+	t.Run("Should propagate extension intent to children and legacy instances [UT-106]", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		id := toolspkg.ToolID("extension__demo__new_tool")
+		descriptor := toolspkg.Descriptor{
+			ID: id,
+			Backend: toolspkg.BackendRef{
+				Kind:        toolspkg.BackendExtensionHost,
+				ExtensionID: "demo",
+				Handler:     "new_tool",
+			},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+			Source:      toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"},
+			Visibility:  toolspkg.VisibilityModel,
+			ReadOnly:    true,
+			Risk:        toolspkg.RiskRead,
+		}
+		for _, tc := range []struct {
+			name    string
+			policy  store.SessionPermissionPolicy
+			allowed bool
+		}{
+			{"child", store.SessionPermissionPolicy{ToolsMode: store.PermissionInherit, MCPServersMode: store.PermissionInherit}, true},
+			{"legacy depth zero instance", store.DecodeInstanceCeilingIntent(store.SessionPermissionPolicy{}, 0), true},
+			{"narrowed grandchild with deleted parent [UT-108]", store.SessionPermissionPolicy{ToolsMode: store.PermissionList, MCPServersMode: store.PermissionInherit, Tools: []string{"compozy__session_list", "compozy__session_spawn"}}, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				info := &session.Info{
+					ID:   "child",
+					Type: session.SessionTypeSpawned,
+					Lineage: &store.SessionLineage{
+						Kind:             store.LineageKindSpawn,
+						ParentSessionID:  "deleted",
+						PermissionPolicy: tc.policy,
+					},
+				}
+				resolver, err := newNativeToolPolicyResolver(
+					nativeToolPolicyResolverDeps{Config: &cfg, Sessions: &nativeToolPolicySessionStub{info: info}},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				enabled := false
+				resolver.scopeTools = func(_ context.Context, scope toolspkg.Scope, _ toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+					if scope.SessionID != "" {
+						t.Fatal("scope tool enumeration included child restriction")
+					}
+					if !enabled {
+						return nil, nil
+					}
+					return []toolspkg.ToolView{
+						{
+							Descriptor: descriptor,
+							Decision:   toolspkg.EffectiveToolDecision{SourcePolicyResult: "allowed"},
+						},
+					}, nil
+				}
+				before, err := resolver.EffectiveMCPAuthority(t.Context(), "child")
+				if err != nil || slices.Contains(before.Tools, id.String()) {
+					t.Fatalf("unpublished tool: %+v, %v", before, err)
+				}
+				enabled = true
+				policy, err := resolver.EffectiveMCPAuthority(t.Context(), "child")
+				if err != nil || slices.Contains(policy.Tools, id.String()) != tc.allowed {
+					t.Fatalf("inherited tools=%+v, %v", policy, err)
+				}
+				inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: "child"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+					inputs,
+					toolspkg.ToolsetCatalog{},
+					[]toolspkg.ToolID{id},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+				if err != nil || decision.Callable != tc.allowed {
+					t.Fatalf("extension decision=%+v, %v", decision, err)
+				}
+			})
+		}
+	})
 
 	// Invariant: resource-backed grant names refresh independently of allocated runtime tool names.
 	// Owner: daemon policy inputs; canonical suite: native runtime policy resolver.
@@ -11700,7 +12134,11 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		cfg := testConfig(t, testHomePaths(t))
 		cfg.Tools.Policy.ExternalDefault = "enabled"
 		catalog := newResourceCatalog(cloneDaemonMCPServer)
-		state := &bootState{cfg: cfg, mcpServerCatalog: catalog}
+		state := &bootState{
+			mcpDigestKeys:    vault.NewMCPDigestKeyProvider(t.TempDir()),
+			cfg:              cfg,
+			mcpServerCatalog: catalog,
+		}
 		resolver, err := newNativeToolPolicyResolverForBoot(state)
 		if err != nil {
 			t.Fatal(err)
@@ -11836,6 +12274,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				ProfileID: store.DefaultProfileID,
 				AgentName: "coder",
 				State:     session.StateActive,
+				Lineage:   nativeRootToolLineage(),
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
@@ -12164,6 +12603,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				ProfileID: store.DefaultProfileID,
 				AgentName: "catalog-only",
 				State:     session.StateActive,
+				Lineage:   nativeRootToolLineage(),
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
@@ -12404,6 +12844,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				ID:        "sess-root",
 				AgentName: "coder",
 				State:     session.StateActive,
+				Lineage:   nativeRootToolLineage(),
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
@@ -16226,7 +16667,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	const workspaceID = "ws-orchestration"
 	const callerID = "sess-caller"
 	ttl := time.Date(2026, 8, 16, 18, 0, 0, 0, time.UTC)
-	newManager := func(spawn func(session.SpawnOpts) (*session.Session, error)) *nativeOrchestrationSessionManager {
+	newManager := func(spawn func(*session.SpawnOpts) (*session.Session, error)) *nativeOrchestrationSessionManager {
 		base := nativeTestSessionManager(workspaceID)
 		base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
 			if strings.TrimSpace(id) != callerID {
@@ -16239,10 +16680,12 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		}
 		return &nativeOrchestrationSessionManager{
 			StubSessionManager: *base,
-			spawnFn:            func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) { return spawn(opts) },
+			spawnFn: func(_ context.Context, opts *session.SpawnOpts) (*session.Session, error) {
+				return spawn(opts)
+			},
 		}
 	}
-	child := func(opts session.SpawnOpts) *session.Session {
+	child := func(opts *session.SpawnOpts) *session.Session {
 		return &session.Session{
 			ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: workspaceID, WorktreeID: opts.IsolatedWorktreeID,
 			State: session.StateActive, Type: session.SessionTypeSpawned,
@@ -16260,8 +16703,8 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		var spawnOpts session.SpawnOpts
 		var createOpts worktree.CreateOptions
 		var promptReq session.SpawnPromptRequest
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
-			spawnOpts = opts
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			spawnOpts = *opts
 			return child(opts), nil
 		})
 		manager.spawnWsFn = func(_ context.Context, parent string, ref string) (string, error) {
@@ -16336,7 +16779,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		t.Parallel()
 
 		removed := ""
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnPermissionError{
 				Field: "workspace_paths", Value: "/elsewhere", Rule: session.SpawnPermissionRuleSubset,
 			}
@@ -16387,8 +16830,8 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		const foreignID = "ws-compozy"
 		var spawnOpts session.SpawnOpts
 		deny := true
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
-			spawnOpts = opts
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			spawnOpts = *opts
 			return child(opts), nil
 		})
 		manager.spawnWsFn = func(_ context.Context, parent string, ref string) (string, error) {
@@ -16446,7 +16889,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should report an exhausted spawn budget with its cap and live count", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnLimitError{
 				Limit: session.SpawnLimitMaxChildren, Max: 5, Live: 5, Scope: callerID,
 			}
@@ -16471,7 +16914,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should keep the runtime override rule when a spawn passes model without provider", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("%w when model is set", session.ErrRuntimeOverrideProviderRequired)
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -16492,7 +16935,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should name the rejected runtime field instead of asking for a provider", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("%w: model \"gpt-test\" is not offered by claude", session.ErrInvalidRuntimeOverride)
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -16514,7 +16957,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should report a depth refusal with the subagent recovery instead of the child cap", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			return nil, &session.SpawnDepthError{Parent: callerID, ChildDepth: 2, Max: 1}
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -16540,7 +16983,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 
 		removed := ""
 		hookFailure := true
-		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
 			if hookFailure {
 				return child(opts), errors.New("spawn.created hook failed")
 			}
@@ -16590,7 +17033,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Run("Should refuse worktree and new_worktree together before spawning", func(t *testing.T) {
 		t.Parallel()
 
-		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+		manager := newManager(func(*session.SpawnOpts) (*session.Session, error) {
 			t.Fatal("Spawn() called for conflicting worktree selectors")
 			return nil, nil
 		})
@@ -18448,7 +18891,7 @@ func TestNativeSessionResultViews(t *testing.T) {
 						archived.ArchivedAt = &now
 						return &archived, nil
 					},
-					spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+					spawnFn: func(context.Context, *session.SpawnOpts) (*session.Session, error) {
 						return &session.Session{
 							ID:            "sess-child",
 							AgentName:     "general",
@@ -18883,4 +19326,21 @@ func (s *correctedOutputGrantStore) PutApprovalGrant(
 	toolspkg.ApprovalGrant,
 ) (toolspkg.ApprovalGrant, error) {
 	return s.grants[0], nil
+}
+
+type mcpAuthoritySessionReaderFunc func(context.Context, string) (*session.Info, error)
+
+func (f mcpAuthoritySessionReaderFunc) Status(ctx context.Context, id string) (*session.Info, error) {
+	return f(ctx, id)
+}
+
+func nativeRootToolLineage() *store.SessionLineage {
+	var ids []string
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		ids = append(ids, descriptor.ID.String())
+	}
+	return &store.SessionLineage{PermissionPolicy: store.SessionPermissionPolicy{
+		MCPServersMode: store.PermissionInherit, ToolsMode: store.PermissionInherit,
+		Tools: ids, MaterializedTools: true,
+	}}
 }

@@ -36,6 +36,7 @@ type HostedProjectionHandler func(HostedProjectionResponse) error
 
 // HostedProxyClient is the UDS client surface consumed by the hosted stdio proxy.
 type HostedProxyClient interface {
+	ReportHostedMCPServed(context.Context, HostedServedRequest) error
 	BindHostedMCP(ctx context.Context, req HostedBindRequest) (HostedBindResponse, error)
 	HostedMCPProjection(ctx context.Context, bindID string) (HostedProjectionResponse, error)
 	StreamHostedMCPProjection(
@@ -109,14 +110,16 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		},
 	)
 	defer hostedServerToolFingerprints.Delete(mcpServer)
+	catalog := &hostedProxyCatalog{}
+	mcpServer.AddReceivingMiddleware(catalog.middleware(client, bind.BindID))
 	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
 	mcpServer.AddReceivingMiddleware(hostedProviderProtocolVersionMiddleware())
-	applyHostedTools(mcpServer, client, bind.BindID, bind.Tools)
+	catalog.apply(mcpServer, client, bind.BindID, HostedProjectionResponse{Tools: bind.Tools, Catalog: bind.Catalog})
 
 	proxyCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var streamWG sync.WaitGroup
-	streamWG.Go(func() { streamHostedProjection(proxyCtx, client, mcpServer, bind) })
+	streamWG.Go(func() { streamHostedProjectionCatalog(proxyCtx, client, mcpServer, bind, catalog) })
 
 	err = mcpServer.Run(
 		proxyCtx,
@@ -138,6 +141,13 @@ func streamHostedProjection(
 	mcpServer *sdkmcp.Server,
 	initial HostedBindResponse,
 ) {
+	streamHostedProjectionCatalog(ctx, client, mcpServer, initial, &hostedProxyCatalog{catalog: initial.Catalog})
+}
+
+func streamHostedProjectionCatalog(
+	ctx context.Context, client HostedProxyClient, mcpServer *sdkmcp.Server,
+	initial HostedBindResponse, catalog *hostedProxyCatalog,
+) {
 	lastDigest := strings.TrimSpace(initial.Digest)
 	for {
 		err := client.StreamHostedMCPProjection(
@@ -149,7 +159,7 @@ func streamHostedProjection(
 					return nil
 				}
 				lastDigest = snapshot.Digest
-				applyHostedTools(mcpServer, client, initial.BindID, snapshot.Tools)
+				catalog.apply(mcpServer, client, initial.BindID, snapshot)
 				return nil
 			},
 		)

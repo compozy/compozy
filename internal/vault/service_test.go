@@ -266,6 +266,47 @@ func (s *memoryVaultStore) DeleteVaultSecret(_ context.Context, ref string) erro
 
 func TestServiceStoresEncryptedSecretsAndResolvesRefs(t *testing.T) {
 	t.Parallel()
+	// Invariant: MCP literal credentials round-trip byte-for-byte, while other secret kinds reject blanks.
+	// Owner: Vault; canonical suite: TestServiceStoresEncryptedSecretsAndResolvesRefs.
+	for _, value := range []string{"", " \t"} {
+		for _, kind := range []string{"mcp_env", "mcp_header"} {
+			t.Run("Should preserve blank MCP literal "+kind+value, func(t *testing.T) {
+				t.Parallel()
+				secretStore := newMemoryVaultStore()
+				keys := staticKeyProvider{key: []byte("01234567890123456789012345678901")}
+				service, err := NewService(secretStore, keys)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ref := "vault:mcp/user/copied/env/EMPTY"
+				metadata, err := service.PutSecret(t.Context(), ref, kind, value)
+				if err != nil || !metadata.Present {
+					t.Fatalf("blank MCP literal was not stored: %v", err)
+				}
+				reopened, err := NewService(secretStore, keys)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := reopened.ResolveRef(t.Context(), ref)
+				if err != nil || got != value {
+					t.Fatalf("blank MCP literal did not survive reopen: %v", err)
+				}
+				for _, target := range []struct{ ref, kind string }{{"vault:providers/custom/key", kind}, {"vault:mcp/user/copied/oauth/token", "mcp_oauth_token"}} {
+					if _, err := service.PutSecret(
+						t.Context(),
+						target.ref,
+						target.kind,
+						value,
+					); !errors.Is(
+						err,
+						ErrMissingSecret,
+					) {
+						t.Fatalf("nonliteral secret accepted blank: %v", err)
+					}
+				}
+			})
+		}
+	}
 
 	t.Run("Should store encrypted vault value and resolve vault and env refs", func(t *testing.T) {
 		t.Parallel()
@@ -614,6 +655,27 @@ func TestSecretRefValidationSupportsSessionNamespace(t *testing.T) {
 
 func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 	t.Parallel()
+	// Invariant: public MCP digests retain an installation secret across restarts; owner: local secret storage.
+	t.Run("Should persist a private independent MCP digest key", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		first, err := NewMCPDigestKeyProvider(home).Key()
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := NewMCPDigestKeyProvider(home).Key()
+		if err != nil || !bytes.Equal(first, again) {
+			t.Fatalf("restart changed key: %v", err)
+		}
+		info, err := os.Stat(filepath.Join(home, "mcp-digest.key"))
+		if err != nil || info.Mode().Perm() != 0o600 {
+			t.Fatalf("private key mode: %v", err)
+		}
+		other, err := NewMCPDigestKeyProvider(t.TempDir()).Key()
+		if err != nil || bytes.Equal(first, other) {
+			t.Fatalf("shared installation key: %v", err)
+		}
+	})
 
 	t.Run("Should load supported COMPOZY_VAULT_KEY encodings", func(t *testing.T) {
 		t.Parallel()

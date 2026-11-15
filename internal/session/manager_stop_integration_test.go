@@ -731,6 +731,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		driver := newIntegrationACPDriver(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
 		manager, err := NewManager(
 			WithHomePaths(homePaths),
+			WithRuntimeMCPInventory(runtimeMCPFileInventory{systemRoot: t.TempDir()}),
 			WithWorkspaceResolver(resolver),
 			WithDriver(NewACPDriverAdapter(driver)),
 			WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
@@ -1447,7 +1448,7 @@ func TestManagerIntegrationSpawnProviderCommandRouting(t *testing.T) {
 		h.resolver.upsert(&workspace)
 		child, err := h.manager.Spawn(
 			t.Context(),
-			SpawnOpts{ParentSessionID: parent.ID, AgentName: "child", TTL: time.Minute},
+			&SpawnOpts{ParentSessionID: parent.ID, AgentName: "child", TTL: time.Minute},
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -1455,7 +1456,7 @@ func TestManagerIntegrationSpawnProviderCommandRouting(t *testing.T) {
 		t.Cleanup(func() { stopActiveIntegrationSession(t, h, child.ID) })
 		explicit, err := h.manager.Spawn(
 			t.Context(),
-			SpawnOpts{ParentSessionID: parent.ID, AgentName: "explicit", TTL: time.Minute},
+			&SpawnOpts{ParentSessionID: parent.ID, AgentName: "explicit", TTL: time.Minute},
 		)
 		if err != nil {
 			t.Fatal(err)

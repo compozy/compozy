@@ -5,6 +5,8 @@ import mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 // MCPSecretValues is the write-only secret material submitted with an MCP server mutation.
 type MCPSecretValues struct {
 	SecretEnv         map[string]string
+	SecretHeaders     map[string]string
+	allowEmpty        bool
 	OAuthClientSecret *string
 }
 
@@ -16,7 +18,7 @@ type MCPSecretPreservation struct {
 }
 
 func (v MCPSecretValues) Empty() bool {
-	return len(v.SecretEnv) == 0 && v.OAuthClientSecret == nil
+	return len(v.SecretEnv) == 0 && len(v.SecretHeaders) == 0 && v.OAuthClientSecret == nil
 }
 
 // MCPAuthStatus is a redacted remote MCP authentication status.

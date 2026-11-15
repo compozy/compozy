@@ -30,6 +30,7 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -1123,6 +1124,7 @@ func newHeartbeatSourceRuntime(
 	h.manager, err = session.NewManager(
 		session.WithLifecycleContext(t.Context()),
 		session.WithHomePaths(home),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithDriver(session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(providers.NewPreStarter())))),
 		session.WithWorkspaceResolver(resolver),
 		session.WithAgentResolver(agents),
@@ -1143,6 +1145,15 @@ func newHeartbeatSourceRuntime(
 	if err != nil {
 		t.Fatal(err)
 	}
+	authority, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+		Config: &cfg, Sessions: h.manager, WorkspaceResolver: resolver,
+		ProfileNames: nativeProfileReaderStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.manager.SetMCPAuthorityResolver(authority)
+
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -2950,6 +2961,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 						}, nil
 					},
 				),
+				mcppkg.WithDefinitionDigestKey([]byte("test installation key")),
 				mcppkg.WithHTTPClient(remote.Client()),
 			)
 			if err != nil {
@@ -3064,8 +3076,11 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 					WorkspaceResolver: h.env.definitions.workspaces,
 					ProfileNames:      nativeProfileReaderStub{},
 					AgentResolver:     &nativeToolPolicyAgentResolverStub{agent: def},
+					MCPResourceNames:  func() map[string]string { return map[string]string{"fixture-resource": "fixture"} },
 					MCPSourceGrants: func(context.Context, tools.Scope) ([]tools.SourceGrant, error) {
-						return []tools.SourceGrant{{Kind: tools.SourceMCP, Owner: "fixture"}}, nil
+						return []tools.SourceGrant{
+							{Kind: tools.SourceMCP, Owner: "fixture", ResourceID: "fixture-resource"},
+						}, nil
 					},
 				},
 			)
@@ -3073,6 +3088,7 @@ func TestCheckInToolAuthorityIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			resolver.instanceCallers = h.db.Instances()
+			h.manager.SetMCPAuthorityResolver(resolver)
 
 			registry, err := tools.NewRegistry(
 				tools.WithProviders(provider),

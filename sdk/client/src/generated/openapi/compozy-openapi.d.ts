@@ -3677,6 +3677,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/mcp-servers/{name}/approval": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Approve an exact workspace MCP definition */
+    put: operations["putSettingsMCPApproval"];
+    post?: never;
+    /** Revoke workspace MCP consent */
+    delete: operations["deleteSettingsMCPApproval"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/mcp-servers/{name}/auth/begin": {
     parameters: {
       query?: never;
@@ -3902,6 +3920,40 @@ export interface paths {
     head?: never;
     /** Update the background-role routing settings section */
     patch: operations["updateSettingsRoles"];
+    trace?: never;
+  };
+  "/api/settings/runtime-mcp-servers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List runtime MCP servers from native configuration files */
+    get: operations["listRuntimeMCPServers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/runtime-mcp-servers/{runtime}/{name}/import": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Copy a runtime MCP server into CompozyOS */
+    post: operations["importRuntimeMCPServer"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/settings/shell": {
@@ -6794,6 +6846,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session MCP availability without discovery */
+    get: operations["getSessionMCP"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
     parameters: {
       query?: never;
@@ -8821,6 +8890,7 @@ export interface components {
     };
     AgentResponse: {
       agent: components["schemas"]["AgentPayload"];
+      warnings?: string[];
     };
     AgentSessionMetricsPayload: {
       active: number;
@@ -10437,6 +10507,7 @@ export interface components {
     };
     ErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -10445,6 +10516,8 @@ export interface components {
       };
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     ExecutionPolicy: {
@@ -12300,6 +12373,11 @@ export interface components {
       enable_error?: components["schemas"]["ExtensionEnableError"] | null;
       extension: components["schemas"]["ExtensionPayload"];
     };
+    Inventory: {
+      /** Format: date-time */
+      generated_at: string;
+      runtimes: components["schemas"]["Snapshot"][];
+    };
     /** @enum {string} */
     IssueSeverity: "error" | "warning" | "warn" | "info";
     JobPayload: {
@@ -13429,6 +13507,20 @@ export interface components {
       registration?: string;
       scopes?: string[];
     };
+    MCPReloadRecord: {
+      /** Format: date-time */
+      at: string;
+      outcome: string;
+      reason: string;
+    };
+    MCPServerRow: {
+      callable_count: number;
+      name: string;
+      owner: string;
+      reason: string;
+      state: string;
+      tool_count: number;
+    };
     MCPServerStatusPayload: {
       auth_status?: string;
       configured: boolean;
@@ -13443,6 +13535,11 @@ export interface components {
       tool_count?: number;
       transport?: string;
       workspace_id?: string;
+    };
+    MCPSummary: {
+      attention: number;
+      pending_reload: boolean;
+      usable: number;
     };
     ManagedExtensionRemovePayload: {
       data_path?: string;
@@ -15325,10 +15422,34 @@ export interface components {
       max_runtime_seconds: number;
       summary_max_bytes: number;
     };
+    RuntimeMCPImportRequest: {
+      name?: string;
+      profile?: string;
+      /** @enum {string} */
+      scope?: "user" | "profile" | "workspace" | "agent";
+      workspace_id?: string;
+    };
+    RuntimeMCPImportResponse: {
+      mcp_server: components["schemas"]["SettingsMCPServerItemPayload"];
+      notes: string[];
+      partial: boolean;
+      source: components["schemas"]["Server"];
+      warnings?: string[];
+    };
+    RuntimeMCPRow: {
+      name: string;
+      scope: string;
+      state: string;
+      transport: string;
+    };
     RuntimeMatch: {
       complexity?: string;
       id?: string;
       type?: string;
+    };
+    RuntimeMode: {
+      can_disable: boolean;
+      mode: string;
     };
     RuntimePolicy: {
       /** @enum {string} */
@@ -15504,6 +15625,24 @@ export interface components {
     };
     SendPromptResultResponse: {
       prompt: components["schemas"]["SendPromptResultPayload"];
+    };
+    Server: {
+      also_in_compozy: boolean;
+      approval: string;
+      auth: string;
+      copy_blocked_reason: string;
+      copyable: boolean;
+      definition_digest: string;
+      enabled_in_runtime: boolean;
+      env_keys: string[];
+      header_keys: string[];
+      name: string;
+      runtime: string;
+      scope: string;
+      source_label: string;
+      source_path: string;
+      target: string;
+      transport: string;
     };
     SessionActivityHealthPayload: {
       current_tool?: string;
@@ -15896,6 +16035,7 @@ export interface components {
     SessionDeriveErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       child_session_id?: string;
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -15904,6 +16044,8 @@ export interface components {
       };
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     SessionDerivePreviewResponse: {
@@ -16291,6 +16433,17 @@ export interface components {
       pull_requests: number;
       total: number;
     };
+    SessionMCP: {
+      attention: number;
+      compozy_servers: components["schemas"]["MCPServerRow"][];
+      last_reload?: components["schemas"]["MCPReloadRecord"] | null;
+      pending_reload: boolean;
+      runtime: string;
+      runtime_display_name: string;
+      runtime_servers: components["schemas"]["SessionRuntimeMCP"];
+      session_id: string;
+      usable: number;
+    };
     SessionMonitorPayload: {
       branch?: string;
       /** Format: date-time */
@@ -16384,6 +16537,7 @@ export interface components {
       later?: components["schemas"]["SessionLaterPayload"] | null;
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
       linked_work?: components["schemas"]["SessionLinkedWorkSummary"] | null;
+      mcp_summary?: components["schemas"]["MCPSummary"] | null;
       monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
       name?: string;
       parent_title?: string;
@@ -16549,6 +16703,7 @@ export interface components {
     SessionPullRequestErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       cause?: string;
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -16558,6 +16713,8 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       message: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     SessionPullRequestLookupPayload: {
@@ -16625,6 +16782,10 @@ export interface components {
     };
     SessionResponse: {
       session: components["schemas"]["SessionPayload"];
+    };
+    SessionRuntimeMCP: {
+      runtime_mcp: string;
+      servers: components["schemas"]["RuntimeMCPRow"][];
     };
     SessionRuntimePayload: {
       acp_caps?: components["schemas"]["ACPCapsPayload"] | null;
@@ -17390,9 +17551,32 @@ export interface components {
     SettingsLogTailEventPayload: {
       line: string;
     };
+    SettingsMCPApprovalPayload: {
+      /** Format: date-time */
+      approved_at?: string;
+      profile: string;
+      server_name: string;
+      state: string;
+      workspace_id: string;
+    };
+    SettingsMCPApprovalRequest: {
+      definition_digest: string;
+      profile?: string;
+      workspace_id: string;
+    };
+    SettingsMCPApprovalResponse: {
+      approval: components["schemas"]["SettingsMCPApprovalPayload"];
+    };
+    SettingsMCPApprovalStatePayload: {
+      definition_digest: string;
+      reason?: string;
+      required: boolean;
+      state: string;
+    };
     SettingsMCPAuthBeginRequest: {
       approve_scope_escalation?: boolean;
       approved_scopes?: string[];
+      definition_digest?: string;
       /** @enum {string} */
       mode: "automatic" | "manual";
     };
@@ -17462,9 +17646,11 @@ export interface components {
       };
     };
     SettingsMCPServerItemPayload: {
+      approval: components["schemas"]["SettingsMCPApprovalStatePayload"];
       args?: string[];
       auth?: components["schemas"]["SettingsMCPAuthConfigViewPayload"] | null;
       auth_status?: components["schemas"]["SettingsMCPAuthStatusPayload"] | null;
+      callable_in_sessions: boolean;
       catalog_entry?: string;
       catalog_version?: string;
       command?: string;
@@ -17749,6 +17935,7 @@ export interface components {
       harness?: string;
       home_policy?: string;
       models?: components["schemas"]["SettingsProviderModelsPayload"] | null;
+      runtime_mcp?: string;
       runtime_provider?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
@@ -17807,6 +17994,7 @@ export interface components {
       harness?: string;
       home_policy?: string;
       models?: components["schemas"]["SettingsProviderModelsPayload"] | null;
+      runtime_mcp?: string;
       runtime_provider?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
@@ -18680,6 +18868,17 @@ export interface components {
       /** Format: double */
       exit_slack: number;
       repeat_ratios: number[];
+    };
+    Snapshot: {
+      config_files: string[];
+      display_name: string;
+      installed: boolean;
+      notes?: string[];
+      read_error?: string;
+      read_state: string;
+      runtime: string;
+      runtime_mcp: components["schemas"]["RuntimeMode"];
+      servers: components["schemas"]["Server"][];
     };
     SourceOutcome: {
       /** Format: int64 */
@@ -19590,6 +19789,7 @@ export interface components {
     };
     TaskQueryErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
+      client_message_id?: string;
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -19599,6 +19799,8 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       field: string;
+      provider_error?: string;
+      retryable?: boolean;
       unknown_keys?: string[];
     };
     TaskQueueDepthPayload: {
@@ -20799,6 +21001,7 @@ export interface components {
       visibility: "internal" | "operator" | "session" | "model";
     };
     ToolErrorPayload: {
+      client_message_id?: string;
       /** @enum {string} */
       code:
         | "agent_instance_not_found"
@@ -20869,6 +21072,7 @@ export interface components {
       layer?: string;
       message: string;
       partial_result?: components["schemas"]["ToolResult"] | null;
+      provider_error?: string;
       reason_codes?: (
         | "approval_canceled"
         | "approval_rejected"
@@ -20955,6 +21159,7 @@ export interface components {
         | "worktree_not_found"
         | "worktree_not_ready"
       )[];
+      retryable?: boolean;
       tool_id?: string;
     };
     ToolErrorResponse: {
@@ -35046,6 +35251,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description MCP OAuth callback runtime is unavailable */
       503: {
         headers: {
@@ -41717,6 +41931,132 @@ export interface operations {
       };
     };
   };
+  putSettingsMCPApproval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SettingsMCPApprovalRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsMCPApprovalResponse"];
+        };
+      };
+      /** @description Invalid MCP OAuth request or session */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP OAuth runtime is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  deleteSettingsMCPApproval: {
+    parameters: {
+      query: {
+        /** @description Workspace ID */
+        workspace_id: string;
+        /** @description Profile name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Approval not required */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   beginSettingsMCPAuth: {
     parameters: {
       query: {
@@ -41772,6 +42112,15 @@ export interface operations {
       };
       /** @description MCP server or workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -41861,6 +42210,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -41938,6 +42296,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -42008,6 +42375,15 @@ export interface operations {
       };
       /** @description MCP server or workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -42767,6 +43143,136 @@ export interface operations {
       };
       /** @description Conflicting settings change */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listRuntimeMCPServers: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
+        workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
+        runtime?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Inventory"];
+        };
+      };
+      /** @description Invalid runtime or settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  importRuntimeMCPServer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Source runtime */
+        runtime: string;
+        /** @description URL-escaped runtime server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RuntimeMCPImportRequest"];
+      };
+    };
+    responses: {
+      /** @description Copied, possibly with partial cleanup warnings */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RuntimeMCPImportResponse"];
+        };
+      };
+      /** @description Invalid import request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Runtime server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Target name already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Runtime source, transport or definition cannot be copied */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -57849,6 +58355,63 @@ export interface operations {
         };
       };
       /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSessionMCP: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionMCP"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session MCP read model unavailable */
       503: {
         headers: {
           [name: string]: unknown;

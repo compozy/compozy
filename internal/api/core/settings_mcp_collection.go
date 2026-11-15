@@ -55,16 +55,18 @@ func findSettingsMCPServer(
 	name string,
 ) (settingspkg.MCPServerItem, bool) {
 	if req.Owner == "" || req.Owner == "manual" {
-		for _, item := range items {
+		for i := range items {
+			item := &items[i]
 			if vault.NormalizeMCPOwner(item.Owner) == "manual" && item.Name == name {
-				return item, true
+				return *item, true
 			}
 		}
 		return settingspkg.MCPServerItem{}, false
 	}
 	var selected settingspkg.MCPServerItem
 	selectedRank := 0
-	for _, item := range items {
+	for i := range items {
+		item := &items[i]
 		owner := vault.NormalizeMCPOwner(item.Owner)
 		if req.Owner != owner {
 			continue
@@ -74,13 +76,13 @@ func findSettingsMCPServer(
 			continue
 		}
 		if item.Name == name {
-			selected, selectedRank = item, rank
+			selected, selectedRank = *item, rank
 		}
 	}
 	return selected, selectedRank > 0
 }
 
-func settingsMCPItemScopeRank(item settingspkg.MCPServerItem, req settingspkg.CollectionRequest) int {
+func settingsMCPItemScopeRank(item *settingspkg.MCPServerItem, req settingspkg.CollectionRequest) int {
 	if item.ProfileName != req.ProfileName {
 		return 0
 	}

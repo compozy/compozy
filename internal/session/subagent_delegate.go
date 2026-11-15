@@ -32,11 +32,29 @@ func (s *subagentService) delegationPermissions(
 	if err != nil {
 		return "", store.SessionPermissionPolicy{}, err
 	}
-	mode, policy, err := subagentPermissions(parent, req, limit)
+	effectiveParent := *parent
+	effectiveParent.Lineage = store.CloneSessionLineage(store.NormalizeSessionLineage(parent.ID, parent.Lineage))
+	if resolver, ok := s.runtime.(MCPAuthorityResolver); ok {
+		policy, err := resolver.EffectiveMCPAuthority(ctx, parent.ID)
+		if err != nil {
+			return "", store.SessionPermissionPolicy{}, err
+		}
+		effectiveParent.Lineage.PermissionPolicy = policy
+	}
+	mode, policy, err := subagentPermissions(&effectiveParent, req, limit)
 	if err != nil {
 		return "", store.SessionPermissionPolicy{}, &SubagentError{
 			Code: "permission_escalation_denied", Message: err.Error(), Err: err,
 		}
+	}
+	// The effective set validates the request; only explicitly named categories become lists.
+	if req.Narrowing == nil || req.Narrowing.Tools == nil {
+		policy.ToolsMode = store.PermissionInherit
+		policy.Tools = store.NormalizeSessionLineage(parent.ID, parent.Lineage).PermissionPolicy.Tools
+	}
+	if req.Narrowing == nil || req.Narrowing.MCPServers == nil {
+		policy.MCPServersMode = store.PermissionInherit
+		policy.MCPServers = nil
 	}
 	return mode, policy, nil
 }
@@ -113,7 +131,7 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		opts.IsolatedWorktreeID = row.WorktreeState().ID
 		opts.Subagent.WorktreeID = row.WorktreeState().ID
 	}
-	return s.startDelegation(ctx, req, row, opts, finishFlight)
+	return s.startDelegation(ctx, req, row, &opts, finishFlight)
 }
 
 func subagentSpawnOptions(row store.SessionSubagent, target SubagentTarget,
@@ -147,7 +165,7 @@ func (s *subagentService) startDelegation(
 	ctx context.Context,
 	req SubagentRequest,
 	row store.SessionSubagent,
-	opts SpawnOpts,
+	opts *SpawnOpts,
 	finishFlight func(),
 ) (Subagent, error) {
 	id := row.ID

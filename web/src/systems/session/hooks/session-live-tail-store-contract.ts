@@ -34,12 +34,14 @@ export function transcriptRecoveryDelayMs(failedAttempts: number): number {
 export type SessionLiveTailFrame =
   | {
       containsClarification: boolean;
+      containsMCPChange: boolean;
       cursor: number;
       kind: "delta";
       payload: TranscriptDeltaPayload;
     }
   | {
       containsClarification: boolean;
+      containsMCPChange: boolean;
       cursor: number;
       kind: "snapshot";
       payload: TranscriptSnapshotPayload;
@@ -87,6 +89,7 @@ export interface SessionLiveTailRuntime {
   ) => Promise<SessionLiveTailBatchResult>;
   applyTerminal: (payload: SessionEventPayload | null, sequence: number) => void;
   invalidateClarifications: () => void;
+  invalidateMCP: () => void;
   invalidateCommands: () => void;
   invalidateGoal: () => void;
   /** `delta`: the trailing refresh after a burst of transcript deltas. */

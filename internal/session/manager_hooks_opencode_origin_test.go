@@ -156,7 +156,7 @@ func TestAgentPreStartHookOpenCodeLaunchOrigin(t *testing.T) {
 		}
 		collectEvents(t, events)
 
-		child, err := h.manager.Spawn(t.Context(), SpawnOpts{
+		child, err := h.manager.Spawn(t.Context(), &SpawnOpts{
 			ParentSessionID: created.ID,
 			AgentName:       "opencode-child",
 			TTL:             time.Minute,

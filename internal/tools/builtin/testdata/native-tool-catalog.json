@@ -2224,6 +2224,21 @@
     "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__mcp_allow",
+    "native_name": "mcp_allow",
+    "toolsets": [
+      "compozy__mcp"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9676d1eeff4b6635ea3fc3ea1f16226b40d0dabc06448b85ff6f9776ef302da3",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
+  },
+  {
     "tool_id": "compozy__mcp_auth_status",
     "native_name": "mcp_auth_status",
     "toolsets": [
@@ -2237,6 +2252,36 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "result_contract": "single",
     "single_result_reason": "minimal"
+  },
+  {
+    "tool_id": "compozy__mcp_import",
+    "native_name": "mcp_import",
+    "toolsets": [
+      "compozy__mcp"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e150c967dcc09b5cd51507c1e6d84e5237ad6c87e72d1f1081df8e9ef23fec04",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
+  },
+  {
+    "tool_id": "compozy__mcp_list",
+    "native_name": "mcp_list",
+    "toolsets": [
+      "compozy__mcp"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "217fc8a778d525599fb15b3d47821d52c919d011f8c0eac2d3cfdd8819b1293e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "caller_bounded"
   },
   {
     "tool_id": "compozy__mcp_status",
@@ -2938,6 +2983,21 @@
     "result_contract": "compact_full",
     "compact_output_schema_digest": "8c552d01d416019a96d2547aaee662923409d713b9f7699ae2fd328a92d45454",
     "full_output_schema_digest": "2d5d1fd161998e466ee627b8bb67d61f103ba5af8ecba76fccae5d0bac8a8f00"
+  },
+  {
+    "tool_id": "compozy__session_mcp_list",
+    "native_name": "session_mcp_list",
+    "toolsets": [
+      "compozy__mcp"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "41380213341dec43602cdaffb47eff6b675f7409fa2f722c34c02a60434379c7",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "caller_bounded"
   },
   {
     "tool_id": "compozy__session_move",

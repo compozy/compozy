@@ -18,7 +18,7 @@ import {
 import { AgentDetailLoading, AgentNotFound } from "./agent-detail-location";
 import { AGENT_PAGE_SCROLL_CLASS } from "./agent-page-frame";
 import { useAgentDetail, type UseAgentDetailResult } from "./use-agent-detail";
-import { useOpenScript } from "./use-open-script";
+import { useOpenFileInEditor } from "../../hooks/use-open-file-in-editor";
 import { useAgentDetailTopbar } from "./use-agent-detail-topbar";
 
 const PAGE_TITLES: Record<AgentEditorPage, string> = {
@@ -50,7 +50,7 @@ function PageBody({
     active: detail.active,
     memorySummary: "",
   });
-  const onOpenScript = useOpenScript();
+  const onOpenScript = useOpenFileInEditor();
   const props = {
     agent,
     onAddToProject: profile.onOpenWhere,

@@ -20,6 +20,7 @@ import {
   listSettingsApplyRecords,
   listSettingsHooks,
   listSettingsMCPServers,
+  listRuntimeMCPServers,
   getSettingsMCPServer,
   listSettingsProviders,
 } from "../adapters/settings-api";
@@ -30,6 +31,7 @@ import type {
   SettingsAttentionFilter,
   SettingsMCPServerListFilter,
   SettingsMCPServerGetFilter,
+  RuntimeMCPInventoryFilter,
   SettingsCmdPaletteFilter,
   SettingsHookListFilter,
   SettingsPersonaFilter,
@@ -276,6 +278,24 @@ export function settingsMCPServersListOptions(
     queryFn: ({ signal }) => listSettingsMCPServers(filter, signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval,
+    enabled,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+/**
+ * Every runtime's own MCP servers for the shell's lens. The daemon refreshes it from file watches,
+ * so the collection cadence (45 s) bounds how stale an outside edit can look (US-007.AC-7).
+ */
+export function settingsRuntimeMCPInventoryOptions(
+  filter: RuntimeMCPInventoryFilter = {},
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: settingsKeys.mcpRuntimeInventory(filter),
+    queryFn: ({ signal }) => listRuntimeMCPServers(filter, signal),
+    staleTime: COLLECTION_STALE_TIME,
+    refetchInterval: COLLECTION_REFETCH_INTERVAL,
     enabled,
     retry: shouldRetrySettingsQuery,
   });

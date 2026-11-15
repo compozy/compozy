@@ -92,12 +92,15 @@ function ComposerRuntime({
   return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
 }
 
-function ModelControl({ disabled }: { disabled: boolean }) {
-  const [value, setValue] = useState<RuntimeSelectorValue>({
-    provider: "claude",
-    model: "claude-opus-5-5",
-    reasoning_effort: "",
-  });
+export interface DraftRuntime {
+  provider: string;
+  model: string;
+}
+
+const DEFAULT_RUNTIME: DraftRuntime = { provider: "claude", model: "claude-opus-5-5" };
+
+function ModelControl({ disabled, runtime }: { disabled: boolean; runtime: DraftRuntime }) {
+  const [value, setValue] = useState<RuntimeSelectorValue>({ ...runtime, reasoning_effort: "" });
   return (
     <RuntimeSelector
       disabled={disabled}
@@ -117,6 +120,7 @@ export function DraftComposer({
   above,
   environmentControl,
   onSend,
+  runtime = DEFAULT_RUNTIME,
 }: {
   placeholder: string;
   /** Text already in the composer, for the states that show a message mid-write. */
@@ -127,6 +131,8 @@ export function DraftComposer({
   /** The environment chip the real composer carries beside the attach button. */
   environmentControl?: ReactNode;
   onSend?: (text: string) => void;
+  /** The session's runtime and model, shown in the composer's runtime picker. */
+  runtime?: DraftRuntime;
 }) {
   return (
     <ComposerRuntime onSend={onSend}>
@@ -170,7 +176,7 @@ export function DraftComposer({
                     onCancelPrompt={ignore}
                     promptEmbeddedContextCapability="supported"
                     promptImageCapability="supported"
-                    runtimeControl={<ModelControl disabled={disabled} />}
+                    runtimeControl={<ModelControl disabled={disabled} runtime={runtime} />}
                     sessionId="draft-session"
                   />
                 </ComposerPrimitive.Root>

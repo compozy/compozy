@@ -58,3 +58,5 @@ vendor-consent blockers for unrelated branches in this scenario.
 Review regression: an existing explicit OAuth server with auxiliary headers must let **Use OAuth**
 switch off and back on before saving. Save and reload must retain both the OAuth policy and
 opaque header presence. A header-only server's switch remains disabled.
+
+QA impact 2026-11-14 (MCP hot activation spec): Manual completion on a waiting project server must carry the row's digest on begin; without it begin refuses `mcp_server_waiting_approval` before network I/O. Re-walk the manual paste branch on an approved and on a waiting project server.

@@ -356,9 +356,13 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.DELETE("/providers/:name", privileged, handlers.DeleteSettingsProvider)
 	settings.PATCH("/providers/:name/enabled", privileged, handlers.SetSettingsProviderEnabled)
 
+	settings.GET("/runtime-mcp-servers", handlers.ListRuntimeMCPServers)
+	settings.POST("/runtime-mcp-servers/:runtime/:name/import", privileged, handlers.ImportRuntimeMCPServer)
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)
 	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)
+	settings.PUT("/mcp-servers/:name/approval", privileged, handlers.PutSettingsMCPApproval)
+	settings.DELETE("/mcp-servers/:name/approval", privileged, handlers.DeleteSettingsMCPApproval)
 	settings.POST("/mcp-servers/:name/auth/begin", privileged, handlers.BeginSettingsMCPAuth)
 	settings.POST("/mcp-servers/:name/auth/exchange", privileged, handlers.ExchangeSettingsMCPAuth)
 	settings.POST("/mcp-servers/:name/auth/logout", privileged, handlers.LogoutSettingsMCPAuth)

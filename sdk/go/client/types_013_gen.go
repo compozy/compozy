@@ -7,6 +7,46 @@ import (
 	"time"
 )
 
+// MarketplaceSourcePreviewPayload is a daemon API value.
+type MarketplaceSourcePreviewPayload struct {
+	Name         string           `json:"name"`
+	Owner        string           `json:"owner,omitempty"`
+	DocumentPath string           `json:"document_path"`
+	Plugins      int              `json:"plugins"`
+	Installable  int              `json:"installable"`
+	Diagnostics  []DiagnosticItem `json:"diagnostics"`
+}
+
+// MarketplaceSourceResponse is a daemon API value.
+type MarketplaceSourceResponse struct {
+	Source MarketplaceSourcePayload `json:"source"`
+}
+
+// MarketplaceSourceSummary is a daemon API value.
+type MarketplaceSourceSummary struct {
+	Name       string     `json:"name"`
+	Kind       string     `json:"kind"`
+	State      string     `json:"state"`
+	Count      int        `json:"count"`
+	LastReadAt *time.Time `json:"last_read_at,omitempty"`
+}
+
+// MarketplaceSourcesResponse is a daemon API value.
+type MarketplaceSourcesResponse struct {
+	Sources []MarketplaceSourcePayload `json:"sources"`
+}
+
+// Mergeable is a daemon API value.
+type Mergeable string
+
+// Meta is a daemon API value.
+type Meta struct {
+	Name        string      `json:"name"`
+	Version     int         `json:"version,omitzero"`
+	Description string      `json:"description,omitempty"`
+	Catalog     CatalogMeta `json:"catalog"`
+}
+
 // MetaField is a daemon API value.
 type MetaField struct {
 	Label    string            `json:"label"`
@@ -400,42 +440,4 @@ type OverviewAgentSharePayload struct {
 	AgentName string  `json:"agent_name"`
 	Tokens    int64   `json:"tokens"`
 	Fraction  float64 `json:"fraction"`
-}
-
-// OverviewAttentionItemPayload is a daemon API value.
-type OverviewAttentionItemPayload struct {
-	NotificationID string    `json:"notification_id,omitempty"`
-	Kind           string    `json:"kind"`
-	Title          string    `json:"title"`
-	Detail         string    `json:"detail,omitempty"`
-	TaskID         string    `json:"task_id,omitempty"`
-	RunID          string    `json:"run_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	WorkspaceID    string    `json:"workspace_id"`
-	OccurredAt     time.Time `json:"occurred_at"`
-	Actions        []string  `json:"actions"`
-}
-
-// OverviewAttentionPayload is a daemon API value.
-type OverviewAttentionPayload struct {
-	Snapshot string                         `json:"snapshot,omitempty"`
-	Total    int                            `json:"total"`
-	ByKind   map[string]int                 `json:"by_kind"`
-	Items    []OverviewAttentionItemPayload `json:"items"`
-}
-
-// OverviewLongestSessionPayload is a daemon API value.
-type OverviewLongestSessionPayload struct {
-	SessionID       string `json:"session_id"`
-	AgentName       string `json:"agent_name"`
-	DurationSeconds int64  `json:"duration_seconds"`
-	Date            string `json:"date"`
-}
-
-// OverviewOutcomeDayPayload is a daemon API value.
-type OverviewOutcomeDayPayload struct {
-	Date      string `json:"date"`
-	Completed int    `json:"completed"`
-	Failed    int    `json:"failed"`
-	Canceled  int    `json:"canceled"`
 }

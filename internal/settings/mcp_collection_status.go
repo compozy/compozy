@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
@@ -13,9 +14,28 @@ func (s *service) populateMCPServerStatuses(
 	entry mcpSourceEntry,
 	skipRuntimeStatus bool,
 ) error {
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: item.ProfileName, WorkspaceID: item.WorkspaceID},
+	)
 	target, err := mcpAuthTargetForSource(entry)
 	if err != nil {
 		return err
+	}
+	if s.mcpConsent != nil {
+		req := consentRequestForTarget(target, entry.Server)
+		// The listing profile owns consent even when credentials are inherited.
+		req.ProfileName = item.ProfileName
+		req.WorkspaceID = item.WorkspaceID
+		decision, consentErr := s.mcpConsent.MCPConsent(ctx, req)
+		if consentErr != nil {
+			return consentErr
+		}
+		required := (target.Scope == mcpauth.ScopeWorkspace || target.Scope == mcpauth.ScopeWorkspaceProfile) &&
+			!strings.HasPrefix(target.Owner, "extension:")
+		item.Approval = approvalState(decision, required)
+		item.CallableInSessions = decision.Admitted
+		skipRuntimeStatus = skipRuntimeStatus || !decision.Admitted
 	}
 	name := entry.Server.Name
 	if s.mcpAuth != nil && mcpauth.OAuthCapable(entry.Server) && entry.Server.Validate("mcp_server") == nil {

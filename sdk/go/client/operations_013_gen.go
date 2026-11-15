@@ -388,6 +388,36 @@ func (c *Client) GetSessionHistoryCleanup(ctx context.Context, params GetSession
 	return &out, nil
 }
 
+// GetSessionMCPParams carries the path, query, and header parameters.
+type GetSessionMCPParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetSessionMCP Read session MCP availability without discovery
+func (c *Client) GetSessionMCP(ctx context.Context, params GetSessionMCPParams) (*MCP, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MCP
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSessionOwnerParams carries the path, query, and header parameters.
 type GetSessionOwnerParams struct {
 	SessionID   string  `url:"session_id"`
@@ -414,13 +444,4 @@ func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerPara
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSessionRecapParams carries the path, query, and header parameters.
-type GetSessionRecapParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

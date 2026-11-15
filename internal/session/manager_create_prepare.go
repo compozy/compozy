@@ -214,6 +214,22 @@ func (m *Manager) createSessionLineage(
 		return "", nil, err
 	}
 	lineage, err := m.normalizeCreateOptsLineage(ctx, sessionID, sessionType, workspaceID, opts)
+	if err == nil {
+		policy := &lineage.PermissionPolicy
+		if policy.MCPServersMode == "" {
+			policy.MCPServersMode = store.PermissionInherit
+			if sessionType == SessionTypeSpawned || sessionType == SessionTypeCoordinator ||
+				(len(policy.MCPServers) > 0 && !policy.MaterializedMCPServers) {
+				policy.MCPServersMode = store.PermissionList
+			}
+		}
+		if policy.ToolsMode == "" {
+			policy.ToolsMode = store.PermissionInherit
+			if sessionType == SessionTypeSpawned || sessionType == SessionTypeCoordinator {
+				policy.ToolsMode = store.PermissionList
+			}
+		}
+	}
 	return sessionID, lineage, err
 }
 

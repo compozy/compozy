@@ -198,12 +198,42 @@ type LoopsResponse struct {
 	Page   CountedCursorPagePayload  `json:"page"`
 }
 
+// MCP is a daemon API value.
+type MCP struct {
+	SessionID          string           `json:"session_id"`
+	Runtime            string           `json:"runtime"`
+	RuntimeDisplayName string           `json:"runtime_display_name"`
+	Usable             int              `json:"usable"`
+	Attention          int              `json:"attention"`
+	PendingReload      bool             `json:"pending_reload"`
+	LastReload         *MCPReloadRecord `json:"last_reload,omitempty"`
+	CompozyServers     []MCPServerRow   `json:"compozy_servers"`
+	RuntimeServers     RuntimeMCP       `json:"runtime_servers"`
+}
+
 // MCPAuthSummary is a daemon API value.
 type MCPAuthSummary struct {
 	Method       string   `json:"method"`
 	Registration string   `json:"registration,omitempty"`
 	IssuerURL    string   `json:"issuer_url,omitempty"`
 	Scopes       []string `json:"scopes,omitempty"`
+}
+
+// MCPReloadRecord is a daemon API value.
+type MCPReloadRecord struct {
+	At      time.Time `json:"at"`
+	Outcome string    `json:"outcome"`
+	Reason  string    `json:"reason"`
+}
+
+// MCPServerRow is a daemon API value.
+type MCPServerRow struct {
+	Name          string `json:"name"`
+	Owner         string `json:"owner"`
+	State         string `json:"state"`
+	ToolCount     int    `json:"tool_count"`
+	CallableCount int    `json:"callable_count"`
+	Reason        string `json:"reason"`
 }
 
 // MCPServerStatusPayload is a daemon API value.
@@ -221,6 +251,13 @@ type MCPServerStatusPayload struct {
 	Diagnostic    string `json:"diagnostic,omitempty"`
 	Transport     string `json:"transport,omitempty"`
 	RuntimeStatus string `json:"runtime_status"`
+}
+
+// MCPSummary is a daemon API value.
+type MCPSummary struct {
+	Usable        int  `json:"usable"`
+	Attention     int  `json:"attention"`
+	PendingReload bool `json:"pending_reload"`
 }
 
 // ManagedExtensionRemovePayload is a daemon API value.
@@ -404,44 +441,4 @@ type MarketplaceSourcePayload struct {
 	Owner        string           `json:"owner,omitempty"`
 	Stability    string           `json:"stability"`
 	Diagnostics  []DiagnosticItem `json:"diagnostics"`
-}
-
-// MarketplaceSourcePreviewPayload is a daemon API value.
-type MarketplaceSourcePreviewPayload struct {
-	Name         string           `json:"name"`
-	Owner        string           `json:"owner,omitempty"`
-	DocumentPath string           `json:"document_path"`
-	Plugins      int              `json:"plugins"`
-	Installable  int              `json:"installable"`
-	Diagnostics  []DiagnosticItem `json:"diagnostics"`
-}
-
-// MarketplaceSourceResponse is a daemon API value.
-type MarketplaceSourceResponse struct {
-	Source MarketplaceSourcePayload `json:"source"`
-}
-
-// MarketplaceSourceSummary is a daemon API value.
-type MarketplaceSourceSummary struct {
-	Name       string     `json:"name"`
-	Kind       string     `json:"kind"`
-	State      string     `json:"state"`
-	Count      int        `json:"count"`
-	LastReadAt *time.Time `json:"last_read_at,omitempty"`
-}
-
-// MarketplaceSourcesResponse is a daemon API value.
-type MarketplaceSourcesResponse struct {
-	Sources []MarketplaceSourcePayload `json:"sources"`
-}
-
-// Mergeable is a daemon API value.
-type Mergeable string
-
-// Meta is a daemon API value.
-type Meta struct {
-	Name        string      `json:"name"`
-	Version     int         `json:"version,omitzero"`
-	Description string      `json:"description,omitempty"`
-	Catalog     CatalogMeta `json:"catalog"`
 }

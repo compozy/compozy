@@ -78,6 +78,7 @@ func writeAgentDefinitionWithMCP(
 	draft compozyconfig.AgentDefinitionDraft,
 	overwrite bool,
 	inputs []contract.AgentMCPServerInput,
+	approvals ...AgentMCPApprovalContext,
 ) (compozyconfig.AgentDef, error) {
 	servers := agentMCPServersFromPayload(inputs)
 	for index, input := range inputs {
@@ -86,17 +87,7 @@ func writeAgentDefinitionWithMCP(
 		}
 	}
 	written := []string{}
-	rollback := func() error {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		defer cancel()
-		var err error
-		for _, ref := range written {
-			if deleteErr := secrets.DeleteSecret(cleanupCtx, ref); !errors.Is(deleteErr, vault.ErrSecretNotFound) {
-				err = errors.Join(err, deleteErr)
-			}
-		}
-		return err
-	}
+	rollback := func() error { return rollbackAgentMCPRefs(ctx, secrets, written) }
 	for i, input := range inputs {
 		server := &servers[i]
 		if server.Reference && len(input.SecretHeaderValues)+len(input.SecretEnvValues) > 0 {
@@ -138,7 +129,16 @@ func writeAgentDefinitionWithMCP(
 			}
 		}
 	}
-	agent, err := compozyconfig.CreateAgentDefWithMCPServers(path, draft, overwrite, servers)
+	var agent compozyconfig.AgentDef
+	var approval AgentMCPApprovalContext
+	if len(approvals) > 0 {
+		approval = approvals[0]
+	}
+	err := commitAgentMCPDefinition(ctx, path, servers, func() error {
+		var writeErr error
+		agent, writeErr = compozyconfig.CreateAgentDefWithMCPServers(path, draft, overwrite, servers)
+		return writeErr
+	}, func() (compozyconfig.AgentDef, error) { return compozyconfig.LoadAgentDefFile(path) }, approval)
 	if err != nil {
 		// Failed recovery or close can leave committed refs; their credentials must remain usable.
 		if agent.Name != "" {
@@ -177,8 +177,9 @@ func (h *BaseHandlers) writeUpdatedAgentDefinition(
 	path string,
 	draft compozyconfig.AgentDefinitionDraft,
 	servers []contract.AgentMCPServerInput,
+	approval AgentMCPApprovalContext,
 ) (compozyconfig.AgentDef, error) {
-	return writeAgentDefinitionWithMCP(c.Request.Context(), h.Vault, path, draft, true, servers)
+	return writeAgentDefinitionWithMCP(c.Request.Context(), h.Vault, path, draft, true, servers, approval)
 }
 
 // RollbackAgentMCPSecretValues removes only credentials minted by a failed create request.
@@ -218,4 +219,16 @@ func (h *BaseHandlers) rollbackCreatedAgentWithMCP(
 		return rollbackErr
 	}
 	return errors.Join(rollbackErr, RollbackAgentMCPSecretValues(ctx, h.Vault, agent, inputs))
+}
+
+func rollbackAgentMCPRefs(ctx context.Context, secrets VaultService, written []string) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	var err error
+	for _, ref := range written {
+		if deleteErr := secrets.DeleteSecret(cleanupCtx, ref); !errors.Is(deleteErr, vault.ErrSecretNotFound) {
+			err = errors.Join(err, deleteErr)
+		}
+	}
+	return err
 }

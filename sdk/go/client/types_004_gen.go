@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// BackendKind is a daemon API value.
+type BackendKind string
+
 // BackoffSpec is a daemon API value.
 type BackoffSpec struct {
 	Base string `json:"base,omitempty"`

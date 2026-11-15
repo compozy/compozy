@@ -437,9 +437,8 @@ func (c *Client) HeartbeatAgentTaskRun(ctx context.Context, params HeartbeatAgen
 	return &out, nil
 }
 
-// InspectRunParams carries the path, query, and header parameters.
-type InspectRunParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
+// ImportRuntimeMCPServerParams carries the path, query, and header parameters.
+type ImportRuntimeMCPServerParams struct {
+	Runtime string `url:"runtime"`
+	Name    string `url:"name"`
 }

@@ -1737,7 +1737,7 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 		if !slices.Equal(mainSources, []string{"policy"}) {
 			t.Fatalf("main resolved_by=%v want=[policy]", mainSources)
 		}
-		child, err := manager.Spawn(t.Context(), session.SpawnOpts{ParentSessionID: main.ID, AgentName: main.AgentName,
+		child, err := manager.Spawn(t.Context(), &session.SpawnOpts{ParentSessionID: main.ID, AgentName: main.AgentName,
 			Workspace: workspace, Name: "Approval child", Permissions: "approve-reads", TTL: time.Minute})
 		if err != nil {
 			t.Fatal(err)
@@ -2017,7 +2017,7 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 		for i := range 2 {
 			child, err := manager.Spawn(
 				t.Context(),
-				session.SpawnOpts{
+				&session.SpawnOpts{
 					ParentSessionID:    main.ID,
 					AgentName:          main.AgentName,
 					Workspace:          workspace,

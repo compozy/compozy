@@ -9,6 +9,15 @@ import (
 	"strings"
 )
 
+// GetSessionRecapParams carries the path, query, and header parameters.
+type GetSessionRecapParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetSessionRecap Get a deterministic session recap
 func (c *Client) GetSessionRecap(ctx context.Context, params GetSessionRecapParams) (*SessionRecapResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/recap"

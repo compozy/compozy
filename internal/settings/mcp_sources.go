@@ -46,6 +46,9 @@ func (s *service) loadMCPSources(
 	scope ScopeKind,
 	profileName string,
 ) (map[string][]mcpSourceEntry, error) {
+	if scope == ScopeWorkspace && profileName == "" {
+		profileName = mcpAuthDefaultProfileName
+	}
 	sources := make(map[string][]mcpSourceEntry)
 	if err := s.loadGlobalMCPSources(sources, workspaceID, profileName); err != nil {
 		return nil, err
@@ -68,7 +71,11 @@ func (s *service) loadGlobalMCPSources(
 	workspaceID string,
 	profileName string,
 ) error {
-	globalConfigServers, err := loadMCPServersFromConfigFile(s.homePaths.ConfigFile, s.homePaths)
+	globalConfigServers, err := loadMCPServersFromConfigFile(
+		s.homePaths.ConfigFile,
+		s.homePaths,
+		effectiveMCPSourceServers(sources),
+	)
 	if err != nil {
 		return fmt.Errorf("settings: load global config MCP servers: %w", err)
 	}
@@ -85,23 +92,27 @@ func (s *service) loadGlobalMCPSources(
 func (s *service) loadProfileMCPSources(
 	sources map[string][]mcpSourceEntry,
 	workspaceID string,
-	workspaceRoot string,
+	_ string,
 	profileName string,
 ) error {
 	profileConfigTarget, err := compozyconfig.ResolveConfigWriteTarget(
-		s.homePaths, workspaceRoot, compozyconfig.WriteScopeProfile, profileName,
+		s.homePaths, "", compozyconfig.WriteScopeProfile, profileName,
 	)
 	if err != nil {
 		return err
 	}
-	profileConfigServers, err := loadMCPServersFromConfigFile(profileConfigTarget.Path(), s.homePaths)
+	profileConfigServers, err := loadMCPServersFromConfigFile(
+		profileConfigTarget.Path(),
+		s.homePaths,
+		effectiveMCPSourceServers(sources),
+	)
 	if err != nil {
 		return fmt.Errorf("settings: load profile config MCP servers: %w", err)
 	}
 	appendMCPSourceServers(sources, WriteTargetProfileConfig, workspaceID, profileName, profileConfigServers)
 
 	profileSidecarTarget, err := compozyconfig.ResolveMCPSidecarWriteTarget(
-		s.homePaths, workspaceRoot, compozyconfig.WriteScopeProfile, profileName,
+		s.homePaths, "", compozyconfig.WriteScopeProfile, profileName,
 	)
 	if err != nil {
 		return err
@@ -121,7 +132,11 @@ func (s *service) loadWorkspaceMCPSources(
 	scope ScopeKind,
 	profileName string,
 ) error {
-	workspaceConfigServers, err := loadMCPServersFromConfigFile(workspaceConfigPath(workspaceRoot), s.homePaths)
+	workspaceConfigServers, err := loadMCPServersFromConfigFile(
+		workspaceConfigPath(workspaceRoot),
+		s.homePaths,
+		effectiveMCPSourceServers(sources),
+	)
 	if err != nil {
 		return fmt.Errorf("settings: load workspace config MCP servers: %w", err)
 	}
@@ -132,14 +147,14 @@ func (s *service) loadWorkspaceMCPSources(
 		return fmt.Errorf("settings: load workspace MCP sidecar: %w", err)
 	}
 	appendMCPSourceServers(sources, WriteTargetWorkspaceMCPSidecar, workspaceID, profileName, workspaceSidecarServers)
-	if scope != ScopeProfile {
+	if scope != ScopeProfile && scope != ScopeWorkspace {
 		return nil
 	}
 	workspaceProfileRoot := filepath.Join(
 		workspaceRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, profileName,
 	)
 	workspaceProfileConfigServers, err := loadMCPServersFromConfigFile(
-		filepath.Join(workspaceProfileRoot, compozyconfig.ConfigName), s.homePaths,
+		filepath.Join(workspaceProfileRoot, compozyconfig.ConfigName), s.homePaths, effectiveMCPSourceServers(sources),
 	)
 	if err != nil {
 		return fmt.Errorf("settings: load workspace profile config MCP servers: %w", err)
@@ -177,12 +192,22 @@ func appendMCPSourceServers(
 	}
 }
 
-func loadMCPServersFromConfigFile(path string, homePaths compozyconfig.HomePaths) ([]compozyconfig.MCPServer, error) {
+func loadMCPServersFromConfigFile(
+	path string,
+	homePaths compozyconfig.HomePaths,
+	inherited ...[]compozyconfig.MCPServer,
+) ([]compozyconfig.MCPServer, error) {
 	cfg := compozyconfig.DefaultWithHome(homePaths)
+	if len(inherited) > 0 {
+		cfg.MCPServers = inherited[0]
+	}
 	if err := compozyconfig.ApplyConfigOverlayFile(path, &cfg); err != nil {
 		return nil, err
 	}
-	return append([]compozyconfig.MCPServer(nil), cfg.MCPServers...), nil
+	return slices.DeleteFunc(
+		cfg.MCPServers,
+		func(server compozyconfig.MCPServer) bool { return server.DefinitionSource != path },
+	), nil
 }
 
 func (s *service) resolveMCPPutTarget(

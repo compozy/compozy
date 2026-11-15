@@ -47,6 +47,14 @@ func (s *service) buildMCPServerItems(
 			entry: effective,
 		})
 	}
+	items, err = s.appendPublishedMCPItems(
+		ctx,
+		items,
+		MCPAuthTargetRequest{Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName},
+	)
+	if err != nil {
+		return nil, err
+	}
 	items, err = s.appendExtensionMCPItems(
 		ctx,
 		items,
@@ -63,7 +71,7 @@ func (s *service) buildMCPServerItems(
 	})
 	result := make([]MCPServerItem, 0, len(items))
 	for index := range items {
-		result = append(result, cloneMCPServerItem(items[index].item))
+		result = append(result, cloneMCPServerItem(&items[index].item))
 	}
 	return result, nil
 }
@@ -139,7 +147,7 @@ func (s *service) putProvider(
 	}
 
 	return mutationResultAtPath(
-		mutationResultForProvider(target.Kind(), classification.modelOnly && len(secretWrites) == 0),
+		mutationResultForProvider(target.Kind(), classification.liveOnly && len(secretWrites) == 0),
 		target.Path(),
 	), nil
 }
@@ -164,7 +172,8 @@ func (s *service) preserveProviderOptionalFields(
 ) (ProviderSettings, error) {
 	if (settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "") &&
 		(settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "") &&
-		settings.SteerCapability != "" && settings.SessionEnv != nil && settings.AutoCompactWindow != nil {
+		settings.RuntimeMCP != "" && settings.SteerCapability != "" &&
+		settings.SessionEnv != nil && settings.AutoCompactWindow != nil {
 		return settings, nil
 	}
 	cfg, _, err := s.loadConfig(ctx, ScopeUser, "", "")
@@ -180,6 +189,9 @@ func (s *service) preserveProviderOptionalFields(
 	}
 	if !settings.AuthACPMethodSet && strings.TrimSpace(settings.AuthACPMethod) == "" {
 		settings.AuthACPMethod = strings.TrimSpace(provider.AuthACPMethod)
+	}
+	if settings.RuntimeMCP == "" {
+		settings.RuntimeMCP = provider.EffectiveRuntimeMCP()
 	}
 	if settings.SteerCapability == "" {
 		settings.SteerCapability = provider.SteerCapability
@@ -258,6 +270,7 @@ func providerConfigFromSettings(settings ProviderSettings) compozyconfig.Provide
 		AuthMode:          settings.AuthMode,
 		EnvPolicy:         settings.EnvPolicy,
 		HomePolicy:        settings.HomePolicy,
+		RuntimeMCP:        settings.RuntimeMCP,
 		AuthStatusCmd:     strings.TrimSpace(settings.AuthStatusCmd),
 		AuthLoginCmd:      strings.TrimSpace(settings.AuthLoginCmd),
 		AuthACPMethod:     strings.TrimSpace(settings.AuthACPMethod),

@@ -218,6 +218,7 @@ func instanceServiceAdmission(definitions instanceDefinitions, repo *globaldb.In
 	manager *session.Manager, state *bootState) *instanceAdmission {
 	admission := &instanceAdmission{
 		definitions: definitions,
+		authority:   manager,
 		callers:     repo,
 		sessions:    instanceSessionReader{sessions: manager},
 		reach:       instanceWorkspaceReach{policy: state.accessPolicy},

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -95,6 +96,7 @@ func (n *daemonNativeTools) agentCreate(
 		string(req.ToolID),
 		profileName,
 		n.deps.Vault,
+		core.AgentMCPApprovalForSettings(n.settingsService()),
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
@@ -116,7 +118,11 @@ func (n *daemonNativeTools) agentCreate(
 		entry.WorkspaceID = created.WorkspaceID
 	}
 	payload := core.AgentPayloadFromEntryWithConfig(&entry, &created.RuntimeConfig)
-	return agentRecordViews.result(req.View, payload)
+	result, resultErr := agentRecordViews.result(req.View, payload)
+	if err := addAgentCreateWarnings(&result, created.Warnings); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return result, resultErr
 }
 
 func (n *daemonNativeTools) nativeAgentCreateProfileName(
@@ -216,7 +222,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 	if createReq.Scope == contract.AgentCreateScopeWorkspace {
 		workspaceRef := nativeCallerWorkspaceInput(createReq.Workspace, scope)
 		if strings.TrimSpace(workspaceRef) == "" {
-			return contract.CreateAgentRequest{}, nativeRequiredInputError(id, "workspace")
+			return contract.CreateAgentRequest{}, nativeRequiredInputError(id, resourceScopeWorkspaceKind)
 		}
 		createReq.Workspace = workspaceRef
 	}
@@ -325,4 +331,19 @@ func (n *daemonNativeTools) rollbackNativeAgentCreateWithMCP(
 		return rollbackErr
 	}
 	return errors.Join(rollbackErr, core.RollbackAgentMCPSecretValues(ctx, n.deps.Vault, agent, inputs))
+}
+
+func addAgentCreateWarnings(result *toolspkg.ToolResult, warnings []string) error {
+	if len(warnings) > 0 {
+		result.Preview += "; " + strings.Join(warnings, "; ")
+		encoded, err := json.Marshal(warnings)
+		if err != nil {
+			return err
+		}
+		if result.Metadata == nil {
+			result.Metadata = make(map[string]json.RawMessage)
+		}
+		result.Metadata["warnings"] = encoded
+	}
+	return nil
 }

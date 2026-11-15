@@ -147,7 +147,7 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 			t.Fatalf("resumed metadata provider auth mode = %q, want %q", got, want)
 		}
 		// UT-094: a child runs its own definition's rules; the parent's frozen rules are not inherited.
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: resumed.ID, AgentName: compozyconfig.DefaultAgentName, Workspace: h.workspaceID,
 			Name: "Rule child", TTL: time.Minute,
 		})

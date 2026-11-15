@@ -42,5 +42,6 @@ func (s *service) putMCPCollectionItem(
 		req.MCPSecrets,
 		req.MCPSecretPreservation,
 		req.MCPEnvPreservation,
+		false,
 	)
 }

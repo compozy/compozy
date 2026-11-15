@@ -14,6 +14,8 @@ import (
 
 // MCPServerItem is one MCP server collection row.
 type MCPServerItem struct {
+	Approval               MCPApprovalState
+	CallableInSessions     bool
 	readOnlyTools          *[]string
 	Owner                  string
 	RuntimeName            string
@@ -108,7 +110,8 @@ func mcpSecretEnvKeys(secretEnv map[string]string) []string {
 	return keys
 }
 
-func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
+func cloneMCPServerItem(source *MCPServerItem) MCPServerItem {
+	value := *source
 	if value.readOnlyTools != nil {
 		value.readOnlyTools = new(slices.Clone(*value.readOnlyTools))
 	}
@@ -197,10 +200,10 @@ func cloneMCPServerItemPointer(value *MCPServerItem) *MCPServerItem {
 	if value == nil {
 		return nil
 	}
-	return new(cloneMCPServerItem(*value))
+	return new(cloneMCPServerItem(value))
 }
 
-func (value MCPServerItem) ReadOnlyToolNames() []string {
+func (value *MCPServerItem) ReadOnlyToolNames() []string {
 	if value.readOnlyTools == nil {
 		return nil
 	}

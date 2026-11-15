@@ -673,6 +673,7 @@ export type AgentProbeHealthPayload = {
 
 export type AgentResponse = {
   agent: AgentPayload;
+  warnings?: Array<string>;
 };
 
 export type AgentSessionMetricsPayload = {
@@ -2302,6 +2303,7 @@ export type Error = {
 
 export type ErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -2310,6 +2312,8 @@ export type ErrorPayload = {
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -4168,6 +4172,11 @@ export type InstallExtensionResponse = {
   extension: ExtensionPayload;
 };
 
+export type Inventory = {
+  generated_at: string;
+  runtimes: Array<Snapshot>;
+};
+
 export type JobPayload = {
   agent_name: string;
   created_at: string;
@@ -5190,6 +5199,21 @@ export type MCPAuthSummary = {
   scopes?: Array<string>;
 };
 
+export type MCPReloadRecord = {
+  at: string;
+  outcome: string;
+  reason: string;
+};
+
+export type MCPServerRow = {
+  callable_count: number;
+  name: string;
+  owner: string;
+  reason: string;
+  state: string;
+  tool_count: number;
+};
+
 export type MCPServerStatusPayload = {
   auth_status?: string;
   configured: boolean;
@@ -5204,6 +5228,12 @@ export type MCPServerStatusPayload = {
   tool_count?: number;
   transport?: string;
   workspace_id?: string;
+};
+
+export type MCPSummary = {
+  attention: number;
+  pending_reload: boolean;
+  usable: number;
 };
 
 export type ManagedExtensionRemovePayload = {
@@ -7074,10 +7104,37 @@ export type RuntimeLimits = {
   summary_max_bytes: number;
 };
 
+export type RuntimeMCPImportRequest = {
+  name?: string;
+  profile?: string;
+  scope?: "user" | "profile" | "workspace" | "agent";
+  workspace_id?: string;
+};
+
+export type RuntimeMCPImportResponse = {
+  mcp_server: SettingsMCPServerItemPayload;
+  notes: Array<string>;
+  partial: boolean;
+  source: Server;
+  warnings?: Array<string>;
+};
+
+export type RuntimeMCPRow = {
+  name: string;
+  scope: string;
+  state: string;
+  transport: string;
+};
+
 export type RuntimeMatch = {
   complexity?: string;
   id?: string;
   type?: string;
+};
+
+export type RuntimeMode = {
+  can_disable: boolean;
+  mode: string;
 };
 
 export type RuntimePolicy = {
@@ -7246,6 +7303,25 @@ export type SendPromptResultPayload = {
 
 export type SendPromptResultResponse = {
   prompt: SendPromptResultPayload;
+};
+
+export type Server = {
+  also_in_compozy: boolean;
+  approval: string;
+  auth: string;
+  copy_blocked_reason: string;
+  copyable: boolean;
+  definition_digest: string;
+  enabled_in_runtime: boolean;
+  env_keys: Array<string>;
+  header_keys: Array<string>;
+  name: string;
+  runtime: string;
+  scope: string;
+  source_label: string;
+  source_path: string;
+  target: string;
+  transport: string;
 };
 
 export type SessionActivityHealthPayload = {
@@ -7581,6 +7657,7 @@ export type SessionDeriveCutPayload = {
 export type SessionDeriveErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
   child_session_id?: string;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -7589,6 +7666,8 @@ export type SessionDeriveErrorPayload = {
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -7983,6 +8062,18 @@ export type SessionLinkedWorkSummary = {
   total: number;
 };
 
+export type SessionMCP = {
+  attention: number;
+  compozy_servers: Array<MCPServerRow>;
+  last_reload?: MCPReloadRecord | null;
+  pending_reload: boolean;
+  runtime: string;
+  runtime_display_name: string;
+  runtime_servers: SessionRuntimeMCP;
+  session_id: string;
+  usable: number;
+};
+
 export type SessionMonitorPayload = {
   branch?: string;
   created_at: string;
@@ -8072,6 +8163,7 @@ export type SessionPayload = {
   later?: SessionLaterPayload | null;
   lineage?: SessionLineagePayload | null;
   linked_work?: SessionLinkedWorkSummary | null;
+  mcp_summary?: MCPSummary | null;
   monitor_summary?: SessionMonitorSummaryPayload | null;
   name?: string;
   parent_title?: string;
@@ -8230,6 +8322,7 @@ export type SessionPullRequestChecksPayload = {
 export type SessionPullRequestErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
   cause?: string;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -8239,6 +8332,8 @@ export type SessionPullRequestErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   message: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -8310,6 +8405,11 @@ export type SessionRepairResponse = {
 
 export type SessionResponse = {
   session: SessionPayload;
+};
+
+export type SessionRuntimeMCP = {
+  runtime_mcp: string;
+  servers: Array<RuntimeMCPRow>;
 };
 
 export type SessionRuntimePayload = {
@@ -9059,9 +9159,35 @@ export type SettingsLogTailCapabilityPayload = {
   transport?: "sse";
 };
 
+export type SettingsMCPApprovalPayload = {
+  approved_at?: string;
+  profile: string;
+  server_name: string;
+  state: string;
+  workspace_id: string;
+};
+
+export type SettingsMCPApprovalRequest = {
+  definition_digest: string;
+  profile?: string;
+  workspace_id: string;
+};
+
+export type SettingsMCPApprovalResponse = {
+  approval: SettingsMCPApprovalPayload;
+};
+
+export type SettingsMCPApprovalStatePayload = {
+  definition_digest: string;
+  reason?: string;
+  required: boolean;
+  state: string;
+};
+
 export type SettingsMCPAuthBeginRequest = {
   approve_scope_escalation?: boolean;
   approved_scopes?: Array<string>;
+  definition_digest?: string;
   mode: "automatic" | "manual";
 };
 
@@ -9136,9 +9262,11 @@ export type SettingsMCPSecretValuesPayload = {
 };
 
 export type SettingsMCPServerItemPayload = {
+  approval: SettingsMCPApprovalStatePayload;
   args?: Array<string>;
   auth?: SettingsMCPAuthConfigViewPayload | null;
   auth_status?: SettingsMCPAuthStatusPayload | null;
+  callable_in_sessions: boolean;
   catalog_entry?: string;
   catalog_version?: string;
   command?: string;
@@ -9423,6 +9551,7 @@ export type SettingsProviderSettingsPayload = {
   harness?: string;
   home_policy?: string;
   models?: SettingsProviderModelsPayload | null;
+  runtime_mcp?: string;
   runtime_provider?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
@@ -9483,6 +9612,7 @@ export type SettingsProviderWritePayload = {
   harness?: string;
   home_policy?: string;
   models?: SettingsProviderModelsPayload | null;
+  runtime_mcp?: string;
   runtime_provider?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
@@ -10352,6 +10482,18 @@ export type SnapConfig = {
   edge_band: number;
   exit_slack: number;
   repeat_ratios: Array<number>;
+};
+
+export type Snapshot = {
+  config_files: Array<string>;
+  display_name: string;
+  installed: boolean;
+  notes?: Array<string>;
+  read_error?: string;
+  read_state: string;
+  runtime: string;
+  runtime_mcp: RuntimeMode;
+  servers: Array<Server>;
 };
 
 export type SourceOutcome = {
@@ -11230,6 +11372,7 @@ export type TaskPayload = {
 
 export type TaskQueryErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
+  client_message_id?: string;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -11239,6 +11382,8 @@ export type TaskQueryErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   field: string;
+  provider_error?: string;
+  retryable?: boolean;
   unknown_keys?: Array<string>;
 };
 
@@ -12379,6 +12524,7 @@ export type ToolDescriptorPayload = {
 };
 
 export type ToolErrorPayload = {
+  client_message_id?: string;
   code:
     | "agent_instance_not_found"
     | "agent_instance_starting"
@@ -12448,6 +12594,7 @@ export type ToolErrorPayload = {
   layer?: string;
   message: string;
   partial_result?: ToolResult | null;
+  provider_error?: string;
   reason_codes?: Array<
     | "approval_canceled"
     | "approval_rejected"
@@ -12534,6 +12681,7 @@ export type ToolErrorPayload = {
     | "worktree_not_found"
     | "worktree_not_ready"
   >;
+  retryable?: boolean;
   tool_id?: string;
 };
 
@@ -23076,6 +23224,10 @@ export type CompleteMCPAuthCallbackErrors = {
    */
   403: ErrorPayload;
   /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
    * MCP OAuth callback runtime is unavailable
    */
   503: string;
@@ -28200,6 +28352,106 @@ export type PutSettingsMCPServerResponses = {
 export type PutSettingsMCPServerResponse =
   PutSettingsMCPServerResponses[keyof PutSettingsMCPServerResponses];
 
+export type DeleteSettingsMCPApprovalData = {
+  body?: never;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query: {
+    /**
+     * Workspace ID
+     */
+    workspace_id: string;
+    /**
+     * Profile name
+     */
+    profile?: string;
+  };
+  url: "/api/settings/mcp-servers/{name}/approval";
+};
+
+export type DeleteSettingsMCPApprovalErrors = {
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Approval not required
+   */
+  409: ErrorPayload;
+};
+
+export type DeleteSettingsMCPApprovalError =
+  DeleteSettingsMCPApprovalErrors[keyof DeleteSettingsMCPApprovalErrors];
+
+export type DeleteSettingsMCPApprovalResponses = {
+  /**
+   * Revoked
+   */
+  204: void;
+};
+
+export type DeleteSettingsMCPApprovalResponse =
+  DeleteSettingsMCPApprovalResponses[keyof DeleteSettingsMCPApprovalResponses];
+
+export type PutSettingsMCPApprovalData = {
+  /**
+   * JSON request body
+   */
+  body: SettingsMCPApprovalRequest;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query?: never;
+  url: "/api/settings/mcp-servers/{name}/approval";
+};
+
+export type PutSettingsMCPApprovalErrors = {
+  /**
+   * Invalid MCP OAuth request or session
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * MCP OAuth runtime is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PutSettingsMCPApprovalError =
+  PutSettingsMCPApprovalErrors[keyof PutSettingsMCPApprovalErrors];
+
+export type PutSettingsMCPApprovalResponses = {
+  /**
+   * OK
+   */
+  200: SettingsMCPApprovalResponse;
+};
+
+export type PutSettingsMCPApprovalResponse =
+  PutSettingsMCPApprovalResponses[keyof PutSettingsMCPApprovalResponses];
+
 export type BeginSettingsMCPAuthData = {
   /**
    * JSON request body
@@ -28245,6 +28497,10 @@ export type BeginSettingsMCPAuthErrors = {
    * MCP server or workspace not found
    */
   404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */
@@ -28314,6 +28570,10 @@ export type ExchangeSettingsMCPAuthErrors = {
    */
   404: ErrorPayload;
   /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
@@ -28379,6 +28639,10 @@ export type LogoutSettingsMCPAuthErrors = {
    */
   404: ErrorPayload;
   /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
@@ -28443,6 +28707,10 @@ export type GetSettingsMCPAuthStatusErrors = {
    * MCP server or workspace not found
    */
   404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */
@@ -29016,6 +29284,110 @@ export type UpdateSettingsRolesResponses = {
 
 export type UpdateSettingsRolesResponse =
   UpdateSettingsRolesResponses[keyof UpdateSettingsRolesResponses];
+
+export type ListRuntimeMCPServersData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Select the settings scope
+     */
+    scope?: "user" | "profile" | "workspace";
+    /**
+     * Select the workspace context
+     */
+    workspace_id?: string;
+    /**
+     * Select the profile layer
+     */
+    profile?: string;
+    runtime?: string;
+  };
+  url: "/api/settings/runtime-mcp-servers";
+};
+
+export type ListRuntimeMCPServersErrors = {
+  /**
+   * Invalid runtime or settings scope
+   */
+  400: ErrorPayload;
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type ListRuntimeMCPServersError =
+  ListRuntimeMCPServersErrors[keyof ListRuntimeMCPServersErrors];
+
+export type ListRuntimeMCPServersResponses = {
+  /**
+   * OK
+   */
+  200: Inventory;
+};
+
+export type ListRuntimeMCPServersResponse =
+  ListRuntimeMCPServersResponses[keyof ListRuntimeMCPServersResponses];
+
+export type ImportRuntimeMCPServerData = {
+  /**
+   * JSON request body
+   */
+  body: RuntimeMCPImportRequest;
+  path: {
+    /**
+     * Source runtime
+     */
+    runtime: string;
+    /**
+     * URL-escaped runtime server name
+     */
+    name: string;
+  };
+  query?: never;
+  url: "/api/settings/runtime-mcp-servers/{runtime}/{name}/import";
+};
+
+export type ImportRuntimeMCPServerErrors = {
+  /**
+   * Invalid import request
+   */
+  400: ErrorPayload;
+  /**
+   * Runtime server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Target name already exists
+   */
+  409: ErrorPayload;
+  /**
+   * Runtime source, transport or definition cannot be copied
+   */
+  422: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type ImportRuntimeMCPServerError =
+  ImportRuntimeMCPServerErrors[keyof ImportRuntimeMCPServerErrors];
+
+export type ImportRuntimeMCPServerResponses = {
+  /**
+   * Copied, possibly with partial cleanup warnings
+   */
+  201: RuntimeMCPImportResponse;
+};
+
+export type ImportRuntimeMCPServerResponse =
+  ImportRuntimeMCPServerResponses[keyof ImportRuntimeMCPServerResponses];
 
 export type GetSettingsShellData = {
   body?: never;
@@ -40742,6 +41114,57 @@ export type MarkSessionSeenResponses = {
 };
 
 export type MarkSessionSeenResponse = MarkSessionSeenResponses[keyof MarkSessionSeenResponses];
+
+export type GetSessionMCPData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp";
+};
+
+export type GetSessionMCPErrors = {
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session MCP read model unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetSessionMCPError = GetSessionMCPErrors[keyof GetSessionMCPErrors];
+
+export type GetSessionMCPResponses = {
+  /**
+   * OK
+   */
+  200: SessionMCP;
+};
+
+export type GetSessionMCPResponse = GetSessionMCPResponses[keyof GetSessionMCPResponses];
 
 export type ListSessionMonitorsData = {
   body?: never;

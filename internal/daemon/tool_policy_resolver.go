@@ -47,6 +47,7 @@ type nativeToolPolicyAgentResolver interface {
 }
 
 type nativeToolPolicyResolver struct {
+	scopeTools        func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error)
 	authorityMu       sync.Mutex
 	authorityCache    map[authorityPolicyKey]authorityPolicyValue
 	approvalGrants    toolspkg.ApprovalGrantStore
@@ -83,11 +84,15 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 }
 
 func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyResolver, error) {
+	var workspaceResolver nativeToolPolicyWorkspaceResolver
+	if state.workspaceResolver != nil {
+		workspaceResolver = state.workspaceResolver
+	}
 	resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
 		Config:            &state.cfg,
 		ApprovalGrants:    state.deps.ApprovalGrants,
 		Sessions:          state.sessions,
-		WorkspaceResolver: state.workspaceResolver,
+		WorkspaceResolver: workspaceResolver,
 		ProfileNames:      state.profiles,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
@@ -96,7 +101,7 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		ExtensionRegistry: extensionRegistryDependency(state.registry),
 		ApprovalAvailable: true,
 		MCPSourceGrants: func(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.SourceGrant, error) {
-			return operatorAuthorizedMCPSourceGrants(ctx, state, scope)
+			return operatorConsentedSourceGrants(ctx, state, scope)
 		},
 		MCPResourceNames: func() map[string]string { return mcpResourceLogicalNames(state) },
 	})
@@ -139,13 +144,13 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if err := r.applyInstanceToolPolicy(ctx, &inputs, info); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
-	if err := applySessionToolPolicy(&inputs, info); err != nil {
+	if err := r.applyEffectiveSessionToolPolicy(ctx, &inputs, info); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
 	if resolvedScope.AgentName != "" &&
 		workspaceaccess.ActorKind(resolvedScope.ActorKind) != workspaceaccess.ActorDaemon {
 		if err := r.applyAgentToolPolicy(&inputs, resolvedScope.AgentName, resolvedWorkspace, cfg); err != nil {
-			if inputs.Session.Enforced && errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			if retainMissingAgentPolicy(&inputs, info, err) {
 				applySessionPermissionLevel(&inputs, info)
 				return inputs, nil
 			}
@@ -287,7 +292,15 @@ func (r *nativeToolPolicyResolver) sessionInfo(
 	if strings.TrimSpace(sessionID) == "" || r.sessions == nil {
 		return nil, nil
 	}
-	info, err := r.sessions.Status(ctx, sessionID)
+	var info *session.Info
+	var err error
+	if reader, ok := r.sessions.(interface {
+		StoredStatus(context.Context, string) (*session.Info, error)
+	}); ok {
+		info, err = reader.StoredStatus(ctx, sessionID)
+	} else {
+		info, err = r.sessions.Status(ctx, sessionID)
+	}
 	if err == nil {
 		return info, nil
 	}
@@ -304,8 +317,11 @@ func (r *nativeToolPolicyResolver) resolveWorkspaceConfig(
 ) (*workspacepkg.ResolvedAgentConfig, *compozyconfig.Config, error) {
 	cfg := r.cfg
 	workspaceID := strings.TrimSpace(scope.WorkspaceID)
-	if strings.TrimSpace(workspaceID) == "" {
-		return nil, cfg, nil
+	if workspaceID == "" {
+		if r.workspaceResolver == nil {
+			return nil, cfg, nil
+		}
+		workspaceID = workspaceaccess.UserSelector
 	}
 	if r.workspaceResolver == nil {
 		return nil, cfg, nil
@@ -444,10 +460,11 @@ func applyConcreteSessionToolPolicy(
 		ids = append(ids, id)
 	}
 	inputs.Session = toolspkg.SessionToolPolicy{
-		Enforced:    true,
-		Tools:       ids,
-		MCPServers:  append([]string(nil), policy.MCPServers...),
-		MCPByServer: policy.MaterializedTools,
+		Enforced:          true,
+		Tools:             ids,
+		MCPServers:        append([]string(nil), policy.MCPServers...),
+		MCPByServer:       true,
+		ExtensionsInherit: policy.ToolsMode == store.PermissionInherit,
 	}
 	return nil
 }
@@ -473,4 +490,9 @@ func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
 		}
 	}
 	return nil
+}
+
+func retainMissingAgentPolicy(inputs *toolspkg.PolicyInputs, info *session.Info, err error) bool {
+	return inputs.Session.Enforced && info != nil && info.Lineage != nil &&
+		errors.Is(err, workspacepkg.ErrAgentNotAvailable)
 }

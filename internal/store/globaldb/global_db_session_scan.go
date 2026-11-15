@@ -340,7 +340,7 @@ func scanSessionLineage(sessionID string, row *sessionInfoRow) (*store.SessionLi
 		AutoStopOnParent: row.autoStopOnParent,
 		NotifyCreator:    row.notifyCreator,
 		SpawnBudget:      budget,
-		PermissionPolicy: policy,
+		PermissionPolicy: store.DecodeIntent(policy, store.LineageKind(row.lineageKind), row.session.SessionType),
 	}
 	if row.ttlExpiresAt.Valid && strings.TrimSpace(row.ttlExpiresAt.String) != "" {
 		parsed, parseErr := store.ParseTimestamp(row.ttlExpiresAt.String)
