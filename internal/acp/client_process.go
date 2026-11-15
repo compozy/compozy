@@ -38,6 +38,7 @@ func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout tim
 	default:
 		waitErr = nil
 	}
+	waitErr = errors.Join(waitErr, p.drainConnectionOutput())
 	if p.stopWasRequested() {
 		waitErr = nil
 		if groupWaitErr != nil {
@@ -75,6 +76,24 @@ func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout tim
 		slog.Default().Warn("acp: close session MCP bridges", "pid", p.PID, "error", err)
 	}
 	close(p.done)
+}
+
+func (p *AgentProcess) drainConnectionOutput() error {
+	if p.conn == nil || p.handle == nil {
+		return nil
+	}
+	timer := time.NewTimer(defaultStopDrainTimeout)
+	defer timer.Stop()
+	var drainErr error
+	select {
+	case <-p.conn.Done():
+	case <-timer.C:
+		drainErr = fmt.Errorf("acp: stdout remained open after process exit: %w", context.DeadlineExceeded)
+	}
+	if stdout := p.handle.Stdout(); stdout != nil {
+		drainErr = errors.Join(drainErr, stdout.Close())
+	}
+	return drainErr
 }
 
 func processRecordContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

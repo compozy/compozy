@@ -38,8 +38,8 @@ func TestProcessShutdownCancellationContract(t *testing.T) {
 			Command: "sh",
 			Args: []string{
 				"-c",
-				`sleep 30 </dev/null >/dev/null 2>&1 & child=$!; printf '%s\n' "$child" > "$1"; ` +
-					`while [ ! -e "$2" ]; do sleep 0.05; done`,
+				`sleep 30 </dev/null 2>/dev/null & child=$!; printf '%s\n' "$child" > "$1"; ` +
+					`while [ ! -e "$2" ]; do sleep 0.05; done; printf 'complete\n'`,
 				"sh",
 				childPIDPath,
 				releasePath,
@@ -83,6 +83,10 @@ func TestProcessShutdownCancellationContract(t *testing.T) {
 		}
 		if err := process.Wait(); err != nil {
 			t.Fatalf("Wait() after natural root exit error = %v", err)
+		}
+		output, err := io.ReadAll(process.Stdout())
+		if err != nil || string(output) != "complete\n" {
+			t.Fatalf("ReadAll(stdout) after tree exit = %q, %v; want complete", output, err)
 		}
 		waitForCondition(t, time.Second, func() bool {
 			return !procutil.Alive(childPID)
@@ -448,6 +452,13 @@ func cleanupProcessShutdownContract(t *testing.T, process *Process) {
 		if process == nil {
 			return
 		}
+		defer func() {
+			if stdout := process.Stdout(); stdout != nil {
+				if err := stdout.Close(); err != nil {
+					t.Errorf("close process stdout: %v", err)
+				}
+			}
+		}()
 		select {
 		case <-process.Done():
 			return

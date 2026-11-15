@@ -291,6 +291,11 @@ func (t *transport) writeJSON(message any) error {
 
 func (t *transport) readLoop() {
 	defer close(t.readerDone)
+	defer func() {
+		if err := t.process.stdout.Close(); err != nil {
+			t.failTransport(fmt.Errorf("subprocess: close stdout: %w", err))
+		}
+	}()
 
 	scanner := bufio.NewScanner(t.process.stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), t.maxMessageBytes+1)

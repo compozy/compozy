@@ -195,7 +195,7 @@ func (l *localLauncher) prepareNPX(ctx context.Context, spec LaunchSpec) error {
 }
 
 // Managed shutdown owns the installer tree and joins its output drain.
-func (l *localLauncher) runNPXPreparation(ctx context.Context, spec LaunchSpec, args []string) error {
+func (l *localLauncher) runNPXPreparation(ctx context.Context, spec LaunchSpec, args []string) (resultErr error) {
 	process, err := subprocess.Launch(ctx, subprocess.LaunchConfig{
 		Command: spec.ResolvedExecutable, Executable: spec.ResolvedExecutable,
 		Args: args, Dir: spec.Cwd, Env: spec.Env, Logger: l.logger,
@@ -211,7 +211,10 @@ func (l *localLauncher) runNPXPreparation(ctx context.Context, spec LaunchSpec, 
 			l.logger.Debug("acp: preparation output closed")
 		}
 	}()
-	defer func() { <-drained }()
+	defer func() {
+		resultErr = errors.Join(resultErr, process.Stdout().Close())
+		<-drained
+	}()
 	select {
 	case <-process.Done():
 		return process.Wait()
