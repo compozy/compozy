@@ -689,6 +689,7 @@ func (a *helperACPAgent) NewSession(
 	if a.scenario == "config_options" || a.scenario == "stall_config" ||
 		a.scenario == "stall_last_config" || a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
+		a.scenario == "config_options_late_update" ||
 		a.scenario == "config_options_stale_update" ||
 		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||
@@ -1159,6 +1160,22 @@ func (a *helperACPAgent) SetSessionConfigOption(
 			return acpsdk.SetSessionConfigOptionResponse{}, err
 		}
 	}
+	if a.scenario == "config_options_late_update" {
+		// Apply the value only in a notification that lands after this response:
+		// that is the race the confirmation window exists for. Copy the select
+		// option, because the response still has to report the previous value.
+		updated := helperConfigOptionsWithCurrent(a.configOptions, "reasoning_effort", "high")
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			_ = a.conn.SessionUpdate(context.Background(), acpsdk.SessionNotification{
+				SessionId: "sess-new",
+				Update: acpsdk.SessionUpdate{ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{
+					ConfigOptions: updated,
+				}},
+			})
+		}()
+		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
+	}
 	if a.scenario == "config_options_unconfirmed" || a.scenario == "triage_config_unconfirmed" {
 		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
 	}
@@ -1229,6 +1246,25 @@ func (a *helperACPAgent) setHelperConfigOptions(options []acpsdk.SessionConfigOp
 	a.configOptionsMu.Lock()
 	defer a.configOptionsMu.Unlock()
 	a.configOptions = append([]acpsdk.SessionConfigOption(nil), options...)
+}
+
+// helperConfigOptionsWithCurrent copies the option list and sets one select value,
+// leaving the original options untouched.
+func helperConfigOptionsWithCurrent(
+	options []acpsdk.SessionConfigOption,
+	id string,
+	current string,
+) []acpsdk.SessionConfigOption {
+	updated := append([]acpsdk.SessionConfigOption(nil), options...)
+	for index := range updated {
+		if updated[index].Select == nil || string(updated[index].Select.Id) != id {
+			continue
+		}
+		selectOption := *updated[index].Select
+		selectOption.CurrentValue = acpsdk.SessionConfigValueId(current)
+		updated[index].Select = &selectOption
+	}
+	return updated
 }
 
 func helperConfigOptions(modelCurrent string, reasoningCurrent string) []acpsdk.SessionConfigOption {

@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -155,7 +156,8 @@ func ValidateModelConfigValue(options []SessionConfigOption, modelID string) err
 	)
 }
 
-// applySessionReasoningEffort rejects unadvertised intent before requesting provider acknowledgement.
+// applySessionReasoningEffort rejects unadvertised intent before requesting provider
+// acknowledgement; the shared confirmation wait covers a late config_option_update.
 func (d *Driver) applySessionReasoningEffort(
 	ctx context.Context,
 	process *AgentProcess,
@@ -169,8 +171,7 @@ func (d *Driver) applySessionReasoningEffort(
 		return false, nil
 	}
 
-	caps := process.CapsSnapshot()
-	option, ok := findReasoningConfigOption(caps.ConfigOptions)
+	option, ok := findReasoningConfigOption(process.CapsSnapshot().ConfigOptions)
 	if !ok {
 		return false, newNegotiationError(
 			NegotiationCodeReasoningOptionMissing,
@@ -198,6 +199,18 @@ func (d *Driver) applySessionReasoningEffort(
 		ID:      option.ID,
 		ValueID: effortID,
 	}); err != nil {
+		if errors.Is(err, errConfigOptionUnconfirmed) {
+			// The value is advertised but the provider never confirmed it: report the
+			// cause without claiming the value is absent from the choices.
+			return true, newNegotiationError(
+				NegotiationCodeReasoningEffortUnsupported,
+				"reasoning effort",
+				effortID,
+				option.ID,
+				nil,
+				err,
+			)
+		}
 		return true, newNegotiationError(
 			NegotiationCodeReasoningEffortUnsupported,
 			"reasoning effort",
@@ -210,32 +223,44 @@ func (d *Driver) applySessionReasoningEffort(
 	return true, nil
 }
 
-// applySessionConfigOption requires confirmation without replacing a concurrent provider observation.
+// applySessionConfigOption applies one selection and confirms it through the shared
+// wait, without replacing a concurrent provider observation.
 func (d *Driver) applySessionConfigOption(
 	ctx context.Context,
 	process *AgentProcess,
 	selection SessionConfigOptionSelection,
 ) error {
-	request, err := selection.request(acpsdk.SessionId(process.SessionID))
-	if err != nil {
-		return err
-	}
-	response, err := process.sendControlRequest[acpsdk.SetSessionConfigOptionResponse](ctx,
-		acpsdk.AgentMethodSessionSetConfigOption,
-		request,
-	)
-	if err != nil {
-		return err
-	}
-	revision := process.configRevisionAfterResponse()
-	options := process.setConfigOptionsResponse(sessionConfigOptionsFromSDK(response.ConfigOptions), revision)
-	confirmed, ok := findConfigOptionByID(options, selection.ID)
-	if !ok || !selection.matches(confirmed) {
-		return fmt.Errorf(
-			"acp: provider did not confirm config option %q: %w",
-			selection.ID,
-			errConfigOptionUnconfirmed,
+	// The confirmation wait lives here, in the path every selection uses, so model,
+	// generic options and reasoning effort all survive a late config_option_update.
+	apply := func(ctx context.Context) error {
+		request, err := selection.request(acpsdk.SessionId(process.SessionID))
+		if err != nil {
+			return err
+		}
+		response, err := process.sendControlRequest[acpsdk.SetSessionConfigOptionResponse](ctx,
+			acpsdk.AgentMethodSessionSetConfigOption,
+			request,
 		)
+		if err != nil {
+			return err
+		}
+		revision := process.configRevisionAfterResponse()
+		process.setConfigOptionsResponse(sessionConfigOptionsFromSDK(response.ConfigOptions), revision)
+		return nil
+	}
+	confirmed := func() bool {
+		option, ok := findConfigOptionByID(process.CapsSnapshot().ConfigOptions, selection.ID)
+		return ok && selection.matches(option)
+	}
+	if err := d.applyConfigOption(ctx, process, apply, confirmed); err != nil {
+		if errors.Is(err, errConfigOptionUnconfirmed) {
+			return fmt.Errorf(
+				"acp: provider did not confirm config option %q: %w",
+				selection.ID,
+				err,
+			)
+		}
+		return err
 	}
 	return nil
 }
