@@ -275,8 +275,15 @@ ttl = "1h"
 timeout = "10s"
 ```
 
-`base_url` accepts `https` or `http`; `http` logs an insecure-scheme warning. The GitHub client reads
-`GITHUB_TOKEN` from the daemon environment for authenticated release access and higher rate limits.
+`extensions.sources.github.base_url` accepts `https` or `http`. HTTP logs an insecure-scheme
+warning; authenticated local registries remain supported only on `127.0.0.1`, `::1`, or `localhost`.
+Other HTTP GitHub API endpoints fail before a request is sent and ask you to use HTTPS.
+For authenticated release access and higher rate limits, the GitHub client uses `GITHUB_TOKEN`
+from the daemon environment, then the daemon user's `gh auth token` login for
+`https://api.github.com`. Custom API origins use only the explicit environment token; they never
+receive the CLI's github.com credential. Without an applicable credential, supported endpoints
+use anonymous access. Credentials stay on the exact configured API origin and port and are removed
+on redirects to other origins. Publishing uses its explicit credential on HTTPS or loopback HTTP.
 
 After changing policy, reconcile and inspect the daemon's apply record:
 

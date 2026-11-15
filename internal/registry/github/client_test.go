@@ -17,9 +17,11 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 )
@@ -50,7 +52,10 @@ func TestClientSearchFindsExtensionTopicRepositories(t *testing.T) {
 		})
 		defer server.Close()
 
-		items, err := NewClient(server.URL).Search(t.Context(), " bridge ", registry.SearchOpts{
+		items, err := NewClient(
+			server.URL,
+			WithHTTPClient(server.Client()),
+		).Search(t.Context(), " bridge ", registry.SearchOpts{
 			Limit:  5,
 			Offset: 10,
 			Type:   registry.PackageTypeExtension,
@@ -100,7 +105,10 @@ func TestClientSearchFindsExtensionTopicRepositories(t *testing.T) {
 		})
 		defer server.Close()
 
-		items, err := NewClient(server.URL).Search(t.Context(), "repo", registry.SearchOpts{
+		items, err := NewClient(
+			server.URL,
+			WithHTTPClient(server.Client()),
+		).Search(t.Context(), "repo", registry.SearchOpts{
 			Limit: 5, Offset: 2, Type: registry.PackageTypeExtension,
 		})
 		if err != nil {
@@ -131,15 +139,21 @@ func testClientCapabilities(t *testing.T) {
 }
 
 func TestClientUploadRelease(t *testing.T) {
-	t.Run("Should publish an archive and digest sidecar", testClientUploadRelease)
+	t.Run("Should publish an archive and digest sidecar over HTTPS", func(t *testing.T) {
+		testClientUploadRelease(t, true)
+	})
+	t.Run("Should preserve publication to a loopback HTTP registry", func(t *testing.T) {
+		testClientUploadRelease(t, false)
+	})
 }
 
-func testClientUploadRelease(t *testing.T) {
+func testClientUploadRelease(t *testing.T, secure bool) {
 	t.Parallel()
 
 	token := "publish-token-sentinel"
 	uploaded := make(map[string]string)
-	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+	var server *httptest.Server
+	server = httptest.NewUnstartedServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer "+token {
 			t.Fatalf("Authorization header missing bound credential")
 		}
@@ -149,7 +163,7 @@ func testClientUploadRelease(t *testing.T) {
 		case request.Method == http.MethodPost && request.URL.Path == "/repos/acme/demo/releases":
 			writeJSON(writer,
 				`{"id":7,"tag_name":"v1.2.3","html_url":"https://github.test/acme/demo/releases/v1.2.3",`+
-					`"upload_url":"SERVER_URL/uploads/7{?name,label}","assets":[]}`,
+					`"upload_url":"`+server.URL+`/uploads/7{?name,label}","assets":[]}`,
 			)
 		case request.Method == http.MethodPost && request.URL.Path == "/uploads/7":
 			payload, err := io.ReadAll(request.Body)
@@ -165,10 +179,19 @@ func testClientUploadRelease(t *testing.T) {
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		}
-	})
+	}))
+	if secure {
+		server.StartTLS()
+	} else {
+		server.Start()
+	}
 	defer server.Close()
 
-	result, err := NewClient(server.URL, WithToken(token)).UploadRelease(t.Context(), ReleaseUploadRequest{
+	result, err := NewClient(
+		server.URL,
+		WithHTTPClient(server.Client()),
+		WithToken(token),
+	).UploadRelease(t.Context(), ReleaseUploadRequest{
 		Repository: "acme/demo", TagName: "v1.2.3", AssetName: "demo-v1.2.3.tar.gz",
 		Archive: []byte("archive"), DigestSidecar: []byte("digest  demo-v1.2.3.tar.gz\n"),
 	})
@@ -225,7 +248,11 @@ func TestClientInfoFetchesLatestAndVersions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	client := NewClient(
+		server.URL,
+		WithHTTPClient(server.Client()),
+		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+	)
 	detail, err := client.Info(t.Context(), "acme/demo")
 	if err != nil {
 		t.Fatalf("Info() error = %v", err)
@@ -268,7 +295,7 @@ func TestClientDownloadSingleTarballAsset(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	result, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
@@ -324,7 +351,7 @@ func testClientDownloadUsesReleaseDigestSidecar(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	result, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
@@ -361,7 +388,7 @@ func TestClientDownloadMultipleAssetsRequiresSelection(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	_, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err == nil {
 		t.Fatal("Download() error = nil, want asset disambiguation failure")
@@ -397,7 +424,7 @@ func TestClientDownloadSelectsRequestedAsset(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	result, err := client.Download(
 		t.Context(),
 		"acme/demo",
@@ -448,7 +475,7 @@ func TestClientDownloadFallsBackToSourceArchive(t *testing.T) {
 		})
 		defer server.Close()
 
-		client := NewClient(server.URL)
+		client := NewClient(server.URL, WithHTTPClient(server.Client()))
 		result, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 		if err != nil {
 			t.Fatalf("Download() error = %v", err)
@@ -486,7 +513,7 @@ func TestClientDownloadRejectsUnexpectedContentType(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	_, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err == nil {
 		t.Fatal("Download() error = nil, want content-type failure")
@@ -571,7 +598,7 @@ func TestClientDownloadSurfacesHTTPFailuresBeforeContentTypeValidation(t *testin
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	_, err := client.Download(t.Context(), "acme/demo", registry.DownloadOpts{})
 	if err == nil {
 		t.Fatal("Download() error = nil, want HTTP failure")
@@ -593,7 +620,7 @@ func TestClientRateLimitExceeded(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()), WithToken(""))
 	_, err := client.Info(t.Context(), "acme/demo")
 	if err == nil {
 		t.Fatal("Info() error = nil, want rate-limit failure")
@@ -611,7 +638,7 @@ func TestClientPrivateRepositoryRequiresToken(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL, WithToken(""))
+	client := NewClient(server.URL, WithHTTPClient(server.Client()), WithToken(""))
 	_, err := client.Info(t.Context(), "acme/private")
 	if err == nil {
 		t.Fatal("Info() error = nil, want authentication failure")
@@ -636,7 +663,7 @@ func TestClientRepositoryWithoutReleases(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	_, err := client.Info(t.Context(), "acme/demo")
 	if err == nil {
 		t.Fatal("Info() error = nil, want no releases failure")
@@ -664,7 +691,7 @@ func TestClientFallsBackToFirstPublishedReleaseWhenLatestEndpointIsMissing(t *te
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	release, err := client.fetchLatestRelease(
 		t.Context(),
 		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
@@ -732,10 +759,74 @@ func TestClientUsesGitHubToken(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	_, err := client.fetchLatestRelease(t.Context(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
 	if err != nil {
 		t.Fatalf("fetchLatestRelease() error = %v", err)
+	}
+}
+
+func TestClientCredentialRateLimitBackoff(t *testing.T) {
+	for _, status := range []int{http.StatusForbidden, http.StatusTooManyRequests} {
+		for _, authenticated := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should back off status %d with authentication %t", status, authenticated),
+				func(t *testing.T) {
+					t.Setenv("PATH", t.TempDir())
+					token := ""
+					if authenticated {
+						token = "rate-limit-sentinel"
+					}
+					t.Setenv("GITHUB_TOKEN", token)
+					now := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
+					reset := now.Add(time.Hour)
+					var calls atomic.Int32
+					server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						count := calls.Add(1)
+						want := ""
+						if authenticated {
+							want = "Bearer " + token
+						}
+						if r.Header.Get("Authorization") != want {
+							t.Error("unexpected GitHub authentication")
+						}
+						if count == 1 {
+							w.Header().Set("X-RateLimit-Remaining", "0")
+							w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
+							w.Header().Set("Retry-After", "120")
+							http.Error(w, "rate-limit-sentinel", status)
+							return
+						}
+						if _, err := io.WriteString(w, strings.Repeat("a", 40)); err != nil {
+							t.Error(err)
+						}
+					}))
+					t.Cleanup(server.Close)
+					client := NewClient(server.URL, WithHTTPClient(server.Client()))
+					client.now = func() time.Time { return now }
+					for range 2 {
+						_, err := client.ResolveCommit(t.Context(), "owner/repo", "HEAD")
+						limited, ok := errors.AsType[*githubauth.RateLimitError](err)
+						if !ok || !limited.RetryAt.Equal(reset) || limited.Authenticated != authenticated ||
+							strings.Contains(err.Error(), "rate-limit-sentinel") {
+							t.Fatal("unsafe or missing rate limit error")
+						}
+					}
+					if calls.Load() != 1 {
+						t.Fatal("rate limit did not suppress another request")
+					}
+					now = reset
+					if _, err := client.ResolveCommit(
+						t.Context(),
+						"owner/repo",
+						"HEAD",
+					); err != nil ||
+						calls.Load() != 2 {
+						t.Fatalf("retry after reset failed: %v", err)
+					}
+				},
+			)
+		}
 	}
 }
 
@@ -762,6 +853,7 @@ func TestClientRetriesHTTP500(t *testing.T) {
 
 	client := NewClient(
 		server.URL,
+		WithHTTPClient(server.Client()),
 		WithRetryPolicy(time.Millisecond, time.Millisecond, 2),
 		WithSleep(func(context.Context, time.Duration) error { return nil }),
 	)
@@ -818,12 +910,12 @@ func TestClientRetriesHTTP500(t *testing.T) {
 		t.Context(),
 		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
 	)
-	if err != nil {
-		t.Fatalf("fetchLatestRelease(transport and 429) error = %v", err)
+	if !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("fetchLatestRelease(transport and 429) must stop on rate limit: %v", err)
 	}
-	if policyAttempts != 3 || policyWaits != 2 {
+	if policyAttempts != 2 || policyWaits != 1 {
 		t.Fatalf(
-			"transport and 429 policy attempts/waits = %d/%d, want 3/2",
+			"transport and 429 policy attempts/waits = %d/%d, want 2/1",
 			policyAttempts,
 			policyWaits,
 		)
@@ -959,7 +1051,7 @@ func TestClientFetchRequestedReleaseByTag(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	for _, version := range []string{"v1.2.3", "1.2.3"} {
 		release, err := client.fetchRequestedRelease(
 			t.Context(),
@@ -983,7 +1075,7 @@ func TestClientFetchRequestedReleaseNotFound(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	_, err := client.fetchRequestedRelease(
 		t.Context(),
 		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
@@ -1008,7 +1100,7 @@ func TestClientFetchRequestedReleaseRejectsPrerelease(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	_, err := client.fetchRequestedRelease(
 		t.Context(),
 		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
@@ -1033,7 +1125,7 @@ func TestClientFetchReleasePageErrors(t *testing.T) {
 		})
 		defer server.Close()
 
-		client := NewClient(server.URL)
+		client := NewClient(server.URL, WithHTTPClient(server.Client()))
 		_, err := client.fetchReleasePage(
 			t.Context(),
 			repoSlug{owner: "acme", name: "missing", full: "acme/missing"},
@@ -1054,7 +1146,7 @@ func TestClientFetchReleasePageErrors(t *testing.T) {
 		})
 		defer server.Close()
 
-		client := NewClient(server.URL)
+		client := NewClient(server.URL, WithHTTPClient(server.Client()))
 		_, err := client.fetchReleasePage(
 			t.Context(),
 			repoSlug{owner: "acme", name: "private", full: "acme/private"},
@@ -1076,7 +1168,7 @@ func TestClientFetchLatestReleaseUnauthorized(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL)
+	client := NewClient(server.URL, WithHTTPClient(server.Client()))
 	_, err := client.fetchLatestRelease(
 		t.Context(),
 		repoSlug{owner: "acme", name: "private", full: "acme/private"},
@@ -1335,6 +1427,60 @@ func TestClientOutboundPolicy(t *testing.T) {
 		)
 		if !errors.Is(err, outboundpolicy.ErrBlockedDestination) {
 			t.Fatalf("default API private resolution error = %v, want ErrBlockedDestination", err)
+		}
+	})
+
+	t.Run("Should refuse non-loopback HTTP before reads or publication", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		transport := &http.Client{Transport: stubRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+			calls++
+			return newHTTPResponse(http.StatusNoContent, ""), nil
+		})}
+		for _, base := range []string{"http://registry.example.test", "http://localhost.example.test", "http://127.0.0.2"} {
+			client := NewClient(base, WithToken("transport-sentinel"), WithHTTPClient(transport))
+			readResponse, readErr := client.doRequest(t.Context(), base+"/repos/acme/demo", acceptJSON)
+			if readResponse != nil {
+				if err := readResponse.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}
+			publishResponse, publishErr := client.doMutationRequest(
+				t.Context(),
+				http.MethodPost,
+				base+"/uploads",
+				acceptBinary,
+				[]byte("archive"),
+			)
+			if publishResponse != nil {
+				if err := publishResponse.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}
+			for _, err := range []error{readErr, publishErr} {
+				if !errors.Is(err, outboundpolicy.ErrInsecureTransport) || !strings.Contains(err.Error(), "use HTTPS") {
+					t.Fatalf("insecure endpoint error = %v, want HTTPS recovery guidance", err)
+				}
+				if strings.Contains(err.Error(), "transport-sentinel") {
+					t.Fatal("insecure endpoint error exposed a credential")
+				}
+			}
+		}
+		client := NewClient("https://api.example.test", WithToken("transport-sentinel"), WithHTTPClient(transport))
+		response, err := client.doMutationRequest(
+			t.Context(),
+			http.MethodPost,
+			"http://uploads.example.test/upload",
+			acceptBinary,
+			nil,
+		)
+		if response != nil {
+			if closeErr := response.Body.Close(); closeErr != nil {
+				t.Error(closeErr)
+			}
+		}
+		if !errors.Is(err, outboundpolicy.ErrInsecureTransport) || calls != 0 {
+			t.Fatalf("insecure upload error = %v, network calls = %d", err, calls)
 		}
 	})
 
@@ -1687,7 +1833,7 @@ func newGitHubServer(t *testing.T, handler func(http.ResponseWriter, *http.Reque
 	t.Helper()
 
 	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	server = httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		recorder := httptest.NewRecorder()
 		handler(recorder, request)
 		response := recorder.Result()
@@ -1807,7 +1953,9 @@ func (r *scriptedErrorReadCloser) Close() error {
 
 func newReleaseResponseClient(body io.ReadCloser) *Client {
 	return &Client{
-		baseURL: "https://api.example.com",
+		baseURL:    "https://api.example.com",
+		rateLimits: &githubauth.RateLimitGate{},
+		now:        time.Now,
 		httpClient: &http.Client{Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,

@@ -269,6 +269,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		deps.ExtensionRuntime = func() extensionRuntime { return manager }
 		deps.WorkspaceResolver = resolver
 		deps.ExtensionConfig.Sources.GitHub.BaseURL = publishServer.URL
+		deps.ExtensionHTTPClient = publishServer.Client()
 		deps.ExtensionSecrets = nativeExtensionSecretResolver{
 			values: map[string]string{"env:GITHUB_TOKEN": publishCredential},
 		}
@@ -816,7 +817,7 @@ func newNativeExtensionPublishServer(
 	t.Helper()
 	capture := &nativeExtensionPublishCapture{}
 	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	server = httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		payload, err := io.ReadAll(request.Body)
 		if err != nil {
 			http.Error(writer, "read request", http.StatusInternalServerError)

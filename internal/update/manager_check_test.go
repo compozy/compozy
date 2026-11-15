@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,9 +22,69 @@ import (
 
 	"github.com/compozy/compozy/internal/appstatecontract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/githubauth"
 )
 
 func TestManagerCheck(t *testing.T) {
+	t.Run("Should check releases anonymously when gh and environment credentials are absent", func(t *testing.T) {
+		t.Setenv("PATH", t.TempDir())
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "" {
+				t.Error("anonymous check carried credentials")
+			}
+			if _, err := io.WriteString(w, `{"tag_name":"v1.2.0"}`); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		manager, _ := newManagerWithExecutable(t, &Config{
+			Getenv: func(string) string { return "" },
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				forward := request.Clone(request.Context())
+				forward.URL.Host = server.Listener.Addr().String()
+				return server.Client().Transport.RoundTrip(forward)
+			})},
+		})
+		manager.githubCredentials = githubauth.NewResolver(manager.getenv)
+		if release, err := manager.fetchLatestRelease(t.Context()); err != nil || release.Version != "v1.2.0" {
+			t.Fatalf("anonymous release = %+v, %v", release, err)
+		}
+	})
+	t.Run("Should authenticate release checks without exposing the credential on rate limits", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		now := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			if r.Header.Get("Authorization") != "Bearer update-sentinel" {
+				t.Error("release request is not authenticated")
+			}
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(now.Add(time.Hour).Unix(), 10))
+			http.Error(w, "update-sentinel", http.StatusForbidden)
+		}))
+		t.Cleanup(server.Close)
+		manager, _ := newManagerWithExecutable(t, &Config{
+			Getenv: func(string) string { return "update-sentinel" }, Now: func() time.Time { return now },
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				forward := request.Clone(request.Context())
+				forward.URL.Host = server.Listener.Addr().String()
+				return server.Client().Transport.RoundTrip(forward)
+			})},
+		})
+		manager.githubCredentials = githubauth.NewResolver(manager.getenv)
+		for range 2 {
+			state, _, err := manager.Check(t.Context(), CheckOptions{ForceRefresh: true})
+			limited, ok := errors.AsType[*githubauth.RateLimitError](err)
+			if !ok || !limited.Authenticated || !strings.Contains(state.LastError, "(authenticated)") ||
+				strings.Contains(state.LastError, "update-sentinel") {
+				t.Fatal("release rate limit diagnostic is missing or unsafe")
+			}
+		}
+		if calls.Load() != 1 {
+			t.Fatalf("requests during backoff = %d", calls.Load())
+		}
+	})
 	t.Run("Should keep deadline failures visible and throttle subsequent manual checks", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
@@ -1157,13 +1218,14 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 	t.Run("Should join early response drain and close failures", func(t *testing.T) {
 		t.Parallel()
 
-		drainErr := errors.New("drain response")
-		closeErr := errors.New("close response")
+		drainErr := errors.New("drain cleanup-sentinel")
+		closeErr := errors.New("close cleanup-sentinel")
 		body := &updateReadCloserProbe{
 			reader:   iotest.ErrReader(drainErr),
 			closeErr: closeErr,
 		}
 		manager, _ := newManagerWithExecutable(t, &Config{
+			Getenv: func(string) string { return "cleanup-sentinel" },
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 					return &http.Response{
@@ -1175,8 +1237,9 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 			},
 		})
 
+		manager.githubCredentials = githubauth.NewResolver(manager.getenv)
 		var release githubReleaseResponse
-		err := manager.fetchGitHubJSON(t.Context(), "https://example.invalid/releases", &release)
+		err := manager.fetchGitHubJSON(t.Context(), "https://api.github.com/releases", &release)
 		if err == nil {
 			t.Fatal("fetchGitHubJSON() error = nil, want status, drain, and close failures")
 		}
@@ -1185,6 +1248,9 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 		}
 		if !errors.Is(err, closeErr) {
 			t.Fatalf("fetchGitHubJSON() error = %v, want close failure", err)
+		}
+		if strings.Contains(err.Error(), "cleanup-sentinel") {
+			t.Fatal("cleanup exposed the credential")
 		}
 		if !body.closed {
 			t.Fatal("response body closed = false, want true")

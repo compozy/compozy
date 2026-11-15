@@ -23,6 +23,7 @@ import (
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
@@ -315,6 +316,55 @@ func TestPluginProjectionBudget(t *testing.T) {
 			t.Fatalf("source budget diagnostics = %d", sourceDiagnostics)
 		}
 	})
+	// Invariant: concurrent package quota failures retain the latest source retry deadline.
+	// Owner: plugin projection; canonical suite: TestPluginProjectionBudget.
+	t.Run("Should retain the latest quota deadline regardless of plugin order", func(t *testing.T) {
+		t.Parallel()
+		early := &githubauth.RateLimitError{RetryAt: time.Now().Add(time.Minute)}
+		late := &githubauth.RateLimitError{RetryAt: early.RetryAt.Add(time.Hour), Authenticated: true}
+		for _, tc := range []struct {
+			name    string
+			plugins []string
+		}{
+			{name: "Should extend an earlier quota deadline", plugins: []string{"early", "late"}},
+			{name: "Should preserve a later quota deadline", plugins: []string{"late", "early"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				doc := pluginsource.Document{
+					Plugins: []pluginsource.Plugin{{Name: tc.plugins[0]}, {Name: tc.plugins[1]}},
+				}
+				resolver := &projectionResolver{
+					resolve: func(
+						_ context.Context,
+						_ pluginsource.Document,
+						plugin pluginsource.Plugin,
+					) (pluginsource.AcquisitionRecord, error) {
+						if plugin.Name == "early" {
+							return pluginsource.AcquisitionRecord{}, early
+						}
+						return pluginsource.AcquisitionRecord{}, late
+					},
+				}
+				projector, err := NewPluginProjector(
+					resolver,
+					func(context.Context, string, string) (PluginInspection, error) {
+						t.Error("rate-limited packages must not reach inspection")
+						return PluginInspection{}, nil
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				entries, _, err := projector.Project(t.Context(), doc, "team", nil)
+				limited, ok := errors.AsType[*githubauth.RateLimitError](err)
+				if !ok || limited != late || !errors.Is(err, early) || len(entries) != 0 {
+					t.Fatalf("quota aggregation for %v = %v, entries=%+v", tc.plugins, err, entries)
+				}
+			})
+		}
+	})
+
 	t.Run("Should join canceled resolves and leave unfinished plugins budget blocked", func(t *testing.T) {
 		t.Parallel()
 		var active atomic.Int32

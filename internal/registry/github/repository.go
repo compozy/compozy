@@ -11,12 +11,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/registry"
 )
 
 var (
 	ErrContentTooLarge = errors.New("github: repository content exceeds size limit")
-	ErrRateLimited     = errors.New("github: rate limit exceeded")
+	ErrRateLimited     = githubauth.ErrRateLimited
 	commitPattern      = regexp.MustCompile(`^[0-9a-f]{40}$`)
 )
 

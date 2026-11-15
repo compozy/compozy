@@ -9,6 +9,26 @@ Marketplace. The folder or repository must contain `marketplace.json` at its roo
 Each listed plugin is loaded with the same manifest loader used during installation. The listing
 reports `installable`, `install_blocker`, layout, category, and the digest of its captured package.
 
+## GitHub authentication and rate limits
+
+GitHub plugin sources, extension discovery and update checks use `GITHUB_TOKEN` from the daemon
+process environment, then `gh auth token --hostname github.com` for the daemon's user on the public
+`https://api.github.com` API. Custom API origins use only the explicit environment token. Run
+`gh auth login` as that user if the desktop-launched daemon has no environment token. A missing
+or signed-out GitHub CLI falls back to anonymous access. The CLI lookup has a five-second timeout;
+its result stays in memory for one minute and is never written to CompozyOS configuration or caches.
+Extension-instance secret bindings remain private to their extension and are not imported here.
+
+Credentials are sent only to the exact configured API origin and port over HTTPS or local HTTP
+(`127.0.0.1`, `::1`, or `localhost`), and are removed on cross-origin redirects. Other HTTP GitHub
+API endpoints fail with guidance to use HTTPS before sending any request.
+A source that hits a GitHub rate limit keeps its last good catalog and reports `rate_limited`, the
+retry deadline, and recovery guidance. Reads and explicit refreshes honor `Retry-After` and, when
+the primary quota is exhausted, `X-RateLimit-Reset`, with at least a one-minute backoff. Plugin
+package rate limits preserve the entire last good catalog too. Backoff is held in memory for the
+current source configuration. A new login or environment token takes effect after the retry deadline
+or a daemon restart.
+
 ## Default sources
 
 CompozyOS ships with preset sources. `compozy-plugins` is the CompozyOS-curated plugin catalog,
@@ -64,7 +84,8 @@ GitHub source acquisition pins the document and repository archive to one commit
 therefore fail even when its marketplace JSON is reachable. The safe `error_class` distinguishes
 upstream HTTP status (for example, `http_415`), `rate_limited`, `dns_failed`, `tls_failed`, and
 `network_blocked`; unknown failures retain `fetch_failed`. Upstream response text and credentials
-are not included. Retry uses the same public source and network policy, without borrowing a token.
+are not included. Retry uses the same source and network policy, with only the daemon credential
+described above; extension-instance credentials are never borrowed.
 
 A name collision returns `marketplace_source_exists` with `suggested_name`. A name retained by an
 installed extension returns `marketplace_source_name_retained` with `retained_by`. Use another name

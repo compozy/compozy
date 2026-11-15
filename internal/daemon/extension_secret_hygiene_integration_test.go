@@ -194,10 +194,11 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 		ExtensionConfig: compozyconfig.ExtensionsConfig{Sources: compozyconfig.ExtensionsSourcesConfig{
 			GitHub: compozyconfig.ExtensionsGitHubSourceConfig{BaseURL: publishServer.URL},
 		}},
-		ExtensionEvents:   db,
-		ExtensionSecrets:  secretResolver,
-		HomePaths:         homePaths,
-		WorkspaceResolver: workspaceResolver,
+		ExtensionEvents:     db,
+		ExtensionSecrets:    secretResolver,
+		ExtensionHTTPClient: publishServer.Client(),
+		HomePaths:           homePaths,
+		WorkspaceResolver:   workspaceResolver,
 	}
 	nativeRegistry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 	nativeScope := toolspkg.Scope{WorkspaceID: workspaceID, Operator: true}
@@ -230,6 +231,7 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	failureServer := newSecretEchoingPublishFailureServer(t, secrets)
 	t.Cleanup(failureServer.Close)
 	deps.ExtensionConfig.Sources.GitHub.BaseURL = failureServer.URL
+	deps.ExtensionHTTPClient = failureServer.Client()
 	failingNativeRegistry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 	_, publishErr := failingNativeRegistry.Call(t.Context(), nativeScope, toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDExtensionsPublish,
@@ -473,7 +475,7 @@ func readSecretExtensionSSEFrame(t *testing.T, engine *gin.Engine, name string) 
 
 func newSecretEchoingPublishFailureServer(t *testing.T, secrets []string) *httptest.Server {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	return httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusInternalServerError)
 		if _, err := fmt.Fprintf(writer, "upstream failure %s %s", secrets[0], secrets[1]); err != nil {
 			t.Errorf("fmt.Fprintf(publish failure response) error = %v", err)

@@ -3,20 +3,203 @@
 package marketplace
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 	t.Parallel()
+	t.Run("Should retain cached entries and honor GitHub reset across reads and forced refreshes", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2100, 11, 15, 12, 0, 0, 0, time.UTC)
+		reset := now.Add(time.Hour)
+		var limited atomic.Bool
+		var calls atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			if limited.Load() {
+				w.Header().Set("X-RateLimit-Remaining", "0")
+				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
+				http.Error(w, "rate limited", http.StatusForbidden)
+				return
+			}
+			body := `{"plugins":[]}`
+			if strings.Contains(r.URL.Path, "/commits/") {
+				body = strings.Repeat("a", 40)
+			}
+			if _, err := io.WriteString(w, body); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		reader := &pluginsource.Sources{GitHubOptions: []pluginsource.GitHubOption{
+			pluginsource.WithGitHubBaseURL(server.URL), pluginsource.WithGitHubHTTPClient(server.Client()),
+			pluginsource.WithGitHubNow(func() time.Time { return now }),
+		}}
+		fetcher := &recordingSource{fetch: func(ctx context.Context) (*Document, error) {
+			if _, err := reader.Fetch(ctx, "owner/repo"); err != nil {
+				return nil, err
+			}
+			return testDocument(now, testEntry("stable", "Stable", "Cached plugin")), nil
+		}}
+		service, err := NewService(t.Context(), openMarketplaceTestStore(t), marketplaceTestBindings(t, fetcher),
+			time.Minute, time.Minute, WithNow(func() time.Time { return now }))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := service.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		limited.Store(true)
+		for range 2 {
+			if _, err := service.Refresh(t.Context()); err == nil || !strings.Contains(err.Error(), "gh auth login") {
+				t.Fatal("rate limit is missing its recovery guidance")
+			}
+		}
+		page, err := service.Browse(t.Context(), "", 0, 10)
+		if err != nil || !page.Stale || len(page.Entries) != 1 || page.Refreshing || calls.Load() != 3 {
+			t.Fatalf("cached page = %+v, err=%v, requests=%d", page, err, calls.Load())
+		}
+		now = reset
+		limited.Store(false)
+		if _, err := service.Refresh(t.Context()); err != nil || calls.Load() != 5 {
+			t.Fatalf("refresh after reset = %v, requests=%d", err, calls.Load())
+		}
+	})
+
+	// Invariant: package quota backoff preserves SQLite state and resumes real acquisition after reset.
+	// Owner: service/package composition; canonical HTTP/SQLite integration suite.
+	t.Run("Should preserve the catalog and back off when a plugin package hits GitHub quota", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2100, 11, 15, 12, 0, 0, 0, time.UTC)
+		reset := now.Add(time.Hour)
+		root := t.TempDir()
+		manifestPath := filepath.Join(".claude-plugin", "plugin.json")
+		packageRoot := filepath.Join(root, "repository")
+		if err := os.MkdirAll(filepath.Join(packageRoot, ".claude-plugin"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		manifest := `{"name":"tool","version":"1.0.0"}`
+		if err := os.WriteFile(filepath.Join(packageRoot, manifestPath), []byte(manifest), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var archive bytes.Buffer
+		if _, err := fileutil.WriteTarGzipDirectory(t.Context(), &archive, root, nil, fileutil.TarGzipLimits{}); err != nil {
+			t.Fatal(err)
+		}
+		var limited, projectPackages atomic.Bool
+		var tarballs atomic.Int32
+		var calls atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			if strings.Contains(r.URL.Path, "/tarball/") {
+				tarballs.Add(1)
+				if !limited.Load() {
+					w.Header().Set("Content-Type", "application/gzip")
+					if _, err := w.Write(archive.Bytes()); err != nil {
+						t.Error(err)
+					}
+					return
+				}
+				w.Header().Set("X-RateLimit-Remaining", "0")
+				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
+				http.Error(w, "rate limited", http.StatusTooManyRequests)
+				return
+			}
+			if _, err := io.WriteString(w, strings.Repeat("a", 40)); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		resolver := &pluginsource.Resolver{Cache: &pluginsource.PackageCache{Root: t.TempDir()}, Sources: pluginsource.Sources{
+			TempDir: t.TempDir(), GitHubOptions: []pluginsource.GitHubOption{
+				pluginsource.WithGitHubBaseURL(server.URL), pluginsource.WithGitHubHTTPClient(server.Client()),
+				pluginsource.WithGitHubNow(func() time.Time { return now }),
+			},
+		}}
+		projector, err := NewPluginProjector(resolver, func(_ context.Context, root, _ string) (PluginInspection, error) {
+			if limited.Load() {
+				t.Error("rate-limited package must not reach inspection")
+			}
+			content, err := os.ReadFile(filepath.Join(root, manifestPath))
+			if err == nil && string(content) != manifest {
+				t.Errorf("recovered package manifest = %q", content)
+			}
+			return PluginInspection{Contents: PluginContents{Skills: 1}}, err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher := &recordingSource{fetch: func(ctx context.Context) (*Document, error) {
+			if projectPackages.Load() {
+				entries, _, err := projector.Project(ctx, pluginsource.Document{
+					SourceRef: "github:owner/catalog", Plugins: []pluginsource.Plugin{{Name: "tool", Source: pluginsource.PluginSource{
+						Kind: pluginsource.SourceGitHub, Ref: "github:owner/plugin",
+					}}},
+				}, "team", nil)
+				if err != nil {
+					return nil, err
+				}
+				return testDocument(now, entries...), nil
+			}
+			return testDocument(now, testEntry("stable", "Stable", "Cached plugin")), nil
+		}}
+		service, err := NewService(t.Context(), openMarketplaceTestStore(t), marketplaceTestBindings(t, fetcher),
+			time.Minute, time.Minute, WithNow(func() time.Time { return now }))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := service.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		projectPackages.Store(true)
+		limited.Store(true)
+		for range 2 {
+			if _, err := service.Refresh(t.Context()); err == nil || !strings.Contains(err.Error(), "retry after") {
+				t.Fatal("package rate limit did not reach source refresh")
+			}
+		}
+		page, err := service.Browse(t.Context(), "", 0, 10)
+		if err != nil || !page.Stale || len(page.Entries) != 1 || page.Entries[0].EntryID != "stable" ||
+			calls.Load() != 2 || tarballs.Load() != 1 {
+			t.Fatalf("package quota lost cached projection: %+v, %v, requests=%d", page, err, calls.Load())
+		}
+		now = reset
+		limited.Store(false)
+		if _, err := service.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		page, err = service.Browse(t.Context(), "", 0, 10)
+		if err != nil || page.Stale || len(page.Entries) != 1 || page.Entries[0].EntryID != "tool" ||
+			!page.Entries[0].Installable || calls.Load() != 4 || tarballs.Load() != 2 {
+			t.Fatalf("recovered projection = %+v, %v", page, err)
+		}
+	})
 
 	// Invariant: an independent source failure cannot hide another flight or restart it during backoff.
 	// Owner: service refresh publication; canonical HTTP/SQLite integration suite.

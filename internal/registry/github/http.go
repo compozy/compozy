@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/retry"
 )
@@ -30,12 +31,18 @@ func (c *Client) doRequest(
 	if strings.TrimSpace(rawURL) == "" {
 		return nil, errors.New("github: request URL is required")
 	}
+	if limited := c.rateLimits.Check(c.baseURL, c.now()); limited != nil {
+		return nil, limited
+	}
 
 	response, err := retry.DoValue(
 		ctx,
 		c.requestRetryPolicy(),
 		retryGitHubRequest,
 		func(ctx context.Context) (*http.Response, error) {
+			if limited := c.rateLimits.Check(c.baseURL, c.now()); limited != nil {
+				return nil, &githubRequestAttemptError{cause: limited}
+			}
 			request, err := c.newRequest(ctx, rawURL, accept)
 			if err != nil {
 				return nil, &githubRequestAttemptError{cause: err}
@@ -43,7 +50,7 @@ func (c *Client) doRequest(
 
 			response, err := c.httpClient.Do(request)
 			if err != nil {
-				return nil, newGitHubTransportAttemptError(ctx, err)
+				return nil, newGitHubTransportAttemptError(ctx, githubauth.RedactError(request, err))
 			}
 
 			if err := c.checkRateLimit(response); err != nil {
@@ -160,8 +167,10 @@ func (c *Client) newRequest(ctx context.Context, rawURL string, accept string) (
 		return nil, fmt.Errorf("github: create request %q: %w", rawURL, err)
 	}
 	request.Header.Set("Accept", accept)
-	if token := strings.TrimSpace(c.token); token != "" && c.networkPolicy.IsTrustedOrigin(request.URL) {
+	if token := strings.TrimSpace(c.token); token != "" && githubauth.IsAPIOrigin(request.URL, c.baseURL) {
 		request.Header.Set("Authorization", "Bearer "+token)
+	} else if err := githubauth.Authorize(ctx, request, c.baseURL, c.credentials); err != nil {
+		return nil, err
 	}
 	return request, nil
 }
@@ -192,6 +201,10 @@ func (c *Client) checkRateLimit(response *http.Response) error {
 	if response == nil {
 		return nil
 	}
+	if limited := githubauth.RateLimit(response, c.now()); limited != nil {
+		c.rateLimits.Record(c.baseURL, limited)
+		return joinErrors(limited, closeResponseBody(response.Body, "rate limit response"))
+	}
 	remainingValue := strings.TrimSpace(response.Header.Get("X-RateLimit-Remaining"))
 	if remainingValue == "" {
 		return nil
@@ -202,9 +215,9 @@ func (c *Client) checkRateLimit(response *http.Response) error {
 			c.logger.Debug(
 				"github: invalid X-RateLimit-Remaining header",
 				"value",
-				remainingValue,
+				githubauth.RedactResponse(response, remainingValue),
 				"error",
-				err,
+				githubauth.RedactError(response.Request, err),
 				"url",
 				requestURLString(response),
 			)
@@ -212,13 +225,6 @@ func (c *Client) checkRateLimit(response *http.Response) error {
 		return nil
 	}
 	if remaining == 0 {
-		if response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusTooManyRequests {
-			rateLimitErr := fmt.Errorf("%w; set GITHUB_TOKEN for higher limits", ErrRateLimited)
-			return joinErrors(
-				rateLimitErr,
-				closeResponseBody(response.Body, fmt.Sprintf("rate limit response for %s", requestURLString(response))),
-			)
-		}
 		if c.logger != nil {
 			c.logger.Warn(
 				"github: rate limit exhausted after successful response",

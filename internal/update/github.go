@@ -9,11 +9,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/compozy/compozy/internal/githubauth"
 )
 
 const (
@@ -122,61 +122,28 @@ func (m *Manager) fetchGitHubJSON(ctx context.Context, url string, target any) (
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", m.userAgent())
+	if err := githubauth.Authorize(ctx, req, "https://api.github.com", m.githubCredentials); err != nil {
+		return err
+	}
 
-	resp, err := m.httpClient.Do(req)
+	resp, err := githubauth.HTTPClient(m.httpClient, "https://api.github.com").Do(req)
 	if err != nil {
-		return fmt.Errorf("update: request release metadata: %w", err)
+		return fmt.Errorf("update: request release metadata: %w", githubauth.RedactError(req, err))
 	}
 	defer func() {
-		err = errors.Join(err, drainAndCloseUpdateResponseBody(resp.Body))
+		err = errors.Join(err, githubauth.RedactError(req, drainAndCloseUpdateResponseBody(resp.Body)))
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusTooManyRequests ||
-			(resp.StatusCode == http.StatusForbidden &&
-				(resp.Header.Get("X-RateLimit-Remaining") == "0" || resp.Header.Get("Retry-After") != "")) {
-			return &releaseRateLimitError{status: resp.Status, retryAt: releaseRetryAt(resp.Header, m.now())}
+		if limited := githubauth.RateLimit(resp, m.now()); limited != nil {
+			return limited
 		}
-		return fmt.Errorf("update: release request returned %s", resp.Status)
+		return fmt.Errorf("update: release request returned %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("update: decode release response: %w", err)
+		return fmt.Errorf("update: decode release response: %w", githubauth.RedactError(req, err))
 	}
 	return nil
-}
-
-type releaseRateLimitError struct {
-	status  string
-	retryAt time.Time
-}
-
-func (e *releaseRateLimitError) Error() string {
-	return fmt.Sprintf(
-		"update: release request returned %s; retry after %s",
-		e.status,
-		e.retryAt.UTC().Format(time.RFC3339),
-	)
-}
-
-// releaseRetryAt selects the latest of the one-minute minimum and GitHub's retry/reset deadlines.
-func releaseRetryAt(header http.Header, now time.Time) time.Time {
-	retryAt := now.Add(time.Minute)
-	if seconds, err := strconv.ParseInt(header.Get("Retry-After"), 10, 64); err == nil && seconds > 0 {
-		retryAt = maxTime(retryAt, now.Add(time.Duration(seconds)*time.Second))
-	} else if deadline, err := http.ParseTime(header.Get("Retry-After")); err == nil {
-		retryAt = maxTime(retryAt, deadline)
-	}
-	if reset, err := strconv.ParseInt(header.Get("X-RateLimit-Reset"), 10, 64); err == nil {
-		retryAt = maxTime(retryAt, time.Unix(reset, 0))
-	}
-	return retryAt
-}
-
-func maxTime(left, right time.Time) time.Time {
-	if right.After(left) {
-		return right
-	}
-	return left
 }
 
 func releaseFromGitHubResponse(payload githubReleaseResponse) (*Release, error) {

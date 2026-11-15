@@ -10,6 +10,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/extensioninput"
+	"github.com/compozy/compozy/internal/githubauth"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
@@ -405,7 +406,7 @@ func (n *daemonNativeTools) extensionDependency() core.ExtensionService {
 	return n.deps.Extensions()
 }
 
-func defaultDaemonExtensionMarketplaceSourceLoader(
+func (s *daemonExtensionService) defaultDaemonExtensionMarketplaceSourceLoader(
 	_ context.Context,
 	cfg compozyconfig.ExtensionsConfig,
 ) ([]registrypkg.Source, error) {
@@ -415,7 +416,12 @@ func defaultDaemonExtensionMarketplaceSourceLoader(
 	}
 	sources := make([]registrypkg.Source, 0, 2)
 	if github.Enabled {
-		sources = append(sources, registrygithub.NewClient(github.BaseURL))
+		s.githubOnce.Do(func() {
+			s.githubCredentials = githubauth.NewResolver(s.getenv)
+			s.githubRateLimits = &githubauth.RateLimitGate{}
+		})
+		sources = append(sources, registrygithub.NewClient(github.BaseURL,
+			registrygithub.WithCredentials(s.githubCredentials), registrygithub.WithRateLimitGate(s.githubRateLimits)))
 	}
 	if cfg.Sources.Git.Enabled {
 		sources = append(sources, registrygit.NewClient())

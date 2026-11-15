@@ -6,7 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/registry/gitsrc"
 )
 
@@ -16,6 +18,21 @@ type Sources struct {
 	GitOptions    []gitsrc.Option
 	HTTPClient    *http.Client
 	TempDir       string
+	githubOnce    sync.Once
+	credentials   *githubauth.Resolver
+	rateLimits    *githubauth.RateLimitGate
+}
+
+func (s *Sources) githubOptions() []GitHubOption {
+	s.githubOnce.Do(func() {
+		s.credentials = githubauth.NewResolver(nil)
+		s.rateLimits = &githubauth.RateLimitGate{}
+	})
+	options := append([]GitHubOption(nil), s.GitHubOptions...)
+	return append(options, func(options *gitHubOptions) {
+		options.credentials = s.credentials
+		options.rateLimits = s.rateLimits
+	})
 }
 
 func (s *Sources) Fetch(ctx context.Context, ref string) (document Document, err error) {
@@ -25,7 +42,7 @@ func (s *Sources) Fetch(ctx context.Context, ref string) (document Document, err
 	}
 	switch {
 	case strings.HasPrefix(normalized, "github:"):
-		source, err := NewGitHubSource(normalized, s.GitHubOptions...)
+		source, err := NewGitHubSource(normalized, s.githubOptions()...)
 		if err != nil {
 			return Document{}, err
 		}
@@ -50,7 +67,7 @@ func (s *Sources) Fetch(ctx context.Context, ref string) (document Document, err
 func (s *Sources) OpenSnapshot(ctx context.Context, document Document) (_ *Snapshot, err error) {
 	switch {
 	case strings.HasPrefix(document.SourceRef, "github:"):
-		source, err := NewGitHubSource(document.SourceRef, s.GitHubOptions...)
+		source, err := NewGitHubSource(document.SourceRef, s.githubOptions()...)
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +111,7 @@ func (s *Sources) openPlugin(ctx context.Context, plugin PluginSource) (_ *Snaps
 		return s.openGitHubRepository(ctx, normalized, plugin.GitRef)
 	}
 	if strings.HasPrefix(normalized, "github:") {
-		source, err := NewGitHubSource(normalized, s.GitHubOptions...)
+		source, err := NewGitHubSource(normalized, s.githubOptions()...)
 		if err != nil {
 			return nil, err
 		}

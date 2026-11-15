@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"maps"
@@ -118,7 +119,7 @@ func testDaemonPluginCatalogLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			ref := (&url.URL{Scheme: "file", Path: source}).String()
-			catalog := newDistributionGitHubServer(t, "plugin-fixture")
+			catalog := newDistributionGitHubServer(t, "plugin-fixture", false)
 			t.Cleanup(catalog.Close)
 			runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
@@ -473,8 +474,17 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	defer cancel()
 
 	const publishCredential = "distribution-e2e-publish-token"
-	githubServer := newDistributionGitHubServer(t, publishCredential)
+	githubServer := newDistributionGitHubServer(t, publishCredential, true)
 	t.Cleanup(githubServer.Close)
+	// Trust this fixture's certificate in the isolated daemon and CLI processes.
+	certificateFile := filepath.Join(t.TempDir(), "github-ca.pem")
+	certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: githubServer.Certificate().Raw})
+	if err := os.WriteFile(certificateFile, certificate, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tlsEnv := map[string]string{"SSL_CERT_FILE": certificateFile}
+	publisherEnv := maps.Clone(tlsEnv)
+	publisherEnv["GITHUB_TOKEN"] = publishCredential
 	repoRoot := extensionAuthoringE2ERepoRoot(t)
 	binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
 	configSeed := e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
@@ -487,7 +497,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	publisher := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath: binaryPath,
 		ConfigSeed: configSeed,
-		Env:        map[string]string{"GITHUB_TOKEN": publishCredential},
+		Env:        publisherEnv,
 	})
 
 	sourceDir := filepath.Join(publisher.WorkspaceRoot, "hello")
@@ -521,6 +531,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	consumer := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath: binaryPath,
 		ConfigSeed: configSeed,
+		Env:        tlsEnv,
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "hosted_protocol_fixture.json"),
 			FixtureAgent: "hosted-native",
@@ -609,7 +620,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", false, "hourly", false)
 	assertDistributionAutomationRemoved(t, ctx, consumer, "hello")
 
-	assertDistributionNativeKitJourney(t, ctx, binaryPath, configSeed, secondGatewayDigest)
+	assertDistributionNativeKitJourney(t, ctx, binaryPath, configSeed, tlsEnv, secondGatewayDigest)
 
 	var removed compozycontract.ManagedExtensionRemovePayload
 	runExtensionAuthoringCLI(
@@ -803,12 +814,14 @@ func assertDistributionNativeKitJourney(
 	ctx context.Context,
 	binaryPath string,
 	configSeed e2etest.ConfigSeedOptions,
+	env map[string]string,
 	gatewayDigest string,
 ) {
 	t.Helper()
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath: binaryPath,
 		ConfigSeed: configSeed,
+		Env:        env,
 	})
 	transcript := make([]json.RawMessage, 0, 4)
 	transcript = append(transcript, invokeDistributionNativeTool(
@@ -940,16 +953,21 @@ type distributionGitHubAsset struct {
 	payload            []byte
 }
 
-func newDistributionGitHubServer(t *testing.T, credential string) *distributionGitHubServer {
+func newDistributionGitHubServer(t *testing.T, credential string, secure bool) *distributionGitHubServer {
 	t.Helper()
 	fixture := &distributionGitHubServer{
 		credential:     credential,
 		assets:         make(map[int64]distributionGitHubAsset),
 		catalogEntries: make(map[string]map[string]any),
 	}
-	fixture.Server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		fixture.handle(t, writer, request)
-	}))
+	})
+	if secure {
+		fixture.Server = httptest.NewTLSServer(handler)
+	} else {
+		fixture.Server = httptest.NewServer(handler)
+	}
 	return fixture
 }
 
@@ -1171,7 +1189,7 @@ func testDaemonExtensionInputsRestart(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
-	catalog := newDistributionGitHubServer(t, "input-release-fixture")
+	catalog := newDistributionGitHubServer(t, "input-release-fixture", false)
 	t.Cleanup(catalog.Close)
 	options := &e2etest.RuntimeHarnessOptions{ConfigSeed: e2etest.ConfigSeedOptions{
 		Mutate: func(cfg *compozyconfig.Config) {
@@ -1730,7 +1748,7 @@ func testDaemonCuratedCatalogLifecycle(t *testing.T, catalogBinary func() (strin
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog := newDistributionGitHubServer(t, "catalog-fixture")
+	catalog := newDistributionGitHubServer(t, "catalog-fixture", false)
 	t.Cleanup(catalog.Close)
 	contextEntry := distributionCatalogEntry(t, root, "context7")
 	bridgeEntry := distributionCatalogEntry(t, root, "herdr-bridge")
@@ -1975,7 +1993,7 @@ func testDaemonExtensionAttachments(t *testing.T) {
 	defer cancel()
 	mcp := httptest.NewServer(mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler())
 	t.Cleanup(mcp.Close)
-	catalog := newDistributionGitHubServer(t, "attachment-fixture")
+	catalog := newDistributionGitHubServer(t, "attachment-fixture", false)
 	t.Cleanup(catalog.Close)
 	entry := distributionCatalogEntry(t, extensionAuthoringE2ERepoRoot(t), "github")
 	entry["entry_id"], entry["install_slug"], entry["name"], entry["version"] = "attached", "compozy/attached", "Attached", "1.0.0"
@@ -2209,7 +2227,7 @@ func testDaemonExtensionMCPOwners(t *testing.T) {
 		mcpfixture.MustNew(mcpfixture.ProfileModern2026),
 		mcpfixture.OAuthConfig{},
 	)
-	catalog := newDistributionGitHubServer(t, "owner-fixture")
+	catalog := newDistributionGitHubServer(t, "owner-fixture", false)
 	t.Cleanup(catalog.Close)
 	entry := distributionCatalogEntry(t, extensionAuthoringE2ERepoRoot(t), "github")
 	entry["version"] = "1.0.0"
@@ -2654,7 +2672,7 @@ func testDaemonMarketplaceSources(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			feed := newDistributionGitHubServer(t, "sources-fixture")
+			feed := newDistributionGitHubServer(t, "sources-fixture", false)
 			t.Cleanup(feed.Close)
 			presetOn, presetOff := t.TempDir(), t.TempDir()
 			if err := os.WriteFile(
@@ -3109,7 +3127,7 @@ func testDaemonCatalogCompatibility(t *testing.T) {
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build released daemon: %v\n%s", err, output)
 	}
-	catalog := newDistributionGitHubServer(t, "compatibility-fixture")
+	catalog := newDistributionGitHubServer(t, "compatibility-fixture", false)
 	t.Cleanup(catalog.Close)
 	entry := distributionCatalogEntry(t, root, "linear")
 	manifest, err := os.ReadFile(filepath.Join(root, "catalog", "packages", "linear", "extension.toml"))

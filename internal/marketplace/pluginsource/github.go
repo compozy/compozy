@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/registry/github"
@@ -29,8 +30,11 @@ var _ io.Closer = (*GitHubSource)(nil)
 type GitHubOption func(*gitHubOptions)
 
 type gitHubOptions struct {
-	baseURL string
-	client  *http.Client
+	baseURL     string
+	client      *http.Client
+	credentials *githubauth.Resolver
+	rateLimits  *githubauth.RateLimitGate
+	now         func() time.Time
 }
 
 func WithGitHubBaseURL(baseURL string) GitHubOption {
@@ -39,6 +43,11 @@ func WithGitHubBaseURL(baseURL string) GitHubOption {
 
 func WithGitHubHTTPClient(client *http.Client) GitHubOption {
 	return func(options *gitHubOptions) { options.client = client }
+}
+
+// WithGitHubNow injects the clock used for upstream quota deadlines.
+func WithGitHubNow(now func() time.Time) GitHubOption {
+	return func(options *gitHubOptions) { options.now = now }
 }
 
 func NewGitHubSource(ref string, options ...GitHubOption) (*GitHubSource, error) {
@@ -62,9 +71,17 @@ func NewGitHubSource(ref string, options ...GitHubOption) (*GitHubSource, error)
 		client.Timeout = fetchTimeout
 		client.Jar = nil
 	}
+	clientOptions := []github.Option{
+		github.WithHTTPClient(&client),
+		github.WithRateLimitGate(configuration.rateLimits),
+		github.WithNow(configuration.now),
+	}
+	if configuration.credentials != nil {
+		clientOptions = append(clientOptions, github.WithCredentials(configuration.credentials))
+	}
 	return &GitHubSource{
 		ref: normalized, repo: repo,
-		client: github.NewClient(configuration.baseURL, github.WithToken(""), github.WithHTTPClient(&client)),
+		client: github.NewClient(configuration.baseURL, clientOptions...),
 	}, nil
 }
 
@@ -111,6 +128,13 @@ type SourceError struct {
 var _ error = &SourceError{}
 
 func (e *SourceError) Error() string {
+	if limited, ok := errors.AsType[*githubauth.RateLimitError](e.Cause); ok {
+		return fmt.Sprintf("%s: %s: %s", ErrSourceUnreachable, e.Reason, limited)
+	}
+	if errors.Is(e.Cause, outboundpolicy.ErrInsecureTransport) {
+		return fmt.Sprintf("%s: %s: use HTTPS; HTTP is allowed only on 127.0.0.1, ::1, or localhost",
+			ErrSourceUnreachable, e.Reason)
+	}
 	return fmt.Sprintf("%s: %s", ErrSourceUnreachable, e.Reason)
 }
 
