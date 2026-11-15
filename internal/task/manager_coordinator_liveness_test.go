@@ -114,18 +114,20 @@ func TestManagerCoordinatorLivenessShouldHoldTheClaimWhileEvaluating(t *testing.
 			// A runner that ignores its context must still not commit a plan.
 			return CoordinatorCompletionPlan{Yield: true}, nil
 		})
-		interrupted := make(chan int, 1)
+		interrupted := make(chan [2]int, 1)
 		go func() {
 			<-started
-			interrupted <- harness.manager.InterruptLoopCoordinatorRuns(harness.loopRunID, "operator request")
+			otherRun := harness.manager.InterruptLoopCoordinatorRuns(harness.loopRunID+"-other", "operator request")
+			matchingRun := harness.manager.InterruptLoopCoordinatorRuns(harness.loopRunID, "operator request")
+			interrupted <- [2]int{otherRun, matchingRun}
 		}()
 
 		settled, err := harness.start(runner)
 		if !errors.Is(err, ErrCoordinatorInterrupted) {
 			t.Fatalf("StartRun(interrupted coordinator) error = %v, want ErrCoordinatorInterrupted", err)
 		}
-		if got := <-interrupted; got != 1 {
-			t.Fatalf("InterruptLoopCoordinatorRuns() = %d, want 1", got)
+		if got, want := <-interrupted, [2]int{0, 1}; got != want {
+			t.Fatalf("InterruptLoopCoordinatorRuns(other, matching) = %v, want %v", got, want)
 		}
 		if settled == nil || settled.Status.Normalize() != TaskRunStatusFailed {
 			t.Fatalf("StartRun(interrupted coordinator) run = %#v, want failed settlement", settled)
