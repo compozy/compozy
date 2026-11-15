@@ -40,9 +40,11 @@ export function useSubagentRosterControlPoll({
         exact: true,
       };
       // Other windows may still need the shared stopped-history read.
-      void queryClient.cancelQueries(filter).then(() =>
-        queryClient.refetchQueries({ ...filter, type: "active" }, { cancelRefetch: false })
-      );
+      void queryClient
+        .cancelQueries(filter)
+        .then(() =>
+          queryClient.refetchQueries({ ...filter, type: "active" }, { cancelRefetch: false })
+        );
     };
   }, [enabled, queryClient, sessionId, workspaceId]);
   const poll = useQuery({
