@@ -5,6 +5,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -245,6 +246,10 @@ func newBoundedRebuildFixture(
 			Tools:    []string{"compozy__session_history"},
 		},
 	}
+	e2etest.WriteAgentDef(t, home, e2etest.AgentSeed{
+		Name: resolved.Agents[0].Name, Provider: resolved.Agents[0].Provider,
+		Model: resolved.Agents[0].Model, Prompt: resolved.Agents[0].Prompt, Tools: resolved.Agents[0].Tools,
+	})
 	daemon, deps := bootHarnessPolicyDaemon(t, home, &cfg)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -264,6 +269,16 @@ func newBoundedRebuildManager(
 	daemon *Daemon,
 ) *session.Manager {
 	t.Helper()
+	if _, err := daemon.registry.GetWorkspace(t.Context(), resolved.ID); errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+		now := time.Now().UTC()
+		if err := daemon.registry.InsertWorkspace(t.Context(), workspacepkg.Workspace{
+			ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	} else if err != nil {
+		t.Fatal(err)
+	}
 	manager := newHarnessIntegrationManager(
 		t,
 		home,

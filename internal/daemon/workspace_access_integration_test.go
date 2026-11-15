@@ -328,6 +328,8 @@ func newWorkspaceAccessIntegrationSession(
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	// This fixture has no external MCP sources; source admission belongs to daemon composition.
+	manager.SetMCPAuthorityResolver(sessionMCPAuthorityStub{})
 	managed, err := manager.Create(ctx, new(session.CreateOpts{
 		AgentName:   "coder",
 		Workspace:   workspaceAccessIntegrationHome,
