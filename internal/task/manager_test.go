@@ -10173,7 +10173,7 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 				if !current.HeartbeatAt.After(initial.LeaseUntil) || current.Attempt != initial.Attempt {
 					t.Fatalf("coordinator = %#v, want renewed original attempt", current)
 				}
-				return CoordinatorCompletionPlan{Snapshot: GenerationSnapshot{
+				return CoordinatorCompletionPlan{Yield: true, Snapshot: GenerationSnapshot{
 					LoopRunID: initial.LoopRunID, Generation: 1,
 				}}, nil
 			}
@@ -10207,7 +10207,7 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 					!current.HeartbeatAt.After(current.ClaimedAt) {
 					t.Fatalf("coordinator did not recover its heartbeat: %#v", current)
 				}
-				return CoordinatorCompletionPlan{Snapshot: GenerationSnapshot{
+				return CoordinatorCompletionPlan{Yield: true, Snapshot: GenerationSnapshot{
 					LoopRunID: current.LoopRunID, Generation: 1,
 				}}, nil
 			}
