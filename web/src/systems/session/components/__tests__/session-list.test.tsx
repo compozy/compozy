@@ -1536,6 +1536,48 @@ describe("SessionList subagents", () => {
     expect(within(branch).getByRole("button", { name: "Show 8 more" })).toBeInTheDocument();
   });
 
+  // Invariant (#1732 review): the branch reads on only once a first-page refetch has landed, so
+  // fetchNextPage never cancels that refetch and leaves a stale first page.
+  it("Should not read the next page while a stale first page refetches", async () => {
+    const user = userEvent.setup();
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+    const firstPage = () => ({
+      subagents: Array.from({ length: 8 }, (_, index) => wireSubagent(index, "running")),
+      next_cursor: "page-2",
+    });
+    let answer: (page: Response) => void = () => undefined;
+    const cursors: Array<string | null> = [];
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const cursor = new URL((input as Request).url).searchParams.get("cursor");
+      cursors.push(cursor);
+      if (cursor === "page-2") return json({ subagents: [wireSubagent(8, "completed")] });
+      return new Promise<Response>(resolve => {
+        answer = resolve;
+      });
+    });
+    const { queryClient } = renderList({
+      sessions: [row("parent", { badge: "running", ...summary(8, 9) })],
+    });
+    queryClient.setQueryData(
+      sessionKeys.subagentBranch(primarySessionFixture.workspace_id ?? "", "parent"),
+      { pages: [firstPage()], pageParams: [""] },
+      { updatedAt: 0 }
+    );
+
+    await user.click(screen.getByRole("button", { name: "8 of 9 subagents running" }));
+    await waitFor(() => expect(cursors).toEqual([null]));
+    // The loaded page is all active, but the refetch is still in flight: nothing reads on yet.
+    await act(() => new Promise(resolve => setTimeout(resolve, 50)));
+    expect(cursors).toEqual([null]);
+    answer(json(firstPage()));
+    await waitFor(() => expect(cursors).toEqual([null, "page-2"]));
+    const branch = screen.getByTestId("session-sidebar-subagents-parent");
+    await waitFor(() =>
+      expect(branch.querySelectorAll('[data-slot="session-subagent-row"]')).toHaveLength(8)
+    );
+  });
+
   // Invariant (#1732): a live roster orders like the paged route before the branch cuts its rows,
   // so a running subagent past the newest page shows, and a status change reorders the rows.
   it("Should show a live roster's running subagent past the page and follow its transitions", async () => {
