@@ -884,11 +884,12 @@ describe("SessionList subagents", () => {
   });
   const wireSubagent = (index: number, status: string) => ({
     subagent_id: `sub-${index}`,
-    workspace_id: primarySessionFixture.workspace_id,
+    workspace_id: primarySessionFixture.workspace_id ?? "",
     parent_session_id: "parent",
     parent_turn_id: "turn-1",
     child_session_id: `child-${index}`,
     origin: "delegated",
+    isolation: "shared",
     provider_tool_call_id: null,
     title: `Subagent ${index}`,
     role: "",
@@ -1890,13 +1891,13 @@ describe("SessionList subagents", () => {
     {
       name: "matching drawer",
       id: "sub-1",
-      workspaceId: primarySessionFixture.workspace_id,
+      workspaceId: primarySessionFixture.workspace_id ?? "",
       closes: true,
     },
     {
       name: "another subagent",
       id: "sub-2",
-      workspaceId: primarySessionFixture.workspace_id,
+      workspaceId: primarySessionFixture.workspace_id ?? "",
       closes: false,
     },
     {
