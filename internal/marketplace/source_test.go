@@ -335,17 +335,24 @@ func TestPluginProjectionBudget(t *testing.T) {
 					Plugins: []pluginsource.Plugin{{Name: tc.plugins[0]}, {Name: tc.plugins[1]}},
 				}
 				resolver := &projectionResolver{
-					resolve: func(_ context.Context, _ pluginsource.Document, plugin pluginsource.Plugin) (pluginsource.AcquisitionRecord, error) {
+					resolve: func(
+						_ context.Context,
+						_ pluginsource.Document,
+						plugin pluginsource.Plugin,
+					) (pluginsource.AcquisitionRecord, error) {
 						if plugin.Name == "early" {
 							return pluginsource.AcquisitionRecord{}, early
 						}
 						return pluginsource.AcquisitionRecord{}, late
 					},
 				}
-				projector, err := NewPluginProjector(resolver, func(context.Context, string, string) (PluginInspection, error) {
-					t.Error("rate-limited packages must not reach inspection")
-					return PluginInspection{}, nil
-				})
+				projector, err := NewPluginProjector(
+					resolver,
+					func(context.Context, string, string) (PluginInspection, error) {
+						t.Error("rate-limited packages must not reach inspection")
+						return PluginInspection{}, nil
+					},
+				)
 				if err != nil {
 					t.Fatal(err)
 				}

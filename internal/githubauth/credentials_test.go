@@ -40,7 +40,11 @@ func TestResolver(t *testing.T) {
 			t.Fatal("custom API attempted to read a github.com credential")
 			return nil, nil
 		}
-		for _, origin := range []string{"https://github.enterprise.test", "http://api.github.com", "https://api.github.com:8443"} {
+		for _, origin := range []string{
+			"https://github.enterprise.test",
+			"http://api.github.com",
+			"https://api.github.com:8443",
+		} {
 			if token, err := resolver.Resolve(t.Context(), origin); err != nil || token != "" {
 				t.Fatal("custom API did not remain anonymous")
 			}
@@ -87,7 +91,10 @@ func TestResolver(t *testing.T) {
 				return []byte("cached-sentinel"), nil
 			}
 			ownerDone := make(chan error, 1)
-			go func() { _, err := resolver.Resolve(t.Context(), "https://api.github.com"); ownerDone <- err }()
+			go func() {
+				_, err := resolver.Resolve(t.Context(), "https://api.github.com")
+				ownerDone <- err
+			}()
 			<-started
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -138,15 +145,26 @@ func TestRateLimit(t *testing.T) {
 	}{
 		{"Should honor an exhausted primary quota reset", "120", now.Add(time.Hour), "0", now.Add(time.Hour)},
 		{"Should use retry-after for a secondary quota", "120", now.Add(time.Hour), "42", now.Add(120 * time.Second)},
-		{"Should honor an HTTP date retry deadline", now.Add(2 * time.Hour).Format(http.TimeFormat), now.Add(time.Hour), "0", now.Add(2 * time.Hour)},
+		{
+			"Should honor an HTTP date retry deadline",
+			now.Add(2 * time.Hour).Format(http.TimeFormat),
+			now.Add(time.Hour),
+			"0",
+			now.Add(2 * time.Hour),
+		},
 		{"Should retain the minimum backoff for malformed headers", "invalid", now, "0", now.Add(time.Minute)},
 		{"Should not overflow an excessive retry duration", "9223372036854775807", now, "0", now.Add(time.Minute)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			limited := RateLimit(&http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{
-				"X-Ratelimit-Remaining": {test.remaining}, "Retry-After": {test.retry}, "X-Ratelimit-Reset": {strconv.FormatInt(test.reset.Unix(), 10)},
-			}}, now)
+			limited := RateLimit(&http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header: http.Header{
+					"X-Ratelimit-Remaining": {test.remaining},
+					"Retry-After":           {test.retry},
+					"X-Ratelimit-Reset":     {strconv.FormatInt(test.reset.Unix(), 10)},
+				},
+			}, now)
 			if limited == nil || !limited.RetryAt.Equal(test.want) || !errors.Is(limited, ErrRateLimited) ||
 				!strings.Contains(limited.Error(), "gh auth login") {
 				t.Fatalf("rate limit = %v", limited)
@@ -161,15 +179,30 @@ func TestRateLimitResponseClassification(t *testing.T) {
 		name, body string
 		limited    bool
 	}{
-		{"Should recognize secondary quota without retry headers", `{"message":"You have exceeded a secondary rate limit."}`, true},
-		{"Should recognize legacy abuse detection", `{"message":"You have triggered an abuse detection mechanism."}`, true},
-		{"Should retain ordinary permission-denied responses", `{"message":"Resource not accessible by integration"}`, false},
+		{
+			"Should recognize secondary quota without retry headers",
+			`{"message":"You have exceeded a secondary rate limit."}`,
+			true,
+		},
+		{
+			"Should recognize legacy abuse detection",
+			`{"message":"You have triggered an abuse detection mechanism."}`,
+			true,
+		},
+		{
+			"Should retain ordinary permission-denied responses",
+			`{"message":"Resource not accessible by integration"}`,
+			false,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			now := time.Now()
-			response := &http.Response{StatusCode: http.StatusForbidden, Header: http.Header{"X-Ratelimit-Remaining": {"42"}},
-				Body: io.NopCloser(strings.NewReader(test.body))}
+			response := &http.Response{
+				StatusCode: http.StatusForbidden,
+				Header:     http.Header{"X-Ratelimit-Remaining": {"42"}},
+				Body:       io.NopCloser(strings.NewReader(test.body)),
+			}
 			limited := RateLimit(response, now)
 			if (limited != nil) != test.limited || (limited != nil && !limited.RetryAt.Equal(now.Add(time.Minute))) {
 				t.Fatalf("quota classification = %v", limited)
@@ -223,7 +256,11 @@ func TestHTTPClient(t *testing.T) {
 	t.Run("Should reject credential forwarding outside the configured HTTPS origin", func(t *testing.T) {
 		t.Parallel()
 		resolver := NewResolver(func(string) string { return "boundary-sentinel" })
-		for _, destination := range []string{"http://api.github.com", "https://api.github.com.evil.test", "https://api.github.com:8443"} {
+		for _, destination := range []string{
+			"http://api.github.com",
+			"https://api.github.com.evil.test",
+			"https://api.github.com:8443",
+		} {
 			request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, destination, http.NoBody)
 			if err != nil {
 				t.Fatal(err)
