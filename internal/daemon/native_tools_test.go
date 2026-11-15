@@ -11703,6 +11703,84 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
+	// Invariant: v0.7.0 non-delegated sessions keep current tools; governed/authored lists stay closed.
+	// Owner: daemon authority and effective policy; canonical suite: native runtime policy resolver.
+	for _, tc := range []struct {
+		name    string
+		kind    store.LineageKind
+		typ     session.Type
+		policy  store.SessionPermissionPolicy
+		inherit bool
+	}{
+		{"Should refresh an unflagged legacy root budget", store.LineageKindRoot, session.SessionTypeUser, store.SessionPermissionPolicy{Tools: []string{"compozy__session_list"}, MCPServers: []string{"linear"}}, true},
+		{"Should retain tools for empty user provenance", store.LineageKindProvenance, session.SessionTypeUser, store.SessionPermissionPolicy{}, true},
+		{"Should retain tools for empty system provenance", store.LineageKindProvenance, session.SessionTypeSystem, store.SessionPermissionPolicy{}, true},
+		{"Should refresh native tools for a legacy fork", store.LineageKindFork, session.SessionTypeUser, store.SessionPermissionPolicy{MaterializedTools: true}, true},
+		{"Should refresh native tools for a legacy continue", store.LineageKindContinue, session.SessionTypeUser, store.SessionPermissionPolicy{MaterializedTools: true}, true},
+		{"Should refresh native tools for a legacy recovery", store.LineageKindRecovery, session.SessionTypeSystem, store.SessionPermissionPolicy{MaterializedTools: true}, true},
+		{"Should retain an empty legacy spawn ceiling", store.LineageKindSpawn, session.SessionTypeSpawned, store.SessionPermissionPolicy{}, false},
+		{"Should retain a legacy coordinator ceiling", store.LineageKindRoot, session.SessionTypeCoordinator, store.SessionPermissionPolicy{Tools: []string{"compozy__session_list"}, MCPServers: []string{"linear"}}, false},
+		{"Should retain explicit lists authored at HEAD", store.LineageKindRoot, session.SessionTypeUser, store.SessionPermissionPolicy{ToolsMode: store.PermissionList, MCPServersMode: store.PermissionList, Tools: []string{"compozy__session_list"}, MCPServers: []string{"linear"}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := testConfig(t, testHomePaths(t))
+			cfg.Tools.Policy.ExternalDefault = "enabled"
+			cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+			cfg.MCPServers = []compozyconfig.MCPServer{{Name: "linear", Command: "test"}, {Name: "sentry", Command: "test"}}
+			info := &session.Info{
+				ID: "upgraded", Type: tc.typ,
+				Lineage: &store.SessionLineage{Kind: tc.kind, PermissionPolicy: tc.policy},
+			}
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config: &cfg, Sessions: &nativeToolPolicySessionStub{info: info},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			views := []toolspkg.ToolView{}
+			for _, descriptor := range []toolspkg.Descriptor{
+				{ID: "compozy__session_list", Source: toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"}},
+				{ID: "compozy__mcp_list", Source: toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"}},
+				{ID: "extension__demo__read", Source: toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "demo"}},
+				{ID: "mcp__linear__read", Source: toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: "linear", RawToolName: "read", Owner: "linear"}},
+				{ID: "mcp__sentry__read", Source: toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: "sentry", RawToolName: "read", Owner: "sentry"}},
+			} {
+				descriptor.InputSchema = json.RawMessage(`{"type":"object"}`)
+				descriptor.Backend = toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: descriptor.ID.String()}
+				switch descriptor.Source.Kind {
+				case toolspkg.SourceExtension:
+					descriptor.Backend = toolspkg.BackendRef{Kind: toolspkg.BackendExtensionHost, ExtensionID: "demo", Handler: "read"}
+				case toolspkg.SourceMCP:
+					descriptor.Backend = toolspkg.BackendRef{Kind: toolspkg.BackendMCP, MCPServer: descriptor.Source.RawServerName, MCPTool: "read"}
+				}
+				descriptor.Visibility, descriptor.Risk, descriptor.ReadOnly = toolspkg.VisibilityModel, toolspkg.RiskRead, true
+				views = append(views, toolspkg.ToolView{
+					Descriptor: descriptor, Decision: toolspkg.EffectiveToolDecision{SourcePolicyResult: "allowed"},
+				})
+			}
+			resolver.scopeTools = func(context.Context, toolspkg.Scope, toolspkg.PolicyInputs) ([]toolspkg.ToolView, error) {
+				return views, nil
+			}
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: info.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(inputs, toolspkg.ToolsetCatalog{}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, view := range views {
+				id := view.Descriptor.ID.String()
+				want := tc.inherit || slices.Contains(tc.policy.Tools, id) ||
+					view.Descriptor.Source.Kind == toolspkg.SourceMCP && slices.Contains(tc.policy.MCPServers, view.Descriptor.Source.RawServerName)
+				decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, view.Descriptor)
+				if err != nil || decision.Callable != want {
+					t.Fatalf("tool %s: decision=%+v want callable=%t err=%v", id, decision, want, err)
+				}
+			}
+		})
+	}
 	// Invariant: effective inherited authority applies agent restrictions before delegation; owner: daemon policy projection.
 	t.Run("Should exclude agent denied tools and refresh native root tools", func(t *testing.T) {
 		t.Parallel()

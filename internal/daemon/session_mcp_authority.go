@@ -59,8 +59,9 @@ func (r *nativeToolPolicyResolver) EffectiveMCPAuthority(
 			scope,
 			inputs,
 			policy,
-			// Provenance records origin without narrowing the session's native tools.
-			lineage.Kind == store.LineageKindRoot || lineage.Kind == store.LineageKindProvenance,
+			// Only governed sessions retain a recorded native-tool ceiling.
+			lineage.Kind != store.LineageKindSpawn &&
+				info.Type != session.SessionTypeSpawned && info.Type != session.SessionTypeCoordinator,
 		)
 		if err != nil {
 			return store.SessionPermissionPolicy{}, err

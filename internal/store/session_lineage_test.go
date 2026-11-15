@@ -542,19 +542,28 @@ func TestSessionPermissionIntent(t *testing.T) {
 	t.Parallel()
 	t.Run("Should decode root and derived policies independently of native atoms [UT-010]", func(t *testing.T) {
 		t.Parallel()
+		// Invariant: unmarked v0.7.0 non-delegated budgets never become access limits.
 		for _, kind := range []LineageKind{LineageKindRoot, LineageKindFork, LineageKindContinue, LineageKindProvenance, LineageKindRecovery} {
-			policy := DecodeIntent(
-				SessionPermissionPolicy{Tools: []string{"compozy__session_list"}, MaterializedTools: true},
-				kind,
-				"user",
-			)
-			if policy.MCPServersMode != PermissionInherit || policy.ToolsMode != PermissionInherit {
-				t.Fatalf("%s: %+v", kind, policy)
+			for _, stored := range []SessionPermissionPolicy{
+				{},
+				{Tools: []string{"compozy__session_list"}, MCPServers: []string{"linear"}},
+				{Tools: []string{"compozy__session_list"}, MaterializedTools: true},
+			} {
+				policy := DecodeIntent(stored, kind, "user")
+				if policy.MCPServersMode != PermissionInherit || policy.ToolsMode != PermissionInherit ||
+					!slices.Equal(BoundMCPServers(policy, []string{"linear", "sentry"}), []string{"linear", "sentry"}) {
+					t.Fatalf("%s: %+v", kind, policy)
+				}
 			}
 		}
-		authored := DecodeIntent(SessionPermissionPolicy{MCPServers: []string{"linear"}}, LineageKindRoot, "user")
-		if authored.MCPServersMode != PermissionList {
-			t.Fatalf("authored policy: %+v", authored)
+	})
+	t.Run("Should preserve explicit non-delegated lists", func(t *testing.T) {
+		t.Parallel()
+		for _, kind := range []LineageKind{LineageKindRoot, LineageKindProvenance} {
+			stored := SessionPermissionPolicy{ToolsMode: PermissionList, MCPServersMode: PermissionList}
+			if got := DecodeIntent(stored, kind, "user"); !reflect.DeepEqual(got, NormalizeSessionPermissionPolicy(stored)) {
+				t.Fatalf("explicit list changed: %+v", got)
+			}
 		}
 	})
 	t.Run("Should retain an empty legacy spawn as a list [UT-011]", func(t *testing.T) {

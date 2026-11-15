@@ -62,4 +62,10 @@ native tools `compozy__mcp_list`, `compozy__mcp_allow`, `compozy__mcp_import` an
   correctly by a compatibility decoder in this release and the next one; that decoder is removed in
   the release after next. Upgrade through this release (or the next) before skipping further ahead
   with a database an older binary wrote to after this upgrade.
+- **Existing v0.7.0 sessions keep their access.** The corrective migration also covers databases that
+  already applied the initial intent backfill in a development build. Empty provenance policies and
+  older root budgets without materialization flags follow the current native, extension and MCP
+  catalog. Forks, continued sessions and recovery sessions refresh their native tools too. Spawned
+  and coordinator limits, explicit `allowed_tools` profiles, ancestor ceilings and lists authored
+  after the intent upgrade remain enforced.
 - The public lineage `permission_policy.mcp_servers` now reports the session's effective server list.

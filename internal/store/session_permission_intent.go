@@ -9,14 +9,14 @@ func DecodeIntent(policy SessionPermissionPolicy, kind LineageKind, sessionType 
 		NormalizeSessionType(sessionType) == "coordinator"
 	if policy.MCPServersMode == "" {
 		policy.MCPServersMode = PermissionInherit
-		if delegated || (len(policy.MCPServers) > 0 && !policy.MaterializedMCPServers) {
+		if delegated {
 			policy.MCPServersMode = PermissionList
 		}
 	}
 	if policy.ToolsMode == "" {
-		policy.ToolsMode = PermissionList
-		if !delegated && policy.MaterializedTools {
-			policy.ToolsMode = PermissionInherit
+		policy.ToolsMode = PermissionInherit
+		if delegated {
+			policy.ToolsMode = PermissionList
 		}
 	}
 	return policy

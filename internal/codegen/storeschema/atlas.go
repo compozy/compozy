@@ -148,6 +148,9 @@ func planAtlasStream(
 		)
 	}
 	desired := desiredSchema.realm
+	if err := prepareAtlasGooseHistory(ctx, dev.DB, descriptor.name); err != nil {
+		return nil, nil, nil, errors.Join(err, closeAtlasDatabase(closeDev, descriptor.name))
+	}
 	executor, err := migrate.NewExecutor(dev.Driver, dir, migrate.NopRevisionReadWriter{})
 	if err != nil {
 		return nil, nil, nil, errors.Join(
@@ -258,6 +261,18 @@ func sqliteIndexOrigin(index *schema.Index) string {
 		}
 	}
 	return ""
+}
+
+// Goose history stays outside the declarative schema during Atlas replay.
+func prepareAtlasGooseHistory(ctx context.Context, db *sql.DB, name string) error {
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		`CREATE TEMP TABLE goose_db_version_%s (id INTEGER, version_id INTEGER, is_applied BOOLEAN, tstamp TIMESTAMP)`,
+		name,
+	))
+	if err != nil {
+		return fmt.Errorf("codegen: prepare %s Goose history: %w", name, err)
+	}
+	return nil
 }
 
 func openAtlasClient(ctx context.Context) (*sqlclient.Client, error) {
