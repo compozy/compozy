@@ -879,33 +879,49 @@ func TestSubagentRecovery(t *testing.T) {
 				if err := s.Recover(t.Context()); err != nil {
 					t.Fatal(err)
 				}
-				if db.rows["other"].Delivery != store.SubagentDeliveryClaimed || len(runtime.queues) != 1 ||
-					!slices.Contains(runtime.stopped, "orphan") {
-					t.Fatalf("unrelated recovery blocked: row=%+v queues=%v stopped=%v",
-						db.rows["other"], runtime.queues, runtime.stopped)
+				healthy, err := db.GetSubagent(t.Context(), "ws", "other")
+				if err != nil {
+					t.Fatal(err)
 				}
-				if failure == "fact write failed" && db.rows[row.ID].Delivery != store.SubagentDeliveryPending {
-					t.Fatalf("failed fact write lost pending batch: %+v", db.rows[row.ID])
+				runtime.mu.Lock()
+				queued, orphanStopped := len(runtime.queues), slices.Contains(runtime.stopped, "orphan")
+				runtime.mu.Unlock()
+				if healthy.Delivery != store.SubagentDeliveryClaimed || queued != 1 || !orphanStopped {
+					t.Fatalf("unrelated recovery blocked: row=%+v queues=%d orphanStopped=%v",
+						healthy, queued, orphanStopped)
 				}
 				if failure == "fact write failed" {
+					got, err := db.GetSubagent(t.Context(), "ws", row.ID)
+					if err != nil || got.Delivery != store.SubagentDeliveryPending {
+						t.Fatalf("failed fact write lost pending batch: %+v, %v", got, err)
+					}
 					synctest.Wait()
+					db.mu.Lock()
 					delete(db.worktreeFactsErrIDs, row.ID)
+					db.mu.Unlock()
 					time.Sleep(s.recoveryRetryDelay - time.Nanosecond)
 					synctest.Wait()
-					if db.rows[row.ID].Delivery != store.SubagentDeliveryPending || len(runtime.queues) != 1 {
-						t.Fatal("fact recovery ignored the configured retry delay")
+					got, err = db.GetSubagent(t.Context(), "ws", row.ID)
+					runtime.mu.Lock()
+					queued = len(runtime.queues)
+					runtime.mu.Unlock()
+					if err != nil || got.Delivery != store.SubagentDeliveryPending || queued != 1 {
+						t.Fatalf("fact recovery ignored the configured retry delay: %+v, queues=%d, %v", got, queued, err)
 					}
 					time.Sleep(time.Nanosecond)
 					synctest.Wait()
-					got := db.rows[row.ID]
-					if got.Delivery != store.SubagentDeliveryClaimed || got.WakeMessageID == nil ||
+					got, err = db.GetSubagent(t.Context(), "ws", row.ID)
+					if err != nil || got.Delivery != store.SubagentDeliveryClaimed || got.WakeMessageID == nil ||
 						got.WorktreeState().Facts.PRStatus != "none" {
-						t.Fatalf("transient fact failure did not recover without a parent turn: %+v", got)
+						t.Fatalf("transient fact failure did not recover without a parent turn: %+v, %v", got, err)
 					}
+					runtime.mu.Lock()
 					text := runtime.queues[*got.WakeMessageID]
-					if len(runtime.queues) != 2 || !strings.Contains(text, "Branch pending-facts") ||
+					queued = len(runtime.queues)
+					runtime.mu.Unlock()
+					if queued != 2 || !strings.Contains(text, "Branch pending-facts") ||
 						strings.Contains(text, "PR status unknown") {
-						t.Fatalf("retry composed wake before saving checkout facts: %+v", runtime.queues)
+						t.Fatalf("retry composed wake before saving checkout facts: queues=%d text=%q", queued, text)
 					}
 				}
 			})
