@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { loopsKeys, useLoopStream } from "@/systems/loops";
 import type { LoopRunEventFrame, LoopStreamEventSource } from "@/systems/loops";
+import { ProfilePin, resetProfileViews, setProfileView } from "@/systems/profiles";
 import { LIVE_REFETCH_INTERVAL } from "../../lib/query-options";
 
 const LOOP_EVENT_KINDS = [
@@ -132,6 +133,67 @@ function buildFrame(overrides: Partial<LoopRunEventFrame> = {}): LoopRunEventFra
 }
 
 describe("useLoopStream", () => {
+  // Invariant: streams follow the active or pinned scope without independent profile reads.
+  // Owning layer: SSE transport hook. Canonical suite: this file.
+  it.each([
+    {
+      scope: "selected",
+      view: { kind: "profile", profile: "marketing" } as const,
+      pinned: undefined,
+      selector: "profile=marketing",
+    },
+    {
+      scope: "aggregate",
+      view: { kind: "aggregate" } as const,
+      pinned: undefined,
+      selector: "all_profiles=true",
+    },
+    {
+      scope: "pinned",
+      view: { kind: "aggregate" } as const,
+      pinned: "engineering",
+      selector: "profile=engineering",
+    },
+  ])("Should reuse the $scope profile for the stream without profile lookups", async test => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("Unexpected independent profile lookup"));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    const factory = vi.fn(() => new FakeLoopStreamEventSource());
+    act(() => setProfileView(test.view));
+    const { unmount } = renderHook(
+      () => useLoopStream("ws_1", "looprun_1", { eventSourceFactory: factory }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={queryClient}>
+            <ProfilePin profile={test.pinned}>{children}</ProfilePin>
+          </QueryClientProvider>
+        ),
+      }
+    );
+    try {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(factory).toHaveBeenCalledExactlyOnceWith(
+        `/api/workspaces/ws_1/loop-runs/looprun_1/events?${test.selector}`
+      );
+      await act(async () => setProfileView({ kind: "profile", profile: "design" }));
+      expect(factory).toHaveBeenCalledTimes(test.pinned ? 1 : 2);
+      expect(factory).toHaveBeenLastCalledWith(
+        `/api/workspaces/ws_1/loop-runs/looprun_1/events?profile=${test.pinned ?? "design"}`
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      queryClient.clear();
+      act(() => resetProfileViews());
+      fetchMock.mockRestore();
+    }
+  });
+
   it.each(["active", "disposed", "settled", "replaced", "disabled", "initial", "static"])(
     "Should bound a pending cached refresh while preserving the %s boundary",
     async boundary => {
@@ -147,28 +209,6 @@ describe("useLoopStream", () => {
           "queueMicrotask",
         ],
       });
-      // Temporary #1737 diagnosis: observe the fake clock without changing scheduling.
-      const reportPendingClock = (phase: string) => {
-        const clock = Reflect.get(globalThis.setTimeout, "clock") as {
-          timers?: Record<string, { func?: unknown; callAt?: number; createdAt?: number }>;
-          jobs?: { func?: unknown }[];
-        };
-        console.info(
-          "[loop-timer-diagnostic]",
-          JSON.stringify({
-            boundary,
-            phase,
-            count: vi.getTimerCount(),
-            timers: Object.entries(clock.timers ?? {}).map(([id, timer]) => ({
-              id,
-              callAt: timer.callAt,
-              createdAt: timer.createdAt,
-              callback: String(timer.func),
-            })),
-            jobs: clock.jobs?.map(job => String(job.func)),
-          })
-        );
-      };
       const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false, gcTime: Infinity } },
       });
@@ -236,7 +276,6 @@ describe("useLoopStream", () => {
           }
           await vi.advanceTimersByTimeAsync(0);
         });
-        if (boundary === "disposed") reportPendingClock("after-disposal");
         await act(async () => {
           await vi.advanceTimersByTimeAsync(LIVE_REFETCH_INTERVAL / 2 - 1);
         });
@@ -290,9 +329,6 @@ describe("useLoopStream", () => {
           await vi.advanceTimersByTimeAsync(LIVE_REFETCH_INTERVAL);
         });
         expect({ reads, canceled }).toEqual(reconciled);
-        if (boundary === "disposed" || vi.getTimerCount() > 0) {
-          reportPendingClock("after-reconciliation");
-        }
         expect(vi.getTimerCount()).toBe(0);
       } finally {
         unmount();

@@ -57,6 +57,14 @@ All Profiles and confirming cancellation sends `profile=marketing` and reaches t
 The paired CLI journey `TestDaemonE2ELoopRunReadCLIJourneys` also passes with race detection.
 This verifies the Loop regression; the broader non-Loop scenario above retains its own QA status.
 
+Follow-up #1737: with the shell's active profile resolved, open and close a Loop run's
+event stream under a selected profile, All Profiles, and a window pinned to another
+profile. Each subscription uses that scope without starting independent profile-selection
+or profile-catalog HTTP reads. Switching the shell profile replaces an unpinned stream;
+a pinned stream keeps its own profile. Accepted Loop refreshes still reconcile after
+the stream closes. The canonical `use-loop-stream.test.tsx` suite owns these scope and
+disposal regressions; current-head CI verification is pending, with no local QA run.
+
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
 
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
