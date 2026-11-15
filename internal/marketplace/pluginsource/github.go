@@ -131,6 +131,10 @@ func (e *SourceError) Error() string {
 	if limited, ok := errors.AsType[*githubauth.RateLimitError](e.Cause); ok {
 		return fmt.Sprintf("%s: %s: %s", ErrSourceUnreachable, e.Reason, limited)
 	}
+	if errors.Is(e.Cause, outboundpolicy.ErrInsecureTransport) {
+		return fmt.Sprintf("%s: %s: use HTTPS; HTTP is allowed only on 127.0.0.1, ::1, or localhost",
+			ErrSourceUnreachable, e.Reason)
+	}
 	return fmt.Sprintf("%s: %s", ErrSourceUnreachable, e.Reason)
 }
 

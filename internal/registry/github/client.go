@@ -163,6 +163,9 @@ func newGitHubNetworkPolicy(baseURL string) (outboundpolicy.Policy, error) {
 	if err != nil {
 		return outboundpolicy.Policy{}, fmt.Errorf("github: parse API base URL: %w", err)
 	}
+	if err := githubauth.ValidateCredentialTransport(base); err != nil {
+		return outboundpolicy.Policy{}, err
+	}
 	defaultBase, err := url.Parse(defaultBaseURL)
 	if err != nil {
 		return outboundpolicy.Policy{}, fmt.Errorf("github: parse default API base URL: %w", err)

@@ -32,10 +32,14 @@ GitHub authentication regression (2026-11-15, issue #1750):
   deadline and recovery guidance; repeated reads and forced refreshes must send no requests before
   the retry deadline (and primary reset deadline when its remaining quota is zero), and must
   recover after it.
-- Verify redirects to another origin and HTTP destinations receive no Authorization header;
+- Verify redirects to another origin receive no Authorization header;
   diagnostics, events and provider environments contain no token. Missing or logged-out `gh` falls
   back silently; CLI lookup is bounded and its cache is memory-only.
 
+- For a loopback HTTP GitHub API origin (`127.0.0.1`, `::1`, or `localhost`), verify an explicit
+  environment token reaches only the configured origin and port. HTTP endpoints outside those hosts
+  must fail before network I/O with HTTPS recovery guidance, including hosts such as
+  `localhost.example.test` and other loopback addresses.
 - For a custom HTTPS GitHub API origin, leave `GITHUB_TOKEN` unset and verify that the
   github.com CLI login is not sent. An explicit environment token may authenticate that origin.
 - Trigger a quota error during an individual plugin package download: keep the prior catalog,

@@ -273,6 +273,35 @@ func TestHTTPClient(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should authorize only exact loopback HTTP origins", func(t *testing.T) {
+		t.Parallel()
+		resolver := NewResolver(func(string) string { return "loopback-sentinel" })
+		for _, host := range []string{"127.0.0.1", "[::1]", "localhost"} {
+			origin := "http://" + host + ":8080"
+			for _, destination := range []string{origin + "/repos", "http://" + host + ":8081/repos"} {
+				request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, destination, http.NoBody)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := Authorize(t.Context(), request, origin, resolver); err != nil {
+					t.Fatal(err)
+				}
+				want := ""
+				if destination == origin+"/repos" {
+					want = "Bearer loopback-sentinel"
+				}
+				if request.Header.Get("Authorization") != want {
+					t.Fatal("loopback credential crossed its port boundary")
+				}
+			}
+		}
+		for _, host := range []string{"registry.test", "localhost.example.test", "sub.localhost", "127.0.0.2", "127.0.0.1.example.test"} {
+			origin := "http://" + host
+			if IsAPIOriginURL(origin+"/repos", origin) {
+				t.Fatalf("unsafe HTTP origin accepted: %s", origin)
+			}
+		}
+	})
 	t.Run("Should redact echoed credentials while retaining error identity", func(t *testing.T) {
 		t.Parallel()
 		request := &http.Request{Header: http.Header{"Authorization": {"Bearer error-sentinel"}}}

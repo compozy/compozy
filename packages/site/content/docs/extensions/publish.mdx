@@ -82,8 +82,10 @@ archive and a `<asset>.sha256` sidecar to the release. The result names all thre
   field, and an unresolvable credential fails before any upload.
 </OperatorNote>
 
-Publishing sends credentials only over HTTPS, including when using a custom GitHub API endpoint.
-An HTTP endpoint is anonymous and cannot authorize a release upload.
+Publishing sends credentials over HTTPS, including to custom GitHub API endpoints. To preserve local
+registry workflows, HTTP is also supported on the exact configured `127.0.0.1`, `::1`, or `localhost`
+origin and port. Other HTTP endpoints fail before any request and ask you to use HTTPS; publishing
+never silently proceeds without its credential. Redirects to other origins receive no credential.
 
 `publish` is a CLI-local and native-tool verb. It has no HTTP or UDS route.
 

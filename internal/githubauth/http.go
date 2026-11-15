@@ -2,6 +2,7 @@ package githubauth
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -75,7 +76,25 @@ func IsAPIOriginURL(destination, origin string) bool {
 
 func IsAPIOrigin(destination *url.URL, origin string) bool {
 	configured, err := url.Parse(origin)
-	return err == nil && destination.Scheme == "https" && outboundpolicy.SameOrigin(destination, configured)
+	return err == nil && ValidateCredentialTransport(destination) == nil &&
+		outboundpolicy.SameOrigin(destination, configured)
+}
+
+// ValidateCredentialTransport preserves local HTTP registries without exposing credentials remotely.
+func ValidateCredentialTransport(destination *url.URL) error {
+	if destination != nil {
+		if destination.Scheme == "https" {
+			return nil
+		}
+		if destination.Scheme == "http" {
+			switch strings.ToLower(destination.Hostname()) {
+			case "127.0.0.1", "::1", "localhost":
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("%w: use HTTPS for the GitHub API endpoint; HTTP is allowed only on 127.0.0.1, ::1, or localhost",
+		outboundpolicy.ErrInsecureTransport)
 }
 
 func RedactResponse(response *http.Response, message string) string {

@@ -45,3 +45,11 @@ Release provenance preserved integrity and unverified-trust facts separately. Th
 client integration suite remains the owner for a controlled cross-origin redirect because it can
 inspect authorization headers at both origins; the real publish also crossed the normal
 `api.github.com` to `uploads.github.com` boundary without exposing credentials in public output.
+
+GitHub authentication compatibility (2026-11-15, issue #1750): configure
+`extensions.sources.github.base_url` first with a trusted TLS fixture, then with an HTTP registry on
+`127.0.0.1`, `::1`, or `localhost`. Publish the archive and digest with the existing explicit
+credential, then install from the second isolated home. Both transports must retain exact origin
+and port boundaries; cross-origin redirects receive no Authorization header. A non-loopback HTTP
+API or upload URL must fail before network I/O with HTTPS recovery guidance, never publish
+anonymously. CI owns this validation for this batch; no new live external publication is claimed.

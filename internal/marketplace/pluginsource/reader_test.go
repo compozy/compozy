@@ -166,20 +166,20 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 			if strings.Contains(err.Error(), "private") {
 				t.Fatal("source diagnostic exposed private transport details")
 			}
+			if errors.Is(tc.cause, outboundpolicy.ErrInsecureTransport) && !strings.Contains(err.Error(), "use HTTPS") {
+				t.Fatal("insecure transport failure omitted recovery guidance")
+			}
 		})
 	}
 }
 
 func TestGitHubMarketplaceCredentialIsolation(t *testing.T) {
-	// Invariant: the existing daemon credential reaches only the configured HTTPS API origin.
-	t.Run("Should authenticate HTTPS catalog requests and never send credentials over HTTP", func(t *testing.T) {
+	// Invariant: the daemon credential reaches the configured HTTPS or exact loopback HTTP API origin.
+	t.Run("Should authenticate HTTPS and loopback HTTP catalog requests", func(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "marketplace-sentinel")
 		for _, secure := range []bool{true, false} {
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				want := ""
-				if secure {
-					want = "Bearer marketplace-sentinel"
-				}
+				want := "Bearer marketplace-sentinel"
 				if r.Header.Get("Authorization") != want {
 					t.Error("unexpected catalog authentication")
 				}
@@ -262,7 +262,7 @@ func (f marketplaceRoundTripper) RoundTrip(request *http.Request) (*http.Respons
 
 func githubMarketplaceSource(t *testing.T, handler marketplaceRoundTripper) *GitHubSource {
 	t.Helper()
-	source, err := NewGitHubSource("owner/repo", WithGitHubBaseURL("http://api.example.test"),
+	source, err := NewGitHubSource("owner/repo", WithGitHubBaseURL("https://api.example.test"),
 		WithGitHubHTTPClient(&http.Client{Transport: handler}))
 	if err != nil {
 		t.Fatal(err)

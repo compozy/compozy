@@ -139,15 +139,21 @@ func testClientCapabilities(t *testing.T) {
 }
 
 func TestClientUploadRelease(t *testing.T) {
-	t.Run("Should publish an archive and digest sidecar", testClientUploadRelease)
+	t.Run("Should publish an archive and digest sidecar over HTTPS", func(t *testing.T) {
+		testClientUploadRelease(t, true)
+	})
+	t.Run("Should preserve publication to a loopback HTTP registry", func(t *testing.T) {
+		testClientUploadRelease(t, false)
+	})
 }
 
-func testClientUploadRelease(t *testing.T) {
+func testClientUploadRelease(t *testing.T, secure bool) {
 	t.Parallel()
 
 	token := "publish-token-sentinel"
 	uploaded := make(map[string]string)
-	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+	var server *httptest.Server
+	server = httptest.NewUnstartedServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer "+token {
 			t.Fatalf("Authorization header missing bound credential")
 		}
@@ -157,7 +163,7 @@ func testClientUploadRelease(t *testing.T) {
 		case request.Method == http.MethodPost && request.URL.Path == "/repos/acme/demo/releases":
 			writeJSON(writer,
 				`{"id":7,"tag_name":"v1.2.3","html_url":"https://github.test/acme/demo/releases/v1.2.3",`+
-					`"upload_url":"SERVER_URL/uploads/7{?name,label}","assets":[]}`,
+					`"upload_url":"`+server.URL+`/uploads/7{?name,label}","assets":[]}`,
 			)
 		case request.Method == http.MethodPost && request.URL.Path == "/uploads/7":
 			payload, err := io.ReadAll(request.Body)
@@ -173,7 +179,12 @@ func testClientUploadRelease(t *testing.T) {
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		}
-	})
+	}))
+	if secure {
+		server.StartTLS()
+	} else {
+		server.Start()
+	}
 	defer server.Close()
 
 	result, err := NewClient(
@@ -1416,6 +1427,33 @@ func TestClientOutboundPolicy(t *testing.T) {
 		)
 		if !errors.Is(err, outboundpolicy.ErrBlockedDestination) {
 			t.Fatalf("default API private resolution error = %v, want ErrBlockedDestination", err)
+		}
+	})
+
+	t.Run("Should refuse non-loopback HTTP before reads or publication", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		transport := &http.Client{Transport: stubRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+			calls++
+			return newHTTPResponse(http.StatusNoContent, ""), nil
+		})}
+		for _, base := range []string{"http://registry.example.test", "http://localhost.example.test", "http://127.0.0.2"} {
+			client := NewClient(base, WithToken("transport-sentinel"), WithHTTPClient(transport))
+			_, readErr := client.doRequest(t.Context(), base+"/repos/acme/demo", acceptJSON)
+			_, publishErr := client.doMutationRequest(t.Context(), http.MethodPost, base+"/uploads", acceptBinary, []byte("archive"))
+			for _, err := range []error{readErr, publishErr} {
+				if !errors.Is(err, outboundpolicy.ErrInsecureTransport) || !strings.Contains(err.Error(), "use HTTPS") {
+					t.Fatalf("insecure endpoint error = %v, want HTTPS recovery guidance", err)
+				}
+				if strings.Contains(err.Error(), "transport-sentinel") {
+					t.Fatal("insecure endpoint error exposed a credential")
+				}
+			}
+		}
+		client := NewClient("https://api.example.test", WithToken("transport-sentinel"), WithHTTPClient(transport))
+		_, err := client.doMutationRequest(t.Context(), http.MethodPost, "http://uploads.example.test/upload", acceptBinary, nil)
+		if !errors.Is(err, outboundpolicy.ErrInsecureTransport) || calls != 0 {
+			t.Fatalf("insecure upload error = %v, network calls = %d", err, calls)
 		}
 	})
 

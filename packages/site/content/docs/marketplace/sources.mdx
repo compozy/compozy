@@ -13,13 +13,15 @@ reports `installable`, `install_blocker`, layout, category, and the digest of it
 
 GitHub plugin sources, extension discovery and update checks use `GITHUB_TOKEN` from the daemon
 process environment, then `gh auth token --hostname github.com` for the daemon's user on the public
-`https://api.github.com` API. Custom HTTPS API origins use only the explicit environment token. Run
+`https://api.github.com` API. Custom API origins use only the explicit environment token. Run
 `gh auth login` as that user if the desktop-launched daemon has no environment token. A missing
 or signed-out GitHub CLI falls back to anonymous access. The CLI lookup has a five-second timeout;
 its result stays in memory for one minute and is never written to CompozyOS configuration or caches.
 Extension-instance secret bindings remain private to their extension and are not imported here.
 
-Credentials are sent only to the exact HTTPS API origin, and are removed on cross-origin redirects.
+Credentials are sent only to the exact configured API origin and port over HTTPS or local HTTP
+(`127.0.0.1`, `::1`, or `localhost`), and are removed on cross-origin redirects. Other HTTP GitHub
+API endpoints fail with guidance to use HTTPS before sending any request.
 A source that hits a GitHub rate limit keeps its last good catalog and reports `rate_limited`, the
 retry deadline, and recovery guidance. Reads and explicit refreshes honor `Retry-After` and, when
 the primary quota is exhausted, `X-RateLimit-Reset`, with at least a one-minute backoff. Plugin

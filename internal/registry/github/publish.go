@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/compozy/compozy/internal/githubauth"
 )
 
 const publishResponseLimit = 1 << 20
@@ -219,6 +221,9 @@ func (c *Client) doMutationRequest(
 	contentType string,
 	payload []byte,
 ) (*http.Response, error) {
+	if c.networkErr != nil {
+		return nil, c.networkErr
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("github: request aborted: %w", err)
 	}
@@ -226,17 +231,20 @@ func (c *Client) doMutationRequest(
 	if err != nil {
 		return nil, fmt.Errorf("github: create %s request: %w", method, err)
 	}
+	if err := githubauth.ValidateCredentialTransport(request.URL); err != nil {
+		return nil, err
+	}
 	request.Header.Set("Accept", acceptJSON)
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
-	if token := strings.TrimSpace(c.token); token != "" && request.URL.Scheme == "https" &&
+	if token := strings.TrimSpace(c.token); token != "" &&
 		c.networkPolicy.IsTrustedOrigin(request.URL) {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
 	response, err := c.httpClient.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("github: %s request failed: %w", method, err)
+		return nil, fmt.Errorf("github: %s request failed: %w", method, githubauth.RedactError(request, err))
 	}
 	if err := c.checkRateLimit(response); err != nil {
 		return nil, err
