@@ -122,6 +122,11 @@ func (m *Service) runClaimedCoordinator(
 	var plan CoordinatorCompletionPlan
 	runErr := context.Cause(execCtx)
 	if runErr == nil {
+		if err := m.checkCoordinatorClaim(execCtx, run, claimToken); coordinatorLeaseLost(err) {
+			runErr = err
+		}
+	}
+	if runErr == nil {
 		plan, runErr = m.coordinatorRunner.Run(execCtx, RunID(run.ID))
 	}
 	unregister()
@@ -216,11 +221,13 @@ func (m *Service) heartbeatCoordinatorLease(
 ) error {
 	leaseDuration := coordinatorLeaseDuration(run)
 	interval := coordinatorHeartbeatInterval(leaseDuration)
-	poll := max(min(interval/3, time.Second), time.Millisecond)
+	confirmedUntil := run.LeaseUntil
+	now := m.now().UTC()
+	firstDelay := coordinatorFirstHeartbeatDelay(interval, confirmedUntil, now)
+	poll := max(min(interval/3, time.Second, firstDelay), time.Millisecond)
 	ticker := time.NewTicker(poll)
 	defer ticker.Stop()
-	confirmedUntil := run.LeaseUntil
-	next := m.now().UTC().Add(coordinatorFirstHeartbeatDelay(interval, confirmedUntil, m.now().UTC()))
+	next := now.Add(firstDelay)
 	for {
 		select {
 		case <-ctx.Done():

@@ -22,9 +22,12 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolruntime"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
@@ -633,6 +636,41 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 }
 
 func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: the daemon checkpoints gate ownership before reaping the shell,
+	// and a fresh registry cleans a recovered tree without a live callback.
+	// Owner: daemon command adapter; canonical runtime adapter suite.
+	t.Run("Should checkpoint even a short command before reaping its leader", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		processes := toolruntime.NewMemoryStore()
+		runner := loopGateCommandRunner{
+			workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{
+					"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: root}},
+				},
+			},
+			processRegistry: toolruntime.NewRegistry(processes),
+		}
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command", LoopRunID: "loop-command", Command: "exit 3",
+		})
+		if err != nil || result.ExitCode != 3 {
+			t.Fatalf("RunCommand() = %#v, %v; want exit 3", result, err)
+		}
+		records, err := processes.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{})
+		if err != nil || len(records) != 1 || records[0].Owner.RunID != "loop-command" ||
+			records[0].ExitCode == nil || *records[0].ExitCode != 3 || records[0].State == toolruntime.ProcessStateRunning {
+			t.Fatalf("completed process records = %#v, %v", records, err)
+		}
+	})
+
+	t.Run("Should recover a registered gate tree after a daemon restart", func(t *testing.T) {
+		t.Parallel()
+		testLoopGateCommandRestartCleanup(t)
+	})
+
 	t.Run("Should resolve the run workspace before starting the command", func(t *testing.T) {
 		t.Parallel()
 
@@ -2567,4 +2605,65 @@ func requireLoopGateProcessGone(t *testing.T, pid int) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("gate command descendant pid %d survived; want its process group reaped", pid)
+}
+
+func testLoopGateCommandRestartCleanup(t *testing.T) {
+	t.Helper()
+	root := t.TempDir()
+	processes := toolruntime.NewMemoryStore()
+	runner := loopGateCommandRunner{
+		workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: root}},
+			},
+		},
+		processRegistry: toolruntime.NewRegistry(processes),
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	type commandOutcome struct {
+		result gate.CommandResult
+		err    error
+	}
+	finished := make(chan commandOutcome, 1)
+	done := make(chan struct{})
+	var record toolruntime.ProcessRecord
+	t.Cleanup(func() {
+		cancel()
+		if record.ProcessGroupID > 0 {
+			if err := procutil.KillProcessGroupIDAndWait(record.ProcessGroupID, time.Second); err != nil {
+				t.Errorf("cleanup gate group: %v", err)
+			}
+		}
+		testutil.Receive(t, "gate cleanup joined", 10*time.Second, done)
+	})
+	go func() {
+		defer close(done)
+		result, err := runner.RunCommand(ctx, gate.CommandRequest{
+			WorkspaceID: "ws-command", LoopRunID: "loop-command",
+			Command: `trap '' TERM; sh -c 'trap "" TERM; echo ready > child-ready; while :; do sleep 1; done' & wait`,
+		})
+		finished <- commandOutcome{result: result, err: err}
+	}()
+	testutil.Eventually(t, "registered gate and resistant descendant", 5*time.Second, func() bool {
+		records, err := processes.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{})
+		if err != nil || len(records) != 1 {
+			return false
+		}
+		record = records[0]
+		_, err = os.Stat(filepath.Join(root, "child-ready"))
+		return err == nil
+	})
+	// A fresh registry has no live callback: recovery uses PID/start-time evidence.
+	recovered := toolruntime.NewRegistry(processes)
+	report, err := recovered.ReconcileBoot(t.Context())
+	if err != nil || report.Interrupted != 1 {
+		t.Fatalf("boot reconciliation = %#v, %v", report, err)
+	}
+	outcome := testutil.Receive(t, "gate completion", 10*time.Second, finished)
+	if outcome.err != nil || outcome.result.ExitCode == 0 {
+		t.Fatalf("RunCommand() = %#v, %v; want the externally killed shell's nonzero exit", outcome.result, outcome.err)
+	}
+	if err := procutil.WaitForProcessGroupIDExit(record.ProcessGroupID, time.Second); err != nil {
+		t.Fatalf("gate group survived restart recovery: %v", err)
+	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/toolruntime"
 	"github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -197,6 +198,7 @@ func loopJudgeStopCause(err error) (session.StopCause, string) {
 
 type loopGateCommandRunner struct {
 	workspaceResolver workspacepkg.RuntimeResolver
+	processRegistry   *toolruntime.Registry
 	// shutdownGrace bounds SIGTERM before the command's process group is killed; zero uses the default.
 	shutdownGrace time.Duration
 	// drainTimeout bounds the captured output drain after the shell exits; zero uses the default.
@@ -258,7 +260,17 @@ func (r loopGateCommandRunner) RunCommand(
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err = runLoopGateCommandTree(ctx, cmd, r.shutdownGrace, r.outputDrainTimeout())
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	finished := make(chan struct{})
+	defer close(finished)
+	var handle *toolruntime.Handle
+	err = runLoopGateCommandTree(runCtx, cmd, r.shutdownGrace, r.outputDrainTimeout(), func() error {
+		var registerErr error
+		handle, registerErr = r.registerCommand(runCtx, req, cmd, cancel, finished)
+		return registerErr
+	})
+	r.completeCommand(ctx, cmd, handle, err)
 	exitCode := 0
 	if err != nil {
 		// A process-group cleanup failure is not the command's exit status, so it is reported before

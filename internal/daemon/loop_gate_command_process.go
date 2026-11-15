@@ -32,11 +32,14 @@ func (e *loopGateCommandCleanupError) Unwrap() error { return e.err }
 
 // runLoopGateCommandTree runs a gate command as its own process group. Cancellation sends SIGTERM
 // to the whole group, escalates to SIGKILL after the grace period, and waits for the group to
-// drain, so a command that ignores SIGTERM cannot leave descendants (or the containers they own)
-// behind a canceled or superseded run. The drain bound makes the shell's exit observable on its own:
+// drain, so a command that ignores SIGTERM cannot leave its local process group
+// behind a canceled or superseded run. Daemon-owned and remote containers require the
+// external resource contract tracked in #1743. The drain bound makes the shell's exit observable on its own:
 // a background descendant that still holds stdout or stderr cannot keep the gate "running" until it
 // exits.
-func runLoopGateCommandTree(ctx context.Context, cmd *exec.Cmd, grace time.Duration, drain time.Duration) error {
+func runLoopGateCommandTree(
+	ctx context.Context, cmd *exec.Cmd, grace time.Duration, drain time.Duration, onStart func() error,
+) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return fmt.Errorf("daemon: gate command interrupted before start: %w", cause)
 	}
@@ -51,13 +54,17 @@ func runLoopGateCommandTree(ctx context.Context, cmd *exec.Cmd, grace time.Durat
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("daemon: start gate command: %w", err)
 	}
+	// Observe and checkpoint the leader before Wait can reap it. A short-lived
+	// shell may otherwise vanish before its start time can prove group ownership.
+	registerErr := procutil.RegisterCommandProcessGroup(cmd)
+	if registerErr == nil && onStart != nil {
+		registerErr = onStart()
+	}
 	waitCh := make(chan error, 1)
-	go func() {
-		waitCh <- cmd.Wait()
-	}()
-	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+	go func() { waitCh <- cmd.Wait() }()
+	if registerErr != nil {
 		return errors.Join(
-			fmt.Errorf("daemon: register gate command process group: %w", err),
+			fmt.Errorf("daemon: register gate command process: %w", registerErr),
 			stopLoopGateCommandTree(cmd, waitCh, grace),
 		)
 	}
@@ -107,7 +114,10 @@ func stopLoopGateCommandTree(cmd *exec.Cmd, waitCh <-chan error, grace time.Dura
 		}
 	}
 	// The whole group must drain completely, including descendants the shell left behind.
-	return errors.Join(terminateErr, procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait))
+	if err := errors.Join(terminateErr, procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait)); err != nil {
+		return &loopGateCommandCleanupError{err: err}
+	}
+	return nil
 }
 
 // signalFreeShellError drops the shell's own signal exit status: the group drain above decides
