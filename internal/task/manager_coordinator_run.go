@@ -67,7 +67,7 @@ func (m *Service) startCoordinatorRun(
 	}
 	run = runningSettlement.mutation.Run
 
-	plan, err := m.coordinatorRunner.Run(lifecycleCtx, RunID(run.ID))
+	plan, err := m.runClaimedCoordinator(lifecycleCtx, run, req.ClaimToken, actor)
 	if err != nil {
 		return m.failStartedCoordinatorRun(lifecycleCtx, run, req.ClaimToken, actor, err)
 	}
