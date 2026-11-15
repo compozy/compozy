@@ -160,11 +160,7 @@ func prepareE2ELaneEnv(needStampedDaemon, needDatabaseSeeder bool) (e2eLaneEnv, 
 	if needStampedDaemon {
 		// Catalog compilation is fixture preparation, outside each distribution scenario's deadline.
 		cleanups, err = addLaneBinary(
-			values, cleanups, catalogBinaryEnvVar, "compozy-catalog", func(outputPath string) error {
-				return runCommandInDir(
-					context.Background(), ".", "go", "build", "-o", outputPath, "./cmd/compozy-catalog",
-				)
-			},
+			values, cleanups, catalogBinaryEnvVar, "compozy-catalog", buildCatalogBinary,
 		)
 		if err != nil {
 			return e2eLaneEnv{}, errors.Join(err, runCleanups(cleanups))
@@ -212,6 +208,12 @@ func addLaneBinary(
 	}
 	values[envVar] = path
 	return append(cleanups, cleanup), nil
+}
+
+func buildCatalogBinary(outputPath string) error {
+	return runCommandInDir(
+		context.Background(), ".", "go", "build", "-o", outputPath, "./cmd/compozy-catalog",
+	)
 }
 
 func buildDatabaseSeederBinary(outputPath string) error {
