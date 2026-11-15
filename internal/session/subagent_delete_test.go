@@ -307,9 +307,10 @@ func TestSubagentDelete(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					s, db, runtime := newSubagentTestService(t)
 					row := requireSubagent(t, s, subagentTestRequest())
-					row.Isolation = SubagentIsolationWorktree
-					row.Worktree = &store.SubagentWorktreeState{ID: "wt", Branch: "retained-roster"}
-					db.rows[row.ID] = row
+					persisted := db.rows[row.ID]
+					persisted.Isolation = SubagentIsolationWorktree
+					persisted.Worktree = &store.SubagentWorktreeState{ID: "wt", Branch: "retained-roster"}
+					db.rows[row.ID] = persisted
 					s.worktrees = &subagentWorktreeStub{
 						facts: SubagentWorktreeFacts{PRStatus: "none"},
 						observe: func() {
