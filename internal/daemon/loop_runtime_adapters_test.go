@@ -7,12 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -738,6 +736,76 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 		}
 		requireLoopGateProcessGone(t, waitForLoopGateChildPID(t, filepath.Join(rootDir, "child.pid")))
 	})
+
+	t.Run("Should return when a backgrounded descendant holds the captured streams open", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+			},
+		}}
+		type commandOutcome struct {
+			result  gate.CommandResult
+			elapsed time.Duration
+			err     error
+		}
+		done := make(chan commandOutcome, 1)
+		go func() {
+			started := time.Now()
+			// The backgrounded sleep inherits stdout and stderr without any redirection, so output
+			// draining must not be what decides when the gate finishes.
+			result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+				WorkspaceID: "ws-command",
+				Command:     `sleep 600 & echo $! > child.pid; echo gate-ready`,
+			})
+			done <- commandOutcome{result: result, elapsed: time.Since(started), err: err}
+		}()
+
+		var outcome commandOutcome
+		select {
+		case outcome = <-done:
+		case <-time.After(30 * time.Second):
+			t.Fatal("RunCommand() did not return while a backgrounded descendant held the captured streams")
+		}
+		if outcome.err != nil || outcome.result.ExitCode != 0 {
+			t.Fatalf("RunCommand() = %#v, %v; want exit 0", outcome.result, outcome.err)
+		}
+		if !strings.Contains(outcome.result.Stdout, "gate-ready") {
+			t.Fatalf(
+				"RunCommand() stdout = %q, want the output written before the drain was cut",
+				outcome.result.Stdout,
+			)
+		}
+		if outcome.elapsed >= 30*time.Second {
+			t.Fatalf("RunCommand() took %s, want well under the 600s background sleep", outcome.elapsed)
+		}
+		requireLoopGateProcessGone(t, waitForLoopGateChildPID(t, filepath.Join(rootDir, "child.pid")))
+	})
+
+	t.Run(
+		"Should keep the exit code when a backgrounded descendant holds the captured streams open",
+		func(t *testing.T) {
+			t.Parallel()
+
+			rootDir := t.TempDir()
+			runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{
+					"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+				},
+			}}
+			result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+				WorkspaceID: "ws-command",
+				Command:     `sleep 600 & echo $! > child.pid; exit 3`,
+			})
+			// The drain bound must not replace the command's status with an exec.ErrWaitDelay failure.
+			if err != nil || result.ExitCode != 3 {
+				t.Fatalf("RunCommand() = %#v, %v; want exit 3", result, err)
+			}
+			requireLoopGateProcessGone(t, waitForLoopGateChildPID(t, filepath.Join(rootDir, "child.pid")))
+		},
+	)
 
 	t.Run("Should fail before execution when the workspace cannot be resolved", func(t *testing.T) {
 		t.Parallel()
@@ -2493,31 +2561,10 @@ func requireLoopGateProcessGone(t *testing.T, pid int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if loopGateProcessReaped(pid) {
+		if loopGateProcessReaped(t, pid) {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("gate command descendant pid %d survived; want its process group reaped", pid)
-}
-
-// loopGateProcessReaped reports a pid that can no longer run. A zombie still answers signal 0, so
-// Linux consults its procfs state instead of waiting on the reaper that inherited it.
-func loopGateProcessReaped(pid int) bool {
-	process, err := os.FindProcess(pid)
-	if err != nil || process.Signal(syscall.Signal(0)) != nil {
-		return true
-	}
-	if runtime.GOOS != "linux" {
-		return false
-	}
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
-	if err != nil {
-		return false
-	}
-	_, state, found := strings.CutLast(string(data), ") ")
-	if !found {
-		return false
-	}
-	return strings.HasPrefix(state, "Z")
 }
