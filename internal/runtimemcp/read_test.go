@@ -3,6 +3,7 @@ package runtimemcp
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	jsonv1 "encoding/json"
 	"encoding/json/v2"
 
 	"errors"
@@ -363,6 +364,41 @@ func TestRuntimeInventorySafety(t *testing.T) {
 		}
 		if !serverFor(t, inventory.Runtimes[0], "savee").AlsoInCompozy {
 			t.Fatal("missing duplicate marker")
+		}
+	})
+	t.Run("Should encode empty env and header key lists as JSON arrays on the HTTP wire", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: the Settings MCP page spreads env_keys/header_keys, so a server
+		// without env or headers must never reach the gin (encoding/json) wire as null.
+		c := fixtureContext(t)
+		putFile(t, filepath.Join(c.Home, ".claude.json"), `{"mcpServers":{"bare":{"command":"echo"}}}`)
+		inventory, _, err := (Reader{}).List(
+			t.Context(),
+			Request{Context: c, Runtime: "claude"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := jsonv1.Marshal(inventory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire struct {
+			Runtimes []struct {
+				Servers []map[string]any `json:"servers"`
+			} `json:"runtimes"`
+		}
+		if err := jsonv1.Unmarshal(data, &wire); err != nil {
+			t.Fatal(err)
+		}
+		if len(wire.Runtimes) != 1 || len(wire.Runtimes[0].Servers) != 1 {
+			t.Fatalf("inventory = %s, want one claude server", data)
+		}
+		server := wire.Runtimes[0].Servers[0]
+		for _, field := range []string{"env_keys", "header_keys"} {
+			if _, ok := server[field].([]any); !ok {
+				t.Fatalf("%s = %#v, want array", field, server[field])
+			}
 		}
 	})
 	t.Run("Should bound file reads and safely follow symlinked config files", func(t *testing.T) {
