@@ -24,7 +24,11 @@ func (g *TaskRepo) reserveCoordinatorConcurrentProgressWithExecutor(
 	if err != nil {
 		return err
 	}
-	if loopRun.Status != loop.StatusRunning || !loopRun.LastProgressAt.After(current.QueuedAt) {
+	observedAt := current.QueuedAt
+	if completion.Plan.ObservedProgressAt.After(observedAt) {
+		observedAt = completion.Plan.ObservedProgressAt
+	}
+	if loopRun.Status != loop.StatusRunning || !loopRun.LastProgressAt.After(observedAt) {
 		return nil
 	}
 	openRunID, err := g.findOpenRunIDForQueuedRunReservation(ctx, exec, current.TaskID, "")

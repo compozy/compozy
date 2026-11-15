@@ -4646,7 +4646,14 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 
 	t.Run("Should preserve progress committed while the coordinator is in flight", func(t *testing.T) {
 		t.Parallel()
-		testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t)
+		testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t, false)
+	})
+
+	// Invariant: observed liveness must not schedule another evaluation, while
+	// work committed after the snapshot still wakes it. Owner: coordinator store.
+	t.Run("Should not redispatch for progress already observed by the coordinator", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t, true)
 	})
 
 	t.Run("Should supersede an in-flight generation after run cancellation", func(t *testing.T) {
@@ -4882,7 +4889,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 	}
 }
 
-func testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t *testing.T) {
+func testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t *testing.T, observed bool) {
 	t.Helper()
 
 	globalDB := openLoopTestGlobalDB(t)
@@ -4916,6 +4923,9 @@ func testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t *testing.
 			Generation: 1,
 		},
 	}
+	if observed {
+		plan.ObservedProgressAt = now.Add(time.Second)
+	}
 	firstResult, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID:      firstClaim.Run.ID,
 		ClaimToken: firstClaim.ClaimToken,
@@ -4925,6 +4935,12 @@ func testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t *testing.
 	}, looppkg.NewStoreFinalizer())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(first) error = %v", err)
+	}
+	if observed {
+		if len(firstResult.EnqueuedRuns) != 0 {
+			t.Fatalf("observed progress enqueued %d runs, want no redispatch", len(firstResult.EnqueuedRuns))
+		}
+		return
 	}
 	if len(firstResult.EnqueuedRuns) != 1 {
 		t.Fatalf("first enqueued runs = %d, want one reconciliation successor", len(firstResult.EnqueuedRuns))

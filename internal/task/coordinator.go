@@ -36,6 +36,8 @@ type CoordinatorPostCommitHandler interface {
 
 // CoordinatorCompletionPlan contains all coordinator mutations that task applies atomically.
 type CoordinatorCompletionPlan struct {
+	// ObservedProgressAt fences work already included in the evaluated Loop snapshot.
+	ObservedProgressAt  time.Time
 	NodeTasks           []CoordinatorTaskSpec
 	Dependencies        []CoordinatorDependencySpec
 	NodeRuns            []EnqueueSpec

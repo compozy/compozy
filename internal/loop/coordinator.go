@@ -213,6 +213,7 @@ func (r *CoordinatorRunner) Run(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
+	plan.ObservedProgressAt = loopRun.LastProgressAt
 	plan, err = r.applyPausedNodeControls(ctx, loopRun, plan)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
