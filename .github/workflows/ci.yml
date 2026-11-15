@@ -248,6 +248,12 @@ jobs:
           CI_WORKSPACES: ${{ needs.changes.outputs.workspaces }}
         run: python3 scripts/ci-frontend.py '${{ matrix.lane }}'
 
+      - name: Show dock regression formatting diff on lint failure
+        if: failure() && matrix.lane == 'lint'
+        run: |
+          bunx oxfmt web/src/systems/os/components/__tests__/os-dock.test.tsx
+          git diff -- web/src/systems/os/components/__tests__/os-dock.test.tsx
+
       - name: Report Turbo receipts and audit a cached test
         if: matrix.lane != 'lint'
         env:
