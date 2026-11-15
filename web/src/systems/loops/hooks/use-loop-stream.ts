@@ -95,6 +95,7 @@ export function useLoopStream(
     onError,
   }: UseLoopStreamOptions = {}
 ) {
+  // The shell owns profile hydration; a stream only observes its current scope.
   const profileParams = useProfileReadScopeParams();
   const profileName = "profile" in profileParams ? profileParams.profile : null;
   const queryClient = useQueryClient();

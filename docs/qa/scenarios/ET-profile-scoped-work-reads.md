@@ -63,7 +63,11 @@ profile. Each subscription uses that scope without starting independent profile-
 or profile-catalog HTTP reads. Switching the shell profile replaces an unpinned stream;
 a pinned stream keeps its own profile. Accepted Loop refreshes still reconcile after
 the stream closes. The canonical `use-loop-stream.test.tsx` suite owns these scope and
-disposal regressions; current-head CI verification is pending, with no local QA run.
+disposal regressions. CI run `43731065255` on `e14cc99e1` passed all 42 hook tests,
+including the seven original pending-refresh boundaries and three new scope cases.
+The same run passed profile selection (13), profile switcher (13), aggregate composites
+(7), Loop run-page (114), and session goal-header (11) tests. This is automated hook
+and component coverage; no local or manual daemon/browser QA walk is claimed.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
 
