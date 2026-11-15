@@ -12355,11 +12355,8 @@ export interface components {
       /** @description Profile name. Omitted for a local operator keeps the installation available to all profiles. */
       profile?: string;
       ref: string;
-      /**
-       * @description Replace the installed extension of the same name. Applies to local_path installs only, since published sources replace implicitly. The previous version stays installed only when the replacement fails before the reinstall transaction completes; a failure after it returns, such as enable failing, does not restore it. A marketplace-owned name is refused with extension_name_conflict. Replacing a package attached outside the caller's workspace requires operator authority.
-       * @default false
-       */
-      replace: boolean;
+      /** @description Replace the installed extension of the same name. Applies to local_path installs only, since published sources replace implicitly. The previous version stays installed only when the replacement fails before the reinstall transaction completes; a failure after it returns, such as enable failing, does not restore it. A marketplace-owned name is refused with extension_name_conflict. Replacing a package attached outside the caller's workspace requires operator authority. */
+      replace?: boolean;
       /**
        * @description Overrides manifest server defaults. Mixed defaults require an explicit scope. A workspace default requires a workspace-bound caller or workspace_id.
        * @enum {string}

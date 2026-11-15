@@ -286,8 +286,9 @@ A local bundle replaces the installed package of the same name with
 `{"source": "local_path", "replace": true}`, or `compozy__extensions_install {replace: true}`. The
 replacement runs through the same transaction as a published reinstall: the previous directory,
 registry record, gateway confirmation, and selected input cell stay available until reload and the
-returned status step both succeed, so a failure after publication restores the previous version
-instead of leaving the extension uninstalled. `replace` applies to `local_path` only; published
+returned status step both succeed, so a failure inside that transaction after publication restores
+the previous version. Once the reinstall transaction returns successfully, a subsequent enable
+failure retains the new package. `replace` applies to `local_path` only; published
 sources already replace implicitly. It never converts a marketplace-owned name — that returns
 `extension_name_conflict` with `installed_origin`, so local bytes cannot silently inherit or drop
 marketplace provenance or update tracking — and a bundled package is refused with `extension_exists`.

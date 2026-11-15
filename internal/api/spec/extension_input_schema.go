@@ -43,7 +43,7 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 		digest.Value.Pattern = `^[a-fA-F0-9]{64}$`
 	}
 	if replace := schema.Properties["replace"]; replace != nil && replace.Value != nil {
-		replace.Value.Default = false
+		// A schema default makes openapi-typescript require this optional request field.
 		replace.Value.Description = "Replace the installed extension of the same name. Applies to local_path " +
 			"installs only, since published sources replace implicitly. The previous version stays installed " +
 			"only when the replacement fails before the reinstall transaction completes; a failure after it " +

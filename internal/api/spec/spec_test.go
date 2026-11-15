@@ -3396,8 +3396,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		// The install and preview requests gain the optional replace flag.
 		replaceProperty := map[string]any{
-			"type":    "boolean",
-			"default": false,
+			"type": "boolean",
 			"description": "Replace the installed extension of the same name. Applies to local_path installs only, " +
 				"since published sources replace implicitly. The previous version stays installed only when the " +
 				"replacement fails before the reinstall transaction completes; a failure after it returns, such as " +
