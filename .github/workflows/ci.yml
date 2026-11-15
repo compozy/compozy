@@ -548,6 +548,11 @@ jobs:
         env:
           CGO_ENABLED: 0
 
+      - name: Verify Windows managed stdout lifetime
+        run: go test ./internal/subprocess -run '^TestProcessStdoutLifetime$' -count=1
+        env:
+          CGO_ENABLED: 0
+
       - name: Verify read-only config and retirement migration on Windows
         run: >-
           go test ./internal/config

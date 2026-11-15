@@ -121,6 +121,46 @@ func TestProcessExitDiagnostics(t *testing.T) {
 	})
 }
 
+func TestProcessStdoutLifetime(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		scenario string
+		exitCode int
+	}{
+		{name: "Should retain stdout after successful exit", scenario: "raw_output"},
+		{name: "Should retain stdout after unsuccessful exit", scenario: "raw_output_exit_23", exitCode: 23},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			process := launchHelperProcess(t, tc.scenario, LaunchConfig{DisableTransport: true})
+			defer shutdownProcess(t, process)
+			select {
+			case <-process.Done():
+			case <-time.After(2 * time.Second):
+				t.Fatal("process completion blocked on unread stdout")
+			}
+			waitErr := process.Wait()
+			if (waitErr != nil) != (tc.exitCode != 0) {
+				t.Fatalf("Wait() error = %v, want exit code %d", waitErr, tc.exitCode)
+			}
+			status, ok := process.ExitStatus()
+			if !ok || status.ExitCode != tc.exitCode {
+				t.Fatalf("ExitStatus() = %+v, %t; want exit code %d", status, ok, tc.exitCode)
+			}
+			output, err := io.ReadAll(process.Stdout())
+			if err != nil {
+				t.Fatalf("ReadAll(stdout) after exit error = %v", err)
+			}
+			if want := strings.Repeat("short-lived output\n", 64); string(output) != want {
+				t.Fatalf("stdout after exit = %q, want %q", output, want)
+			}
+		})
+	}
+}
+
 func TestExitStatusExitCodeValue(t *testing.T) {
 	t.Parallel()
 
@@ -1341,6 +1381,11 @@ func launchHelperProcess(t *testing.T, scenario string, cfg LaunchConfig, extraE
 	if err != nil {
 		t.Fatalf("Launch(helper %s) error = %v", scenario, err)
 	}
+	t.Cleanup(func() {
+		if err := process.Stdout().Close(); err != nil {
+			t.Errorf("close helper stdout: %v", err)
+		}
+	})
 	return process
 }
 
@@ -1426,6 +1471,16 @@ func newHelperServer(scenario string, shutdownMarker string) *helperServer {
 }
 
 func (h *helperServer) run() int {
+	if h.scenario == "raw_output" || h.scenario == "raw_output_exit_23" {
+		if _, err := io.WriteString(os.Stdout, strings.Repeat("short-lived output\n", 64)); err != nil {
+			writeHelperDiagnostic("raw output: %v\n", err)
+			return 1
+		}
+		if h.scenario == "raw_output_exit_23" {
+			return 23
+		}
+		return 0
+	}
 	if h.scenario == "exit_23" {
 		writeHelperDiagnostic("fixture exiting with code 23\n")
 		return 23

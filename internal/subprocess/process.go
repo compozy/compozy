@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	exec "os/exec"
 
 	"sync"
@@ -199,6 +200,7 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 			return nil, errors.Join(
 				fmt.Errorf("subprocess: register process record: %w", err),
 				cleanupStartedManagedCommand(cmd),
+				closeCommandPipes(stdout),
 			)
 		}
 		process.processRecord = handle
@@ -278,26 +280,42 @@ func startManagedCommand(
 	if err != nil {
 		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: open stdin pipe: %w", err)
 	}
-	stdout, err := cmd.StdoutPipe()
+	stdout, stdoutWriter, err := os.Pipe()
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: open stdout pipe: %w", err)
+		return nil, nil, nil, nil, nil, errors.Join(
+			fmt.Errorf("subprocess: open stdout pipe: %w", err),
+			closeCommandPipes(stdin),
+		)
 	}
+	// An explicitly owned pipe keeps Wait from closing unread stdout.
+	cmd.Stdout = stdoutWriter
 
 	stderr := &boundedBuffer{limit: 128 * 1024}
 	stderrPipeline := newStderrPipeline(stderr, cfg.StderrSink, cfg.StderrTransform)
 	cmd.Stderr = stderrPipeline
 	if err := StartWithLaunchNiceness(resolveLaunchRuntime(cfg).logger, cfg.Niceness, cmd, cmd.Start); err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: start %q: %w", cfg.Command, err)
+		return nil, nil, nil, nil, nil, errors.Join(
+			fmt.Errorf("subprocess: start %q: %w", cfg.Command, err),
+			closeCommandPipes(stdin, stdout, stdoutWriter),
+		)
+	}
+	if err := stdoutWriter.Close(); err != nil {
+		return nil, nil, nil, nil, nil, errors.Join(
+			fmt.Errorf("subprocess: close parent stdout writer: %w", err),
+			cleanupStartedManagedCommand(cmd),
+			closeCommandPipes(stdin, stdout),
+		)
 	}
 	if err := registerManagedCommand(cmd); err != nil {
 		cleanupErr := cleanupStartedManagedCommand(cmd)
 		return nil, nil, nil, nil, nil, errors.Join(
 			fmt.Errorf("subprocess: register process tree for %q: %w", cfg.Command, err),
 			cleanupErr,
+			closeCommandPipes(stdin, stdout),
 		)
 	}
 
-	return cmd, stdin, stdout, stderr, stderrPipeline, nil
+	return cmd, stdin, newStdoutReader(stdout), stderr, stderrPipeline, nil
 }
 
 func cleanupStartedManagedCommand(cmd *exec.Cmd) error {
