@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { loopsKeys, useLoopStream } from "@/systems/loops";
 import type { LoopRunEventFrame, LoopStreamEventSource } from "@/systems/loops";
+import { ProfilePin, resetProfileViews, setProfileView } from "@/systems/profiles";
 import { LIVE_REFETCH_INTERVAL } from "../../lib/query-options";
 
 const LOOP_EVENT_KINDS = [
@@ -132,6 +133,67 @@ function buildFrame(overrides: Partial<LoopRunEventFrame> = {}): LoopRunEventFra
 }
 
 describe("useLoopStream", () => {
+  // Invariant: streams follow the active or pinned scope without independent profile reads.
+  // Owning layer: SSE transport hook. Canonical suite: this file.
+  it.each([
+    {
+      scope: "selected",
+      view: { kind: "profile", profile: "marketing" } as const,
+      pinned: undefined,
+      selector: "profile=marketing",
+    },
+    {
+      scope: "aggregate",
+      view: { kind: "aggregate" } as const,
+      pinned: undefined,
+      selector: "all_profiles=true",
+    },
+    {
+      scope: "pinned",
+      view: { kind: "aggregate" } as const,
+      pinned: "engineering",
+      selector: "profile=engineering",
+    },
+  ])("Should reuse the $scope profile for the stream without profile lookups", async test => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("Unexpected independent profile lookup"));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    const factory = vi.fn(() => new FakeLoopStreamEventSource());
+    act(() => setProfileView(test.view));
+    const { unmount } = renderHook(
+      () => useLoopStream("ws_1", "looprun_1", { eventSourceFactory: factory }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={queryClient}>
+            <ProfilePin profile={test.pinned}>{children}</ProfilePin>
+          </QueryClientProvider>
+        ),
+      }
+    );
+    try {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(factory).toHaveBeenCalledExactlyOnceWith(
+        `/api/workspaces/ws_1/loop-runs/looprun_1/events?${test.selector}`
+      );
+      await act(async () => setProfileView({ kind: "profile", profile: "design" }));
+      expect(factory).toHaveBeenCalledTimes(test.pinned ? 1 : 2);
+      expect(factory).toHaveBeenLastCalledWith(
+        `/api/workspaces/ws_1/loop-runs/looprun_1/events?profile=${test.pinned ?? "design"}`
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      queryClient.clear();
+      act(() => resetProfileViews());
+      fetchMock.mockRestore();
+    }
+  });
+
   it.each(["active", "disposed", "settled", "replaced", "disabled", "initial", "static"])(
     "Should bound a pending cached refresh while preserving the %s boundary",
     async boundary => {
