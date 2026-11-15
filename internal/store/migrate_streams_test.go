@@ -1408,9 +1408,12 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if _, err := db.ExecContext(ctx, `INSERT INTO session_creation_profiles (profile_ref, profile_json, created_at)
+			if _, err := db.ExecContext(
+				ctx,
+				`INSERT INTO session_creation_profiles (profile_ref, profile_json, created_at)
 		VALUES ('authored-override', '{"allowed_tools":["compozy__session_list"]}', '2026-11-01T00:00:00Z');
-		UPDATE sessions SET creation_profile_ref = 'authored-override' WHERE id = 'authored-override'`); err != nil {
+		UPDATE sessions SET creation_profile_ref = 'authored-override' WHERE id = 'authored-override'`,
+			); err != nil {
 				t.Fatal(err)
 			}
 			for _, depth := range []int{0, 1} {
@@ -1471,8 +1474,9 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 				t.Helper()
 				for _, fixture := range fixtures {
 					var raw string
-					if err := db.QueryRowContext(ctx, `SELECT permission_policy_json FROM sessions WHERE id=?`, fixture.id).
-						Scan(&raw); err != nil {
+					if err := db.QueryRowContext(
+						ctx, `SELECT permission_policy_json FROM sessions WHERE id=?`, fixture.id,
+					).Scan(&raw); err != nil {
 						t.Fatal(err)
 					}
 					original, err := store.DecodeSessionPermissionPolicy(fixture.raw)
@@ -1502,8 +1506,9 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 				for _, depth := range []int{0, 1} {
 					id := fmt.Sprintf("instance-%d", depth)
 					var raw string
-					if err := db.QueryRowContext(ctx, `SELECT permission_ceiling FROM agent_instances WHERE id=?`, id).
-						Scan(&raw); err != nil {
+					if err := db.QueryRowContext(
+						ctx, `SELECT permission_ceiling FROM agent_instances WHERE id=?`, id,
+					).Scan(&raw); err != nil {
 						t.Fatal(err)
 					}
 					original, err := store.DecodeSessionPermissionPolicy(authoredPolicy)
