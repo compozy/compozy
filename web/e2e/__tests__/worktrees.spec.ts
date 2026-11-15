@@ -319,11 +319,13 @@ test("operator adopts a discovered worktree by selecting it", async ({ appPage, 
   await repo.addExternalWorktree("northstar-spike", "spike/sqlite-vacuum");
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  // Both windows inherit the shell selection. Adoption must write the focused
-  // window's own entry, rather than changing the entry both windows read.
+  // Give each window its own root selection: adoption must update the focused
+  // window as well as the ambient shell default, preserving the other window.
   await selectWorkspace(appPage, workspace.id);
   await openAppWindow(appPage, "Dashboard", "dashboard");
+  await selectWorkspace(appPage, workspace.id);
   await openAppWindow(appPage, "Tasks", "tasks");
+  await selectWorkspace(appPage, workspace.id);
 
   await openWorkspaceNest(appPage, workspace.id);
   const discoveredRow = appPage.getByTestId(/^os-worktree-option-discovered:/).first();
