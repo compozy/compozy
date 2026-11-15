@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -16,8 +17,11 @@ import (
 func loopGateProcessReaped(t *testing.T, pid int) bool {
 	t.Helper()
 	process, err := os.FindProcess(pid)
-	if err != nil || process.Signal(syscall.Signal(0)) != nil {
-		return true
+	if err != nil {
+		return false
+	}
+	if err := process.Signal(syscall.Signal(0)); err != nil {
+		return loopGateSignalReportsGone(err)
 	}
 	if runtime.GOOS != "linux" {
 		return false
@@ -31,4 +35,31 @@ func loopGateProcessReaped(t *testing.T, pid int) bool {
 		return false
 	}
 	return strings.HasPrefix(state, "Z")
+}
+
+func loopGateSignalReportsGone(err error) bool {
+	return errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH)
+}
+
+// Invariant: permission failure cannot prove process absence. Owner: daemon
+// adapter process-probe assertions; canonical Unix probe suite.
+func TestLoopGateProcessProbeShouldRequireConfirmedAbsence(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		err  error
+		gone bool
+	}{
+		{name: "live"},
+		{name: "permission denied", err: os.NewSyscallError("signal", syscall.EPERM)},
+		{name: "missing", err: os.NewSyscallError("signal", syscall.ESRCH), gone: true},
+		{name: "reaped", err: os.ErrProcessDone, gone: true},
+	} {
+		t.Run("Should classify "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := loopGateSignalReportsGone(tc.err); got != tc.gone {
+				t.Fatalf("process gone = %v, want %v for %v", got, tc.gone, tc.err)
+			}
+		})
+	}
 }

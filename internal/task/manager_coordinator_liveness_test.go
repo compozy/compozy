@@ -24,8 +24,8 @@ func TestManagerCoordinatorLivenessShouldHoldTheClaimWhileEvaluating(t *testing.
 		calls := 0
 		runner := coordinatorRunnerFunc(func(ctx context.Context, _ RunID) (CoordinatorCompletionPlan, error) {
 			calls++
-			for range 3 {
-				harness.clock.advance(harness.lease * 2 / 3)
+			for range 6 {
+				harness.clock.advance(harness.lease / 3)
 				harness.store.waitForProgressAt(t, harness.clock.now())
 			}
 			var err error

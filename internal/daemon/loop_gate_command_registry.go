@@ -47,6 +47,7 @@ func (r loopGateCommandRunner) completeCommand(
 	completionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
 	defer cancel()
 	completion := toolruntime.ProcessCompletion{Err: runErr}
+	_, completion.CleanupPending = errors.AsType[*loopGateCommandCleanupError](runErr)
 	if exitErr, ok := errors.AsType[*loopGateCommandExitError](runErr); ok {
 		completion.ExitCode = new(exitErr.code)
 	} else if runErr == nil {

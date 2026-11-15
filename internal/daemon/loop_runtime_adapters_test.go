@@ -724,14 +724,14 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 
 	t.Run("Should recover a registered gate tree after a daemon restart", func(t *testing.T) {
 		t.Parallel()
-		testLoopGateCommandRestartCleanup(t, false)
+		testLoopGateManualRestartCleanup(t)
 	})
 
 	// Invariant: an exit without authored status is infrastructure failure.
 	// Owner: daemon command adapter; canonical runtime adapter suite.
 	t.Run("Should fail when the supervisor dies before authored completion", func(t *testing.T) {
 		t.Parallel()
-		testLoopGateCommandRestartCleanup(t, true)
+		testLoopGateSupervisorDeath(t)
 	})
 
 	t.Run("Should resolve the run workspace before starting the command", func(t *testing.T) {
@@ -813,7 +813,13 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 			err    error
 		}
 		done := make(chan commandOutcome, 1)
+		joined := make(chan struct{})
+		t.Cleanup(func() {
+			cancel(nil)
+			testutil.Receive(t, "interrupted gate joined", 10*time.Second, joined)
+		})
 		go func() {
+			defer close(joined)
 			result, err := runner.RunCommand(ctx, gate.CommandRequest{
 				WorkspaceID: "ws-command",
 				// Both the shell and its descendant ignore SIGTERM, so only a process-group SIGKILL
@@ -923,11 +929,18 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 			err     error
 		}
 		done := make(chan commandOutcome, 1)
+		ctx, cancel := context.WithCancel(t.Context())
+		joined := make(chan struct{})
+		t.Cleanup(func() {
+			cancel()
+			testutil.Receive(t, "output gate joined", 10*time.Second, joined)
+		})
 		go func() {
+			defer close(joined)
 			started := time.Now()
 			// The backgrounded sleep inherits stdout and stderr without any redirection, so output
 			// draining must not be what decides when the gate finishes.
-			result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			result, err := runner.RunCommand(ctx, gate.CommandRequest{
 				WorkspaceID: "ws-command",
 				Command:     `sleep 600 & echo $! > child.pid; echo gate-ready`,
 			})
@@ -2740,7 +2753,62 @@ func requireLoopGateProcessGone(t *testing.T, pid int) {
 	t.Fatalf("gate command descendant pid %d survived; want its process group reaped", pid)
 }
 
-func testLoopGateCommandRestartCleanup(t *testing.T, killSupervisorOnly bool) {
+// Recovery owns cleanup here: the old execution has no adapter waiter that
+// could accidentally reap descendants on behalf of the fresh registry.
+func testLoopGateManualRestartCleanup(t *testing.T) {
+	t.Helper()
+	root := t.TempDir()
+	//nolint:noctx // The test explicitly owns group termination and joins Wait.
+	cmd := exec.Command("sh", "-c",
+		`trap '' TERM; sh -c 'trap "" TERM; echo $$ > child.pid; while :; do sleep 1; done' & wait`)
+	cmd.Dir = root
+	_, cleanup, err := prepareLoopGateCommand(t.Context(), cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	procutil.ConfigureCommandProcessGroup(cmd)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	joined := make(chan struct{})
+	go func() {
+		defer close(joined)
+		if err := cmd.Wait(); err != nil {
+			if _, signaled := errors.AsType[*exec.ExitError](err); !signaled {
+				t.Error(err)
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		if err := procutil.KillCommandProcessGroupAndWait(cmd, time.Second); err != nil {
+			t.Error(err)
+		}
+		testutil.Receive(t, "manual recovery supervisor joined", 5*time.Second, joined)
+	})
+	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+		t.Fatal(err)
+	}
+	processes := toolruntime.NewMemoryStore()
+	if _, err := toolruntime.NewRegistry(processes).Register(t.Context(), toolruntime.RegisterConfig{
+		Source: toolruntime.ProcessSourceSubprocess,
+		Owner:  toolruntime.ProcessOwner{RunID: "loop-command"},
+		PID:    cmd.Process.Pid, ProcessGroupID: cmd.Process.Pid,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	childPID := waitForLoopGateChildPID(t, filepath.Join(root, "child.pid"))
+	report, err := toolruntime.NewRegistry(processes).ReconcileBoot(t.Context())
+	if err != nil || report.Interrupted != 1 || report.Stale != 0 {
+		t.Fatalf("boot reconciliation = %#v, %v; want owned group cleanup", report, err)
+	}
+	requireLoopGateProcessGone(t, childPID)
+	if err := procutil.WaitForProcessGroupIDExit(cmd.Process.Pid, time.Second); err != nil {
+		t.Fatalf("gate group survived restart recovery: %v", err)
+	}
+}
+
+func testLoopGateSupervisorDeath(t *testing.T) {
 	t.Helper()
 	root := t.TempDir()
 	processes := toolruntime.NewMemoryStore()
@@ -2786,32 +2854,16 @@ func testLoopGateCommandRestartCleanup(t *testing.T, killSupervisorOnly bool) {
 		_, err = os.Stat(filepath.Join(root, "child-ready"))
 		return err == nil
 	})
-	if killSupervisorOnly {
-		process, err := os.FindProcess(record.PID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := process.Kill(); err != nil {
-			t.Fatal(err)
-		}
-	} else {
-		// A fresh registry has no live callback: recovery uses PID/start-time evidence.
-		recovered := toolruntime.NewRegistry(processes)
-		report, err := recovered.ReconcileBoot(t.Context())
-		if err != nil || report.Interrupted != 1 {
-			t.Fatalf("boot reconciliation = %#v, %v", report, err)
-		}
+	process, err := os.FindProcess(record.PID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := process.Kill(); err != nil {
+		t.Fatal(err)
 	}
 	outcome := testutil.Receive(t, "gate completion", 10*time.Second, finished)
-	if killSupervisorOnly {
-		if !errors.Is(outcome.err, errLoopGateSupervisorExited) {
-			t.Fatalf("RunCommand() = %#v, %v; want lost supervisor error", outcome.result, outcome.err)
-		}
-	} else if !errors.Is(outcome.err, errLoopGateSupervisorExited) &&
-		(outcome.err != nil || outcome.result.ExitCode == 0) {
-		// Group cleanup can kill the authored shell first, allowing the still-live
-		// supervisor to publish its nonzero status before the leader is killed.
-		t.Fatalf("RunCommand() = %#v, %v; want killed command or lost supervisor", outcome.result, outcome.err)
+	if !errors.Is(outcome.err, errLoopGateSupervisorExited) {
+		t.Fatalf("RunCommand() = %#v, %v; want lost supervisor error", outcome.result, outcome.err)
 	}
 	if err := procutil.WaitForProcessGroupIDExit(record.ProcessGroupID, time.Second); err != nil {
 		t.Fatalf("gate group survived restart recovery: %v", err)

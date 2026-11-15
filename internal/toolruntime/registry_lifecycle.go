@@ -85,6 +85,17 @@ func (r *Registry) complete(ctx context.Context, id string, completion ProcessCo
 		errText = completion.Err.Error()
 		state = ProcessStateFailed
 	}
+	if completion.CleanupPending {
+		if err := r.updateStateLocked(ctx, id, ProcessStateInterrupting, nil, errText, nil); err != nil {
+			return err
+		}
+		r.mu.Lock()
+		active := r.active[id]
+		active.interrupt = nil
+		r.active[id] = active
+		r.mu.Unlock()
+		return nil
+	}
 	if err := r.updateStateLocked(ctx, id, state, completion.ExitCode, errText, new(r.now().UTC())); err != nil {
 		return err
 	}

@@ -23,7 +23,8 @@ func (h *Handle) Checkpoint(ctx context.Context, checkpoint ProcessCheckpoint) e
 	return h.registry.checkpoint(ctx, h.id, checkpoint)
 }
 
-// Complete records the terminal process state exactly once.
+// Complete records the execution outcome exactly once. Pending cleanup retains
+// process ownership for a later validated interrupt instead of terminalizing it.
 func (h *Handle) Complete(ctx context.Context, completion ProcessCompletion) error {
 	if h == nil || h.registry == nil {
 		return nil

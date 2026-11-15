@@ -99,6 +99,8 @@ after command completion, including after a successful exit. Helpers that remain
 Cancel sends SIGTERM to the gate's process group, allows a five-second cleanup grace, then sends
 SIGKILL to finish the supervisor and any remaining members.
 Daemon restart recovery reaps registered gate groups whose leader identity still validates before admitting replacement work.
+If cleanup fails, the error remains visible and the process record stays pending for a later
+validated interrupt or restart cleanup. A changed or missing leader identity is never reused to signal another process.
 Run containers in the foreground: do not use `docker run -d`. Resources held by a container daemon
 or remote host need author-owned cleanup, for example `docker run --rm` with a cleanup trap:
 
