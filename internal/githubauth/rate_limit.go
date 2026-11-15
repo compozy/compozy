@@ -1,10 +1,14 @@
 package githubauth
 
 import (
+	"bytes"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -19,7 +23,8 @@ type RateLimitError struct {
 var _ error = (*RateLimitError)(nil)
 
 func (e *RateLimitError) Error() string {
-	action := "(unauthenticated); sign in with gh auth login or set GITHUB_TOKEN in the daemon environment"
+	action := "(unauthenticated); sign in with gh auth login or set GITHUB_TOKEN in the daemon environment" +
+		" (takes effect after the retry deadline or a daemon restart)"
 	if e.Authenticated {
 		action = "(authenticated); wait for the GitHub quota to reset"
 	}
@@ -31,7 +36,8 @@ func (e *RateLimitError) Unwrap() error { return ErrRateLimited }
 func RateLimit(response *http.Response, now time.Time) *RateLimitError {
 	if response.StatusCode != http.StatusTooManyRequests &&
 		!(response.StatusCode == http.StatusForbidden &&
-			(response.Header.Get("X-RateLimit-Remaining") == "0" || response.Header.Get("Retry-After") != "")) {
+			(response.Header.Get("X-RateLimit-Remaining") == "0" || response.Header.Get("Retry-After") != "" ||
+				secondaryRateLimit(response))) {
 		return nil
 	}
 	deadline := now.Add(time.Minute)
@@ -50,6 +56,39 @@ func RateLimit(response *http.Response, now time.Time) *RateLimitError {
 	return &RateLimitError{RetryAt: deadline, Authenticated: response.Request != nil &&
 		response.Request.Header.Get("Authorization") != ""}
 }
+
+// Inspect only a bounded prefix and replay it so ordinary forbidden responses retain their diagnostic body.
+func secondaryRateLimit(response *http.Response) bool {
+	if response.Body == nil {
+		return false
+	}
+	body := response.Body
+	prefix, readErr := io.ReadAll(io.LimitReader(body, 8<<10))
+	var remainder io.Reader = body
+	if readErr != nil {
+		remainder = responseReadError{err: readErr}
+	}
+	response.Body = struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: io.MultiReader(bytes.NewReader(prefix), remainder), Closer: body,
+	}
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(prefix, &payload) != nil {
+		return false
+	}
+	message := strings.ToLower(payload.Message)
+	return strings.Contains(message, "secondary rate limit") || strings.Contains(message, "abuse detection")
+}
+
+type responseReadError struct{ err error }
+
+var _ io.Reader = responseReadError{}
+
+func (r responseReadError) Read([]byte) (int, error) { return 0, r.err }
 
 func later(left, right time.Time) time.Time {
 	if right.After(left) {

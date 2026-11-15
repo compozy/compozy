@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
+	"testing/synctest"
 	"time"
 )
 
@@ -72,6 +74,39 @@ func TestResolver(t *testing.T) {
 			t.Fatal("expired cache was not refreshed")
 		}
 	})
+	t.Run("Should cancel a waiter without canceling its owner's active CLI lookup", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			resolver := NewResolver(func(string) string { return "" })
+			started, release := make(chan struct{}), make(chan struct{})
+			calls := 0
+			resolver.run = func(context.Context) ([]byte, error) {
+				calls++
+				close(started)
+				<-release
+				return []byte("cached-sentinel"), nil
+			}
+			ownerDone := make(chan error, 1)
+			go func() { _, err := resolver.Resolve(t.Context(), "https://api.github.com"); ownerDone <- err }()
+			<-started
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			waiterDone := make(chan error, 1)
+			go func() { _, err := resolver.Resolve(ctx, "https://api.github.com"); waiterDone <- err }()
+			synctest.Wait()
+			cancel()
+			if err := <-waiterDone; !errors.Is(err, context.Canceled) {
+				t.Fatalf("canceled waiter = %v", err)
+			}
+			close(release)
+			if err := <-ownerDone; err != nil {
+				t.Fatal(err)
+			}
+			if token, err := resolver.Resolve(t.Context(), "https://api.github.com"); err != nil || token != "cached-sentinel" || calls != 1 {
+				t.Fatal("waiter cancellation invalidated the owner's lookup")
+			}
+		})
+	})
 	t.Run("Should fall back anonymously without exposing failed CLI output", func(t *testing.T) {
 		t.Parallel()
 		resolver := NewResolver(func(string) string { return "" })
@@ -116,6 +151,69 @@ func TestRateLimit(t *testing.T) {
 				t.Fatalf("rate limit = %v", limited)
 			}
 		})
+	}
+}
+
+func TestRateLimitResponseClassification(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, body string
+		limited    bool
+	}{
+		{"Should recognize secondary quota without retry headers", `{"message":"You have exceeded a secondary rate limit."}`, true},
+		{"Should recognize legacy abuse detection", `{"message":"You have triggered an abuse detection mechanism."}`, true},
+		{"Should retain ordinary permission-denied responses", `{"message":"Resource not accessible by integration"}`, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			now := time.Now()
+			response := &http.Response{StatusCode: http.StatusForbidden, Header: http.Header{"X-Ratelimit-Remaining": {"42"}},
+				Body: io.NopCloser(strings.NewReader(test.body))}
+			limited := RateLimit(response, now)
+			if (limited != nil) != test.limited || (limited != nil && !limited.RetryAt.Equal(now.Add(time.Minute))) {
+				t.Fatalf("quota classification = %v", limited)
+			}
+			body, err := io.ReadAll(response.Body)
+			if err != nil || string(body) != test.body {
+				t.Fatal("classification consumed the diagnostic body")
+			}
+			if err := response.Body.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestRateLimitResponseReadFailure(t *testing.T) {
+	t.Parallel()
+	cause := errors.New("response read failed")
+	response := &http.Response{StatusCode: http.StatusForbidden, Body: io.NopCloser(iotest.ErrReader(cause))}
+	if RateLimit(response, time.Now()) != nil {
+		t.Fatal("read failure was misclassified as quota")
+	}
+	if _, err := io.ReadAll(response.Body); !errors.Is(err, cause) {
+		t.Fatalf("lost body failure: %v", err)
+	}
+	if err := response.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRateLimitGate(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	gate := &RateLimitGate{}
+	later := &RateLimitError{RetryAt: now.Add(time.Hour)}
+	gate.Record("https://api.github.com", later)
+	gate.Record("https://api.github.com", &RateLimitError{RetryAt: now.Add(time.Minute)})
+	if gate.Check("https://api.github.com", now.Add(2*time.Minute)) != later {
+		t.Fatal("shorter response replaced a longer deadline")
+	}
+	if gate.Check("https://enterprise.test", now) != nil {
+		t.Fatal("quota crossed an API origin boundary")
+	}
+	if gate.Check("https://api.github.com", now.Add(time.Hour)) != nil {
+		t.Fatal("expired quota did not recover")
 	}
 }
 

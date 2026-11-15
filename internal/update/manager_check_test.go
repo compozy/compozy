@@ -22,6 +22,7 @@ import (
 
 	"github.com/compozy/compozy/internal/appstatecontract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/githubauth"
 )
 
 func TestManagerCheck(t *testing.T) {
@@ -72,7 +73,8 @@ func TestManagerCheck(t *testing.T) {
 		})
 		for range 2 {
 			state, _, err := manager.Check(t.Context(), CheckOptions{ForceRefresh: true})
-			if err == nil || !strings.Contains(state.LastError, "(authenticated)") ||
+			limited, ok := errors.AsType[*githubauth.RateLimitError](err)
+			if !ok || !limited.Authenticated || !strings.Contains(state.LastError, "(authenticated)") ||
 				strings.Contains(state.LastError, "update-sentinel") {
 				t.Fatal("release rate limit diagnostic is missing or unsafe")
 			}
@@ -1214,13 +1216,14 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 	t.Run("Should join early response drain and close failures", func(t *testing.T) {
 		t.Parallel()
 
-		drainErr := errors.New("drain response")
-		closeErr := errors.New("close response")
+		drainErr := errors.New("drain cleanup-sentinel")
+		closeErr := errors.New("close cleanup-sentinel")
 		body := &updateReadCloserProbe{
 			reader:   iotest.ErrReader(drainErr),
 			closeErr: closeErr,
 		}
 		manager, _ := newManagerWithExecutable(t, &Config{
+			Getenv: func(string) string { return "cleanup-sentinel" },
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 					return &http.Response{
@@ -1233,7 +1236,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 		})
 
 		var release githubReleaseResponse
-		err := manager.fetchGitHubJSON(t.Context(), "https://example.invalid/releases", &release)
+		err := manager.fetchGitHubJSON(t.Context(), "https://api.github.com/releases", &release)
 		if err == nil {
 			t.Fatal("fetchGitHubJSON() error = nil, want status, drain, and close failures")
 		}
@@ -1242,6 +1245,9 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 		}
 		if !errors.Is(err, closeErr) {
 			t.Fatalf("fetchGitHubJSON() error = %v, want close failure", err)
+		}
+		if strings.Contains(err.Error(), "cleanup-sentinel") {
+			t.Fatal("cleanup exposed the credential")
 		}
 		if !body.closed {
 			t.Fatal("response body closed = false, want true")

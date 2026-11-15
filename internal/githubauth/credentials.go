@@ -5,33 +5,39 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 const lookupTimeout = 5 * time.Second
 
 // Resolver keeps GitHub CLI credentials in memory within its owner's lifetime and environment.
 type Resolver struct {
-	getenv  func(string) string
-	run     func(context.Context) ([]byte, error)
-	now     func() time.Time
-	mu      sync.Mutex
-	token   string
-	expires time.Time
+	getenv     func(string) string
+	run        func(context.Context) ([]byte, error)
+	now        func() time.Time
+	lookupGate chan struct{}
+	token      string
+	expires    time.Time
 }
 
 func NewResolver(getenv func(string) string) *Resolver {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	return &Resolver{getenv: getenv, now: time.Now, run: func(ctx context.Context) ([]byte, error) {
-		command := exec.CommandContext(ctx, "gh", "auth", "token", "--hostname", "github.com")
-		configureCredentialCommand(command)
-		command.WaitDelay = time.Second
-		command.Env = append(command.Environ(), "GH_PROMPT_DISABLED=1")
-		return command.Output()
-	}}
+	return &Resolver{
+		getenv:     getenv,
+		now:        time.Now,
+		lookupGate: make(chan struct{}, 1),
+		run: func(ctx context.Context) ([]byte, error) {
+			command := exec.CommandContext(ctx, "gh", "auth", "token", "--hostname", "github.com")
+			procutil.ConfigureCommandSession(command)
+			command.WaitDelay = time.Second
+			command.Env = append(command.Environ(), "GH_PROMPT_DISABLED=1")
+			return command.Output()
+		},
+	}
 }
 
 func (r *Resolver) Resolve(ctx context.Context, origin string) (string, error) {
@@ -45,8 +51,15 @@ func (r *Resolver) Resolve(ctx context.Context, origin string) (string, error) {
 	if !IsAPIOriginURL(origin, "https://api.github.com") {
 		return "", nil
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	select {
+	case r.lookupGate <- struct{}{}:
+		defer func() { <-r.lookupGate }()
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	if r.now().Before(r.expires) {
 		return r.token, nil
 	}

@@ -131,7 +131,7 @@ func (m *Manager) fetchGitHubJSON(ctx context.Context, url string, target any) (
 		return fmt.Errorf("update: request release metadata: %w", githubauth.RedactError(req, err))
 	}
 	defer func() {
-		err = errors.Join(err, drainAndCloseUpdateResponseBody(resp.Body))
+		err = errors.Join(err, githubauth.RedactError(req, drainAndCloseUpdateResponseBody(resp.Body)))
 	}()
 
 	if resp.StatusCode != http.StatusOK {

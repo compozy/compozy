@@ -22,8 +22,10 @@ Extension-instance secret bindings remain private to their extension and are not
 Credentials are sent only to the exact HTTPS API origin, and are removed on cross-origin redirects.
 A source that hits a GitHub rate limit keeps its last good catalog and reports `rate_limited`, the
 retry deadline, and recovery guidance. Reads and explicit refreshes honor `Retry-After` and, when
-the primary quota is exhausted, `X-RateLimit-Reset`, with at least a one-minute backoff. Plugin package rate limits preserve the
-entire last good catalog too. Backoff is held in memory for the current source configuration; restarting the daemon can make a new attempt.
+the primary quota is exhausted, `X-RateLimit-Reset`, with at least a one-minute backoff. Plugin
+package rate limits preserve the entire last good catalog too. Backoff is held in memory for the
+current source configuration. A new login or environment token takes effect after the retry deadline
+or a daemon restart.
 
 ## Default sources
 
