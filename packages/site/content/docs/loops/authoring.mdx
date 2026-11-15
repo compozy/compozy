@@ -96,7 +96,8 @@ A successful gate attempt means the evaluation completed; consult its verdict fo
 Every command must keep its work in the foreground: the entire local process group is cleaned up
 after command completion, including after a successful exit. Helpers that remain in the gate process group are included in cleanup. A gate does not need a longer lease setting to run beyond five minutes.
 
-Cancel stops the gate's shell and its process group, escalating from SIGTERM to SIGKILL when needed.
+Cancel sends SIGTERM to the gate's process group, allows a five-second cleanup grace, then sends
+SIGKILL to finish the supervisor and any remaining members.
 Daemon restart recovery reaps registered gate groups whose leader identity still validates before admitting replacement work.
 Run containers in the foreground: do not use `docker run -d`. Resources held by a container daemon
 or remote host need author-owned cleanup, for example `docker run --rm` with a cleanup trap:
@@ -111,7 +112,6 @@ cleanup() {
   rmdir "$scratch"
 }
 trap cleanup EXIT
-trap 'exit 130' INT
 trap 'exit 143' TERM
 docker run --rm --cidfile "$scratch/container-id" your-scanner:tag
 ```

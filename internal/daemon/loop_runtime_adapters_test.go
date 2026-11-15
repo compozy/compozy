@@ -724,7 +724,14 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 
 	t.Run("Should recover a registered gate tree after a daemon restart", func(t *testing.T) {
 		t.Parallel()
-		testLoopGateCommandRestartCleanup(t)
+		testLoopGateCommandRestartCleanup(t, false)
+	})
+
+	// Invariant: an exit without authored status is infrastructure failure.
+	// Owner: daemon command adapter; canonical runtime adapter suite.
+	t.Run("Should fail when the supervisor dies before authored completion", func(t *testing.T) {
+		t.Parallel()
+		testLoopGateCommandRestartCleanup(t, true)
 	})
 
 	t.Run("Should resolve the run workspace before starting the command", func(t *testing.T) {
@@ -2663,7 +2670,7 @@ func requireLoopGateProcessGone(t *testing.T, pid int) {
 	t.Fatalf("gate command descendant pid %d survived; want its process group reaped", pid)
 }
 
-func testLoopGateCommandRestartCleanup(t *testing.T) {
+func testLoopGateCommandRestartCleanup(t *testing.T, killSupervisorOnly bool) {
 	t.Helper()
 	root := t.TempDir()
 	processes := toolruntime.NewMemoryStore()
@@ -2709,15 +2716,32 @@ func testLoopGateCommandRestartCleanup(t *testing.T) {
 		_, err = os.Stat(filepath.Join(root, "child-ready"))
 		return err == nil
 	})
-	// A fresh registry has no live callback: recovery uses PID/start-time evidence.
-	recovered := toolruntime.NewRegistry(processes)
-	report, err := recovered.ReconcileBoot(t.Context())
-	if err != nil || report.Interrupted != 1 {
-		t.Fatalf("boot reconciliation = %#v, %v", report, err)
+	if killSupervisorOnly {
+		process, err := os.FindProcess(record.PID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := process.Kill(); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		// A fresh registry has no live callback: recovery uses PID/start-time evidence.
+		recovered := toolruntime.NewRegistry(processes)
+		report, err := recovered.ReconcileBoot(t.Context())
+		if err != nil || report.Interrupted != 1 {
+			t.Fatalf("boot reconciliation = %#v, %v", report, err)
+		}
 	}
 	outcome := testutil.Receive(t, "gate completion", 10*time.Second, finished)
-	if outcome.err != nil || outcome.result.ExitCode == 0 {
-		t.Fatalf("RunCommand() = %#v, %v; want the externally killed shell's nonzero exit", outcome.result, outcome.err)
+	if killSupervisorOnly {
+		if !errors.Is(outcome.err, errLoopGateSupervisorExited) {
+			t.Fatalf("RunCommand() = %#v, %v; want lost supervisor error", outcome.result, outcome.err)
+		}
+	} else if !errors.Is(outcome.err, errLoopGateSupervisorExited) &&
+		(outcome.err != nil || outcome.result.ExitCode == 0) {
+		// Group cleanup can kill the authored shell first, allowing the still-live
+		// supervisor to publish its nonzero status before the leader is killed.
+		t.Fatalf("RunCommand() = %#v, %v; want killed command or lost supervisor", outcome.result, outcome.err)
 	}
 	if err := procutil.WaitForProcessGroupIDExit(record.ProcessGroupID, time.Second); err != nil {
 		t.Fatalf("gate group survived restart recovery: %v", err)

@@ -39,7 +39,7 @@ func (r loopGateCommandRunner) registerCommand(
 }
 
 func (r loopGateCommandRunner) completeCommand(
-	ctx context.Context, cmd *exec.Cmd, handle *toolruntime.Handle, runErr error,
+	ctx context.Context, handle *toolruntime.Handle, runErr error,
 ) {
 	if handle == nil {
 		return
@@ -51,8 +51,6 @@ func (r loopGateCommandRunner) completeCommand(
 		completion.ExitCode = new(exitErr.code)
 	} else if runErr == nil {
 		completion.ExitCode = new(0)
-	} else if cmd.ProcessState != nil {
-		completion.ExitCode = new(cmd.ProcessState.ExitCode())
 	}
 	if err := handle.Complete(completionCtx, completion); err != nil {
 		slog.WarnContext(completionCtx, "gate process exited; could not complete process record", "error", err)

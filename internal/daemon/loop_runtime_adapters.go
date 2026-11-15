@@ -270,7 +270,7 @@ func (r loopGateCommandRunner) RunCommand(
 		handle, registerErr = r.registerCommand(runCtx, req, cmd, cancel, finished)
 		return registerErr
 	})
-	r.completeCommand(ctx, cmd, handle, err)
+	r.completeCommand(ctx, handle, err)
 	exitCode := 0
 	if err != nil {
 		// A process-group cleanup failure is not the command's exit status, so it is reported before
@@ -280,8 +280,6 @@ func (r loopGateCommandRunner) RunCommand(
 		}
 		if exitErr, ok := errors.AsType[*loopGateCommandExitError](err); ok {
 			exitCode = exitErr.code
-		} else if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
-			exitCode = exitErr.ExitCode()
 		} else {
 			return gate.CommandResult{}, err
 		}

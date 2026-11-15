@@ -22,7 +22,8 @@ the active attempt. Completed gate attempts and machine verdicts are committed a
 A successful gate attempt means the evaluation completed; consult its verdict for approval or rejection.
 Every command must keep its work in the foreground: the entire local process group is cleaned up
 after command completion, including after a successful exit. Helpers that remain in the gate process group are included in cleanup.
-`loop cancel` stops the gate's shell process group with SIGTERM, then SIGKILL if needed. Registered
+`loop cancel` sends SIGTERM to the gate process group, allows a five-second cleanup grace, then
+sends SIGKILL to finish the supervisor and remaining members. Registered
 gate groups whose leader identity still validates are reaped during daemon restart reconciliation before replacement work starts.
 Run containers in the foreground (no `-d`). Authors own cleanup of resources held by a container
 daemon or remote host: use `docker run --rm` and a cleanup `trap`, plus recovery cleanup for crashes

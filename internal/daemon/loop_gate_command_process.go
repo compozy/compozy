@@ -16,6 +16,8 @@ import (
 	"github.com/compozy/compozy/internal/procutil"
 )
 
+var errLoopGateSupervisorExited = errors.New("gate supervisor exited without authored command completion")
+
 const (
 	loopGateCommandShutdownGrace    = 5 * time.Second
 	loopGateCommandOutputDrain      = 2 * time.Second
@@ -89,11 +91,12 @@ func waitLoopGateCommandTree(
 	for {
 		select {
 		case waitErr := <-waitCh:
-			// Unexpected supervisor death (including boot cleanup in another registry).
-			if groupErr := procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait); groupErr != nil {
-				return errors.Join(waitErr, &loopGateCommandCleanupError{err: groupErr})
+			groupErr := procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait)
+			code, ready, statusErr := loopGateCommandExit(statusPath)
+			if !ready && statusErr == nil {
+				statusErr = fmt.Errorf("daemon: %w", errors.Join(errLoopGateSupervisorExited, waitErr))
 			}
-			return waitErr
+			return loopGateCommandResult(code, statusErr, groupErr)
 		case <-ctx.Done():
 			return errors.Join(
 				fmt.Errorf("daemon: gate command interrupted: %w", context.Cause(ctx)),
@@ -106,24 +109,14 @@ func waitLoopGateCommandTree(
 			}
 			// Keep the verifiable group leader alive until every descendant has
 			// received its final signal, even if the authored shell already exited.
-			groupErr := procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL)
-			waitErr := signalFreeShellError(<-waitCh)
-			groupErr = errors.Join(
-				groupErr, procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait),
-			)
+			groupErr := killLoopGateSupervisor(cmd, waitCh)
 			if groupErr != nil {
-				return errors.Join(statusErr, waitErr, &loopGateCommandCleanupError{err: groupErr})
-			}
-			if statusErr != nil || waitErr != nil {
-				return errors.Join(statusErr, waitErr)
+				return loopGateCommandResult(code, statusErr, groupErr)
 			}
 			if cause := context.Cause(ctx); cause != nil {
 				return fmt.Errorf("daemon: gate command interrupted: %w", cause)
 			}
-			if code != 0 {
-				return &loopGateCommandExitError{code: code}
-			}
-			return nil
+			return loopGateCommandResult(code, statusErr, nil)
 		}
 	}
 }
@@ -139,13 +132,10 @@ func stopLoopGateCommandTree(cmd *exec.Cmd, waitCh <-chan error, grace time.Dura
 		shellExited = true
 		terminateErr = errors.Join(terminateErr, signalFreeShellError(shellErr))
 	case <-timer.C:
-		if err := procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL); err != nil {
-			terminateErr = errors.Join(terminateErr, err)
-		}
-		terminateErr = errors.Join(terminateErr, signalFreeShellError(<-waitCh))
+		terminateErr = errors.Join(terminateErr, killLoopGateSupervisor(cmd, waitCh))
 	}
 	if shellExited {
-		// The shell exiting is not proof the group is gone: a descendant that received SIGTERM keeps
+		// Unexpected supervisor exit is not proof the group is gone: a descendant that received SIGTERM keeps
 		// the rest of the grace period to finish its own cleanup before it is forced.
 		if err := procutil.WaitForCommandProcessGroupExit(cmd, time.Until(deadline)); err != nil {
 			if killErr := procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL); killErr != nil {
@@ -157,6 +147,39 @@ func stopLoopGateCommandTree(cmd *exec.Cmd, waitCh <-chan error, grace time.Dura
 	groupErr := procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait)
 	if err := errors.Join(terminateErr, groupErr); err != nil {
 		return &loopGateCommandCleanupError{err: err}
+	}
+	return nil
+}
+
+// killLoopGateSupervisor bounds joining even when a group member refuses a signal.
+// A failed group signal must not prevent killing the daemon-owned supervisor PID.
+func killLoopGateSupervisor(cmd *exec.Cmd, waitCh <-chan error) error {
+	groupErr := procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL)
+	if groupErr != nil {
+		if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			groupErr = errors.Join(groupErr, fmt.Errorf("daemon: kill gate supervisor: %w", err))
+		}
+	}
+	timer := time.NewTimer(loopGateCommandOutputDrain)
+	defer timer.Stop()
+	select {
+	case waitErr := <-waitCh:
+		groupErr = errors.Join(groupErr, signalFreeShellError(waitErr))
+	case <-timer.C:
+		groupErr = errors.Join(groupErr, errors.New("daemon: timed out joining gate supervisor"))
+	}
+	return errors.Join(groupErr, procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait))
+}
+
+func loopGateCommandResult(code int, statusErr, cleanupErr error) error {
+	if cleanupErr != nil {
+		return errors.Join(statusErr, &loopGateCommandCleanupError{err: cleanupErr})
+	}
+	if statusErr != nil {
+		return statusErr
+	}
+	if code != 0 {
+		return &loopGateCommandExitError{code: code}
 	}
 	return nil
 }
