@@ -1389,7 +1389,10 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 				{"spawn", "spawn", "spawned", nativePolicy, false},
 				{"coordinator-child", "spawn", "coordinator", nativePolicy, false},
 				{"archived", "provenance", "user", authoredPolicy, true},
-				{"materialized-mcp", "fork", "user", `{"mcp_servers":["linear"],"materialized_mcp_servers":true}`, false},
+				{
+					"materialized-mcp", "fork", "user",
+					`{"mcp_servers":["linear"],"materialized_mcp_servers":true}`, false,
+				},
 				{"already-marked", "", "user", markedPolicy, false},
 				{"authored-override", "", "user", authoredPolicy, false},
 			}

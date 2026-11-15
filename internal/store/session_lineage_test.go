@@ -543,7 +543,9 @@ func TestSessionPermissionIntent(t *testing.T) {
 	t.Run("Should decode root and derived policies independently of native atoms [UT-010]", func(t *testing.T) {
 		t.Parallel()
 		// Invariant: unmarked v0.7.0 non-delegated budgets never become access limits.
-		for _, kind := range []LineageKind{LineageKindRoot, LineageKindFork, LineageKindContinue, LineageKindProvenance, LineageKindRecovery} {
+		for _, kind := range []LineageKind{
+			LineageKindRoot, LineageKindFork, LineageKindContinue, LineageKindProvenance, LineageKindRecovery,
+		} {
 			for _, stored := range []SessionPermissionPolicy{
 				{},
 				{Tools: []string{"compozy__session_list"}, MCPServers: []string{"linear"}},
@@ -561,7 +563,8 @@ func TestSessionPermissionIntent(t *testing.T) {
 		t.Parallel()
 		for _, kind := range []LineageKind{LineageKindRoot, LineageKindProvenance} {
 			stored := SessionPermissionPolicy{ToolsMode: PermissionList, MCPServersMode: PermissionList}
-			if got := DecodeIntent(stored, kind, "user"); !reflect.DeepEqual(got, NormalizeSessionPermissionPolicy(stored)) {
+			got := DecodeIntent(stored, kind, "user")
+			if !reflect.DeepEqual(got, NormalizeSessionPermissionPolicy(stored)) {
 				t.Fatalf("explicit list changed: %+v", got)
 			}
 		}
