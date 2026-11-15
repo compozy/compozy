@@ -54,7 +54,7 @@ func getNiceness(which int, who int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == linuxOS {
 		// The raw Linux syscall returns 20 - nice to avoid negative return values.
 		return 20 - priority, nil
 	}

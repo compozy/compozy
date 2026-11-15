@@ -16,6 +16,8 @@ import (
 )
 
 const (
+	linuxOS = "linux"
+
 	processGroupPollInterval  = 10 * time.Millisecond
 	processGroupDrainDeadline = 250 * time.Millisecond
 )
@@ -83,7 +85,7 @@ func signalProcessGroupID(pgid int, sig syscall.Signal, ignoreMissing bool) erro
 	if pgid <= 0 {
 		return fmt.Errorf("procutil: invalid process group id %d", pgid)
 	}
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == linuxOS {
 		err := signalProcessGroupMembersLinux(pgid, sig, ignoreMissing)
 		switch {
 		case err == nil:
@@ -137,7 +139,7 @@ func waitForProcessGroupIDExit(pgid int, timeout time.Duration, killed bool) err
 		if err != nil && !errors.Is(err, syscall.EPERM) {
 			return fmt.Errorf("check process group (pid %d): %w", pgid, err)
 		}
-		if err == nil && killed && runtime.GOOS == "linux" {
+		if err == nil && killed && runtime.GOOS == linuxOS {
 			members, enumerationErr := linuxProcessGroupMembers(pgid, true)
 			if enumerationErr == nil && len(members) == 0 {
 				return nil
