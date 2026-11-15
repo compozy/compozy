@@ -199,9 +199,20 @@ type loopGateCommandRunner struct {
 	workspaceResolver workspacepkg.RuntimeResolver
 	// shutdownGrace bounds SIGTERM before the command's process group is killed; zero uses the default.
 	shutdownGrace time.Duration
+	// drainTimeout bounds the captured output drain after the shell exits; zero uses the default.
+	drainTimeout time.Duration
 }
 
 var _ gate.CommandRunner = loopGateCommandRunner{}
+
+// outputDrainTimeout resolves the output drain bound with the same zero-means-default rule as the
+// shutdown grace.
+func (r loopGateCommandRunner) outputDrainTimeout() time.Duration {
+	if r.drainTimeout <= 0 {
+		return loopGateCommandOutputDrain
+	}
+	return r.drainTimeout
+}
 
 func (r loopGateCommandRunner) RunCommand(
 	ctx context.Context,
@@ -247,9 +258,14 @@ func (r loopGateCommandRunner) RunCommand(
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err = runLoopGateCommandTree(ctx, cmd, r.shutdownGrace)
+	err = runLoopGateCommandTree(ctx, cmd, r.shutdownGrace, r.outputDrainTimeout())
 	exitCode := 0
 	if err != nil {
+		// A process-group cleanup failure is not the command's exit status, so it is reported before
+		// the nested exit error is matched.
+		if _, cleanupFailed := errors.AsType[*loopGateCommandCleanupError](err); cleanupFailed {
+			return gate.CommandResult{}, err
+		}
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
