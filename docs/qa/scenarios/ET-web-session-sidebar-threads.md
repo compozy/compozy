@@ -260,7 +260,8 @@ selection ranges walk the same order. Open a parent's subagents with more than 8
 subagent is working: it shows ahead of failed, queued and settled rows on the first page, through
 both the paged route (`order=urgency`, rank waiting → working → failed → queued → settled) and the
 live roster; more than 8 active subagents all show. A subagent `order=urgency` cursor minted before
-the fix is rejected as invalid, so its branch re-reads from the first page. Automated owners: the
+the fix (version 1) still pages after the upgrade: it resumes under the new rank and may repeat a
+failed row, but never skips an unseen one (compatibility shim, removed in v0.8.0). Automated owners: the
 `child session cap` and `SessionList subagents` cases in `session-list.test.tsx`, `visibleSessionOrder`
 in `session-folders.test.ts`, `subagent-format.test.ts`, and the globaldb urgency paging case. Flag
 only — the live walk is deferred to CI and the next QA cycle under the parallel-dispatch operator
