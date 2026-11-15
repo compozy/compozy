@@ -287,3 +287,7 @@ func (c *daemonClient) ReleaseHostedMCP(
 ) error {
 	return c.doJSON(ctx, http.MethodPost, "/api/internal/hosted-mcp/release", nil, request, nil)
 }
+
+func (c *daemonClient) ReportHostedMCPServed(ctx context.Context, request mcppkg.HostedServedRequest) error {
+	return c.doJSON(ctx, http.MethodPost, "/api/internal/hosted-mcp/served", nil, request, nil)
+}

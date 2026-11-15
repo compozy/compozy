@@ -30,3 +30,12 @@ teardown remain blocked because no authorized SSH host was available.
 QA walk 2026-08-09: the race-enabled real-OpenSSH suite passed against an isolated authorized local
 host. It covered an absent daemon, automatic start, loopback forwarding, remote-home propagation,
 reuse, disconnect recovery, profile persistence, and ownership-scoped teardown.
+
+QA impact 2026-11-14 (#1715; CI verification pending): after normal disconnect and after stopping
+the daemon preserved by the crash/reuse journey, wait for the original daemon process to exit
+before deleting its isolated home. Withdrawing `daemon.json` alone is not shutdown completion:
+database and logger teardown can still write to that home. Keep the real OpenSSH journey and
+strict temporary-home removal in `TestRemoteGatewayE2EConnectSSHUsesLoopbackAndPreservesOwnership`.
+An exited Unix process in state `Z` has already closed its writers and counts as stopped even if
+its parent has not collected its exit status. A live process with unavailable inspection still
+keeps the stop waiter pending.

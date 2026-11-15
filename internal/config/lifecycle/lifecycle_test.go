@@ -177,6 +177,13 @@ func TestClassifyPath(t *testing.T) {
 			wantPattern:   "terminal.*",
 		},
 		{
+			name:          "Should classify the client request budget as live",
+			path:          "client.request_timeout",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+			wantPattern:   "client.*",
+		},
+		{
 			name:          "Should classify the gateway ceiling as live [UT-006]",
 			path:          "gateway.enabled",
 			wantLifecycle: Live,

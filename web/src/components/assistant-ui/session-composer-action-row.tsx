@@ -39,6 +39,7 @@ interface SessionComposerActionRowProps {
   runtimeControl?: ReactNode;
   environmentControl?: ReactNode;
   contextControl?: ReactNode;
+  mcpControl?: ReactNode;
   subagentControl?: ReactNode;
   monitorControl?: ReactNode;
   processControl?: ReactNode;
@@ -289,6 +290,7 @@ export function SessionComposerActionRow({
   runtimeControl,
   environmentControl,
   contextControl,
+  mcpControl,
   subagentControl,
   monitorControl,
   processControl,
@@ -304,6 +306,7 @@ export function SessionComposerActionRow({
       {runtimeControl ||
       environmentControl ||
       contextControl ||
+      mcpControl ||
       subagentControl ||
       monitorControl ||
       processControl ||
@@ -312,6 +315,7 @@ export function SessionComposerActionRow({
           {runtimeControl}
           {environmentControl}
           {contextControl}
+          {mcpControl}
           {subagentControl}
           {monitorControl}
           {processControl}

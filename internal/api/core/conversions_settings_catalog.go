@@ -120,6 +120,7 @@ func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contrac
 		AuthMode:          string(value.AuthMode),
 		EnvPolicy:         string(value.EnvPolicy),
 		HomePolicy:        string(value.HomePolicy),
+		RuntimeMCP:        value.RuntimeMCP,
 		SteerCapability:   value.SteerCapability,
 		AuthStatusCmd:     strings.TrimSpace(value.AuthStatusCmd),
 		AuthACPMethod:     strings.TrimSpace(value.AuthACPMethod),

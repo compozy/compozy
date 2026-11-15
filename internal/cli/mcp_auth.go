@@ -23,6 +23,7 @@ const (
 )
 
 type mcpAuthCommandOptions struct {
+	digest                 string
 	owner                  string
 	scope                  string
 	workspaceID            string
@@ -93,6 +94,7 @@ func newMCPAuthorizationCommand(deps commandDeps, use string, short string) *cob
 		},
 	}
 	addMCPAuthTargetFlags(cmd, &opts)
+	cmd.Flags().StringVar(&opts.digest, "digest", "", "Approve the current workspace definition before sign-in")
 	cmd.Flags().BoolVar(&opts.manual, "manual", false, "Paste the full authorization redirect URL")
 	cmd.Flags().StringArrayVar(
 		&opts.approvedScopes,
@@ -192,7 +194,7 @@ func addMCPAuthTargetFlags(cmd *cobra.Command, opts *mcpAuthCommandOptions) {
 	cmd.Flags().StringVar(&opts.owner, "owner", "", "Definition owner: manual or extension:<name>")
 	cmd.Flags().StringVar(&opts.scope, "scope", opts.scope, "MCP server scope: user, profile, or workspace")
 	cmd.Flags().
-		StringVar(&opts.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
+		StringVar(&opts.workspaceID, workspaceSkillSource, "", "Override workspace (ID, name, or path)")
 }
 
 func (o mcpAuthCommandOptions) resolveTarget(

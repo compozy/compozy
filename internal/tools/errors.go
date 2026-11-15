@@ -110,6 +110,10 @@ const (
 
 // ToolError carries stable reason codes with a wrapped cause.
 type ToolError struct {
+	Retryable       bool   `json:"retryable,omitzero"`
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	ProviderError   string `json:"provider_error,omitempty"`
+
 	Code          ErrorCode        `json:"code"`
 	ToolID        ToolID           `json:"tool_id,omitempty"`
 	Message       string           `json:"message"`

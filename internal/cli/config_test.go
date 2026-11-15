@@ -677,6 +677,13 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			wantApplied:   true,
 		},
 		{
+			name:          "Should apply the client request budget live",
+			path:          "client.request_timeout",
+			value:         "2m",
+			wantLifecycle: "live",
+			wantApplied:   true,
+		},
+		{
 			name:          "Should apply the Marketplace catalog base URL live",
 			path:          "marketplace.catalog.base_url",
 			value:         "http://127.0.0.1:64135",

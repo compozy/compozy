@@ -56,6 +56,7 @@ import {
   settingsApplyRecordsFixture,
   settingsMCPServersCollectionFixture,
 } from "@/systems/settings/mocks/fixtures";
+import { runtimeMCPInventoryFixture } from "@/systems/settings/mocks/runtime-mcp-fixtures";
 import { handlers as vaultHandlers } from "@/systems/vault/mocks";
 import { settingsKeys } from "@/systems/settings/lib/query-keys";
 import { marketplaceKeys } from "../../lib/query-keys";
@@ -115,6 +116,10 @@ const server = setupServer(
     mocks.readMCPServers();
     return HttpResponse.json({ ...settingsMCPServersCollectionFixture, mcp_servers: mcpServers });
   }),
+  // The installed MCP body also lists each coding agent's own servers; none here.
+  http.get("*/api/settings/runtime-mcp-servers", () =>
+    HttpResponse.json(runtimeMCPInventoryFixture([]))
+  ),
   http.put("*/api/settings/mcp-servers/:name", async ({ params, request }) => {
     const name = String(params.name);
     mocks.putMCPServer(name, new URL(request.url).searchParams, await request.json());

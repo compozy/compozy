@@ -1618,3 +1618,51 @@ func oauthCallbackURL(t *testing.T, redirectURL string, state string, issuer str
 
 var _ TokenStore = (*adapterTestStore)(nil)
 var _ RegistrationStore = (*adapterTestStore)(nil)
+
+// Invariant: a retained OAuth client rechecks consent for each network request,
+// including redirects, and cannot reuse admission after revoke. Owner: auth HTTP boundary.
+func TestOAuthNetworkConsentRevalidation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should block redirect and cached-client traffic after revocation", func(t *testing.T) {
+		t.Parallel()
+		var admitted atomic.Bool
+		admitted.Store(true)
+		var requests atomic.Int64
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			admitted.Store(false)
+			http.Redirect(w, r, "/continued", http.StatusFound)
+		}))
+		defer server.Close()
+		denied := errors.New("waiting for approval")
+		service, err := NewService(
+			&adapterTestStore{},
+			withHTTPClientForTest(server.Client()),
+			WithNetworkAuthorization(func(context.Context, ServerConfig) error {
+				if !admitted.Load() {
+					return denied
+				}
+				return nil
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := service.sdkHTTPClientFor(ServerConfig{})
+		for attempt := range 2 {
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, http.NoBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response, err := client.Do(req)
+			if response != nil && response.Body != nil {
+				if closeErr := response.Body.Close(); closeErr != nil {
+					t.Error(closeErr)
+				}
+			}
+			if !errors.Is(err, denied) || requests.Load() != 1 {
+				t.Fatalf("revoked attempt=%d requests=%d err=%v", attempt, requests.Load(), err)
+			}
+		}
+	})
+}

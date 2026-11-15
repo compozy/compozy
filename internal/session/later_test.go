@@ -31,7 +31,7 @@ func TestManagerLaterLifecycle(t *testing.T) {
 		releaser := &recordingLaterReleaser{}
 		h.manager.SetLaterProcessReleaser(releaser)
 		parent := createSession(t, h)
-		child, err := h.manager.Spawn(ctx, SpawnOpts{ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour})
+		child, err := h.manager.Spawn(ctx, &SpawnOpts{ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour})
 		if err != nil {
 			t.Fatalf("Spawn() error = %v", err)
 		}

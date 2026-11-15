@@ -32,6 +32,7 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/resources"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -39,6 +40,7 @@ import (
 )
 
 type stubSettingsService struct {
+	SetMCPApprovalFn     func(context.Context, settingspkg.MCPAuthTargetRequest, string, bool) (store.MCPApproval, error)
 	GetSectionFn         func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
 	UpdateSectionFn      func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
 	ApplySectionFn       func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error)
@@ -528,6 +530,8 @@ func newSettingsHandlerFixture(
 
 func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings := engine.Group("/api/settings")
+	settings.PUT("/mcp-servers/:name/approval", handlers.PutSettingsMCPApproval)
+	settings.DELETE("/mcp-servers/:name/approval", handlers.DeleteSettingsMCPApproval)
 	settings.GET("/shell", handlers.GetSettingsShell)
 	settings.PATCH("/shell", handlers.UpdateSettingsShell)
 	settings.GET("/apply", handlers.ListSettingsApplyRecords)
@@ -4976,4 +4980,85 @@ func TestSettingsShellAppearance(t *testing.T) {
 			t.Fatalf("response=%d %s", response.Code, response.Body.String())
 		}
 	})
+}
+
+func (s *stubSettingsService) SetMCPApproval(
+	ctx context.Context,
+	req settingspkg.MCPAuthTargetRequest,
+	digest string,
+	revoke bool,
+) (store.MCPApproval, error) {
+	if s.SetMCPApprovalFn != nil {
+		return s.SetMCPApprovalFn(ctx, req, digest, revoke)
+	}
+	return store.MCPApproval{}, settingspkg.ErrUnavailable
+}
+
+// Invariant: approval HTTP responses preserve scope, domain codes and body/status
+// parity with UDS. Owner: shared API handlers; canonical Settings suite.
+func TestSettingsMCPApprovalHandlers(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		code   string
+		status int
+	}{{"", 200}, {"mcp_approval_definition_changed", 409}, {"mcp_approval_not_required", 409}, {"mcp_server_not_found", 404}} {
+		t.Run("Should report approval "+tc.code, func(t *testing.T) {
+			t.Parallel()
+			service := &stubSettingsService{
+				SetMCPApprovalFn: func(_ context.Context, req settingspkg.MCPAuthTargetRequest, digest string, revoke bool) (store.MCPApproval, error) {
+					if req.Name != "sentry" || req.WorkspaceID != "ws-project" || req.ProfileName != "work" ||
+						req.Scope != settingspkg.ScopeProfile ||
+						(!revoke && digest != "observed") {
+						t.Fatalf("approval lost identity: %+v %s", req, digest)
+					}
+					if tc.code != "" {
+						return store.MCPApproval{}, &settingspkg.MCPApprovalError{
+							Code:    tc.code,
+							Message: "approval rejected",
+						}
+					}
+					return store.MCPApproval{
+						ServerName:  req.Name,
+						WorkspaceID: req.WorkspaceID,
+						ApprovedAt:  time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC),
+					}, nil
+				},
+			}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPut,
+				"/api/settings/mcp-servers/sentry/approval",
+				[]byte(`{"workspace_id":"ws-project","profile":"work","definition_digest":"observed"}`),
+			)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body)
+			}
+			if tc.code != "" {
+				var payload contract.ErrorPayload
+				decodeJSON(t, response.Body.Bytes(), &payload)
+				if payload.Code != tc.code {
+					t.Fatalf("domain code=%+v", payload)
+				}
+			} else {
+				var payload contract.SettingsMCPApprovalResponse
+				decodeJSON(t, response.Body.Bytes(), &payload)
+				if payload.Approval.State != "allowed" || payload.Approval.Profile != "work" ||
+					payload.Approval.ApprovedAt.IsZero() {
+					t.Fatalf("approval=%+v", payload)
+				}
+				response = performRequest(
+					t,
+					fixture.Engine,
+					http.MethodDelete,
+					"/api/settings/mcp-servers/sentry/approval?workspace_id=ws-project&profile=work",
+					nil,
+				)
+				if response.Code != http.StatusNoContent || response.Body.Len() != 0 {
+					t.Fatalf("revoke=%d %s", response.Code, response.Body)
+				}
+			}
+		})
+	}
 }

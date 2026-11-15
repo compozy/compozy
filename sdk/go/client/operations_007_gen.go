@@ -9,6 +9,43 @@ import (
 	"strings"
 )
 
+// DiffLoopRun Compare Loop generations or runs
+func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*LoopDiffResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Generation != nil {
+		query.Set("generation", strconv.Itoa(*params.Generation))
+	}
+	if params.AgainstGeneration != nil {
+		query.Set("against_generation", strconv.Itoa(*params.AgainstGeneration))
+	}
+	if params.AgainstRun != nil {
+		query.Set("against_run", *params.AgainstRun)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopDiffResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DisableGatewayProviderParams carries the path, query, and header parameters.
+type DisableGatewayProviderParams struct {
+	Name string `url:"name"`
+	Tier string `url:"tier"`
+}
+
 // DisableGatewayProvider Disable one named connectivity provider for a gateway tier
 func (c *Client) DisableGatewayProvider(ctx context.Context, params DisableGatewayProviderParams) (*GatewayStatusPayload, error) {
 	path := "/api/gateway/providers/{name}/disable"
@@ -407,30 +444,6 @@ func (c *Client) ExchangeSettingsMCPAuth(ctx context.Context, params ExchangeSet
 
 // ExecTerminalParams carries the path, query, and header parameters.
 type ExecTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ExecTerminal Execute one supervised workspace command
-func (c *Client) ExecTerminal(ctx context.Context, params ExecTerminalParams, body TerminalExecRequest) (*TerminalExecResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/exec"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalExecResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExecuteWindowManagerCommandParams carries the path, query, and header parameters.
-type ExecuteWindowManagerCommandParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 }

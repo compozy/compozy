@@ -1,5 +1,39 @@
 # Compozy Change Impact
 
+## Subagent cancel retires the child session — 2026-11-14
+
+Owner: PR #1688, branch `fix/cancel-stops-child`.
+
+- **Native tools.** `compozy__subagent_cancel` also stops the child session and its live descendants,
+  including when the row is already terminal: a `completed` child that stayed idle is retired and
+  becomes non-resumable. The outcome shape is unchanged (`cancel_requested` for a live row, its
+  terminal status otherwise). A stop failure is returned as an error with the row already `canceled`;
+  retrying is safe because an already stopped or missing child counts as success.
+- **CLI/HTTP/UDS.** No verb, route, or DTO change; cancel responses keep their shape.
+- **Extensibility and hooks.** No hook, SDK, or extension-definition change.
+- **Config.** No key change.
+- **User state.** No schema or migration change. A terminal row's child session ends stopped instead
+  of idle and can no longer be resumed.
+- **Review repair.** Cancellation and parent-stop traversal reach live descendants below terminal
+  delegated intermediaries while preserving their terminal results. Cleanup errors identify the phase
+  and child. Existing service cancellation coverage owns these cases; main CI runs them in release mode.
+- **Web.** No change.
+- **Official skill.** `skills/compozy/references/native-tools.md` documents the extended cancel
+  contract and the safe retry.
+- **QA.** `docs/qa/scenarios/RT-subagent-delegate.md` gains a cancel-after-completion step.
+
+## User-scope MCP policy resolution — 2026-11-15
+
+Owner: release `rel/main-health`, CI regression introduced by #1725.
+
+- User session creation, automation execution, and native tool discovery resolve the live user/profile
+  configuration through the narrow agent resolver without looking up `@user` as a registered project.
+  Project roots and skills are excluded from this resolution; explicit permission ceilings remain intact.
+- Existing CLI/HTTP/UDS and native tool contracts are preserved. No new hooks, extension APIs, config
+  keys, database shapes, or official skill changes. Web uses the same session and automation endpoints.
+- QA: `RT-session-cwd-resume`; release rules prohibit local verification, so runtime/E2E proof belongs
+  to current-main CI. The focused resolver regression is in `TestWorkspaceContractAgentConfigResolution`.
+
 ## Per-model reasoning effort ceiling — 2026-11-14
 
 Owner: `fix/model-effort-levels`. Web-only bug fix (internal regime, SD-013).
@@ -38,6 +72,25 @@ Owner: subagent menu feature, web half (backend half landed in the same branch).
   change beyond the existing profile-scoped route. Official skill `skills/compozy/`:
   `runtime-operations.md` and `native-tools.md` document the delete verb, route and `subagent_removed`;
   no `compozy__*` tool was added.
+
+## Session delete confirmation survives the window reconciliation — 2026-11-14
+
+Owner: `fix/session-delete-dialog-flicker`. Web-only bug fix (internal regime, SD-013).
+
+- **Web.** The rail's single and batch delete actions are handed to the OS shell's persistent
+  lifecycle host (`DesktopSessionDialogs`) through an xstate request store
+  (`web/src/systems/os/hooks/use-session-delete-request.ts`), following the
+  `sessionParentPickerStore` pattern. The shell outlives every session window, and the daemon
+  reconciles a deleted session's window before the DELETE answers, so the confirmation no longer
+  leaves with the window. The window keeps its rename, Later and process-choice dialogs and no longer
+  hosts a delete confirmation. `SessionDeleteDialog` and `SessionDeleteDialogSet` cancel Escape/outside
+  dismissals through Base UI `details.cancel()` while deleting and keep the wrapper's window-scoped
+  pointer-dismissal default when idle.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema or
+  migration change. Workspace data isolation is unchanged: the same owner-scoped session transitions
+  and profile scope apply. Official skill `skills/compozy/`: no change.
+- QA: 2026-11-14 notes in `docs/qa/scenarios/RT-session-list-row-actions.md` and
+  `docs/qa/scenarios/ET-web-sessions-catalog-modal.md`; regression suites named there.
 
 ## Grouped menus with List and Kanban parity — 2026-11-13
 
@@ -6190,3 +6243,87 @@ path is policy-routed away from the main-table default device (Cloudflare WARP, 
 - **QA.** `docs/qa/scenarios/RT-connectivity-provider-route.md` records the policy-routed egress
   evidence and the verified private-tier walk: provider up/healthy, live advertised address, and
   a TLS `401 gateway_device_unauthenticated` at the pairing gate.
+
+## MCP and extension hot activation, runtime MCP inventory — 2026-11-14
+
+**Owning spec:** `.compozy/tasks/mcp-extension-hot-activation/_spec.md` (one PR, branch
+`feat/mcp-hot-activation`). Slices S1–S9 update only what they affect; slice evidence lives in the
+spec directory's `_s*-report.md` files.
+
+- **Native tools.** New `compozy__mcp_list` and `compozy__session_mcp_list` (read) and
+  `compozy__mcp_allow` (mutating, always requires operator approval) and `compozy__mcp_import`
+  (mutating, approval per permission mode), all in the `compozy__mcp` toolset. `compozy__mcp_status.callable_discovery_note` points to
+  `compozy__session_mcp_list`. `compozy__session_prompt` can return `session_mcp_reload_failed`
+  (`retryable`, `client_message_id`, `provider_error`). Blocked calls carry repair messages
+  (`source_disabled` waiting/removed, `mcp_auth_required`).
+- **CLI/HTTP/UDS.** Additive: `compozy mcp list|allow|import`, `compozy session mcp`,
+  `compozy mcp auth login --digest`; `GET /api/settings/runtime-mcp-servers`,
+  `POST /api/settings/runtime-mcp-servers/{runtime}/{name}/import`,
+  `PUT|DELETE /api/settings/mcp-servers/{name}/approval`,
+  `GET /api/workspaces/{ws}/sessions/{id}/mcp`; auth begin `definition_digest`; Settings MCP items
+  gain `approval` and `callable_in_sessions`; single-session payload gains `mcp_summary`; events
+  `session.mcp_reloaded` and `session.mcp_changed`. Generated OpenAPI, TS/Go SDKs and CLI pages co-ship.
+- **Extensibility and hooks.** Extension manifests, SDK and bridge unchanged; enabling an extension
+  is the consent for its servers and tools. No new hook events; the two session events reach existing
+  session-event consumers. Agent or skill sidecars under a workspace root are workspace records.
+- **Config.** New `[providers.<id>] runtime_mcp = "load" | "off"` (live, next message; `off` only for
+  `claude`, `copilot`, `qwen-code`, else `runtime_mcp_unsupported`). `tools.policy.external_default`
+  keeps keys, values and default; its scope narrows to sources without consent. Behavior tightening:
+  unapproved project servers no longer start during discovery or probes, and under `ask` they are no
+  longer callable after a per-call prompt.
+- **Workspace data isolation.** Approvals key on (profile, workspace, source, definition digest)
+  and never cross projects or profiles. Session MCP reads and native list/allow/import resolve the
+  caller's workspace and profile first. Runtime inventory reads the operator home plus the selected
+  workspace root (Settings) or the session's own provider home and working directory (sessions);
+  no secret value leaves the daemon.
+- **User state.** Append-only migrations `00201_schema.sql` (`mcp_server_approvals`, starts empty)
+  and `00202_permission_intent.sql` (idempotent lineage/instance-ceiling marker backfill). The boundary decoder for unmarked rows stays
+  one more release and is removed in the release after next (SD-013 user-state regime). Copy writes
+  Vault secrets and Settings files; runtime files are never written.
+- **Web.** Settings → MCP servers and Marketplace → MCPs group servers by runtime with a filter,
+  approval cell, Copy to CompozyOS dialog and runtime switch; Settings → Providers switch; MCP save
+  toast says open sessions use it from their next message. S8 adds the composer MCP control and the
+  transcript reload line.
+- **Docs and official skill.** `skills/compozy/` `SKILL.md` routing, `references/tools-and-skills.md`
+  (MCP Activation And Consent, Runtime MCP Inventory; removed the OAuth-only grant and "updates open
+  hosted sessions" promises), `references/native-tools.md`, `references/configuration.md`. Site:
+  new `docs/mcp/` section (overview, add a server, project servers, runtime servers); updated
+  `configuration/config-toml.mdx`, `configuration/mcp-json.mdx`, `extensions/install.mdx`.
+  Release note `.release-notes/mcp-hot-activation.md`.
+- **QA.** New scenarios mapping E2E-001–E2E-011: `RT-mcp-hot-activation-next-message`,
+  `RT-mcp-hot-activation-lineage`, `ET-mcp-signin-from-session-control`,
+  `ET-extension-hot-activation-next-message`, `ET-mcp-project-server-approval`,
+  `RT-mcp-hot-activation-pi-bridge`, `ET-runtime-mcp-inventory-copy`, `RT-runtime-mcp-switch`,
+  `ET-session-mcp-control-states`, `RT-mcp-reload-failure-recovery`, `ET-cli-mcp-runtime-verbs`.
+  QA impact notes on `ET-cli-mcp-authorize`, `ET-web-mcp-authorize`, `ET-web-mcp-authorize-manual`,
+  `ET-api-mcp-oauth-endpoints`, `ET-web-mcp-status-matrix`, `RT-mcp-stdio-session-reuse`.
+
+CI round 2 repairs retain this impact scope. Default-profile session reads select User/workspace
+Settings overlays, config-source consent keeps logical names without resource IDs, and MCP reload
+and change events carry durable turn identities. Reloads preserve the accepted provider command.
+Failed discovery retains advertised views but disables execution until recovery; one hosted refresh
+window shares its discovery listing. Invalid MCP definitions remain readable without auth probing.
+The existing QA scenarios and official MCP references reflect these backend corrections; no new Web
+surface, hook, config key, SDK shape or database migration is introduced by this repair.
+
+Backend review fixes preserve this scope: consent checks the exact resolved transport definition;
+agent policy bounds inherited authority while roots follow current native tools. Session list/status
+reads degrade one failing MCP scope and share scope resolution within the request. Sign-out removes
+local credentials without network access or an approval gate. Public definition digests use an
+installation HMAC key in the private `mcp-digest.key` file; approvals and runtime inventory share it.
+Runtime config symlinks resolve through the existing bounded regular-file reader, and inventory
+caches are bounded. Hosted projection revisions remain opaque; activation and served receipts use
+`Catalog.Digest` for the external tools actually installed. Missing initial list receipts do not
+restart list-changed runtimes. Reload/receipt telemetry failures preserve successful operations.
+CLI allow/import/session MCP support JSONL and TOON; changed runtime definitions have a distinct
+Copy error. `_rf-backend-report.md` records focused evidence, including the real isolated daemon
+HTTP/native/CLI read-surfaces check. No additional wire shape, hook/config key or migration is added.
+
+## Failed delegation recovery tail (PR #1686)
+
+Recovery upgrades the wake policy and queues the parent wake on a fresh bounded context after
+terminal settlement. Native subagent status/delegate/wake behavior keeps its existing wire shape;
+there are no new tools, hooks, extension/config keys, SDK types, or persistence migrations. Workspace
+scoping and isolation cleanup remain unchanged. Web consumes the existing terminal/catalog events.
+The official skill contract remains unchanged. Service coverage owns cancellation after settlement
+and context-aware retry attempts. Release mode delegates all execution and QA validation to main CI.

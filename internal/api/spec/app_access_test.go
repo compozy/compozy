@@ -12,6 +12,7 @@ func TestAppAccessPolicy(t *testing.T) {
 	t.Parallel()
 	decisions := map[AppAccess][]string{
 		AppAccessAllowed: {
+			"getSessionMCP",
 			"findFiles",
 			"findSessionFiles",
 			"searchFileContents",
@@ -230,6 +231,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"listRuntimeMCPServers", "importRuntimeMCPServer", "putSettingsMCPApproval", "deleteSettingsMCPApproval",
 			"getAgentHeartbeatAuthority",
 			"approveAgentHeartbeatAuthority",
 			"revokeAgentHeartbeatAuthority",
@@ -237,6 +239,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"approveAgentHeartbeatScript",
 			"revokeAgentHeartbeatScript",
 			"addSessionWorkLink", "refreshSessionWorkLink", "removeSessionWorkLink",
+			// Archived-history cleanup deletes in bulk: operators and the approved native tool only.
+			"planSessionHistoryCleanup", "getSessionHistoryCleanup", "stopSessionHistoryCleanup",
 			// Skill review: drafts an agent proposed and the operator-only approve/reject decision.
 			"listAgentSkillReviews", "getAgentSkillReview", "approveAgentSkillReview", "rejectAgentSkillReview",
 			"searchSessionWorkCandidates",

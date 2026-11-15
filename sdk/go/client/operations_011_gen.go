@@ -9,6 +9,35 @@ import (
 	"strings"
 )
 
+// GetHookCatalog List the resolved hook catalog
+func (c *Client) GetHookCatalog(ctx context.Context, params GetHookCatalogParams) (*HookCatalogResponse, error) {
+	path := "/api/hooks/catalog"
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Event != nil {
+		query.Set("event", *params.Event)
+	}
+	if params.Source != nil {
+		query.Set("source", *params.Source)
+	}
+	if params.Mode != nil {
+		query.Set("mode", *params.Mode)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookCatalogResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetHookEventsParams carries the path, query, and header parameters.
 type GetHookEventsParams struct {
 	Family   *string `url:"family"`
@@ -411,34 +440,4 @@ type GetMarketplaceCatalogEntryParams struct {
 	Scope         *string `url:"scope"`
 	Profile       *string `url:"profile"`
 	WorkspaceID   *string `url:"workspace_id"`
-}
-
-// GetMarketplaceCatalogEntry Get a catalog entry or an explicitly selected installed extension
-func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarketplaceCatalogEntryParams) (*MarketplaceEntryResponse, error) {
-	path := "/api/marketplace/entries/{entry_id}"
-	query := url.Values{}
-	if params.Source != nil {
-		query.Set("source", *params.Source)
-	}
-	path = strings.ReplaceAll(path, "{entry_id}", url.PathEscape(params.EntryID))
-	if params.InstalledName != nil {
-		query.Set("installed_name", *params.InstalledName)
-	}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MarketplaceEntryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

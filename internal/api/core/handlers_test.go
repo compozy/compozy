@@ -7912,3 +7912,213 @@ func TestDraftAgentInstructionsEndpoint(t *testing.T) {
 		})
 	}
 }
+
+// Invariant (UT-005/036): agent create and update commit sidecars before approval,
+// and surface approval failures without undoing durable authoring. Owner: API agent
+// authoring; canonical suite: handlers_test.go.
+func TestBaseHandlersWorkspaceAgentMCPApproval(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	path := filepath.Join(
+		root,
+		compozyconfig.DirName,
+		compozyconfig.ProfilesDirName,
+		"default",
+		compozyconfig.AgentsDirName,
+		"worker",
+		compozyconfig.AgentDefinitionFileName,
+	)
+	workspaces := testutil.StubWorkspaceService{
+		ResolveForProfileFn: func(_ context.Context, _, profile string) (workspacepkg.ResolvedWorkspace, error) {
+			resolved := workspacepkg.ResolvedWorkspace{
+				ID: "ws-agent", RootDir: root,
+				ProfileName: profile,
+				Config:      compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
+			}
+			if agent, err := compozyconfig.LoadAgentDefFile(path); err == nil {
+				resolved.Agents = []compozyconfig.AgentDef{agent}
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return resolved, err
+			}
+			return resolved, nil
+		},
+	}
+	fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces)
+	calls := 0
+	fixture.Handlers.Settings = &agentMCPApprovalSettings{
+		stubSettingsService: &stubSettingsService{},
+		record: func(_ context.Context, write settingspkg.WorkspaceMCPWrite) (string, error) {
+			calls++
+			if write.WorkspaceID != "ws-agent" || !strings.HasSuffix(write.SourceID, compozyconfig.MCPJSONName) {
+				t.Fatalf("approval identity=%+v", write)
+			}
+			if err := write.Write(); err != nil {
+				return "", err
+			}
+			committed, err := write.ReadCommitted()
+			if err != nil || committed.Command != write.Server.Command {
+				t.Fatalf("committed=%+v %v", committed, err)
+			}
+			return "saved but waiting for approval", nil
+		},
+	}
+	payload := contract.CreateAgentPayload{
+		Name:       "worker",
+		Provider:   "codex",
+		Prompt:     "Work.",
+		MCPServers: []contract.AgentMCPServerInput{{Name: "local", Command: "fixture", Args: []string{"first"}}},
+	}
+	created := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/agents",
+		mustJSON(
+			t,
+			contract.CreateAgentRequest{Scope: contract.AgentCreateScopeWorkspace, Workspace: "alpha", Agent: payload},
+		),
+	)
+	if created.Code != http.StatusCreated ||
+		!strings.Contains(created.Body.String(), "saved but waiting for approval") ||
+		calls != 1 {
+		t.Fatalf("create=%d %s calls=%d", created.Code, created.Body.String(), calls)
+	}
+	agent, err := compozyconfig.LoadAgentDefFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, err := compozyconfig.AgentDefinitionDigest(agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload.MCPServers[0].Args = []string{"second"}
+	updated := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPut,
+		"/agents/worker",
+		mustJSON(t, contract.UpdateAgentRequest{Workspace: "alpha", ExpectedDigest: digest, Agent: payload}),
+	)
+	if updated.Code != http.StatusOK || !strings.Contains(updated.Body.String(), "saved but waiting for approval") ||
+		calls != 2 {
+		t.Fatalf("update=%d %s calls=%d", updated.Code, updated.Body.String(), calls)
+	}
+	agent, err = compozyconfig.LoadAgentDefFile(path)
+	if err != nil || len(agent.MCPServers) != 1 || len(agent.MCPServers[0].Args) != 1 ||
+		agent.MCPServers[0].Args[0] != "second" {
+		t.Fatalf("durable sidecar=%+v %v", agent.MCPServers, err)
+	}
+}
+
+type agentMCPApprovalSettings struct {
+	*stubSettingsService
+	record func(context.Context, settingspkg.WorkspaceMCPWrite) (string, error)
+}
+
+func (s *agentMCPApprovalSettings) RecordWorkspaceMCPWrite(
+	ctx context.Context,
+	write settingspkg.WorkspaceMCPWrite,
+) (string, error) {
+	return s.record(ctx, write)
+}
+
+// Invariant: MCP summary decorates detail only and scoped reads authorize before reading inventory. Owner: session HTTP core; canonical handler suite (UT-083).
+func TestSessionMCPDetailAndScope(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return the session without a summary when the MCP read model fails", func(t *testing.T) {
+		t.Parallel()
+		info := testutil.NewSessionInfo("sess-mcp")
+		info.WorkspaceID = "ws-mcp"
+		info.ProfileID = store.DefaultProfileID
+		base := &testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+		}
+		fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.Sessions = &sessionMCPHandlerStub{
+			SessionManager: fixture.Handlers.Sessions,
+			err:            errors.New("session: MCP read model unavailable"),
+		}
+		detail := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp", nil)
+		if detail.Code != http.StatusOK {
+			t.Fatalf("detail %d: %s", detail.Code, detail.Body.String())
+		}
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(detail.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Session.ID != info.ID || payload.Session.MCPSummary != nil {
+			t.Fatalf("session=%+v", payload.Session)
+		}
+	})
+	for _, count := range []int{0, 1} {
+		t.Run(fmt.Sprintf("Should decorate only detail for %d servers UT-083", count), func(t *testing.T) {
+			t.Parallel()
+			info := testutil.NewSessionInfo("sess-mcp")
+			info.WorkspaceID = "ws-mcp"
+			info.ProfileID = store.DefaultProfileID
+			base := &testutil.StubSessionManager{
+				StatusFn:  func(context.Context, string) (*session.Info, error) { return info, nil },
+				ListAllFn: func(context.Context) ([]*session.Info, error) { return []*session.Info{info}, nil },
+			}
+			fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			reader := &sessionMCPHandlerStub{
+				SessionManager: fixture.Handlers.Sessions,
+				result: session.MCP{
+					SessionID:  info.ID,
+					MCPSummary: session.MCPSummary{Attention: count},
+				},
+			}
+			if count > 0 {
+				reader.result.CompozyServers = []session.MCPServerRow{{Name: "linear", State: "needs_sign_in"}}
+			}
+			fixture.Handlers.Sessions = reader
+			fixture.Engine.GET("/workspaces/:workspace_id/sessions/:session_id/mcp", fixture.Handlers.GetSessionMCP)
+			detail := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp", nil)
+			if detail.Code != http.StatusOK {
+				t.Fatalf("detail %d: %s", detail.Code, detail.Body.String())
+			}
+			var payload contract.SessionResponse
+			if err := json.Unmarshal(detail.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if (payload.Session.MCPSummary != nil) != (count > 0) {
+				t.Fatalf("summary=%+v", payload.Session.MCPSummary)
+			}
+			list := core.SessionPayloadsFromInfos([]*session.Info{info})
+			data, err := json.Marshal(list)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "mcp_summary") {
+				t.Fatalf("list contains summary: %s", data)
+			}
+			for _, path := range []string{"/workspaces/another/sessions/sess-mcp/mcp", "/workspaces/ws-mcp/sessions/sess-mcp/mcp?profile=other"} {
+				before := reader.reads
+				denied := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
+				if denied.Code == http.StatusOK || reader.reads != before || denied.Body.Len() == 0 {
+					t.Fatalf(
+						"scope leaked: %d %s reads %d -> %d",
+						denied.Code,
+						denied.Body.String(),
+						before,
+						reader.reads,
+					)
+				}
+			}
+		})
+	}
+}
+
+type sessionMCPHandlerStub struct {
+	core.SessionManager
+	result session.MCP
+	err    error
+	reads  int
+}
+
+var _ session.MCPReader = (*sessionMCPHandlerStub)(nil)
+
+func (s *sessionMCPHandlerStub) ListSessionMCP(context.Context, string) (session.MCP, error) {
+	s.reads++
+	return s.result, s.err
+}

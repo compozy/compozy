@@ -62,7 +62,8 @@ type AgentsResponse struct {
 
 // AgentResponse wraps one shared agent payload.
 type AgentResponse struct {
-	Agent AgentPayload `json:"agent"`
+	Warnings []string     `json:"warnings,omitempty"`
+	Agent    AgentPayload `json:"agent"`
 }
 
 // AgentMeResponse wraps the resolved caller payload.

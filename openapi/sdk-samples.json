@@ -673,6 +673,13 @@
             "resource": "settings",
             "app_access": "denied"
         },
+        "deleteSettingsMCPApproval": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.deleteSettingsMCPApproval({ path: { \"name\": \"name\" }, query: { \"workspace_id\": \"workspace_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.DeleteSettingsMCPApproval(ctx, client.DeleteSettingsMCPApprovalParams{Name: \"name\", WorkspaceID: \"workspace_id\"})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
         "deleteSettingsMCPServer": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.deleteSettingsMCPServer({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DeleteSettingsMCPServer(ctx, client.DeleteSettingsMCPServerParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -1506,6 +1513,20 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "getSessionHistoryCleanup": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionHistoryCleanup();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionHistoryCleanup(ctx, client.GetSessionHistoryCleanupParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
+        "getSessionMCP": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionMCP({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionMCP(ctx, client.GetSessionMCPParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "getSessionOwner": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSessionOwner({ path: { \"session_id\": \"session_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSessionOwner(ctx, client.GetSessionOwnerParams{SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -1854,6 +1875,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.HeartbeatAgentTaskRun(ctx, client.HeartbeatAgentTaskRunParams{XCompozySessionID: \"X-Compozy-Session-ID\", XCompozyAgent: \"X-Compozy-Agent\", RunID: \"run_id\"}, client.AgentTaskHeartbeatRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "agent",
+            "app_access": "denied"
+        },
+        "importRuntimeMCPServer": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.importRuntimeMCPServer({ path: { \"runtime\": \"runtime\", \"name\": \"name\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ImportRuntimeMCPServer(ctx, client.ImportRuntimeMCPServerParams{Runtime: \"runtime\", Name: \"name\"}, client.RuntimeMCPImportRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
             "app_access": "denied"
         },
         "inspectRun": {
@@ -2260,6 +2288,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListRoles(ctx, client.ListRolesParams{})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "roles",
+            "app_access": "denied"
+        },
+        "listRuntimeMCPServers": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.listRuntimeMCPServers();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListRuntimeMCPServers(ctx, client.ListRuntimeMCPServersParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
             "app_access": "denied"
         },
         "listSessionChangeBases": {
@@ -2689,6 +2724,13 @@
             "resource": "cmdPalette",
             "app_access": "denied"
         },
+        "planSessionHistoryCleanup": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.planSessionHistoryCleanup({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PlanSessionHistoryCleanup(ctx, client.PlanSessionHistoryCleanupParams{}, client.SessionHistoryCleanupRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
         "prepareProfileArchive": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.profiles.prepareProfileArchive({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PrepareProfileArchive(ctx, client.PrepareProfileArchiveParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2832,6 +2874,13 @@
         "putSettingsHook": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.putSettingsHook({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PutSettingsHook(ctx, client.PutSettingsHookParams{Name: \"name\"}, client.PutSettingsHookRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
+        "putSettingsMCPApproval": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.putSettingsMCPApproval({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PutSettingsMCPApproval(ctx, client.PutSettingsMCPApprovalParams{Name: \"name\"}, client.SettingsMCPApprovalRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "settings",
             "app_access": "denied"
@@ -3584,6 +3633,13 @@
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"
+        },
+        "stopSessionHistoryCleanup": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.stopSessionHistoryCleanup();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.StopSessionHistoryCleanup(ctx, client.StopSessionHistoryCleanupParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
         },
         "streamCmdPalette": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nfor await (const frame of compozy.events(\"streamCmdPalette\", { query: { \"workspace\": \"workspace\" } })) {\n  console.log(frame);\n}",

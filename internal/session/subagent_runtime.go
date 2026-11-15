@@ -7,6 +7,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -53,7 +54,7 @@ func (r managerSubagentRuntime) Snapshot(ctx context.Context, id string) (subage
 	}
 	return snap, nil
 }
-func (r managerSubagentRuntime) Spawn(ctx context.Context, opts SpawnOpts) (string, error) {
+func (r managerSubagentRuntime) Spawn(ctx context.Context, opts *SpawnOpts) (string, error) {
 	child, err := r.m.Spawn(ctx, opts)
 	if child == nil {
 		return "", err
@@ -160,6 +161,9 @@ func (r managerSubagentRuntime) DeleteSession(ctx context.Context, id string) er
 	return err
 }
 
+func (r managerSubagentRuntime) TerminationBudget() time.Duration {
+	return TerminationBudget(r.m.stopConfig)
+}
 func (r managerSubagentRuntime) NativeTurnEvents(
 	ctx context.Context, parentID, turnID string, types []string, afterSequence int64, limit int,
 ) ([]store.SessionEvent, error) {
@@ -444,4 +448,11 @@ func (r managerSubagentRuntime) ResumeChild(ctx context.Context, row store.Sessi
 		return ErrRestartContinuationSkipped
 	}
 	return err
+}
+
+func (r managerSubagentRuntime) EffectiveMCPAuthority(
+	ctx context.Context,
+	id string,
+) (store.SessionPermissionPolicy, error) {
+	return r.m.EffectiveMCPAuthority(ctx, id)
 }

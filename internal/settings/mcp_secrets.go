@@ -15,6 +15,7 @@ import (
 
 const (
 	mcpEnvSecretKind         = "mcp_env"
+	mcpHeaderSecretKind      = "mcp_header"
 	mcpOAuthMetadataKind     = "mcp_oauth_client_secret"
 	mcpSecretRollbackTimeout = 5 * time.Second
 )
@@ -60,11 +61,16 @@ func (s *service) prepareMCPSecretWrites(
 	if err != nil {
 		return nil, validationError(err)
 	}
-	envWrites, err := prepareMCPSecretEnvValues(prefix, server, secrets.SecretEnv)
+	envWrites, err := prepareMCPSecretEnvValues(prefix, server, secrets.SecretEnv, secrets.allowEmpty)
 	if err != nil {
 		return nil, err
 	}
 	writes := append([]preparedSecretWrite(nil), envWrites...)
+	headerWrites, err := prepareMCPSecretHeaderValues(prefix, server, secrets.SecretHeaders)
+	if err != nil {
+		return nil, err
+	}
+	writes = append(writes, headerWrites...)
 	oauthWrite, ok, err := prepareMCPAuthClientSecretValue(prefix, server, secrets.OAuthClientSecret)
 	if err != nil {
 		return nil, err
@@ -79,6 +85,7 @@ func prepareMCPSecretEnvValues(
 	prefix string,
 	server *compozyconfig.MCPServer,
 	values map[string]string,
+	allowEmpty bool,
 ) ([]preparedSecretWrite, error) {
 	if len(values) == 0 {
 		return nil, nil
@@ -98,7 +105,7 @@ func prepareMCPSecretEnvValues(
 			return nil, validationError(fmt.Errorf("settings: MCP secret_env key %q is invalid", envName))
 		}
 		value := values[key]
-		if strings.TrimSpace(value) == "" {
+		if !allowEmpty && strings.TrimSpace(value) == "" {
 			return nil, validationError(fmt.Errorf("settings: MCP secret_env value %q is required", envName))
 		}
 		ref := prefix + "env/" + envName
@@ -165,13 +172,11 @@ func (s *service) storeMCPSecrets(
 	for _, write := range writes {
 		mutation, err := s.inspectMCPSecretMutation(ctx, write)
 		if err != nil {
-			rollbackErr := s.rollbackMCPSecretMutations(ctx, mutations)
-			return nil, errors.Join(err, rollbackErr)
+			return mutations, err
 		}
 		mutations = append(mutations, mutation)
 		if _, err := s.providerSecrets.PutSecret(ctx, write.ref, write.kind, write.value); err != nil {
-			rollbackErr := s.rollbackMCPSecretMutations(ctx, mutations)
-			return nil, errors.Join(fmt.Errorf("settings: store %s: %w", write.description, err), rollbackErr)
+			return mutations, fmt.Errorf("settings: store %s: %w", write.description, err)
 		}
 	}
 	return mutations, nil
@@ -239,6 +244,12 @@ func ownedMCPSecretRefs(prefix string, server compozyconfig.MCPServer) map[strin
 			refs[ref] = mcpEnvSecretKind
 		}
 	}
+	for key, rawRef := range server.SecretHeaders {
+		ref := vault.NormalizeRef(rawRef)
+		if ref == mcpHeaderSecretRef(prefix, key) {
+			refs[ref] = mcpHeaderSecretKind
+		}
+	}
 	oauthRef := vault.NormalizeRef(server.Auth.ClientSecretRef)
 	if oauthRef == prefix+"oauth/client-secret" {
 		refs[oauthRef] = mcpOAuthMetadataKind
@@ -249,6 +260,11 @@ func ownedMCPSecretRefs(prefix string, server compozyconfig.MCPServer) map[strin
 func referencedMCPSecretRefs(server compozyconfig.MCPServer) map[string]struct{} {
 	refs := make(map[string]struct{}, len(server.SecretEnv)+1)
 	for _, rawRef := range server.SecretEnv {
+		if ref := vault.NormalizeRef(rawRef); ref != "" {
+			refs[ref] = struct{}{}
+		}
+	}
+	for _, rawRef := range server.SecretHeaders {
 		if ref := vault.NormalizeRef(rawRef); ref != "" {
 			refs[ref] = struct{}{}
 		}
@@ -322,6 +338,7 @@ func (s *service) executeMCPSecretCleanupPlan(
 	target compozyconfig.WriteTarget,
 	plan mcpSecretCleanupPlan,
 	secretMutations []mcpSecretMutation,
+	importing bool,
 ) ([]string, error) {
 	if len(plan.superseded) == 0 {
 		return nil, nil
@@ -331,6 +348,9 @@ func (s *service) executeMCPSecretCleanupPlan(
 	cancel()
 	if cleanupErr == nil {
 		return nil, nil
+	}
+	if importing {
+		return []string{mcpImportCleanupWarning(name)}, nil
 	}
 	cleanupFailure := fmt.Errorf(
 		"settings: garbage-collect MCP server %q superseded secrets: %w",
@@ -355,7 +375,7 @@ func (s *service) executeMCPSecretCleanupPlan(
 		}, nil
 	}
 	invalidateErr := s.invalidateMCPAuthAfterDefinitionRestore(scope, workspaceID, profileName, name)
-	rollbackErr := s.rollbackMCPSecretMutations(ctx, secretMutations)
+	rollbackErr := s.rollbackUnreferencedMCPSecrets(ctx, scope, workspaceID, profileName, secretMutations)
 	return nil, errors.Join(
 		cleanupFailure,
 		invalidateErr,

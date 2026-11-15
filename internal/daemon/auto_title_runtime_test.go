@@ -609,7 +609,7 @@ func newCancelAwareAutoTitleSpawnSessionsStub() *cancelAwareAutoTitleSpawnSessio
 
 func (s *cancelAwareAutoTitleSpawnSessionsStub) Spawn(
 	_ context.Context,
-	_ session.SpawnOpts,
+	_ *session.SpawnOpts,
 ) (*session.Session, error) {
 	return &session.Session{ID: "sess-title-child"}, nil
 }
@@ -640,10 +640,10 @@ func (s *cancelAwareAutoTitleSpawnSessionsStub) StopWithCause(
 
 func (s *autoTitleSpawnSessionsStub) Spawn(
 	_ context.Context,
-	opts session.SpawnOpts,
+	opts *session.SpawnOpts,
 ) (*session.Session, error) {
 	s.spawnCalls++
-	s.spawn = opts
+	s.spawn = *opts
 	s.providers = append(s.providers, opts.Provider)
 	return &session.Session{ID: fmt.Sprintf("sess-title-child-%d", s.spawnCalls)}, nil
 }

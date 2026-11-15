@@ -70,3 +70,44 @@ export function settledSubagentIds(roster: SubagentRoster): string[] {
   for (const row of roster.rows) if (!isSubagentLive(row.status)) settled.push(row.id);
   return settled.sort();
 }
+
+/**
+ * Sidebar order, active work first: waiting, working (a resumed child
+ * included), failed, queued, settled. Mirrors the daemon's `order=urgency` rank
+ * (store.SubagentUrgencyRank), so live and paged rows order alike.
+ */
+function subagentUrgency(subagent: SubagentView): number {
+  if (!isSubagentLive(subagent.status) && subagent.child_activity === "working") return 1;
+  switch (subagent.status) {
+    case "waiting":
+      return 0;
+    case "running":
+      return 1;
+    case "failed":
+      return 2;
+    case "queued":
+      return 3;
+    default:
+      return 4;
+  }
+}
+
+/** Active work: a subagent waiting for you or working (a resumed child included). */
+export function isActiveSubagent(subagent: SubagentView): boolean {
+  return subagentUrgency(subagent) <= 1;
+}
+
+// Newest by creation, then id descending, as the daemon pages; a row without a
+// creation instant falls back to its last update.
+const orderKey = (subagent: SubagentView): string =>
+  subagent.created_at || subagent.updated_at || "";
+
+/** Active work first (waiting > working > failed > queued > settled), then newest. */
+export function sortSubagentsByUrgency(subagents: readonly SubagentView[]): SubagentView[] {
+  return [...subagents].sort(
+    (a, b) =>
+      subagentUrgency(a) - subagentUrgency(b) ||
+      orderKey(b).localeCompare(orderKey(a)) ||
+      (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
+  );
+}

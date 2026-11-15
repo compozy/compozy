@@ -337,7 +337,7 @@ func TestCompletedSpawnReapKeepsCleanTerminalProjection(t *testing.T) {
 		wakeNotifier := &recordingSpawnWakeNotifier{}
 		h := newHarness(t, WithSpawnWakeNotifier(wakeNotifier), WithSessionCatalog(newRecordingSessionCatalog()))
 		parent := createSession(t, h)
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			Name:            "spawned-child",

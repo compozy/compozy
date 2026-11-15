@@ -35,8 +35,9 @@ export const SUBAGENT_BRANCH_PAGE_SIZE = 8;
 
 /**
  * Short pages of one parent's direct subagents for its session-row branch,
- * most urgent first: the daemon orders before it cuts the page, so a waiting
- * or failed row never hides behind "Show more". A branch reads only while open
+ * active work first (waiting, working, then failed, queued, settled): the
+ * daemon orders before it cuts the page, so active work never hides behind a
+ * later page. A branch reads only while open
  * and pages on demand, so a long roster never loads (or mounts) more than the
  * operator asked to see.
  */

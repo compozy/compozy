@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// ExecTerminal Execute one supervised workspace command
+func (c *Client) ExecTerminal(ctx context.Context, params ExecTerminalParams, body TerminalExecRequest) (*TerminalExecResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/exec"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalExecResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExecuteWindowManagerCommandParams carries the path, query, and header parameters.
+type ExecuteWindowManagerCommandParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // ExecuteWindowManagerCommand Execute one semantic window-manager command
 func (c *Client) ExecuteWindowManagerCommand(ctx context.Context, params ExecuteWindowManagerCommandParams, body WindowManagerCommandRequest) (*WindowManagerResult, error) {
 	path := "/api/workspaces/{workspace_id}/window-manager/commands"
@@ -422,11 +446,4 @@ func (c *Client) GetAgentContext(ctx context.Context, params GetAgentContextPara
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetAgentCoordinatorConfigParams carries the path, query, and header parameters.
-type GetAgentCoordinatorConfigParams struct {
-	XCompozySessionID string  `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string  `url:"X-Compozy-Agent"`
-	Workspace         *string `url:"workspace"`
 }

@@ -29,6 +29,7 @@ type SessionManagerDeps struct {
 	AgentResolver           session.AgentResolver
 	SkillRegistry           session.SkillRegistry
 	MCPResolver             session.MCPResolver
+	MCPConsentFilter        session.MCPConsentFilter
 	WorkspaceResolver       session.WorkspaceResolver
 	WorktreeResolver        session.WorktreeResolver
 	WindowReconciler        session.WindowReconciler
@@ -50,6 +51,7 @@ type SessionManagerDeps struct {
 	ProcessRegistry         *toolruntime.Registry
 	Terminals               acp.TerminalHost
 	HostedMCP               session.HostedMCPLauncher
+	RuntimeMCPInventory     session.RuntimeMCPInventory
 	ProviderSecrets         session.ProviderSecretResolver
 	ProfileNames            session.ProfileNameResolver
 	ModelCatalog            modelcatalog.Service
@@ -94,6 +96,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		}),
 		SkillRegistry:           skillRegistryDependency(state.skillsRegistry),
 		MCPResolver:             mcpResolverDependency(state.mcpResolver),
+		MCPConsentFilter:        sessionMCPConsentFilter(state),
 		WorkspaceResolver:       state.workspaceResolver,
 		WorktreeResolver:        daemonSessionWorktreeResolver{state: state},
 		WindowReconciler:        reconciler,
@@ -115,6 +118,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		ProcessRegistry:         state.processRegistry,
 		Terminals:               state.terminals,
 		HostedMCP:               hostedMCPLauncher(state.hostedMCP),
+		RuntimeMCPInventory:     state.runtimeMCPInventory,
 		ProviderSecrets:         sessionProviderVaultDependency(state.providerVault),
 		ProfileNames:            state.profiles,
 		ModelCatalog:            state.modelCatalog,

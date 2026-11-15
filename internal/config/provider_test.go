@@ -4289,3 +4289,45 @@ func TestResolveAgentAppliesOperatorOverride(t *testing.T) {
 		}
 	})
 }
+
+func TestProviderRuntimeMCP(t *testing.T) {
+	t.Parallel()
+	// Invariant: only verified runtime switches may be disabled, independently of machine policy. Owner: config; UT-072.
+	t.Run("Should reject unsupported Codex runtime isolation", func(t *testing.T) {
+		t.Parallel()
+		provider := BuiltinProviders()["codex"]
+		provider.RuntimeMCP = "off"
+		err := validateRuntimeMCP("codex", provider)
+		if err == nil ||
+			err.Error() != `runtime_mcp_unsupported: Codex always loads its own MCP servers; runtime_mcp can only be "load"` {
+			t.Fatalf("error=%v", err)
+		}
+	})
+	t.Run("Should default load and permit only the static supported set", func(t *testing.T) {
+		t.Parallel()
+		if (ProviderConfig{}).EffectiveRuntimeMCP() != "load" {
+			t.Fatal("wrong default")
+		}
+		for _, name := range []string{"claude", "copilot", "qwen", "qwen-code"} {
+			if err := validateRuntimeMCP(name, ProviderConfig{RuntimeMCP: "off"}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := validateRuntimeMCP("claude", ProviderConfig{RuntimeMCP: "invalid"}); err == nil {
+			t.Fatal("accepted invalid mode")
+		}
+	})
+	t.Run("Should preserve the runtime switch through merges and clones", func(t *testing.T) {
+		t.Parallel()
+		original := ProviderConfig{RuntimeMCP: "off"}
+		merged := mergeProvider(original, ProviderConfig{})
+		if merged.EffectiveRuntimeMCP() != "off" || cloneProvider(original).EffectiveRuntimeMCP() != "off" {
+			t.Fatal("merge or clone lost runtime mode")
+		}
+		mode := "load"
+		(providerOverlay{RuntimeMCP: &mode}).Apply(&merged)
+		if merged.EffectiveRuntimeMCP() != "load" {
+			t.Fatal("explicit overlay failed to replace runtime mode")
+		}
+	})
+}

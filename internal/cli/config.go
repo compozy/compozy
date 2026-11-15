@@ -181,6 +181,7 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"daemon.socket":                                   configSetString,
 	"daemon.reload_timeouts.providers":                configSetDuration,
 	"daemon.reload_timeouts.mcp":                      configSetDuration,
+	"client.request_timeout":                          configSetDuration,
 	"http.host":                                       configSetString,
 	"http.port":                                       configSetInt,
 	"desktop.editor_command":                          configSetString,

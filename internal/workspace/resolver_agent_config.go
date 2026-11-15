@@ -33,6 +33,9 @@ func (r *Resolver) ResolveAgentConfig(ctx context.Context, ref, profileName stri
 			return ResolvedAgentConfig{}, err
 		}
 	}
+	if ParseRef(ref).Kind == RefUser {
+		return r.resolveUserAgentConfig(ctx, profileName, profileID)
+	}
 	ws, identity, err := r.resolveRegistration(ctx, ref)
 	if err != nil {
 		return ResolvedAgentConfig{}, err

@@ -138,6 +138,7 @@ type providerOverlay struct {
 	BaseURL             *string                     `toml:"base_url"`
 	AuthMode            *ProviderAuthMode           `toml:"auth_mode"`
 	EnvPolicy           *ProviderEnvPolicy          `toml:"env_policy"`
+	RuntimeMCP          *string                     `toml:"runtime_mcp"`
 	HomePolicy          *ProviderHomePolicy         `toml:"home_policy"`
 	NoneSecurity        *ProviderNoneSecurity       `toml:"none_security"`
 	AuthStatusCmd       *string                     `toml:"auth_status_command"`

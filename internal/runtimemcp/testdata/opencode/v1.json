@@ -1,0 +1,1 @@
+{ "mcp": { "y": { "type": "remote", "url": "https://example.test/mcp", "enabled": false } } }

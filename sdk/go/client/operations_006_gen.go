@@ -6,7 +6,6 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
@@ -90,6 +89,28 @@ func (c *Client) DeleteSettingsHook(ctx context.Context, params DeleteSettingsHo
 		return nil, err
 	}
 	return &out, nil
+}
+
+// DeleteSettingsMCPApprovalParams carries the path, query, and header parameters.
+type DeleteSettingsMCPApprovalParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// DeleteSettingsMCPApproval Revoke workspace MCP consent
+func (c *Client) DeleteSettingsMCPApproval(ctx context.Context, params DeleteSettingsMCPApprovalParams) error {
+	path := "/api/settings/mcp-servers/{name}/approval"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("workspace_id", params.WorkspaceID)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }
 
 // DeleteSettingsMCPServerParams carries the path, query, and header parameters.
@@ -409,41 +430,4 @@ type DiffLoopRunParams struct {
 	AgainstRun        *string `url:"against_run"`
 	Profile           *string `url:"profile"`
 	AllProfiles       *bool   `url:"all_profiles"`
-}
-
-// DiffLoopRun Compare Loop generations or runs
-func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*LoopDiffResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Generation != nil {
-		query.Set("generation", strconv.Itoa(*params.Generation))
-	}
-	if params.AgainstGeneration != nil {
-		query.Set("against_generation", strconv.Itoa(*params.AgainstGeneration))
-	}
-	if params.AgainstRun != nil {
-		query.Set("against_run", *params.AgainstRun)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopDiffResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DisableGatewayProviderParams carries the path, query, and header parameters.
-type DisableGatewayProviderParams struct {
-	Name string `url:"name"`
-	Tier string `url:"tier"`
 }

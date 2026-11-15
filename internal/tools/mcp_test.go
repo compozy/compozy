@@ -1675,3 +1675,132 @@ func (e *recoveringProjectionMCPExecutor) ListTools(
 	}
 	return e.fakeMCPExecutor.ListTools(ctx, source)
 }
+
+// Invariant (UT-037): waiting sources never reach discovery, including an executor
+// whose previous descriptors could otherwise be cached. Owner: MCP registry adapter.
+func TestMCPConsentPrecedesDiscovery(t *testing.T) {
+	t.Parallel()
+	executor := newFakeMCPExecutor(
+		[]MCPToolDescriptor{{RawName: "read", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	)
+	source := SourceRef{
+		Kind:          SourceMCP,
+		Owner:         "remote",
+		RawServerName: "remote",
+		WorkspaceID:   "ws",
+		ResourceID:    "record",
+		Scope:         "workspace",
+	}
+	admitted := false
+	provider, err := NewMCPProvider(
+		MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+		executor,
+		executor,
+		WithMCPConsent(func(context.Context, SourceRef, string) (bool, error) { return admitted, nil }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptors, err := provider.List(t.Context(), Scope{WorkspaceID: "ws"})
+	if err != nil || len(descriptors) != 0 || executor.listedResource("record") {
+		t.Fatalf("waiting source discovered: %+v %v", descriptors, err)
+	}
+	admitted = true
+	descriptors, err = provider.List(t.Context(), Scope{WorkspaceID: "ws"})
+	if err != nil || len(descriptors) != 1 {
+		t.Fatalf("approved source missing: %+v %v", descriptors, err)
+	}
+	admitted = false
+	descriptors, err = provider.List(t.Context(), Scope{WorkspaceID: "ws"})
+	if err != nil || len(descriptors) != 0 {
+		t.Fatalf("revoked source retained cached descriptors: %+v %v", descriptors, err)
+	}
+}
+
+// Invariant (UT-030): a signed-out source returns the repair code and exact message.
+// Owner: registry dispatch diagnostics; canonical suite: MCP adapter.
+func TestMCPAuthRequiredRepair(t *testing.T) {
+	t.Parallel()
+	descriptor := mcpDescriptor("mcp__linear__read", "linear", "read")
+	err := denialErrorForView(
+		&ToolView{
+			Descriptor:   descriptor,
+			Availability: Availability{ReasonCodes: []ReasonCode{ReasonMCPAuthRequired}},
+			Decision:     EffectiveToolDecision{ReasonCodes: []ReasonCode{ReasonMCPAuthRequired}},
+		},
+	)
+	toolErr, ok := errors.AsType[*ToolError](err)
+	if !ok || toolErr.Code != "mcp_auth_required" ||
+		toolErr.Message != "linear needs sign-in. Sign in to linear in CompozyOS (Settings → MCP servers)." {
+		t.Fatalf("error=%+v", err)
+	}
+}
+
+// Invariant: health-only discovery failures retain the last successful source views; recovery replaces them.
+// Owner: MCP provider discovery; canonical suite: MCP provider tests (UT-029/UT-113).
+func TestMCPProviderAdvertisedDiscoveryRetention(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain discovered views while failing and withdraw sign-out or removal", func(t *testing.T) {
+		t.Parallel()
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "echo", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
+		source := SourceRef{Kind: SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
+		sources := []SourceRef{source}
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return sources, nil }),
+			executor,
+			executor,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy := DefaultPolicyInputs()
+		policy.ExternalDefault = ExternalDefaultEnabled
+		policy.SystemPermissionMode = PermissionModeApproveAll
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(policy, ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		catalog := func() AdvertisedCatalog {
+			t.Helper()
+			views, err := registry.AdvertisedSessionProjection(
+				t.Context(),
+				Scope{SessionID: "retained", ProfileID: "default", WorkspaceID: "workspace-a"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return NewAdvertisedCatalog(views)
+		}
+		bound := catalog()
+		if bound.Servers["echo"] != 1 {
+			t.Fatal("initial source not discovered")
+		}
+		executor.setListError(errors.New("peer restarting"))
+		if catalog().Digest != bound.Digest {
+			t.Fatal("health loss discarded source views")
+		}
+		executor.setStatus(MCPAuthStatus{Status: mcpAuthStatusNeedsLogin})
+		if catalog().Digest == bound.Digest {
+			t.Fatal("sign-out retained source entitlement")
+		}
+		executor.setStatus(MCPAuthStatus{Status: mcpAuthStatusAuthenticated})
+		executor.setListError(nil)
+		if catalog().Digest != bound.Digest {
+			t.Fatal("same-tool recovery changed catalog")
+		}
+		executor.mu.Lock()
+		executor.tools = []MCPToolDescriptor{
+			{RawName: "replacement", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		}
+		executor.mu.Unlock()
+		if catalog().Digest == bound.Digest {
+			t.Fatal("recovery ignored changed tools")
+		}
+		sources = nil
+		if len(catalog().Servers) != 0 {
+			t.Fatal("removed source remained advertised")
+		}
+	})
+}

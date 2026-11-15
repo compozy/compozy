@@ -7,7 +7,6 @@ import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branc
 import { subagentNavigationTarget } from "../../lib/subagent-navigation";
 import { SUBAGENT_BRANCH_PAGE_SIZE } from "../../lib/subagent-query-options";
 import type { SessionListTarget } from "../../types";
-import { sortSubagentsByUrgency } from "../subagents/subagent-format";
 import type { SubagentView } from "../subagents/types";
 import { SessionListBranchMore } from "./session-list-branch-more";
 import { SessionSubagentRowsSkeleton } from "./session-list-skeleton";
@@ -27,10 +26,11 @@ export interface SessionListSubagentBranchProps {
 
 /**
  * A parent row's open subagent list: one compact row per direct subagent on
- * the parent's rail, most urgent first (waiting, failed, working, queued,
- * settled), each opening the subagent's session. The daemon pages in that
- * order; the rows re-sort here so a live status change reorders loaded rows.
- * At most one page mounts until "Show N more" asks for the next.
+ * the parent's rail, active work first (waiting, working), then failed,
+ * queued and settled, each opening the subagent's session. The daemon pages in
+ * that order and the branch re-sorts loaded and live rows the same way, so a
+ * status change reorders them. One page mounts until "Show N more" asks for
+ * the next, except that every active row shows (#1732).
  */
 export function SessionListSubagentBranch({
   workspaceId,
@@ -76,7 +76,7 @@ export function SessionListSubagentBranch({
         // Placeholders are the live rows' own frame, so the list does not jump when they land.
         <SessionSubagentRowsSkeleton count={Math.min(total, SUBAGENT_BRANCH_PAGE_SIZE)} />
       ) : (
-        sortSubagentsByUrgency(branch.rows).map(subagent => (
+        branch.rows.map(subagent => (
           <SessionListSubagentRow
             key={subagent.id}
             subagent={subagent}

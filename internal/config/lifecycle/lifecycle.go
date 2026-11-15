@@ -89,6 +89,7 @@ var Matrix = []Rule{
 	{Pattern: "skills.custom_sources", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutProviders, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutMCP, Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "providers.*.runtime_mcp", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.enabled", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models.*", Lifecycle: Live, DiffClass: DiffClassLive},
@@ -144,6 +145,8 @@ var Matrix = []Rule{
 	{Pattern: "log.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "redact.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "terminal.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	// The CLI resolves the client budget per invocation, so a change applies live.
+	{Pattern: "client.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 }
 

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -649,7 +650,9 @@ func TestGlobalDBSubagents(t *testing.T) {
 		}
 	})
 
-	t.Run("Should page one parent most urgent first before cutting each page", func(t *testing.T) {
+	// Invariant (#1732): urgency order ranks active work (waiting, then working or resumed) ahead
+	// of failed, queued and settled rows before each page is cut, and each cursor resumes there.
+	t.Run("Should page one parent active work first before cutting each page", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		db, workspace, parent, now := subagentFixture(t)
@@ -697,8 +700,60 @@ func TestGlobalDBSubagents(t *testing.T) {
 			}
 			query.Cursor = page.NextCursor
 		}
-		if want := []string{"waiting", "failed", "resumed", "queued", "done-b", "done-a"}; !slices.Equal(got, want) {
+		if want := []string{"waiting", "resumed", "failed", "queued", "done-b", "done-a"}; !slices.Equal(got, want) {
 			t.Fatalf("urgency order = %v, want %v", got, want)
+		}
+		// Invariant (#1732 shim, remove in v0.8.0): a version 1 urgency cursor, minted under the
+		// older rank (waiting, failed, working, queued, settled), still pages and never skips a row
+		// the client has not seen; it may repeat failed rows.
+		legacy, err := normalizeSubagentListQuery(
+			store.SubagentListQuery{ParentSessionID: parent, Order: store.SubagentOrderUrgency, Limit: 2},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fingerprint, err := listcursor.Fingerprint(legacy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			id   string
+			at   int
+			rank int
+			want []string
+		}{
+			{id: "waiting", at: 0, rank: 0, want: []string{"resumed", "failed", "queued", "done-b", "done-a"}},
+			{id: "failed", at: 1, rank: 1, want: []string{"resumed", "failed", "queued", "done-b", "done-a"}},
+			{id: "resumed", at: 2, rank: 2, want: []string{"failed", "queued", "done-b", "done-a"}},
+			{id: "queued", at: 3, rank: 3, want: []string{"done-b", "done-a"}},
+		} {
+			t.Run("Should page on from a version 1 cursor at "+tc.id, func(t *testing.T) {
+				page := legacy
+				var err error
+				page.Cursor, err = listcursor.Encode(1, "subagents", fingerprint, subagentPosition{
+					CreatedAt: store.FormatTimestamp(at(tc.at)), ID: tc.id, Rank: tc.rank,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var rest []string
+				for range 4 {
+					got, err := s.ListSubagents(ctx, page)
+					if err != nil {
+						t.Fatalf("version 1 cursor at %s = %v", tc.id, err)
+					}
+					for _, row := range got.Items {
+						rest = append(rest, row.ID)
+					}
+					if got.NextCursor == "" {
+						break
+					}
+					page.Cursor = got.NextCursor
+				}
+				if !slices.Equal(rest, tc.want) {
+					t.Fatalf("version 1 cursor at %s pages %v, want %v", tc.id, rest, tc.want)
+				}
+			})
 		}
 		newest, err := s.ListSubagents(ctx, store.SubagentListQuery{ParentSessionID: parent, Limit: 1})
 		if err != nil || len(newest.Items) != 1 || newest.Items[0].ID != "done-b" {
@@ -717,6 +772,132 @@ func TestGlobalDBSubagents(t *testing.T) {
 }
 
 func TestGlobalDBSubagentStateUpdates(t *testing.T) {
+	// Invariant: deleting a child atomically stops its cached activity without changing its outcome.
+	t.Run("Should stop deleted children before counting or ordering settled delegations", func(t *testing.T) {
+		t.Parallel()
+		for _, status := range []string{"completed", "failed", "canceled", "interrupted"} {
+			t.Run("Should preserve "+status+" after deleting its child", func(t *testing.T) {
+				t.Parallel()
+				db, workspace, parent, now := subagentFixture(t)
+				ctx := t.Context()
+				for _, id := range []string{"deleted", "survivor"} {
+					registerSubagentSession(t, db, workspace, "child-"+id, parent, store.SubagentSpawnRole, now)
+					reserveSubagent(t, db.SessionRepo, workspace, parent, id, now)
+					if _, err := db.LinkChild(ctx, id, "child-"+id, now); err != nil {
+						t.Fatal(err)
+					}
+				}
+				activity := store.SubagentChildActivityWorking
+				if status == "canceled" || status == "interrupted" {
+					activity = store.SubagentChildActivityIdle
+				}
+				settled, changed, err := db.FinalizeSubagent(ctx, store.SubagentFinalize{
+					ID: "deleted", Status: status, Result: new("saved result"), Error: new("saved error"),
+					SettledAt: now.Add(time.Second), ChildActivity: activity,
+				})
+				if err != nil || !changed {
+					t.Fatal(settled, changed, err)
+				}
+				reserveSubagent(t, db.SessionRepo, workspace, parent, "queued", now.Add(time.Second))
+				if err := db.DeleteSession(ctx, "child-deleted"); err != nil {
+					t.Fatal(err)
+				}
+				got, err := db.GetSubagent(ctx, workspace, "deleted")
+				if err != nil || got.ChildSessionID != nil || got.ChildActivity != store.SubagentChildActivityStopped ||
+					got.Status != status || got.Result == nil || *got.Result != *settled.Result ||
+					got.Error == nil || *got.Error != *settled.Error ||
+					got.SettledAt == nil || !got.SettledAt.Equal(*settled.SettledAt) {
+					t.Fatal(got, err)
+				}
+				summaries, err := db.Summaries(ctx, []string{parent})
+				wantFailed := 0
+				wantOrder := []string{"survivor", "queued", "deleted"}
+				if status == "failed" {
+					wantFailed = 1
+					wantOrder = []string{"survivor", "deleted", "queued"}
+				}
+				if got := summaries[parent]; err != nil || got.Total != 3 || got.Live != 2 ||
+					got.Resumed != 0 || got.Failed != wantFailed {
+					t.Fatal(got, err)
+				}
+				page, err := db.ListSubagents(ctx, store.SubagentListQuery{
+					ParentSessionID: parent, Order: store.SubagentOrderUrgency,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var order []string
+				for _, row := range page.Items {
+					order = append(order, row.ID)
+				}
+				if !slices.Equal(order, wantOrder) {
+					t.Fatalf("urgency order = %v, want %v", order, wantOrder)
+				}
+				survivor, err := db.GetSubagent(ctx, workspace, "survivor")
+				if err != nil || survivor.ChildSessionID == nil ||
+					survivor.ChildActivity != store.SubagentChildActivityWorking {
+					t.Fatal(survivor, err)
+				}
+			})
+		}
+	})
+	t.Run("Should roll back child activity when deleting the session fails", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		ctx := t.Context()
+		registerSubagentSession(t, db, workspace, "child", parent, store.SubagentSpawnRole, now)
+		reserveSubagent(t, db.SessionRepo, workspace, parent, "delegation", now)
+		if _, err := db.LinkChild(ctx, "delegation", "child", now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(ctx, `CREATE TRIGGER prevent_child_delete BEFORE DELETE ON sessions
+			WHEN OLD.id = 'child' BEGIN SELECT RAISE(ABORT, 'forced delete failure'); END`); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.DeleteSession(ctx, "child"); err == nil ||
+			!strings.Contains(err.Error(), "forced delete failure") {
+			t.Fatalf("DeleteSession() error = %v, want forced delete failure", err)
+		}
+		got, err := db.GetSubagent(ctx, workspace, "delegation")
+		if err != nil || got.ChildSessionID == nil || *got.ChildSessionID != "child" ||
+			got.ChildActivity != store.SubagentChildActivityWorking || !got.UpdatedAt.Equal(now) {
+			t.Fatal(got, err)
+		}
+	})
+	t.Run("Should reconcile stale terminal activity without a child and preserve other rows", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		ctx := t.Context()
+		for _, id := range []string{"working", "idle", "live", "native"} {
+			row := reserveSubagent(t, db.SessionRepo, workspace, parent, id, now)
+			if id != "live" {
+				finalizeSubagent(t, db.SessionRepo, row.ID, now)
+			}
+		}
+		if _, err := db.DB().ExecContext(ctx, `UPDATE session_subagents SET child_activity =
+			CASE WHEN id = 'idle' THEN 'idle' ELSE 'working' END,
+			origin = CASE WHEN id = 'native' THEN 'provider_native' ELSE origin END`); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.ReconcileStoppedChildActivity(ctx)
+		if err != nil || len(rows) != 2 {
+			t.Fatal(rows, err)
+		}
+		for _, row := range rows {
+			if (row.ID != "working" && row.ID != "idle") || row.ChildActivity != store.SubagentChildActivityStopped {
+				t.Fatal(row)
+			}
+		}
+		for _, id := range []string{"live", "native"} {
+			row, err := db.GetSubagent(ctx, workspace, id)
+			if err != nil || row.ChildActivity != store.SubagentChildActivityWorking {
+				t.Fatal(row, err)
+			}
+		}
+		if again, err := db.ReconcileStoppedChildActivity(ctx); err != nil || len(again) != 0 {
+			t.Fatal(again, err)
+		}
+	})
 	t.Run(
 		"Should persist later native titles without changing delegated rows or replay timestamps",
 		func(t *testing.T) {

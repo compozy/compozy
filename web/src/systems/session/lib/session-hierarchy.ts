@@ -172,3 +172,24 @@ export function childSessionSignalState(
   }
   return signal;
 }
+
+/**
+ * Active child work: a child that needs you, failed or stalled, or is in
+ * flight — the states a folded branch signals on its toggle.
+ */
+export function isActiveChildSession(session: SessionPayload): boolean {
+  const { state } = sessionBadgeSignal(session.badge);
+  return state === "attention" || state === "failed" || state === "running";
+}
+
+/**
+ * A thread's children with active work first (#1732), so an open branch never
+ * hides it behind "Show more". Both parts keep their incoming list order, so
+ * ties stay stable and a child returns to its place once it settles.
+ */
+export function activeChildSessionsFirst(children: readonly SessionPayload[]): SessionPayload[] {
+  const active: SessionPayload[] = [];
+  const rest: SessionPayload[] = [];
+  for (const child of children) (isActiveChildSession(child) ? active : rest).push(child);
+  return [...active, ...rest];
+}

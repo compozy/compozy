@@ -4,7 +4,7 @@ area: RT
 title: Delegate to a subagent, get woken, and read the result
 persona: Ada
 journey: J-15-operate-session-via-cli-api
-expected: From an active turn, compozy__subagent_capabilities reports the caller's inherited runtime, depth, live count, and per-agent/provider can_delegate with the exact constraint strings; compozy__subagent_delegate in async mode returns status running with subagent_id and child_session_id within 3 s on a warm provider, the child's first prompt is exactly the task (role prefix when role is not general, no parent history, no attachments), the parent turn completes independently, and when the child settles the parent receives exactly one pointer wake per batch (steered into a running turn only when the agent declares steer_ext or concurrent_prompt and no user steer is queued, otherwise queued ahead of user prompts) whose text matches the fixed wake lines; compozy__subagent_status returns the result capped at [subagents].result_max_chars and moves delivery to acknowledged; wait mode returns the result or wait_timed_out without canceling the child; cancel, stop cascade, interrupt disposal, narrowing-only permissions, idempotency, and every documented error code behave as in the spec; CLI compozy session subagents list/show/cancel and the HTTP/UDS routes return the documented shapes and exit codes.
+expected: From an active turn, compozy__subagent_capabilities reports the caller's inherited runtime, depth, live count, and per-agent/provider can_delegate with the exact constraint strings; compozy__subagent_delegate in async mode returns status running with subagent_id and child_session_id within 3 s on a warm provider, the child's first prompt is exactly the task (role prefix when role is not general, no parent history, no attachments), the parent turn completes independently, and when the child settles the parent receives exactly one pointer wake per batch (steered into a running turn only when the agent declares steer_ext or concurrent_prompt and no user steer is queued, otherwise queued ahead of user prompts) whose text matches the fixed wake lines; compozy__subagent_status returns the result capped at [subagents].result_max_chars and moves delivery to acknowledged; wait mode returns the result or wait_timed_out without canceling the child; cancel, cancel after completion (which retires the idle child session and makes it non-resumable), stop cascade, interrupt disposal, narrowing-only permissions, idempotency, and every documented error code behave as in the spec; CLI compozy session subagents list/show/cancel and the HTTP/UDS routes return the documented shapes and exit codes.
 entry_points: native tools compozy__subagent_capabilities, compozy__subagent_delegate, compozy__subagent_status, compozy__subagent_cancel (toolset sessions); compozy session subagents <session-id> [--json]; compozy session subagents show|cancel|delete <subagent-id>; compozy session list --subagents include|exclude|only; GET /api/workspaces/{workspace_id}/sessions/{session_id}/subagents and GET|POST|DELETE /api/workspaces/{workspace_id}/subagents/{subagent_id}[/cancel] over HTTP and UDS; [subagents] result_max_chars; hooks spawn.pre_create (spawn_role subagent) and subagent.settled
 qa_status: untested
 bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-idempotency-default; BUG-20261009-subagent-status-empty-input; BUG-20261009-subagent-show-needs-workspace; BUG-20261009-subagent-runtime-speed-empty; BUG-20261009-subagent-capabilities-oversized; BUG-20261009-subagent-settled-hook-canceled; BUG-20261009-subagent-deny-message-prefixed
@@ -59,19 +59,24 @@ E2E-008, which use acpmock.
    `subagents_snapshot` or the CLI list. A provider-native row → 409 `subagent_not_deletable`
    (`Provider-native subagents cannot be deleted; stop the parent turn instead.`) with nothing removed;
    a child session that cannot be deleted leaves the row in place and returns the failure.
-7. **Permissions and limits.** Omitted `tools`/`skills`/`mcp_servers`/`workspace_paths` inherit the
+7. **Cancel after completion.** Delegate a child, let it settle `completed`, and read its result; then
+   `compozy__subagent_cancel` on that terminal row returns `completed` (its terminal status, not
+   `cancel_requested`), and the idle child session stops (`child_activity: stopped`) instead of
+   resuming or waking the parent later. Repeat the same cancel: it succeeds rather than failing on
+   the already stopped child, and the row stays `completed`.
+8. **Permissions and limits.** Omitted `tools`/`skills`/`mcp_servers`/`workspace_paths` inherit the
    caller's budget; `[]` gives none; a broader `permission_mode` or an atom outside the caller's budget
    → `permission_escalation_denied` with the exact message. No TTL, depth, or live-count cap: a
    subagent delegating its own subagent reports `depth: 2`; a `spawn.pre_create` hook patch that sets a
    TTL for the subagent role → `capability_denied`.
-8. **Idempotency.** Re-sending the same delegate with the same `idempotency_key` returns the same row;
+9. **Idempotency.** Re-sending the same delegate with the same `idempotency_key` returns the same row;
    the same key with a different task → `invalid_request`. If a `spawn.pre_create` hook denies a
    delegation while the same-key replay waits, both calls return `capability_denied` and no row remains.
-9. **Errors.** Outside an active turn → `parent_not_active`
+10. **Errors.** Outside an active turn → `parent_not_active`
    (`Subagents require an active turn in the calling session.`); unauthenticated provider →
    `provider_unavailable`; unknown model → `model_unavailable` listing available models; unknown
    `target.agent` → `agent_not_found`; unknown id → `subagent_not_found`.
-10. **CLI and HTTP/UDS (E2E-007).** With one running and one completed subagent, run the `_dx.md`
+11. **CLI and HTTP/UDS (E2E-007).** With one running and one completed subagent, run the `_dx.md`
     transcripts verbatim: `compozy session subagents <session-id>` (table and `--json` with
     `next_cursor`), `--origin`, `--status`, `--limit` (max 200), `show` (human and `--json`), `cancel
     --reason` (`Cancel requested for …`), all exit 0; unknown subagent → exit 1 with
@@ -79,15 +84,15 @@ E2E-008, which use acpmock.
     same reads and cancel over HTTP and UDS return identical payloads; cancel of a provider-native row →
     409 `subagent_not_cancelable`. `GET …/sessions?subagents=exclude` omits subagent sessions and
     returns `subagent_summary` on the parent; `subagents=bogus` → 400 `invalid_request`.
-11. **Config (E2E-008).** `compozy config set subagents.result_max_chars 1000`, reload, delegate a
+12. **Config (E2E-008).** `compozy config set subagents.result_max_chars 1000`, reload, delegate a
     task whose answer exceeds 1,000 characters → `result_truncated: true`, a 1,000-character result,
     and the `compozy__session_history` hint. `999` fails validation with
     `subagents.result_max_chars must be between 1000 and 1000000: 999`.
-12. **Hooks.** A config hook on `subagent.settled` receives the documented payload once per settled
+13. **Hooks.** A config hook on `subagent.settled` receives the documented payload once per settled
     subagent (delegated and provider-native); a `spawn.pre_create` hook sees `spawn_role: "subagent"`
     and the `subagent` object, and a deny blocks the delegation with `capability_denied`. A slow
     observe-only settled hook must not block parent status reads, acknowledgement, or wake delivery.
-13. **Scale.** From one turn, delegate 10 and then 20 subagents concurrently; record delegate latency
+14. **Scale.** From one turn, delegate 10 and then 20 subagents concurrently; record delegate latency
     per call (spawn runs under the global spawn lock) in the QA report.
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
@@ -166,3 +171,7 @@ settles the parent on the new roster under the same parent lock. A failed child 
 visible and retryable. Automated coverage: `TestSubagentDelete` (wake rewrite, parent settlement,
 suppression, native refusal, agent ownership, out-of-workspace refusal) and the store test that links
 a child before removing the row.
+
+Review follow-up: repeat cancel and parent-stop with a completed intermediary that still has a live
+delegated descendant. The descendant must be canceled synchronously and the intermediary must retain
+its completed status, settlement time, and result. Release-mode execution belongs to main CI.

@@ -51,6 +51,7 @@ func providerSettingsBaseFromConfig(name string, provider compozyconfig.Provider
 		AuthMode:          provider.EffectiveAuthMode(),
 		EnvPolicy:         provider.EffectiveEnvPolicy(),
 		HomePolicy:        provider.EffectiveHomePolicy(),
+		RuntimeMCP:        provider.EffectiveRuntimeMCP(),
 		AuthStatusCmd:     strings.TrimSpace(provider.AuthStatusCmd),
 		AuthACPMethod:     strings.TrimSpace(provider.AuthACPMethod),
 		CredentialSlots:   provider.EffectiveCredentialSlots(),

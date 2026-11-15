@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -14,8 +15,28 @@ func (d *Daemon) newDaemonMCPToolProvider(
 	if state == nil {
 		return nil, nil, nil
 	}
+	if state.mcpDigestKeys == nil {
+		return nil, nil, errors.New("daemon: MCP digest key provider is required")
+	}
+	digestKey, err := state.mcpDigestKeys.Key()
+	if err != nil {
+		return nil, nil, err
+	}
 	resolver := newDaemonMCPServerResolver(state)
-	var options []mcppkg.CallExecutorOption
+	options := []mcppkg.CallExecutorOption{
+		mcppkg.WithDefinitionDigestKey(digestKey),
+		mcppkg.WithConsentCheck(
+			func(ctx context.Context, source toolspkg.SourceRef, resolved mcppkg.ResolvedServer) error {
+				return requireResolvedMCPConsent(ctx, state, source, &resolved)
+			},
+		),
+	}
+	options = append(
+		options,
+		mcppkg.WithAuthNetworkAuthorization(func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+			return authorizeMCPAuthNetwork(ctx, state, cfg)
+		}),
+	)
 	if d != nil && d.getenv != nil {
 		options = append(options, mcppkg.WithSecretLookup(d.getenv))
 	}
@@ -47,6 +68,15 @@ func (d *Daemon) newDaemonMCPToolProvider(
 		executor,
 		executor,
 		toolspkg.WithMCPDeadEntityService(state.deadEntities),
+		toolspkg.WithMCPConsent(func(ctx context.Context, source toolspkg.SourceRef, profileID string) (bool, error) {
+			decision, err := mcpSourceConsent(
+				ctx,
+				state,
+				toolspkg.Scope{ProfileID: profileID, WorkspaceID: source.WorkspaceID},
+				source,
+			)
+			return decision.Admitted, err
+		}),
 		toolspkg.WithMCPDiscoveryBudget(
 			min(state.cfg.MCP.StatusProbeTimeout, state.cfg.Tools.HostedMCP.BindNonceTTL()/2),
 		),

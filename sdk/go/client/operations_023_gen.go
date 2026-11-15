@@ -9,6 +9,152 @@ import (
 	"strings"
 )
 
+// ListSessionFacets Count session catalog facets
+func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacetsParams) (*SessionCatalogFacetsResponse, error) {
+	path := "/api/sessions/facets"
+	query := url.Values{}
+	if params.ExcludeInstanceMain != nil {
+		query.Set("exclude_instance_main", strconv.FormatBool(*params.ExcludeInstanceMain))
+	}
+	if params.ExcludeFinishedAutomation != nil {
+		query.Set("exclude_finished_automation", strconv.FormatBool(*params.ExcludeFinishedAutomation))
+	}
+	if params.ExcludeAutomation != nil {
+		query.Set("exclude_automation", strconv.FormatBool(*params.ExcludeAutomation))
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Worktree != nil {
+		query.Set("worktree", *params.Worktree)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Subagents != nil {
+		query.Set("subagents", *params.Subagents)
+	}
+	if params.Children != nil {
+		query.Set("children", *params.Children)
+	}
+	if params.Parent != nil {
+		query.Set("parent", *params.Parent)
+	}
+	if params.Root != nil {
+		query.Set("root", *params.Root)
+	}
+	if params.ExcludeRoot != nil {
+		query.Set("exclude_root", *params.ExcludeRoot)
+	}
+	if params.Resumable != nil {
+		query.Set("resumable", strconv.FormatBool(*params.Resumable))
+	}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.Archive != nil {
+		query.Set("archive", *params.Archive)
+	}
+	if params.Later != nil {
+		query.Set("later", *params.Later)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionCatalogFacetsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionFileEntriesParams carries the path, query, and header parameters.
+type ListSessionFileEntriesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Path        *string `url:"path"`
+	ShowIgnored *bool   `url:"show_ignored"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionFileEntries List project file entries
+func (c *Client) ListSessionFileEntries(ctx context.Context, params ListSessionFileEntriesParams) (*FileEntriesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Path != nil {
+		query.Set("path", *params.Path)
+	}
+	if params.ShowIgnored != nil {
+		query.Set("show_ignored", strconv.FormatBool(*params.ShowIgnored))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FileEntriesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionFoldersParams carries the path, query, and header parameters.
+type ListSessionFoldersParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ListSessionFolders List session folders in manual order
+func (c *Client) ListSessionFolders(ctx context.Context, params ListSessionFoldersParams) (*SessionFoldersResponse, error) {
+	path := "/api/workspaces/{workspace_id}/session-folders"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionFoldersResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionInputsParams carries the path, query, and header parameters.
+type ListSessionInputsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListSessionInputs List pending session input
 func (c *Client) ListSessionInputs(ctx context.Context, params ListSessionInputsParams) (*SessionInputListResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
@@ -279,153 +425,4 @@ func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsPa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListSessionsParams carries the path, query, and header parameters.
-type ListSessionsParams struct {
-	WorkspaceID               *string   `url:"workspace_id"`
-	AllWorkspaces             *bool     `url:"all_workspaces"`
-	WorkspaceIds              *[]string `url:"workspace_ids"`
-	IncludeHealth             *bool     `url:"include_health"`
-	SkipTotal                 *bool     `url:"skip_total"`
-	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
-	ExcludeFinishedAutomation *bool     `url:"exclude_finished_automation"`
-	ExcludeAutomation         *bool     `url:"exclude_automation"`
-	State                     *string   `url:"state"`
-	Type                      *string   `url:"type"`
-	Agent                     *string   `url:"agent"`
-	Subagents                 *string   `url:"subagents"`
-	Children                  *string   `url:"children"`
-	Parent                    *string   `url:"parent"`
-	Root                      *string   `url:"root"`
-	ExcludeRoot               *string   `url:"exclude_root"`
-	Worktree                  *string   `url:"worktree"`
-	Q                         *string   `url:"q"`
-	SearchFields              *string   `url:"search_fields"`
-	Resumable                 *bool     `url:"resumable"`
-	Attention                 *bool     `url:"attention"`
-	BoardColumn               *[]string `url:"board_column"`
-	Badge                     *string   `url:"badge"`
-	Archive                   *string   `url:"archive"`
-	Later                     *string   `url:"later"`
-	Sort                      *string   `url:"sort"`
-	Cursor                    *string   `url:"cursor"`
-	Limit                     *int      `url:"limit"`
-	Profile                   *string   `url:"profile"`
-	AllProfiles               *bool     `url:"all_profiles"`
-}
-
-// ListSessions List sessions
-func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*SessionCatalogResponse, error) {
-	path := "/api/sessions"
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.IncludeHealth != nil {
-		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
-	}
-	if params.SkipTotal != nil {
-		query.Set("skip_total", strconv.FormatBool(*params.SkipTotal))
-	}
-	if params.ExcludeInstanceMain != nil {
-		query.Set("exclude_instance_main", strconv.FormatBool(*params.ExcludeInstanceMain))
-	}
-	if params.ExcludeFinishedAutomation != nil {
-		query.Set("exclude_finished_automation", strconv.FormatBool(*params.ExcludeFinishedAutomation))
-	}
-	if params.ExcludeAutomation != nil {
-		query.Set("exclude_automation", strconv.FormatBool(*params.ExcludeAutomation))
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.Subagents != nil {
-		query.Set("subagents", *params.Subagents)
-	}
-	if params.Children != nil {
-		query.Set("children", *params.Children)
-	}
-	if params.Parent != nil {
-		query.Set("parent", *params.Parent)
-	}
-	if params.Root != nil {
-		query.Set("root", *params.Root)
-	}
-	if params.ExcludeRoot != nil {
-		query.Set("exclude_root", *params.ExcludeRoot)
-	}
-	if params.Worktree != nil {
-		query.Set("worktree", *params.Worktree)
-	}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.SearchFields != nil {
-		query.Set("search_fields", *params.SearchFields)
-	}
-	if params.Resumable != nil {
-		query.Set("resumable", strconv.FormatBool(*params.Resumable))
-	}
-	if params.Attention != nil {
-		query.Set("attention", strconv.FormatBool(*params.Attention))
-	}
-	if params.BoardColumn != nil {
-		for _, value := range *params.BoardColumn {
-			query.Add("board_column", value)
-		}
-	}
-	if params.Badge != nil {
-		query.Set("badge", *params.Badge)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Later != nil {
-		query.Set("later", *params.Later)
-	}
-	if params.Sort != nil {
-		query.Set("sort", *params.Sort)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionCatalogResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSettingsApplyRecordsParams carries the path, query, and header parameters.
-type ListSettingsApplyRecordsParams struct {
-	Status *string `url:"status"`
-	Actor  *string `url:"actor"`
-	Limit  *int    `url:"limit"`
 }

@@ -1236,6 +1236,95 @@ func TestSessionLaterCommandsForwardTheParkRequest(t *testing.T) {
 	})
 }
 
+func TestSessionCleanupCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should only preview by default, deleting whole threads archived over 7 days ago", func(t *testing.T) {
+		t.Parallel()
+		var previews []contract.SessionHistoryCleanupRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref == "checkout" {
+					ref = "ws-checkout"
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: ref, RootDir: "/workspace/" + ref}}, nil
+			},
+			previewSessionHistoryCleanupFn: func(
+				_ context.Context, request contract.SessionHistoryCleanupRequest,
+			) (contract.SessionHistoryCleanupPreviewResponse, error) {
+				previews = append(previews, request)
+				return contract.SessionHistoryCleanupPreviewResponse{Plan: contract.SessionHistoryCleanupPlan{
+					Counts: contract.SessionHistoryCleanupCounts{Sessions: 2, Total: 2}, Threads: 2,
+				}}, nil
+			},
+		})
+		output, _, err := executeRootCommand(t, deps, "session", "cleanup", "--workspace", "checkout", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session cleanup) error = %v", err)
+		}
+		var preview contract.SessionHistoryCleanupPreviewResponse
+		if err := json.Unmarshal([]byte(output), &preview); err != nil {
+			t.Fatalf("json.Unmarshal(session cleanup) error = %v", err)
+		}
+		if preview.Plan.Counts.Total != 2 || len(previews) != 1 {
+			t.Fatalf("preview = %+v previews = %d, want one 2-session preview", preview.Plan, len(previews))
+		}
+		request := previews[0]
+		everything := contract.SessionHistoryCleanupSelection{Everything: true, Children: true, Subagents: true}
+		if request.WorkspaceID != "ws-checkout" || request.Delete != everything ||
+			request.OlderThanDays == nil || *request.OlderThanDays != 7 || request.ArchivedBefore != nil {
+			t.Fatalf("preview request = %+v, want everything older than 7 days in ws-checkout", request)
+		}
+	})
+
+	t.Run("Should start the selected cleanup with --yes", func(t *testing.T) {
+		t.Parallel()
+		var starts []contract.SessionHistoryCleanupRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			startSessionHistoryCleanupFn: func(
+				_ context.Context, request contract.SessionHistoryCleanupRequest,
+			) (contract.SessionHistoryCleanupStartResponse, error) {
+				starts = append(starts, request)
+				return contract.SessionHistoryCleanupStartResponse{
+					Run: contract.SessionHistoryCleanupRun{
+						ID:        "run-1",
+						State:     "running",
+						Total:     4,
+						StartedAt: fixedTestNow,
+					},
+				}, nil
+			},
+		})
+		output, _, err := executeRootCommand(t, deps, "session", "cleanup",
+			"--subagents", "--any-time", "--all-workspaces", "--yes", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session cleanup --yes) error = %v", err)
+		}
+		var started contract.SessionHistoryCleanupStartResponse
+		if err := json.Unmarshal([]byte(output), &started); err != nil {
+			t.Fatalf("json.Unmarshal(session cleanup --yes) error = %v", err)
+		}
+		if started.Run.ID != "run-1" || len(starts) != 1 {
+			t.Fatalf("started = %+v starts = %d, want run-1 started once", started.Run, len(starts))
+		}
+		request := starts[0]
+		if !request.AllWorkspaces || request.WorkspaceID != "" ||
+			request.Delete != (contract.SessionHistoryCleanupSelection{Subagents: true}) ||
+			request.OlderThanDays != nil || request.ArchivedBefore != nil {
+			t.Fatalf("start request = %+v, want subagents at any time across workspaces", request)
+		}
+	})
+
+	t.Run("Should refuse an unreadable --before date", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(t, deps, "session", "cleanup", "--before", "last week", "--all-workspaces")
+		if err == nil || !strings.Contains(err.Error(), "--before must be") {
+			t.Fatalf("executeRootCommand(session cleanup --before) error = %v, want an invalid --before", err)
+		}
+	})
+}
+
 func TestSessionRenameCommandReturnsUpdatedSession(t *testing.T) {
 	t.Parallel()
 

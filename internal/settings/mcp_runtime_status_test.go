@@ -51,7 +51,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\nurl = \"https://example.test/mcp\"\n")
 		workspaceRoot := t.TempDir()
 		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName),
-			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\n")
+			"[[mcp_servers]]\nname = \"broken\"\ntransport = \"http\"\nurl = \"\"\n")
 		auth := &recordingMCPAuthRuntime{statusErr: errors.New("invalid remote must not reach auth")}
 		runtime := &fakeMCPRuntimeProvider{statuses: map[string]MCPServerRuntimeStatus{
 			"broken": {Configured: true, State: MCPServerRuntimeStateConfigError, Probe: MCPServerProbeSkipped},
@@ -228,7 +228,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 			},
 		}
 
-		cloned := cloneMCPServerItem(source)
+		cloned := cloneMCPServerItem(&source)
 		cloned.Args[0] = "changed"
 		cloned.EnvKeys[0] = "changed"
 		cloned.SecretEnvKeys[0] = "changed"
@@ -582,6 +582,16 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			runtime.beginServer.URL != "https://workspace.linear.example/mcp" ||
 			runtime.beginServer.Auth.ClientID != "workspace-client" {
 			t.Fatalf("workspace begin resolution = target:%#v server:%#v", runtime.beginTarget, runtime.beginServer)
+		}
+
+		// Invariant: digest selection without a consent provider fails before OAuth.
+		// Owner: Settings auth; canonical suite: TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget.
+		_, err = service.BeginMCPAuth(ctx, MCPAuthBeginRequest{
+			MCPAuthTargetRequest: workspaceTarget,
+			DefinitionDigest:     "observed-definition",
+		})
+		if !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("digest selection without consent provider = %v, want unavailable", err)
 		}
 
 		status, err := service.ExchangeMCPAuth(ctx, MCPAuthExchangeRequest{
@@ -1206,8 +1216,8 @@ func (f *blockingMCPRuntimeProvider) startedCount() int {
 
 func mcpItemNames(items []MCPServerItem) []string {
 	names := make([]string, 0, len(items))
-	for _, item := range items {
-		names = append(names, item.Name)
+	for i := range items {
+		names = append(names, items[i].Name)
 	}
 	return names
 }

@@ -2,6 +2,7 @@ import { useDataScope, useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
+import { requestSessionDelete } from "../../hooks/use-session-delete-request";
 import {
   useSessionWindowOpenSession,
   type SessionWindowSidebarTarget,
@@ -37,7 +38,6 @@ export interface SessionWindowSidebarModel {
   openSession: (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => void;
   onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
-  rowDeleteDialog: ReturnType<typeof useSessionListLifecycleActions>["deleteDialog"];
   rowProcessDialog: ReturnType<typeof useSessionListLifecycleActions>["processDialog"];
   rowRenameDialog: ReturnType<typeof useSessionListLifecycleActions>["renameDialog"];
   rowLaterDialog: ReturnType<typeof useSessionListLifecycleActions>["laterDialog"];
@@ -112,10 +112,42 @@ export function useSessionWindowSidebar({
     onSelectSession,
     openSession,
     onNewSession: options => openForAgent("", options),
-    sessionActions: lifecycle.actions,
-    rowDeleteDialog: lifecycle.deleteDialog,
+    sessionActions: hostedDeleteActions(lifecycle.actions),
     rowProcessDialog: lifecycle.processDialog,
     rowRenameDialog: lifecycle.renameDialog,
     rowLaterDialog: lifecycle.laterDialog,
+  };
+}
+
+type DeleteManySelection = Parameters<
+  NonNullable<SessionLifecycleActionHandlers["onDeleteMany"]>
+>[1];
+
+/**
+ * The rail's deletes belong to the shell, which outlives this window: the daemon
+ * reconciles a deleted session's window before the DELETE answers, so a dialog
+ * owned by the window would leave with it.
+ */
+function hostedDeleteActions(
+  actions: SessionLifecycleActionHandlers
+): SessionLifecycleActionHandlers {
+  const onDeleteMany = actions.onDeleteMany;
+  return {
+    ...actions,
+    onDelete: session => requestSessionDelete({ sessions: [session], bulk: false }),
+    ...(onDeleteMany
+      ? {
+          onDeleteMany: (
+            sessions: readonly SessionPayload[],
+            onSelectionChange?: DeleteManySelection
+          ) => {
+            requestSessionDelete({
+              sessions,
+              bulk: true,
+              ...(onSelectionChange ? { onSelectionChange } : {}),
+            });
+          },
+        }
+      : {}),
   };
 }

@@ -1906,6 +1906,14 @@ func TestInstanceCallApproval(t *testing.T) {
 		{"hook enables checks", ToolIDAgentInstanceChecks, `{"enabled":false}`, `{"enabled":true}`, PermissionModeApproveReads, false, false},
 		{"deny all", ToolIDAgentInstancePause, `{}`, "", PermissionModeDenyAll, false, false},
 		{"explicit deny", ToolIDAgentInstancePause, `{}`, "", PermissionModeApproveReads, true, false},
+		{"cleanup preview", ToolIDSessionCleanup, `{}`, "", PermissionModeApproveEdits, false, true},
+		{"cleanup explicit preview", ToolIDSessionCleanup, `{"action":"plan","dry_run":true}`, "", PermissionModeApproveReads, false, true},
+		{"cleanup delete", ToolIDSessionCleanup, `{"dry_run":false}`, "", PermissionModeAuto, false, false},
+		{"cleanup status", ToolIDSessionCleanup, `{"action":"status"}`, "", PermissionModeApproveReads, false, true},
+		{"cleanup stop", ToolIDSessionCleanup, `{"action":"stop"}`, "", PermissionModeApproveEdits, false, true},
+		{"cleanup stop at approve-reads", ToolIDSessionCleanup, `{"action":"stop"}`, "", PermissionModeApproveReads, false, false},
+		{"hook escalates cleanup preview", ToolIDSessionCleanup, `{}`, `{"dry_run":false}`, PermissionModeApproveEdits, false, false},
+		{"cleanup at deny all", ToolIDSessionCleanup, `{}`, "", PermissionModeDenyAll, false, false},
 	} {
 		t.Run("Should enforce input approval for "+tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1914,8 +1922,12 @@ func TestInstanceCallApproval(t *testing.T) {
 			d.ReadOnly, d.OpenWorld, d.RequiresInteraction = false, false, false
 			d.Risk = RiskMutating
 			d.Destructive = tc.id == ToolIDAgentInstanceArchive
+			if tc.id == ToolIDSessionCleanup {
+				d.Risk, d.Destructive = RiskDestructive, true
+			}
 			d.InputSchema = json.RawMessage(
-				`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"}},"additionalProperties":false}`,
+				`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},` +
+					`"action":{"type":"string"}},"additionalProperties":false}`,
 			)
 			provider := providerWithDescriptors(d.Source, d)
 			called := false

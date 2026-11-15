@@ -22,6 +22,7 @@ import type { SessionFolderDialogState } from "../../hooks/use-session-list-fold
 import type { WorkspaceFolderPayload } from "../../types";
 import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
 import { AlwaysOnListTop } from "../always-on/always-on-list-top";
+import { ArchivedCleanup } from "./archived-cleanup";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListTotals } from "./session-list-totals";
 import { SessionListGroups } from "./session-list-groups";
@@ -247,6 +248,7 @@ export function SessionList({
             />
           ) : null}
           <SessionListTotals totals={view.totals} testIdPrefix={testIdPrefix} />
+          <ArchivedCleanup view={view} testIdPrefix={testIdPrefix} />
           {bulk.folderMove ? (
             <SessionListSelectionFolders folders={bulk.folderMove} active={bulk.active} />
           ) : null}

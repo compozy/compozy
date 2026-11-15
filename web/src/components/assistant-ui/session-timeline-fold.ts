@@ -16,6 +16,7 @@ import {
   isFileMutationUnverifiedEvent,
 } from "@/systems/session/lib/runtime-activity-notice";
 import { CLARIFY_EVENT_TYPE } from "@/systems/session/lib/clarify-event";
+import { MCP_RELOADED_EVENT_TYPE } from "@/systems/session/lib/session-mcp-reload-event";
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 import { aggregateChangedFiles } from "./session-timeline-changed-files";
 import { summarizeToolGroup } from "./session-timeline-summary";
@@ -204,6 +205,8 @@ function isPersistentTurnRow(row: SessionRow): boolean {
     const data = part.data;
     if (!isAgentEventPayload(data)) return false;
     if (data.type === CLARIFY_EVENT_TYPE || isSessionErrorEvent(data)) return true;
+    // A reload changes what the session can use from here on, like a compaction.
+    if (data.type === MCP_RELOADED_EVENT_TYPE) return true;
     // The verifier contradicts a completion claim: keep that unresolved failure
     // visible beside the answer even when ordinary work is folded away.
     return isFileMutationUnverifiedEvent(data);

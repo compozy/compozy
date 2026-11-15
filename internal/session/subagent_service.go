@@ -27,7 +27,7 @@ type subagentRuntime interface {
 	Resolve(context.Context, *Info, SubagentTarget) (SubagentTarget, error)
 	PermissionLimit(context.Context, *Info, SubagentTarget) (SubagentPermissionLimit, error)
 	Capabilities(context.Context, *Info) ([]SubagentAgentOption, []SubagentProviderOption, error)
-	Spawn(context.Context, SpawnOpts) (string, error)
+	Spawn(context.Context, *SpawnOpts) (string, error)
 	// Admit sends the first prompt. resume revives a stopped child (recovery
 	// only); delegation never resumes one, since only a cancel can stop it.
 	Admit(ctx context.Context, row store.SessionSubagent, text string, resume bool) error
@@ -37,6 +37,9 @@ type subagentRuntime interface {
 	// DeleteSession permanently removes a child session and its persisted history.
 	// A session that is already gone is reported as success.
 	DeleteSession(context.Context, string) error
+	// TerminationBudget covers every phase of the cooperative stop ladder, so a
+	// caller that bounds a stop never fires its deadline before forced termination.
+	TerminationBudget() time.Duration
 	Result(context.Context, string) (subagentTurnResult, error)
 	QueueWake(context.Context, store.SessionSubagentWake, []store.SessionSubagent) (string, error)
 	CancelWake(context.Context, store.SessionSubagentWake) error

@@ -20,6 +20,7 @@ export {
 
 import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
 import { CLARIFY_EVENT_TYPE } from "@/systems/session/lib/clarify-event";
+import { MCP_RELOADED_EVENT_TYPE } from "@/systems/session/lib/session-mcp-reload-event";
 import {
   isRuntimeActivityEvent,
   isSessionErrorEvent,
@@ -327,6 +328,7 @@ function isProgressTick(part: SessionTimelineDataPart): boolean {
   if (!isAgentEventPayload(data)) return false;
   if (data.type === "runtime_progress") return true;
   if (data.type === CLARIFY_EVENT_TYPE) return false;
+  if (data.type === MCP_RELOADED_EVENT_TYPE) return false;
   if (isTranscriptMarkerEvent(data)) return isSilentTranscriptMarker(data);
   if (isSessionErrorEvent(data)) return false;
   if (isRuntimeActivityEvent(data)) return false;

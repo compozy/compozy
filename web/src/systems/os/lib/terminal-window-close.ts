@@ -3,6 +3,7 @@ import { toast } from "@compozy/ui";
 import type { QueryClient } from "@tanstack/react-query";
 import type { TerminalInfo } from "@/systems/terminal";
 import {
+  GLOBAL_DESKTOP_WORKSPACE_ID,
   WINDOW_BINDING_SEARCH_KEY,
   focusedWorkspaceSelector,
   windowDataScope,
@@ -17,6 +18,14 @@ interface CloseConfirmation {
 /** Tracks one launcher across workspace and destination-profile changes. */
 export const terminalWindowCreateKey = (windowId: string) =>
   ["terminal-window-create", windowId] as const;
+
+/**
+ * The All projects launcher's create in that window: a child of the window's
+ * key, so close admission sees it while the project-window creation state,
+ * which reads its own variables under the exact key, does not.
+ */
+export const terminalAggregateCreateKey = (windowId: string) =>
+  [...terminalWindowCreateKey(windowId), "aggregate"] as const;
 
 /** Operator-only orchestration; native window close remains view-only. */
 export class TerminalWindowClose {
@@ -36,11 +45,15 @@ export class TerminalWindowClose {
         if (
           windows.some(
             window =>
-              !window.instanceKey &&
-              queryClient.isMutating({
-                mutationKey: terminalWindowCreateKey(window.id),
-                exact: true,
-              }) > 0
+              // The All projects launcher's create in this window, whatever it shows.
+              queryClient.isMutating({ mutationKey: terminalAggregateCreateKey(window.id) }) > 0 ||
+              // A project launcher's create; a window already showing a terminal
+              // stays closable while it opens another.
+              (!window.instanceKey &&
+                queryClient.isMutating({
+                  mutationKey: terminalWindowCreateKey(window.id),
+                  exact: true,
+                }) > 0)
           )
         ) {
           throw new Error("The terminal is still opening. Try closing it again when it is ready.");
@@ -51,7 +64,13 @@ export class TerminalWindowClose {
           const target = focusedWorkspaceSelector(
             windowDataScope(workspaceId, window.route.search[WINDOW_BINDING_SEARCH_KEY])
           );
-          if (!target) throw new Error("Select the terminal's workspace before closing it.");
+          if (!target) {
+            // An unbound window under All projects never resolved its terminal to
+            // a scope (the aggregate binds every terminal it finds), so there is
+            // nothing to terminate from it: close the view, as for terminal_not_found.
+            if (workspaceId === GLOBAL_DESKTOP_WORKSPACE_ID) continue;
+            throw new Error("Select the terminal's workspace before closing it.");
+          }
           const ids = scopes.get(target) ?? new Set<string>();
           ids.add(window.instanceKey);
           scopes.set(target, ids);

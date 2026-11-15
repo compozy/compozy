@@ -1,0 +1,180 @@
+package cli
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
+)
+
+func TestResolveClientRequestTimeout(t *testing.T) {
+	t.Parallel()
+
+	staticConfig := func(timeout time.Duration) func() (compozyconfig.Config, error) {
+		return func() (compozyconfig.Config, error) {
+			return compozyconfig.Config{Client: compozyconfig.ClientConfig{RequestTimeout: timeout}}, nil
+		}
+	}
+	failingConfig := func() (compozyconfig.Config, error) {
+		return compozyconfig.Config{}, errors.New("config unavailable")
+	}
+	env := func(value string) func(string) string {
+		return func(string) string { return value }
+	}
+
+	tests := []struct {
+		name            string
+		getenv          func(string) string
+		loadConfig      func() (compozyconfig.Config, error)
+		want            time.Duration
+		wantErrContains string
+	}{
+		{
+			name:       "Should fall back to the default without config or env",
+			getenv:     env(""),
+			loadConfig: staticConfig(0),
+			want:       defaultUnixSocketClientTimeout,
+		},
+		{
+			name:       "Should read the config key",
+			getenv:     env(""),
+			loadConfig: staticConfig(2 * time.Minute),
+			want:       2 * time.Minute,
+		},
+		{
+			name:       "Should let the environment override the config key",
+			getenv:     env("4m"),
+			loadConfig: staticConfig(2 * time.Minute),
+			want:       4 * time.Minute,
+		},
+		{
+			name:       "Should ignore a config load failure and keep the default",
+			getenv:     env(""),
+			loadConfig: failingConfig,
+			want:       defaultUnixSocketClientTimeout,
+		},
+		{
+			name:            "Should reject an environment value below the floor",
+			getenv:          env("1s"),
+			loadConfig:      staticConfig(0),
+			wantErrContains: "must be between",
+		},
+		{
+			name:            "Should reject an environment value above the ceiling",
+			getenv:          env("2h"),
+			loadConfig:      staticConfig(0),
+			wantErrContains: "must be between",
+		},
+		{
+			name:            "Should reject an unparsable environment value",
+			getenv:          env("soon"),
+			loadConfig:      staticConfig(0),
+			wantErrContains: "parse COMPOZY_CLIENT_TIMEOUT",
+		},
+		{
+			name:            "Should reject a non-positive environment value",
+			getenv:          env("-1m"),
+			loadConfig:      staticConfig(0),
+			wantErrContains: "must be positive",
+		},
+		{
+			name:   "Should let the environment override a rejected config value",
+			getenv: env("2m"),
+			loadConfig: func() (compozyconfig.Config, error) {
+				return compozyconfig.Config{}, fmt.Errorf(
+					"load config: %w",
+					&compozyconfig.ClientRequestTimeoutError{Value: time.Second},
+				)
+			},
+			want: 2 * time.Minute,
+		},
+		{
+			name:   "Should surface an out-of-range config value instead of the default",
+			getenv: env(""),
+			loadConfig: func() (compozyconfig.Config, error) {
+				return compozyconfig.Config{}, fmt.Errorf(
+					"load config: %w",
+					&compozyconfig.ClientRequestTimeoutError{Value: time.Second},
+				)
+			},
+			wantErrContains: "client.request_timeout",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := resolveClientRequestTimeout(tt.getenv, tt.loadConfig)
+			if tt.wantErrContains != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf(
+						"resolveClientRequestTimeout() error = %v, want it to contain %q",
+						err,
+						tt.wantErrContains,
+					)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveClientRequestTimeout() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("timeout = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCommandDepsApplyResolvedRequestTimeout(t *testing.T) {
+	// Invariant: the production loader's timeout rejection reaches the CLI client factory.
+	t.Run("Should reject an out-of-range timeout from the default config loader", func(t *testing.T) {
+		t.Setenv("COMPOZY_HOME", t.TempDir())
+		t.Setenv(ClientRequestTimeoutEnv, "")
+		homePaths, err := compozyconfig.ResolveHomePaths()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(homePaths.ConfigFile, []byte("[client]\nrequest_timeout = \"1s\"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		client, err := (commandDeps{}).withDefaults().newClient(LocalClientTarget("/tmp/compozy.sock"))
+		var timeoutErr *compozyconfig.ClientRequestTimeoutError
+		if !errors.As(err, &timeoutErr) || timeoutErr.Value != time.Second {
+			t.Fatalf("newClient() error = %v, want ClientRequestTimeoutError for 1s", err)
+		}
+		if client != nil {
+			t.Fatalf("newClient() = %T, want no client for rejected configuration", client)
+		}
+	})
+
+	t.Run("Should apply the resolved timeout only to unary requests", func(t *testing.T) {
+		t.Parallel()
+
+		deps := commandDeps{
+			getenv: func(string) string { return "3m" },
+			loadConfig: func() (compozyconfig.Config, error) {
+				return compozyconfig.Config{}, nil
+			},
+		}
+
+		client, err := deps.withDefaults().newClient(LocalClientTarget("/tmp/compozy.sock"))
+		if err != nil {
+			t.Fatalf("newClient() error = %v", err)
+		}
+		udsClient, ok := client.(*daemonClient)
+		if !ok {
+			t.Fatalf("newClient() = %T, want *daemonClient", client)
+		}
+		if want := 3 * time.Minute; udsClient.httpClient.Timeout != want {
+			t.Fatalf("httpClient timeout = %v, want %v", udsClient.httpClient.Timeout, want)
+		}
+		if udsClient.streamClient.Timeout != 0 {
+			t.Fatalf("streamClient timeout = %v, want streams left untimed", udsClient.streamClient.Timeout)
+		}
+	})
+}

@@ -177,7 +177,7 @@ func (e *CallExecutor) projectionSourceKey(
 	if err != nil {
 		return "", false
 	}
-	return mcpProjectionSourceKey(source, e.authorizationHeader(ctx, resolved)), true
+	return mcpProjectionSourceKey(source, e.authorizationHeader(ctx, &resolved)), true
 }
 
 func (e *CallExecutor) pruneToolProjectionStatesLocked(now time.Time) {
@@ -208,7 +208,7 @@ func mcpProjectionSourceKey(source toolspkg.SourceRef, authorizationHeader strin
 
 func (e *CallExecutor) toolCacheKey(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	protocolVersion string,
 	authorizationHeader string,
 ) (string, error) {
@@ -246,7 +246,7 @@ func (e *CallExecutor) toolCacheKey(
 // the protocol the pool negotiated with the same launch identity.
 func (e *CallExecutor) cachedPooledStdioTools(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	authorizationHeader string,
 ) ([]toolspkg.MCPToolDescriptor, string, bool) {
 	if e.stdioPool == nil || resolved.Server.EffectiveTransport() != compozyconfig.MCPServerTransportStdio {

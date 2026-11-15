@@ -77,6 +77,7 @@ type ReplyWatchPayload struct {
 }
 
 type SessionPayload struct {
+	MCPSummary               *session.MCPSummary                  `json:"mcp_summary,omitempty"`
 	EffectivePermissions     string                               `json:"effective_permissions"`
 	PermissionModeDegraded   bool                                 `json:"permission_mode_degraded"`
 	LinkedWork               *SessionLinkedWorkSummary            `json:"linked_work,omitempty"`
