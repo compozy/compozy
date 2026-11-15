@@ -119,6 +119,7 @@ export function DraftComposer({
   disabled = false,
   above,
   environmentControl,
+  mcpControl,
   onSend,
   runtime = DEFAULT_RUNTIME,
 }: {
@@ -130,6 +131,8 @@ export function DraftComposer({
   above?: ReactNode;
   /** The environment chip the real composer carries beside the attach button. */
   environmentControl?: ReactNode;
+  /** The MCP control, last in the tool group as in the real composer. */
+  mcpControl?: ReactNode;
   onSend?: (text: string) => void;
   /** The session's runtime and model, shown in the composer's runtime picker. */
   runtime?: DraftRuntime;
@@ -170,6 +173,7 @@ export function DraftComposer({
                     }}
                     busyInputSteerDelivery={null}
                     environmentControl={environmentControl}
+                    mcpControl={mcpControl}
                     handleInterruptAction={ignore}
                     handleQueueAction={ignore}
                     handleSteerAction={ignore}

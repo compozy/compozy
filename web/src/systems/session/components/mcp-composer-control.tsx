@@ -263,31 +263,39 @@ export function MCPComposerControl({
 }: MCPComposerControlProps) {
   const { summary, data, failed = false } = body;
   if (summary === null) return null;
-  const warn = summary.attention > 0 || data?.last_reload?.outcome === "failed";
+  const reloadFailed = data?.last_reload?.outcome === "failed";
+  const warn = summary.attention > 0 || reloadFailed;
+  const label = sessionMCPControlLabel(summary, { reloadFailed });
+  // Icon-only and neutral like its toolbar neighbours; the name and tooltip carry the counts and
+  // states. Two independent dots repeat them visually: attention top-right, a pending change
+  // bottom-right.
   return (
     <Popover defaultOpen={defaultOpen} onOpenChange={open => onOpenChange?.(open)}>
       <PopoverTrigger
         render={
           <InputGroupButton
             type="button"
-            size="tool"
-            aria-label={sessionMCPControlLabel(summary)}
+            size="tool-icon"
+            aria-label={label}
+            title={label}
             data-testid="composer-mcp-button"
-            className={cn(
-              "relative shrink-0 data-[popup-open]:bg-surface-2",
-              warn ? "text-warning" : "text-muted-foreground"
-            )}
+            className="relative shrink-0 data-[popup-open]:bg-surface-2"
           />
         }
       >
-        <Plug aria-hidden="true" className="size-4" />
-        <span className="text-transcript-meta">MCP</span>
-        <span className="font-mono text-mono-id tabular-nums">{summary.usable}</span>
+        <Plug aria-hidden="true" />
+        {warn ? (
+          <span
+            aria-hidden="true"
+            data-testid="composer-mcp-attention"
+            className="absolute top-1 right-1 size-1.5 rounded-full bg-warning"
+          />
+        ) : null}
         {summary.pending_reload ? (
           <span
             aria-hidden="true"
             data-testid="composer-mcp-pending"
-            className="absolute top-1 right-1 size-1.5 rounded-full bg-info"
+            className="absolute right-1 bottom-1 size-1.5 rounded-full bg-info"
           />
         ) : null}
       </PopoverTrigger>

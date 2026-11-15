@@ -86,7 +86,7 @@ export function SessionMCPStage({
           ) : null}
         </TranscriptColumn>
         <DraftComposer
-          environmentControl={
+          mcpControl={
             <MCPComposerControl
               summary={sessionMCPSummaryFixture(data)}
               data={loading ? null : data}
