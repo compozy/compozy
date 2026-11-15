@@ -156,11 +156,12 @@ func stopLoopGateCommandTree(cmd *exec.Cmd, waitCh <-chan error, grace time.Dura
 func killLoopGateSupervisor(cmd *exec.Cmd, waitCh <-chan error) error {
 	groupErr := procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL)
 	if groupErr != nil {
-		if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		err := procutil.Signal(cmd.Process.Pid, syscall.SIGKILL)
+		if err != nil && !procutil.IsProcessMissingError(err) {
 			groupErr = errors.Join(groupErr, fmt.Errorf("daemon: kill gate supervisor: %w", err))
 		}
 	}
-	timer := time.NewTimer(loopGateCommandOutputDrain)
+	timer := time.NewTimer(cmd.WaitDelay + loopGateCommandProcessGroupWait)
 	defer timer.Stop()
 	select {
 	case waitErr := <-waitCh:
@@ -184,9 +185,13 @@ func loopGateCommandResult(code int, statusErr, cleanupErr error) error {
 	return nil
 }
 
-// signalFreeShellError drops the shell's own signal exit status: the group drain above decides
-// whether the tree is actually gone, and an ExitError here would mask the interruption cause.
+// signalFreeShellError drops the supervisor's signal status and bounded output-drain
+// result. Group cleanup proves ownership cleanup; an escaped pipe holder cannot
+// replace the authored status or the execution's interruption cause.
 func signalFreeShellError(err error) error {
+	if errors.Is(err, exec.ErrWaitDelay) {
+		return nil
+	}
 	if _, ok := errors.AsType[*exec.ExitError](err); ok {
 		return nil
 	}

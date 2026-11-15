@@ -819,6 +819,57 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 		requireLoopGateProcessGone(t, childPID)
 	})
 
+	// Invariant: an out-of-group pipe holder cannot replace an authored exit
+	// status with an infrastructure error. Owner: daemon command adapter suite.
+	t.Run("Should preserve command status when a detached process holds captured output", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		runner := loopGateCommandRunner{
+			workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{
+					"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: root}},
+				},
+			},
+			// Exercise a configured drain longer than the old fixed join bound.
+			drainTimeout: 3 * time.Second,
+		}
+		t.Cleanup(func() {
+			data, err := os.ReadFile(filepath.Join(root, "detached.pid"))
+			if errors.Is(err, os.ErrNotExist) {
+				return
+			}
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			pid, err := strconv.Atoi(string(data))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			process, err := os.FindProcess(pid)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if err := process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Error(err)
+			}
+			requireLoopGateProcessGone(t, pid)
+		})
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command",
+			Command: `COMPOZY_GATE_DETACHED_HOLDER=1 "$COMPOZY_BIN" ` +
+				`-test.run '^TestLoopGateDetachedPipeHolderProcess$'; exit 3`,
+		})
+		if err != nil || result.ExitCode != 3 {
+			t.Fatalf("RunCommand(detached holder) = %#v, %v; want exit 3", result, err)
+		}
+		if _, err := os.Stat(filepath.Join(root, "detached.pid")); err != nil {
+			t.Fatalf("detached pipe holder did not start: %v", err)
+		}
+	})
+
 	t.Run("Should reap descendants the shell leaves running after it exits", func(t *testing.T) {
 		t.Parallel()
 
@@ -2746,4 +2797,33 @@ func testLoopGateCommandRestartCleanup(t *testing.T, killSupervisorOnly bool) {
 	if err := procutil.WaitForProcessGroupIDExit(record.ProcessGroupID, time.Second); err != nil {
 		t.Fatalf("gate group survived restart recovery: %v", err)
 	}
+}
+
+// TestLoopGateDetachedPipeHolderProcess runs only in the authored command's
+// helper process. Its child deliberately escapes the gate group while inheriting
+// stdout/stderr; the parent test owns that child's explicit cleanup.
+func TestLoopGateDetachedPipeHolderProcess(_ *testing.T) {
+	if os.Getenv("COMPOZY_GATE_DETACHED_HOLDER") != "1" {
+		return
+	}
+	//nolint:noctx // The subprocess must survive this helper's intentional exit.
+	cmd := exec.Command("sh", "-c", "exec sleep 600")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	procutil.ConfigureCommandSession(cmd)
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile("detached.pid", []byte(strconv.Itoa(cmd.Process.Pid)), 0o600); err != nil {
+		if killErr := cmd.Process.Kill(); killErr != nil {
+			fmt.Fprintln(os.Stderr, killErr)
+		}
+		if _, waitErr := cmd.Process.Wait(); waitErr != nil {
+			fmt.Fprintln(os.Stderr, waitErr)
+		}
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
