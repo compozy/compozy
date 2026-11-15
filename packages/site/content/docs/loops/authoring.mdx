@@ -94,10 +94,10 @@ The completed gate attempt and machine verdict are saved when evaluation finishe
 remain separate.
 A successful gate attempt means the evaluation completed; consult its verdict for approval or rejection.
 Every command must keep its work in the foreground: the entire local process group is cleaned up
-after command completion, including after a successful exit. Background helpers cannot outlive the gate. A gate does not need a longer lease setting to run beyond five minutes.
+after command completion, including after a successful exit. Helpers that remain in the gate process group are included in cleanup. A gate does not need a longer lease setting to run beyond five minutes.
 
 Cancel stops the gate's shell and its process group, escalating from SIGTERM to SIGKILL when needed.
-Daemon restart recovery also reaps registered gate processes before admitting replacement work.
+Daemon restart recovery reaps registered gate groups whose leader identity still validates before admitting replacement work.
 Run containers in the foreground: do not use `docker run -d`. Resources held by a container daemon
 or remote host need author-owned cleanup, for example `docker run --rm` with a cleanup trap:
 

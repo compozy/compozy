@@ -88,9 +88,6 @@ func evaluateDefinitionOfDone(
 	if err != nil {
 		return definitionOfDoneEvaluation{}, err
 	}
-	if clock == nil {
-		clock = time.Now
-	}
 	verdict, err := evaluator.Evaluate(ctx, runtimeGate, gateInput)
 	if err != nil {
 		return definitionOfDoneEvaluation{}, err
@@ -106,7 +103,7 @@ func evaluateDefinitionOfDone(
 	return definitionOfDoneEvaluation{
 		terminal: result,
 		gate: &definitionOfDoneGateEvaluation{
-			runtime: runtimeGate, verdict: verdict, control: control, at: clock().UTC(),
+			runtime: runtimeGate, verdict: verdict, control: control, at: gateEvaluationTime(clock),
 		},
 	}, nil
 }

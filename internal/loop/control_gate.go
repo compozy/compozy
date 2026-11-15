@@ -82,25 +82,14 @@ func evaluateGateNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	if clock == nil {
-		clock = time.Now
-	}
-	started := clock().UTC()
+	started := gateEvaluationTime(clock)
 	verdict, err := evaluateGateVerdict(ctx, evaluator, runtimeGate, gateInput)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	if evaluations != nil {
-		endedAt := clock().UTC()
-		evaluations.recordWithControl(runtimeGate, output.ItemIndex, verdict, control, endedAt)
-		if verdict.Outcome != gate.VerdictOutcomeAwaitingApproval {
-			evaluations.attempts = append(evaluations.attempts, NodeAttempt{
-				LoopRunID: run.ID, Generation: generation, NodeID: NodeID(node.ID),
-				ItemIndex: output.ItemIndex, Attempt: max(1, control.GateRevisions[output.ItemIndex]+1),
-				Disposition: AttemptSucceeded, StartedAt: started, EndedAt: &endedAt,
-			})
-		}
-	}
+	evaluations.recordCompleted(
+		run, generation, runtimeGate, output.ItemIndex, verdict, control, started, gateEvaluationTime(clock),
+	)
 	return applyGateVerdictRoute(resolved, topology, output, node, outputs, evaluations, verdict)
 }
 

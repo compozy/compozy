@@ -49,6 +49,30 @@ func (c *gateEvaluationCollector) recordWithControl(
 	})
 }
 
+func gateEvaluationTime(clock func() time.Time) time.Time {
+	if clock == nil {
+		return time.Now().UTC()
+	}
+	return clock().UTC()
+}
+
+func (c *gateEvaluationCollector) recordCompleted(
+	run Run, generation int, runtime gate.Gate, itemIndex int, verdict gate.Verdict,
+	control NodeControl, started, ended time.Time,
+) {
+	if c == nil {
+		return
+	}
+	c.recordWithControl(runtime, itemIndex, verdict, control, ended)
+	if verdict.Outcome != gate.VerdictOutcomeAwaitingApproval {
+		c.attempts = append(c.attempts, NodeAttempt{
+			LoopRunID: run.ID, Generation: generation, NodeID: NodeID(runtime.ID),
+			ItemIndex: itemIndex, Attempt: max(1, control.GateRevisions[itemIndex]+1),
+			Disposition: AttemptSucceeded, StartedAt: started, EndedAt: &ended,
+		})
+	}
+}
+
 func (c *gateEvaluationCollector) recordEvaluation(evaluation gateEvaluation) {
 	if c == nil {
 		return
