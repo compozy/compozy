@@ -2413,7 +2413,10 @@ Verify the applied result through `compozy config reload -o json` and
 | Field      | Type       | Default                  | Valid values                                            | Description                                                           |
 | ---------- | ---------- | ------------------------ | ------------------------------------------------------- | --------------------------------------------------------------------- |
 | `enabled`  | boolean    | `true`                   | `true` or `false`                                       | Enables `github:` installs and the GitHub arm of source-union search. |
-| `base_url` | string URL | `https://api.github.com` | `http` or `https` URL with host. Required when enabled. | GitHub API base URL. HTTP logs a warning and is usable only on `127.0.0.1`, `::1`, or `localhost`; other HTTP endpoints fail with HTTPS guidance.           |
+| `base_url` | string URL | `https://api.github.com` | `http` or `https` URL with host. Required when enabled. | GitHub API base URL. `http` is accepted but logs a warning.           |
+
+HTTP is usable only on `127.0.0.1`, `::1`, or `localhost`; other HTTP GitHub API endpoints
+fail before any request with guidance to use HTTPS.
 
 The GitHub client uses `GITHUB_TOKEN` from the daemon environment, then the daemon user's
 `gh auth token --hostname github.com` login for the exact public `https://api.github.com` origin,
