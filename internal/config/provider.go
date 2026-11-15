@@ -149,6 +149,7 @@ type ProviderConfig struct {
 	AuthStatusCmd     string               `toml:"auth_status_command,omitempty"`
 	AuthLoginCmd      string               `toml:"auth_login_command,omitempty"`
 	AuthACPMethod     string               `toml:"auth_acp_method,omitempty"`
+	RuntimeMCP        string               `toml:"runtime_mcp,omitempty"`
 	SessionMCP        *bool                `toml:"session_mcp,omitempty"`
 	// Enabled gates selection and new launches; nil means enabled (see EffectiveEnabled).
 	Enabled *bool `toml:"enabled,omitempty"`

@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
@@ -222,6 +223,7 @@ func (h *BaseHandlers) resolveCreateSessionParent(
 
 // GetSession returns one session snapshot.
 func (h *BaseHandlers) GetSession(c *gin.Context) {
+	c.Request = c.Request.WithContext(toolspkg.WithCachedMCPProjection(c.Request.Context()))
 	_, _, info, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
 		return
@@ -239,6 +241,10 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 
 	payload.Diagnostics = MissingWorkspaceDiagnostics(c.GetString("workspace_root_missing"))
 	h.withSessionWorkingDir(c.Request.Context(), &payload)
+	if err := h.withSessionMCPSummary(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
 	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
 }
 

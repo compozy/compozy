@@ -747,7 +747,23 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
   },
 ];
 
-export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
+type MCPFixtureInput = Omit<SettingsMCPServerEntry, "approval" | "callable_in_sessions"> &
+  Partial<Pick<SettingsMCPServerEntry, "approval" | "callable_in_sessions">>;
+
+/** Servers added through CompozyOS need no approval and are callable unless a fixture says otherwise. */
+function withMCPConsent(entries: MCPFixtureInput[]): SettingsMCPServerEntry[] {
+  return entries.map(entry => ({
+    ...entry,
+    approval: entry.approval ?? {
+      required: false,
+      state: "not_required",
+      definition_digest: `sha256:${entry.owner ?? "manual"}-${entry.name}`,
+    },
+    callable_in_sessions: entry.callable_in_sessions ?? true,
+  }));
+}
+
+export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = withMCPConsent([
   {
     name: "filesystem",
     transport: "stdio",
@@ -771,7 +787,7 @@ export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
       effective_source: { kind: "global-mcp-sidecar", scope: "user" },
     },
   },
-];
+]);
 
 export const settingsHookFixtures: SettingsHookEntry[] =
   settingsHooksExtensionsSectionFixture.hooks ?? [];
@@ -800,7 +816,7 @@ function mcpConfigSource(kind: string, scope: "user" | "profile" | "workspace") 
   } as SettingsMCPServerEntry["source_metadata"];
 }
 
-export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
+export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = withMCPConsent([
   {
     name: "github-local",
     transport: "stdio",
@@ -1033,7 +1049,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     scope: "user",
     source_metadata: mcpConfigSource("global-config", "user"),
   },
-];
+]);
 
 /**
  * Owner-aware rows for Settings › MCP servers (task_04): a manual `github` beside the
@@ -1041,7 +1057,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
  * `github.github`, OAuth needing login, with a stored override), plus a running
  * extension server whose runtime name kept the plain manifest name.
  */
-export const mcpExtensionServerFixtures: SettingsMCPServerEntry[] = [
+export const mcpExtensionServerFixtures: SettingsMCPServerEntry[] = withMCPConsent([
   {
     name: "github",
     transport: "stdio",
@@ -1116,7 +1132,7 @@ export const mcpExtensionServerFixtures: SettingsMCPServerEntry[] = [
       effective_source: { kind: "extension", scope: "user" },
     },
   },
-];
+]);
 
 export const mcpOwnerCollectionFixture = {
   available_scopes: ["user", "workspace"],

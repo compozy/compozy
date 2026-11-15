@@ -265,14 +265,17 @@ type ErrorCode string
 
 // ErrorPayload is a daemon API value.
 type ErrorPayload struct {
-	Blockers      []WorkspaceArchiveBlocker `json:"blockers,omitempty"`
-	Error         string                    `json:"error"`
-	Code          string                    `json:"code,omitempty"`
-	CurrentTurnID string                    `json:"current_turn_id,omitempty"`
-	Details       map[string]string         `json:"details,omitempty"`
-	Diagnostic    *DiagnosticItem           `json:"diagnostic,omitzero"`
-	ConfigPath    string                    `json:"config_path,omitempty"`
-	UnknownKeys   []string                  `json:"unknown_keys,omitempty"`
+	Retryable       bool                      `json:"retryable,omitzero"`
+	ClientMessageID string                    `json:"client_message_id,omitempty"`
+	ProviderError   string                    `json:"provider_error,omitempty"`
+	Blockers        []WorkspaceArchiveBlocker `json:"blockers,omitempty"`
+	Error           string                    `json:"error"`
+	Code            string                    `json:"code,omitempty"`
+	CurrentTurnID   string                    `json:"current_turn_id,omitempty"`
+	Details         map[string]string         `json:"details,omitempty"`
+	Diagnostic      *DiagnosticItem           `json:"diagnostic,omitzero"`
+	ConfigPath      string                    `json:"config_path,omitempty"`
+	UnknownKeys     []string                  `json:"unknown_keys,omitempty"`
 }
 
 // ErrorPolicy is a daemon API value.

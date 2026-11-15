@@ -60,9 +60,14 @@ func (d *Dispatcher) dispatchAgentSession(
 	}
 
 	createOpts := d.createOpts(req)
+	retry := req.retryConfig()
+	createOpts.DiscardStartFailureWhen = func(err error) bool {
+		return ctx.Err() == nil && retry.Strategy == RetryStrategyBackoff && attempt <= retry.MaxRetries &&
+			retryableSessionStartup(err)
+	}
 	createdSession, createErr := d.sessions.Create(ctx, &(createOpts))
 	if createErr != nil {
-		return d.finishUnstartedSessionRun(ctx, req, scheduledRun, createErr)
+		return d.finishUnstartedSessionRun(ctx, req, scheduledRun, &sessionStartupError{err: createErr})
 	}
 	if createdSession == nil || strings.TrimSpace(createdSession.ID) == "" {
 		return d.finishRun(

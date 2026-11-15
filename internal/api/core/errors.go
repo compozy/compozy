@@ -20,6 +20,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/vault"
@@ -98,6 +99,9 @@ func ErrorPayloadForStatus(status int, err error, maskInternalErrors bool) contr
 func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normalizedErrorStatus {
 	if errors.Is(err, context.Canceled) {
 		return normalizedErrorStatus{status: statusClientClosedRequest, err: err}
+	}
+	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
+		return normalizedErrorStatus{status: http.StatusConflict, err: err}
 	}
 	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
 		status = http.StatusUnprocessableEntity

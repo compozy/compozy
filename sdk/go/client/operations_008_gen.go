@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// ExecuteWindowManagerCommand Execute one semantic window-manager command
+func (c *Client) ExecuteWindowManagerCommand(ctx context.Context, params ExecuteWindowManagerCommandParams, body WindowManagerCommandRequest) (*WindowManagerResult, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/commands"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerResult
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExportWindowManagerLayoutParams carries the path, query, and header parameters.
+type ExportWindowManagerLayoutParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // ExportWindowManagerLayout Export one declarative window layout
 func (c *Client) ExportWindowManagerLayout(ctx context.Context, params ExportWindowManagerLayoutParams) (*WindowManagerLayoutDocument, error) {
 	path := "/api/workspaces/{workspace_id}/window-manager/layout"
@@ -405,31 +429,4 @@ type GetAgentCoordinatorConfigParams struct {
 	XCompozySessionID string  `url:"X-Compozy-Session-ID"`
 	XCompozyAgent     string  `url:"X-Compozy-Agent"`
 	Workspace         *string `url:"workspace"`
-}
-
-// GetAgentCoordinatorConfig Read resolved coordinator config for the calling agent workspace
-func (c *Client) GetAgentCoordinatorConfig(ctx context.Context, params GetAgentCoordinatorConfigParams) (*AgentCoordinatorConfigResponse, error) {
-	path := "/api/agent/coordinator/config"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentCoordinatorConfigResponse
-	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentDefinitionSoulParams carries the path, query, and header parameters.
-type GetAgentDefinitionSoulParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

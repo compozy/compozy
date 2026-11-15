@@ -14,6 +14,7 @@ import { useSettingsMCPPage } from "@/systems/settings/hooks/use-settings-mcp-pa
 import {
   authorizeLabel,
   isExtensionOwnedMCPServer,
+  isMCPApprovalWaiting,
   MCPServersManagementBody,
   MCPServersManagementDialogs,
   SettingsPageFrame,
@@ -50,6 +51,11 @@ export function MCPSettingsPage() {
     server => authorizeLabel(server) !== null
   ).length;
   const fromExtensions = page.servers.filter(isExtensionOwnedMCPServer).length;
+  const waitingApproval = page.servers.filter(isMCPApprovalWaiting).length;
+  const fromAgents = page.runtime.snapshots.reduce(
+    (sum, snapshot) => sum + snapshot.servers.length,
+    0
+  );
 
   return (
     <SettingsPageFrame
@@ -71,6 +77,30 @@ export function MCPSettingsPage() {
                 content: (
                   <span data-testid="settings-page-mcp-extension-count">
                     {fromExtensions} from extensions
+                  </span>
+                ),
+              },
+            ]
+          : []),
+        ...(fromAgents > 0
+          ? [
+              {
+                key: "runtimes",
+                content: (
+                  <span data-testid="settings-page-mcp-runtime-count">
+                    {fromAgents} from your coding agents
+                  </span>
+                ),
+              },
+            ]
+          : []),
+        ...(waitingApproval > 0
+          ? [
+              {
+                key: "approval",
+                content: (
+                  <span data-testid="settings-page-mcp-waiting-approval">
+                    {waitingApproval} waiting for approval
                   </span>
                 ),
               },
@@ -108,8 +138,10 @@ export function MCPSettingsPage() {
           </ListingToolbar.Leading>
           <ListingToolbar.Trailing>
             <HelpTip label="About MCP servers">
-              Servers you add are edited in place. For servers an extension adds, your edits are
-              saved on top of the extension.
+              CompozyOS servers work in every session. Servers you add are edited in place; for
+              servers an extension adds, your edits are saved on top of the extension. Your coding
+              agents also load their own servers; those are listed under each agent and stay as they
+              are.
             </HelpTip>
           </ListingToolbar.Trailing>
         </ListingToolbar>

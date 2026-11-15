@@ -87,6 +87,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts *CreateOpts) (ses
 		creationIdentityPinned:   opts.CreationProfile != nil || opts.CreationIdentity != nil,
 		creationIdentityEnabled:  true,
 		discardStartFailure:      opts.DiscardStartFailure,
+		discardStartFailureWhen:  opts.DiscardStartFailureWhen,
 		parentSoulDigest:         strings.TrimSpace(opts.ParentSoulDigest),
 		derivation:               store.CloneSessionDerivation(opts.Derivation),
 		importedContext:          store.CloneSessionImportedContext(opts.ImportedContext),
@@ -214,6 +215,22 @@ func (m *Manager) createSessionLineage(
 		return "", nil, err
 	}
 	lineage, err := m.normalizeCreateOptsLineage(ctx, sessionID, sessionType, workspaceID, opts)
+	if err == nil {
+		policy := &lineage.PermissionPolicy
+		if policy.MCPServersMode == "" {
+			policy.MCPServersMode = store.PermissionInherit
+			if sessionType == SessionTypeSpawned || sessionType == SessionTypeCoordinator ||
+				(len(policy.MCPServers) > 0 && !policy.MaterializedMCPServers) {
+				policy.MCPServersMode = store.PermissionList
+			}
+		}
+		if policy.ToolsMode == "" {
+			policy.ToolsMode = store.PermissionInherit
+			if sessionType == SessionTypeSpawned || sessionType == SessionTypeCoordinator {
+				policy.ToolsMode = store.PermissionList
+			}
+		}
+	}
 	return sessionID, lineage, err
 }
 

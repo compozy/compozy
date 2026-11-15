@@ -8,7 +8,7 @@
 import { act, fireEvent, render as renderView, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 const session = {
   id: "sess-1",
@@ -127,6 +127,7 @@ vi.mock("../../../hooks/use-desktop", () => ({
 vi.mock("../../../hooks/use-os-shell", () => ({
   useOsShell: () => ({
     coordinator,
+    projection: shell.projection,
   }),
 }));
 
@@ -140,11 +141,30 @@ vi.mock("../session-window-view", () => ({
 }));
 
 import { SessionWindow } from "../session-window";
+import { LIVE_DATA_SETTLE_MS } from "../../../hooks/use-window-live-data-enabled";
+import {
+  createWindowManagerProjectionAtom,
+  type WindowManagerProjectionAtom,
+} from "../../../lib/window-manager-projection";
+import type { OsDesktopRuntimeStore } from "../../../lib/os-types";
 import { SessionNotFoundError, useArchiveSession, type SessionPayload } from "@/systems/session";
 import { archiveSession } from "@/systems/session/adapters/session-api";
 import { SessionApiError } from "@/systems/session/adapters/session-api-errors";
 
 let queryClient: QueryClient;
+
+/** The desk projection the live-data lease follows; publish after mutating `desktop`. */
+const shell: { projection: WindowManagerProjectionAtom } = {
+  projection: createWindowManagerProjectionAtom(desktopState()),
+};
+
+function desktopState(): OsDesktopRuntimeStore {
+  return { ...desktop, windows: { ...desktop.windows } } as unknown as OsDesktopRuntimeStore;
+}
+
+function publishDesktop() {
+  act(() => shell.projection.set(desktopState()));
+}
 
 function render(ui: ReactNode) {
   return renderView(ui, {
@@ -173,6 +193,7 @@ describe("SessionWindow", () => {
     sessionWindowViewSpy.mockClear();
     sessionWindowNoticeSpy.mockClear();
     sessionWindowEmptySpy.mockClear();
+    shell.projection = createWindowManagerProjectionAtom(desktopState());
     queryOptionsSpy.mockClear();
     scopedDetailSpy.mockClear();
     ownerViewSpy.mockClear();
@@ -203,15 +224,25 @@ describe("SessionWindow", () => {
         desktop.windows["session:sess-1"].shown = false;
       },
     },
-  ])("Should release live-tail ownership when $name", ({ arrange }) => {
+  ])("Should release live-tail ownership once $name settles", ({ arrange }) => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const view = render(<SessionWindow windowId="session:sess-1" />);
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ liveTailEnabled: true })
     );
 
     arrange();
+    publishDesktop();
     view.rerender(<SessionWindow windowId="session:sess-1" />);
+    // A switch the operator may only be passing through keeps the tail until it settles.
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ liveTailEnabled: true })
+    );
 
+    act(() => vi.advanceTimersByTime(LIVE_DATA_SETTLE_MS));
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ liveTailEnabled: false })
     );
@@ -249,6 +280,7 @@ describe("SessionWindow", () => {
     const view = render(<SessionWindow windowId="session:sess-1" />);
 
     desktop.focusedId = "app:marketplace";
+    publishDesktop();
     view.rerender(<SessionWindow windowId="session:sess-1" />);
 
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(

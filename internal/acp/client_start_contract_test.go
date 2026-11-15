@@ -1632,6 +1632,29 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 func TestConfigureRuntime(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should accept a confirmation published during readback without resending", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New(WithConfigSettleBudget(time.Millisecond))
+		proc := &AgentProcess{}
+		proc.setConfigOptions([]SessionConfigOption{{ID: "reasoning_effort", CurrentValueID: "medium"}})
+		requests := 0
+		err := driver.applyConfigOption(t.Context(), proc, func(context.Context) error {
+			requests++
+			return nil
+		}, func() bool {
+			options, _ := proc.configOptionsSnapshot()
+			proc.setConfigOptionCurrent("reasoning_effort", "high")
+			return options[0].CurrentValueID == "high"
+		})
+		if err != nil {
+			t.Fatalf("applyConfigOption() error = %v, want the concurrent confirmation accepted", err)
+		}
+		if requests != 1 {
+			t.Fatalf("set requests = %d, want 1", requests)
+		}
+	})
+
 	// Invariant: requested intent is not effective until provider readback confirms it.
 	t.Run("Should preserve prior effort when the provider does not confirm a change", func(t *testing.T) {
 		t.Parallel()
@@ -3540,4 +3563,30 @@ func TestClaudeLeanEnvironment(t *testing.T) {
 			t.Fatal("Claude options escaped to another provider")
 		}
 	})
+}
+
+// Invariant: Claude receives isolation options unless machine policy refuses strict configuration.
+// Owner: ACP metadata; canonical suite: client start contract (UT-070, UT-075).
+func TestClaudeRuntimeMCPIsolationMeta(t *testing.T) {
+	t.Parallel()
+	for _, managed := range []bool{false, true} {
+		for _, inputOnly := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should respect managed policy %t for input-only %t [UT-070 UT-075]", managed, inputOnly),
+				func(t *testing.T) {
+					t.Parallel()
+					meta := claudeCodeSessionMeta(StartOpts{Command: "claude-agent-acp", IsolateProviderMCP: true, ManagedProviderMCP: managed, InputOnly: inputOnly}).(map[string]any)
+					options := meta["claudeCode"].(map[string]any)["options"].(map[string]any)
+					strict, present := options["strictMcpConfig"]
+					if present == managed || !managed && strict != true {
+						t.Fatalf("strict option = %v (present %v)", strict, present)
+					}
+					env := options["env"].(map[string]string)
+					if env["ENABLE_CLAUDEAI_MCP_SERVERS"] != "false" {
+						t.Fatalf("connector isolation = %v", env)
+					}
+				},
+			)
+		}
+	}
 }

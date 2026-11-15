@@ -71,3 +71,5 @@ Gap 1 retest 2026-11-05: the changed bare-remote, header exclusion, header prese
 and OAuth-toggle branches passed in the isolated daemon lab. See
 `docs/qa/reports/2026-11-05-issue-1305-gap1.md`. This does not replace historical coverage or
 vendor-consent blockers for unrelated branches in this scenario.
+
+QA impact 2026-11-14 (MCP hot activation spec): `compozy mcp auth login` on a project-file server waiting for approval now refuses with `409 mcp_server_waiting_approval` before any network call. With `--digest <definition_digest>` it records the digest-bound approval first, then begins sign-in; a stale digest fails `mcp_approval_definition_changed` and makes no network request. Re-walk the workspace-scope branch with a committed `.compozy/mcp.json` server (see ET-mcp-project-server-approval).

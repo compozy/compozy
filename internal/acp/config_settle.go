@@ -20,8 +20,7 @@ const (
 // budget. Callers treat it as a final unconfirmed readback, not as a provider error.
 var errConfigSettleTimeout = errors.New("acp: config revision wait timed out")
 
-// WithModelCatalogBudget bounds how long the startup bind waits for a provider to
-// publish its full model catalog after session/new.
+// WithModelCatalogBudget bounds the startup wait for the provider's complete model catalog.
 func WithModelCatalogBudget(budget time.Duration) Option {
 	return func(driver *Driver) {
 		if budget > 0 {
@@ -59,6 +58,7 @@ func (d *Driver) applyConfigOption(
 		if err := apply(ctx); err != nil {
 			return err
 		}
+		since, _ := process.configRevisionAndChange()
 		if confirmed() {
 			return nil
 		}
@@ -66,9 +66,11 @@ func (d *Driver) applyConfigOption(
 		// provider may publish the value after any of them. The response merge
 		// itself bumps the revision, so the wait starts after it and only a later
 		// update counts as new information.
-		since, _ := process.configRevisionAndChange()
 		if err := waitForConfigRevision(ctx, process, since, budget); err != nil {
 			if errors.Is(err, errConfigSettleTimeout) {
+				if confirmed() {
+					return nil
+				}
 				// No newer revision arrived: re-sending would just repeat the same call.
 				return errConfigOptionUnconfirmed
 			}

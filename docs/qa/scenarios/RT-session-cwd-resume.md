@@ -29,3 +29,9 @@ report's session matrix in a future QA cycle.
 2026-10-21 User scope coverage:
 
 With zero registered projects, create a User session through `session new --user` or HTTP `scope: "user"`, prompt, restart, resume, and prompt again. Verify the configured User work directory and that no workspace was registered. Integration evidence: `TestManagerIntegrationUserLifecycle` covers immediate and accepted creation against real SQLite stores. A public provider walk remains required.
+
+2026-11-15 QA impact (release main-health, #1725 regression): repeat User creation and native tool
+discovery with a personal profile and no registered projects. Change that profile's MCP policy and
+confirm the next read uses it without a workspace lookup. Global automation runs must still create
+their User sessions. Verification is pending current-main runtime/web E2E CI; local runs are prohibited
+by the release directive.

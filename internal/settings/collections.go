@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const settingsCredentialSourceEnv = "env"
@@ -31,7 +32,14 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 		return CollectionEnvelope{}, err
 	}
 
-	cfg, resolved, err := s.loadConfig(ctx, scope, workspaceID, profileName)
+	var cfg compozyconfig.Config
+	var resolved *workspacepkg.ResolvedWorkspace
+	if req.Collection == CollectionMCPServers {
+		// MCP rows retain invalid definitions so Settings can expose config_error without probing auth.
+		resolved, err = s.resolveWorkspace(ctx, scope, workspaceID)
+	} else {
+		cfg, resolved, err = s.loadConfig(ctx, scope, workspaceID, profileName)
+	}
 	if err != nil {
 		return CollectionEnvelope{}, fmt.Errorf("settings: load collection %q config: %w", req.Collection, err)
 	}

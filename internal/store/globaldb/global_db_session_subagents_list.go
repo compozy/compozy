@@ -56,7 +56,7 @@ func (g *SessionRepo) ListSubagents(ctx context.Context, q store.SubagentListQue
 	}
 	var pos subagentPosition
 	if cursor != "" {
-		pos, err = listcursor.Decode[subagentPosition](cursor, 1, "subagents", fingerprint, 0)
+		pos, err = decodeSubagentCursor(cursor, q.Order, fingerprint)
 		if err != nil {
 			return store.SubagentPage{}, err
 		}
@@ -82,8 +82,53 @@ func (g *SessionRepo) ListSubagents(ctx context.Context, q store.SubagentListQue
 	if q.Order == store.SubagentOrderUrgency {
 		next.Rank = store.SubagentUrgencyRank(out.Items[len(out.Items)-1])
 	}
-	out.NextCursor, err = listcursor.Encode(1, "subagents", fingerprint, next)
+	out.NextCursor, err = listcursor.Encode(subagentCursorVersion(q.Order), "subagents", fingerprint, next)
 	return out, err
+}
+
+// subagentCursorVersion binds a cursor to its order's ranking: version 2 marks
+// the active-first urgency rank (#1732).
+func subagentCursorVersion(order string) int {
+	if order == store.SubagentOrderUrgency {
+		return 2
+	}
+	return 1
+}
+
+// decodeSubagentCursor reads a cursor minted for the query's order.
+//
+// Compatibility shim (#1732, remove in v0.8.0): an urgency cursor minted
+// before the upgrade carries version 1 and the older rank (waiting, failed,
+// working, queued, settled). It still pages, through legacyUrgencyPosition.
+func decodeSubagentCursor(cursor, order, fingerprint string) (subagentPosition, error) {
+	version := subagentCursorVersion(order)
+	pos, err := listcursor.Decode[subagentPosition](cursor, version, "subagents", fingerprint, 0)
+	if err == nil || version == 1 || !errors.Is(err, listcursor.ErrInvalid) {
+		return pos, err
+	}
+	legacy, legacyErr := listcursor.Decode[subagentPosition](cursor, 1, "subagents", fingerprint, 0)
+	if legacyErr != nil {
+		return pos, err
+	}
+	return legacyUrgencyPosition(legacy), nil
+}
+
+// legacyUrgencyPosition maps a version 1 urgency position onto the current
+// rank so the rest of the list still pages and no unseen row is skipped.
+// Waiting (0), queued (3) and settled (4) keep their rank and the rows before
+// them, so their position carries over. The old rank swapped failed (1) and
+// working (2): a failed position has shown no working row yet, so it resumes
+// right after the waiting rows; a working position resumes in the working
+// rank. Either may repeat failed rows the client already holds, never hide one.
+func legacyUrgencyPosition(pos subagentPosition) subagentPosition {
+	switch pos.Rank {
+	case 1:
+		// No row has an empty creation instant, so ("", id) sorts after every waiting row.
+		return subagentPosition{CreatedAt: "", ID: pos.ID, Rank: 0}
+	case 2:
+		pos.Rank = 1
+	}
+	return pos
 }
 
 // normalizeSubagentListQuery bounds the page size and canonicalizes the

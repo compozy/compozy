@@ -1,7 +1,9 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -25,6 +27,9 @@ type secretRefResolver interface {
 
 // CallExecutor lists and calls configured MCP servers through official MCP SDK clients.
 type CallExecutor struct {
+	digestKey      []byte
+	consent        func(context.Context, toolspkg.SourceRef, ResolvedServer) error
+	authNetwork    func(context.Context, mcpauth.ServerConfig) error
 	servers        ServerResolver
 	tokenStore     mcpauth.TokenStore
 	auth           authService
@@ -45,6 +50,14 @@ var _ toolspkg.MCPAuthStatusProvider = (*CallExecutor)(nil)
 
 // CallExecutorOption configures the daemon-owned MCP executor.
 type CallExecutorOption func(*CallExecutor)
+
+func WithDefinitionDigestKey(key []byte) CallExecutorOption {
+	return func(e *CallExecutor) { e.digestKey = bytes.Clone(key) }
+}
+
+func WithConsentCheck(check func(context.Context, toolspkg.SourceRef, ResolvedServer) error) CallExecutorOption {
+	return func(e *CallExecutor) { e.consent = check }
+}
 
 // WithTokenStore allows remote MCP authorization headers to be injected inside internal/mcp.
 func WithTokenStore(store mcpauth.TokenStore) CallExecutorOption {
@@ -143,6 +156,9 @@ func NewMCPCallExecutor(
 			opt(executor)
 		}
 	}
+	if len(executor.digestKey) == 0 {
+		return nil, errors.New("mcp: definition digest key is required")
+	}
 	if executor.lookupSecret == nil {
 		executor.lookupSecret = func(string) string { return "" }
 	}
@@ -168,7 +184,10 @@ func NewMCPCallExecutor(
 		executor.httpClient = &cloned
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
-		options := []mcpauth.ServiceOption{mcpauth.WithMutationGeneration(executor.authGeneration)}
+		options := []mcpauth.ServiceOption{
+			mcpauth.WithMutationGeneration(executor.authGeneration),
+			mcpauth.WithNetworkAuthorization(executor.authNetwork),
+		}
 		authClient := executor.secureClient
 		if authClient == nil {
 			authClient = securehttp.NewClient(
@@ -193,4 +212,9 @@ func NewMCPCallExecutor(
 		executor.auth = service
 	}
 	return executor, nil
+}
+
+// WithAuthNetworkAuthorization guards continued OAuth network activity.
+func WithAuthNetworkAuthorization(check func(context.Context, mcpauth.ServerConfig) error) CallExecutorOption {
+	return func(e *CallExecutor) { e.authNetwork = check }
 }

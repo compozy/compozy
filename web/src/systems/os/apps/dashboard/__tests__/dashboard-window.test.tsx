@@ -23,6 +23,18 @@ vi.mock("../../../hooks/use-desktop", () => ({
   useDesktop: (selector: (state: typeof desktop) => unknown) => selector(desktop),
 }));
 
+// The live-data lease reads the desk projection, built from `desktop` when each window renders.
+const shell: { projection: WindowManagerProjectionAtom | null } = { projection: null };
+
+vi.mock("../../../hooks/use-os-shell", () => ({
+  useOsShell: () => {
+    shell.projection ??= createWindowManagerProjectionAtom(
+      desktop as unknown as OsDesktopRuntimeStore
+    );
+    return { projection: shell.projection };
+  },
+}));
+
 vi.mock("@/systems/status/hooks/use-daemon-connection-status", () => ({
   useDaemonConnectionStatus: () => connection.status,
 }));
@@ -43,6 +55,11 @@ vi.mock("@/systems/dashboard/components/home-dashboard", () => ({
 }));
 
 import { DashboardWindow } from "../dashboard-window";
+import type { OsDesktopRuntimeStore } from "../../../lib/os-types";
+import {
+  createWindowManagerProjectionAtom,
+  type WindowManagerProjectionAtom,
+} from "../../../lib/window-manager-projection";
 
 async function renderWindow() {
   const rootRoute = createRootRoute({
@@ -64,6 +81,7 @@ async function renderWindow() {
 
 describe("DashboardWindow", () => {
   beforeEach(() => {
+    shell.projection = null;
     homeDashboardSpy.mockClear();
     sessionCreate.hasActiveWorkspace = true;
     desktop.activeDesktopId = "desktop-1";

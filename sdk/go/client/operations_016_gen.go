@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// GetTaskRunParams carries the path, query, and header parameters.
+type GetTaskRunParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetTaskRun Get one task run detail
+func (c *Client) GetTaskRun(ctx context.Context, params GetTaskRunParams) (*TaskRunDetailResponse, error) {
+	path := "/api/task-runs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunDetailResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetTaskRunReviewParams carries the path, query, and header parameters.
 type GetTaskRunReviewParams struct {
 	ID          string  `url:"id"`
@@ -409,39 +437,8 @@ func (c *Client) HeartbeatAgentTaskRun(ctx context.Context, params HeartbeatAgen
 	return &out, nil
 }
 
-// InspectRunParams carries the path, query, and header parameters.
-type InspectRunParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// InspectRun Inspect one task run with diagnostics
-func (c *Client) InspectRun(ctx context.Context, params InspectRunParams) (*TaskInspectResponse, error) {
-	path := "/api/runs/{id}/inspect"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskInspectResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InspectSessionParams carries the path, query, and header parameters.
-type InspectSessionParams struct {
-	WorkspaceID             string  `url:"workspace_id"`
-	SessionID               string  `url:"session_id"`
-	IncludeRecentWakeEvents *bool   `url:"include_recent_wake_events"`
-	Profile                 *string `url:"profile"`
-	AllProfiles             *bool   `url:"all_profiles"`
+// ImportRuntimeMCPServerParams carries the path, query, and header parameters.
+type ImportRuntimeMCPServerParams struct {
+	Runtime string `url:"runtime"`
+	Name    string `url:"name"`
 }

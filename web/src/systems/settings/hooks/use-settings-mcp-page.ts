@@ -6,6 +6,7 @@ import { deriveMCPManagementFilter, mcpDefinitionKey } from "../lib/mcp-manageme
 import type { SettingsMCPServerEntry, SettingsMCPServerListFilter } from "../types";
 import { useMCPDefinitionAuthorization } from "./use-mcp-definition-authorization";
 import { useMCPEditor } from "./use-mcp-editor";
+import { useMCPRuntimeManagement } from "./use-mcp-runtime-management";
 import { useMCPOverrideEditor } from "./use-mcp-override-editor";
 import { useSettingsMCPServers } from "./use-settings-collections";
 import { useDeleteSettingsMCPServer } from "./use-settings-mutations";
@@ -42,6 +43,14 @@ export function useMCPServerManagement({
         ? { scope: "workspace", workspace_id: workspaceId }
         : { scope: "user" };
   const collection = useSettingsMCPServers(filter, { enabled });
+  const runtime = useMCPRuntimeManagement({
+    enabled,
+    filter: {
+      scope: filter.scope,
+      workspace_id: filter.workspace_id,
+      profile: filter.profile,
+    },
+  });
   const servers = collection.data?.mcp_servers ?? [];
   // A create checks names against a list refetched when the editor opens, never a stale cache.
   // `fetchStatus` stays `paused` (not fetching) while offline, so only `idle` proves it settled.
@@ -104,6 +113,7 @@ export function useMCPServerManagement({
   };
   return {
     collection,
+    runtime,
     servers,
     filteredServers,
     selected,

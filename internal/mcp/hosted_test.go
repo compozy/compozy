@@ -21,6 +21,70 @@ import (
 
 func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: served-list receipts are scoped to the live authenticated binding.
+	// Owner: hosted service; canonical suite: TestHostedServiceBindNonceLifecycle (UT-039).
+	t.Run("Should isolate served receipts from newer catalog revisions and retired binds", func(t *testing.T) {
+		t.Parallel()
+		executable := hostedTestExecutable(t, "compozy")
+		view := hostedToolView("mcp__echo__ping")
+		view.Descriptor.Source = tools.SourceRef{
+			Kind:          tools.SourceMCP,
+			Owner:         "echo",
+			RawServerName: "echo",
+			RawToolName:   "ping",
+		}
+		registry := &hostedRegistryStub{views: []tools.ToolView{view}}
+		service := newHostedTestService(t, executable, registry, time.Now)
+		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-receipt", EagerTools: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ArmLaunch(t.Context(), "sess-receipt"); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := service.ActivationCatalog(t.Context(), "sess-receipt"); err != nil {
+			t.Fatalf("initial unbound launch catalog: %v", err)
+		}
+		peer := hostedTestPeer(executable)
+		bound, err := service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-receipt", Nonce: hostedLaunchNonce(t, launch.Args)},
+			peer,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ReportServedCatalog(
+			t.Context(),
+			HostedServedRequest{BindID: bound.BindID, Digest: bound.Catalog.Digest},
+			peer,
+		); err != nil {
+			t.Fatal(err)
+		}
+		registry.replaceViews(nil)
+		current, served, err := service.ActivationCatalog(t.Context(), "sess-receipt")
+		if err != nil || served != bound.Catalog.Digest || current.Digest == served {
+			t.Fatalf("catalog=%+v served=%s err=%v", current, served, err)
+		}
+		captured, ok := service.BoundActivationCatalog("sess-receipt")
+		if !ok || captured.Digest != bound.Catalog.Digest {
+			t.Fatal("bind snapshot advanced before reload")
+		}
+		service.ReleaseBind(bound.BindID)
+		if _, _, err := service.ActivationCatalog(t.Context(), "sess-receipt"); !errors.Is(err, ErrHostedBindNotFound) {
+			t.Fatalf("lost proxy catalog = %v", err)
+		}
+		if err := service.ReportServedCatalog(
+			t.Context(),
+			HostedServedRequest{BindID: bound.BindID, Digest: current.Digest},
+			peer,
+		); !errors.Is(
+			err,
+			ErrHostedBindNotFound,
+		) {
+			t.Fatalf("retired receipt = %v", err)
+		}
+	})
 
 	t.Run("Should reuse eager discovery for the initial readiness receipt", func(t *testing.T) {
 		t.Parallel()
@@ -2943,3 +3007,58 @@ func (r hostedPolicyResolver) Resolve(ctx context.Context, scope tools.Scope) (t
 type hostedDeferredProvider struct{ *tools.NativeProvider }
 
 func (hostedDeferredProvider) DeferInitialDiscovery() bool { return true }
+
+// Invariant: external tool identity and schemas determine the digest; order, health and native tools do not.
+// Owner: advertised catalog; canonical suite: hosted catalog tests (UT-026/UT-027/UT-028).
+func TestHostedAdvertisedCatalogDigest(t *testing.T) {
+	t.Parallel()
+	t.Run("Should normalize fifty sources and include extension schemas", func(t *testing.T) {
+		t.Parallel()
+		views := make([]tools.ToolView, 0, 51)
+		for i := range 50 {
+			view := hostedToolView(tools.ToolID(fmt.Sprintf("mcp__server%d__echo", i)))
+			view.Descriptor.Source = tools.SourceRef{
+				Kind:          tools.SourceMCP,
+				Owner:         fmt.Sprintf("server%d", i),
+				RawServerName: fmt.Sprintf("server%d", i),
+				RawToolName:   "echo",
+			}
+			views = append(views, view)
+		}
+		bound := hostedExternalToolDigest(views)
+		views[0].Descriptor.Source.ResourceVersion = "rediscovered-revision"
+		views[0].Availability = tools.Unavailable(tools.ReasonBackendUnhealthy)
+		if hostedExternalToolDigest(views) != bound {
+			t.Fatal("discovery revision or health changed the advertised views")
+		}
+		slices.Reverse(views)
+		if hostedExternalToolDigest(views) != bound {
+			t.Fatal("source ordering changed digest")
+		}
+		views = append(views, hostedToolView("compozy__tool_list"))
+		if hostedExternalToolDigest(views) != bound {
+			t.Fatal("native tool changed digest")
+		}
+		dynamic := hostedToolView("dynamic__ignored")
+		dynamic.Descriptor.Source = tools.SourceRef{Kind: tools.SourceDynamic, Owner: "runtime"}
+		views = append(views, dynamic)
+		if hostedExternalToolDigest(views) != bound {
+			t.Fatal("dynamic tool changed digest")
+		}
+		ext := hostedToolView("ext__notes__ping")
+		ext.Descriptor.Source = tools.SourceRef{Kind: tools.SourceExtension, Owner: "notes"}
+		views = append(views, ext)
+		withExtension := hostedExternalToolDigest(views)
+		if withExtension == bound {
+			t.Fatal("extension omitted from digest")
+		}
+		views[len(views)-1].Descriptor.InputSchemaDigest = "changed-schema"
+		if hostedExternalToolDigest(views) == withExtension {
+			t.Fatal("schema omitted from digest")
+		}
+		views = views[:len(views)-1]
+		if hostedExternalToolDigest(views) != bound {
+			t.Fatal("enable then disable did not restore bound catalog")
+		}
+	})
+}

@@ -46,23 +46,23 @@ WHERE parent_session_id = sqlc.arg(parent)
 ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit);
 
 -- name: ListSubagentsByParentUrgency :many
--- Most urgent first, matching the clients' display order: waiting, failed,
--- working (a resumed child included), queued, settled; then newest.
+-- Active work first, matching the clients' display order: waiting, working
+-- (a resumed child included), then failed, queued, settled; then newest.
 SELECT * FROM session_subagents
 WHERE parent_session_id = sqlc.arg(parent)
  AND (sqlc.arg(workspace) = '' OR workspace_id = sqlc.arg(workspace))
  AND (sqlc.arg(origins) = '[]' OR origin IN (SELECT value FROM json_each(sqlc.arg(origins))))
  AND (sqlc.arg(statuses) = '[]' OR status IN (SELECT value FROM json_each(sqlc.arg(statuses))))
  AND (sqlc.arg(cursor_id) = '' OR
-  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+   WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
    WHEN status = 'queued' THEN 3 ELSE 4 END) > CAST(sqlc.arg(cursor_rank) AS INTEGER) OR
-  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+   WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
    WHEN status = 'queued' THEN 3 ELSE 4 END) = CAST(sqlc.arg(cursor_rank) AS INTEGER) AND
    (created_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id))))
-ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-  WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+  WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
   WHEN status = 'queued' THEN 3 ELSE 4 END,
  created_at DESC,id DESC LIMIT sqlc.arg(page_limit);
 

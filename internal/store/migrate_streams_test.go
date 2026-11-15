@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"path"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -1344,4 +1345,123 @@ func BenchmarkCurrentMigrationStream(b *testing.B) {
 			})
 		})
 	}
+}
+
+// Invariant: direct upgrades losslessly mark every legacy lineage/instance shape exactly once.
+// Owner: global data migration; canonical suite: migration streams (UT-112).
+func TestPermissionIntentMarkerMigration(t *testing.T) {
+	t.Parallel()
+	ctx := migrationTestContext(t)
+	db := openStreamTestDB(t, "permission-intent.db")
+	stream := globaldb.MigrationStream()
+	if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 199)); err != nil {
+		t.Fatal(err)
+	}
+	const nativePolicy = `{"tools":["compozy__session_list"],"skills":["review"],"workspace_paths":["/project"],"mcp_servers":[],"materialized_tools":true}`
+	const authoredPolicy = `{"tools":["compozy__session_list"],"mcp_servers":["linear"],"materialized_mcp_servers":false}`
+	const markedPolicy = `{"mcp_servers_mode":"list","tools_mode":"list","ancestor_mcp_ceiling":[],"tools":[],"mcp_servers":[]}`
+	fixtures := []struct {
+		id, kind, typ, raw string
+		archived           bool
+	}{
+		{"root", "", "user", nativePolicy, false},
+		{"fork", "fork", "user", nativePolicy, false},
+		{"continue", "continue", "user", nativePolicy, false},
+		{"provenance", "provenance", "user", nativePolicy, false},
+		{"recovery", "recovery", "system", nativePolicy, false},
+		{"spawn", "spawn", "spawned", nativePolicy, false},
+		{"coordinator-child", "spawn", "coordinator", nativePolicy, false},
+		{"archived", "provenance", "user", authoredPolicy, true},
+		{"materialized-mcp", "fork", "user", `{"mcp_servers":["linear"],"materialized_mcp_servers":true}`, false},
+		{"already-marked", "", "user", markedPolicy, false},
+	}
+	for _, fixture := range fixtures {
+		var archived any
+		if fixture.archived {
+			archived = "2026-11-01T00:00:00Z"
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO sessions
+			(id,profile_id,agent_name,scope,workspace_id,state,session_type,lineage_kind,permission_policy_json,archived_at,created_at,updated_at)
+			VALUES (?, ?,'coder','global','','stopped',?,?,?,?, '2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')`,
+			fixture.id, store.DefaultProfileID, fixture.typ, fixture.kind, fixture.raw, archived); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, depth := range []int{0, 1} {
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO agent_instances
+			(id,profile_id,agent_name,state,depth,permission_ceiling,created_by_kind,created_by_id,created_at,updated_at,archived_at)
+			VALUES (?, ?,?,'paused',?,?,'human','operator','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z',?)`,
+			fmt.Sprintf(
+				"instance-%d",
+				depth,
+			),
+			store.DefaultProfileID,
+			fmt.Sprintf("coder-%d", depth),
+			depth,
+			authoredPolicy,
+			[]any{nil, "2026-11-02T00:00:00Z"}[depth],
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// This prefix upgrades straight from the pre-feature schema through the marker backfill (00202).
+	if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 202)); err != nil {
+		t.Fatal(err)
+	}
+	before := map[string]string{}
+	verify := func() {
+		t.Helper()
+		for _, fixture := range fixtures {
+			var raw string
+			if err := db.QueryRowContext(ctx, `SELECT permission_policy_json FROM sessions WHERE id=?`, fixture.id).
+				Scan(&raw); err != nil {
+				t.Fatal(err)
+			}
+			original, err := store.DecodeSessionPermissionPolicy(fixture.raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := store.DecodeIntent(original, store.LineageKind(fixture.kind), fixture.typ)
+			got, err := store.DecodeSessionPermissionPolicy(raw)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("%s: got=%+v want=%+v err=%v", fixture.id, got, want, err)
+			}
+			if previous, ok := before[fixture.id]; ok && raw != previous {
+				t.Fatalf("non-idempotent session %s", fixture.id)
+			}
+			before[fixture.id] = raw
+		}
+		for _, depth := range []int{0, 1} {
+			id := fmt.Sprintf("instance-%d", depth)
+			var raw string
+			if err := db.QueryRowContext(ctx, `SELECT permission_ceiling FROM agent_instances WHERE id=?`, id).
+				Scan(&raw); err != nil {
+				t.Fatal(err)
+			}
+			original, err := store.DecodeSessionPermissionPolicy(authoredPolicy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := store.DecodeSessionPermissionPolicy(raw)
+			want := store.DecodeInstanceCeilingIntent(original, depth)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("%s: got=%+v want=%+v err=%v", id, got, want, err)
+			}
+			if previous, ok := before[id]; ok && raw != previous {
+				t.Fatalf("non-idempotent instance %s", id)
+			}
+			before[id] = raw
+		}
+	}
+	verify()
+	migration, err := fs.ReadFile(globalschema.Files, "migrations/00202_permission_intent.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	verify()
 }

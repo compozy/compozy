@@ -371,6 +371,7 @@ func newSessionCatalogRecord(sessionInput *store.SessionInfo) (sessionCatalogRec
 	session := *sessionInput
 
 	lineage := store.NormalizeSessionLineage(session.ID, session.Lineage)
+	lineage.PermissionPolicy = store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, session.SessionType)
 	if err := store.ValidateSessionLineage(session.ID, lineage); err != nil {
 		return sessionCatalogRecord{}, err
 	}

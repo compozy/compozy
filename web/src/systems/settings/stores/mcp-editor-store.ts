@@ -104,6 +104,6 @@ export const mcpEditorLogic = createStoreLogic<
 
 function mcpSaveMessage(name: string, result: SettingsMutationResult): string {
   const target = result.write_target ?? "write target unavailable";
-  const lifecycle = result.restart_required ? "restart required" : "applied now";
-  return `Saved "${name}" · ${target} · ${lifecycle}`;
+  if (result.restart_required) return `Saved "${name}" · ${target} · restart required`;
+  return `Saved "${name}" · ${target}. Open sessions use it from their next message.`;
 }

@@ -78,6 +78,7 @@ type sessionStartSpec struct {
 	creationIdentityEnabled  bool
 	deferRuntimeValidation   bool
 	discardStartFailure      bool
+	discardStartFailureWhen  func(error) bool
 	advertisedCommands       []store.SessionAdvertisedCommand
 	postEvent                hookspkg.HookEvent
 	startAction              string

@@ -224,6 +224,10 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__loop_status":            expectedNativeEntry("Reading", " ", false, "🔁", "auto"),
 		"compozy__loop_turns":             expectedNativeEntry("Reading", " ", false, "🔁", "auto"),
 		"compozy__loop_validate":          expectedNativeEntry("Validating", " ", false, "🔁", "auto"),
+		"compozy__mcp_list":               expectedNativeEntry("Reading", " ", true, "🔌", "none"),
+		"compozy__mcp_allow":              expectedNativeEntry("Updating", " ", false, "🔌", "auto"),
+		"compozy__mcp_import":             expectedNativeEntry("Copying", " ", false, "🔌", "auto"),
+		"compozy__session_mcp_list":       expectedNativeEntry("Reading", " ", true, "🔌", "none"),
 		"compozy__mcp_auth_status":        expectedNativeEntry("Reading", " ", true, "🔌", "none"),
 		"compozy__mcp_status":             expectedNativeEntry("Reading", " ", false, "🔌", "auto"),
 
@@ -246,6 +250,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__resources_snapshot":            expectedNativeEntry("Reading", " ", false, "📚", "auto"),
 		"compozy__session_approve":               expectedNativeEntry("Approving", " ", false, "💬", "auto"),
 		"compozy__session_archive":               expectedNativeEntry("Archiving", " ", false, "💬", "auto"),
+		"compozy__session_cleanup":               expectedNativeEntry("Cleaning up", " ", false, "💬", "auto"),
 		"compozy__session_clarify_answer":        expectedNativeEntry("Answering", " ", false, "💬", "auto"),
 		"compozy__session_create":                expectedNativeEntry("Creating", " ", false, "💬", "auto"),
 		"compozy__session_describe":              expectedNativeEntry("Reading", " ", false, "💬", "auto"),

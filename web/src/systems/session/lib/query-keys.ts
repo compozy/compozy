@@ -36,6 +36,12 @@ export const sessionKeys = {
     [...sessionKeys.all, "catalog-stream-status", streamUrl] as const,
   /** Processes left running by stopped, archived, or unknown sessions — operator scope. */
   processesLeftRunning: () => [...sessionKeys.all, "processes-left-running"] as const,
+  /** Archived-history cleanup (#1717): one profile's run, and the dry runs the dialog previews. */
+  historyCleanup: () => [...sessionKeys.all, "history-cleanup"] as const,
+  historyCleanupRun: (profile: string) =>
+    [...sessionKeys.historyCleanup(), "run", profile.trim()] as const,
+  historyCleanupPreview: (profile: string, request: unknown) =>
+    [...sessionKeys.historyCleanup(), "preview", profile.trim(), request] as const,
   workspaceLists: (workspace: string) => [...sessionKeys.lists(), workspace.trim()] as const,
   /** One profile's session folders in a workspace; under the list family so catalog wakes reread it. */
   folders: (workspace: string, profile: string) =>
@@ -126,6 +132,8 @@ export const sessionKeys = {
   /** The session's daemon-owned monitors (composer monitor popover). */
   monitors: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "monitors"] as const,
+  /** What MCP servers this session can use (composer MCP popover). */
+  mcp: (workspace: string, id: string) => [...sessionKeys.detail(workspace, id), "mcp"] as const,
   /** Processes the session started that are still running (composer processes popover). */
   processes: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "processes"] as const,

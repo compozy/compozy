@@ -54,6 +54,8 @@ func (r instanceDefinitions) InstanceDefinition(
 	}
 	policy := store.SessionPermissionPolicy{
 		Tools:          tools,
+		MCPServersMode: store.PermissionInherit,
+		ToolsMode:      store.PermissionInherit,
 		WorkspacePaths: append([]string{resolved.RootDir}, resolved.AdditionalDirs...),
 	}
 	for _, skill := range resolved.Skills {
@@ -61,8 +63,16 @@ func (r instanceDefinitions) InstanceDefinition(
 			policy.Skills = append(policy.Skills, skill.Name)
 		}
 	}
-	for _, server := range runtime.MCPServers {
-		policy.MCPServers = append(policy.MCPServers, server.Name)
+	if len(agent.MCPServers) > 0 {
+		policy.MCPServersMode = store.PermissionList
+	}
+	if len(agent.Tools) > 0 || len(agent.Toolsets) > 0 {
+		policy.ToolsMode = store.PermissionList
+	}
+	if policy.MCPServersMode == store.PermissionList {
+		for _, server := range agent.MCPServers {
+			policy.MCPServers = append(policy.MCPServers, server.Name)
+		}
 	}
 	return instanceDefinition{
 		Kind:   agent.Kind,

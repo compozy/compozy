@@ -219,6 +219,30 @@ describe("visibleSessionOrder", () => {
     ).toEqual(["sess-b", "sess-a", "sess-a-child"]);
   });
 
+  // Invariant (#1732): the cycle walks a thread's children in the rows' order, active work first.
+  it("Should cycle a thread's active children before the rest", () => {
+    const root = session("root");
+    const child = (id: string, badge: SessionPayload["badge"]) => ({
+      ...session(id, undefined, "root"),
+      badge,
+    });
+
+    expect(
+      order(
+        visibleSessionOrder(
+          [
+            root,
+            child("done-a", "done"),
+            child("idle-b", "idle"),
+            child("running-c", "running"),
+            child("waiting-d", "waiting-for-input"),
+          ],
+          base
+        )
+      )
+    ).toEqual(["root", "running-c", "waiting-d", "done-a", "idle-b"]);
+  });
+
   it("Should follow folder sections and skip sessions inside a collapsed folder", () => {
     const page = [session("r1"), session("a1", "fa"), session("b1", "fb"), session("a2", "fa")];
     const options = { ...base, folders: [folder("fa"), folder("fb")] };

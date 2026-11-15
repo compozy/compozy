@@ -9,6 +9,45 @@ import (
 	"strings"
 )
 
+// ListProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
+func (c *Client) ListProviderUsage(ctx context.Context, params ListProviderUsageParams) (*ProviderUsageEnvelope, error) {
+	path := "/api/provider-usage"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderUsageEnvelope
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviders List providers and declared auth status
+func (c *Client) ListProviders(ctx context.Context) (*ProviderListResponse, error) {
+	path := "/api/providers"
+	var out ProviderListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListResourcesParams carries the path, query, and header parameters.
+type ListResourcesParams struct {
+	Kind       *string `url:"kind"`
+	ScopeKind  *string `url:"scope_kind"`
+	ScopeID    *string `url:"scope_id"`
+	OwnerKind  *string `url:"owner_kind"`
+	OwnerID    *string `url:"owner_id"`
+	SourceKind *string `url:"source_kind"`
+	SourceID   *string `url:"source_id"`
+	Limit      *int    `url:"limit"`
+}
+
 // ListResources List desired-state resources on the local operator control plane
 func (c *Client) ListResources(ctx context.Context, params ListResourcesParams) (*ResourcesResponse, error) {
 	path := "/api/resources"
@@ -111,6 +150,40 @@ func (c *Client) ListRoles(ctx context.Context, params ListRolesParams) (*RolesR
 		path += "?" + query.Encode()
 	}
 	var out RolesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListRuntimeMCPServersParams carries the path, query, and header parameters.
+type ListRuntimeMCPServersParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Runtime     *string `url:"runtime"`
+}
+
+// ListRuntimeMCPServers List runtime MCP servers from native configuration files
+func (c *Client) ListRuntimeMCPServers(ctx context.Context, params ListRuntimeMCPServersParams) (*Inventory, error) {
+	path := "/api/settings/runtime-mcp-servers"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Runtime != nil {
+		query.Set("runtime", *params.Runtime)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out Inventory
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
@@ -371,74 +444,4 @@ func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacets
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListSessionFileEntriesParams carries the path, query, and header parameters.
-type ListSessionFileEntriesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Path        *string `url:"path"`
-	ShowIgnored *bool   `url:"show_ignored"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListSessionFileEntries List project file entries
-func (c *Client) ListSessionFileEntries(ctx context.Context, params ListSessionFileEntriesParams) (*FileEntriesResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Path != nil {
-		query.Set("path", *params.Path)
-	}
-	if params.ShowIgnored != nil {
-		query.Set("show_ignored", strconv.FormatBool(*params.ShowIgnored))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileEntriesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionFoldersParams carries the path, query, and header parameters.
-type ListSessionFoldersParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ListSessionFolders List session folders in manual order
-func (c *Client) ListSessionFolders(ctx context.Context, params ListSessionFoldersParams) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionInputsParams carries the path, query, and header parameters.
-type ListSessionInputsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

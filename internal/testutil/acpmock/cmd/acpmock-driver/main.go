@@ -212,7 +212,7 @@ func (a *mockAgent) NewSession(
 	if err := a.prepareNativeTools(ctx, sessionID, params.McpServers, params.Cwd); err != nil {
 		return acpsdk.NewSessionResponse{}, err
 	}
-	if err := a.writeSessionDiagnostics("session_new", sessionID, params.McpServers); err != nil {
+	if err := a.writeSessionDiagnostics("session_new", sessionID, params.McpServers, params.Meta); err != nil {
 		return acpsdk.NewSessionResponse{}, err
 	}
 	return acpsdk.NewSessionResponse{
@@ -247,7 +247,7 @@ func (a *mockAgent) LoadSession(
 	if err := a.prepareNativeTools(ctx, sessionID, params.McpServers, params.Cwd); err != nil {
 		return acpsdk.LoadSessionResponse{}, err
 	}
-	if err := a.writeSessionDiagnostics("session_load", sessionID, params.McpServers); err != nil {
+	if err := a.writeSessionDiagnostics("session_load", sessionID, params.McpServers, params.Meta); err != nil {
 		return acpsdk.LoadSessionResponse{}, err
 	}
 	return acpsdk.LoadSessionResponse{ConfigOptions: configOptions}, nil

@@ -230,3 +230,21 @@ func (m *Manager) lookupPromptSession(ctx context.Context, target string) (*Sess
 func (req promptRequest) operatorAuthored() bool {
 	return req.humanIngress && req.meta.Origin == nil && req.turnSource != TurnSourceSynthetic
 }
+
+func (m *Manager) augmentPromptMessage(ctx context.Context, session *Session, message string) (string, error) {
+	expanded, err := m.expandPromptSkillInvocations(ctx, session, message)
+	if err != nil {
+		return "", err
+	}
+	if m.inputAugmenter == nil {
+		return expanded, nil
+	}
+	augmented, err := m.inputAugmenter(ctx, session, expanded)
+	if err != nil {
+		return "", fmt.Errorf("session: augment prompt input: %w", err)
+	}
+	if strings.TrimSpace(augmented) == "" {
+		return expanded, nil
+	}
+	return augmented, nil
+}

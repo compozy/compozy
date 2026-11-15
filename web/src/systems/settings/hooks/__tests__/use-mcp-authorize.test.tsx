@@ -27,6 +27,8 @@ const prior = { status: "needs_login", tokenPresent: false };
 const serverEntry = {
   name: "linear",
   transport: "http",
+  approval: { required: false, state: "not_required", definition_digest: "sha256:manual-linear" },
+  callable_in_sessions: true,
   scope: "workspace",
   workspace_id: "ws-alpha",
   auth: { client_secret_configured: false, registration: "auto", scopes: ["read"] },

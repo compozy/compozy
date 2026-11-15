@@ -39,9 +39,11 @@ func (r *InstanceRepo) InstanceCaller(ctx context.Context, sessionID string) (ag
 		InstanceDepth: int(depth),
 		Grant:         row.EffectiveWorkspaceAccess,
 	}
-	if err := json.Unmarshal([]byte(row.PermissionPolicyJson), &result.PermissionPolicy); err != nil {
+	var policy store.SessionPermissionPolicy
+	if err := json.Unmarshal([]byte(row.PermissionPolicyJson), &policy); err != nil {
 		return agentinstance.Caller{}, err
 	}
+	result.PermissionPolicy = store.DecodeIntent(policy, store.LineageKind(row.LineageKind), row.SessionType)
 	return result, nil
 }
 

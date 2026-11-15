@@ -102,3 +102,17 @@ Plain delete of a parent keeps its children reachable as top-level rows. `compoz
 sessions; continued and forked sessions remain. A failed member stops the walk: the sessions it did
 not reach remain, and the error names the child. The web dialog shows "Also delete {N} child
 session(s)" unchecked, and omits it for a session with no children.
+
+## Stored reader does not return its lease
+
+In an isolated fixture, hold a read-only history lease on a stopped session, then delete it with
+no caller deadline. The stored-reader wait must fail after its five-second default budget
+(overridable through the Manager's `WithQueryQuiesceTimeout` option), report the affected session,
+and preserve its catalog row, database and attachments without a deletion tombstone. New readers
+must still open after that failure. Release the held lease and retry: deletion must succeed.
+An earlier caller deadline still applies. A catalog failure after successful quiescence must
+restore the staged history even after the reader-wait budget has elapsed.
+
+`TestManagerDelete` owns these regressions over the real read-only pool and SQLite. Verification
+for this change is CI-only; local tests and daemon labs are prohibited by the dispatch. This
+addition does not promote the historical manual scenario verdict.

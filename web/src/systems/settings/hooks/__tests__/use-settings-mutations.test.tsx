@@ -721,6 +721,8 @@ describe("extension-owned MCP reconciliation", () => {
 // Owner: Settings mutation integration; canonical suite: use-settings-mutations.test.tsx.
 describe("extension MCP override editor", () => {
   const entry: SettingsMCPServerEntry = {
+    approval: { required: false, state: "not_required", definition_digest: "sha256:test" },
+    callable_in_sessions: true,
     name: "github",
     owner: "extension:kit",
     runtime_name: "kit.github",

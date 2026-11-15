@@ -56,9 +56,16 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session native provider startup failed", err)
 	}
+	startOpts, err = m.prepareRuntimeMCPStartup(ctx, spec, runtime, startOpts)
+	if err != nil {
+		return acp.StartOpts{}, startupFailure("session runtime MCP startup failed", err)
+	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
 	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
 	startOpts = m.prepareHostedMCPStartup(session, runtime, startOpts)
+	if err := m.prepareActivationCatalog(ctx, session, runtime); err != nil {
+		return acp.StartOpts{}, err
+	}
 	m.constrainTriageLaunch(spec, runtime, &startOpts)
 
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {
@@ -66,31 +73,44 @@ func (m *Manager) prepareSessionLaunch(
 			return acp.StartOpts{}, err
 		}
 	}
+	if err := m.commitSessionLaunchIdentity(ctx, spec, session, run, startOpts.Permissions); err != nil {
+		return acp.StartOpts{}, err
+	}
+	return startOpts, nil
+}
+
+func (m *Manager) commitSessionLaunchIdentity(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	session *Session,
+	run *sessionStartRun,
+	permissions compozyconfig.PermissionMode,
+) error {
 	releaseCommit, err := acquireSessionStartLaunchCommit(ctx, run)
 	if err != nil {
-		return acp.StartOpts{}, fmt.Errorf("session: acquire launch commit for %q: %w", spec.sessionID, err)
+		return fmt.Errorf("session: acquire launch commit for %q: %w", spec.sessionID, err)
 	}
 	defer releaseCommit()
 	if err := context.Cause(ctx); err != nil {
-		return acp.StartOpts{}, err
+		return err
 	}
-	session.setEffectivePermissions(string(startOpts.Permissions))
+	session.setEffectivePermissions(string(permissions))
 	if err := finalizeStartCreationIdentityIfEnabled(spec, session); err != nil {
-		return acp.StartOpts{}, startupFailure("session creation identity changed", err)
+		return startupFailure("session creation identity changed", err)
 	}
 	if err := m.revalidateSessionWorktree(ctx, spec); err != nil {
-		return acp.StartOpts{}, startupFailure("session worktree binding changed", err)
+		return startupFailure("session worktree binding changed", err)
 	}
 	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)
-		return acp.StartOpts{}, fmt.Errorf(
+		return fmt.Errorf(
 			"session: persist %s launch identity for %q: %w",
 			spec.startAction,
 			spec.sessionID,
 			err,
 		)
 	}
-	return startOpts, nil
+	return nil
 }
 
 func (m *Manager) prepareHostedMCPStartup(
@@ -98,7 +118,7 @@ func (m *Manager) prepareHostedMCPStartup(
 	runtime *sessionStartRuntime,
 	startOpts acp.StartOpts,
 ) acp.StartOpts {
-	const failedOutcome = "failed"
+	const failedOutcome = string(BadgeFailed)
 	// Only the Claude bridge is verified to consume list_changed. Other hosts
 	// reload at the turn boundary, using the effective post-hook command.
 	reloadTools := !providerexec.IsClaudeAgentBridge(startOpts.Command)

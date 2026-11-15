@@ -79,7 +79,7 @@ func (m *Manager) ResolveSpawnWorkspace(ctx context.Context, parentSessionID, wo
 	if err != nil {
 		return "", err
 	}
-	opts, err := m.validateSpawnWorkspace(ctx, parent, SpawnOpts{Workspace: strings.TrimSpace(workspaceRef)})
+	opts, err := m.validateSpawnWorkspace(ctx, parent, &SpawnOpts{Workspace: strings.TrimSpace(workspaceRef)})
 	if err != nil {
 		return "", err
 	}

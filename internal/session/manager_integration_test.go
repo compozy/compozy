@@ -627,7 +627,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		assertIntegrationFileContent(t, filepath.Join(worktreeA, "isolated.txt"), "worktree-a\n")
 		assertIntegrationFileContent(t, filepath.Join(worktreeB, "isolated.txt"), "worktree-b\n")
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
 		})
 		if err != nil {
@@ -666,7 +666,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 
 		runSessionIntegrationGit(t, h.workspace, "worktree", "remove", "--force", worktreeA)
 		startsBeforeRefusal := len(h.driver.startCalls)
-		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		_, err = h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
 		})
 		if !errors.Is(err, missingErr) {
@@ -1561,7 +1561,7 @@ func TestManagerIntegrationUserLifecycle(t *testing.T) {
 				}
 				child, err := h.manager.Spawn(
 					ctx,
-					SpawnOpts{ParentSessionID: created.ID, AgentName: "coder", TTL: time.Minute},
+					&SpawnOpts{ParentSessionID: created.ID, AgentName: "coder", TTL: time.Minute},
 				)
 				if err != nil {
 					t.Fatal(err)

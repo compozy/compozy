@@ -153,7 +153,7 @@ func (s *Service) ResolveRef(ctx context.Context, ref string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if strings.TrimSpace(value) == "" {
+		if strings.TrimSpace(value) == "" && !identity.allowsEmptyLiteral() {
 			return "", fmt.Errorf("%w: %s", ErrMissingSecret, normalized)
 		}
 		return value, nil

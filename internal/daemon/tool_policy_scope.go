@@ -28,12 +28,9 @@ func fillToolPolicyScopeFromSession(scope toolspkg.Scope, info *session.Info) to
 	if strings.TrimSpace(scope.SessionID) == "" {
 		scope.SessionID = strings.TrimSpace(info.ID)
 	}
-	if strings.TrimSpace(scope.ProfileID) == "" {
-		scope.ProfileID = strings.TrimSpace(info.ProfileID)
-	}
-	if strings.TrimSpace(scope.WorkspaceID) == "" {
-		scope.WorkspaceID = strings.TrimSpace(info.WorkspaceID)
-	}
+	// A session's authority always belongs to its own stored scope.
+	scope.ProfileID = strings.TrimSpace(info.ProfileID)
+	scope.WorkspaceID = strings.TrimSpace(info.WorkspaceID)
 	if strings.TrimSpace(scope.AgentName) == "" {
 		scope.AgentName = strings.TrimSpace(info.AgentName)
 	}
