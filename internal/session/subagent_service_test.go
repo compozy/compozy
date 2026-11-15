@@ -4437,7 +4437,7 @@ func TestSubagentIsolationRetention(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
 			s.launch = func(run func()) { run() }
 			wt := &subagentWorktreeStub{
-				worktree: SubagentWorktree{ID: "wt"},
+				worktree: SubagentWorktree{ID: "wt", Branch: "first-branch"},
 				facts:    SubagentWorktreeFacts{PRStatus: "none"},
 			}
 			s.worktrees = wt
@@ -4468,11 +4468,28 @@ func TestSubagentIsolationRetention(t *testing.T) {
 					}
 				} else {
 					wantHooks = 0 // Recovery does not replay best-effort settled hooks.
+					// Both rows must carry facts before the shared parent wake is composed.
+					second := current
+					second.ID += "-second"
+					second.Title = "Second deleted child"
+					checkout := current.WorktreeState()
+					checkout.ID, checkout.Branch = "wt-second", "second-branch"
+					second.Worktree = &checkout
+					db.rows[second.ID] = second
 					parent := runtime.snapshots["parent"]
 					parent.Active = false
 					runtime.snapshots["parent"] = parent
 					if err := s.Recover(t.Context()); err != nil {
 						t.Fatal(err)
+					}
+					if len(runtime.queues) != 1 || db.rows[second.ID].WorktreeState().Facts.PRStatus != "none" {
+						t.Fatalf("batched recovery lost checkout facts: %+v, %+v", runtime.queues, db.rows[second.ID])
+					}
+					for _, text := range runtime.queues {
+						if !strings.Contains(text, "first-branch") || !strings.Contains(text, "second-branch") ||
+							strings.Contains(text, "PR status unknown") {
+							t.Fatalf("wake composed before all checkout facts were saved: %s", text)
+						}
 					}
 				}
 			case "failed":
@@ -4501,7 +4518,8 @@ func TestSubagentIsolationRetention(t *testing.T) {
 				t.Fatal(got, err, wt.rollbacks)
 			}
 			// The once-only settled hook carries the final worktree facts, including after a cancel.
-			if rows := hook.recorded(); len(rows) != wantHooks || (wantHooks > 0 && rows[0].WorktreeState().Facts.PRStatus != "none") {
+			if rows := hook.recorded(); len(rows) != wantHooks ||
+				(wantHooks > 0 && rows[0].WorktreeState().Facts.PRStatus != "none") {
 				t.Fatalf("settled hooks = %d %+v, want %d carrying final facts", len(rows), rows, wantHooks)
 			}
 		})

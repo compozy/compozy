@@ -245,7 +245,9 @@ func (s *subagentService) observeSettledWorktree(ctx context.Context, row store.
 	return s.observeSubagentWorktree(ctx, row)
 }
 
-func (s *subagentService) observeSubagentWorktree(ctx context.Context, row store.SessionSubagent) store.SessionSubagent {
+func (s *subagentService) observeSubagentWorktree(
+	ctx context.Context, row store.SessionSubagent,
+) store.SessionSubagent {
 	wt := row.WorktreeState()
 	wt.Facts = s.worktrees.Observe(ctx, row.WorkspaceID, wt.ID, wt.BaseSHA)
 	row.Worktree = &wt
