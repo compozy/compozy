@@ -42678,7 +42678,7 @@ export type ListSessionSubagentsData = {
      */
     cursor?: string;
     /**
-     * Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest
+     * Row order: newest first (default), or most urgent first (waiting, working, failed, queued, settled) then newest
      */
     order?: "newest" | "urgency";
     /**

@@ -605,7 +605,9 @@ func TestGlobalDBSubagents(t *testing.T) {
 		}
 	})
 
-	t.Run("Should page one parent most urgent first before cutting each page", func(t *testing.T) {
+	// Invariant (#1732): urgency order ranks active work (waiting, then working or resumed) ahead
+	// of failed, queued and settled rows before each page is cut, and each cursor resumes there.
+	t.Run("Should page one parent active work first before cutting each page", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		db, workspace, parent, now := subagentFixture(t)
@@ -653,8 +655,31 @@ func TestGlobalDBSubagents(t *testing.T) {
 			}
 			query.Cursor = page.NextCursor
 		}
-		if want := []string{"waiting", "failed", "resumed", "queued", "done-b", "done-a"}; !slices.Equal(got, want) {
+		if want := []string{"waiting", "resumed", "failed", "queued", "done-b", "done-a"}; !slices.Equal(got, want) {
 			t.Fatalf("urgency order = %v, want %v", got, want)
+		}
+		// A cursor minted under the previous rank (version 1) must not resume at a shifted position.
+		legacy, err := normalizeSubagentListQuery(
+			store.SubagentListQuery{ParentSessionID: parent, Order: store.SubagentOrderUrgency, Limit: 2},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fingerprint, err := listcursor.Fingerprint(legacy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for version, valid := range map[int]bool{1: false, 2: true} {
+			legacy.Cursor, err = listcursor.Encode(version, "subagents", fingerprint, subagentPosition{
+				CreatedAt: store.FormatTimestamp(at(1)), ID: "failed", Rank: 1,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.ListSubagents(ctx, legacy); (err == nil) != valid ||
+				(!valid && !errors.Is(err, listcursor.ErrInvalid)) {
+				t.Fatalf("urgency cursor version %d = %v, want valid %v", version, err, valid)
+			}
 		}
 		newest, err := s.ListSubagents(ctx, store.SubagentListQuery{ParentSessionID: parent, Limit: 1})
 		if err != nil || len(newest.Items) != 1 || newest.Items[0].ID != "done-b" {
@@ -715,7 +740,7 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 				wantOrder := []string{"survivor", "queued", "deleted"}
 				if status == "failed" {
 					wantFailed = 1
-					wantOrder = []string{"deleted", "survivor", "queued"}
+					wantOrder = []string{"survivor", "deleted", "queued"}
 				}
 				if got := summaries[parent]; err != nil || got.Total != 3 || got.Live != 2 ||
 					got.Resumed != 0 || got.Failed != wantFailed {

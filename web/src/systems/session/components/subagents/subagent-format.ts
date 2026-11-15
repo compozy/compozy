@@ -317,23 +317,31 @@ export function subagentLocationRows(
   return rows;
 }
 
-// Sidebar order: waiting > failed > working > queued > settled.
+// Sidebar order, active work first: waiting > working > failed > queued > settled.
+// Mirrors the daemon's `order=urgency` rank (store.SubagentUrgencyRank).
 const urgency = (subagent: SubagentView): number => {
   const { glyph } = subagentDisplay(subagent);
   if (glyph === "attention") return 0;
-  if (glyph === "failed") return 1;
-  if (glyph === "running" || glyph === "delegated") return 2;
+  if (glyph === "running" || glyph === "delegated") return 1;
+  if (glyph === "failed") return 2;
   if (glyph === "queued") return 3;
   return 4;
 };
 
-// Newest first by creation; a row without a creation instant (an older daemon,
-// a partial fixture) falls back to its last update instead of breaking the sort.
+/** Active work: a subagent waiting for you or working (a resumed child included). */
+export function isActiveSubagent(subagent: SubagentView): boolean {
+  return urgency(subagent) <= 1;
+}
+
+// Newest first by creation, then by id descending like the daemon's page order;
+// a row without a creation instant (an older daemon, a partial fixture) falls
+// back to its last update instead of breaking the sort.
 const orderKey = (subagent: SubagentView): string =>
   subagent.created_at || subagent.updated_at || "";
-const byNewest = (a: SubagentView, b: SubagentView) => orderKey(b).localeCompare(orderKey(a));
+const byNewest = (a: SubagentView, b: SubagentView) =>
+  orderKey(b).localeCompare(orderKey(a)) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
 
-/** Most urgent first (waiting > failed > working > queued > settled), then newest. */
+/** Active work first (waiting > working > failed > queued > settled), then newest. */
 export function sortSubagentsByUrgency(subagents: readonly SubagentView[]): SubagentView[] {
   return [...subagents].sort((a, b) => urgency(a) - urgency(b) || byNewest(a, b));
 }

@@ -56,7 +56,9 @@ func (g *SessionRepo) ListSubagents(ctx context.Context, q store.SubagentListQue
 	}
 	var pos subagentPosition
 	if cursor != "" {
-		pos, err = listcursor.Decode[subagentPosition](cursor, 1, "subagents", fingerprint, 0)
+		pos, err = listcursor.Decode[subagentPosition](
+			cursor, subagentCursorVersion(q.Order), "subagents", fingerprint, 0,
+		)
 		if err != nil {
 			return store.SubagentPage{}, err
 		}
@@ -82,8 +84,18 @@ func (g *SessionRepo) ListSubagents(ctx context.Context, q store.SubagentListQue
 	if q.Order == store.SubagentOrderUrgency {
 		next.Rank = store.SubagentUrgencyRank(out.Items[len(out.Items)-1])
 	}
-	out.NextCursor, err = listcursor.Encode(1, "subagents", fingerprint, next)
+	out.NextCursor, err = listcursor.Encode(subagentCursorVersion(q.Order), "subagents", fingerprint, next)
 	return out, err
+}
+
+// subagentCursorVersion binds a cursor to its order's ranking. Version 2 marks
+// the active-first urgency rank (#1732), so an urgency cursor minted under the
+// older rank is rejected as invalid instead of resuming at the wrong position.
+func subagentCursorVersion(order string) int {
+	if order == store.SubagentOrderUrgency {
+		return 2
+	}
+	return 1
 }
 
 // normalizeSubagentListQuery bounds the page size and canonicalizes the

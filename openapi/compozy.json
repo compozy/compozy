@@ -107032,7 +107032,7 @@
             }
           },
           {
-            "description": "Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest",
+            "description": "Row order: newest first (default), or most urgent first (waiting, working, failed, queued, settled) then newest",
             "in": "query",
             "name": "order",
             "schema": {

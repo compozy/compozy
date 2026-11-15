@@ -1,6 +1,11 @@
 import type { SessionPayload } from "../types";
 import { getSessionDisplayTitle } from "./session-display-title";
-import { buildSessionTree, filterThreadSessions, isSubagentSession } from "./session-hierarchy";
+import {
+  activeChildSessionsFirst,
+  buildSessionTree,
+  filterThreadSessions,
+  isSubagentSession,
+} from "./session-hierarchy";
 import type { SessionFoldSet } from "./session-sidebar-scope";
 
 export interface SessionThreadModel {
@@ -27,7 +32,8 @@ const threadCache = new WeakMap<
 
 /**
  * Groups the catalog into provenance threads that survive the filter. A
- * matching descendant keeps its root's thread, so it never renders detached.
+ * matching descendant keeps its root's thread, so it never renders detached;
+ * each thread lists its active children first.
  * The same catalog array and filter return the same threads.
  */
 export function buildSessionListThreads(
@@ -52,7 +58,8 @@ function groupSessionThreads(
       sessionMatchesFilter(session, normalizedFilter)
     );
     if (childSessions === null) continue;
-    threads.push({ session: root, childSessions });
+    // Rows, keyboard cycles and selection ranges all walk this one order.
+    threads.push({ session: root, childSessions: activeChildSessionsFirst(childSessions) });
   }
   return threads;
 }

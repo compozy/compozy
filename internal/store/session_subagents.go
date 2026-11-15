@@ -234,19 +234,19 @@ const (
 	SubagentOrderUrgency = "urgency"
 )
 
-// SubagentUrgencyRank orders rows most urgent first, as clients display them:
-// waiting, failed, working (a resumed child included), queued, then settled.
+// SubagentUrgencyRank orders rows active work first, as clients display them:
+// waiting, working (a resumed child included), then failed, queued, settled.
 // It mirrors the ranking in ListSubagentsByParentUrgency.
 func SubagentUrgencyRank(row SessionSubagent) int {
 	if IsSubagentStatusTerminal(row.Status) && row.ChildActivity == SubagentChildActivityWorking {
-		return 2
+		return 1
 	}
 	switch row.Status {
 	case SubagentStatusWaiting:
 		return 0
-	case SubagentStatusFailed:
-		return 1
 	case SubagentStatusRunning:
+		return 1
+	case SubagentStatusFailed:
 		return 2
 	case SubagentStatusQueued:
 		return 3
