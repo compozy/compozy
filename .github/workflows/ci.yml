@@ -823,7 +823,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: e2e023-diagnostics-shard-${{ matrix.shard }}
-          path: .tmp/playwright/test-results/*os-shell-E2E-023*/attachments
+          path: .tmp/playwright/test-results/*E2E-023*/diagnostic-profiles
           if-no-files-found: ignore
           retention-days: 7
 

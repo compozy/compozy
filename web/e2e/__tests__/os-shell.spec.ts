@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -3764,16 +3765,17 @@ async function attachWindowManagerProfile(
   name: string,
   probe: unknown
 ) {
+  const directory = testInfo.outputPath("diagnostic-profiles");
+  await mkdir(directory, { recursive: true });
+  const attach = async (filename: string, body: string, contentType: string) => {
+    const target = path.join(directory, filename);
+    await writeFile(target, body);
+    await testInfo.attach(filename, { path: target, contentType });
+  };
   const { profile } = await profiler.send("Profiler.stop");
   const { metrics } = await profiler.send("Performance.getMetrics");
-  await testInfo.attach(`${name}-timeline`, {
-    body: JSON.stringify({ metrics, probe }),
-    contentType: "application/json",
-  });
-  await testInfo.attach(`${name}.cpuprofile`, {
-    body: JSON.stringify(profile),
-    contentType: "application/json",
-  });
+  await attach(`${name}-timeline.json`, JSON.stringify({ metrics, probe }), "application/json");
+  await attach(`${name}.cpuprofile`, JSON.stringify(profile), "application/json");
   await profiler.send("Debugger.enable");
   const scriptIds = new Set(
     profile.nodes
@@ -3782,10 +3784,7 @@ async function attachWindowManagerProfile(
   );
   for (const scriptId of scriptIds) {
     const { scriptSource } = await profiler.send("Debugger.getScriptSource", { scriptId });
-    await testInfo.attach(`${name}-script-${scriptId}.js`, {
-      body: scriptSource,
-      contentType: "text/javascript",
-    });
+    await attach(`${name}-script-${scriptId}.js`, scriptSource, "text/javascript");
   }
 }
 
