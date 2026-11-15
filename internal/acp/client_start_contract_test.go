@@ -1090,8 +1090,10 @@ func TestRuntimeModelSwitchDoesNotWaitForTheCatalog(t *testing.T) {
 	defer stopProcess(t, driver, proc)
 
 	started := time.Now()
-	if err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{Model: "not-advertised"}); err == nil {
-		t.Fatal("ConfigureRuntime() error = nil, want model_unavailable")
+	err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{Model: "not-advertised"})
+	negotiationErr, matched := errors.AsType[*NegotiationError](err)
+	if !matched || negotiationErr.Code != NegotiationCodeModelUnavailable {
+		t.Fatalf("ConfigureRuntime() error = %v, want model_unavailable NegotiationError", err)
 	}
 	if elapsed := time.Since(started); elapsed > 2*time.Second {
 		t.Fatalf("ConfigureRuntime() waited %s outside the startup bind", elapsed)
@@ -1631,6 +1633,26 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 // TestConfigureRuntime verifies ordered negotiation, acknowledgement, and preservation after rejection.
 func TestConfigureRuntime(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should wake configuration waiters only when the mode changes", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{}
+		proc.setConfigOptions([]SessionConfigOption{{ID: "mode", CurrentValueID: "agent"}})
+		_, changed := proc.configRevisionAndChange()
+		proc.setConfigOptionCurrent("mode", "agent")
+		select {
+		case <-changed:
+			t.Fatal("unchanged mode woke configuration waiters")
+		default:
+		}
+		proc.setConfigOptionCurrent("mode", "plan")
+		select {
+		case <-changed:
+		default:
+			t.Fatal("changed mode did not wake configuration waiters")
+		}
+	})
 
 	t.Run("Should accept a confirmation published during readback without resending", func(t *testing.T) {
 		t.Parallel()
