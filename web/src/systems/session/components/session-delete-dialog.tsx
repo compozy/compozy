@@ -69,8 +69,14 @@ export function SessionDeleteDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={nextOpen => {
-        if (isDeleting && !nextOpen) return;
+      disablePointerDismissal={isDeleting ? true : undefined}
+      onOpenChange={(nextOpen, details) => {
+        // Hold the confirmation through its request: cancel Escape/outside dismissals instead
+        // of letting the dialog replay an open/close transition under the operator.
+        if (isDeleting && !nextOpen) {
+          details.cancel();
+          return;
+        }
         onOpenChange(nextOpen);
       }}
     >

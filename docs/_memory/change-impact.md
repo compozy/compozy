@@ -51,6 +51,25 @@ Owner: `fix/model-effort-levels`. Web-only bug fix (internal regime, SD-013).
   is unchanged. Official skill `skills/compozy/`: no change.
 - Docs: 2026-11-14 QA note in `docs/qa/scenarios/ET-web-runtime-selector-minimal-slider.md`.
 
+## Session delete confirmation survives the window reconciliation — 2026-11-14
+
+Owner: `fix/session-delete-dialog-flicker`. Web-only bug fix (internal regime, SD-013).
+
+- **Web.** The rail's single and batch delete actions are handed to the OS shell's persistent
+  lifecycle host (`DesktopSessionDialogs`) through an xstate request store
+  (`web/src/systems/os/hooks/use-session-delete-request.ts`), following the
+  `sessionParentPickerStore` pattern. The shell outlives every session window, and the daemon
+  reconciles a deleted session's window before the DELETE answers, so the confirmation no longer
+  leaves with the window. The window keeps its rename, Later and process-choice dialogs and no longer
+  hosts a delete confirmation. `SessionDeleteDialog` and `SessionDeleteDialogSet` cancel Escape/outside
+  dismissals through Base UI `details.cancel()` while deleting and keep the wrapper's window-scoped
+  pointer-dismissal default when idle.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema or
+  migration change. Workspace data isolation is unchanged: the same owner-scoped session transitions
+  and profile scope apply. Official skill `skills/compozy/`: no change.
+- QA: 2026-11-14 notes in `docs/qa/scenarios/RT-session-list-row-actions.md` and
+  `docs/qa/scenarios/ET-web-sessions-catalog-modal.md`; regression suites named there.
+
 ## Grouped menus with List and Kanban parity — 2026-11-13
 
 Owner: PR `feat/grouped-menus` (proto drafts `web/src/drafts/session-menus` and `web/src/drafts/app-menus`,

@@ -114,3 +114,13 @@ apply there. Walk in the session window sidebar, the Sessions modal and the Kanb
 Not offered from a list row or card (they need the session's window): the pull request agent
 prompts (Fix failing checks, Address review comments) and the exit actions; the selection has
 no Move to profile.
+
+QA impact 2026-11-14: rail single and batch deletes ask the OS shell's persistent lifecycle host to
+show the shared confirmation through an xstate request store; the dialog therefore survives the daemon
+removing the session window before the DELETE answers. The window keeps its rename, Later and
+process-choice dialogs but no longer hosts a delete confirmation. `SessionDeleteDialog` and its plural
+set keep the dismissal guard while pending and preserve the window-scoped pointer-dismissal default
+when idle. Automated coverage: `session-delete-request-host.test.tsx` (request lifecycle and
+single/batch forwarding), `use-session-window-sidebar.test.tsx` (rail delegation), and
+`session-delete-dialog.test.tsx` (pending dismissal guard). Reset for a focused live re-walk of the
+window rail's delete confirmation with a slow DELETE.

@@ -15,6 +15,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { subagentRevealStore } from "@/systems/session/lib/subagent-navigation";
+import { sessionDeleteRequestStore } from "../../../hooks/use-session-delete-request";
 import type { SessionPayload } from "@/systems/session";
 
 const {
@@ -84,7 +85,7 @@ vi.mock("@/systems/session", async () => ({
   sessionListSortParam: (sort: string) => sort,
   useSessionCreateActions: () => ({ openForAgent: vi.fn() }),
   useSessionLifecycleActions: () => ({
-    actions: {},
+    actions: { onDelete: vi.fn(), onDeleteMany: vi.fn() },
     deleteDialog: { open: false },
     renameDialog: { open: false },
     laterDialog: { open: false },
@@ -312,6 +313,31 @@ describe("useSessionWindowSidebar", () => {
     } finally {
       Reflect.deleteProperty(document, "startViewTransition");
     }
+  });
+
+  // Invariant: the rail's delete confirmation is hosted by the shell, which outlives the
+  // window the daemon reconciles before the DELETE answers.
+  // Owner: session-window sidebar delete delegation; canonical suite: this hook's suite.
+  it("Should hand rail deletes to the shell request store", () => {
+    const target = session("workspace-1");
+    const onSelectionChange = vi.fn();
+    const { result } = renderHook(() =>
+      useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-current" })
+    );
+
+    act(() => result.current.sessionActions.onDelete(target));
+    expect(sessionDeleteRequestStore.getSnapshot().context.request).toEqual({
+      sessions: [target],
+      bulk: false,
+    });
+
+    act(() => result.current.sessionActions.onDeleteMany?.([target], onSelectionChange));
+    expect(sessionDeleteRequestStore.getSnapshot().context.request).toEqual({
+      sessions: [target],
+      bulk: true,
+      onSelectionChange,
+    });
+    sessionDeleteRequestStore.trigger.settled();
   });
 
   it("Should never read the rail over the board", () => {
