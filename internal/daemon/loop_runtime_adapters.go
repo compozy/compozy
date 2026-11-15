@@ -239,6 +239,7 @@ func (r loopGateCommandRunner) RunCommand(
 	}
 	// #nosec G204 -- shell composition is the authored command contract. Runtime values can reach
 	// this boundary only through command templates whose emitted actions end in shellQuote.
+	//nolint:noctx // CommandContext kills only the shell pid; runLoopGateCommandTree owns group termination.
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = rootDir
 	cmd.Env = acp.DaemonMatchedEnv(cmd.Environ())

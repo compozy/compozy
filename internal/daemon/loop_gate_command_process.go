@@ -61,13 +61,23 @@ func stopLoopGateCommandTree(cmd *exec.Cmd, waitCh <-chan error, grace time.Dura
 	timer := time.NewTimer(grace)
 	defer timer.Stop()
 	select {
-	case <-waitCh:
+	case shellErr := <-waitCh:
+		terminateErr = errors.Join(terminateErr, signalFreeShellError(shellErr))
 	case <-timer.C:
 		if err := procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL); err != nil {
 			terminateErr = errors.Join(terminateErr, err)
 		}
-		<-waitCh
+		terminateErr = errors.Join(terminateErr, signalFreeShellError(<-waitCh))
 	}
-	// The shell's exit status is expected noise here; the group must still drain completely.
+	// The whole group must drain completely, including descendants the shell left behind.
 	return errors.Join(terminateErr, procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait))
+}
+
+// signalFreeShellError drops the shell's own signal exit status: the group drain above decides
+// whether the tree is actually gone, and an ExitError here would mask the interruption cause.
+func signalFreeShellError(err error) error {
+	if _, ok := errors.AsType[*exec.ExitError](err); ok {
+		return nil
+	}
+	return err
 }
