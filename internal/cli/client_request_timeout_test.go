@@ -138,13 +138,14 @@ func TestCommandDepsApplyResolvedRequestTimeout(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(homePaths.ConfigFile, []byte("[client]\nrequest_timeout = \"1s\"\n"), 0o600); err != nil {
+		configText := []byte("[client]\nrequest_timeout = \"1s\"\n")
+		if err := os.WriteFile(homePaths.ConfigFile, configText, 0o600); err != nil {
 			t.Fatal(err)
 		}
 
 		client, err := (commandDeps{}).withDefaults().newClient(LocalClientTarget("/tmp/compozy.sock"))
-		var timeoutErr *compozyconfig.ClientRequestTimeoutError
-		if !errors.As(err, &timeoutErr) || timeoutErr.Value != time.Second {
+		timeoutErr, ok := errors.AsType[*compozyconfig.ClientRequestTimeoutError](err)
+		if !ok || timeoutErr.Value != time.Second {
 			t.Fatalf("newClient() error = %v, want ClientRequestTimeoutError for 1s", err)
 		}
 		if client != nil {
