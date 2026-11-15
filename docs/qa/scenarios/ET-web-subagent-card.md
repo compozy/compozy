@@ -190,5 +190,6 @@ retryable. UT-W16 and `TestSubagentDelete` own these regressions; final-head CI 
 Reconnect confirmation (#1741): keep a cached empty roster across a stream restart or disconnect.
 Inspection stays open until the new subscription snapshot or a fresh complete list confirms absence.
 A cached continuation must not cancel that confirmation refetch; the subsequent page walk uses its
-new cursor and cannot retain a deleted first-page row. UT-W01 and UT-W16 own these regressions; CI
-remains the only execution environment for this dispatch.
+new cursor and cannot retain a deleted first-page row. A mid-prompt control poll also waits for its
+current read before replacing the roster with an older cached answer. The existing roster, live-tail,
+subagent-wiring and roster-control-poll suites own these regressions.

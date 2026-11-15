@@ -1202,8 +1202,9 @@ describe("useSessionLiveTail", () => {
       rows: [],
       snapshotPending: true,
     });
-    await act(async () => vi.advanceTimersByTimeAsync(250));
-    act(() => sources[2]?.emit("subagents_snapshot", { session_id: SESSION_ID, subagents: [] }));
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+    expect(sources).toHaveLength(3);
+    act(() => sources[2]!.emit("subagents_snapshot", { session_id: SESSION_ID, subagents: [] }));
     expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.snapshotPending).not.toBe(true);
   });
 

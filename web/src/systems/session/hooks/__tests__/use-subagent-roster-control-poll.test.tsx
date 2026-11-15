@@ -118,6 +118,73 @@ describe("subagent roster control poll", () => {
     );
   });
 
+  // Invariant: cached poll data cannot confirm absence before the current activation reads.
+  // Owner: control-poll roster publication; canonical suite: this hook's existing suite.
+  it("Should wait for a current read on mount and when polling is reactivated", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const rosterKey = sessionKeys.subagentRoster(WORKSPACE, SESSION);
+    queryClient.setQueryData(sessionKeys.subagentRosterPoll(WORKSPACE, SESSION), {
+      subagents: [],
+      next_cursor: null,
+    });
+    let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
+    vi.mocked(fetchSessionSubagents).mockImplementation(
+      () =>
+        new Promise(resolve => {
+          confirm = resolve;
+        })
+    );
+    let enabled = true;
+    const { rerender } = renderHook(
+      () =>
+        useSubagentRosterControlPoll({
+          workspaceId: WORKSPACE,
+          sessionId: SESSION,
+          enabled,
+          intervalMs: false,
+        }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) =>
+          createElement(QueryClientProvider, { client: queryClient }, children),
+      }
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(queryClient.getQueryData(rosterKey)).toBeUndefined();
+    await act(async () => {
+      confirm({ subagents: [row("current", "running")], next_cursor: null });
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows[0]?.id).toBe("current")
+    );
+    enabled = false;
+    rerender();
+    queryClient.setQueryData<SubagentRoster>(rosterKey, {
+      rows: [],
+      staleIds: new Set(),
+      snapshotPending: true,
+    });
+    enabled = true;
+    rerender();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(2);
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)).toMatchObject({
+      rows: [],
+      snapshotPending: true,
+    });
+    await act(async () => {
+      confirm({ subagents: [], next_cursor: null });
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.snapshotPending).not.toBe(true)
+    );
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows).toEqual([]);
+    queryClient.clear();
+  });
+
   it("Should read every page so older cards keep their state", async () => {
     vi.mocked(fetchSessionSubagents)
       .mockResolvedValueOnce({ subagents: [row("sub-new", "running")], next_cursor: "page-2" })

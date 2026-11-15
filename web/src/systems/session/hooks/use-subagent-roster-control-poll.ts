@@ -43,7 +43,10 @@ export function useSubagentRosterControlPoll({
       return query.state.status === "error" ? STOPPED_HISTORY_RETRY_MS : false;
     },
   });
-  const page = enabled ? poll.data : undefined;
+  const page =
+    enabled && poll.isSuccess && poll.fetchStatus === "idle" && poll.isFetchedAfterMount
+      ? poll.data
+      : undefined;
   useEffect(() => {
     if (!page) return;
     queryClient.setQueryData<SubagentRoster>(
