@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.2 - 2026-11-15
+
+### Bug Fixes
+
+- Reuse profile scope without loop stream lookups (#1740)
+- Retain managed subprocess stdout after exit (#1748)
+- Preserve session authority and accepted lifecycle changes (#1745)
+- Preserve long Loop gate leases and clean owned processes (#1746)
+- Settle deleted subagent children and deliver parent wakes (#1744)
+- Make the composer MCP control an icon-only neutral last control (#1757)
+- Open Settings when runtime MCP servers have no env or headers (#1756)
+- Authenticate daemon GitHub requests and honor rate limits (#1751)
+
+### Performance Improvements
+
+- Stop per-string secret encoding and per-session MCP discovery (#1755)
+
 ## 0.7.1 - 2026-11-15
 
 ### Bug Fixes
@@ -1654,6 +1671,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.7.2]: https://github.com/compozy/compozy/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/compozy/compozy/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/compozy/compozy/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/compozy/compozy/compare/v0.6.1...v0.6.2
