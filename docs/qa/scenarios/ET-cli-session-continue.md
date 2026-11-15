@@ -81,3 +81,13 @@ governed child. The same check applies to `session fork`. The existing CLI/daemo
 journey passes for root, fork and continue, with manager regressions for legacy resume.
 [Focused verification](../reports/2026-10-23-harness-dogfood.md) records this bounded branch;
 the earlier full cross-provider verdict remains historical.
+
+## Unknown target during concurrent source activity — 2026-11-15
+
+After the CLI reads a derive preview, let the source transcript advance and request
+`session continue <source> --agent nope`. The response must remain `agent_not_found`,
+with no child or derive receipt. The same stale fences with an existing target still
+return `session_fence_conflict`; source ownership, eligibility and archive checks take
+precedence over target resolution. `TestContinueSession` owns the combined invalid-target
+and stale-fence case; the unchanged `TestDaemonE2ESessionContinueCLI` owns the real CLI
+journey. Exact-head CI verification is pending; local verification is disabled in release mode.

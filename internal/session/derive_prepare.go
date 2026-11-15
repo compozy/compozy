@@ -31,13 +31,13 @@ func (m *Manager) prepareDerive(
 	if err := m.validateDeriveSource(ctx, spec, snapshot); err != nil {
 		return preparedDerive{}, err
 	}
-	if snapshot.cutErr != nil {
-		return preparedDerive{}, snapshot.cutErr
-	}
 	meta := &snapshot.meta
 	agentName := firstTrimmedNonEmpty(spec.agentName, meta.AgentName)
 	agentDef, workspace, err := m.resolveDeriveTargetAgent(ctx, deriveResolutionMeta(spec, meta), agentName)
 	if err != nil {
+		return preparedDerive{}, err
+	}
+	if err := validateDeriveTranscript(spec.fences, snapshot); err != nil {
 		return preparedDerive{}, err
 	}
 	pendingRoute, routeSelection, err := derivePendingRoute(agentName, agentDef, spec.route)

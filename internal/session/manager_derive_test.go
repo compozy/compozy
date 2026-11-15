@@ -573,6 +573,10 @@ func TestContinueSession(t *testing.T) {
 		if _, err := h.manager.ContinueSession(testutil.Context(t), fenced); !errors.Is(err, ErrDeriveFenceConflict) {
 			t.Fatalf("ContinueSession(stale fences) error = %v, want ErrDeriveFenceConflict", err)
 		}
+		unknown.Fences = fenced.Fences
+		if _, err := h.manager.ContinueSession(testutil.Context(t), unknown); !errors.Is(err, ErrDeriveAgentNotFound) {
+			t.Fatalf("ContinueSession(nope with stale fences) error = %v, want agent not found", err)
+		}
 		for _, key := range []string{"idem_unknown", "idem_fenced"} {
 			if _, found, err := h.db.SessionDerivationReceipt(
 				testutil.Context(t),

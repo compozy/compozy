@@ -6394,3 +6394,14 @@ chosen. The unchanged Tabs-split E2E-010 owns the real browser sequence; the cli
 covers the old client view alongside the newer focus intent. `ET-window-unsplit-four-ways` records
 the affected walk. No native tool, CLI/HTTP/UDS shape, hook, extension, config, persistence,
 official skill or workspace/profile isolation contract changes. Main CI owns validation.
+
+## Release main-health: derivation target validation
+
+Continue/fork validate source ownership, eligibility and archive state before resolving
+the target agent, then validate transcript freshness and message cuts. An unknown agent
+therefore keeps its existing `agent_not_found` diagnostic when a CLI preview becomes
+stale; valid targets retain `session_fence_conflict`, and receipt replay remains first.
+CLI, HTTP/UDS and `compozy__session_continue` share the manager behavior; Web receives
+the same existing errors. No route/DTO, hook, extension API, config, persistence, workspace
+isolation or official skill change. `ET-cli-session-continue`, `TestContinueSession` and
+the unchanged runtime E2E own validation; release CI is the only execution gate.
