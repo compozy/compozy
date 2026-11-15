@@ -59,6 +59,8 @@ E2E-008, which use acpmock.
    `subagents_snapshot` or the CLI list. A provider-native row → 409 `subagent_not_deletable`
    (`Provider-native subagents cannot be deleted; stop the parent turn instead.`) with nothing removed;
    a child session that cannot be deleted leaves the row in place and returns the failure.
+   Delete the only settled result while its wake is queued: that wake is canceled. Let another
+   child finish and confirm a new queued wake delivers its result to the parent.
 7. **Cancel after completion.** Delegate a child, let it settle `completed`, and read its result; then
    `compozy__subagent_cancel` on that terminal row returns `completed` (its terminal status, not
    `cancel_requested`), and the idle child session stops (`child_activity: stopped`) instead of

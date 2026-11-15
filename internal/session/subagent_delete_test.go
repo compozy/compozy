@@ -284,6 +284,38 @@ func TestSubagentDelete(t *testing.T) {
 			t.Fatalf("rewritten wake = %q", text)
 		}
 	})
+	t.Run("Should queue later completions after deleting the only result in a wake", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		first := requireSubagent(t, s, subagentTestRequest())
+		req := subagentTestRequest()
+		req.IdempotencyKey = "later"
+		second := requireSubagent(t, s, req)
+		settleTestChild(t, s, runtime, &first)
+		wakeID := *db.rows[first.ID].WakeMessageID
+		if _, ok := runtime.queues[wakeID]; !ok {
+			t.Fatal("first completion was not queued")
+		}
+
+		if err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", first.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := runtime.queues[wakeID]; ok {
+			t.Fatal("deleted result still has a queued wake")
+		}
+		if db.wakes[wakeID].State != store.SubagentWakeStateCanceled {
+			t.Fatalf("empty wake state = %s, want canceled", db.wakes[wakeID].State)
+		}
+
+		settleTestChild(t, s, runtime, &second)
+		later := db.rows[second.ID]
+		if later.WakeMessageID == nil || *later.WakeMessageID == wakeID {
+			t.Fatalf("later completion reused the empty wake: %+v", later)
+		}
+		if text := runtime.queues[*later.WakeMessageID]; !strings.Contains(text, second.ID) {
+			t.Fatalf("later completion was not queued: %q", text)
+		}
+	})
 	t.Run("Should let an agent delete only its own delegation", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)

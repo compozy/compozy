@@ -139,6 +139,11 @@ func (s *subagentService) rewriteDeletedWake(ctx context.Context, parent string)
 		if err := s.rewriteWake(ctx, wake, rows); err != nil {
 			return err
 		}
+		if len(rows) == 0 {
+			if _, err := s.settleWakeRows(ctx, wake.WakeMessageID, true); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
