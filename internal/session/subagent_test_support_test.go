@@ -29,6 +29,7 @@ type memorySubagents struct {
 	committedAdmission   bool
 	finalizeFailures     int
 	finalizeCalls        int
+	finalizeErrIDs       map[string]error
 }
 
 var _ store.SubagentStore = (*memorySubagents)(nil)
@@ -196,6 +197,9 @@ func (d *memorySubagents) FinalizeSubagent(
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if err := d.finalizeErrIDs[in.ID]; err != nil {
+		return store.SessionSubagent{}, false, err
+	}
 	d.finalizeCalls++
 	if d.finalizeFailures > 0 {
 		d.finalizeFailures--
@@ -459,6 +463,7 @@ type subagentTestRuntime struct {
 	permissionLimit                 *SubagentPermissionLimit
 	permissionLimitErr              error
 	stopDescendants                 func(context.Context, string) error
+	terminationBudget               time.Duration
 	publishParent                   func(context.Context, string)
 	inputStatuses                   map[string]string
 	errorResume                     error
@@ -551,6 +556,13 @@ func (r *subagentTestRuntime) HasAdmission(_ context.Context, row store.SessionS
 	_, ok := r.admitted[row.ID]
 	return ok, nil
 }
+func (r *subagentTestRuntime) TerminationBudget() time.Duration {
+	if r.terminationBudget > 0 {
+		return r.terminationBudget
+	}
+	return defaultLifecycleTimeout
+}
+
 func (r *subagentTestRuntime) Stop(ctx context.Context, id string) error {
 	// The runtime boundary owns cascading just as Manager.Stop does in production.
 	if r.stopDescendants != nil {
