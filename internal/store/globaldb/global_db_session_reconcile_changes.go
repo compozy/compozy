@@ -2,7 +2,9 @@ package globaldb
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -80,12 +82,13 @@ func (g *SessionRepo) ReconcileSessionChanges(
 			if _, ok := present[id]; ok {
 				continue
 			}
-			if err := queries.MarkSessionOrphaned(ctx, sqlcgen.MarkSessionOrphanedParams{
-				State: sessionStateOrphaned, UpdatedAt: orphanedAt, ID: id,
-			}); err != nil {
-				return fmt.Errorf("store: mark orphaned session %q: %w", id, err)
+			marked, err := markReconciledSessionOrphaned(ctx, queries, id, orphanedAt)
+			if err != nil {
+				return err
 			}
-			orphaned = append(orphaned, id)
+			if marked {
+				orphaned = append(orphaned, id)
+			}
 		}
 		result.Orphaned = orphaned
 		return nil
@@ -94,6 +97,26 @@ func (g *SessionRepo) ReconcileSessionChanges(
 		return store.SessionChangeReconcileResult{}, err
 	}
 	return result, nil
+}
+
+func markReconciledSessionOrphaned(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	id, updatedAt string,
+) (bool, error) {
+	err := mapSessionArchivedConstraint(id, queries.MarkSessionOrphaned(ctx, sqlcgen.MarkSessionOrphanedParams{
+		State: sessionStateOrphaned, UpdatedAt: updatedAt, ID: id,
+	}))
+	if errors.Is(err, store.ErrSessionArchived) {
+		slog.WarnContext(ctx, "store: skipping archived session missing from disk",
+			"session_id", id, "reason", "archived_session_missing",
+		)
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("store: mark orphaned session %q: %w", id, err)
+	}
+	return true, nil
 }
 
 // reconcileSessionChunk upserts one chunk and reads every row back before the transaction

@@ -6439,6 +6439,68 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 	}
 }
 
+func TestGlobalDBReconcileSessionsWithArchivedMissingFolder(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		changes bool
+	}{
+		{name: "Should preserve missing archived sessions during full reconciliation"},
+		{name: "Should preserve missing archived sessions during incremental reconciliation", changes: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspaceID := registerSessionForGlobalTests(t, db, "sess-archived-missing")
+			registerSessionForGlobalTests(t, db, "sess-unarchived-missing")
+			if err := db.UpdateSessionState(ctx, SessionStateUpdate{
+				ID: "sess-archived-missing", State: "stopped",
+			}); err != nil {
+				t.Fatalf("UpdateSessionState() error = %v", err)
+			}
+			archived, err := db.SetSessionArchived(ctx, workspaceID, "sess-archived-missing", true)
+			if err != nil {
+				t.Fatalf("SetSessionArchived() error = %v", err)
+			}
+
+			for range 2 {
+				var result store.ReconcileResult
+				if tc.changes {
+					var changes store.SessionChangeReconcileResult
+					changes, err = db.ReconcileSessionChanges(ctx, nil, nil)
+					result = changes.ReconcileResult
+				} else {
+					result, err = db.ReconcileSessions(ctx, nil)
+				}
+				if err != nil {
+					t.Fatalf("reconcile with missing archived folder: %v", err)
+				}
+				if len(result.Indexed) != 0 || !slices.Equal(result.Orphaned, []string{"sess-unarchived-missing"}) {
+					t.Fatalf("reconcile result = %#v, want only unarchived session orphaned", result)
+				}
+				rows, err := db.ListSessions(ctx, SessionListQuery{
+					ID: archived.ID, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+					Archive: store.SessionArchiveInclude,
+				})
+				if err != nil || len(rows) != 1 || !reflect.DeepEqual(rows[0], archived) {
+					t.Fatalf("archived session = %#v, %v; want unchanged %#v", rows, err, archived)
+				}
+			}
+
+			if err := db.DeleteSession(ctx, archived.ID); err != nil {
+				t.Fatalf("DeleteSession(archived missing folder) error = %v", err)
+			}
+			_, err = db.SessionArchivedAt(ctx, workspaceID, archived.ID)
+			if !errors.Is(err, store.ErrSessionNotFound) {
+				t.Fatalf("SessionArchivedAt(deleted) error = %v, want ErrSessionNotFound", err)
+			}
+		})
+	}
+}
+
 func TestGlobalDBReconcileSessionsSkipsDuplicateIDsAndDefaultsTimestamps(t *testing.T) {
 	t.Parallel()
 
