@@ -86,7 +86,7 @@ func runLoopGateCommandTree(
 func waitLoopGateCommandTree(
 	ctx context.Context, cmd *exec.Cmd, waitCh <-chan error, statusPath string, grace time.Duration,
 ) error {
-	ticker := time.NewTicker(10 * time.Millisecond)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
@@ -203,13 +203,8 @@ func signalFreeShellError(err error) error {
 // code separate from this fixed supervisor protocol. A caught (rather than
 // ignored) TERM resets to the default in the child shell.
 const loopGateSupervisorScript = `trap ':' TERM
-sh -c "$1" &
-child=$!
-while :; do
-  wait "$child"
-  code=$?
-  kill -0 "$child" 2>/dev/null || break
-done
+sh -c "$1"
+code=$?
 printf '%s\n' "$code" > "$2.tmp" && mv "$2.tmp" "$2" || exit 125
 while :; do sleep 3600 & wait $!; done
 `

@@ -344,7 +344,7 @@ func coordinatorHeartbeatInterval(leaseDuration time.Duration) time.Duration {
 }
 
 // coordinatorFirstHeartbeatDelay keeps the first renewal inside the claimed lease. The transitions
-// and the initial progress write can consume part of the lease before the heartbeat starts, so the
+// before execution can consume part of the lease before the heartbeat starts, so the
 // first wait uses at most one third of what remains; later renewals keep the steady cadence.
 func coordinatorFirstHeartbeatDelay(interval time.Duration, leaseUntil time.Time, now time.Time) time.Duration {
 	const minimumDelay = time.Millisecond

@@ -776,6 +776,25 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 		}
 	})
 
+	// Invariant: the supervisor preserves normal signal handling in authored
+	// foreground commands. Owner: daemon adapter; canonical runtime adapter suite.
+	t.Run("Should allow an authored command to interrupt its child with SIGINT", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: root}},
+			},
+		}}
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command",
+			Command:     `sh -c 'kill -INT "$$"; exit 7'; test "$?" -gt 128`,
+		})
+		if err != nil || result.ExitCode != 0 {
+			t.Fatalf("RunCommand(SIGINT) = %#v, %v; want interrupted child", result, err)
+		}
+	})
+
 	t.Run("Should reap a SIGTERM-ignoring process tree when the gate is interrupted", func(t *testing.T) {
 		t.Parallel()
 
