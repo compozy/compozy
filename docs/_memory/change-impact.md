@@ -6354,3 +6354,11 @@ No native tool, CLI/HTTP/UDS shape, hook, extension API, config, schema, officia
 isolation contract changes. Web navigation and deletion keep their existing request cancellation.
 `TestManagerStatusReturnsActiveAndStoredSessions` owns fail-closed reads and diagnostic behavior;
 the session-hardening Web E2E retains its unchanged sensitive-data assertions. Main CI owns validation.
+
+## Release main-health: derivation fixture baseline
+
+The browser derivation suite waits for the declaration watcher's initial durable MCP summary before
+capturing source fences. Fork/continue still preserve every source entry and the exact fence. This
+is test synchronization with the existing `session.mcp_changed` contract; no production surface,
+permissions, hook, config, persistence, official skill or workspace isolation behavior changes.
+`ET-web-session-fork-from-here` names the same baseline; main CI owns the browser scenario validation.

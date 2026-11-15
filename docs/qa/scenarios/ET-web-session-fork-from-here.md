@@ -21,7 +21,9 @@ agent that answers three turns (acpmock `browser_session_fork_fixture.json` `for
 for the native line, one that advertises `session/fork` + `session/load`
 (`session_fork_fixture.json` `fork-native-agent`, or real OpenCode):
 
-1. Prompt three turns. Hover the second user message: "Fork from here" sits before "Rewind to here".
+1. Prompt three turns. Before recording the source transcript baseline, wait for the initial
+   `session.mcp_changed` notification: the declaration watcher records it independently of prompt
+   completion. Hover the second user message: "Fork from here" sits before "Rewind to here".
    While a fourth prompt runs, both are disabled.
 2. Click "Fork from here": the dialog shows the locked agent and "Carries over N of M messages · X B";
    there is no fork-point field and no Open in choice. Cancel closes without creating anything.
