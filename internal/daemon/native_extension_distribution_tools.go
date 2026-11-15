@@ -137,6 +137,7 @@ func (n *daemonNativeTools) extensionPublish(
 	client := registrygithub.NewClient(
 		n.deps.ExtensionConfig.Sources.GitHub.BaseURL,
 		registrygithub.WithToken(token),
+		registrygithub.WithHTTPClient(n.deps.ExtensionHTTPClient),
 	)
 	defer func() {
 		err = errors.Join(err, client.Close())

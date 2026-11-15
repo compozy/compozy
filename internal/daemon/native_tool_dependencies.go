@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"github.com/compozy/compozy/internal/agentmemory"
 
@@ -110,6 +111,7 @@ type daemonNativeToolsDeps struct {
 	ExtensionSources      extensionMarketplaceSourceLoader
 	ExtensionEvents       extensionLifecycleEventWriter
 	ExtensionSecrets      extensionPublishSecretResolver
+	ExtensionHTTPClient   *http.Client
 	AgentSkills           agentSkillPublisher
 	AgentSkillsRuntime    func() agentSkillPublisher
 	ToolMCP               toolMCPPublisher
