@@ -337,20 +337,17 @@ describe("OsDock", () => {
   it("Should preserve unchanged launcher menus when focus changes", () => {
     const items: OsDockItemData[] = [
       { id: "tasks", name: "Tasks", icon: "tasks", running: true, active: true },
-      {
-        id: "dashboard",
-        name: "Dashboard",
-        icon: "dashboard",
-        running: true,
-        active: false,
-      },
+      { id: "dashboard", name: "Dashboard", icon: "dashboard", running: true, active: false },
       { id: "agents", name: "Agents", icon: "agents", active: false },
     ];
     const onSelect = vi.fn();
     const renderItemMenu = vi.fn((_item: OsDockItemData, children: React.ReactNode) => children);
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TooltipProvider delay={0}>{children}</TooltipProvider>
+    );
     const view = render(
       <OsDock items={items} onSelect={onSelect} renderItemMenu={renderItemMenu} />,
-      { wrapper: ({ children }) => <TooltipProvider delay={0}>{children}</TooltipProvider> }
+      { wrapper }
     );
     renderItemMenu.mockClear();
     const switched = items.map(item => ({ ...item, active: item.id === "dashboard" }));
