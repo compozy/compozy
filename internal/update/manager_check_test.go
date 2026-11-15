@@ -45,6 +45,7 @@ func TestManagerCheck(t *testing.T) {
 				return server.Client().Transport.RoundTrip(forward)
 			})},
 		})
+		manager.githubCredentials = githubauth.NewResolver(manager.getenv)
 		if release, err := manager.fetchLatestRelease(t.Context()); err != nil || release.Version != "v1.2.0" {
 			t.Fatalf("anonymous release = %+v, %v", release, err)
 		}
@@ -71,6 +72,7 @@ func TestManagerCheck(t *testing.T) {
 				return server.Client().Transport.RoundTrip(forward)
 			})},
 		})
+		manager.githubCredentials = githubauth.NewResolver(manager.getenv)
 		for range 2 {
 			state, _, err := manager.Check(t.Context(), CheckOptions{ForceRefresh: true})
 			limited, ok := errors.AsType[*githubauth.RateLimitError](err)
@@ -1235,6 +1237,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 			},
 		})
 
+		manager.githubCredentials = githubauth.NewResolver(manager.getenv)
 		var release githubReleaseResponse
 		err := manager.fetchGitHubJSON(t.Context(), "https://api.github.com/releases", &release)
 		if err == nil {
