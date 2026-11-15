@@ -29,6 +29,7 @@ type memorySubagents struct {
 	committedAdmission   bool
 	finalizeFailures     int
 	finalizeCalls        int
+	finalizeErrIDs       map[string]error
 	worktreeFactsErrIDs  map[string]error
 }
 
@@ -208,6 +209,9 @@ func (d *memorySubagents) FinalizeSubagent(
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if err := d.finalizeErrIDs[in.ID]; err != nil {
+		return store.SessionSubagent{}, false, err
+	}
 	d.finalizeCalls++
 	if d.finalizeFailures > 0 {
 		d.finalizeFailures--

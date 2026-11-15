@@ -49,11 +49,7 @@ func (s *subagentService) finalize(ctx context.Context, row store.SessionSubagen
 		return nil
 	}
 	if store.IsSubagentStatusTerminal(current.Status) {
-		current, err = s.persistTerminalWorktreeFacts(ctx, row, current)
-		if err != nil {
-			return err
-		}
-		return s.updateChildActivity(ctx, current)
+		return s.refreshTerminalSubagent(ctx, row, current)
 	}
 	facts := row.WorktreeState().Facts
 	row = current
@@ -102,6 +98,19 @@ func (s *subagentService) updateSubagentWorkState(
 		}
 	}
 	return err
+}
+
+func (s *subagentService) refreshTerminalSubagent(
+	ctx context.Context, observed, current store.SessionSubagent,
+) error {
+	current, err := s.persistTerminalWorktreeFacts(ctx, observed, current)
+	if errors.Is(err, store.ErrSubagentNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return s.updateChildActivity(ctx, current)
 }
 
 func (s *subagentService) persistTerminalWorktreeFacts(

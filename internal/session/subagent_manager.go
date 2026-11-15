@@ -42,6 +42,10 @@ func (s *subagentService) onChildSessionDeleted(ctx context.Context, before stor
 	}
 	if err == nil && store.IsSubagentStatusTerminal(row.Status) {
 		row, err = s.persistTerminalWorktreeFacts(ctx, before, row)
+		if errors.Is(err, store.ErrSubagentNotFound) {
+			unlock()
+			return nil
+		}
 	}
 	// Normal child finalization stores a result, including an empty one. Only
 	// deletion can interrupt this formerly live row without reading its transcript.
