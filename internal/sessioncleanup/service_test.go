@@ -189,6 +189,22 @@ func TestServiceStart(t *testing.T) {
 		}
 	})
 
+	// Invariant: an unverified not-found delete failure never counts a retained session as deleted.
+	// Owner: cleanup orchestration; the existing service suite exercises the deleter I/O boundary.
+	t.Run("Should report a not-found delete failure instead of counting it as deleted", func(t *testing.T) {
+		t.Parallel()
+		h := newServiceHarness(t, []store.SessionHistoryCleanupRow{archivedRow("root", "", 10)}, &fakeDeleter{
+			results: map[string]error{"root": store.ErrSessionNotFound},
+		})
+		if _, _, err := h.service.Start(t.Context(), serviceRequest()); err != nil {
+			t.Fatal(err)
+		}
+		run := h.waitForSettled(t)
+		if run.State != RunFailed || run.Deleted != 0 || run.FailedThreads != 1 || len(run.Failures) != 1 {
+			t.Fatalf("run = %+v, want one failure and no deletion", run)
+		}
+	})
+
 	t.Run("Should stop a failing thread and finish the others as partial", func(t *testing.T) {
 		t.Parallel()
 		rows := []store.SessionHistoryCleanupRow{

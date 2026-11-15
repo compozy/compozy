@@ -332,7 +332,7 @@ func (s *Service) deleteThread(ctx context.Context, run *cleanupRun, scope Scope
 			ProfileID:   scope.ProfileID,
 			WorkspaceID: thread.WorkspaceID,
 		})
-		if err != nil && !errors.Is(err, store.ErrSessionNotFound) && !errors.Is(err, store.ErrSessionNotArchived) {
+		if err != nil && !errors.Is(err, store.ErrSessionNotArchived) {
 			s.logger.Warn(
 				"sessioncleanup: delete archived session",
 				"run_id", run.run.ID, "session_id", sessionID, "root_id", thread.RootID, "error", err,

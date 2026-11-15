@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -50,6 +52,9 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 	}
 	defer unlock()
 	if err := m.guardInstanceMain(ctx, target); err != nil {
+		return err
+	}
+	if handled, err := m.deleteMissingSession(ctx, target, archived); handled {
 		return err
 	}
 	if archived != nil {
@@ -117,6 +122,58 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 	return nil
 }
 
+func (m *Manager) deleteMissingSession(
+	ctx context.Context, target string, archived *store.ArchivedSessionDelete,
+) (bool, error) {
+	if m.sessionCatalog == nil {
+		return false, nil
+	}
+	if _, active := m.Get(target); active || m.isPending(target) || m.hasPendingStopSettlement(target) {
+		return false, nil
+	}
+	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
+	if _, err := os.Lstat(metaPath); !errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	info, err := m.durableSessionInfoForLifecycleTransition(ctx, target)
+	if err != nil {
+		return true, err
+	}
+	if info.State != StateStopped {
+		return true, fmt.Errorf(
+			"%w: cannot delete missing session %s before process exit",
+			ErrStopVerificationFailed,
+			target,
+		)
+	}
+	if archived != nil {
+		if err := validateArchivedDelete(info, *archived); err != nil {
+			return true, err
+		}
+	}
+	stopInfo := *info
+	stopInfo.StopCause = CauseUserRequested
+	if err := m.removeSessionGoals(ctx, &stopInfo); err != nil {
+		return true, fmt.Errorf("session: cancel Goals before delete: %w", err)
+	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+	if err := m.deleteSessionCatalogRow(ctx, target, archived); err != nil {
+		return true, err
+	}
+	m.replyWatchSessionDeleted(ctx, target)
+	m.publishCommittedSessionDelete(&stagedSessionDelete{info: info})
+	if err := m.reconcileDeletedSessionWindows(
+		context.WithoutCancel(ctx),
+		info.ProfileID,
+		info.WorkspaceID,
+		target,
+	); err != nil {
+		m.logger.Warn("session: reconcile deleted missing session windows", "session_id", target, "error", err)
+	}
+	return true, nil
+}
+
 // requireArchivedDelete refuses an archived-only delete of a session that was
 // restored, moved, or never matched the expected owner.
 func (m *Manager) requireArchivedDelete(
@@ -128,10 +185,14 @@ func (m *Manager) requireArchivedDelete(
 	if err != nil {
 		return err
 	}
+	return validateArchivedDelete(info, archived)
+}
+
+func validateArchivedDelete(info *Info, archived store.ArchivedSessionDelete) error {
 	if info.ArchivedAt == nil ||
 		strings.TrimSpace(info.ProfileID) != strings.TrimSpace(archived.ProfileID) ||
 		strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(archived.WorkspaceID) {
-		return fmt.Errorf("session: delete %q: %w", target, store.ErrSessionNotArchived)
+		return fmt.Errorf("session: delete %q: %w", info.ID, store.ErrSessionNotArchived)
 	}
 	return nil
 }

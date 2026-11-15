@@ -57,7 +57,9 @@ Walk:
    restart the same build twice. Both starts reach readiness and log a structured warning with
    the session ID and reason `archived_session_missing`. The archived catalog row retains its
    state, archive timestamp and metadata, stays readable with archived sessions included, and can
-   be deleted explicitly. A missing unarchived session still follows the existing orphan policy.
+   be deleted explicitly through the session menu or CLI. Repeat with archived history cleanup:
+   its deleted count advances once, and the next preview no longer includes the session. A missing
+   unarchived session still follows the existing orphan policy.
 
 Owning suites: `TestBootSessionRepair` (per-session progress, cleared on exit, unchanged sessions
 skipped), `TestReconciliationReadsOnlyChangedSessions` (reconcile reads only changed sessions),
@@ -67,3 +69,8 @@ skipped), `TestReconciliationReadsOnlyChangedSessions` (reconcile reads only cha
 
 Archived missing-directory coverage: `TestGlobalDBReconcileSessionsWithArchivedMissingFolder`
 exercises both full and incremental reconciliation against real SQLite.
+
+Missing-history deletion coverage: `TestManagerDelete` exercises plain and archived-only manager
+deletes against real SQLite with a missing meta file or directory, scope refusal and already-gone
+cleanup. `TestServiceStart` refuses to count an unverified not-found failure as deleted. Release
+mode leaves the manual walk and all test execution to CI.

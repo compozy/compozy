@@ -103,7 +103,7 @@ func (r *cleanupRun) settle(err error, now time.Time, interval time.Duration) bo
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	switch {
-	case err == nil || errors.Is(err, store.ErrSessionNotFound):
+	case err == nil:
 		r.run.Deleted++
 	case errors.Is(err, store.ErrSessionNotArchived):
 		r.run.Skipped++

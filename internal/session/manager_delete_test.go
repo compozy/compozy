@@ -373,6 +373,103 @@ func TestManagerDelete(t *testing.T) {
 		}
 	})
 
+	// Invariant: missing stopped history is explicitly deletable through the manager, with archive scope guards intact.
+	// Owner: session manager deletion; this suite uses the real global catalog.
+	for _, archivedOnly := range []bool{false, true} {
+		for _, missingDirectory := range []bool{false, true} {
+			name := fmt.Sprintf("Should delete missing stopped history archived=%t directory=%t", archivedOnly, missingDirectory)
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				h := newDeriveHarness(t)
+				session := createSession(t, h.harness)
+				if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+					t.Fatal(err)
+				}
+				if archivedOnly {
+					if _, err := h.manager.Archive(t.Context(), h.workspaceID, session.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if missingDirectory {
+					if err := os.RemoveAll(session.SessionDir()); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Remove(store.SessionMetaFile(session.SessionDir())); err != nil {
+					t.Fatal(err)
+				}
+				target := store.ArchivedSessionDelete{
+					SessionID: session.ID, ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+				}
+				if archivedOnly {
+					for _, refused := range []store.ArchivedSessionDelete{
+						{SessionID: session.ID, ProfileID: "other-profile", WorkspaceID: h.workspaceID},
+						{SessionID: session.ID, ProfileID: target.ProfileID, WorkspaceID: "other-workspace"},
+					} {
+						if err := h.manager.DeleteArchived(t.Context(), refused); !errors.Is(err, store.ErrSessionNotArchived) {
+							t.Fatalf("DeleteArchived(wrong scope) = %v", err)
+						}
+					}
+					if err := h.manager.DeleteArchived(t.Context(), target); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					if err := h.manager.DeleteArchived(t.Context(), target); !errors.Is(err, store.ErrSessionNotArchived) {
+						t.Fatalf("DeleteArchived(unarchived) = %v", err)
+					}
+					if err := h.manager.Delete(t.Context(), session.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				rows, err := h.db.ListSessions(t.Context(), store.SessionListQuery{
+					ReadScope: store.ReadScope{AllProfiles: true}, ID: session.ID,
+					Archive: store.SessionArchiveInclude, Limit: 1,
+				})
+				if err != nil || len(rows) != 0 {
+					t.Fatalf("catalog after delete = %+v, %v", rows, err)
+				}
+				assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+				if err := (historyCleanupDeleter{manager: h.manager}).DeleteArchived(t.Context(), target); err != nil {
+					t.Fatalf("cleanup of already absent catalog row = %v", err)
+				}
+			})
+		}
+	}
+
+	t.Run("Should keep a catalog row when cleanup cannot prove its metadata identity", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		session := createSession(t, h.harness)
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, session.ID); err != nil {
+			t.Fatal(err)
+		}
+		metaPath := store.SessionMetaFile(session.SessionDir())
+		meta := readMeta(t, metaPath)
+		meta.ID = "different-session"
+		payload, err := json.Marshal(meta)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(metaPath, payload, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		err = (historyCleanupDeleter{manager: h.manager}).DeleteArchived(t.Context(), store.ArchivedSessionDelete{
+			SessionID: session.ID, ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+		})
+		if !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("cleanup of mismatched metadata = %v, want failed delete", err)
+		}
+		rows, err := h.db.ListSessions(t.Context(), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, ID: session.ID,
+			Archive: store.SessionArchiveInclude, Limit: 1,
+		})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("catalog after refused cleanup = %+v, %v", rows, err)
+		}
+	})
+
 	// Invariant: failed Goal settlement preserves stopped history and attachments for a safe retry.
 	// Owner: session deletion; canonical manager lifecycle suite with the Goal I/O boundary injected.
 	for _, restart := range []bool{false, true} {

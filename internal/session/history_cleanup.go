@@ -105,8 +105,12 @@ type historyCleanupDeleter struct {
 
 func (d historyCleanupDeleter) DeleteArchived(ctx context.Context, target store.ArchivedSessionDelete) error {
 	err := d.manager.DeleteArchived(ctx, target)
-	if errors.Is(err, ErrSessionNotFound) && !errors.Is(err, store.ErrSessionNotFound) {
-		return errors.Join(err, store.ErrSessionNotFound)
+	if errors.Is(err, ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotFound) {
+		_, readErr := d.manager.durableSessionInfoForLifecycleTransition(ctx, target.SessionID)
+		if errors.Is(readErr, ErrSessionNotFound) {
+			return nil
+		}
+		return errors.Join(err, readErr)
 	}
 	return err
 }
