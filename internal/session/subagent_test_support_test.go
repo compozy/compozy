@@ -188,9 +188,12 @@ func (d *memorySubagents) RewriteSubagentWakeInput(_ context.Context, id, text s
 }
 
 func (d *memorySubagents) FinalizeSubagent(
-	_ context.Context,
+	ctx context.Context,
 	in store.SubagentFinalize,
 ) (store.SessionSubagent, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return store.SessionSubagent{}, false, err
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.finalizeCalls++
@@ -393,7 +396,10 @@ func (d *memorySubagents) Dispose(_ context.Context, f store.SubagentDisposeFilt
 	}
 	return rows, nil
 }
-func (d *memorySubagents) UpgradeWakePolicy(_ context.Context, id string) (store.SessionSubagent, error) {
+func (d *memorySubagents) UpgradeWakePolicy(ctx context.Context, id string) (store.SessionSubagent, error) {
+	if err := ctx.Err(); err != nil {
+		return store.SessionSubagent{}, err
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	row := d.rows[id]
@@ -575,10 +581,13 @@ func (r *subagentTestRuntime) Result(_ context.Context, id string) (subagentTurn
 }
 
 func (r *subagentTestRuntime) QueueWake(
-	_ context.Context,
+	ctx context.Context,
 	wake store.SessionSubagentWake,
 	rows []store.SessionSubagent,
 ) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.queueFull > 0 {

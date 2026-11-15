@@ -3094,6 +3094,32 @@ func TestRecoverFinalizesOrphanedDelegation(t *testing.T) {
 	})
 }
 
+func TestRecoverWakesParentAfterCallerCancellation(t *testing.T) {
+	for _, policy := range []string{store.SubagentWakePolicyAlways, store.SubagentWakePolicySettledOnly} {
+		t.Run("Should wake the parent after recovery cancellation with "+policy, func(t *testing.T) {
+			t.Parallel()
+			s, db, r := newSubagentTestService(t)
+			row := orphanedDelegationRow()
+			row.WakePolicy = policy
+			db.rows[row.ID] = row
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			r.publishParent = func(context.Context, string) { cancel() }
+
+			if err := s.failRecovered(ctx, row, ""); err != nil {
+				t.Fatalf("failRecovered() error = %v", err)
+			}
+			settled := db.rows[row.ID]
+			if settled.Status != store.SubagentStatusFailed || settled.WakePolicy != store.SubagentWakePolicyAlways {
+				t.Fatalf("row = %+v, want failed with an unconditional wake", settled)
+			}
+			if len(db.wakes) != 1 || len(r.queues) != 1 {
+				t.Fatalf("wakes = %+v queues = %+v, want one recovery wake", db.wakes, r.queues)
+			}
+		})
+	}
+}
+
 func TestRecoverFinalizesOrphanedIsolatedDelegation(t *testing.T) {
 	t.Run("Should settle an orphaned isolated delegation and wake the parent", func(t *testing.T) {
 		t.Parallel()
@@ -3299,6 +3325,9 @@ func TestFinalizeSubagentRetryOutlivesExpiredCallerContext(t *testing.T) {
 		if !changed || settled.Status != store.SubagentStatusFailed {
 			t.Fatalf("settled = %+v changed = %v, want a failed terminal write", settled, changed)
 		}
+		if stored := db.rows["orphan"]; stored.Status != store.SubagentStatusFailed {
+			t.Fatalf("stored row = %+v, want a failed terminal write", stored)
+		}
 	})
 }
 
@@ -3339,12 +3368,13 @@ func TestFinalizeSubagentDoesNotRetryPermanentErrors(t *testing.T) {
 
 		s, db, _ := newSubagentTestService(t)
 
-		if _, _, err := s.finalizeSubagentWithRetry(t.Context(), store.SubagentFinalize{
+		_, _, err := s.finalizeSubagentWithRetry(t.Context(), store.SubagentFinalize{
 			ID:        "missing",
 			Status:    store.SubagentStatusFailed,
 			SettledAt: time.Date(2026, 10, 8, 0, 1, 0, 0, time.UTC),
-		}); err == nil {
-			t.Fatal("error = nil, want the missing-row error")
+		})
+		if !errors.Is(err, store.ErrSubagentNotFound) {
+			t.Fatalf("error = %v, want the missing-row error", err)
 		}
 		if want := 1; db.finalizeCalls != want {
 			t.Fatalf("finalize calls = %d, want %d", db.finalizeCalls, want)
@@ -3364,6 +3394,9 @@ func (d slowFinalizeSubagents) FinalizeSubagent(
 	in store.SubagentFinalize,
 ) (store.SessionSubagent, bool, error) {
 	time.Sleep(d.delay)
+	if err := ctx.Err(); err != nil {
+		return store.SessionSubagent{}, false, err
+	}
 	return d.SubagentStore.FinalizeSubagent(ctx, in)
 }
 
@@ -3386,8 +3419,8 @@ func TestFailDelegationPublishesTerminalWithLiveContext(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			s, db, r := newSubagentTestService(t)
 			db.rows["orphan"] = orphanedDelegationRow()
-			db.finalizeFailures = 1
-			s.store = slowFinalizeSubagents{SubagentStore: db, delay: 2 * defaultLifecycleTimeout}
+			db.finalizeFailures = 2
+			s.store = slowFinalizeSubagents{SubagentStore: db, delay: 3 * time.Second}
 			published, publishErr := publishContextProbe(r)
 
 			if _, err := s.failDelegation(t.Context(), db.rows["orphan"], "", testSubagentError()); err != nil {
@@ -3413,9 +3446,9 @@ func TestFailIsolatedDelegationPublishesTerminalWithLiveContext(t *testing.T) {
 			row.Isolation = SubagentIsolationWorktree
 			row.Worktree = &store.SubagentWorktreeState{ID: "wt-1", BaseSHA: "base"}
 			db.rows["orphan"] = row
-			db.finalizeFailures = 1
+			db.finalizeFailures = 2
 			s.worktrees = &subagentWorktreeStub{worktree: SubagentWorktree{ID: "wt-1"}}
-			s.store = slowFinalizeSubagents{SubagentStore: db, delay: 2 * defaultLifecycleTimeout}
+			s.store = slowFinalizeSubagents{SubagentStore: db, delay: 3 * time.Second}
 			published, publishErr := publishContextProbe(r)
 
 			cause := testSubagentError()

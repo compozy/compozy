@@ -178,8 +178,10 @@ func (s *subagentService) failRecovered(ctx context.Context, row store.SessionSu
 	if err != nil {
 		return err
 	}
+	wakeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	if failed.WakePolicy != store.SubagentWakePolicyAlways {
-		upgraded, err := s.store.UpgradeWakePolicy(ctx, failed.ID)
+		upgraded, err := s.store.UpgradeWakePolicy(wakeCtx, failed.ID)
 		if err != nil {
 			return err
 		}
@@ -187,7 +189,7 @@ func (s *subagentService) failRecovered(ctx context.Context, row store.SessionSu
 	}
 	unlock := s.lock(row.ParentSessionID)
 	defer unlock()
-	return s.planDelivery(ctx, failed.SessionSubagent)
+	return s.planDelivery(wakeCtx, failed.SessionSubagent)
 }
 
 func (s *subagentService) inFlight(id string) bool {

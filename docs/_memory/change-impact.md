@@ -6255,3 +6255,12 @@ restart list-changed runtimes. Reload/receipt telemetry failures preserve succes
 CLI allow/import/session MCP support JSONL and TOON; changed runtime definitions have a distinct
 Copy error. `_rf-backend-report.md` records focused evidence, including the real isolated daemon
 HTTP/native/CLI read-surfaces check. No additional wire shape, hook/config key or migration is added.
+
+## Failed delegation recovery tail (PR #1686)
+
+Recovery upgrades the wake policy and queues the parent wake on a fresh bounded context after
+terminal settlement. Native subagent status/delegate/wake behavior keeps its existing wire shape;
+there are no new tools, hooks, extension/config keys, SDK types, or persistence migrations. Workspace
+scoping and isolation cleanup remain unchanged. Web consumes the existing terminal/catalog events.
+The official skill contract remains unchanged. Service coverage owns cancellation after settlement
+and context-aware retry attempts. Release mode delegates all execution and QA validation to main CI.
