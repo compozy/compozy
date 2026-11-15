@@ -23,6 +23,7 @@ type SessionOwner struct {
 	WorkspaceID      string
 	DatabaseOwner    SessionDBOwner
 	CreationIdentity *SessionCreationIdentity
+	PermissionPolicy SessionPermissionPolicy
 }
 
 // BindMetadata proves the immutable owner before applying migrated catalog scope
@@ -51,6 +52,15 @@ func (o SessionOwner) BindMetadata(meta *SessionMeta) error {
 	}
 	meta.WorkspaceID = o.WorkspaceID
 	meta.ProfileID = o.ProfileID
+	if o.PermissionPolicy.ToolsMode != "" || o.PermissionPolicy.MCPServersMode != "" {
+		meta.Lineage = NormalizeSessionLineage(meta.ID, meta.Lineage)
+	}
+	if o.PermissionPolicy.ToolsMode != "" {
+		meta.Lineage.PermissionPolicy.ToolsMode = o.PermissionPolicy.ToolsMode
+	}
+	if o.PermissionPolicy.MCPServersMode != "" {
+		meta.Lineage.PermissionPolicy.MCPServersMode = o.PermissionPolicy.MCPServersMode
+	}
 	return nil
 }
 
@@ -91,6 +101,9 @@ func LookupSessionOwner(
 		owner := SessionOwner{
 			SessionID: target, ProfileID: strings.TrimSpace(entry.ProfileID),
 			WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
+		}
+		if entry.Lineage != nil {
+			owner.PermissionPolicy = entry.Lineage.PermissionPolicy
 		}
 		if found && (owner.WorkspaceID != resolved.WorkspaceID || owner.ProfileID != resolved.ProfileID) {
 			return SessionOwner{}, fmt.Errorf("%w: %s", ErrSessionWorkspaceMismatch, target)

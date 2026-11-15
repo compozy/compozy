@@ -394,6 +394,10 @@ func TestManagerDelete(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
+				attachmentPath := ""
+				if !missingDirectory {
+					attachmentPath = writeSessionAttachmentFixture(t, h.harness, session.ID, "delete-me")
+				}
 				if missingDirectory {
 					if err := os.RemoveAll(session.SessionDir()); err != nil {
 						t.Fatal(err)
@@ -432,6 +436,14 @@ func TestManagerDelete(t *testing.T) {
 				})
 				if err != nil || len(rows) != 0 {
 					t.Fatalf("catalog after delete = %+v, %v", rows, err)
+				}
+				if _, err := os.Lstat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("deleted session files remain: %v", err)
+				}
+				if attachmentPath != "" {
+					if _, err := os.Stat(attachmentPath); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("deleted attachment remains: %v", err)
+					}
 				}
 				assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
 				if err := (historyCleanupDeleter{manager: h.manager}).DeleteArchived(t.Context(), target); err != nil {
@@ -1242,6 +1254,7 @@ func TestManagerDelete(t *testing.T) {
 			run: func(t *testing.T) {
 				tests := []struct {
 					name           string
+					missingMeta    bool
 					catalogKnown   bool
 					catalogPresent bool
 					wantRestored   bool
@@ -1260,6 +1273,15 @@ func TestManagerDelete(t *testing.T) {
 						name:         "Should finish deletion when the catalog no longer owns the session",
 						catalogKnown: true,
 					},
+				}
+				for _, present := range []bool{false, true} {
+					tests = append(tests, struct {
+						name                                                    string
+						missingMeta, catalogKnown, catalogPresent, wantRestored bool
+					}{
+						name:        fmt.Sprintf("Should recover missing metadata with catalog present=%t", present),
+						missingMeta: true, catalogKnown: true, catalogPresent: present, wantRestored: present,
+					})
 				}
 				for _, test := range tests {
 					t.Run(test.name, func(t *testing.T) {
@@ -1281,6 +1303,11 @@ func TestManagerDelete(t *testing.T) {
 						info, err := h.manager.Status(ctx, session.ID)
 						if err != nil {
 							t.Fatalf("Status() error = %v", err)
+						}
+						if test.missingMeta {
+							if err := os.Remove(session.MetaPath()); err != nil {
+								t.Fatal(err)
+							}
 						}
 						staged, err := h.manager.stageSessionDirectoryDelete(ctx, session.ID, info)
 						if err != nil {

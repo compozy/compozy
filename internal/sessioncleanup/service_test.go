@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -28,6 +29,7 @@ func (l fakeLister) ListSessionHistoryCleanupRows(
 // fakeDeleter records deletes; results fail chosen sessions, and a non-nil gate
 // holds every delete until the test releases it.
 type fakeDeleter struct {
+	delete  func(context.Context, store.ArchivedSessionDelete) error
 	results map[string]error
 	entered chan string
 	gate    chan struct{}
@@ -37,7 +39,10 @@ type fakeDeleter struct {
 	deleted     []string
 }
 
-func (d *fakeDeleter) DeleteArchived(_ context.Context, target store.ArchivedSessionDelete) error {
+func (d *fakeDeleter) DeleteArchived(ctx context.Context, target store.ArchivedSessionDelete) error {
+	if d.delete != nil {
+		return d.delete(ctx, target)
+	}
 	if d.entered != nil {
 		d.entered <- target.SessionID
 	}
@@ -127,6 +132,46 @@ func serviceRequest() Request {
 
 func TestServiceStart(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: accepted deletes survive their caller but terminate at a per-delete deadline.
+	// Owner: cleanup service lifetime; canonical suite: TestServiceStart.
+	t.Run("Should bound a stalled delete and finish the failed thread", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			entered := false
+			h := newServiceHarness(t, []store.SessionHistoryCleanupRow{archivedRow("root", "", 10)}, &fakeDeleter{
+				delete: func(ctx context.Context, _ store.ArchivedSessionDelete) error {
+					entered = true
+					if _, ok := ctx.Deadline(); !ok {
+						t.Error("delete has no deadline")
+						return errors.New("missing deadline")
+					}
+					<-ctx.Done()
+					return ctx.Err()
+				},
+			})
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if _, _, err := h.service.Start(ctx, serviceRequest()); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if !entered {
+				t.Fatal("delete did not start")
+			}
+			cancel()
+			synctest.Wait()
+			if run, _ := h.service.Current(testProfile); run.State != RunRunning {
+				t.Fatal("caller cancellation interrupted accepted deletion")
+			}
+			time.Sleep(defaultDeleteTimeout)
+			synctest.Wait()
+			run := h.waitForSettled(t)
+			if run.FailedThreads != 1 || run.Deleted != 0 {
+				t.Fatalf("deadline outcome=%+v", run)
+			}
+		})
+	})
 
 	t.Run("Should delete the planned sessions in the background and complete", func(t *testing.T) {
 		t.Parallel()

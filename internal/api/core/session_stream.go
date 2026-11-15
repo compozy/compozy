@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,6 +18,9 @@ import (
 const (
 	sessionStreamErrorKey = "error"
 )
+
+var errRawStreamStopped = errors.New("raw stream stopped")
+var errRawGapRead = errors.New("raw stream gap read failed")
 
 type sessionStreamOptions struct {
 	frameMode          string
@@ -224,15 +228,23 @@ func (h *BaseHandlers) writeRawSequenceGap(
 		query.Limit = int(min(int64(query.Limit), throughSequence-cursor))
 		page, err := h.Sessions.Events(ctx, sessionID, query)
 		if err != nil {
-			return cursor, err
+			return cursor, errors.Join(errRawGapRead, err)
 		}
 		end := 0
+		stopped := false
 		for end < len(page) && page[end].Sequence <= throughSequence {
+			stopped = page[end].Type == session.EventTypeSessionStopped
 			end++
+			if stopped {
+				break
+			}
 		}
 		next, err := h.writeSessionEventBatch(writer, page[:end], info)
 		if err != nil {
 			return cursor, err
+		}
+		if stopped {
+			return next, errRawStreamStopped
 		}
 		if end < len(page) || len(page) < query.Limit {
 			return throughSequence, nil
@@ -368,6 +380,14 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 				afterSequence, err = h.writeRawSequenceGap(
 					c.Request.Context(), writer, sessionID, currentInfo, pollQuery, afterSequence, event.Sequence-1,
 				)
+				if errors.Is(err, errRawStreamStopped) {
+					return
+				}
+				if errors.Is(err, errRawGapRead) {
+					subscription.cancelIfActive()
+					h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
+					return
+				}
 				if err != nil {
 					h.writeTranscriptStreamError(writer, err)
 					return

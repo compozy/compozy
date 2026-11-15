@@ -200,9 +200,12 @@ func (d *memorySubagents) RewriteSubagentWakeInput(_ context.Context, id, text s
 }
 
 func (d *memorySubagents) FinalizeSubagent(
-	_ context.Context,
+	ctx context.Context,
 	in store.SubagentFinalize,
 ) (store.SessionSubagent, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return store.SessionSubagent{}, false, err
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if err := d.finalizeErrIDs[in.ID]; err != nil {

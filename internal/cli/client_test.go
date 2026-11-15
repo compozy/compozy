@@ -5860,6 +5860,36 @@ func TestDaemonProfileClient(t *testing.T) {
 
 func TestTriggerAutomationJobWaitBudget(t *testing.T) {
 	t.Parallel()
+	// Invariant: explicit waits retain configured transport overhead and batch removals budget each target.
+	// Owner: CLI HTTP client; canonical suite: wait-budget tests in client_test.go.
+	t.Run("Should honor configured overhead without mutating the shared client", func(t *testing.T) {
+		t.Parallel()
+		const overhead = 2 * time.Minute
+		want := overhead + time.Second
+		transport := &http.Client{Timeout: overhead, Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			deadline, ok := r.Context().Deadline()
+			if !ok || time.Until(deadline) > want || time.Until(deadline) < want-time.Second {
+				t.Errorf("request budget=%s want=%s", time.Until(deadline), want)
+			}
+			body := `{"run":{"id":"run","status":"completed"}}`
+			if strings.HasSuffix(r.URL.Path, "/remove") {
+				body = `{"results":[]}`
+			}
+			return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
+		})}
+		client := &daemonClient{httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: "http://daemon"}}
+		if _, err := client.TriggerAutomationJob(t.Context(), "job", time.Second); err != nil {
+			t.Fatal(err)
+		}
+		want = overhead * 2
+		if _, err := client.RemoveWorktrees(t.Context(), "workspace", contract.RemoveWorktreesRequest{Targets: []contract.WorktreeRemovalTarget{{Ref: "a"}, {Ref: "b"}}}); err != nil {
+			t.Fatal(err)
+		}
+		if transport.Timeout != overhead {
+			t.Fatal("shared client timeout changed")
+		}
+	})
+
 	t.Run("Should let an explicit wait outlive the ordinary client timeout", func(t *testing.T) {
 		t.Parallel()
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

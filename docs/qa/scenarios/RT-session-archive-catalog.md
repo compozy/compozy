@@ -6,7 +6,7 @@ persona: Théo
 journey: J-archive-session-without-deleting
 expected: Archiving is a durable workspace-scoped marker allowed only for stopped sessions; default lists exclude archived rows, archived-only and inclusive filters return exact pages, direct reads preserve history, prompt/resume/attach reject archived sessions, and unarchive restores the same session across HTTP, UDS, CLI, native tools, extension Host API, SSE, and fresh daemon reads.
 entry_points: Web session catalog; CLI session archive/unarchive/list; HTTP+UDS archive routes; native tools; extension Host API
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260805-session-archive-sdk-missing;BUG-20260805-archived-detail-unarchive-missing
 fix_status: fixed
 retest_status: pass
@@ -127,3 +127,12 @@ always-on agent's archived main session. In the sessions sidebar open Archived. 
    `cleanup status` and `cleanup stop` follow it, and a second `--yes` while one runs returns
    `409`. Over HTTP an agent identity gets `403`. `compozy__session_cleanup` previews without
    approval, and with `dry_run: false` it asks for approval before it deletes.
+
+Follow-up regression walk (#1741): remove only `meta.json` from stopped archived history with an
+event database and an attachment, then delete it through both ordinary deletion and archived cleanup.
+Neither history files nor attachments remain. Interrupt after staging: recovery restores the directory
+when the catalog still owns it and finishes removal after catalog deletion, using the retained deletion
+owner receipt. A wrong-profile/workspace cleanup request still cannot remove it. Archived deletion
+sets any retained subagent child activity to stopped without changing its outcome. Stall one accepted
+delete: its 30-second deadline fails that thread while the run can continue with other roots.
+CI owns this verification; the manual walk is pending.

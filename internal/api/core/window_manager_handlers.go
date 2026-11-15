@@ -78,10 +78,7 @@ func (h *BaseHandlers) handleWindowManagerCommand(c *gin.Context, previewOnly bo
 		return
 	}
 	// A reload can close the connection after admission but before the layout commit.
-	ctx, cancel := context.WithTimeout(
-		context.WithoutCancel(c.Request.Context()),
-		windowManagerCommandTimeout,
-	)
+	ctx, cancel := windowManagerMutationContext(c.Request.Context())
 	defer cancel()
 	result, err := service.Execute(ctx, request)
 	if err != nil {
@@ -94,4 +91,8 @@ func (h *BaseHandlers) handleWindowManagerCommand(c *gin.Context, previewOnly bo
 		return
 	}
 	c.JSON(http.StatusOK, payload)
+}
+
+func windowManagerMutationContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), windowManagerCommandTimeout)
 }

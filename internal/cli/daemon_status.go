@@ -34,7 +34,7 @@ func waitForDaemonStop(
 		"cli: daemon did not stop before timeout",
 		func(_ context.Context, _ pollEvent) (DaemonStatus, bool, error) {
 			// Discovery is withdrawn before the database and logger finish closing.
-			if deps.processAlive(info.PID) {
+			if deps.processAlive(info.PID) && deps.processMatchesStartTime(info.PID, info.StartedAt) {
 				process, err := deps.inspectProcess(info.PID)
 				if err != nil || !process.Zombie {
 					return DaemonStatus{}, false, nil

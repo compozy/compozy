@@ -7,7 +7,7 @@ import {
   type ThreadMessageLike,
 } from "@assistant-ui/react";
 import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
-import { act, createElement, Profiler, type ReactNode } from "react";
+import { act, createElement, Profiler, use, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
@@ -47,6 +47,7 @@ import type { SubagentRoster } from "@/systems/session/lib/subagent-roster";
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 import type { SessionMessage, SessionPayload } from "@/systems/session/types";
 
+import { SessionSubagentDrawer } from "@/systems/os/apps/session/session-subagent-drawer";
 import { SessionNativeSubagentActivity } from "../session-native-subagent-activity";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import { subagentViewFromPayload } from "@/systems/session/lib/subagent-payload";
@@ -324,6 +325,49 @@ describe("parent timeline activity across subagent updates (#835)", () => {
 });
 
 describe("subagent card drill-in (UT-W16)", () => {
+  // Invariant: a complete authoritative roster removal closes inspection; partial loading does not.
+  // Owner: roster-to-drawer wiring; canonical suite: UT-W16.
+  it("Should close a selected drawer when the complete roster removes its row", async () => {
+    const queued = view("sub-1", { status: "queued", child_session_id: null });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Host = harness([queued], null, client);
+    function OpenDrawer() {
+      const drawer = use(SubagentDrawerContext);
+      return (
+        <button onClick={() => drawer?.open(queued, { newWindow: false }, WORKSPACE_ID)}>
+          Inspect delegation
+        </button>
+      );
+    }
+    render(
+      <SessionSubagentDrawer openSession={vi.fn()}>
+        <OpenDrawer />
+      </SessionSubagentDrawer>,
+      { wrapper: Host }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Inspect delegation" }));
+    expect(await screen.findByText("Waiting for the subagent session to start.")).toBeVisible();
+    vi.mocked(fetchSessionSubagents).mockReturnValueOnce(new Promise(() => undefined));
+    act(() =>
+      client.removeQueries({
+        queryKey: sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID),
+        exact: true,
+      })
+    );
+    expect(screen.getByText("Waiting for the subagent session to start.")).toBeVisible();
+    act(() =>
+      client.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
+        rows: [],
+        staleIds: new Set(),
+      })
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Waiting for the subagent session to start.")
+      ).not.toBeInTheDocument()
+    );
+  });
+
   // Invariant: inspection selects a queued delegation before a child session exists.
   // Owner/canonical suite: provider → card → window drawer store wiring, UT-W16.
   it("Should select a queued subagent in the drawer before its child session exists", () => {

@@ -50,11 +50,51 @@ func (d contextCheckingDeleteSubagents) DeleteSubagent(ctx context.Context, work
 	return d.memorySubagents.DeleteSubagent(ctx, workspaceID, id)
 }
 
+type failingRosterDelete struct {
+	*memorySubagents
+	failure error
+}
+
+func (d *failingRosterDelete) DeleteSubagent(ctx context.Context, workspaceID, id string) error {
+	if d.failure != nil {
+		return d.failure
+	}
+	return d.memorySubagents.DeleteSubagent(ctx, workspaceID, id)
+}
+
 // Invariant: deleting a delegated subagent removes its child session and then its roster row, and
 // the settlement the child deletion triggers never finalizes or hooks the row on its way out.
 // Owner: session subagent delete suite (feature: subagent context menu).
 func TestSubagentDelete(t *testing.T) {
 	t.Parallel()
+	// Invariant: a failed roster removal after child deletion leaves a terminal, retryable row.
+	t.Run("Should settle a retained row after its child was deleted", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		failure := errors.New("roster delete failed")
+		fault := &failingRosterDelete{memorySubagents: db, failure: failure}
+		s.store = fault
+		err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID)
+		if !errors.Is(err, failure) {
+			t.Fatalf("delete err=%v", err)
+		}
+		retained, err := db.GetSubagent(t.Context(), "ws", row.ID)
+		if err != nil || retained.Status != store.SubagentStatusCanceled || retained.Delivery != store.SubagentDeliveryDisposed {
+			t.Fatalf("retained=%+v err=%v", retained, err)
+		}
+		if len(runtime.deleted) != 1 {
+			t.Fatal("child was not deleted")
+		}
+		fault.failure = nil
+		if err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.GetSubagent(t.Context(), "ws", row.ID); !errors.Is(err, store.ErrSubagentNotFound) {
+			t.Fatalf("retry did not remove row: %v", err)
+		}
+	})
+
 	t.Run(
 		"Should delete the child session then the row and publish its removal",
 		func(t *testing.T) {

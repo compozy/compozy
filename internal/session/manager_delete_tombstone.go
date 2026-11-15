@@ -138,7 +138,7 @@ func (m *Manager) cleanupSessionDeleteTombstoneWithContext(
 		retErr = errors.Join(retErr, directory.Close())
 	}()
 
-	meta, err := readSessionMetaFromDirectory(directory)
+	meta, err := readSessionDeleteMetadata(directory)
 	if err != nil {
 		return fmt.Errorf("session: read deletion tombstone metadata: %w", err)
 	}

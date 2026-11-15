@@ -20,7 +20,8 @@ const (
 	// the session manager's lifecycle lock for its catalog and directory step,
 	// so a second worker only overlaps the per-session preparation; more would
 	// queue on that lock and crowd out the daemon's other lifecycle work.
-	defaultConcurrency = 2
+	defaultConcurrency   = 2
+	defaultDeleteTimeout = 30 * time.Second
 	// defaultProgressInterval throttles progress wakes on the catalog stream.
 	defaultProgressInterval = 300 * time.Millisecond
 	maxRootIDs              = 1000
@@ -327,11 +328,13 @@ func (s *Service) deleteThread(ctx context.Context, run *cleanupRun, scope Scope
 		if ctx.Err() != nil {
 			return
 		}
-		err := s.deleter.DeleteArchived(context.WithoutCancel(ctx), store.ArchivedSessionDelete{
+		deleteCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultDeleteTimeout)
+		err := s.deleter.DeleteArchived(deleteCtx, store.ArchivedSessionDelete{
 			SessionID:   sessionID,
 			ProfileID:   scope.ProfileID,
 			WorkspaceID: thread.WorkspaceID,
 		})
+		cancel()
 		if err != nil && !errors.Is(err, store.ErrSessionNotArchived) {
 			s.logger.Warn(
 				"sessioncleanup: delete archived session",

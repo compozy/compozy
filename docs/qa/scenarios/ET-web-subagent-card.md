@@ -172,3 +172,10 @@ unchanged.
 Delete drawer follow-up: open a delegated subagent in the drawer and delete it from the rail. On
 success the matching drawer closes. If another subagent is selected before DELETE answers, that
 selection remains open. Main CI owns release-mode execution.
+
+Follow-up regression walk (#1741): inspect a delegated row, then delete it through the CLI or a
+second window. The selected drawer closes when the complete roster removes that ID, while incomplete
+roster loading keeps inspection open. Change urgency while paging a branch: each ID appears once and
+the remaining count reflects unique rows. Cancel a subagent while disconnecting the caller; it still
+settles. If child deletion succeeds but roster removal fails, the retained row is terminal and can be
+deleted again. E2E-009 captures the drawer state after remote removal in CI; manual walk pending.

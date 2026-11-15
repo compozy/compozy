@@ -259,7 +259,7 @@ func (c *daemonClient) RemoveWorktrees(
 	var response contract.RemoveWorktreesResponse
 	client := *c.httpClient
 	// Each target pays for independent safety checks, hooks, teardown and branch cleanup.
-	client.Timeout = max(client.Timeout, defaultUnixSocketClientTimeout*time.Duration(max(1, len(request.Targets))))
+	client.Timeout *= time.Duration(max(1, len(request.Targets)))
 	err := c.doJSONWithClient(ctx, http.MethodPost, worktreeCollectionPath(workspaceRef)+"/remove",
 		nil, request, &response, &client)
 	return response, err

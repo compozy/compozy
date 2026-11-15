@@ -142,6 +142,11 @@ func (g *SessionRepo) DeleteArchivedSession(ctx context.Context, target store.Ar
 		if affected == 0 {
 			return archivedSessionDeleteRefusal(ctx, queries, target)
 		}
+		if err := queries.StopDeletedSubagentChildActivity(ctx, sqlcgen.StopDeletedSubagentChildActivityParams{
+			ChildID: sql.NullString{String: sessionID, Valid: true}, Now: store.FormatTimestamp(deletedAt),
+		}); err != nil {
+			return fmt.Errorf("store: stop deleted subagent child activity %q: %w", sessionID, err)
+		}
 		return markDerivationChildDeleted(ctx, queries, sessionID, deletedAt)
 	})
 }

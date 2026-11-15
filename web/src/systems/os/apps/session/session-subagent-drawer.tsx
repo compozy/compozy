@@ -4,7 +4,7 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight } from "@compozy/ui/icons";
 import { Button, ResizableDrawer, Tooltip, TooltipTrigger, TooltipContent } from "@compozy/ui";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import {
   SessionChatRuntimeProvider,
@@ -150,6 +150,13 @@ function SubagentDrawerSelection({
     selected?.subagent.parent_session_id ?? "",
     { enabled: selected !== null }
   );
+  const removed =
+    selected !== null &&
+    roster.complete &&
+    !roster.subagents.some(row => row.id === selected.subagent.id);
+  useEffect(() => {
+    if (removed) onClose();
+  }, [removed, onClose]);
   const subagent = selected
     ? (roster.subagents.find(row => row.id === selected.subagent.id) ?? selected.subagent)
     : null;

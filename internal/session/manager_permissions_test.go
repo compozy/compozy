@@ -34,6 +34,45 @@ import (
 func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: migrated catalog intent overrides stale development metadata without rewriting it on read.
+	// Owner: persisted runtime authority; canonical suite: TestResumeUsesPersistedEffectivePermissions.
+	t.Run("Should bind corrected catalog permission modes before reading or resuming", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		created := createSession(t, h.harness)
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		meta := readMeta(t, created.MetaPath())
+		meta.Lineage.PermissionPolicy.ToolsMode = store.PermissionList
+		meta.Lineage.PermissionPolicy.MCPServersMode = store.PermissionList
+		payload, err := json.Marshal(meta)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(created.MetaPath(), payload, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		bound, err := h.manager.readSessionMetaReadOnly(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bound.Lineage.PermissionPolicy.ToolsMode != store.PermissionInherit || bound.Lineage.PermissionPolicy.MCPServersMode != store.PermissionInherit {
+			t.Fatalf("catalog intent not bound: %+v", bound.Lineage.PermissionPolicy)
+		}
+		unchanged, err := os.ReadFile(created.MetaPath())
+		if err != nil || string(unchanged) != string(payload) {
+			t.Fatalf("read rewrote metadata: %v", err)
+		}
+		resumed, err := h.manager.Resume(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resumed.Meta().Lineage.PermissionPolicy.ToolsMode != store.PermissionInherit || resumed.Meta().Lineage.PermissionPolicy.MCPServersMode != store.PermissionInherit {
+			t.Fatal("resume lost corrected authority")
+		}
+	})
+
 	t.Run("Should preserve a create-time permission override across resume", func(t *testing.T) {
 		t.Parallel()
 

@@ -86,14 +86,16 @@ func (h *BaseHandlers) PutWindowManagerLayoutProfile(c *gin.Context) {
 		h.respondError(c, StatusForResourceError(err), err)
 		return
 	}
+	ctx, cancel := windowManagerMutationContext(c.Request.Context())
+	defer cancel()
 	if err := ensureWindowManagerLayoutProfileIDVisible(
-		c.Request.Context(), service, workspaceID, profileID,
+		ctx, service, workspaceID, profileID,
 	); err != nil {
 		h.respondError(c, StatusForResourceError(err), err)
 		return
 	}
 
-	record, err := service.Put(c.Request.Context(), draft)
+	record, err := service.Put(ctx, draft)
 	if err != nil {
 		h.respondError(c, StatusForResourceError(err), err)
 		return
@@ -132,7 +134,9 @@ func (h *BaseHandlers) DeleteWindowManagerLayoutProfile(c *gin.Context) {
 		h.respondError(c, statusForResourceRequestError(err), err)
 		return
 	}
-	record, err := service.Get(c.Request.Context(), windowmanager.WindowLayoutResourceKind, profileID)
+	ctx, cancel := windowManagerMutationContext(c.Request.Context())
+	defer cancel()
+	record, err := service.Get(ctx, windowmanager.WindowLayoutResourceKind, profileID)
 	if err != nil {
 		h.respondError(c, StatusForResourceError(err), err)
 		return
@@ -142,7 +146,7 @@ func (h *BaseHandlers) DeleteWindowManagerLayoutProfile(c *gin.Context) {
 		return
 	}
 	if err := service.Delete(
-		c.Request.Context(),
+		ctx,
 		windowmanager.WindowLayoutResourceKind,
 		profileID,
 		request.ExpectedVersion,

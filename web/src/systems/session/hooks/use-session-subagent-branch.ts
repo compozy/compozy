@@ -55,8 +55,16 @@ export function useSessionSubagentBranch(
   const { hasNextPage, isFetching, isFetchingNextPage, fetchNextPage, isError } = query;
   const loaded = sortSubagentsByUrgency(
     live?.rows ??
-      query.data?.pages.flatMap(page => page.subagents.map(subagentViewFromPayload)) ??
-      []
+      Array.from(
+        new Map(
+          query.data?.pages.flatMap(page =>
+            page.subagents.map(payload => {
+              const row = subagentViewFromPayload(payload);
+              return [row.id, row] as const;
+            })
+          )
+        ).values()
+      )
   );
   const active = loaded.filter(isActiveSubagent).length;
   const complete = live !== null || (query.isSuccess && !hasNextPage);

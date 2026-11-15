@@ -397,4 +397,35 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
     await expect(more).toHaveCount(0);
     await browserArtifacts.captureScreenshot("subagents-sidebar-settled-paged", appPage);
   });
+
+  // Invariant: removal through another public client closes the selected drawer without navigation.
+  // Owner: real browser/daemon roster convergence; canonical suite: subagent navigation E2E-009.
+  await test.step("deleting the inspected subagent through HTTP closes its drawer live", async () => {
+    await appPage.goto(runtime.url(`/agents/${parentAgent}/sessions/${parent.id}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const liveSidebar = sessionWindow(appPage, parent.id).getByTestId("session-sidebar");
+    const indicator = liveSidebar.getByRole("button", { name: "10 subagents", exact: true });
+    await expect(indicator).toBeVisible();
+    if ((await indicator.getAttribute("aria-expanded")) !== "true") await indicator.click();
+    const branch = liveSidebar.getByTestId(`session-sidebar-subagents-${parent.id}`);
+    const selected = branch.getByRole("button", {
+      name: new RegExp(`^Open ${subagents[0]!.title} · `),
+    });
+    await selected.click();
+    const drawer = appPage.locator('[data-slot="resizable-drawer"]');
+    await expect(drawer).toBeVisible();
+    const response = await fetch(
+      runtime.url(
+        `/api/workspaces/${encodeURIComponent(parent.workspace_id)}/subagents/${encodeURIComponent(subagents[0]!.subagent_id)}`
+      ),
+      { method: "DELETE" }
+    );
+    expect(response.ok).toBe(true);
+    await expect(drawer).toHaveCount(0);
+    await expect(
+      liveSidebar.getByRole("button", { name: "9 subagents", exact: true })
+    ).toBeVisible();
+    await browserArtifacts.captureScreenshot("subagents-remote-removal-closes-drawer", appPage);
+  });
 });

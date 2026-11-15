@@ -775,70 +775,78 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 	// Invariant: deleting a child atomically stops its cached activity without changing its outcome.
 	t.Run("Should stop deleted children before counting or ordering settled delegations", func(t *testing.T) {
 		t.Parallel()
-		for _, status := range []string{"completed", "failed", "canceled", "interrupted"} {
-			t.Run("Should preserve "+status+" after deleting its child", func(t *testing.T) {
-				t.Parallel()
-				db, workspace, parent, now := subagentFixture(t)
-				ctx := t.Context()
-				for _, id := range []string{"deleted", "survivor"} {
-					registerSubagentSession(t, db, workspace, "child-"+id, parent, store.SubagentSpawnRole, now)
-					reserveSubagent(t, db.SessionRepo, workspace, parent, id, now)
-					if _, err := db.LinkChild(ctx, id, "child-"+id, now); err != nil {
+		for _, archived := range []bool{false, true} {
+			for _, status := range []string{"completed", "failed", "canceled", "interrupted"} {
+				t.Run(fmt.Sprintf("Should preserve %s after deleting its child archived=%t", status, archived), func(t *testing.T) {
+					t.Parallel()
+					db, workspace, parent, now := subagentFixture(t)
+					ctx := t.Context()
+					for _, id := range []string{"deleted", "survivor"} {
+						registerSubagentSession(t, db, workspace, "child-"+id, parent, store.SubagentSpawnRole, now)
+						reserveSubagent(t, db.SessionRepo, workspace, parent, id, now)
+						if _, err := db.LinkChild(ctx, id, "child-"+id, now); err != nil {
+							t.Fatal(err)
+						}
+					}
+					activity := store.SubagentChildActivityWorking
+					if status == "canceled" || status == "interrupted" {
+						activity = store.SubagentChildActivityIdle
+					}
+					settled, changed, err := db.FinalizeSubagent(ctx, store.SubagentFinalize{
+						ID: "deleted", Status: status, Result: new("saved result"), Error: new("saved error"),
+						SettledAt: now.Add(time.Second), ChildActivity: activity,
+					})
+					if err != nil || !changed {
+						t.Fatal(settled, changed, err)
+					}
+					reserveSubagent(t, db.SessionRepo, workspace, parent, "queued", now.Add(time.Second))
+					if archived {
+						archiveSessionRowForCleanupTest(t, db, "child-deleted", now)
+						err = db.DeleteArchivedSession(ctx, store.ArchivedSessionDelete{SessionID: "child-deleted", ProfileID: store.DefaultProfileID, WorkspaceID: workspace})
+					} else {
+						err = db.DeleteSession(ctx, "child-deleted")
+					}
+					if err != nil {
 						t.Fatal(err)
 					}
-				}
-				activity := store.SubagentChildActivityWorking
-				if status == "canceled" || status == "interrupted" {
-					activity = store.SubagentChildActivityIdle
-				}
-				settled, changed, err := db.FinalizeSubagent(ctx, store.SubagentFinalize{
-					ID: "deleted", Status: status, Result: new("saved result"), Error: new("saved error"),
-					SettledAt: now.Add(time.Second), ChildActivity: activity,
+					got, err := db.GetSubagent(ctx, workspace, "deleted")
+					if err != nil || got.ChildSessionID != nil || got.ChildActivity != store.SubagentChildActivityStopped ||
+						got.Status != status || got.Result == nil || *got.Result != *settled.Result ||
+						got.Error == nil || *got.Error != *settled.Error ||
+						got.SettledAt == nil || !got.SettledAt.Equal(*settled.SettledAt) {
+						t.Fatal(got, err)
+					}
+					summaries, err := db.Summaries(ctx, []string{parent})
+					wantFailed := 0
+					wantOrder := []string{"survivor", "queued", "deleted"}
+					if status == "failed" {
+						wantFailed = 1
+						wantOrder = []string{"survivor", "deleted", "queued"}
+					}
+					if got := summaries[parent]; err != nil || got.Total != 3 || got.Live != 2 ||
+						got.Resumed != 0 || got.Failed != wantFailed {
+						t.Fatal(got, err)
+					}
+					page, err := db.ListSubagents(ctx, store.SubagentListQuery{
+						ParentSessionID: parent, Order: store.SubagentOrderUrgency,
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					var order []string
+					for _, row := range page.Items {
+						order = append(order, row.ID)
+					}
+					if !slices.Equal(order, wantOrder) {
+						t.Fatalf("urgency order = %v, want %v", order, wantOrder)
+					}
+					survivor, err := db.GetSubagent(ctx, workspace, "survivor")
+					if err != nil || survivor.ChildSessionID == nil ||
+						survivor.ChildActivity != store.SubagentChildActivityWorking {
+						t.Fatal(survivor, err)
+					}
 				})
-				if err != nil || !changed {
-					t.Fatal(settled, changed, err)
-				}
-				reserveSubagent(t, db.SessionRepo, workspace, parent, "queued", now.Add(time.Second))
-				if err := db.DeleteSession(ctx, "child-deleted"); err != nil {
-					t.Fatal(err)
-				}
-				got, err := db.GetSubagent(ctx, workspace, "deleted")
-				if err != nil || got.ChildSessionID != nil || got.ChildActivity != store.SubagentChildActivityStopped ||
-					got.Status != status || got.Result == nil || *got.Result != *settled.Result ||
-					got.Error == nil || *got.Error != *settled.Error ||
-					got.SettledAt == nil || !got.SettledAt.Equal(*settled.SettledAt) {
-					t.Fatal(got, err)
-				}
-				summaries, err := db.Summaries(ctx, []string{parent})
-				wantFailed := 0
-				wantOrder := []string{"survivor", "queued", "deleted"}
-				if status == "failed" {
-					wantFailed = 1
-					wantOrder = []string{"survivor", "deleted", "queued"}
-				}
-				if got := summaries[parent]; err != nil || got.Total != 3 || got.Live != 2 ||
-					got.Resumed != 0 || got.Failed != wantFailed {
-					t.Fatal(got, err)
-				}
-				page, err := db.ListSubagents(ctx, store.SubagentListQuery{
-					ParentSessionID: parent, Order: store.SubagentOrderUrgency,
-				})
-				if err != nil {
-					t.Fatal(err)
-				}
-				var order []string
-				for _, row := range page.Items {
-					order = append(order, row.ID)
-				}
-				if !slices.Equal(order, wantOrder) {
-					t.Fatalf("urgency order = %v, want %v", order, wantOrder)
-				}
-				survivor, err := db.GetSubagent(ctx, workspace, "survivor")
-				if err != nil || survivor.ChildSessionID == nil ||
-					survivor.ChildActivity != store.SubagentChildActivityWorking {
-					t.Fatal(survivor, err)
-				}
-			})
+			}
 		}
 	})
 	t.Run("Should roll back child activity when deleting the session fails", func(t *testing.T) {

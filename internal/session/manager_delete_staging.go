@@ -335,17 +335,16 @@ func (m *Manager) stageSessionDirectoryDeleteWithAttachmentStaging(
 		m.homePaths.SessionsDir,
 		sessionDeleteTombstoneName(sessionDeleteCommittedPrefix, target, deletionID),
 	)
-	meta, err := m.readSessionMetaReadOnly(ctx, target)
-	if err != nil {
-		return stagedSessionDelete{}, fmt.Errorf("session: read deletion metadata for %q: %w", target, err)
-	}
-	owner, err := meta.DatabaseOwner()
+	owner, err := m.sessionDeleteOwner(ctx, target)
 	if err != nil {
 		return stagedSessionDelete{}, fmt.Errorf("session: resolve catalog owner for delete %q: %w", target, err)
 	}
 	capabilities, err := m.acquireSessionDeleteCapabilities(ctx, owner, originalPath)
 	if err != nil {
 		return stagedSessionDelete{}, err
+	}
+	if err := writeMissingSessionDeleteReceipt(capabilities.directory, owner, info); err != nil {
+		return stagedSessionDelete{}, errors.Join(err, capabilities.Release())
 	}
 	if err := stageBoundSessionDelete(ctx, capabilities, owner, originalPath, stagedPath); err != nil {
 		return stagedSessionDelete{}, err

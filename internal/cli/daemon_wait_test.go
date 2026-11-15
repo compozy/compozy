@@ -393,6 +393,28 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 		}
 	})
 
+	// Invariant: a recycled PID cannot keep the original daemon alive.
+	t.Run("Should report stopped when the PID belongs to another process", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, &stubClient{}).withDefaults()
+		info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(pid int, started time.Time) bool {
+			if pid != info.PID || !started.Equal(info.StartedAt) {
+				t.Fatal("wrong process identity")
+			}
+			return false
+		}
+		runtime, err := loadRuntimeContext(deps)
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, err := waitForDaemonStop(t.Context(), deps, runtime, info)
+		if err != nil || status.Status != "stopped" || status.PID != info.PID {
+			t.Fatalf("recycled PID status=%+v err=%v", status, err)
+		}
+	})
+
 	// Invariant: an exited, unreaped process cannot write to the home and must not delay stop.
 	// Owner: CLI daemon lifecycle; canonical suite: daemon_wait_test.go.
 	t.Run("Should report an unreaped zombie as stopped", func(t *testing.T) {

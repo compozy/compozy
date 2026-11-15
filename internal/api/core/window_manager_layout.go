@@ -117,7 +117,9 @@ func (h *BaseHandlers) ReplaceWindowManagerLayout(c *gin.Context) {
 		)
 		return
 	}
-	result, err := service.ReplaceLayout(c.Request.Context(), windowmanager.ReplaceLayoutRequest{
+	ctx, cancel := windowManagerMutationContext(c.Request.Context())
+	defer cancel()
+	result, err := service.ReplaceLayout(ctx, windowmanager.ReplaceLayoutRequest{
 		WorkspaceID:      workspaceID,
 		ExpectedRevision: windowmanager.Revision(*request.ExpectedRevision),
 		ClientID:         request.ClientID,

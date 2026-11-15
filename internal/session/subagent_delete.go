@@ -70,6 +70,12 @@ func (s *subagentService) Delete(
 		}
 		if child == "" || child == deletedChild {
 			err = s.store.DeleteSubagent(ctx, workspace, id)
+			if err != nil && deletedChild != "" {
+				err = errors.Join(err,
+					s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: current.ParentSessionID, IDs: []string{id}}),
+					s.finalizeCanceled(ctx, current),
+				)
+			}
 			if err == nil {
 				// Other completion writers claim and rewrite wakes and settle the parent under
 				// this same lock; both decisions must see the row already removed.

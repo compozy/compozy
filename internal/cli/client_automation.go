@@ -82,7 +82,7 @@ func (c *daemonClient) TriggerAutomationJob(
 		query.Set("wait", "true")
 		query.Set("timeout", timeout.String())
 		copied := *client
-		copied.Timeout = timeout + defaultUnixSocketClientTimeout
+		copied.Timeout = timeout + client.Timeout
 		client = &copied
 	}
 	if err := c.doJSONWithClient(ctx, http.MethodPost, path, query, nil, &response, client); err != nil {
