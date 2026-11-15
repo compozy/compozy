@@ -386,7 +386,10 @@ func TestRawSessionStreamSequenceGap(t *testing.T) {
 				Sessions: sessionManagerStub{
 					status: func(_ context.Context, id string) (*session.Info, error) {
 						info := streamTestSessionInfo(id)
-						info.State = session.StateStopped
+						info.State = session.StateActive
+						if canceled && testCase.err != nil {
+							info.State = session.StateStopped
+						}
 						return info, nil
 					},
 					events: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
@@ -398,7 +401,11 @@ func TestRawSessionStreamSequenceGap(t *testing.T) {
 							if reads > 2 {
 								return nil, nil
 							}
-							return []store.SessionEvent{{Sequence: 2, Type: acp.EventTypeAgentMessage}, {Sequence: 3, Type: session.EventTypeMCPChanged}, {Sequence: 4, Type: session.EventTypeSessionStopped}}, nil
+							return []store.SessionEvent{
+								{Sequence: 2, Type: acp.EventTypeAgentMessage},
+								{Sequence: 3, Type: session.EventTypeMCPChanged},
+								{Sequence: 4, Type: session.EventTypeSessionStopped},
+							}, nil
 						}
 						if canceled || id != "sess-a" || !query.Forward || query.AfterSequence != 1 ||
 							query.Limit != 1 {

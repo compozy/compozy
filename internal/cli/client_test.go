@@ -5866,23 +5866,37 @@ func TestTriggerAutomationJobWaitBudget(t *testing.T) {
 		t.Parallel()
 		const overhead = 2 * time.Minute
 		want := overhead + time.Second
-		transport := &http.Client{Timeout: overhead, Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			deadline, ok := r.Context().Deadline()
-			if !ok || time.Until(deadline) > want || time.Until(deadline) < want-time.Second {
-				t.Errorf("request budget=%s want=%s", time.Until(deadline), want)
-			}
-			body := `{"run":{"id":"run","status":"completed"}}`
-			if strings.HasSuffix(r.URL.Path, "/remove") {
-				body = `{"results":[]}`
-			}
-			return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
-		})}
-		client := &daemonClient{httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: "http://daemon"}}
+		transport := &http.Client{
+			Timeout: overhead,
+			Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				deadline, ok := r.Context().Deadline()
+				if !ok || time.Until(deadline) > want || time.Until(deadline) < want-time.Second {
+					t.Errorf("request budget=%s want=%s", time.Until(deadline), want)
+				}
+				body := `{"run":{"id":"run","status":"completed"}}`
+				if strings.HasSuffix(r.URL.Path, "/remove") {
+					body = `{"results":[]}`
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(body)),
+				}, nil
+			}),
+		}
+		client := &daemonClient{
+			httpClient: transport,
+			target:     ClientTarget{kind: clientTargetSSHForward, baseURL: "http://daemon"},
+		}
 		if _, err := client.TriggerAutomationJob(t.Context(), "job", time.Second); err != nil {
 			t.Fatal(err)
 		}
 		want = overhead * 2
-		if _, err := client.RemoveWorktrees(t.Context(), "workspace", contract.RemoveWorktreesRequest{Targets: []contract.WorktreeRemovalTarget{{Ref: "a"}, {Ref: "b"}}}); err != nil {
+		if _, err := client.RemoveWorktrees(
+			t.Context(),
+			"workspace",
+			contract.RemoveWorktreesRequest{Targets: []contract.WorktreeRemovalTarget{{Ref: "a"}, {Ref: "b"}}},
+		); err != nil {
 			t.Fatal(err)
 		}
 		if transport.Timeout != overhead {

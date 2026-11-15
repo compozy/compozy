@@ -77,7 +77,9 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 func (m *Manager) deletePreparedSession(
 	ctx context.Context, target string, info *Info, archived *store.ArchivedSessionDelete,
 ) error {
-	m.lifecycleMu.Lock()
+	if err := m.lifecycleMu.LockContext(ctx); err != nil {
+		return fmt.Errorf("session: await delete lifecycle lock: %w", err)
+	}
 	defer m.lifecycleMu.Unlock()
 
 	staged, err := m.stageSessionDirectoryDelete(ctx, target, info)
@@ -152,7 +154,9 @@ func (m *Manager) deleteMissingSession(
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return true, err
 	}
-	m.lifecycleMu.Lock()
+	if err := m.lifecycleMu.LockContext(ctx); err != nil {
+		return true, fmt.Errorf("session: await delete lifecycle lock: %w", err)
+	}
 	defer m.lifecycleMu.Unlock()
 	if err := m.deleteSessionCatalogRow(ctx, target, archived); err != nil {
 		return true, err

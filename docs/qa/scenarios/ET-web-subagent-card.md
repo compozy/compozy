@@ -179,3 +179,10 @@ roster loading keeps inspection open. Change urgency while paging a branch: each
 the remaining count reflects unique rows. Cancel a subagent while disconnecting the caller; it still
 settles. If child deletion succeeds but roster removal fails, the retained row is terminal and can be
 deleted again. E2E-009 captures the drawer state after remote removal in CI; manual walk pending.
+
+Selection confirmation (#1741): after inspecting A and completing its cold roster fetch, select a new
+B under the same parent while the next fetch is held. B stays open until a read for that selection
+confirms its absence. A live roster test keeps its stream observer mounted across stale and removal
+updates; the paged list cannot decide that removal. If roster deletion reaches its deadline after
+child removal, the retained row still settles under a fresh bounded recovery lifetime and remains
+retryable. UT-W16 and `TestSubagentDelete` own these regressions; final-head CI verification is pending.

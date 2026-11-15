@@ -343,7 +343,7 @@ func (m *Manager) stageSessionDirectoryDeleteWithAttachmentStaging(
 	if err != nil {
 		return stagedSessionDelete{}, err
 	}
-	if err := writeMissingSessionDeleteReceipt(capabilities.directory, owner, info); err != nil {
+	if err := writeMissingSessionDeleteReceipt(ctx, capabilities.directory, originalPath, owner, info); err != nil {
 		return stagedSessionDelete{}, errors.Join(err, capabilities.Release())
 	}
 	if err := stageBoundSessionDelete(ctx, capabilities, owner, originalPath, stagedPath); err != nil {

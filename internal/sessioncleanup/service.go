@@ -76,6 +76,16 @@ func WithConcurrency(workers int) Option {
 	return func(s *Service) { s.concurrency = workers }
 }
 
+// WithDeleteTimeout bounds one accepted delete, including lifecycle lock admission.
+// Nonpositive values retain the default timeout.
+func WithDeleteTimeout(timeout time.Duration) Option {
+	return func(s *Service) {
+		if timeout > 0 {
+			s.deleteTimeout = timeout
+		}
+	}
+}
+
 // WithProgressInterval sets the minimum gap between progress wakes.
 func WithProgressInterval(interval time.Duration) Option {
 	return func(s *Service) { s.progressInterval = interval }
@@ -89,6 +99,7 @@ type Service struct {
 	logger           *slog.Logger
 	now              func() time.Time
 	concurrency      int
+	deleteTimeout    time.Duration
 	progressInterval time.Duration
 
 	mu          sync.Mutex
@@ -111,6 +122,7 @@ func NewService(lister Lister, deleter Deleter, opts ...Option) (*Service, error
 		logger:           slog.Default(),
 		now:              func() time.Time { return time.Now().UTC() },
 		concurrency:      defaultConcurrency,
+		deleteTimeout:    defaultDeleteTimeout,
 		progressInterval: defaultProgressInterval,
 		runs:             make(map[string]*cleanupRun),
 		ownerCtx:         ownerCtx,
@@ -328,7 +340,7 @@ func (s *Service) deleteThread(ctx context.Context, run *cleanupRun, scope Scope
 		if ctx.Err() != nil {
 			return
 		}
-		deleteCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultDeleteTimeout)
+		deleteCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.deleteTimeout)
 		err := s.deleter.DeleteArchived(deleteCtx, store.ArchivedSessionDelete{
 			SessionID:   sessionID,
 			ProfileID:   scope.ProfileID,

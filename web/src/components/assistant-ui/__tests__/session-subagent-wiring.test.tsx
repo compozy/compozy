@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import {
   AssistantRuntimeProvider,
   MessageByIndexProvider,
@@ -39,6 +39,7 @@ import { SessionSubagentsProvider } from "@/systems/session/contexts/session-sub
 import { useSubagentOrigin } from "@/systems/session/hooks/use-subagent-origin";
 import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
 import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
+import { sessionSubagentRosterOptions } from "@/systems/session/lib/subagent-query-options";
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
@@ -164,6 +165,7 @@ function renderRow(parts: SessionTimelinePart[], wrapper: ReturnType<typeof harn
 
 beforeEach(() => {
   vi.mocked(cancelSubagent).mockReset();
+  vi.mocked(fetchSessionSubagents).mockReset();
   vi.mocked(fetchSession).mockReset();
 });
 
@@ -344,7 +346,10 @@ describe("subagent card drill-in (UT-W16)", () => {
     function OpenDrawer() {
       const drawer = use(SubagentDrawerContext);
       return (
-        <button onClick={() => drawer?.open(queued, { newWindow: false }, WORKSPACE_ID)}>
+        <button
+          type="button"
+          onClick={() => drawer?.open(queued, { newWindow: false }, WORKSPACE_ID)}
+        >
           Inspect delegation
         </button>
       );
@@ -370,6 +375,61 @@ describe("subagent card drill-in (UT-W16)", () => {
     );
   });
 
+  // Invariant: a previous selection's list response cannot confirm absence for the next selection.
+  // Owner: roster-to-drawer wiring; canonical suite: UT-W16.
+  it("Should confirm a new selection after an earlier selection already fetched", async () => {
+    const first = view("sub-a", { status: "queued", child_session_id: null });
+    const next = view("sub-b", { status: "queued", child_session_id: null });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionSubagents).mockResolvedValueOnce({
+      subagents: [{ ...subagentPayload(first.id), status: "queued", child_session_id: null }],
+      next_cursor: null,
+    });
+    let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
+    function OpenDrawer() {
+      const drawer = use(SubagentDrawerContext);
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => drawer?.open(first, { newWindow: false }, WORKSPACE_ID)}
+          >
+            Inspect first
+          </button>
+          <button
+            type="button"
+            onClick={() => drawer?.open(next, { newWindow: false }, WORKSPACE_ID)}
+          >
+            Inspect next
+          </button>
+        </>
+      );
+    }
+    render(
+      <QueryClientProvider client={client}>
+        <UIProvider>
+          <SessionSubagentDrawer openSession={vi.fn()}>
+            <OpenDrawer />
+          </SessionSubagentDrawer>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Inspect first" }));
+    await waitFor(() => expect(screen.getByText(first.title)).toBeVisible());
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    vi.mocked(fetchSessionSubagents).mockReturnValueOnce(
+      new Promise(resolve => {
+        confirm = resolve;
+      })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Inspect next" }));
+    expect(await screen.findByText(next.title)).toBeVisible();
+    await act(async () => {
+      confirm({ subagents: [], next_cursor: null });
+    });
+    await waitFor(() => expect(screen.queryByText(next.title)).not.toBeInTheDocument());
+  });
+
   // Invariant: a complete authoritative roster removal closes inspection; partial loading does not.
   // Owner: roster-to-drawer wiring; canonical suite: UT-W16.
   it("Should close a selected drawer when the complete roster removes its row", async () => {
@@ -377,9 +437,13 @@ describe("subagent card drill-in (UT-W16)", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const Host = harness([queued], null, client);
     function OpenDrawer() {
+      useQuery(sessionSubagentRosterOptions(WORKSPACE_ID, SESSION_ID));
       const drawer = use(SubagentDrawerContext);
       return (
-        <button onClick={() => drawer?.open(queued, { newWindow: false }, WORKSPACE_ID)}>
+        <button
+          type="button"
+          onClick={() => drawer?.open(queued, { newWindow: false }, WORKSPACE_ID)}
+        >
           Inspect delegation
         </button>
       );
@@ -394,9 +458,9 @@ describe("subagent card drill-in (UT-W16)", () => {
     expect(await screen.findByText("Waiting for the subagent session to start.")).toBeVisible();
     vi.mocked(fetchSessionSubagents).mockReturnValueOnce(new Promise(() => undefined));
     act(() =>
-      client.removeQueries({
-        queryKey: sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID),
-        exact: true,
+      client.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
+        rows: [queued],
+        staleIds: new Set([queued.id]),
       })
     );
     expect(screen.getByText("Waiting for the subagent session to start.")).toBeVisible();

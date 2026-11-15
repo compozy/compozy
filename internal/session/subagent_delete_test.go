@@ -52,14 +52,28 @@ func (d contextCheckingDeleteSubagents) DeleteSubagent(ctx context.Context, work
 
 type failingRosterDelete struct {
 	*memorySubagents
-	failure error
+	failure         error
+	waitForDeadline bool
 }
 
 func (d *failingRosterDelete) DeleteSubagent(ctx context.Context, workspaceID, id string) error {
+	if d.waitForDeadline {
+		<-ctx.Done()
+		return errors.Join(d.failure, ctx.Err())
+	}
 	if d.failure != nil {
 		return d.failure
 	}
 	return d.memorySubagents.DeleteSubagent(ctx, workspaceID, id)
+}
+
+func (d *failingRosterDelete) Dispose(
+	ctx context.Context, filter store.SubagentDisposeFilter,
+) ([]store.SessionSubagent, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return d.memorySubagents.Dispose(ctx, filter)
 }
 
 // Invariant: deleting a delegated subagent removes its child session and then its roster row, and
@@ -70,29 +84,33 @@ func TestSubagentDelete(t *testing.T) {
 	// Invariant: a failed roster removal after child deletion leaves a terminal, retryable row.
 	t.Run("Should settle a retained row after its child was deleted", func(t *testing.T) {
 		t.Parallel()
-		s, db, runtime := newSubagentTestService(t)
-		row := requireSubagent(t, s, subagentTestRequest())
-		failure := errors.New("roster delete failed")
-		fault := &failingRosterDelete{memorySubagents: db, failure: failure}
-		s.store = fault
-		err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID)
-		if !errors.Is(err, failure) {
-			t.Fatalf("delete err=%v", err)
-		}
-		retained, err := db.GetSubagent(t.Context(), "ws", row.ID)
-		if err != nil || retained.Status != store.SubagentStatusCanceled || retained.Delivery != store.SubagentDeliveryDisposed {
-			t.Fatalf("retained=%+v err=%v", retained, err)
-		}
-		if len(runtime.deleted) != 1 {
-			t.Fatal("child was not deleted")
-		}
-		fault.failure = nil
-		if err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.GetSubagent(t.Context(), "ws", row.ID); !errors.Is(err, store.ErrSubagentNotFound) {
-			t.Fatalf("retry did not remove row: %v", err)
-		}
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			failure := errors.New("roster delete failed")
+			fault := &failingRosterDelete{memorySubagents: db, failure: failure, waitForDeadline: true}
+			s.store = fault
+			err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID)
+			if !errors.Is(err, failure) {
+				t.Fatalf("delete err=%v", err)
+			}
+			retained, err := db.GetSubagent(t.Context(), "ws", row.ID)
+			if err != nil || retained.Status != store.SubagentStatusCanceled ||
+				retained.Delivery != store.SubagentDeliveryDisposed {
+				t.Fatalf("retained=%+v err=%v", retained, err)
+			}
+			if len(runtime.deleted) != 1 {
+				t.Fatal("child was not deleted")
+			}
+			fault.failure = nil
+			fault.waitForDeadline = false
+			if err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.GetSubagent(t.Context(), "ws", row.ID); !errors.Is(err, store.ErrSubagentNotFound) {
+				t.Fatalf("retry did not remove row: %v", err)
+			}
+		})
 	})
 
 	t.Run(

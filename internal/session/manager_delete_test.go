@@ -154,6 +154,77 @@ func (f sessionWindowReconcilerFunc) ReconcileDeletedSession(
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
+	// Invariant: contention respects the caller deadline without staging or losing history.
+	// Owner: Manager deletion admission; canonical suite: TestManagerDelete.
+	t.Run("Should cancel lifecycle admission and allow deletion after contention", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.lifecycleMu.Lock()
+		unlock := sync.OnceFunc(h.manager.lifecycleMu.Unlock)
+		defer unlock()
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		deleted := make(chan error, 1)
+		go func() { deleted <- h.manager.Delete(ctx, created.ID) }()
+		select {
+		case err := <-deleted:
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("Delete(contended) error = %v", err)
+			}
+		case <-testutil.Context(t).Done():
+			t.Fatal("deletion ignored its deadline while waiting for the lifecycle lock")
+		}
+		if _, err := os.Stat(created.DBPath()); err != nil {
+			t.Fatalf("history changed before admission: %v", err)
+		}
+		assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+		unlock()
+		if err := h.manager.Delete(t.Context(), created.ID); err != nil {
+			t.Fatalf("Delete(after contention) error = %v", err)
+		}
+	})
+
+	// Invariant: recovery uses the verified database owner independently of reconciliation scope.
+	// Owner: Manager deletion recovery; canonical suite: TestManagerDelete.
+	t.Run("Should recover a receipt whose reconciliation workspace differs from its owner", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		created := createSession(t, h)
+		if err := h.manager.Stop(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		info, err := h.manager.Status(ctx, created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(created.MetaPath()); err != nil {
+			t.Fatal(err)
+		}
+		info.WorkspaceID = "reconciliation-workspace"
+		staged, err := h.manager.stageSessionDirectoryDeleteWithoutAttachments(ctx, created.ID, info)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := staged.capabilities.Release(); err != nil {
+			t.Fatal(err)
+		}
+		if err := catalog.DeleteSession(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		recovered := newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		shutdownQueryStoreRuntimeForTest(t, recovered)
+		assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+		if _, err := os.Stat(created.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("deleted session directory error = %v", err)
+		}
+	})
+
 	// Invariant: a stuck reader bounds deletion without losing history or blocking retry.
 	// Owner: session deletion; canonical Manager suite over the real read-only pool and SQLite.
 	for _, test := range []struct {

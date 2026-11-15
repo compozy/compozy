@@ -1407,7 +1407,13 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 				{"same-second", "", "user", legacyPolicy, false},
 				{"delegated-root", "", "system", legacyPolicy, false},
 				{"delegated-child", "provenance", "user", legacyPolicy, false},
-				{"ceiling-marked", "provenance", "user", `{"tools_mode":"inherit","mcp_servers_mode":"inherit","ancestor_mcp_ceiling":[],"tools":[],"mcp_servers":[]}`, false},
+				{
+					"ceiling-marked",
+					"provenance",
+					"user",
+					`{"tools_mode":"inherit","mcp_servers_mode":"inherit","ancestor_mcp_ceiling":[],"tools":[],"mcp_servers":[]}`,
+					false,
+				},
 				{"delegated-grandchild", "fork", "user", nativePolicy, true},
 				{"depth-zero-root", "", "system", legacyPolicy, false},
 				{"depth-zero-child", "provenance", "user", legacyPolicy, false},
@@ -1428,15 +1434,25 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 				{"already-marked", "", "user", markedPolicy, false},
 				{"authored-override", "", "user", authoredPolicy, false},
 			}
+			const foreignProfileID = "01FFFFFFFFFFFFFFFFFFFFFFFF"
+			if _, err := db.ExecContext(ctx, `INSERT INTO profiles
+			(id,name,color,emoji,created_at) VALUES (?, 'foreign', 'blue', 'F', '2026-11-01T00:00:00Z')`,
+				foreignProfileID); err != nil {
+				t.Fatal(err)
+			}
 			for _, fixture := range fixtures {
 				var archived any
 				if fixture.archived {
 					archived = "2026-11-01T00:00:00Z"
 				}
+				profileID := store.DefaultProfileID
+				if fixture.id == "foreign-profile" {
+					profileID = foreignProfileID
+				}
 				if _, err := db.ExecContext(ctx, `INSERT INTO sessions
 			(id,profile_id,agent_name,scope,workspace_id,state,session_type,lineage_kind,permission_policy_json,archived_at,created_at,updated_at)
 			VALUES (?, ?,'coder','global','','stopped',?,?,?,?, '2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')`,
-					fixture.id, store.DefaultProfileID, fixture.typ, fixture.kind, fixture.raw, archived); err != nil {
+					fixture.id, profileID, fixture.typ, fixture.kind, fixture.raw, archived); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -1470,7 +1486,6 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 			if _, err := db.ExecContext(ctx, `
 UPDATE sessions SET instance_id='instance-1' WHERE id='delegated-root';
 UPDATE sessions SET parent_session_id='delegated-root' WHERE id IN ('delegated-child','foreign-profile','ceiling-marked');
-UPDATE sessions SET profile_id='foreign' WHERE id='foreign-profile';
 UPDATE sessions SET parent_session_id='delegated-child' WHERE id='delegated-grandchild';
 UPDATE sessions SET instance_id='instance-0' WHERE id='depth-zero-root';
 UPDATE sessions SET parent_session_id='depth-zero-root' WHERE id='depth-zero-child';
@@ -1481,7 +1496,10 @@ UPDATE sessions SET created_at='2026-11-01T00:00:00.500Z' WHERE id='same-second'
 				if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 202)); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := db.ExecContext(ctx, `UPDATE goose_db_version_global SET tstamp='2026-11-01 00:00:00' WHERE version_id=202 AND is_applied=1`); err != nil {
+				if _, err := db.ExecContext(
+					ctx,
+					`UPDATE goose_db_version_global SET tstamp='2026-11-01 00:00:00' WHERE version_id=202 AND is_applied=1`,
+				); err != nil {
 					t.Fatal(err)
 				}
 				if prior == 203 {
@@ -1503,7 +1521,11 @@ UPDATE sessions SET created_at='2026-11-01T00:00:00.500Z' WHERE id='same-second'
 						id, store.DefaultProfileID, kind, policy); err != nil {
 						t.Fatal(err)
 					}
-					if _, err := db.ExecContext(ctx, `UPDATE sessions SET parent_session_id='delegated-root' WHERE id=?`, id); err != nil {
+					if _, err := db.ExecContext(
+						ctx,
+						`UPDATE sessions SET parent_session_id='delegated-root' WHERE id=?`,
+						id,
+					); err != nil {
 						t.Fatal(err)
 					}
 					fixtures = append(fixtures, sessionFixture{id, kind, "user", policy, false})

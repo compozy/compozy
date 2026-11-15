@@ -102,7 +102,11 @@ func TestWindowManagerHandlers(t *testing.T) {
 		requireWindowManagerStatus(t, exported, http.StatusOK)
 		var document contract.WindowManagerLayoutDocument
 		decodeWindowManagerTestBody(t, exported, &document)
-		body := marshalWindowManagerTestJSON(t, map[string]any{"workspace_id": "workspace-a", "expected_revision": 0, "document": document})
+		document.Desktops[0].Name = "After disconnect"
+		body := marshalWindowManagerTestJSON(
+			t,
+			map[string]any{"workspace_id": "workspace-a", "expected_revision": 0, "document": document},
+		)
 		disconnected := func(method, path, body string) *httptest.ResponseRecorder {
 			t.Helper()
 			ctx, cancel := context.WithCancel(t.Context())
@@ -119,11 +123,19 @@ func TestWindowManagerHandlers(t *testing.T) {
 		}
 		requireWindowManagerStatus(t, disconnected(http.MethodPut, path+"/layout", body), http.StatusOK)
 		requireWindowManagerStatus(t, disconnected(http.MethodPut, path+"/layout", body), http.StatusConflict)
-		requireWindowManagerStatus(t, disconnected(http.MethodPost, path+"/clients", `{"workspace_id":"workspace-a","client_id":"client"}`), http.StatusCreated)
+		requireWindowManagerStatus(
+			t,
+			disconnected(http.MethodPost, path+"/clients", `{"workspace_id":"workspace-a","client_id":"client"}`),
+			http.StatusCreated,
+		)
 		if clients := listWindowManagerTestClients(t, f.router, "workspace-a"); len(clients.Clients) != 1 {
 			t.Fatal("client not persisted")
 		}
-		requireWindowManagerStatus(t, disconnected(http.MethodPost, path+"/migration", `{"action":"ack"}`), http.StatusOK)
+		requireWindowManagerStatus(
+			t,
+			disconnected(http.MethodPost, path+"/migration", `{"action":"ack"}`),
+			http.StatusOK,
+		)
 	})
 
 	// Invariant: profile writes retain their version and scope guards after accepting the body.
@@ -141,7 +153,9 @@ func TestWindowManagerHandlers(t *testing.T) {
 		f.handlers.Resources = stubResourceService{
 			GetFn: func(ctx context.Context, _ resources.ResourceKind, _ string) (resources.RawRecord, error) {
 				check(ctx)
-				return resources.RawRecord{Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"}}, nil
+				return resources.RawRecord{
+					Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
+				}, nil
 			},
 			PutFn: func(ctx context.Context, draft resources.RawDraft) (resources.RawRecord, error) {
 				check(ctx)
@@ -168,7 +182,12 @@ func TestWindowManagerHandlers(t *testing.T) {
 			{http.MethodDelete, `{"expected_version":2}`, http.StatusNoContent},
 		} {
 			ctx, cancel := context.WithCancel(t.Context())
-			r := httptest.NewRequestWithContext(ctx, tc.method, windowManagerTestPath("workspace-a")+"/layout-profiles/test", strings.NewReader(tc.body))
+			r := httptest.NewRequestWithContext(
+				ctx,
+				tc.method,
+				windowManagerTestPath("workspace-a")+"/layout-profiles/test",
+				strings.NewReader(tc.body),
+			)
 			r.Header.Set("Content-Type", "application/json")
 			r.Body = &windowManagerDisconnectBody{ReadCloser: r.Body, disconnect: cancel, afterRead: true}
 			response := httptest.NewRecorder()
@@ -192,7 +211,8 @@ func TestWindowManagerHandlers(t *testing.T) {
 		ctx, cancel := windowManagerMutationContext(request)
 		defer cancel()
 		deadline, bounded := ctx.Deadline()
-		if ctx.Err() != nil || !bounded || time.Until(deadline) > windowManagerCommandTimeout || ctx.Value(contextKey{}) != "actor" {
+		if ctx.Err() != nil || !bounded || time.Until(deadline) > windowManagerCommandTimeout ||
+			ctx.Value(contextKey{}) != "actor" {
 			t.Fatal("mutation lifetime lost its bound or identity")
 		}
 	})

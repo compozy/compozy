@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -57,18 +58,20 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bound.Lineage.PermissionPolicy.ToolsMode != store.PermissionInherit || bound.Lineage.PermissionPolicy.MCPServersMode != store.PermissionInherit {
+		if bound.Lineage.PermissionPolicy.ToolsMode != store.PermissionInherit ||
+			bound.Lineage.PermissionPolicy.MCPServersMode != store.PermissionInherit {
 			t.Fatalf("catalog intent not bound: %+v", bound.Lineage.PermissionPolicy)
 		}
 		unchanged, err := os.ReadFile(created.MetaPath())
-		if err != nil || string(unchanged) != string(payload) {
+		if err != nil || !bytes.Equal(unchanged, payload) {
 			t.Fatalf("read rewrote metadata: %v", err)
 		}
 		resumed, err := h.manager.Resume(t.Context(), created.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if resumed.Meta().Lineage.PermissionPolicy.ToolsMode != store.PermissionInherit || resumed.Meta().Lineage.PermissionPolicy.MCPServersMode != store.PermissionInherit {
+		if resumed.Meta().Lineage.PermissionPolicy.ToolsMode != store.PermissionInherit ||
+			resumed.Meta().Lineage.PermissionPolicy.MCPServersMode != store.PermissionInherit {
 			t.Fatal("resume lost corrected authority")
 		}
 	})

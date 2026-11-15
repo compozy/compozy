@@ -167,7 +167,7 @@ type Manager struct {
 	supervisionMu              sync.Mutex
 	workSignals                *WorkSignalRegistry
 	mu                         sync.RWMutex
-	lifecycleMu                sync.Mutex
+	lifecycleMu                lifecycleMutex
 	worktreeDeliveryFences     map[string]bool
 	worktreeBindingUses        map[string]int
 	worktreeBindingNotifiers   []WorktreeBindingNotifier

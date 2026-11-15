@@ -80,12 +80,15 @@ type serviceHarness struct {
 	notified chan struct{}
 }
 
-func newServiceHarness(t *testing.T, rows []store.SessionHistoryCleanupRow, deleter *fakeDeleter) serviceHarness {
+func newServiceHarness(
+	t *testing.T,
+	rows []store.SessionHistoryCleanupRow,
+	deleter *fakeDeleter,
+	opts ...Option,
+) serviceHarness {
 	t.Helper()
 	notified := make(chan struct{}, 1)
-	service, err := NewService(
-		fakeLister{rows: rows},
-		deleter,
+	options := []Option{
 		WithClock(func() time.Time { return planNow }),
 		WithConcurrency(1),
 		WithProgressInterval(0),
@@ -95,7 +98,8 @@ func newServiceHarness(t *testing.T, rows []store.SessionHistoryCleanupRow, dele
 			default:
 			}
 		}),
-	)
+	}
+	service, err := NewService(fakeLister{rows: rows}, deleter, append(options, opts...)...)
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
@@ -139,6 +143,7 @@ func TestServiceStart(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			entered := false
+			const timeout = 50 * time.Millisecond
 			h := newServiceHarness(t, []store.SessionHistoryCleanupRow{archivedRow("root", "", 10)}, &fakeDeleter{
 				delete: func(ctx context.Context, _ store.ArchivedSessionDelete) error {
 					entered = true
@@ -149,7 +154,7 @@ func TestServiceStart(t *testing.T) {
 					<-ctx.Done()
 					return ctx.Err()
 				},
-			})
+			}, WithDeleteTimeout(timeout))
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			if _, _, err := h.service.Start(ctx, serviceRequest()); err != nil {
@@ -164,7 +169,7 @@ func TestServiceStart(t *testing.T) {
 			if run, _ := h.service.Current(testProfile); run.State != RunRunning {
 				t.Fatal("caller cancellation interrupted accepted deletion")
 			}
-			time.Sleep(defaultDeleteTimeout)
+			time.Sleep(timeout)
 			synctest.Wait()
 			run := h.waitForSettled(t)
 			if run.FailedThreads != 1 || run.Deleted != 0 {
