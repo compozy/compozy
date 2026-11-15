@@ -39,6 +39,9 @@ Issue #1738 acceptance extension: start a command gate that remains in flight be
 coordinator lease. Confirm exactly one command invocation, advancing `last_progress_at`, and a
 terminal run with its machine verdict and completed gate attempt retained. Repeat with a shell
 whose descendant ignores SIGTERM, cancel through `compozy loop cancel`, and confirm the whole local
-process group exits while a foreign Loop remains active. Repeat after daemon restart to verify
-recovered PID/start-time ownership cleanup before replacement dispatch. Containers must run in the
+process group exits while a foreign Loop remains active. Repeat with a supervisor that replaces a
+terminated child during cleanup: no live replacement may survive. On Linux, an exited zombie
+awaiting reaping is not active work; unreadable process state must not count as confirmed exit.
+Repeat after daemon restart to verify recovered PID/start-time ownership cleanup before replacement
+dispatch. Containers must run in the
 foreground; daemon-held and remote resources follow the author's cleanup contract (#1743).

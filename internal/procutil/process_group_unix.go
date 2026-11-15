@@ -113,7 +113,7 @@ func WaitForCommandProcessGroupExit(cmd *exec.Cmd, timeout time.Duration) error 
 	return WaitForProcessGroupIDExit(pgid, timeout)
 }
 
-// WaitForProcessGroupIDExit blocks until the process group identified by pgid no longer exists.
+// WaitForProcessGroupIDExit waits until no running members remain in the process group.
 func WaitForProcessGroupIDExit(pgid int, timeout time.Duration) error {
 	if pgid <= 0 {
 		return fmt.Errorf("procutil: invalid process group id %d", pgid)
@@ -132,6 +132,12 @@ func WaitForProcessGroupIDExit(pgid int, timeout time.Duration) error {
 		}
 		if err != nil && !errors.Is(err, syscall.EPERM) {
 			return fmt.Errorf("check process group (pid %d): %w", pgid, err)
+		}
+		if err == nil && runtime.GOOS == "linux" {
+			members, enumerationErr := linuxProcessGroupMembers(pgid)
+			if enumerationErr == nil && len(members) == 0 {
+				return nil
+			}
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("wait for process group exit (pid %d): deadline exceeded after %s", pgid, timeout)
@@ -193,17 +199,14 @@ func signalProcessGroupMembersLinux(pgid int, sig syscall.Signal, ignoreMissing 
 		waitForLinuxDescendantsToExit(pgid, processGroupDrainDeadline)
 	}
 
-	delivered, signalErr := signalPID(pgid, sig, ignoreMissing)
-	if signalErr != nil {
-		if errors.Is(signalErr, syscall.ESRCH) && signaled {
+	// A leader can replace a signaled child while descendants drain.
+	if err := syscall.Kill(-pgid, sig); err != nil {
+		if errors.Is(err, syscall.ESRCH) && (signaled || ignoreMissing) {
 			return nil
 		}
-		return signalErr
+		return err
 	}
-	if delivered || ignoreMissing {
-		return nil
-	}
-	return syscall.ESRCH
+	return nil
 }
 
 func waitForLinuxDescendantsToExit(pgid int, timeout time.Duration) {
@@ -253,11 +256,14 @@ func linuxProcessGroupMembers(pgid int) ([]int, error) {
 			continue
 		}
 
-		candidatePGID, err := linuxProcessGroupID(pid)
+		candidatePGID, state, err := linuxProcessGroupState(pid)
 		if err != nil {
-			continue
+			if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+				continue
+			}
+			return nil, fmt.Errorf("%w: read process %d: %w", errProcessGroupEnumerationUnavailable, pid, err)
 		}
-		if candidatePGID == pgid {
+		if candidatePGID == pgid && state != "Z" && state != "X" {
 			members = append(members, pid)
 		}
 	}
@@ -266,29 +272,29 @@ func linuxProcessGroupMembers(pgid int) ([]int, error) {
 	return members, nil
 }
 
-func linuxProcessGroupID(pid int) (int, error) {
+func linuxProcessGroupState(pid int) (int, string, error) {
 	statPath := fmt.Sprintf("/proc/%d/stat", pid)
 	data, err := os.ReadFile(statPath)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 
 	line := string(data)
 	_, suffix, found := strings.CutLast(line, ")")
 	if !found || len(suffix) <= 1 {
-		return 0, fmt.Errorf("parse %s: malformed stat payload", statPath)
+		return 0, "", fmt.Errorf("parse %s: malformed stat payload", statPath)
 	}
 
 	fields := strings.Fields(suffix[1:])
 	if len(fields) < 3 {
-		return 0, fmt.Errorf("parse %s: missing pgid field", statPath)
+		return 0, "", fmt.Errorf("parse %s: missing pgid field", statPath)
 	}
 
 	pgid, err := strconv.Atoi(fields[2])
 	if err != nil {
-		return 0, fmt.Errorf("parse %s pgid %q: %w", statPath, fields[2], err)
+		return 0, "", fmt.Errorf("parse %s pgid %q: %w", statPath, fields[2], err)
 	}
-	return pgid, nil
+	return pgid, fields[0], nil
 }
 
 func signalPID(pid int, sig syscall.Signal, ignoreMissing bool) (bool, error) {

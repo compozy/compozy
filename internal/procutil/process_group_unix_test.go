@@ -112,6 +112,52 @@ func TestSignalProcessGroupIDStrict(t *testing.T) {
 		}
 	})
 
+	// Invariant: final group delivery includes replacements forked during descendant draining.
+	// Owning layer/canonical suite: procutil real-process group signaling.
+	t.Run("Should terminate a child replaced while the original descendants drain", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("ordered descendant signaling is Linux-specific")
+		}
+		group := startNicenessProcessGroup(
+			t,
+			"sleep 600 & child=$!; echo $child; wait $child; sleep 600 & wait",
+		)
+		group.readPID(t)
+		if err := SignalProcessGroupIDStrict(group.pgid, syscall.SIGKILL); err != nil {
+			t.Fatal(err)
+		}
+		if err := WaitForProcessGroupIDExit(group.pgid, time.Second); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: an unreaped zombie cannot execute and does not keep group cleanup pending.
+	// Owning layer/canonical suite: procutil real-process group signaling.
+	t.Run("Should finish waiting for an exited group before its leader is reaped", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("zombie observation uses the Linux process table")
+		}
+		//nolint:noctx // This test retains the exited child until its cleanup Wait.
+		command := exec.Command("sh", "-c", "exit 0")
+		ConfigureCommandProcessGroup(command)
+		if err := command.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := command.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Error(err)
+			}
+			if err := command.Wait(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := WaitForProcessGroupIDExit(command.Process.Pid, time.Second); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Should retain best-effort behavior for the general process-group helper", func(t *testing.T) {
 		t.Parallel()
 
