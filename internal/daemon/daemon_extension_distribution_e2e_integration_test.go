@@ -47,6 +47,9 @@ func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	catalogPath := filepath.Join(t.TempDir(), "compozy-catalog")
 	repoRoot := extensionAuthoringE2ERepoRoot(t)
 	catalogBinary := sync.OnceValues(func() (string, error) {
+		if path := strings.TrimSpace(os.Getenv("COMPOZY_TEST_CATALOG_BIN")); path != "" {
+			return path, nil
+		}
 		ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 		defer cancel()
 		command := execabs.CommandContext(ctx, "go", "build", "-o", catalogPath, "./cmd/compozy-catalog")
