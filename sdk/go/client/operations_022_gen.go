@@ -9,6 +9,76 @@ import (
 	"strings"
 )
 
+// ListProviderModels List provider model catalog entries across providers
+func (c *Client) ListProviderModels(ctx context.Context, params ListProviderModelsParams) (*ProviderModelListResponse, error) {
+	path := "/api/model-catalog/models"
+	query := url.Values{}
+	if params.ProviderID != nil {
+		query.Set("provider_id", *params.ProviderID)
+	}
+	if params.View != nil {
+		query.Set("view", *params.View)
+	}
+	if params.SourceID != nil {
+		query.Set("source_id", *params.SourceID)
+	}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if params.IncludeStale != nil {
+		query.Set("include_stale", strconv.FormatBool(*params.IncludeStale))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderModelListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviderModelsByProviderParams carries the path, query, and header parameters.
+type ListProviderModelsByProviderParams struct {
+	ProviderID   string  `url:"provider_id"`
+	View         *string `url:"view"`
+	SourceID     *string `url:"source_id"`
+	Refresh      *bool   `url:"refresh"`
+	IncludeStale *bool   `url:"include_stale"`
+}
+
+// ListProviderModelsByProvider List provider model catalog entries for one provider
+func (c *Client) ListProviderModelsByProvider(ctx context.Context, params ListProviderModelsByProviderParams) (*ProviderModelListResponse, error) {
+	path := "/api/model-catalog/providers/{provider_id}/models"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	query := url.Values{}
+	if params.View != nil {
+		query.Set("view", *params.View)
+	}
+	if params.SourceID != nil {
+		query.Set("source_id", *params.SourceID)
+	}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if params.IncludeStale != nil {
+		query.Set("include_stale", strconv.FormatBool(*params.IncludeStale))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderModelListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviderUsageParams carries the path, query, and header parameters.
+type ListProviderUsageParams struct {
+	Profile *string `url:"profile"`
+}
+
 // ListProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
 func (c *Client) ListProviderUsage(ctx context.Context, params ListProviderUsageParams) (*ProviderUsageEnvelope, error) {
 	path := "/api/provider-usage"
@@ -368,80 +438,4 @@ type ListSessionFacetsParams struct {
 	Later                     *string   `url:"later"`
 	Profile                   *string   `url:"profile"`
 	AllProfiles               *bool     `url:"all_profiles"`
-}
-
-// ListSessionFacets Count session catalog facets
-func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacetsParams) (*SessionCatalogFacetsResponse, error) {
-	path := "/api/sessions/facets"
-	query := url.Values{}
-	if params.ExcludeInstanceMain != nil {
-		query.Set("exclude_instance_main", strconv.FormatBool(*params.ExcludeInstanceMain))
-	}
-	if params.ExcludeFinishedAutomation != nil {
-		query.Set("exclude_finished_automation", strconv.FormatBool(*params.ExcludeFinishedAutomation))
-	}
-	if params.ExcludeAutomation != nil {
-		query.Set("exclude_automation", strconv.FormatBool(*params.ExcludeAutomation))
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.Worktree != nil {
-		query.Set("worktree", *params.Worktree)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.Subagents != nil {
-		query.Set("subagents", *params.Subagents)
-	}
-	if params.Children != nil {
-		query.Set("children", *params.Children)
-	}
-	if params.Parent != nil {
-		query.Set("parent", *params.Parent)
-	}
-	if params.Root != nil {
-		query.Set("root", *params.Root)
-	}
-	if params.ExcludeRoot != nil {
-		query.Set("exclude_root", *params.ExcludeRoot)
-	}
-	if params.Resumable != nil {
-		query.Set("resumable", strconv.FormatBool(*params.Resumable))
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Later != nil {
-		query.Set("later", *params.Later)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionCatalogFacetsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

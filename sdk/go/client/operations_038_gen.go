@@ -8,6 +8,36 @@ import (
 	"strings"
 )
 
+// UpdateAutomationJobParams carries the path, query, and header parameters.
+type UpdateAutomationJobParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// UpdateAutomationJob Update one automation job
+func (c *Client) UpdateAutomationJob(ctx context.Context, params UpdateAutomationJobParams, body UpdateJobRequest) (*JobResponse, error) {
+	path := "/api/automation/jobs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out JobResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateAutomationTriggerParams carries the path, query, and header parameters.
+type UpdateAutomationTriggerParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // UpdateAutomationTrigger Update one automation trigger
 func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutomationTriggerParams, body UpdateTriggerRequest) (*TriggerResponse, error) {
 	path := "/api/automation/triggers/{id}"
@@ -403,46 +433,5 @@ func (c *Client) UpdateTask(ctx context.Context, params UpdateTaskParams, body U
 // UpdateWindowManagerMigrationParams carries the path, query, and header parameters.
 type UpdateWindowManagerMigrationParams struct {
 	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UpdateWindowManagerMigration Acknowledge or retry window layout migration
-func (c *Client) UpdateWindowManagerMigration(ctx context.Context, params UpdateWindowManagerMigrationParams, body WindowManagerMigrationRequest) (*MigrationStatus, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/migration"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MigrationStatus
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateWorkspaceParams carries the path, query, and header parameters.
-type UpdateWorkspaceParams struct {
-	ID string `url:"id"`
-}
-
-// UpdateWorkspace Update a registered workspace
-func (c *Client) UpdateWorkspace(ctx context.Context, params UpdateWorkspaceParams, body UpdateWorkspaceRequest) (*WorkspaceResponse, error) {
-	path := "/api/workspaces/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out WorkspaceResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UploadSessionAttachmentParams carries the path, query, and header parameters.
-type UploadSessionAttachmentParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 }

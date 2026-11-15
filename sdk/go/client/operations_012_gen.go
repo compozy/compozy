@@ -11,6 +11,36 @@ import (
 	"strings"
 )
 
+// GetMarketplaceCatalogEntry Get a catalog entry or an explicitly selected installed extension
+func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarketplaceCatalogEntryParams) (*MarketplaceEntryResponse, error) {
+	path := "/api/marketplace/entries/{entry_id}"
+	query := url.Values{}
+	if params.Source != nil {
+		query.Set("source", *params.Source)
+	}
+	path = strings.ReplaceAll(path, "{entry_id}", url.PathEscape(params.EntryID))
+	if params.InstalledName != nil {
+		query.Set("installed_name", *params.InstalledName)
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MarketplaceEntryResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetMarketplaceSectionsParams carries the path, query, and header parameters.
 type GetMarketplaceSectionsParams struct {
 	Q           *string `url:"q"`
@@ -404,39 +434,4 @@ type GetSchedulerBacklogParams struct {
 	Scope         *string `url:"scope"`
 	Workspace     *string `url:"workspace"`
 	IncludePaused *bool   `url:"include_paused"`
-}
-
-// GetSchedulerBacklog List queued scheduler backlog rows
-func (c *Client) GetSchedulerBacklog(ctx context.Context, params GetSchedulerBacklogParams) (*SchedulerBacklogResponse, error) {
-	path := "/api/scheduler/backlog"
-	query := url.Values{}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.IncludePaused != nil {
-		query.Set("include_paused", strconv.FormatBool(*params.IncludePaused))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SchedulerBacklogResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionParams carries the path, query, and header parameters.
-type GetSessionParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	IncludeHealth *bool   `url:"include_health"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

@@ -1,6 +1,6 @@
 import { moveSessionToLater, resumeSessionFromLater } from "../session-later-api";
 import { markSessionSeen } from "../session-mark-seen-api";
-import { fetchSessionSubagents, cancelSubagent } from "../subagent-api";
+import { fetchSessionSubagents, cancelSubagent, deleteSubagent } from "../subagent-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   expectFetchRequest,
@@ -1589,5 +1589,22 @@ describe("profile-bound subagents", () => {
       callIndex: 1,
       body: { reason: "" },
     });
+  });
+
+  it("deletes a delegated subagent and surfaces the provider-native refusal", async () => {
+    mockEmptyResponse({ status: 204 });
+    await deleteSubagent(WORKSPACE_ID, "sub-1", "design");
+    await expectFetchRequest({
+      method: "DELETE",
+      path: "/api/workspaces/ws_alpha/subagents/sub-1?profile=design",
+    });
+
+    mockJsonResponse(
+      { code: "subagent_not_deletable", message: "Provider-native subagents follow their turn" },
+      { status: 409 }
+    );
+    const failure = await deleteSubagent(WORKSPACE_ID, "sub-2", "design").catch(error => error);
+    expect(failure).toBeInstanceOf(SessionApiError);
+    expect(failure).toMatchObject({ status: 409, code: "subagent_not_deletable" });
   });
 });

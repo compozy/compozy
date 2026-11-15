@@ -706,6 +706,11 @@ export type SubagentPullRequestPayload = {
   url: string;
 };
 
+export type SubagentRemovedEvent = {
+  session_id: string;
+  subagent_id: string;
+};
+
 export type SubagentRuntimePayload = {
   agent: string;
   model: string;
@@ -1448,6 +1453,7 @@ export type StreamGlobalSessionResponses = {
   200:
     | SubagentsSnapshotEvent
     | SubagentUpdatedEvent
+    | SubagentRemovedEvent
     | SessionUsageChangedPayload
     | SessionConsumerDegradedPayload
     | SessionEventPayload
@@ -1766,6 +1772,7 @@ export type StreamSessionResponses = {
   200:
     | SubagentsSnapshotEvent
     | SubagentUpdatedEvent
+    | SubagentRemovedEvent
     | SessionUsageChangedPayload
     | SessionConsumerDegradedPayload
     | SessionEventPayload

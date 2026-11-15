@@ -6,7 +6,6 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
@@ -168,6 +167,28 @@ func (c *Client) DeleteSettingsProvider(ctx context.Context, params DeleteSettin
 		return nil, err
 	}
 	return &out, nil
+}
+
+// DeleteSubagentParams carries the path, query, and header parameters.
+type DeleteSubagentParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SubagentID  string  `url:"subagent_id"`
+	Profile     *string `url:"profile"`
+}
+
+// DeleteSubagent Delete a delegated subagent and its child session
+func (c *Client) DeleteSubagent(ctx context.Context, params DeleteSubagentParams) error {
+	path := "/api/workspaces/{workspace_id}/subagents/{subagent_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{subagent_id}", url.PathEscape(params.SubagentID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }
 
 // DeleteTaskParams carries the path, query, and header parameters.
@@ -409,41 +430,4 @@ type DiffLoopRunParams struct {
 	AgainstRun        *string `url:"against_run"`
 	Profile           *string `url:"profile"`
 	AllProfiles       *bool   `url:"all_profiles"`
-}
-
-// DiffLoopRun Compare Loop generations or runs
-func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*LoopDiffResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Generation != nil {
-		query.Set("generation", strconv.Itoa(*params.Generation))
-	}
-	if params.AgainstGeneration != nil {
-		query.Set("against_generation", strconv.Itoa(*params.AgainstGeneration))
-	}
-	if params.AgainstRun != nil {
-		query.Set("against_run", *params.AgainstRun)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopDiffResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DisableGatewayProviderParams carries the path, query, and header parameters.
-type DisableGatewayProviderParams struct {
-	Name string `url:"name"`
-	Tier string `url:"tier"`
 }

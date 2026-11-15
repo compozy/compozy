@@ -9,6 +9,41 @@ import (
 	"strings"
 )
 
+// GetSchedulerBacklog List queued scheduler backlog rows
+func (c *Client) GetSchedulerBacklog(ctx context.Context, params GetSchedulerBacklogParams) (*SchedulerBacklogResponse, error) {
+	path := "/api/scheduler/backlog"
+	query := url.Values{}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.IncludePaused != nil {
+		query.Set("include_paused", strconv.FormatBool(*params.IncludePaused))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SchedulerBacklogResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionParams carries the path, query, and header parameters.
+type GetSessionParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	SessionID     string  `url:"session_id"`
+	IncludeHealth *bool   `url:"include_health"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // GetSession Get one session snapshot
 func (c *Client) GetSession(ctx context.Context, params GetSessionParams) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
@@ -394,54 +429,4 @@ type GetSessionMCPParams struct {
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionMCP Read session MCP availability without discovery
-func (c *Client) GetSessionMCP(ctx context.Context, params GetSessionMCPParams) (*MCP, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MCP
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionOwnerParams carries the path, query, and header parameters.
-type GetSessionOwnerParams struct {
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionOwner Get a session owner; Global history has an empty workspace id
-func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerParams) (*SessionOwner, error) {
-	path := "/api/sessions/{session_id}/owner"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionOwner
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

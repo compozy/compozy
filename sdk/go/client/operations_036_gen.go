@@ -11,6 +11,11 @@ import (
 	"strings"
 )
 
+// MarshalJSON returns the original event payload.
+func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
 // AsLoopGenerationStartedRunEventPayload decodes this payload as LoopGenerationStartedRunEventPayload.
 func (f StreamLoopRunEventsFrame) AsLoopGenerationStartedRunEventPayload() (*LoopGenerationStartedRunEventPayload, error) {
 	var out LoopGenerationStartedRunEventPayload
@@ -126,6 +131,15 @@ func (f StreamSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent,
 // AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
 func (f StreamSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
 	var out SubagentUpdatedEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSubagentRemovedEvent decodes this payload as SubagentRemovedEvent.
+func (f StreamSessionFrame) AsSubagentRemovedEvent() (*SubagentRemovedEvent, error) {
+	var out SubagentRemovedEvent
 	if err := json.Unmarshal(f.Raw, &out); err != nil {
 		return nil, err
 	}
@@ -410,35 +424,4 @@ type StreamTerminalsAggregateParams struct {
 	LastEventIDQuery *string   `url:"last_event_id"`
 	Profile          *string   `url:"profile"`
 	AllProfiles      *bool     `url:"all_profiles"`
-}
-
-// StreamTerminalsAggregate Stream the workspace terminal catalog
-func (c *Client) StreamTerminalsAggregate(ctx context.Context, params StreamTerminalsAggregateParams) (*Stream[TerminalCatalogSnapshot], error) {
-	path := "/api/terminals/catalog-stream"
-	query := url.Values{}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	if params.LastEventIDQuery != nil {
-		query.Set("last_event_id", *params.LastEventIDQuery)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[TerminalCatalogSnapshot](ctx, c, "GET", path, headers, nil, "streamTerminalsAggregate")
 }

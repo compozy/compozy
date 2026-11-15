@@ -81,6 +81,8 @@ export type SessionConsumerDegradedPayload =
 /** Parent-stream roster frames (`_dx.md` Live updates): the snapshot after subscribe, then row changes. */
 export type SubagentsSnapshotPayload = components["schemas"]["SubagentsSnapshotEvent"];
 export type SubagentUpdatedPayload = components["schemas"]["SubagentUpdatedEvent"];
+/** A delegated row left the roster (deleted); its child session is gone with it. */
+export type SubagentRemovedPayload = components["schemas"]["SubagentRemovedEvent"];
 export type SessionBadge = SessionPayload["badge"];
 /** Sanitized pending question / permission projection embedded on session payloads. */
 export type SessionPendingInteraction = SessionPayload["pending_interactions"][number];

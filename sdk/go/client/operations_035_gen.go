@@ -211,6 +211,15 @@ func (f StreamGlobalSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEven
 	return &out, nil
 }
 
+// AsSubagentRemovedEvent decodes this payload as SubagentRemovedEvent.
+func (f StreamGlobalSessionFrame) AsSubagentRemovedEvent() (*SubagentRemovedEvent, error) {
+	var out SubagentRemovedEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
 func (f StreamGlobalSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
 	var out SessionUsageChangedPayload
@@ -436,9 +445,4 @@ var _ json.Marshaler = StreamLoopRunEventsFrame{}
 // UnmarshalJSON retains the complete event payload.
 func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
 }

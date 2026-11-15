@@ -10,6 +10,13 @@ import (
 	"strings"
 )
 
+// GetAgentCoordinatorConfigParams carries the path, query, and header parameters.
+type GetAgentCoordinatorConfigParams struct {
+	XCompozySessionID string  `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string  `url:"X-Compozy-Agent"`
+	Workspace         *string `url:"workspace"`
+}
+
 // GetAgentCoordinatorConfig Read resolved coordinator config for the calling agent workspace
 func (c *Client) GetAgentCoordinatorConfig(ctx context.Context, params GetAgentCoordinatorConfigParams) (*AgentCoordinatorConfigResponse, error) {
 	path := "/api/agent/coordinator/config"
@@ -440,11 +447,4 @@ func (c *Client) GetAutomationTrigger(ctx context.Context, params GetAutomationT
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetCmdPalettePersonalizationParams carries the path, query, and header parameters.
-type GetCmdPalettePersonalizationParams struct {
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

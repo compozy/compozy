@@ -75,6 +75,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"deleteSession",
 			"deleteSessionAttachment",
 			"deleteSessionFolder",
+			"deleteSubagent",
 			"deleteTask",
 			"deleteTaskExecutionProfile",
 			"diffLoopRun",

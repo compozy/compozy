@@ -7491,7 +7491,8 @@ export interface paths {
     get: operations["getSubagent"];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Delete a delegated subagent and its child session */
+    delete: operations["deleteSubagent"];
     options?: never;
     head?: never;
     patch?: never;
@@ -19046,6 +19047,10 @@ export interface components {
       number: number;
       state: string;
       url: string;
+    };
+    SubagentRemovedEvent: {
+      session_id: string;
+      subagent_id: string;
     };
     SubagentRuntimePayload: {
       agent: string;
@@ -40474,6 +40479,7 @@ export interface operations {
           "text/event-stream":
             | components["schemas"]["SubagentsSnapshotEvent"]
             | components["schemas"]["SubagentUpdatedEvent"]
+            | components["schemas"]["SubagentRemovedEvent"]
             | components["schemas"]["SessionUsageChangedPayload"]
             | components["schemas"]["SessionConsumerDegradedPayload"]
             | components["schemas"]["SessionEventPayload"]
@@ -60388,6 +60394,7 @@ export interface operations {
           "text/event-stream":
             | components["schemas"]["SubagentsSnapshotEvent"]
             | components["schemas"]["SubagentUpdatedEvent"]
+            | components["schemas"]["SubagentRemovedEvent"]
             | components["schemas"]["SessionUsageChangedPayload"]
             | components["schemas"]["SessionConsumerDegradedPayload"]
             | components["schemas"]["SessionEventPayload"]
@@ -61358,6 +61365,86 @@ export interface operations {
       };
       /** @description Session or subagent not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Subagents unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  deleteSubagent: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Subagent id */
+        subagent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Capability denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session or subagent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Subagent is provider-native and follows its parent turn */
+      409: {
         headers: {
           [name: string]: unknown;
         };
