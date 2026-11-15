@@ -1821,6 +1821,44 @@ func TestReloadChangedPaths(t *testing.T) {
 		})
 	}
 
+	t.Run("Should keep a log change restart required beside a client budget change", func(t *testing.T) {
+		t.Parallel()
+
+		current := &compozyconfig.Config{
+			Client: compozyconfig.ClientConfig{RequestTimeout: 30 * time.Second},
+			Log:    compozyconfig.LogConfig{Level: "info"},
+		}
+		desired := &compozyconfig.Config{
+			Client: compozyconfig.ClientConfig{RequestTimeout: 2 * time.Minute},
+			Log:    compozyconfig.LogConfig{Level: "debug"},
+		}
+		got := reloadChangedPaths(current, desired)
+		if !slices.Contains(got, "client.request_timeout") || !slices.Contains(got, "log.*") {
+			t.Fatalf("reloadChangedPaths() = %#v, want both the client and log changes", got)
+		}
+		if lifecycleGot := classifyReloadLifecycle(current, desired); lifecycleGot != lifecycle.RestartRequired {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", lifecycleGot, lifecycle.RestartRequired)
+		}
+	})
+
+	t.Run("Should classify a client request budget change as live", func(t *testing.T) {
+		t.Parallel()
+
+		current := &compozyconfig.Config{
+			Client: compozyconfig.ClientConfig{RequestTimeout: 30 * time.Second},
+		}
+		desired := &compozyconfig.Config{
+			Client: compozyconfig.ClientConfig{RequestTimeout: 2 * time.Minute},
+		}
+		want := []string{"client.request_timeout"}
+		if got := reloadChangedPaths(current, desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(current, desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
+		}
+	})
+
 	t.Run("Should classify a new built-in model override as live", func(t *testing.T) {
 		t.Parallel()
 

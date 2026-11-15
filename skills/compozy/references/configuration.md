@@ -880,3 +880,10 @@ It limits auto-accepted proposals per instance over a rolling 24 hours. Zero
 disables auto picks. Queue capacity, approved authority, active lifecycle state,
 deduplication, fatigue and unattended limits still apply. A queue-cap miss leaves
 the proposal waiting and does not fail the completed check-in.
+
+## Client request budget
+
+`[client] request_timeout` (duration, default `30s`, bounds 5s–30m) bounds one unary CLI request to the
+daemon. `COMPOZY_CLIENT_TIMEOUT` overrides it for one invocation and wins over the file; both sources
+reject an out-of-range value. Streams are not bounded by it, and profile and workspace layers reject
+`client.*`. Set it with `compozy config set client.request_timeout 2m`.

@@ -2865,6 +2865,23 @@ context.pre_compact
 context.post_compact
 ```
 
+## `[client]`
+
+Bounds one unary request the CLI sends to the daemon. It exists for a slow host and for a daemon under
+SQLite writer contention, where the default budget can expire while the operation still succeeds. It
+changes how long the CLI waits; it does not change what the daemon does.
+
+| Field             | Type     | Default | Validation | Lifecycle |
+| ----------------- | -------- | ------- | ---------- | --------- |
+| `request_timeout` | duration | `30s`   | 5s to 30m  | Live      |
+
+`COMPOZY_CLIENT_TIMEOUT` overrides the key for one invocation and takes precedence over the file. Both
+sources reject a value outside the 5s–30m range; neither clamps it.
+
+The budget applies to unary requests only: log and terminal streams keep their own untimed client.
+Profiles and workspace config reject `client.*`, because the CLI resolves the budget before it selects
+a profile for the command.
+
 ## `[gateway]`
 
 Gateway config sets a local safety ceiling and bounded runtime controls. Exposure intent is stored in
