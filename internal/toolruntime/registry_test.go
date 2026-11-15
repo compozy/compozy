@@ -138,17 +138,18 @@ func TestRegistryCompletionPersistsBeforeRetiringActiveHandle(t *testing.T) {
 			}
 			valid = !strings.Contains(mode, "stale identity")
 			resolvedRegistry := registry
-			if mode == "boot retry" {
+			switch mode {
+			case "boot retry":
 				resolvedRegistry = NewRegistry(store, options...)
 				report, err := resolvedRegistry.ReconcileBoot(ctx)
 				if err != nil || report.Interrupted != 1 {
 					t.Fatalf("ReconcileBoot() = %#v, %v", report, err)
 				}
-			} else if mode == "periodic stale identity" {
+			case "periodic stale identity":
 				if err := registry.Reconcile(ctx); err != nil {
 					t.Fatal(err)
 				}
-			} else {
+			default:
 				if _, err := registry.Interrupt(ctx, InterruptScope{ProcessID: handle.ID()}); err != nil {
 					t.Fatal(err)
 				}
