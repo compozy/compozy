@@ -77,6 +77,11 @@ workspace-bound caller; otherwise pass `--workspace` or choose `--scope global` 
 If servers declare different defaults, select a scope explicitly. Existing installations keep their
 attachments during updates.
 
+Local-path `--replace` requires an existing installation in the selected workspace/profile before
+staging. An agent may replace a package only when every attachment belongs to its own workspace
+and either its profile or all profiles. An attachment in another profile requires operator authority,
+even in the same workspace. A denied replacement never publishes the candidate package.
+
 ## Supply package inputs
 
 The package declares its input IDs, types, prompts, defaults, and required values. Pass repeatable

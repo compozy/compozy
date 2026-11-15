@@ -2942,7 +2942,7 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 }
 
 // Invariant: a replace rewrites the single name-keyed package every attachment resolves, so
-// replacing outside the caller's own workspace attachment requires operator authority.
+// replacing outside the caller's own workspace/profile attachments requires operator authority.
 // Owner: daemon install authority; canonical suite: TestDaemonExtensionInstallReplaceAuthority.
 func TestDaemonExtensionInstallReplaceAuthority(t *testing.T) {
 	t.Parallel()
@@ -3044,38 +3044,110 @@ func TestDaemonExtensionInstallReplaceAuthority(t *testing.T) {
 		}
 	})
 
-	t.Run("Should allow a workspace caller replacing its own workspace package", func(t *testing.T) {
-		t.Parallel()
-		service, registry, _ := newReplaceService(t)
-		installFixture(t, service, "ws-install", writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0"), false)
+	for _, mixed := range []bool{false, true} {
+		name := "Should refuse replacement attached only to another profile"
+		if mixed {
+			name = "Should refuse replacement with a foreign profile among its attachments"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			service, registry, packageDir := newReplaceService(t)
+			installFixture(t, service, "ws-install", writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0"), false)
+			foreign, err := service.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "foreign"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := registry.AttachInstallation(t.Context(), "tool-ext", extensionpkg.InstallationScope{
+				WorkspaceID: "ws-install", ProfileID: foreign.ID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if !mixed {
+				if err := registry.DetachInstallation(t.Context(), "tool-ext", extensionpkg.InstallationScope{
+					WorkspaceID: "ws-install",
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var publications atomic.Int32
+			service.runtime = &fakeExtensionRuntime{onReload: func(context.Context) error {
+				publications.Add(1)
+				return nil
+			}}
+			_, err = service.Install(t.Context(), contract.InstallExtensionRequest{
+				Source:  contract.InstallExtensionSourceLocalPath,
+				Ref:     writeNativeLocalExtensionFixture(t, "tool-ext", "2.0.0"),
+				Replace: true, AllowUnverified: true,
+			}, workspaceCaller(t))
+			if !errors.Is(err, taskpkg.ErrPermissionDenied) {
+				t.Fatalf("foreign profile replace error = %v, want permission denied", err)
+			}
+			after, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if before != after || publications.Load() != 0 {
+				t.Fatalf("denied replacement changed files or published: before=%s after=%s publications=%d",
+					before, after, publications.Load())
+			}
+		})
+	}
 
-		item, err := service.Install(t.Context(), contract.InstallExtensionRequest{
-			Source:  contract.InstallExtensionSourceLocalPath,
-			Ref:     writeNativeLocalExtensionFixture(t, "tool-ext", "2.0.0"),
-			Replace: true, AllowUnverified: true,
-		}, workspaceCaller(t))
-		if err != nil {
-			t.Fatalf("workspace replace error = %v", err)
+	for _, profileOnly := range []bool{false, true} {
+		name := "Should allow replacement of an all-profile workspace package"
+		if profileOnly {
+			name = "Should allow replacement of the caller profile workspace package"
 		}
-		if item.Name != "tool-ext" || item.Version != "2.0.0" {
-			t.Fatalf("workspace replace payload = %#v", item)
-		}
-		installed, err := registry.Get("tool-ext")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if installed.Version != "2.0.0" {
-			t.Fatalf("workspace replace version = %q", installed.Version)
-		}
-		attachments, err := registry.Installations(t.Context(), "tool-ext")
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := extensionpkg.InstallationScope{WorkspaceID: "ws-install"}
-		if len(attachments) != 1 || attachments[0].Scope != want {
-			t.Fatalf("workspace attachments = %#v, want %v", attachments, want)
-		}
-	})
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			service, registry, _ := newReplaceService(t)
+			installFixture(t, service, "ws-install", writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0"), false)
+
+			want := extensionpkg.InstallationScope{WorkspaceID: "ws-install"}
+			if profileOnly {
+				want.ProfileID = store.DefaultProfileID
+				if err := registry.AttachInstallation(t.Context(), "tool-ext", want); err != nil {
+					t.Fatal(err)
+				}
+				if err := registry.DetachInstallation(t.Context(), "tool-ext", extensionpkg.InstallationScope{
+					WorkspaceID: "ws-install",
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			item, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+				Source:  contract.InstallExtensionSourceLocalPath,
+				Ref:     writeNativeLocalExtensionFixture(t, "tool-ext", "2.0.0"),
+				Replace: true, AllowUnverified: true,
+			}, workspaceCaller(t))
+			if err != nil {
+				t.Fatalf("workspace replace error = %v", err)
+			}
+			if item.Name != "tool-ext" || item.Version != "2.0.0" {
+				t.Fatalf("workspace replace payload = %#v", item)
+			}
+			installed, err := registry.Get("tool-ext")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if installed.Version != "2.0.0" {
+				t.Fatalf("workspace replace version = %q", installed.Version)
+			}
+			attachments, err := registry.Installations(t.Context(), "tool-ext")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(attachments) != 1 || attachments[0].Scope != want {
+				t.Fatalf("workspace attachments = %#v, want %v", attachments, want)
+			}
+		})
+
+	}
 
 	// The early check fails fast but the commit repeats it under the lifecycle lock: an
 	// attachment enrolled between preparation and commit must not lose its code to a
@@ -3117,7 +3189,11 @@ func TestDaemonExtensionInstallReplaceAuthority(t *testing.T) {
 
 		// A concurrent AttachInstallation lands after the early authorization cleared the
 		// caller and before the replacement takes the lifecycle lock.
-		foreign := extensionpkg.InstallationScope{WorkspaceID: "ws-other"}
+		profile, err := service.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "concurrent"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		foreign := extensionpkg.InstallationScope{WorkspaceID: "ws-install", ProfileID: profile.ID}
 		if err := registry.AttachInstallation(t.Context(), "tool-ext", foreign); err != nil {
 			t.Fatal(err)
 		}
@@ -3229,7 +3305,7 @@ func TestDaemonExtensionLocalInstallReplace(t *testing.T) {
 		return actor
 	}
 
-	t.Run("Should restore the previous version when the target scope has no attachment", func(t *testing.T) {
+	t.Run("Should refuse a missing target before publishing a replacement", func(t *testing.T) {
 		t.Parallel()
 
 		service, registry := newService(t)
@@ -3250,8 +3326,14 @@ func TestDaemonExtensionLocalInstallReplace(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		var publications atomic.Int32
+		service.runtime = &fakeExtensionRuntime{onReload: func(context.Context) error {
+			publications.Add(1)
+			return nil
+		}}
+
 		// No --scope: the replacement manifest's workspace default selects ws-other, which
-		// has no attachment, so the final status step fails after the package committed.
+		// has no attachment, so replacement must fail before publication.
 		_, err = service.Install(t.Context(), contract.InstallExtensionRequest{
 			Source: contract.InstallExtensionSourceLocalPath,
 			Ref: writeNativeLocalExtensionFixtureWithWorkspaceServer(
@@ -3261,6 +3343,10 @@ func TestDaemonExtensionLocalInstallReplace(t *testing.T) {
 		}, operator(t, "ws-other"))
 		if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 			t.Fatalf("unattached target replacement error = %v, want extension not found", err)
+		}
+
+		if publications.Load() != 0 {
+			t.Fatalf("unattached replacement published %d times", publications.Load())
 		}
 
 		after, err := registry.Get("tool-ext")

@@ -101,7 +101,7 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 		return preparedDaemonExtensionInstall{}, err
 	}
 	if req.Replace {
-		if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor); err != nil {
+		if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor, target); err != nil {
 			return preparedDaemonExtensionInstall{}, err
 		}
 	}
@@ -149,7 +149,7 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 			// lock so an attachment enrolled meanwhile cannot be overwritten by a caller
 			// that does not own it.
 			if req.Replace {
-				if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor); err != nil {
+				if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor, target); err != nil {
 					return err
 				}
 			}

@@ -102,7 +102,7 @@ func (s *daemonExtensionService) validateReinstallAuthority(
 		return err
 	}
 	if normalizedInstallSource(request.Source) == contract.InstallExtensionSourceLocalPath {
-		if err := s.authorizeExtensionReplace(ctx, installed.Name, actor); err != nil {
+		if err := s.authorizeExtensionReplace(ctx, installed.Name, actor, prepared.target); err != nil {
 			return err
 		}
 	}
