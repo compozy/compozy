@@ -818,6 +818,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload E2E-023 diagnostic profiles
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e023-diagnostics-shard-${{ matrix.shard }}
+          path: .tmp/playwright/test-results/*os-shell-E2E-023*/attachments
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload web E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7

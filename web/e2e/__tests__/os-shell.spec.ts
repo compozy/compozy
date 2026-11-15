@@ -4,7 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Browser, Locator, Page } from "@playwright/test";
+import type { Browser, CDPSession, Locator, Page, TestInfo } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
@@ -3642,6 +3642,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   let switchProbe: SwitchProbeRecords = { switches: [], tasks: [], tooltipsShown: 0, frames: [] };
   let switchCount = 0;
   try {
+    await startWindowManagerProfile(switchInput);
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
     await installSwitchProbe(appPage);
@@ -3653,6 +3654,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     switchProbe = await readSwitchProbe(appPage);
     longTasks = switchProbe.tasks.map(task => task.duration);
+    await attachWindowManagerProfile(switchInput, testInfo, "switch", switchProbe);
   } finally {
     await switchInput.detach();
   }
@@ -3671,8 +3673,14 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   }
   let worstPeerTask = 0;
   let peerAttribution: ReturnType<typeof attributePeerLongTasks> = [];
+  const peerProfilers: CDPSession[] = [];
   try {
     const peers = [peerA, peerB];
+    for (const peer of peers) {
+      const profiler = await peer.context().newCDPSession(peer);
+      peerProfilers.push(profiler);
+      await startWindowManagerProfile(profiler);
+    }
     for (const peer of peers) {
       for (const id of perfWindowIDs.values()) {
         await expect(osShellSelectors(peer).tabOfWindow(id)).toHaveCount(1);
@@ -3710,7 +3718,11 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     console.log(
       `[wm-perf:peers] ${JSON.stringify(await Promise.all(peers.map(readWindowManagerTimings)))}`
     );
+    for (const [index, profiler] of peerProfilers.entries()) {
+      await attachWindowManagerProfile(profiler, testInfo, `peer-${index}`, peerProbes[index]);
+    }
   } finally {
+    for (const profiler of peerProfilers) await profiler.detach();
     await peerA.context().close();
     await peerB.context().close();
   }
@@ -3738,6 +3750,44 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   expect(worstFrame).toBeLessThanOrEqual(50);
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
+
+async function startWindowManagerProfile(profiler: CDPSession) {
+  await profiler.send("Performance.enable");
+  await profiler.send("Profiler.enable");
+  await profiler.send("Profiler.setSamplingInterval", { interval: 2000 });
+  await profiler.send("Profiler.start");
+}
+
+async function attachWindowManagerProfile(
+  profiler: CDPSession,
+  testInfo: TestInfo,
+  name: string,
+  probe: unknown
+) {
+  const { profile } = await profiler.send("Profiler.stop");
+  const { metrics } = await profiler.send("Performance.getMetrics");
+  await testInfo.attach(`${name}-timeline`, {
+    body: JSON.stringify({ metrics, probe }),
+    contentType: "application/json",
+  });
+  await testInfo.attach(`${name}.cpuprofile`, {
+    body: JSON.stringify(profile),
+    contentType: "application/json",
+  });
+  await profiler.send("Debugger.enable");
+  const scriptIds = new Set(
+    profile.nodes
+      .filter(node => (node.hitCount ?? 0) > 0 && node.callFrame.url.includes("/assets/"))
+      .map(node => node.callFrame.scriptId)
+  );
+  for (const scriptId of scriptIds) {
+    const { scriptSource } = await profiler.send("Debugger.getScriptSource", { scriptId });
+    await testInfo.attach(`${name}-script-${scriptId}.js`, {
+      body: scriptSource,
+      contentType: "text/javascript",
+    });
+  }
+}
 
 async function readWindowManagerTimings(page: Page) {
   return page.evaluate(() =>
