@@ -976,7 +976,7 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 					got.ChildActivity != store.SubagentChildActivityStopped ||
 					got.ChildSessionID != nil ||
 					got.Error == nil || *got.Error != test.wantError ||
-					got.SettledAt == nil || got.Delivery != store.SubagentDeliveryPending {
+					got.SettledAt == nil {
 					t.Fatalf("deleted child left a non-terminal delegation: %+v", got)
 				}
 				if test.priorSettled != nil &&
@@ -988,8 +988,14 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 					t.Fatalf("summaries = %+v, %v; want no live subagent", summaries[parent], err)
 				}
 				pending, err := db.HasPendingSubagentWake(ctx, workspace, parent)
-				if err != nil || !pending {
-					t.Fatalf("HasPendingSubagentWake = %v, %v; want a pending interruption result", pending, err)
+				wantPending := test.wakePolicy == store.SubagentWakePolicyAlways
+				wantDelivery := store.SubagentDeliveryNone
+				if wantPending {
+					wantDelivery = store.SubagentDeliveryPending
+				}
+				if err != nil || pending != wantPending || got.Delivery != wantDelivery {
+					t.Fatalf("pending wake = %v, delivery = %s, error = %v; want %v/%s",
+						pending, got.Delivery, err, wantPending, wantDelivery)
 				}
 			})
 		}

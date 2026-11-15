@@ -184,7 +184,8 @@ row must still disappear and the idle parent must settle. Main CI owns release-m
 QA impact 2026-11-15 (child-session deletion): delete the child session while its delegation is
 running or waiting, using the session menu or session DELETE route. The delegation row must remain
 readable with a terminal outcome and stopped child activity; the parent must receive its result wake
-once, and its live-child / pending-wake wait must clear after delivery. Repeat with a stopped child
+once for asynchronous delegation, and its live-child / pending-wake wait must clear after delivery.
+For a `wait` delegation, the waiting call returns the interruption without an additional wake. Repeat with a stopped child
 whose settlement callback was missed, missing child history, and deletion followed by daemon
 recovery. Completed delegations retain their original result, error, settlement time and delivery.
 Deleting the delegation row itself still removes the row and suppresses a result wake.

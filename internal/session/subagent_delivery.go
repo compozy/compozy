@@ -73,6 +73,10 @@ func (s *subagentService) planDelivery(ctx context.Context, row store.SessionSub
 }
 
 func (s *subagentService) claim(ctx context.Context, parent string, ids []string) error {
+	ids = slices.DeleteFunc(slices.Clone(ids), s.deletingDelivery)
+	if len(ids) == 0 {
+		return nil
+	}
 	id, err := s.newID()
 	if err != nil {
 		return err

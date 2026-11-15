@@ -599,6 +599,38 @@ func TestSubagentLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	// Invariant: deletion cannot dispatch a second settled hook when another finalizer won.
+	t.Run("Should preserve a concurrent finalizer when child history is deleted", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			hook := &subagentTestHook{}
+			s.settled = hook
+			row := requireSubagent(t, s, subagentTestRequest())
+			before := db.rows[row.ID]
+			runtime.snapshots[*row.ChildSessionID] = subagentSnapshot{
+				Info: &Info{ID: *row.ChildSessionID, State: StateStopped, StopReason: store.StopAgentCrashed},
+			}
+			if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if hook.calls != 1 {
+				t.Fatalf("initial settled hooks = %d, want 1", hook.calls)
+			}
+			current := db.rows[row.ID]
+			current.ChildSessionID = nil
+			current.ChildActivity = store.SubagentChildActivityStopped
+			db.rows[row.ID] = current
+			if err := s.onChildSessionDeleted(t.Context(), before); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if hook.calls != 1 {
+				t.Fatalf("delete repeated settled hook: %d", hook.calls)
+			}
+		})
+	})
 	// Invariant: a settled delegation keeps its terminal outcome while child_activity follows the child session.
 	t.Run("Should track child activity after settlement without changing the outcome", func(t *testing.T) {
 		t.Parallel()

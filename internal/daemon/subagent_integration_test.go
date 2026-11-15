@@ -149,6 +149,80 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: a wait-mode caller receives deletion interruption without a later wake.
+	t.Run("Should return a deleted child to its waiting caller without a second wake", func(t *testing.T) {
+		t.Parallel()
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+		service := d.SubagentService()
+		type result struct {
+			row session.Subagent
+			err error
+		}
+		done := make(chan result, 1)
+		go func() {
+			row, err := service.Delegate(ctx, session.SubagentRequest{
+				Caller: caller, Task: "hold parent", Title: "Deleted waiting child",
+				Mode: session.SubagentModeWait, Timeout: 30 * time.Second,
+			})
+			done <- result{row, err}
+		}()
+		var childID string
+		waitForRuntimeCondition(t, "wait-mode child active", 10*time.Second, func() bool {
+			page, err := service.List(ctx, store.SubagentListQuery{
+				WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 10,
+			})
+			if err != nil || len(page.Items) != 1 || page.Items[0].ChildSessionID == nil {
+				return false
+			}
+			childID = *page.Items[0].ChildSessionID
+			child, ok := manager.Get(childID)
+			return ok && child.IsPrompting() && child.CurrentTurnID() != ""
+		})
+		// A missed stop callback makes deletion itself own terminalization and wait notification.
+		manager.SetSubagentService(nil)
+		t.Cleanup(func() { manager.SetSubagentService(service) })
+		if err := manager.Stop(ctx, childID); err != nil {
+			t.Fatal(err)
+		}
+		manager.SetSubagentService(service)
+		if err := manager.Delete(ctx, childID); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case got := <-done:
+			if got.err != nil || got.row.Status != store.SubagentStatusInterrupted ||
+				got.row.Delivery != store.SubagentDeliveryNone || got.row.WakeMessageID != nil || got.row.WaitTimedOut {
+				t.Fatalf("wait-mode result = %+v, %v", got.row, got.err)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "wait-mode parent settled", 10*time.Second, func() bool {
+			return !parent.IsPrompting() && parent.CurrentTurnID() == ""
+		})
+		if err := service.Recover(ctx); err != nil {
+			t.Fatal(err)
+		}
+		pending, err := d.registry.(goalSubagentWakeReader).HasPendingSubagentWake(ctx, workspace, parent.ID)
+		if err != nil || pending {
+			t.Fatalf("wait-mode pending wake = %v, %v", pending, err)
+		}
+		events, err := manager.Events(ctx, parent.ID, store.EventQuery{Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, event := range events {
+			if event.Type == acp.EventTypeSyntheticReentry {
+				t.Fatal("wait-mode result produced a second synthetic wake")
+			}
+		}
+	})
 	// IT-018: boot must publish the subagent service to both public transports.
 	t.Run("Should expose subagent routes over HTTP and UDS after boot", func(t *testing.T) {
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{

@@ -43,7 +43,7 @@ UPDATE session_subagents SET
  child_activity = 'stopped',
  delivery = CASE
   WHEN status IN ('completed','failed','canceled','interrupted') THEN delivery
-  WHEN delivery = 'none' THEN 'pending'
+  WHEN delivery = 'none' AND wake_policy = 'always' THEN 'pending'
   ELSE delivery END,
  updated_at = sqlc.arg(now)
 WHERE origin = 'delegated' AND child_session_id = sqlc.arg(child_id)

@@ -120,6 +120,7 @@ type subagentService struct {
 	// OnChildSettled callback that a delete triggers never finalizes or hooks the row it removes.
 	deletingChildrenMu sync.Mutex
 	deletingChildren   map[string]int
+	deletingDeliveries map[string]int
 }
 
 var _ SubagentService = (*subagentService)(nil)

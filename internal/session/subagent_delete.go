@@ -22,7 +22,7 @@ func (s *subagentService) Delete(
 	ctx context.Context,
 	actor SubagentActor,
 	workspaceID, id string,
-) error {
+) (err error) {
 	workspace, callerSession, err := s.deleteActorScope(ctx, actor, workspaceID)
 	if err != nil {
 		return err
@@ -40,6 +40,25 @@ func (s *subagentService) Delete(
 	if row.Origin == store.SubagentOriginProviderNative {
 		return ErrSubagentNotDeletable
 	}
+	unlock := s.lock(row.ParentSessionID)
+	releaseDelivery := s.suppressDeletingDelivery(id)
+	unlock()
+	defer func() {
+		unlock := s.lock(row.ParentSessionID)
+		defer unlock()
+		releaseDelivery()
+		if err != nil {
+			// A failed removal retains its row and must resume any delivery suppressed
+			// while child deletion stopped or terminalized it.
+			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+			defer cancel()
+			current, readErr := s.store.GetSubagent(cleanup, workspace, id)
+			if readErr == nil && store.IsSubagentStatusTerminal(current.Status) &&
+				(current.Delivery == store.SubagentDeliveryNone || current.Delivery == store.SubagentDeliveryPending) {
+				s.logError(cleanup, "delete_delivery_reconcile", s.planDelivery(cleanup, current))
+			}
+		}
+	}()
 	deletedChild := ""
 	if row.ChildSessionID != nil {
 		deletedChild = *row.ChildSessionID
@@ -206,4 +225,30 @@ func (s *subagentService) childSettlementSuppressed(child string) bool {
 	defer s.deletingChildrenMu.Unlock()
 	_, suppressed := s.deletingChildren[child]
 	return suppressed
+}
+
+// suppressDeletingDelivery keeps a retained terminal row from waking its parent
+// between child-history deletion and roster removal. Counts cover overlapping deletes.
+func (s *subagentService) suppressDeletingDelivery(id string) func() {
+	s.deletingChildrenMu.Lock()
+	if s.deletingDeliveries == nil {
+		s.deletingDeliveries = make(map[string]int)
+	}
+	s.deletingDeliveries[id]++
+	s.deletingChildrenMu.Unlock()
+	return func() {
+		s.deletingChildrenMu.Lock()
+		if s.deletingDeliveries[id] <= 1 {
+			delete(s.deletingDeliveries, id)
+		} else {
+			s.deletingDeliveries[id]--
+		}
+		s.deletingChildrenMu.Unlock()
+	}
+}
+
+func (s *subagentService) deletingDelivery(id string) bool {
+	s.deletingChildrenMu.Lock()
+	defer s.deletingChildrenMu.Unlock()
+	return s.deletingDeliveries[id] > 0
 }

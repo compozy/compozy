@@ -39,12 +39,15 @@ func (s *subagentService) onChildSessionDeleted(ctx context.Context, before stor
 		unlock()
 		return nil
 	}
-	if err == nil && !store.IsSubagentStatusTerminal(before.Status) {
+	// Normal child finalization stores a result, including an empty one. Only
+	// deletion can interrupt this formerly live row without reading its transcript.
+	if err == nil && !store.IsSubagentStatusTerminal(before.Status) &&
+		row.Status == store.SubagentStatusInterrupted && row.Result == nil {
 		s.publishTerminal(ctx, row)
 	} else if err == nil {
 		s.publish(ctx, row)
 	}
-	if err == nil && row.Delivery == store.SubagentDeliveryPending {
+	if err == nil && (row.Delivery == store.SubagentDeliveryNone || row.Delivery == store.SubagentDeliveryPending) {
 		err = s.planDelivery(ctx, row)
 	}
 	if err == nil {

@@ -50,12 +50,19 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 	if err != nil {
 		return err
 	}
-	defer unlock()
+	finishSubagent := func(bool) {}
+	defer func() {
+		unlock()
+		if finishSubagent != nil {
+			finishSubagent(err == nil)
+		}
+	}()
 	if err := m.guardInstanceMain(ctx, target); err != nil {
 		return err
 	}
-	if handled, err := m.deleteMissingSession(ctx, target, archived); handled {
-		return err
+	if handled, finish, deleteErr := m.deleteMissingSession(ctx, target, archived); handled {
+		finishSubagent = finish
+		return deleteErr
 	}
 	if archived != nil {
 		if err := m.requireArchivedDelete(ctx, target, *archived); err != nil {
@@ -71,12 +78,10 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 		return err
 	}
 
-	finishSubagent, err := m.prepareSubagentSessionDelete(ctx, target)
+	finishSubagent, err = m.prepareSubagentSessionDelete(ctx, target)
 	if err != nil {
 		return err
 	}
-	// Settlement snapshots sessions, so defer it until after the lifecycle mutex is released.
-	defer func() { finishSubagent(err == nil) }()
 
 	return m.deletePreparedSession(ctx, target, info, archived)
 }
@@ -124,23 +129,24 @@ func (m *Manager) deletePreparedSession(
 
 func (m *Manager) deleteMissingSession(
 	ctx context.Context, target string, archived *store.ArchivedSessionDelete,
-) (bool, error) {
+) (bool, func(bool), error) {
+	finishSubagent := func(bool) {}
 	if m.sessionCatalog == nil {
-		return false, nil
+		return false, finishSubagent, nil
 	}
 	if _, active := m.Get(target); active || m.isPending(target) || m.hasPendingStopSettlement(target) {
-		return false, nil
+		return false, finishSubagent, nil
 	}
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
 	if _, err := os.Lstat(metaPath); !errors.Is(err, os.ErrNotExist) {
-		return false, nil
+		return false, finishSubagent, nil
 	}
 	info, err := m.durableSessionInfoForLifecycleTransition(ctx, target)
 	if err != nil {
-		return true, err
+		return true, finishSubagent, err
 	}
 	if info.State != StateStopped {
-		return true, fmt.Errorf(
+		return true, finishSubagent, fmt.Errorf(
 			"%w: cannot delete missing session %s before process exit",
 			ErrStopVerificationFailed,
 			target,
@@ -148,35 +154,30 @@ func (m *Manager) deleteMissingSession(
 	}
 	if archived != nil {
 		if err := validateArchivedDelete(info, *archived); err != nil {
-			return true, err
+			return true, finishSubagent, err
 		}
 	}
 	stopInfo := *info
 	stopInfo.StopCause = CauseUserRequested
 	if err := m.removeSessionGoals(ctx, &stopInfo); err != nil {
-		return true, fmt.Errorf("session: cancel Goals before delete: %w", err)
+		return true, finishSubagent, fmt.Errorf("session: cancel Goals before delete: %w", err)
 	}
-	finishSubagent, err := m.prepareSubagentSessionDelete(ctx, target)
+	finishSubagent, err = m.prepareSubagentSessionDelete(ctx, target)
 	if err != nil {
-		return true, err
+		return true, finishSubagent, err
 	}
-	deleted := false
-	defer func() { finishSubagent(deleted) }()
 	if _, err := os.Lstat(store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))); err == nil {
-		deleteErr := m.deletePreparedSession(ctx, target, info, archived)
-		deleted = deleteErr == nil
-		return true, deleteErr
+		return true, finishSubagent, m.deletePreparedSession(ctx, target, info, archived)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return true, err
+		return true, finishSubagent, err
 	}
 	if err := m.lifecycleMu.LockContext(ctx); err != nil {
-		return true, fmt.Errorf("session: await delete lifecycle lock: %w", err)
+		return true, finishSubagent, fmt.Errorf("session: await delete lifecycle lock: %w", err)
 	}
 	defer m.lifecycleMu.Unlock()
 	if err := m.deleteSessionCatalogRow(ctx, target, archived); err != nil {
-		return true, err
+		return true, finishSubagent, err
 	}
-	deleted = true
 	m.replyWatchSessionDeleted(ctx, target)
 	m.publishCommittedSessionDelete(&stagedSessionDelete{info: info})
 	if err := m.reconcileDeletedSessionWindows(
@@ -187,7 +188,7 @@ func (m *Manager) deleteMissingSession(
 	); err != nil {
 		m.logger.Warn("session: reconcile deleted missing session windows", "session_id", target, "error", err)
 	}
-	return true, nil
+	return true, finishSubagent, nil
 }
 
 // requireArchivedDelete refuses an archived-only delete of a session that was

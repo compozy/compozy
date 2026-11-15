@@ -187,6 +187,29 @@ func TestSubagentDelete(t *testing.T) {
 			})
 		},
 	)
+	// Invariant: catalog terminalization cannot leak a wake while the roster delete is in progress.
+	t.Run("Should suppress a concurrent delivery after child history is removed", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		runtime.deleteSettles = func(ctx context.Context, _ string) error {
+			current := db.rows[row.ID]
+			current.Status = store.SubagentStatusInterrupted
+			current.ChildSessionID = nil
+			current.Delivery = store.SubagentDeliveryPending
+			db.rows[row.ID] = current
+			return s.OnParentTurnSettled(ctx, row.ParentSessionID, row.ParentTurnID)
+		}
+		if err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID); err != nil {
+			t.Fatal(err)
+		}
+		if len(db.wakes) != 0 || len(runtime.queues) != 0 {
+			t.Fatalf("deleted delegation leaked a wake: %+v, %+v", db.wakes, runtime.queues)
+		}
+		if s.deletingDelivery(row.ID) {
+			t.Fatal("delivery suppression outlived roster deletion")
+		}
+	})
 	t.Run("Should finish roster cleanup after the caller disconnects during child deletion", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)
