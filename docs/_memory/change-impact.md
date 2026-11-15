@@ -34,6 +34,14 @@ Owner: release `rel/main-health`, CI regression introduced by #1725.
 - QA: `RT-session-cwd-resume`; release rules prohibit local verification, so runtime/E2E proof belongs
   to current-main CI. The focused resolver regression is in `TestWorkspaceContractAgentConfigResolution`.
 
+Provenance follow-up (`d22e9bdf2`): a `--parent` session records its origin without narrowing native
+tool inheritance. The MCP authority resolver now treats provenance sessions like root sessions when
+expanding an inherited native tool policy. Governed spawn and explicit tool lists keep their existing
+ceilings. This restores `compozy__session_changes` parity with HTTP/UDS/CLI; no public shape,
+configuration, hook, extension, schema, workspace-isolation, Web or official-skill change is needed.
+The existing `TestDaemonSearchSessionFilesWorktreeBoundIT005` integration owns the observable
+contract; `RT-session-parent-provenance` records the QA walk. CI proof remains pending.
+
 ## Per-model reasoning effort ceiling — 2026-11-14
 
 Owner: `fix/model-effort-levels`. Web-only bug fix (internal regime, SD-013).
