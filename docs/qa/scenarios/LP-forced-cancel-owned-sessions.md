@@ -34,3 +34,11 @@ their transcripts in Web. Public Loop cancellation stopped each child; native se
 succeeded under its owner profile, with an independent workspace/all-profiles GET returning 404
 only after removal. The browser Delete dialog was reviewed, but the final deletion effect was
 performed through CLI. [Reported issues QA evidence](../reports/2026-09-29-reported-issues.md).
+
+Issue #1738 acceptance extension: start a command gate that remains in flight beyond the five-minute
+coordinator lease. Confirm exactly one command invocation, advancing `last_progress_at`, and a
+terminal run with its machine verdict and completed gate attempt retained. Repeat with a shell
+whose descendant ignores SIGTERM, cancel through `compozy loop cancel`, and confirm the whole local
+process group exits while a foreign Loop remains active. Repeat after daemon restart to verify
+recovered PID/start-time ownership cleanup before replacement dispatch. Containers must run in the
+foreground; daemon-held and remote resources follow the author's cleanup contract (#1743).
