@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -100,7 +101,7 @@ func TestRegistryCompletionPersistsBeforeRetiringActiveHandle(t *testing.T) {
 
 	// Invariant: unfinished cleanup remains recoverable, but a changed process
 	// identity is never signaled. Owner: toolruntime registry lifecycle suite.
-	for _, mode := range []string{"live retry", "boot retry", "stale identity"} {
+	for _, mode := range []string{"live retry", "boot retry", "stale identity", "periodic stale identity"} {
 		t.Run("Should retain pending cleanup for "+mode, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
@@ -125,7 +126,9 @@ func TestRegistryCompletionPersistsBeforeRetiringActiveHandle(t *testing.T) {
 				t.Fatal(err)
 			}
 			cleanupErr := errors.New("group cleanup failed")
-			if err := handle.Complete(ctx, ProcessCompletion{Err: cleanupErr, CleanupPending: true}); err != nil {
+			if err := handle.Complete(ctx, ProcessCompletion{
+				Err: cleanupErr, ExitCode: new(3), CleanupPending: true,
+			}); err != nil {
 				t.Fatal(err)
 			}
 			record := listAllRecords(t, store)[0]
@@ -133,11 +136,17 @@ func TestRegistryCompletionPersistsBeforeRetiringActiveHandle(t *testing.T) {
 				record.Error != cleanupErr.Error() {
 				t.Fatalf("pending record = %#v", record)
 			}
-			valid = mode != "stale identity"
+			valid = !strings.Contains(mode, "stale identity")
+			resolvedRegistry := registry
 			if mode == "boot retry" {
-				report, err := NewRegistry(store, options...).ReconcileBoot(ctx)
+				resolvedRegistry = NewRegistry(store, options...)
+				report, err := resolvedRegistry.ReconcileBoot(ctx)
 				if err != nil || report.Interrupted != 1 {
 					t.Fatalf("ReconcileBoot() = %#v, %v", report, err)
+				}
+			} else if mode == "periodic stale identity" {
+				if err := registry.Reconcile(ctx); err != nil {
+					t.Fatal(err)
 				}
 			} else {
 				if _, err := registry.Interrupt(ctx, InterruptScope{ProcessID: handle.ID()}); err != nil {
@@ -157,6 +166,15 @@ func TestRegistryCompletionPersistsBeforeRetiringActiveHandle(t *testing.T) {
 					wantState,
 					wantCalls,
 				)
+			}
+			if !strings.Contains(record.Error, cleanupErr.Error()) || record.ExitCode == nil || *record.ExitCode != 3 {
+				t.Fatalf("recovery erased execution evidence: %#v", record)
+			}
+			resolvedRegistry.mu.RLock()
+			retained := len(resolvedRegistry.active)
+			resolvedRegistry.mu.RUnlock()
+			if retained != 0 {
+				t.Fatalf("retired process handles = %d, want none after terminal cleanup", retained)
 			}
 		})
 	}

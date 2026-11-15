@@ -18,6 +18,8 @@ import (
 
 var errLoopGateSupervisorExited = errors.New("gate supervisor exited without authored command completion")
 
+var errLoopGateSupervisorUnjoined = errors.New("daemon: timed out joining gate supervisor")
+
 const (
 	loopGateCommandShutdownGrace    = 5 * time.Second
 	loopGateCommandOutputDrain      = 2 * time.Second
@@ -28,7 +30,8 @@ const (
 // the shell exited. It stays distinct from the process exit status so the runner never reports a
 // cleanup failure as the command's exit code.
 type loopGateCommandCleanupError struct {
-	err error
+	err      error
+	exitCode *int
 }
 
 func (e *loopGateCommandCleanupError) Error() string {
@@ -167,14 +170,18 @@ func killLoopGateSupervisor(cmd *exec.Cmd, waitCh <-chan error) error {
 	case waitErr := <-waitCh:
 		groupErr = errors.Join(groupErr, signalFreeShellError(waitErr))
 	case <-timer.C:
-		groupErr = errors.Join(groupErr, errors.New("daemon: timed out joining gate supervisor"))
+		groupErr = errors.Join(groupErr, errLoopGateSupervisorUnjoined)
 	}
 	return errors.Join(groupErr, procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait))
 }
 
 func loopGateCommandResult(code int, statusErr, cleanupErr error) error {
 	if cleanupErr != nil {
-		return errors.Join(statusErr, &loopGateCommandCleanupError{err: cleanupErr})
+		cleanup := &loopGateCommandCleanupError{err: cleanupErr}
+		if statusErr == nil {
+			cleanup.exitCode = new(code)
+		}
+		return errors.Join(statusErr, cleanup)
 	}
 	if statusErr != nil {
 		return statusErr

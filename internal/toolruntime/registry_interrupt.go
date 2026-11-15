@@ -66,7 +66,7 @@ func (r *Registry) Interrupt(ctx context.Context, scope InterruptScope) (Interru
 	var errs []error
 	for _, candidate := range candidates {
 		report.Matched++
-		if err := r.updateState(ctx, candidate.record.ID, ProcessStateInterrupting, "", nil); err != nil {
+		if err := r.updateRecoveredState(ctx, candidate.record, ProcessStateInterrupting, "", nil); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -80,10 +80,12 @@ func (r *Registry) Interrupt(ctx context.Context, scope InterruptScope) (Interru
 		}
 		if !r.validateRecovered(candidate.record) {
 			report.Stale++
-			if err := r.markStale(
+			if err := r.updateRecoveredState(
 				ctx,
-				candidate.record.ID,
+				candidate.record,
+				ProcessStateStale,
 				"interrupt skipped: process pid/start time did not validate",
+				new(r.now().UTC()),
 			); err != nil {
 				errs = append(errs, err)
 			}
@@ -94,9 +96,9 @@ func (r *Registry) Interrupt(ctx context.Context, scope InterruptScope) (Interru
 			continue
 		}
 		completedAt := r.now().UTC()
-		if err := r.updateState(
+		if err := r.updateRecoveredState(
 			ctx,
-			candidate.record.ID,
+			candidate.record,
 			ProcessStateInterrupted,
 			scope.Reason,
 			&completedAt,

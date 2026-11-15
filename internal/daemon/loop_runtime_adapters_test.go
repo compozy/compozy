@@ -667,6 +667,86 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 		}
 	})
 
+	// Invariant: only an unjoined supervisor can retain retryable ownership;
+	// reaped leaders keep terminal cleanup evidence. Owner: daemon adapter suite.
+	for _, pending := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve cleanup evidence with unjoined supervisor %t", pending), func(t *testing.T) {
+			t.Parallel()
+			// The supervisor and registry are real; only the cleanup failure at the
+			// process-I/O boundary is injected to exercise both completion outcomes.
+			//nolint:noctx // Explicit group cleanup and Wait join own this command.
+			cmd := exec.Command("sh", "-c", "exit 3")
+			statusPath, cleanup, err := prepareLoopGateCommand(t.Context(), cmd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(cleanup)
+			procutil.ConfigureCommandProcessGroup(cmd)
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			joined := make(chan struct{})
+			go func() {
+				defer close(joined)
+				if err := cmd.Wait(); err != nil {
+					if _, signaled := errors.AsType[*exec.ExitError](err); !signaled {
+						t.Error(err)
+					}
+				}
+			}()
+			t.Cleanup(func() {
+				if err := procutil.KillCommandProcessGroupAndWait(cmd, time.Second); err != nil {
+					t.Error(err)
+				}
+				testutil.Receive(t, "cleanup evidence supervisor joined", 5*time.Second, joined)
+			})
+			if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+				t.Fatal(err)
+			}
+			processes := toolruntime.NewMemoryStore()
+			runner := loopGateCommandRunner{processRegistry: toolruntime.NewRegistry(processes)}
+			finished := make(chan struct{})
+			defer close(finished)
+			handle, err := runner.registerCommand(t.Context(), gate.CommandRequest{LoopRunID: "cleanup-evidence"},
+				cmd, func() {}, finished)
+			if err != nil {
+				t.Fatal(err)
+			}
+			testutil.Eventually(t, "authored exit three", 5*time.Second, func() bool {
+				code, ready, err := loopGateCommandExit(statusPath)
+				return err == nil && ready && code == 3
+			})
+			cleanupErr := errors.New("group cleanup failed")
+			wantState := toolruntime.ProcessStateFailed
+			if pending {
+				cleanupErr = errors.Join(cleanupErr, errLoopGateSupervisorUnjoined)
+				wantState = toolruntime.ProcessStateInterrupting
+			} else {
+				if err := procutil.KillCommandProcessGroupAndWait(cmd, time.Second); err != nil {
+					t.Fatal(err)
+				}
+				testutil.Receive(t, "reaped cleanup supervisor", 5*time.Second, joined)
+			}
+			runner.completeCommand(t.Context(), handle, loopGateCommandResult(3, nil, cleanupErr))
+			records, err := processes.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{})
+			if err != nil || len(records) != 1 || records[0].State != wantState ||
+				records[0].ExitCode == nil || *records[0].ExitCode != 3 {
+				t.Fatalf("cleanup records = %#v, %v; want %q with exit 3", records, err, wantState)
+			}
+			if err := runner.processRegistry.Reconcile(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := toolruntime.NewRegistry(processes).ReconcileBoot(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			records, err = processes.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{})
+			if err != nil || len(records) != 1 || !strings.Contains(records[0].Error, cleanupErr.Error()) ||
+				records[0].ExitCode == nil || *records[0].ExitCode != 3 {
+				t.Fatalf("recovery erased cleanup evidence: %#v, %v", records, err)
+			}
+		})
+	}
+
 	t.Run("Should recover descendants after the authored shell has already exited", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()

@@ -25,8 +25,8 @@ after command completion, including after a successful exit. Helpers that remain
 `loop cancel` sends SIGTERM to the gate process group, allows a five-second cleanup grace, then
 sends SIGKILL to finish the supervisor and remaining members. Registered
 gate groups whose leader identity still validates are reaped during daemon restart reconciliation before replacement work starts.
-Cleanup failures retain a pending process record for a later validated interrupt or restart cleanup;
-a changed or missing leader identity is never reused to signal another process.
+Cleanup failures stay pending only if the supervisor cannot be joined and its leader identity still
+validates. Once the leader is reaped, the error remains terminal; an unproven group is never signaled again.
 Run containers in the foreground (no `-d`). Authors own cleanup of resources held by a container
 daemon or remote host: use `docker run --rm` and a cleanup `trap`, plus recovery cleanup for crashes
 or SIGKILL, which cannot execute traps. The daemon does not infer external resource identities.

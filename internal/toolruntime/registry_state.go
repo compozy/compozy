@@ -12,27 +12,38 @@ import (
 	"time"
 )
 
+// updateRecoveredState retains execution evidence when a recovered owner is
+// interrupted or becomes stale; recovery adds a reason rather than erasing it.
+func (r *Registry) updateRecoveredState(
+	ctx context.Context, record ProcessRecord, state ProcessState, reason string, completedAt *time.Time,
+) error {
+	r.mutationMu.Lock()
+	defer r.mutationMu.Unlock()
+	return r.updateStateLocked(
+		ctx,
+		record.ID,
+		state,
+		record.ExitCode,
+		processStateReason(record.Error, reason),
+		completedAt,
+	)
+}
+
+func processStateReason(prior, reason string) string {
+	if prior == "" || strings.HasPrefix(reason, prior) {
+		return reason
+	}
+	if reason == "" {
+		return prior
+	}
+	return prior + "; " + reason
+}
+
 func (r *Registry) validateRecovered(record ProcessRecord) bool {
 	if record.PID <= 0 || record.StartedAt.IsZero() {
 		return false
 	}
 	return r.verifier(record.PID, record.StartedAt)
-}
-
-func (r *Registry) markStale(ctx context.Context, id string, message string) error {
-	return r.updateState(ctx, id, ProcessStateStale, message, new(r.now().UTC()))
-}
-
-func (r *Registry) updateState(
-	ctx context.Context,
-	id string,
-	state ProcessState,
-	errText string,
-	completedAt *time.Time,
-) error {
-	r.mutationMu.Lock()
-	defer r.mutationMu.Unlock()
-	return r.updateStateLocked(ctx, id, state, nil, errText, completedAt)
 }
 
 func (r *Registry) updateStateLocked(
@@ -57,6 +68,16 @@ func (r *Registry) updateStateLocked(
 	if update.ID == "" {
 		return errors.New("toolruntime: update process id is required")
 	}
+	r.mu.RLock()
+	active, exists := r.active[update.ID]
+	r.mu.RUnlock()
+	if exists && active.retired {
+		// Keep the execution's cleanup evidence when recovery adds its outcome.
+		update.Error = trimBounded(processStateReason(active.record.Error, update.Error))
+		if update.ExitCode == nil {
+			update.ExitCode = active.record.ExitCode
+		}
+	}
 
 	if r.store != nil {
 		if err := r.store.UpdateProcessRecordState(ctx, update); err != nil {
@@ -66,12 +87,16 @@ func (r *Registry) updateStateLocked(
 
 	r.mu.Lock()
 	if active, ok := r.active[update.ID]; ok {
-		active.record.State = update.State
-		active.record.ExitCode = update.ExitCode
-		active.record.Error = update.Error
-		active.record.UpdatedAt = update.UpdatedAt
-		active.record.CompletedAt = update.CompletedAt
-		r.active[update.ID] = active
+		if active.retired && isTerminalState(update.State) {
+			delete(r.active, update.ID)
+		} else {
+			active.record.State = update.State
+			active.record.ExitCode = update.ExitCode
+			active.record.Error = update.Error
+			active.record.UpdatedAt = update.UpdatedAt
+			active.record.CompletedAt = update.CompletedAt
+			r.active[update.ID] = active
+		}
 	}
 	r.mu.Unlock()
 	return nil
