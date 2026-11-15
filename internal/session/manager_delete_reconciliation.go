@@ -20,6 +20,26 @@ var errDeletedSessionWindowReconciliationPending = errors.New(
 	"session: deleted-session window reconciliation is pending",
 )
 
+func (m *Manager) reconcileStagedSessionDeleteWindows(ctx context.Context, staged *stagedSessionDelete) {
+	if m.sessionWindowReconciler == nil || staged.info == nil {
+		return
+	}
+	if err := m.reconcileDeletedSessionWindows(
+		context.WithoutCancel(ctx),
+		staged.info.ProfileID,
+		staged.info.WorkspaceID,
+		staged.info.ID,
+	); err != nil {
+		staged.windowReconciliationPending = true
+		m.logger.Warn(
+			"session: retained deletion tombstone for window reconciliation retry",
+			"session_id", staged.info.ID,
+			"workspace_id", staged.info.WorkspaceID,
+			"error", err,
+		)
+	}
+}
+
 func (m *Manager) reconcileDeletedSessionWindows(
 	ctx context.Context,
 	profileID string,

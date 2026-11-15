@@ -377,7 +377,11 @@ func TestManagerDelete(t *testing.T) {
 	// Owner: session manager deletion; this suite uses the real global catalog.
 	for _, archivedOnly := range []bool{false, true} {
 		for _, missingDirectory := range []bool{false, true} {
-			name := fmt.Sprintf("Should delete missing stopped history archived=%t directory=%t", archivedOnly, missingDirectory)
+			name := fmt.Sprintf(
+				"Should delete missing stopped history archived=%t directory=%t",
+				archivedOnly,
+				missingDirectory,
+			)
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				h := newDeriveHarness(t)
@@ -405,7 +409,8 @@ func TestManagerDelete(t *testing.T) {
 						{SessionID: session.ID, ProfileID: "other-profile", WorkspaceID: h.workspaceID},
 						{SessionID: session.ID, ProfileID: target.ProfileID, WorkspaceID: "other-workspace"},
 					} {
-						if err := h.manager.DeleteArchived(t.Context(), refused); !errors.Is(err, store.ErrSessionNotArchived) {
+						err := h.manager.DeleteArchived(t.Context(), refused)
+						if !errors.Is(err, store.ErrSessionNotArchived) {
 							t.Fatalf("DeleteArchived(wrong scope) = %v", err)
 						}
 					}
@@ -413,7 +418,8 @@ func TestManagerDelete(t *testing.T) {
 						t.Fatal(err)
 					}
 				} else {
-					if err := h.manager.DeleteArchived(t.Context(), target); !errors.Is(err, store.ErrSessionNotArchived) {
+					err := h.manager.DeleteArchived(t.Context(), target)
+					if !errors.Is(err, store.ErrSessionNotArchived) {
 						t.Fatalf("DeleteArchived(unarchived) = %v", err)
 					}
 					if err := h.manager.Delete(t.Context(), session.ID); err != nil {

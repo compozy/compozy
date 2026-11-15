@@ -89,22 +89,7 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 		}
 	}
 	m.replyWatchSessionDeleted(ctx, target)
-	if m.sessionWindowReconciler != nil && staged.info != nil {
-		if reconcileErr := m.reconcileDeletedSessionWindows(
-			context.WithoutCancel(ctx),
-			staged.info.ProfileID,
-			staged.info.WorkspaceID,
-			target,
-		); reconcileErr != nil {
-			staged.windowReconciliationPending = true
-			m.logger.Warn(
-				"session: retained deletion tombstone for window reconciliation retry",
-				"session_id", target,
-				"workspace_id", staged.info.WorkspaceID,
-				"error", reconcileErr,
-			)
-		}
-	}
+	m.reconcileStagedSessionDeleteWindows(ctx, &staged)
 	if cleanupErr := m.commitStagedSessionDeletes(ctx, []stagedSessionDelete{staged}); cleanupErr != nil {
 		// The catalog deletion is already committed. The tombstone is deliberately
 		// retained and retried during the next manager construction, while the
