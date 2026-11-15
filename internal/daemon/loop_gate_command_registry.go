@@ -44,14 +44,14 @@ func (r loopGateCommandRunner) completeCommand(
 	if handle == nil {
 		return
 	}
-	if _, cleanupFailed := errors.AsType[*loopGateCommandCleanupError](runErr); cleanupFailed {
-		// Keep the durable record active so recovery can retry cleanup.
-		return
-	}
 	completionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
 	defer cancel()
 	completion := toolruntime.ProcessCompletion{Err: runErr}
-	if cmd.ProcessState != nil {
+	if exitErr, ok := errors.AsType[*loopGateCommandExitError](runErr); ok {
+		completion.ExitCode = new(exitErr.code)
+	} else if runErr == nil {
+		completion.ExitCode = new(0)
+	} else if cmd.ProcessState != nil {
 		completion.ExitCode = new(cmd.ProcessState.ExitCode())
 	}
 	if err := handle.Complete(completionCtx, completion); err != nil {

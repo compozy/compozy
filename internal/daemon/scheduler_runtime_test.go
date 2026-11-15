@@ -1475,8 +1475,8 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldRenewLongGate(t *testin
 			return fileErr == nil && err == nil && len(processes) == 1
 		})
 		processes, err := db.ListProcessRecords(ctx, toolruntime.ProcessQuery{})
-		if err != nil || len(processes) != 1 || processes[0].Owner.RunID != string(run.ID) ||
-			processes[0].Owner.ToolCallID == "" {
+		if err != nil || len(processes) != 1 || processes[0].PID <= 0 ||
+			processes[0].ProcessGroupID != processes[0].PID || processes[0].Owner.ToolCallID == "" {
 			t.Fatalf("gate process ownership = %#v, %v", processes, err)
 		}
 		for step := 1; step <= 6; step++ {

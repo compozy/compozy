@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -664,6 +665,61 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 			records[0].ExitCode == nil || *records[0].ExitCode != 3 || records[0].State == toolruntime.ProcessStateRunning {
 			t.Fatalf("completed process records = %#v, %v", records, err)
 		}
+	})
+
+	t.Run("Should recover descendants after the authored shell has already exited", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		// The real command supervisor stays alive as the recovery anchor while
+		// its authored child exits and leaves a helper holding the streams.
+		cmd := exec.CommandContext(t.Context(), "sh", "-c", `sleep 600 & echo $! > child.pid`)
+		cmd.Dir = root
+		statusPath, cleanup, err := prepareLoopGateCommand(t.Context(), cmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cleanup()
+		procutil.ConfigureCommandProcessGroup(cmd)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		joined := make(chan struct{})
+		go func() {
+			defer close(joined)
+			if err := cmd.Wait(); err != nil {
+				if _, signaled := errors.AsType[*exec.ExitError](err); !signaled {
+					t.Error(err)
+				}
+			}
+		}()
+		t.Cleanup(func() {
+			if err := procutil.KillCommandProcessGroupAndWait(cmd, time.Second); err != nil {
+				t.Error(err)
+			}
+			testutil.Receive(t, "recovery anchor joined", 5*time.Second, joined)
+		})
+		if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+			t.Fatal(err)
+		}
+		processes := toolruntime.NewMemoryStore()
+		registry := toolruntime.NewRegistry(processes)
+		if _, err := registry.Register(t.Context(), toolruntime.RegisterConfig{
+			Source: toolruntime.ProcessSourceSubprocess,
+			Owner:  toolruntime.ProcessOwner{RunID: "loop-exited-shell"},
+			PID:    cmd.Process.Pid, ProcessGroupID: cmd.Process.Pid,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		testutil.Eventually(t, "authored shell exited", 5*time.Second, func() bool {
+			_, ready, err := loopGateCommandExit(statusPath)
+			return ready && err == nil
+		})
+		childPID := waitForLoopGateChildPID(t, filepath.Join(root, "child.pid"))
+		report, err := toolruntime.NewRegistry(processes).ReconcileBoot(t.Context())
+		if err != nil || report.Interrupted != 1 || report.Stale != 0 {
+			t.Fatalf("recovery after shell exit = %#v, %v; want owned group cleanup", report, err)
+		}
+		requireLoopGateProcessGone(t, childPID)
 	})
 
 	t.Run("Should recover a registered gate tree after a daemon restart", func(t *testing.T) {

@@ -278,7 +278,9 @@ func (r loopGateCommandRunner) RunCommand(
 		if _, cleanupFailed := errors.AsType[*loopGateCommandCleanupError](err); cleanupFailed {
 			return gate.CommandResult{}, err
 		}
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+		if exitErr, ok := errors.AsType[*loopGateCommandExitError](err); ok {
+			exitCode = exitErr.code
+		} else if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
 			return gate.CommandResult{}, err

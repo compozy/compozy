@@ -4,7 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -49,6 +54,11 @@ func runLoopGateCommandTree(
 	if drain <= 0 {
 		drain = loopGateCommandOutputDrain
 	}
+	statusPath, cleanup, err := prepareLoopGateCommand(ctx, cmd)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 	cmd.WaitDelay = drain
 	procutil.ConfigureCommandProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
@@ -68,23 +78,53 @@ func runLoopGateCommandTree(
 			stopLoopGateCommandTree(cmd, waitCh, grace),
 		)
 	}
-	select {
-	case waitErr := <-waitCh:
-		// exec.ErrWaitDelay only reports that a descendant kept the captured streams open past the
-		// drain bound, so the shell completed instead of the command failing.
-		if errors.Is(waitErr, exec.ErrWaitDelay) {
-			waitErr = nil
+	return waitLoopGateCommandTree(ctx, cmd, waitCh, statusPath, grace)
+}
+
+func waitLoopGateCommandTree(
+	ctx context.Context, cmd *exec.Cmd, waitCh <-chan error, statusPath string, grace time.Duration,
+) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case waitErr := <-waitCh:
+			// Unexpected supervisor death (including boot cleanup in another registry).
+			if groupErr := procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait); groupErr != nil {
+				return errors.Join(waitErr, &loopGateCommandCleanupError{err: groupErr})
+			}
+			return waitErr
+		case <-ctx.Done():
+			return errors.Join(
+				fmt.Errorf("daemon: gate command interrupted: %w", context.Cause(ctx)),
+				stopLoopGateCommandTree(cmd, waitCh, grace),
+			)
+		case <-ticker.C:
+			code, ready, statusErr := loopGateCommandExit(statusPath)
+			if !ready && statusErr == nil {
+				continue
+			}
+			// Keep the verifiable group leader alive until every descendant has
+			// received its final signal, even if the authored shell already exited.
+			groupErr := procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL)
+			waitErr := signalFreeShellError(<-waitCh)
+			groupErr = errors.Join(
+				groupErr, procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait),
+			)
+			if groupErr != nil {
+				return errors.Join(statusErr, waitErr, &loopGateCommandCleanupError{err: groupErr})
+			}
+			if statusErr != nil || waitErr != nil {
+				return errors.Join(statusErr, waitErr)
+			}
+			if cause := context.Cause(ctx); cause != nil {
+				return fmt.Errorf("daemon: gate command interrupted: %w", cause)
+			}
+			if code != 0 {
+				return &loopGateCommandExitError{code: code}
+			}
+			return nil
 		}
-		// The shell exited; reap any member it left running in the group.
-		if groupErr := procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait); groupErr != nil {
-			return errors.Join(waitErr, &loopGateCommandCleanupError{err: groupErr})
-		}
-		return waitErr
-	case <-ctx.Done():
-		return errors.Join(
-			fmt.Errorf("daemon: gate command interrupted: %w", context.Cause(ctx)),
-			stopLoopGateCommandTree(cmd, waitCh, grace),
-		)
 	}
 }
 
@@ -114,7 +154,8 @@ func stopLoopGateCommandTree(cmd *exec.Cmd, waitCh <-chan error, grace time.Dura
 		}
 	}
 	// The whole group must drain completely, including descendants the shell left behind.
-	if err := errors.Join(terminateErr, procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait)); err != nil {
+	groupErr := procutil.KillCommandProcessGroupAndWait(cmd, loopGateCommandProcessGroupWait)
+	if err := errors.Join(terminateErr, groupErr); err != nil {
 		return &loopGateCommandCleanupError{err: err}
 	}
 	return nil
@@ -127,4 +168,56 @@ func signalFreeShellError(err error) error {
 		return nil
 	}
 	return err
+}
+
+// The leader must survive the authored shell's exit: a reaped shell cannot prove
+// ownership of a surviving group after a daemon crash. Arguments keep authored
+// code separate from this fixed supervisor protocol. A caught (rather than
+// ignored) TERM resets to the default in the child shell.
+const loopGateSupervisorScript = `trap ':' TERM
+sh -c "$1" &
+child=$!
+while :; do
+  wait "$child"
+  code=$?
+  kill -0 "$child" 2>/dev/null || break
+done
+printf '%s\n' "$code" > "$2.tmp" && mv "$2.tmp" "$2" || exit 125
+while :; do sleep 3600 & wait $!; done
+`
+
+func prepareLoopGateCommand(ctx context.Context, cmd *exec.Cmd) (string, func(), error) {
+	controlDir, err := os.MkdirTemp("", "compozy-loop-gate-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("daemon: create gate completion directory: %w", err)
+	}
+	cleanup := func() {
+		if err := os.RemoveAll(controlDir); err != nil {
+			slog.WarnContext(ctx, "remove gate completion directory", "error", err)
+		}
+	}
+	statusPath := filepath.Join(controlDir, "exit")
+	cmd.Args = []string{"sh", "-c", loopGateSupervisorScript, "compozy-loop-gate", cmd.Args[2], statusPath}
+	return statusPath, cleanup, nil
+}
+
+type loopGateCommandExitError struct{ code int }
+
+func (e *loopGateCommandExitError) Error() string {
+	return fmt.Sprintf("daemon: gate command exited with status %d", e.code)
+}
+
+func loopGateCommandExit(path string) (int, bool, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("daemon: read gate completion: %w", err)
+	}
+	code, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0, false, fmt.Errorf("daemon: decode gate exit status: %w", err)
+	}
+	return code, true, nil
 }
