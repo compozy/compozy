@@ -309,6 +309,8 @@ type SubagentDisposeFilter struct {
 type SubagentStore interface {
 	HasSubagentCommittedAdmission(ctx context.Context, workspaceID, childID, subagentID string) (bool, error)
 	AssociateSubagentWorktree(ctx context.Context, row SessionSubagent) error
+	// RecordSubagentWorktreeFacts verifies creation and checkout identity without changing terminal state.
+	RecordSubagentWorktreeFacts(ctx context.Context, observed SessionSubagent) (SessionSubagent, error)
 	SetSubagentWorktreeCleanup(ctx context.Context, id, state string) error
 	ListSubagentWorktreeCleanupPending(ctx context.Context) ([]SessionSubagent, error)
 	ReserveSubagent(ctx context.Context, row SessionSubagent) (SessionSubagent, bool, error)

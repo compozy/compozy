@@ -233,9 +233,13 @@ func (s *subagentService) failWake(ctx context.Context, parent, id string) error
 }
 
 const subagentWakeRetryDelay = 200 * time.Millisecond
-const subagentRecoveryRetrySteps = 5
+const defaultSubagentRecoveryRetryDelay = time.Second
 
 func (s *subagentService) retryWake(parent string, attempts int) {
+	s.retryWakeAfter(parent, subagentWakeRetryDelay*time.Duration(attempts))
+}
+
+func (s *subagentService) retryWakeAfter(parent string, delay time.Duration) {
 	s.mu.Lock()
 	if s.wakeRetries == nil {
 		s.wakeRetries = make(map[string]bool)
@@ -247,7 +251,7 @@ func (s *subagentService) retryWake(parent string, attempts int) {
 	s.wakeRetries[parent] = true
 	s.mu.Unlock()
 	s.launch(func() {
-		timer := time.NewTimer(subagentWakeRetryDelay * time.Duration(attempts))
+		timer := time.NewTimer(delay)
 		defer timer.Stop()
 		select {
 		case <-s.ctx.Done():
@@ -264,7 +268,7 @@ func (s *subagentService) retryWake(parent string, attempts int) {
 		s.mu.Unlock()
 		if factsErr != nil {
 			s.logError(s.ctx, "wake_retry_facts", factsErr)
-			s.retryWake(parent, subagentRecoveryRetrySteps)
+			s.retryWakeAfter(parent, s.recoveryRetryDelay)
 			return
 		}
 		s.logError(s.ctx, "wake_retry", s.successor(s.ctx, parent))

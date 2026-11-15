@@ -840,6 +840,7 @@ func TestSubagentRecovery(t *testing.T) {
 			t.Parallel()
 			synctest.Test(t, func(t *testing.T) {
 				s, db, runtime := newSubagentTestService(t)
+				WithSubagentRecoveryRetryDelay(2 * time.Second)(s)
 				wt := &subagentWorktreeStub{facts: SubagentWorktreeFacts{PRStatus: "none"}}
 				s.worktrees = wt
 				parent := runtime.snapshots["parent"]
@@ -852,10 +853,16 @@ func TestSubagentRecovery(t *testing.T) {
 				runtime.snapshots["other"] = other
 				for _, parentID := range []string{"parent", "other"} {
 					db.rows[parentID] = store.SessionSubagent{
-						ID: parentID, WorkspaceID: "ws", ParentSessionID: parentID, Title: parentID,
-						Origin: store.SubagentOriginDelegated, Status: store.SubagentStatusInterrupted,
-						ChildActivity: store.SubagentChildActivityStopped, WorkState: store.SubagentWorkStateResultAvailable,
-						WakePolicy: store.SubagentWakePolicyAlways, Delivery: store.SubagentDeliveryPending,
+						ID:              parentID,
+						WorkspaceID:     "ws",
+						ParentSessionID: parentID,
+						Title:           parentID,
+						Origin:          store.SubagentOriginDelegated,
+						Status:          store.SubagentStatusInterrupted,
+						ChildActivity:   store.SubagentChildActivityStopped,
+						WorkState:       store.SubagentWorkStateResultAvailable,
+						WakePolicy:      store.SubagentWakePolicyAlways,
+						Delivery:        store.SubagentDeliveryPending,
 					}
 				}
 				row := db.rows["parent"]
@@ -865,7 +872,7 @@ func TestSubagentRecovery(t *testing.T) {
 				if failure == "row removed" {
 					wt.observe = func() { delete(db.rows, row.ID) }
 				} else {
-					db.finalizeErrIDs = map[string]error{row.ID: errors.New("fact write unavailable")}
+					db.worktreeFactsErrIDs = map[string]error{row.ID: errors.New("fact write unavailable")}
 				}
 				db.orphans = []string{"orphan"}
 				runtime.snapshots["orphan"] = subagentSnapshot{Info: &Info{ID: "orphan", State: StateActive}}
@@ -882,8 +889,13 @@ func TestSubagentRecovery(t *testing.T) {
 				}
 				if failure == "fact write failed" {
 					synctest.Wait()
-					delete(db.finalizeErrIDs, row.ID)
-					time.Sleep(subagentWakeRetryDelay * subagentRecoveryRetrySteps)
+					delete(db.worktreeFactsErrIDs, row.ID)
+					time.Sleep(s.recoveryRetryDelay - time.Nanosecond)
+					synctest.Wait()
+					if db.rows[row.ID].Delivery != store.SubagentDeliveryPending || len(runtime.queues) != 1 {
+						t.Fatal("fact recovery ignored the configured retry delay")
+					}
+					time.Sleep(time.Nanosecond)
 					synctest.Wait()
 					got := db.rows[row.ID]
 					if got.Delivery != store.SubagentDeliveryClaimed || got.WakeMessageID == nil ||

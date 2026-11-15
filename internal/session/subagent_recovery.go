@@ -304,7 +304,7 @@ func (s *subagentService) recoverPending(ctx context.Context) error {
 		if factsErr != nil && !errors.Is(factsErr, store.ErrSubagentNotFound) {
 			s.recoveryResult(ctx, row.ID, "deleted_child_facts", factsErr)
 			// Keep this parent's batch pending, without blocking other recovery or boot.
-			s.retryWake(row.ParentSessionID, subagentRecoveryRetrySteps)
+			s.retryWakeAfter(row.ParentSessionID, s.recoveryRetryDelay)
 			seen[row.ParentSessionID] = true
 		}
 	}

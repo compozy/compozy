@@ -82,6 +82,15 @@ func WithSubagentSettledDispatcher(d SubagentSettledDispatcher) SubagentOption {
 	return func(s *subagentService) { s.settled = d }
 }
 
+// WithSubagentRecoveryRetryDelay overrides the recovery delay; nonpositive values retain the default.
+func WithSubagentRecoveryRetryDelay(delay time.Duration) SubagentOption {
+	return func(s *subagentService) {
+		if delay > 0 {
+			s.recoveryRetryDelay = delay
+		}
+	}
+}
+
 type subagentParentLock struct {
 	mu   sync.Mutex
 	refs int
@@ -93,26 +102,27 @@ type subagentFlight struct {
 }
 
 type subagentService struct {
-	worktrees    SubagentWorktrees
-	store        store.SubagentStore
-	runtime      subagentRuntime
-	ctx          context.Context
-	now          func() time.Time
-	newID        IDGenerator
-	launch       func(func())
-	logger       *slog.Logger
-	resultLimit  func(context.Context, string) (int, error)
-	settled      SubagentSettledDispatcher
-	mu           sync.Mutex
-	parents      map[string]*subagentParentLock
-	flights      map[string]*subagentFlight
-	subscribers  map[string]map[*subagentSubscription]struct{}
-	progress     map[string]*subagentProgress
-	nativeMisses map[string]bool
-	nativeKnown  map[string]map[string]nativeCall
-	nativeQueued map[string]map[string][]NativeSubagentEvent
-	steerTurns   map[string]string
-	wakeRetries  map[string]bool
+	worktrees          SubagentWorktrees
+	store              store.SubagentStore
+	runtime            subagentRuntime
+	ctx                context.Context
+	now                func() time.Time
+	newID              IDGenerator
+	launch             func(func())
+	logger             *slog.Logger
+	resultLimit        func(context.Context, string) (int, error)
+	recoveryRetryDelay time.Duration
+	settled            SubagentSettledDispatcher
+	mu                 sync.Mutex
+	parents            map[string]*subagentParentLock
+	flights            map[string]*subagentFlight
+	subscribers        map[string]map[*subagentSubscription]struct{}
+	progress           map[string]*subagentProgress
+	nativeMisses       map[string]bool
+	nativeKnown        map[string]map[string]nativeCall
+	nativeQueued       map[string]map[string][]NativeSubagentEvent
+	steerTurns         map[string]string
+	wakeRetries        map[string]bool
 	// awaitingFacts holds canceled isolated rows whose subagent.settled hook waits for the final Git and PR
 	// snapshot, which is observed outside the parent lock once the child stops.
 	awaitingFacts sync.Map
@@ -134,7 +144,8 @@ func NewSubagentService(db store.SubagentStore, manager *Manager, opts ...Subage
 		store: db, runtime: managerSubagentRuntime{manager}, ctx: manager.fallbackLifecycleContext(),
 		now: manager.now, newID: newULIDGenerator("wake"), launch: manager.startTrackedPromptTask,
 		logger: manager.logger, resultLimit: func(context.Context, string) (int, error) { return 60000, nil },
-		parents: make(map[string]*subagentParentLock), flights: make(map[string]*subagentFlight),
+		recoveryRetryDelay: defaultSubagentRecoveryRetryDelay,
+		parents:            make(map[string]*subagentParentLock), flights: make(map[string]*subagentFlight),
 		subscribers: make(map[string]map[*subagentSubscription]struct{}), progress: make(map[string]*subagentProgress),
 	}
 	if s.logger == nil {

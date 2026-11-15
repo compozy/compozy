@@ -108,10 +108,7 @@ func (s *subagentService) persistTerminalWorktreeFacts(
 	ctx context.Context, row, current store.SessionSubagent,
 ) (store.SessionSubagent, error) {
 	if row.WorktreeState().Facts.PRStatus != "" && current.WorktreeState().Facts.PRStatus == "" {
-		settled, _, err := s.store.FinalizeSubagent(
-			ctx,
-			store.SubagentFinalize{ID: row.ID, Status: current.Status, WorktreeFacts: subagentFinalFacts(row)},
-		)
+		settled, err := s.store.RecordSubagentWorktreeFacts(ctx, row)
 		if err == nil {
 			s.publish(ctx, settled)
 			if _, deferred := s.awaitingFacts.LoadAndDelete(row.ID); deferred {
