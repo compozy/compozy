@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -848,12 +849,20 @@ func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 		{name: "Should settle a cancelled provider startup without retry", cause: context.Canceled, retries: 2, attempts: 1, failures: 1},
 		{name: "Should cap handshake timeout retries on one run", cause: context.DeadlineExceeded, retries: 2, attempts: 3, failures: 3, discards: 2},
 		{name: "Should complete the same fire after a transient handshake timeout", cause: context.DeadlineExceeded, retries: 2, attempts: 2, failures: 1, discards: 1},
-		{name: "Should not retry permanent provider configuration failures", cause: errors.New("invalid provider configuration"), kind: store.FailureStartup, retries: 2, attempts: 1, failures: 1},
+		{name: "Should cap unaccepted startup failure retries", cause: errors.New("invalid provider configuration"), kind: store.FailureStartup, retries: 2, attempts: 3, failures: 3, discards: 2},
 		{name: "Should not retry definition failures", cause: errors.New("agent definition not found"), untyped: true, retries: 2, attempts: 1, failures: 1},
-		{name: "Should not treat preparation timeouts as initialize timeouts", cause: context.DeadlineExceeded, kind: store.FailureStartup, retries: 2, attempts: 1, failures: 1},
+		{name: "Should retry package preparation timeouts before acceptance", cause: context.DeadlineExceeded, kind: store.FailureStartup, retries: 2, attempts: 2, failures: 1, discards: 1},
+		{name: "Should retry package preparation failure before acceptance", cause: errors.New("package preparation failed"), kind: store.FailureStartup, retries: 2, attempts: 2, failures: 1, discards: 1},
+		{name: "Should retry a process crash before acceptance", cause: errors.New("provider exited at spawn"), kind: store.FailureProcess, retries: 2, attempts: 2, failures: 1, discards: 1},
+		{name: "Should retry session new protocol errors before acceptance", cause: &acpsdk.RequestError{Code: -32603, Message: "session creation failed"}, kind: store.FailureProtocol, retries: 2, attempts: 2, failures: 1, discards: 1},
+		{name: "Should retry handshake errors before acceptance", cause: io.EOF, retries: 2, attempts: 2, failures: 1, discards: 1},
+		{name: "Should not retry provider authentication failures", cause: errors.New("sign-in probe failed"), kind: store.FailureProviderAuth, retries: 2, attempts: 1, failures: 1},
 		{name: "Should not retry authentication failures joined with a deadline", cause: errors.Join(context.DeadlineExceeded,
 			&acpsdk.RequestError{Code: -32000, Message: "authentication required"}), retries: 2, attempts: 1, failures: 1},
 		{name: "Should not retry after provider session acceptance", cause: context.DeadlineExceeded, accepted: true, retries: 2, attempts: 1, failures: 1},
+		{name: "Should not retry accepted startup failures", cause: errors.New("runtime readiness failed"), kind: store.FailureStartup, accepted: true, retries: 2, attempts: 1, failures: 1},
+		{name: "Should not retry accepted protocol failures", cause: errors.New("session configuration failed"), kind: store.FailureProtocol, accepted: true, retries: 2, attempts: 1, failures: 1},
+		{name: "Should not retry accepted process failures", cause: errors.New("accepted provider exited"), kind: store.FailureProcess, accepted: true, retries: 2, attempts: 1, failures: 1},
 		{name: "Should not retry while failed startup cleanup retains ownership", cause: errors.Join(context.DeadlineExceeded,
 			session.ErrRecoveryPersistence), retries: 2, attempts: 1, failures: 1},
 	} {

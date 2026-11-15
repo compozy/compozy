@@ -85,8 +85,16 @@ max_retries = 2, base_delay = "2s" }`. Delay the first ACP initialize handshake 
 control deadline, then allow the next attempt to initialize. Verify one scheduled fire completes
 with attempt 2 and no intermediate failed session or attention entry. Keep timing out to verify
 three total attempts, delays of two and four seconds, and one retained final failure with diagnostics.
-Repeat with `retry.strategy = "none"`, authentication refusal, invalid provider/agent definition,
-package preparation failure, and failed cleanup: none may start another attempt. A provider that
+Repeat with process crash at spawn, package preparation failure, and `session/new` protocol
+failure before acceptance: backoff must retry the same fire. A repeated typed startup configuration
+failure exhausts the configured retry budget. Repeat with `retry.strategy = "none"`, authentication
+refusal, untyped agent-definition validation, explicit cancellation, and failed cleanup: none may
+start another attempt. A provider that
 already accepted a session must not be started again. Scheduler integration owns policy/fire identity;
 session lifecycle tests own real SQLite/artifact retention. CI and provider replay remain pending;
 local verification is forbidden for this dispatch.
+
+QA impact 2026-11-15 (release M6): startup/process/handshake/protocol failures before acceptance
+retain v0.7.0 backoff coverage. Accepted-start failures of every eligible kind remain terminal and
+retain diagnostics. `TestSchedulerIntegrationStartupFailure` owns the real SQLite scheduler/fire
+integration; CI and provider replay remain pending and no local verification is permitted.

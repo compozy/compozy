@@ -148,15 +148,22 @@ func (e *sessionStartupError) Error() string { return e.err.Error() }
 func (e *sessionStartupError) Unwrap() error { return e.err }
 
 func retryableSessionStartup(err error) bool {
-	if errors.Is(err, session.ErrRecoveryPersistence) {
+	if errors.Is(err, session.ErrRecoveryPersistence) || errors.Is(err, context.Canceled) || acp.IsAuthRequiredError(err) {
 		return false
 	}
 	if _, accepted := acp.AcceptedSessionID(err); accepted {
 		return false
 	}
 	failure, ok := errors.AsType[*acp.FailureError](err)
-	return ok && failure != nil && failure.Kind == store.FailureHandshake &&
-		errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) && !acp.IsAuthRequiredError(err)
+	if !ok || failure == nil {
+		return false
+	}
+	switch failure.Kind {
+	case store.FailureStartup, store.FailureHandshake, store.FailureProcess, store.FailureProtocol:
+		return true
+	default:
+		return false
+	}
 }
 
 func retryDelay(cfg RetryConfig, attempt int) (time.Duration, error) {
