@@ -4,7 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Browser, CDPSession, Locator, Page } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
@@ -3644,9 +3644,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   try {
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
-    await switchInput.send("Profiler.enable");
-    await switchInput.send("Profiler.setSamplingInterval", { interval: 2000 });
-    await switchInput.send("Profiler.start");
     await installSwitchProbe(appPage);
     const start = Date.now();
     while (Date.now() - start < 3000) {
@@ -3656,24 +3653,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     switchProbe = await readSwitchProbe(appPage);
     longTasks = switchProbe.tasks.map(task => task.duration);
-    const { profile } = await switchInput.send("Profiler.stop");
-    await testInfo.attach("switch-work.cpuprofile", {
-      body: JSON.stringify(profile),
-      contentType: "application/json",
-    });
-    await switchInput.send("Debugger.enable");
-    const scriptIds = new Set(
-      profile.nodes
-        .filter(node => (node.hitCount ?? 0) > 0 && node.callFrame.url.includes("/assets/"))
-        .map(node => node.callFrame.scriptId)
-    );
-    for (const scriptId of scriptIds) {
-      const { scriptSource } = await switchInput.send("Debugger.getScriptSource", { scriptId });
-      await testInfo.attach(`switch-script-${scriptId}.js`, {
-        body: scriptSource,
-        contentType: "text/javascript",
-      });
-    }
   } finally {
     await switchInput.detach();
   }
@@ -3691,7 +3670,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   }
   let worstPeerTask = 0;
   let peerAttribution: ReturnType<typeof attributePeerLongTasks> = [];
-  const peerProfilers: CDPSession[] = [];
   try {
     const peers = [peerA, peerB];
     for (const peer of peers) {
@@ -3714,15 +3692,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
       await waitForLongTaskQuiet(peer);
     }
     const measuredCount = warmCount - 1;
-    // Temporary release diagnosis: sample the unresolved convergence work in CI. These runs
-    // retain the 50ms assertions, but are labeled profiled and excluded from baseline rates.
-    for (const peer of peers) {
-      const profiler = await peer.context().newCDPSession(peer);
-      peerProfilers.push(profiler);
-      await profiler.send("Profiler.enable");
-      await profiler.send("Profiler.setSamplingInterval", { interval: 2000 });
-      await profiler.send("Profiler.start");
-    }
     await Promise.all(peers.map(peer => installPeerConvergenceProbe(peer, measuredCount)));
     await moveWindowFromCLI(runtime, workspace.id, marketplaceID, loopsID, "right");
     const peerProbes = await Promise.all(peers.map(readPeerConvergenceProbe));
@@ -3737,30 +3706,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
       tabForWindow(await windowManagerSnapshot(runtime, workspace.id), marketplaceID)?.id
     ).toBe(tabForWindow(await windowManagerSnapshot(runtime, workspace.id), loopsID)?.id);
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
-    for (const [index, profiler] of peerProfilers.entries()) {
-      const { profile } = await profiler.send("Profiler.stop");
-      await testInfo.attach(`peer-${index}-convergence.cpuprofile`, {
-        body: JSON.stringify(profile),
-        contentType: "application/json",
-      });
-      // Read compiled sources only after the measured interval, to locate sampled minified
-      // functions without a local build or changing production bundles.
-      await profiler.send("Debugger.enable");
-      const scriptIds = new Set(
-        profile.nodes
-          .filter(node => (node.hitCount ?? 0) > 0 && node.callFrame.url.includes("/assets/"))
-          .map(node => node.callFrame.scriptId)
-      );
-      for (const scriptId of scriptIds) {
-        const { scriptSource } = await profiler.send("Debugger.getScriptSource", { scriptId });
-        await testInfo.attach(`peer-${index}-script-${scriptId}.js`, {
-          body: scriptSource,
-          contentType: "text/javascript",
-        });
-      }
-    }
   } finally {
-    for (const profiler of peerProfilers) await profiler.detach();
     await peerA.context().close();
     await peerB.context().close();
   }
@@ -3774,7 +3720,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     switchAttribution: attributeSwitchLongTasks(switchProbe, appOfWindow),
     tooltipsShownDuringSwitches: switchProbe.tooltipsShown,
     worstPeerConvergenceTaskMs: worstPeerTask,
-    peerCPUProfiled: true,
     // Each peer long task with the frame it ran in, and how long before the bar converged.
     peerAttribution,
   };
