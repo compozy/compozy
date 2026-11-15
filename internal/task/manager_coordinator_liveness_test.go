@@ -88,7 +88,9 @@ func TestManagerCoordinatorLivenessShouldHoldTheClaimWhileEvaluating(t *testing.
 		case <-time.After(5 * time.Second):
 			t.Fatal("coordinator evaluation did not start")
 		}
-		// The Loop run must look alive before the evaluation settles, not only after it writes a verdict.
+		// A heartbeat must advance progress before evaluation settles. Advance the
+		// injected lease clock instead of relying on an initial advisory write.
+		harness.clock.advance(harness.lease / 3)
 		harness.store.waitForProgressAt(t, harness.clock.now())
 		progress := harness.store.progressLoopRunIDs()
 		if len(progress) == 0 {
@@ -497,7 +499,6 @@ type progressRecordingManagerStore struct {
 	live       map[string]bool
 }
 
-var _ CoordinatorProgressRecorder = (*progressRecordingManagerStore)(nil)
 var _ LoopRunLivenessReader = (*progressRecordingManagerStore)(nil)
 
 func (s *progressRecordingManagerStore) WithLeaseSettlementTransaction(

@@ -17,11 +17,6 @@ var ErrCoordinatorInterrupted = errors.New("task: coordinator run interrupted")
 // errCoordinatorLeaseLost identifies coordinator work stopped because its claim no longer holds the run.
 var errCoordinatorLeaseLost = errors.New("task: coordinator lease lost")
 
-// CoordinatorProgressRecorder advances Loop liveness while a claimed coordinator run keeps its lease.
-type CoordinatorProgressRecorder interface {
-	AdvanceLoopRunProgress(ctx context.Context, loopRunID string, at time.Time) error
-}
-
 // LoopRunLivenessReader reports whether a Loop run still accepts coordinator work. The task manager
 // consumes it as an optional store capability, so a manager without a Loop-owning store keeps its
 // in-process behavior.
@@ -153,8 +148,7 @@ func (m *Service) runClaimedCoordinator(
 func (m *Service) evaluateClaimedCoordinator(
 	ctx context.Context, key coordinatorEvaluationKey, run Run, claimToken string,
 ) (CoordinatorCompletionPlan, error) {
-	// The heartbeat already runs before synchronous storage admission.
-	m.recordCoordinatorProgress(ctx, run.LoopRunID, m.now().UTC())
+	// The heartbeat already runs before synchronous ownership admission.
 	if err := m.checkCoordinatorClaim(ctx, run, claimToken); err != nil {
 		return CoordinatorCompletionPlan{}, err
 	}
@@ -325,21 +319,6 @@ func (m *Service) checkCoordinatorClaim(ctx context.Context, run Run, token stri
 		return ErrLeaseExpired
 	}
 	return nil
-}
-
-func (m *Service) recordCoordinatorProgress(ctx context.Context, loopRunID string, at time.Time) {
-	recorder, ok := m.store.(CoordinatorProgressRecorder)
-	loopRunID = strings.TrimSpace(loopRunID)
-	if !ok || loopRunID == "" {
-		return
-	}
-	if at.IsZero() {
-		at = m.now().UTC()
-	}
-	// Progress is advisory liveness; the renewed lease is the authoritative ownership proof.
-	if err := recorder.AdvanceLoopRunProgress(ctx, loopRunID, at.UTC()); err != nil && ctx.Err() == nil {
-		slog.Warn("task: advance loop progress for coordinator lease", "loop_run_id", loopRunID, "error", err)
-	}
 }
 
 func coordinatorLeaseLost(err error) bool {
