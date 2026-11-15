@@ -3311,6 +3311,7 @@ func TestFinalizeSubagentRetryOutlivesExpiredCallerContext(t *testing.T) {
 		s, db, _ := newSubagentTestService(t)
 		db.rows["orphan"] = orphanedDelegationRow()
 		db.finalizeFailures = 1
+		s.store = slowFinalizeSubagents{SubagentStore: db}
 
 		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
 		defer cancel()
@@ -3775,18 +3776,26 @@ func TestSubagentCancelLifetime(t *testing.T) {
 			read := make(chan struct{})
 			s.store = cancelReadBarrier{SubagentStore: db, read: read, once: &sync.Once{}}
 			unlock := s.lock("parent")
-			done := make(chan SubagentCancelOutcome, 1)
+			type cancelResult struct {
+				out SubagentCancelOutcome
+				err error
+			}
+			done := make(chan cancelResult, 1)
 			go func() {
-				out, _ := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
-				done <- out
+				out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+				done <- cancelResult{out: out, err: err}
 			}()
 			<-read
 			settled := db.rows[row.ID]
 			settled.Status = store.SubagentStatusCompleted
 			db.rows[row.ID] = settled
 			unlock()
-			out := <-done
+			result := <-done
 			synctest.Wait()
+			if result.err != nil {
+				t.Fatal(result.err)
+			}
+			out := result.out
 			if out.Status != store.SubagentStatusCompleted ||
 				db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed {
 				t.Fatal(out, db.rows[row.ID])
@@ -3842,6 +3851,53 @@ func TestSubagentCancelLifetime(t *testing.T) {
 }
 
 func TestSubagentCancelStopsChild(t *testing.T) {
+	for _, edge := range []string{"cancel", "parent stop"} {
+		t.Run("Should freeze descendants through a terminal intermediary on "+edge, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			root := requireSubagent(t, s, subagentTestRequest())
+			terminal := db.rows[root.ID]
+			terminal.ID, terminal.ParentSessionID = "terminal", *root.ChildSessionID
+			terminal.ChildSessionID = new("terminal-session")
+			terminal.Status = store.SubagentStatusCompleted
+			terminal.SettledAt = new(s.now().Add(-time.Minute))
+			terminal.Result = new("retained result")
+			db.rows[terminal.ID] = terminal
+			live := db.rows[root.ID]
+			live.ID, live.ParentSessionID = "nested", *terminal.ChildSessionID
+			live.ChildSessionID = new("nested-session")
+			db.rows[live.ID] = live
+			runtime.snapshots[*terminal.ChildSessionID] = subagentSnapshot{
+				Info: &Info{ID: *terminal.ChildSessionID, State: StateStopped},
+			}
+			s.runtime = cancelStopRuntime{
+				subagentTestRuntime: runtime,
+				onStop: func(context.Context, string) {
+					if got := db.rows[live.ID].Status; got != store.SubagentStatusCanceled {
+						t.Errorf("descendant status at stop = %q, want canceled", got)
+					}
+				},
+			}
+			var err error
+			if edge == "cancel" {
+				_, err = s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, root.ID, "")
+			} else {
+				err = s.OnParentStopped(t.Context(), *root.ChildSessionID)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := db.rows[live.ID].Status; got != store.SubagentStatusCanceled {
+				t.Fatalf("descendant status = %q, want canceled", got)
+			}
+			if got := db.rows[terminal.ID]; got.Status != terminal.Status ||
+				got.Result == nil || *got.Result != *terminal.Result ||
+				got.SettledAt == nil || !got.SettledAt.Equal(*terminal.SettledAt) {
+				t.Fatalf("terminal result changed: %+v", got)
+			}
+		})
+	}
+
 	t.Run("Should stop the child session of a live subagent", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)

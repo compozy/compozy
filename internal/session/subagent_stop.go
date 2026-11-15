@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -92,6 +93,9 @@ func (s *subagentService) retireCanceledChild(
 	cleanup, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancelCleanup()
 	descendantErr := s.cancelDescendants(cleanup, *row.ChildSessionID)
+	if descendantErr != nil {
+		descendantErr = fmt.Errorf("session: cancel descendants of %s: %w", *row.ChildSessionID, descendantErr)
+	}
 	return outcome, errors.Join(descendantErr, s.stopChildSession(cleanup, *row.ChildSessionID))
 }
 
@@ -116,7 +120,10 @@ func (s *subagentService) stopChildSession(ctx context.Context, child string) er
 	if errors.Is(err, ErrSessionNotActive) || errors.Is(err, ErrSessionNotFound) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("session: stop subagent child %s: %w", child, err)
+	}
+	return nil
 }
 func (s *subagentService) OnParentStopped(ctx context.Context, parent string) error {
 	unlock := s.lock(parent)
@@ -152,8 +159,9 @@ func (s *subagentService) OnParentStopped(ctx context.Context, parent string) er
 		if row.Origin != store.SubagentOriginDelegated || row.ChildSessionID == nil {
 			continue
 		}
-		// The reaper owns auto_stop_on_parent for terminal non-canceled children.
+		// The reaper owns this terminal child; descendants still need synchronous cleanup.
 		if store.IsSubagentStatusTerminal(row.Status) && row.Status != store.SubagentStatusCanceled {
+			err = errors.Join(err, s.OnParentStopped(ctx, *row.ChildSessionID))
 			continue
 		}
 		if snap, err := s.runtime.Snapshot(
@@ -275,11 +283,13 @@ func (s *subagentService) cancelDescendants(ctx context.Context, parent string) 
 	var children []string
 	if err == nil {
 		for _, row := range rows {
-			if row.Origin != store.SubagentOriginDelegated || store.IsSubagentStatusTerminal(row.Status) {
+			if row.Origin != store.SubagentOriginDelegated {
 				continue
 			}
-			if err = s.finalizeCanceled(ctx, row); err != nil {
-				break
+			if !store.IsSubagentStatusTerminal(row.Status) {
+				if err = s.finalizeCanceled(ctx, row); err != nil {
+					break
+				}
 			}
 			if row.ChildSessionID != nil {
 				children = append(children, *row.ChildSessionID)

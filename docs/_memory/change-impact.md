@@ -14,6 +14,9 @@ Owner: PR #1688, branch `fix/cancel-stops-child`.
 - **Config.** No key change.
 - **User state.** No schema or migration change. A terminal row's child session ends stopped instead
   of idle and can no longer be resumed.
+- **Review repair.** Cancellation and parent-stop traversal reach live descendants below terminal
+  delegated intermediaries while preserving their terminal results. Cleanup errors identify the phase
+  and child. Existing service cancellation coverage owns these cases; main CI runs them in release mode.
 - **Web.** No change.
 - **Official skill.** `skills/compozy/references/native-tools.md` documents the extended cancel
   contract and the safe retry.

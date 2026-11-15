@@ -150,3 +150,7 @@ keep filters when advancing cursors, and use artifact continuation if the answer
 The existing manager, native real-SQLite and hosted-MCP daemon journeys pass these changed
 branches; this does not replace the broader real-provider walk. See
 [focused verification](../reports/2026-10-23-harness-dogfood.md).
+
+Review follow-up: repeat cancel and parent-stop with a completed intermediary that still has a live
+delegated descendant. The descendant must be canceled synchronously and the intermediary must retain
+its completed status, settlement time, and result. Release-mode execution belongs to main CI.
