@@ -147,6 +147,28 @@ describe("useLoopStream", () => {
           "queueMicrotask",
         ],
       });
+      // Temporary #1737 diagnosis: observe the fake clock without changing scheduling.
+      const reportPendingClock = (phase: string) => {
+        const clock = Reflect.get(globalThis.setTimeout, "clock") as {
+          timers?: Record<string, { func?: unknown; callAt?: number; createdAt?: number }>;
+          jobs?: { func?: unknown }[];
+        };
+        console.info(
+          "[loop-timer-diagnostic]",
+          JSON.stringify({
+            boundary,
+            phase,
+            count: vi.getTimerCount(),
+            timers: Object.entries(clock.timers ?? {}).map(([id, timer]) => ({
+              id,
+              callAt: timer.callAt,
+              createdAt: timer.createdAt,
+              callback: String(timer.func),
+            })),
+            jobs: clock.jobs?.map(job => String(job.func)),
+          })
+        );
+      };
       const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false, gcTime: Infinity } },
       });
@@ -214,6 +236,7 @@ describe("useLoopStream", () => {
           }
           await vi.advanceTimersByTimeAsync(0);
         });
+        if (boundary === "disposed") reportPendingClock("after-disposal");
         await act(async () => {
           await vi.advanceTimersByTimeAsync(LIVE_REFETCH_INTERVAL / 2 - 1);
         });
@@ -267,6 +290,9 @@ describe("useLoopStream", () => {
           await vi.advanceTimersByTimeAsync(LIVE_REFETCH_INTERVAL);
         });
         expect({ reads, canceled }).toEqual(reconciled);
+        if (boundary === "disposed" || vi.getTimerCount() > 0) {
+          reportPendingClock("after-reconciliation");
+        }
         expect(vi.getTimerCount()).toBe(0);
       } finally {
         unmount();
