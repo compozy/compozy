@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -159,6 +160,70 @@ func TestManagerCoordinatorLivenessShouldHoldTheClaimWhileEvaluating(t *testing.
 			t.Fatalf("InterruptLoopCoordinatorRuns(superseded) = %d, want 0", got)
 		}
 	})
+}
+
+// Invariant: a transient renewal failure retries inside the current lease window, so a busy store
+// cannot let the coordinator claim expire and hand the same run to a second attempt.
+func TestCoordinatorHeartbeatStepShouldKeepRetriesInsideTheLease(t *testing.T) {
+	t.Parallel()
+
+	lease := DefaultRunLeaseDuration
+	interval := coordinatorHeartbeatInterval(lease)
+	tests := []struct {
+		name      string
+		err       error
+		wantDelay time.Duration
+		wantStop  bool
+	}{
+		{
+			name:      "Should wait one heartbeat interval after a healthy renewal",
+			wantDelay: interval,
+		},
+		{
+			name:      "Should retry a transient store failure before the claim expires",
+			err:       errors.New("store: database is locked"),
+			wantDelay: coordinatorHeartbeatRetryInterval(interval),
+		},
+		{
+			name:     "Should stop when the claim token no longer matches",
+			err:      fmt.Errorf("%w: token mismatch", ErrInvalidClaimToken),
+			wantStop: true,
+		},
+		{
+			name:     "Should stop when the lease already expired",
+			err:      fmt.Errorf("%w: claim taken over", ErrLeaseExpired),
+			wantStop: true,
+		},
+		{
+			name:     "Should stop when the run can no longer transition",
+			err:      fmt.Errorf("%w: run is not running", ErrInvalidStatusTransition),
+			wantStop: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			delay, stop := coordinatorHeartbeatStep(interval, tt.err)
+			if stop != tt.wantStop {
+				t.Fatalf("coordinatorHeartbeatStep(%v) stop = %t, want %t", tt.err, stop, tt.wantStop)
+			}
+			if delay != tt.wantDelay {
+				t.Fatalf("coordinatorHeartbeatStep(%v) delay = %s, want %s", tt.err, delay, tt.wantDelay)
+			}
+		})
+	}
+
+	// Two failed renewals still land the next attempt inside the lease. Retrying after a full
+	// interval instead would schedule the third attempt exactly when the claim expires.
+	retryDelay := coordinatorHeartbeatRetryInterval(interval)
+	if elapsed := interval + 2*retryDelay; elapsed >= lease {
+		t.Fatalf("two retries finish after %s, want before the %s lease expires", elapsed, lease)
+	}
+	if fullIntervalRetries := interval + 2*interval; fullIntervalRetries < lease {
+		t.Fatalf("full-interval retries finish after %s, want at least one due at the %s expiry",
+			fullIntervalRetries, lease)
+	}
 }
 
 type coordinatorRunnerFunc func(context.Context, RunID) (CoordinatorCompletionPlan, error)
