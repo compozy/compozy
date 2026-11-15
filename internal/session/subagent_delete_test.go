@@ -297,6 +297,20 @@ func TestSubagentDelete(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					s, db, runtime := newSubagentTestService(t)
 					row := requireSubagent(t, s, subagentTestRequest())
+					row.Isolation = SubagentIsolationWorktree
+					row.Worktree = &store.SubagentWorktreeState{ID: "wt", Branch: "retained-roster"}
+					db.rows[row.ID] = row
+					s.worktrees = &subagentWorktreeStub{
+						facts: SubagentWorktreeFacts{PRStatus: "none"},
+						observe: func() {
+							if err := s.OnParentResumed(t.Context(), row.ParentSessionID); err != nil {
+								t.Fatal(err)
+							}
+							if len(runtime.queues) != 0 {
+								t.Fatal("retained result escaped before checkout observation finished")
+							}
+						},
+					}
 					failure := errors.New("roster delete failed")
 					fault := &failingRosterDelete{
 						memorySubagents: db, failure: failure, waitForDeadline: waitForDeadline,
@@ -310,6 +324,7 @@ func TestSubagentDelete(t *testing.T) {
 					runtime.deleteSettles = func(context.Context, string) error {
 						current := db.rows[row.ID]
 						current.Status = store.SubagentStatusInterrupted
+						current.ChildActivity = store.SubagentChildActivityStopped
 						current.WorkState = store.SubagentWorkStateResultAvailable
 						current.ChildSessionID = nil
 						current.WakePolicy = store.SubagentWakePolicySettledOnly
@@ -332,6 +347,11 @@ func TestSubagentDelete(t *testing.T) {
 						got.Delivery != store.SubagentDeliveryClaimed {
 						t.Fatalf("retained interruption lost its delivery: %+v, %+v, %v",
 							got, db.wakes, err)
+					}
+					if got.WakeMessageID == nil || got.WorktreeState().Facts.PRStatus != "none" ||
+						!strings.Contains(runtime.queues[*got.WakeMessageID], "Branch retained-roster") {
+						t.Fatalf("retained checkout facts missing before delivery: %+v, %+v",
+							got, runtime.queues)
 					}
 					if len(runtime.deleted) != 1 {
 						t.Fatal("child was not deleted")

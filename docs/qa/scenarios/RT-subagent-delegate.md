@@ -202,6 +202,6 @@ this change; the earlier real-provider verdict is not renewed by this scenario u
 
 Roster-removal failure follow-up: if child deletion commits but removing the retained delegation
 fails or reaches its cleanup deadline, the row stays terminal and its ordinary result remains
-deliverable. A later roster-delete retry removes it successfully. `TestSubagentDelete` owns this
-failure-boundary coverage; its context-checking store fake verifies reconciliation has a fresh
+deliverable with its final retained-checkout facts. A later roster-delete retry removes it
+successfully. `TestSubagentDelete` owns this failure-boundary coverage; its context-checking store fake verifies reconciliation has a fresh
 cleanup lifetime. Final-head CI remains the execution authority for this change.
