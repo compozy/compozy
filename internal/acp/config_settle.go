@@ -54,7 +54,7 @@ func (d *Driver) applyConfigOption(
 	if d != nil && d.configSettleBudget > 0 {
 		budget = d.configSettleBudget
 	}
-	for range configSettleAttempts {
+	for attempt := range configSettleAttempts {
 		if err := apply(ctx); err != nil {
 			return err
 		}
@@ -66,18 +66,28 @@ func (d *Driver) applyConfigOption(
 		// provider may publish the value after any of them. The response merge
 		// itself bumps the revision, so the wait starts after it and only a later
 		// update counts as new information.
-		if err := waitForConfigRevision(ctx, process, since, budget); err != nil {
-			if errors.Is(err, errConfigSettleTimeout) {
-				if confirmed() {
-					return nil
+		deadline := time.Now().Add(budget)
+		for {
+			if err := waitForConfigRevision(ctx, process, since, time.Until(deadline)); err != nil {
+				if errors.Is(err, errConfigSettleTimeout) {
+					if confirmed() {
+						return nil
+					}
+					return errConfigOptionUnconfirmed
 				}
-				// No newer revision arrived: re-sending would just repeat the same call.
+				return err
+			}
+			since, _ = process.configRevisionAndChange()
+			if confirmed() {
+				return nil
+			}
+			if attempt < configSettleAttempts-1 {
+				break
+			}
+			// Unrelated revisions cannot end the final request's confirmation window.
+			if time.Until(deadline) <= 0 {
 				return errConfigOptionUnconfirmed
 			}
-			return err
-		}
-		if confirmed() {
-			return nil
 		}
 	}
 	return errConfigOptionUnconfirmed

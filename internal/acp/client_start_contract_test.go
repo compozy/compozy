@@ -1677,6 +1677,32 @@ func TestConfigureRuntime(t *testing.T) {
 		}
 	})
 
+	// Invariant: unrelated updates cannot exhaust the final confirmation window.
+	t.Run("Should keep waiting after unrelated revisions on the final request", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New(WithConfigSettleBudget(time.Second))
+		proc := &AgentProcess{}
+		requests, readbacks := 0, 0
+		err := driver.applyConfigOption(t.Context(), proc, func(context.Context) error {
+			requests++
+			return nil
+		}, func() bool {
+			readbacks++
+			if requests == configSettleAttempts && readbacks >= 7 {
+				return true
+			}
+			proc.setConfigOptions([]SessionConfigOption{{ID: "mode", CurrentValueID: "agent"}})
+			return false
+		})
+		if err != nil {
+			t.Fatalf("applyConfigOption() error = %v, want the final confirmation accepted", err)
+		}
+		if requests != configSettleAttempts {
+			t.Fatalf("set requests = %d, want %d", requests, configSettleAttempts)
+		}
+	})
+
 	// Invariant: requested intent is not effective until provider readback confirms it.
 	t.Run("Should preserve prior effort when the provider does not confirm a change", func(t *testing.T) {
 		t.Parallel()
