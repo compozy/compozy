@@ -3146,7 +3146,6 @@ func TestDaemonExtensionInstallReplaceAuthority(t *testing.T) {
 				t.Fatalf("workspace attachments = %#v, want %v", attachments, want)
 			}
 		})
-
 	}
 
 	// The early check fails fast but the commit repeats it under the lifecycle lock: an

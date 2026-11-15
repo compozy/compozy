@@ -17,7 +17,10 @@ const configBaseURLKey = "base_url"
 var warnShellScopeDeprecation = sync.OnceFunc(func() { slog.Warn(ShellScopeDeprecationWarning) })
 
 var warnWorkspaceToolConsentPolicy = sync.OnceFunc(func() {
-	slog.Warn("config: workspace tools.policy.external_default and trusted_sources ignored; configure them in user or profile config")
+	slog.Warn(
+		"config: workspace tools.policy.external_default and trusted_sources ignored; " +
+			"configure them in user or profile config",
+	)
 })
 
 // ApplyConfigOverlayFile deep-merges an optional TOML config file into dst.

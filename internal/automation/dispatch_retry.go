@@ -148,7 +148,9 @@ func (e *sessionStartupError) Error() string { return e.err.Error() }
 func (e *sessionStartupError) Unwrap() error { return e.err }
 
 func retryableSessionStartup(err error) bool {
-	if errors.Is(err, session.ErrRecoveryPersistence) || errors.Is(err, context.Canceled) || acp.IsAuthRequiredError(err) {
+	if errors.Is(err, session.ErrRecoveryPersistence) ||
+		errors.Is(err, context.Canceled) ||
+		acp.IsAuthRequiredError(err) {
 		return false
 	}
 	if _, accepted := acp.AcceptedSessionID(err); accepted {
