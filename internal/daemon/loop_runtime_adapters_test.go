@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -2501,11 +2502,14 @@ func requireLoopGateProcessGone(t *testing.T, pid int) {
 }
 
 // loopGateProcessReaped reports a pid that can no longer run. A zombie still answers signal 0, so
-// Linux checks its stat state instead of waiting on the reaper that inherited it.
+// Linux consults its procfs state instead of waiting on the reaper that inherited it.
 func loopGateProcessReaped(pid int) bool {
 	process, err := os.FindProcess(pid)
 	if err != nil || process.Signal(syscall.Signal(0)) != nil {
 		return true
+	}
+	if runtime.GOOS != "linux" {
+		return false
 	}
 	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
 	if err != nil {
