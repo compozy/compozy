@@ -6327,3 +6327,15 @@ there are no new tools, hooks, extension/config keys, SDK types, or persistence 
 scoping and isolation cleanup remain unchanged. Web consumes the existing terminal/catalog events.
 The official skill contract remains unchanged. Service coverage owns cancellation after settlement
 and context-aware retry attempts. Release mode delegates all execution and QA validation to main CI.
+
+## Release main-health: instance permission intent
+
+The MCP hot-activation repair preserves stored permission intent when an agent creates an instance
+in its own workspace. Cross-workspace creation freezes effective server/tool bounds, and both paths
+validate against the caller's live authority. Native `compozy__agent_instance_create`, HTTP and UDS
+keep their existing shape; there are no new tools, hooks, config keys, SDK fields or migrations.
+Workspace/profile isolation and explicit lists remain bounded. Web and the official skill use the
+existing instance and lineage contracts. The existing `TestInstanceNativeCreateJourney` owns exact
+runtime/persisted ceiling equality; the approval transport fixture explicitly inherits the workspace
+paths before narrowing its permission level. Main CI owns validation in release mode. The affected
+QA scenario is `RT-mcp-hot-activation-lineage`; no local verification or runtime lab was run.

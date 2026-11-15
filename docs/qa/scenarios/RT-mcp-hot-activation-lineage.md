@@ -39,6 +39,13 @@ Steps:
    with `mcp_servers: ["compozy"]`). In the child, `compozy session mcp` lists `echo` as
    `not_available` · "Limited by the parent session", and "call echo" fails.
 
+6. From a same-workspace session with inherited MCP authority, create an always-on instance without
+   naming an MCP restriction. Its stored ceiling retains the caller's inheritance mode and existing
+   ancestor ceiling. An explicit tool restriction remains exact. Repeat in another workspace and
+   confirm the instance is bounded by the caller's server set at creation.
+
 Pass: C and the seeded continued session call echo without recreation; the narrowed child never gets it.
+Same-workspace instance creation preserves stored intent, while cross-workspace creation freezes its
+inherited bounds. Release repair validation is pending in main CI; no local QA lab was run.
 
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md

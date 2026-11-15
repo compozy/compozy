@@ -1738,7 +1738,7 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			t.Fatalf("main resolved_by=%v want=[policy]", mainSources)
 		}
 		child, err := manager.Spawn(t.Context(), &session.SpawnOpts{ParentSessionID: main.ID, AgentName: main.AgentName,
-			Workspace: workspace, Name: "Approval child", Permissions: "approve-reads", TTL: time.Minute})
+			Workspace: workspace, Name: "Approval child", Permissions: "approve-reads", TTL: time.Minute, InheritPermissions: true})
 		if err != nil {
 			t.Fatal(err)
 		}
