@@ -35,10 +35,14 @@ export function useSubagentRosterControlPoll({
     if (!enabled) return;
     // A read from this activation must not confirm the next prompt's roster.
     return () => {
-      void queryClient.cancelQueries({
+      const filter = {
         queryKey: sessionKeys.subagentRosterPoll(workspaceId, sessionId),
         exact: true,
-      });
+      };
+      // Other windows may still need the shared stopped-history read.
+      void queryClient.cancelQueries(filter).then(() =>
+        queryClient.refetchQueries({ ...filter, type: "active" }, { cancelRefetch: false })
+      );
     };
   }, [enabled, queryClient, sessionId, workspaceId]);
   const poll = useQuery({

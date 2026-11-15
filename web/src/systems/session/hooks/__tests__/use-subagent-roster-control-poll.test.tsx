@@ -205,6 +205,59 @@ describe("subagent roster control poll", () => {
     queryClient.clear();
   });
 
+  // Invariant: releasing one window cannot strand another stopped-history reader.
+  // Owner: shared control-poll query lifetime; canonical suite: this hook's suite.
+  it.each(["unmount", "disable"])(
+    "Should restart a shared stopped-history read when another window releases it via %s",
+    async action => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const reads: ((page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void)[] = [];
+      vi.mocked(fetchSessionSubagents).mockImplementation(
+        () => new Promise(resolve => reads.push(resolve))
+      );
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client: queryClient }, children);
+      const first = renderHook(
+        ({ enabled }: { enabled: boolean }) =>
+          useSubagentRosterControlPoll({
+            workspaceId: WORKSPACE,
+            sessionId: SESSION,
+            enabled,
+            intervalMs: false,
+          }),
+        { wrapper, initialProps: { enabled: true } }
+      );
+      const second = renderHook(
+        () =>
+          useSubagentRosterControlPoll({
+            workspaceId: WORKSPACE,
+            sessionId: SESSION,
+            enabled: true,
+            intervalMs: false,
+          }),
+        { wrapper }
+      );
+      expect(fetchSessionSubagents).toHaveBeenCalledTimes(1);
+      if (action === "unmount") first.unmount();
+      else first.rerender({ enabled: false });
+      await waitFor(() => expect(fetchSessionSubagents).toHaveBeenCalledTimes(2));
+      await act(async () => {
+        reads[1]!({ subagents: [row("remaining", "completed")], next_cursor: null });
+      });
+      const rosterKey = sessionKeys.subagentRoster(WORKSPACE, SESSION);
+      await waitFor(() =>
+        expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows[0]?.id).toBe("remaining")
+      );
+      await act(async () => {
+        reads[0]!({ subagents: [], next_cursor: null });
+      });
+      expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows[0]?.id).toBe("remaining");
+      if (action === "disable") first.unmount();
+      second.unmount();
+      queryClient.clear();
+    }
+  );
+
   it("Should read every page so older cards keep their state", async () => {
     vi.mocked(fetchSessionSubagents)
       .mockResolvedValueOnce({ subagents: [row("sub-new", "running")], next_cursor: "page-2" })
