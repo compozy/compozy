@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"os"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -1350,6 +1351,30 @@ func BenchmarkCurrentMigrationStream(b *testing.B) {
 // Invariant: direct upgrades losslessly mark every legacy lineage/instance shape exactly once.
 // Owner: global data migration; canonical suite: migration streams (UT-112).
 func TestPermissionIntentMarkerMigration(t *testing.T) {
+	// Prepare the real historical prefix once before parallel upgrades. Replaying it
+	// per case contends on expensive schema rebuilds under the race detector.
+	stream := globaldb.MigrationStream()
+	prefixPath := filepath.Join(t.TempDir(), "permission-intent-prefix.db")
+	prefixDB, err := sql.Open("sqlite", prefixPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := prefixDB.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := store.Apply(migrationTestContext(t), prefixDB, migrationPrefixStream(t, stream, 199)); err != nil {
+		t.Fatal(err)
+	}
+	if err := prefixDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	prefix, err := os.ReadFile(prefixPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Parallel()
 	// Invariant: v0.7.0 access survives both direct upgrades and an already-applied 00202.
 	for _, prior := range []int{199, 202} {
@@ -1357,6 +1382,9 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 			t.Parallel()
 			ctx := migrationTestContext(t)
 			dbPath := filepath.Join(t.TempDir(), "permission-intent.db")
+			if err := os.WriteFile(dbPath, prefix, 0o600); err != nil {
+				t.Fatal(err)
+			}
 			db, err := sql.Open("sqlite", dbPath)
 			if err != nil {
 				t.Fatal(err)
@@ -1366,10 +1394,6 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			stream := globaldb.MigrationStream()
-			if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 199)); err != nil {
-				t.Fatal(err)
-			}
 			const nativePolicy = `{"tools":["compozy__session_list"],"skills":["review"],"workspace_paths":["/project"],"mcp_servers":[],"materialized_tools":true}`
 			const legacyPolicy = `{"tools":["compozy__session_list"],"mcp_servers":["linear"]}`
 			const authoredPolicy = `{"tools":["compozy__session_list"],"mcp_servers":["linear"],"materialized_mcp_servers":false}`
