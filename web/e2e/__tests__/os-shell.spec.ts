@@ -3657,6 +3657,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     await switchInput.detach();
   }
   const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
+  console.log(`[wm-perf:switch] ${JSON.stringify(await readWindowManagerTimings(appPage))}`);
   const appOfWindow = new Map([...perfWindowIDs].map(([app, id]) => [id, app]));
 
   const peerA = await openPeerPage(browser, runtime);
@@ -3706,6 +3707,9 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
       tabForWindow(await windowManagerSnapshot(runtime, workspace.id), marketplaceID)?.id
     ).toBe(tabForWindow(await windowManagerSnapshot(runtime, workspace.id), loopsID)?.id);
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
+    console.log(
+      `[wm-perf:peers] ${JSON.stringify(await Promise.all(peers.map(readWindowManagerTimings)))}`
+    );
   } finally {
     await peerA.context().close();
     await peerB.context().close();
@@ -3734,6 +3738,17 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   expect(worstFrame).toBeLessThanOrEqual(50);
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
+
+async function readWindowManagerTimings(page: Page) {
+  return page.evaluate(() =>
+    performance
+      .getEntriesByType("measure")
+      .filter(entry => entry.name.startsWith("wm-perf:"))
+      .sort((left, right) => right.duration - left.duration)
+      .slice(0, 30)
+      .map(entry => ({ name: entry.name, start: entry.startTime, duration: entry.duration }))
+  );
+}
 
 /** A long animation frame over 50ms, with its slowest scripts. */
 interface LongFrameRecord {

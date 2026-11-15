@@ -214,6 +214,7 @@ export class FocusTurns<View extends PresentationView> {
   }
 
   private release(): void {
+    const started = performance.now();
     this.stopHoldTimer();
     const view = this.heldView;
     if (view === null) return;
@@ -222,7 +223,13 @@ export class FocusTurns<View extends PresentationView> {
     // same view directly and reported nothing, while the stream's report of it ran when it was
     // held and saw no change. Listeners read the current state, so a repeat report is harmless.
     this.adopt(view);
+    const adoptedAt = performance.now();
     for (const listener of this.adoptedListeners) listener();
+    performance.measure("wm-perf:adopt", { start: started, end: adoptedAt });
+    performance.measure("wm-perf:adopt-listeners", {
+      start: adoptedAt,
+      end: performance.now(),
+    });
   }
 
   private stopHoldTimer(): void {

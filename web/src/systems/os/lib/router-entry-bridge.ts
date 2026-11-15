@@ -80,6 +80,7 @@ export class RouterEntryBridge {
   }
 
   private write(mode: "push" | "replace", route: OsWindowRoute, blockable: boolean): void {
+    const started = performance.now();
     const href = this.hrefOf(route);
     const options = { ignoreBlocker: !blockable };
     this.writing = mode;
@@ -88,6 +89,7 @@ export class RouterEntryBridge {
       else this.history.replace(href, undefined, options);
     } finally {
       this.writing = null;
+      performance.measure("wm-perf:history", { start: started, end: performance.now() });
     }
   }
 }
