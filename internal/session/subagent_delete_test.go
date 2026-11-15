@@ -76,10 +76,13 @@ func (d *failingRosterDelete) Dispose(
 	return d.memorySubagents.Dispose(ctx, filter)
 }
 
-type failingRosterDeleteSubagents struct{ *memorySubagents }
+type failingRosterDeleteSubagents struct {
+	*memorySubagents
+	err error
+}
 
 func (d failingRosterDeleteSubagents) DeleteSubagent(context.Context, string, string) error {
-	return errors.New("roster delete failed")
+	return d.err
 }
 
 // Invariant: deleting a delegated subagent removes its child session and then its roster row, and
@@ -216,6 +219,93 @@ func TestSubagentDelete(t *testing.T) {
 			t.Fatal("delivery suppression outlived roster deletion")
 		}
 	})
+	// Invariant: an existing wake cannot reintroduce a suppressed member when another result joins it.
+	for _, tc := range []struct {
+		name   string
+		queued bool
+	}{
+		{name: "Should defer a deleting member of an unsubmitted wake"},
+		{name: "Should defer a deleting member of a queued wake", queued: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			first := requireSubagent(t, s, subagentTestRequest())
+			req := subagentTestRequest()
+			req.IdempotencyKey = "other"
+			second := requireSubagent(t, s, req)
+			for _, id := range []string{first.ID, second.ID} {
+				row := db.rows[id]
+				row.Status = store.SubagentStatusCompleted
+				row.Delivery = store.SubagentDeliveryPending
+				db.rows[id] = row
+			}
+			old, err := db.OpenOrJoinWake(t.Context(), first.ParentSessionID, []string{first.ID}, "old-wake")
+			if err != nil {
+				t.Fatal(err)
+			}
+			old.Attempts = 2
+			if tc.queued {
+				old.InputEntryID = "old-input"
+				runtime.queues[old.WakeMessageID] = subagentWakeText([]store.SessionSubagent{db.rows[first.ID]})
+			}
+			db.wakes[old.WakeMessageID] = old
+			runtime.deleteSettles = func(ctx context.Context, _ string) error {
+				if err := s.OnParentResumed(ctx, first.ParentSessionID); err != nil {
+					return err
+				}
+				if got := db.rows[first.ID]; got.Delivery != store.SubagentDeliveryPending {
+					t.Fatalf("deleting member was not deferred: %+v", got)
+				}
+				return nil
+			}
+			if err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", first.ID); err != nil {
+				t.Fatal(err)
+			}
+			got := db.rows[second.ID]
+			if got.WakeMessageID == nil || *got.WakeMessageID == old.WakeMessageID {
+				t.Fatalf("remaining result was not reclaimed: %+v", got)
+			}
+			text := runtime.queues[*got.WakeMessageID]
+			if len(runtime.queues) != 1 || strings.Contains(text, first.ID) || !strings.Contains(text, second.ID) {
+				t.Fatalf("remaining wake includes the deleting result or lost its peer: %+v", runtime.queues)
+			}
+			if db.wakes[old.WakeMessageID].State != store.SubagentWakeStateCanceled ||
+				db.wakes[*got.WakeMessageID].Attempts != old.Attempts {
+				t.Fatalf("wake replacement lost cancellation or retry history: %+v", db.wakes)
+			}
+		})
+	}
+	// Invariant: failed deletion restores delivery after a completed pending result's retry was suppressed.
+	t.Run("Should replan a completed pending result when child deletion fails", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		current := db.rows[row.ID]
+		current.Status = store.SubagentStatusCompleted
+		current.Delivery = store.SubagentDeliveryPending
+		db.rows[row.ID] = current
+		failure := errors.New("child delete refused")
+		runtime.errorDelete = failure
+		runtime.deleteSettles = func(ctx context.Context, _ string) error {
+			if err := s.OnParentResumed(ctx, row.ParentSessionID); err != nil {
+				return err
+			}
+			if len(runtime.queues) != 0 {
+				t.Fatalf("completed result escaped deletion suppression: %+v", runtime.queues)
+			}
+			return nil
+		}
+		err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID)
+		if !errors.Is(err, failure) {
+			t.Fatalf("child deletion failure = %v, want %v", err, failure)
+		}
+		got := db.rows[row.ID]
+		if got.Status != store.SubagentStatusCompleted || got.Delivery != store.SubagentDeliveryClaimed ||
+			got.WakeMessageID == nil || !strings.Contains(runtime.queues[*got.WakeMessageID], row.ID) {
+			t.Fatalf("retained completed result was not delivered: %+v, %+v", got, runtime.queues)
+		}
+	})
 	// Invariant: a failed removal preserves a completed inline result without an extra wake.
 	t.Run("Should preserve completed wait delivery when deleting its row fails", func(t *testing.T) {
 		t.Parallel()
@@ -228,9 +318,11 @@ func TestSubagentDelete(t *testing.T) {
 		parent := runtime.snapshots[row.ParentSessionID]
 		parent.Active = false
 		runtime.snapshots[row.ParentSessionID] = parent
-		runtime.errorDelete = errors.New("child delete refused")
-		if err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID); err == nil {
-			t.Fatal("expected child deletion failure")
+		failure := errors.New("child delete refused")
+		runtime.errorDelete = failure
+		err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID)
+		if !errors.Is(err, failure) {
+			t.Fatalf("child deletion failure = %v, want %v", err, failure)
 		}
 		if got := db.rows[row.ID]; got.Delivery != store.SubagentDeliveryNone || len(db.wakes) != 0 {
 			t.Fatalf("failed deletion woke completed wait result: %+v, %+v", got, db.wakes)
@@ -242,7 +334,8 @@ func TestSubagentDelete(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
 			row := requireSubagent(t, s, subagentTestRequest())
-			s.store = failingRosterDeleteSubagents{db}
+			failure := errors.New("roster delete failed")
+			s.store = failingRosterDeleteSubagents{memorySubagents: db, err: failure}
 			hook := &subagentTestHook{}
 			s.settled = hook
 			parent := runtime.snapshots[row.ParentSessionID]
@@ -257,8 +350,9 @@ func TestSubagentDelete(t *testing.T) {
 				db.rows[row.ID] = current
 				return nil
 			}
-			if err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID); err == nil {
-				t.Fatal("expected roster deletion failure")
+			err := s.Delete(t.Context(), SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID)
+			if !errors.Is(err, failure) {
+				t.Fatalf("roster deletion failure = %v, want %v", err, failure)
 			}
 			synctest.Wait()
 			if hook.calls != 1 || runtime.settles != 1 || s.deletingDelivery(row.ID) {

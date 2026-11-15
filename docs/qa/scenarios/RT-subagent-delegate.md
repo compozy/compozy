@@ -191,7 +191,11 @@ For an isolated child, the retained worktree Git/PR facts accompany status and s
 recovery can observe those facts even after the child link is gone. Repeat with a stopped child
 whose settlement callback was missed, missing child history, and deletion followed by daemon
 recovery. Completed delegations retain their original result, error, settlement time and delivery.
-Deleting the delegation row itself still removes the row and suppresses a result wake.
+If saving recovered checkout facts fails transiently, the parent stays pending while other parents
+recover; the delivery retry must save the facts and wake the parent without another user turn.
+Deleting the delegation row itself still removes the row and suppresses a result wake, including
+when another result joins an older wake during deletion. A failed deletion must resume a retained
+pending result even if the delegation had already completed before deletion started.
 Owning automation: `TestGlobalDBSubagentStateUpdates` and the deleted-child cases in
 `TestSubagentDaemonIntegration`, using real SQLite and ACP subprocesses. Execution is CI-only for
 this change; the earlier real-provider verdict is not renewed by this scenario update.

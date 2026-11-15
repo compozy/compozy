@@ -54,8 +54,8 @@ func (s *subagentService) onChildSessionDeleted(ctx context.Context, before stor
 	}
 	// A completed wait result with delivery=none already reached its caller.
 	// Pending delivery from a concurrent finalizer may have been held by roster deletion.
-	if err == nil && (terminalized || (wasLive && row.Delivery == store.SubagentDeliveryPending)) &&
-		(row.Delivery == store.SubagentDeliveryNone || row.Delivery == store.SubagentDeliveryPending) {
+	if err == nil && (row.Delivery == store.SubagentDeliveryPending ||
+		(terminalized && row.Delivery == store.SubagentDeliveryNone)) {
 		err = s.planDelivery(ctx, row)
 	}
 	if err == nil {

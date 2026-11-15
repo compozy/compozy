@@ -838,47 +838,65 @@ func TestSubagentRecovery(t *testing.T) {
 	for _, failure := range []string{"row removed", "fact write failed"} {
 		t.Run("Should continue recovery when deleted child facts have "+failure, func(t *testing.T) {
 			t.Parallel()
-			s, db, runtime := newSubagentTestService(t)
-			wt := &subagentWorktreeStub{facts: SubagentWorktreeFacts{PRStatus: "none"}}
-			s.worktrees = wt
-			parent := runtime.snapshots["parent"]
-			parent.Active = false
-			runtime.snapshots["parent"] = parent
-			other := parent
-			info := *parent.Info
-			info.ID = "other"
-			other.Info = &info
-			runtime.snapshots["other"] = other
-			for _, parentID := range []string{"parent", "other"} {
-				db.rows[parentID] = store.SessionSubagent{
-					ID: parentID, WorkspaceID: "ws", ParentSessionID: parentID, Title: parentID,
-					Origin: store.SubagentOriginDelegated, Status: store.SubagentStatusInterrupted,
-					ChildActivity: store.SubagentChildActivityStopped, WorkState: store.SubagentWorkStateResultAvailable,
-					WakePolicy: store.SubagentWakePolicyAlways, Delivery: store.SubagentDeliveryPending,
+			synctest.Test(t, func(t *testing.T) {
+				s, db, runtime := newSubagentTestService(t)
+				wt := &subagentWorktreeStub{facts: SubagentWorktreeFacts{PRStatus: "none"}}
+				s.worktrees = wt
+				parent := runtime.snapshots["parent"]
+				parent.Active = false
+				runtime.snapshots["parent"] = parent
+				other := parent
+				info := *parent.Info
+				info.ID = "other"
+				other.Info = &info
+				runtime.snapshots["other"] = other
+				for _, parentID := range []string{"parent", "other"} {
+					db.rows[parentID] = store.SessionSubagent{
+						ID: parentID, WorkspaceID: "ws", ParentSessionID: parentID, Title: parentID,
+						Origin: store.SubagentOriginDelegated, Status: store.SubagentStatusInterrupted,
+						ChildActivity: store.SubagentChildActivityStopped, WorkState: store.SubagentWorkStateResultAvailable,
+						WakePolicy: store.SubagentWakePolicyAlways, Delivery: store.SubagentDeliveryPending,
+					}
 				}
-			}
-			row := db.rows["parent"]
-			row.Worktree = &store.SubagentWorktreeState{ID: "wt", Branch: "pending-facts"}
-			row.Isolation = SubagentIsolationWorktree
-			db.rows[row.ID] = row
-			if failure == "row removed" {
-				wt.observe = func() { delete(db.rows, row.ID) }
-			} else {
-				db.finalizeErrIDs = map[string]error{row.ID: errors.New("fact write unavailable")}
-			}
-			db.orphans = []string{"orphan"}
-			runtime.snapshots["orphan"] = subagentSnapshot{Info: &Info{ID: "orphan", State: StateActive}}
-			if err := s.Recover(t.Context()); err != nil {
-				t.Fatal(err)
-			}
-			if db.rows["other"].Delivery != store.SubagentDeliveryClaimed || len(runtime.queues) != 1 ||
-				!slices.Contains(runtime.stopped, "orphan") {
-				t.Fatalf("unrelated recovery blocked: row=%+v queues=%v stopped=%v",
-					db.rows["other"], runtime.queues, runtime.stopped)
-			}
-			if failure == "fact write failed" && db.rows[row.ID].Delivery != store.SubagentDeliveryPending {
-				t.Fatalf("failed fact write lost pending batch: %+v", db.rows[row.ID])
-			}
+				row := db.rows["parent"]
+				row.Worktree = &store.SubagentWorktreeState{ID: "wt", Branch: "pending-facts"}
+				row.Isolation = SubagentIsolationWorktree
+				db.rows[row.ID] = row
+				if failure == "row removed" {
+					wt.observe = func() { delete(db.rows, row.ID) }
+				} else {
+					db.finalizeErrIDs = map[string]error{row.ID: errors.New("fact write unavailable")}
+				}
+				db.orphans = []string{"orphan"}
+				runtime.snapshots["orphan"] = subagentSnapshot{Info: &Info{ID: "orphan", State: StateActive}}
+				if err := s.Recover(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if db.rows["other"].Delivery != store.SubagentDeliveryClaimed || len(runtime.queues) != 1 ||
+					!slices.Contains(runtime.stopped, "orphan") {
+					t.Fatalf("unrelated recovery blocked: row=%+v queues=%v stopped=%v",
+						db.rows["other"], runtime.queues, runtime.stopped)
+				}
+				if failure == "fact write failed" && db.rows[row.ID].Delivery != store.SubagentDeliveryPending {
+					t.Fatalf("failed fact write lost pending batch: %+v", db.rows[row.ID])
+				}
+				if failure == "fact write failed" {
+					synctest.Wait()
+					delete(db.finalizeErrIDs, row.ID)
+					time.Sleep(subagentWakeRetryDelay * subagentRecoveryRetrySteps)
+					synctest.Wait()
+					got := db.rows[row.ID]
+					if got.Delivery != store.SubagentDeliveryClaimed || got.WakeMessageID == nil ||
+						got.WorktreeState().Facts.PRStatus != "none" {
+						t.Fatalf("transient fact failure did not recover without a parent turn: %+v", got)
+					}
+					text := runtime.queues[*got.WakeMessageID]
+					if len(runtime.queues) != 2 || !strings.Contains(text, "Branch pending-facts") ||
+						strings.Contains(text, "PR status unknown") {
+						t.Fatalf("retry composed wake before saving checkout facts: %+v", runtime.queues)
+					}
+				}
+			})
 		})
 	}
 

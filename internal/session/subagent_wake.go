@@ -233,6 +233,7 @@ func (s *subagentService) failWake(ctx context.Context, parent, id string) error
 }
 
 const subagentWakeRetryDelay = 200 * time.Millisecond
+const subagentRecoveryRetrySteps = 5
 
 func (s *subagentService) retryWake(parent string, attempts int) {
 	s.mu.Lock()
@@ -253,11 +254,19 @@ func (s *subagentService) retryWake(parent string, attempts int) {
 			return
 		case <-timer.C:
 		}
+		// Keep the retry guard raised through fact observation so another
+		// successor cannot compose this parent's batch before the facts are saved.
+		factsErr := s.recoverPendingFacts(s.ctx, parent)
 		unlock := s.lock(parent)
 		defer unlock()
 		s.mu.Lock()
 		delete(s.wakeRetries, parent)
 		s.mu.Unlock()
+		if factsErr != nil {
+			s.logError(s.ctx, "wake_retry_facts", factsErr)
+			s.retryWake(parent, subagentRecoveryRetrySteps)
+			return
+		}
 		s.logError(s.ctx, "wake_retry", s.successor(s.ctx, parent))
 	})
 }

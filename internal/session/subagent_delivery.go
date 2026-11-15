@@ -101,6 +101,26 @@ func (s *subagentService) claim(ctx context.Context, parent string, ids []string
 	if err != nil {
 		return err
 	}
+	if slices.ContainsFunc(rows, func(row store.SessionSubagent) bool { return s.deletingDelivery(row.ID) }) {
+		// Joining an existing batch can bring back a member whose deletion now
+		// suppresses delivery. Return the batch to pending and reclaim only the
+		// available members, preserving retry attempts through the existing owner.
+		if err := s.runtime.CancelWake(ctx, wake); err != nil {
+			return err
+		}
+		pending, err := s.settleWakeRows(ctx, wake.WakeMessageID, true)
+		if err != nil {
+			return err
+		}
+		var available []string
+		for _, row := range pending {
+			s.publish(ctx, row)
+			if !s.deletingDelivery(row.ID) {
+				available = append(available, row.ID)
+			}
+		}
+		return s.claim(ctx, parent, available)
+	}
 	for _, row := range rows {
 		s.publish(ctx, row)
 	}
