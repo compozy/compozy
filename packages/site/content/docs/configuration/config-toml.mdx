@@ -1746,9 +1746,11 @@ in open sessions from their next message. Servers declared in a project's files 
 them without approval; `disabled` and `ask` keep them waiting. With `ask`, consented sources still
 prompt on each call. See [Project servers need approval](/docs/mcp/project-servers).
 
-Set `external_default` and `trusted_sources` only in your user or personal profile config.
-Workspace and workspace-profile values for those two keys are ignored, with one warning per daemon
-process. A project's config cannot approve its own servers or grant read-only source trust.
+Grant consent and source trust in your user or personal profile config. Workspace and
+workspace-profile layers can only restrict the inherited policy: `external_default` keeps the stricter
+value (`disabled` before `ask` before `enabled`), and `trusted_sources` intersects with the inherited
+list. Omit the list to inherit it, or set `[]` to remove all trust. Attempted project grants are ignored
+with one warning per daemon process; a project cannot approve its own servers or add source trust.
 
 `trusted_sources` does not store credentials. Remote MCP OAuth tokens remain in the MCP auth store,
 and hosted MCP bind nonces are transient session launch state.

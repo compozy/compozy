@@ -138,9 +138,11 @@ servers without your consent, which means project servers waiting for approval:
 | `ask`                | Wait for approval; never started. | Callable, with an approval prompt on each call. |
 | `enabled`            | Callable without approval.        | Callable.                                       |
 
-Configure this policy in your user or personal profile config. Workspace and workspace-profile
-`external_default` and `trusted_sources` values are ignored with one warning per daemon process;
-a project cannot approve its own servers. Dynamic tools stay denied whatever the value.
+Grant consent in your user or personal profile config. Workspace and workspace-profile layers may
+only tighten `external_default`: `disabled` is stricter than `ask`, which is stricter than `enabled`.
+Their `trusted_sources` lists retain only entries already trusted by the preceding layer; omitting
+the list inherits it, and `[]` removes all trust. Attempted grants are ignored with one warning per
+daemon process. A project cannot approve its own servers. Dynamic tools stay denied whatever the value.
 
 ## Troubleshooting
 

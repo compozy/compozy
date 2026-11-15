@@ -18,8 +18,7 @@ var warnShellScopeDeprecation = sync.OnceFunc(func() { slog.Warn(ShellScopeDepre
 
 var warnWorkspaceToolConsentPolicy = sync.OnceFunc(func() {
 	slog.Warn(
-		"config: workspace tools.policy.external_default and trusted_sources ignored; " +
-			"configure them in user or profile config",
+		"config: workspace tools.policy grants ignored; configure consent and trust in user or profile config",
 	)
 })
 
@@ -42,11 +41,7 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 
 func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) error {
 	if roleSource == RoleFieldSourceWorkspace || roleSource == RoleFieldSourceWorkspaceProfile {
-		if overlay.Tools.Policy.ExternalDefault != nil || overlay.Tools.Policy.TrustedSources != nil {
-			warnWorkspaceToolConsentPolicy()
-			overlay.Tools.Policy.ExternalDefault = nil
-			overlay.Tools.Policy.TrustedSources = nil
-		}
+		overlay.Tools.Policy.restrictTo(dst.Tools.Policy)
 	}
 	if roleSource != RoleFieldSourceGlobal && overlay.Agents.Heartbeat.Sources.present() {
 		slog.Warn("config: [agents.heartbeat.sources] is daemon-wide; overlay ignored")

@@ -387,16 +387,15 @@ trusted_sources = ["mcp:workspace", "extension:linear"]
 		if got, want := cfg.Tools.Policy.ApprovalTimeoutSeconds, 30; got != want {
 			t.Fatalf("LoadForHome() ApprovalTimeoutSeconds = %d, want %d", got, want)
 		}
-		if got, want := cfg.Tools.Policy.TrustedSources,
-			[]string{"mcp:global"}; !slices.Equal(got, want) {
-			t.Fatalf("LoadForHome() TrustedSources = %#v, want %#v", got, want)
+		if got := cfg.Tools.Policy.TrustedSources; len(got) != 0 {
+			t.Fatalf("LoadForHome() TrustedSources = %#v, want empty intersection", got)
 		}
 		if !hasMCPServer(cfg.MCPServers, "global") || !hasMCPServer(cfg.MCPServers, "workspace") {
 			t.Fatalf("LoadForHome() MCPServers = %#v, want merged global and workspace servers", cfg.MCPServers)
 		}
 	})
 
-	t.Run("Should preserve personal profile trust across workspace profile overlays", func(t *testing.T) {
+	t.Run("Should preserve project restrictions across workspace profile overlays", func(t *testing.T) {
 		t.Parallel()
 		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 		if err != nil {
@@ -406,23 +405,121 @@ trusted_sources = ["mcp:workspace", "extension:linear"]
 		writeFile(t, home.ConfigFile, "[tools.policy]\nexternal_default = \"disabled\"\n")
 		writeFile(t, profileConfigFile(home, "work"), `[tools.policy]
 external_default = "enabled"
-trusted_sources = ["extension:personal"]
+trusted_sources = ["extension:personal", "extension:shared"]
 `)
-		for _, path := range []string{workspaceConfigFile(root), workspaceProfileConfigFile(root, "work")} {
-			writeFile(t, path, `[tools.policy]
+		writeFile(t, workspaceConfigFile(root), `[tools.policy]
 external_default = "ask"
-trusted_sources = ["extension:project"]
+trusted_sources = ["extension:shared", "extension:project"]
 `)
-		}
+		writeFile(t, workspaceProfileConfigFile(root, "work"), `[tools.policy]
+external_default = "enabled"
+trusted_sources = ["extension:personal", "extension:shared", "extension:project"]
+`)
 		cfg, err := LoadForHome(home, WithWorkspaceRoot(root), WithProfile("work"), withoutDotEnv())
 		if err != nil {
 			t.Fatal(err)
 		}
-		if cfg.Tools.Policy.ExternalDefault != ToolsExternalDefaultEnabled ||
-			!slices.Equal(cfg.Tools.Policy.TrustedSources, []string{"extension:personal"}) {
-			t.Fatalf("personal trust was overridden: %+v", cfg.Tools.Policy)
+		if cfg.Tools.Policy.ExternalDefault != ToolsExternalDefaultAsk ||
+			!slices.Equal(cfg.Tools.Policy.TrustedSources, []string{"extension:shared"}) {
+			t.Fatalf("project restrictions were overridden: %+v", cfg.Tools.Policy)
 		}
 	})
+
+	for _, profile := range []string{"", "work"} {
+		name := "Should restrict workspace consent policy"
+		if profile != "" {
+			name = "Should restrict workspace profile consent policy"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name                       string
+				inherited, requested, want ToolsExternalDefault
+			}{
+				{"Should keep disabled under disabled", ToolsExternalDefaultDisabled,
+					ToolsExternalDefaultDisabled, ToolsExternalDefaultDisabled},
+				{"Should ignore ask under disabled", ToolsExternalDefaultDisabled,
+					ToolsExternalDefaultAsk, ToolsExternalDefaultDisabled},
+				{"Should ignore enabled under disabled", ToolsExternalDefaultDisabled,
+					ToolsExternalDefaultEnabled, ToolsExternalDefaultDisabled},
+				{"Should tighten ask to disabled", ToolsExternalDefaultAsk,
+					ToolsExternalDefaultDisabled, ToolsExternalDefaultDisabled},
+				{"Should keep ask under ask", ToolsExternalDefaultAsk,
+					ToolsExternalDefaultAsk, ToolsExternalDefaultAsk},
+				{"Should ignore enabled under ask", ToolsExternalDefaultAsk,
+					ToolsExternalDefaultEnabled, ToolsExternalDefaultAsk},
+				{"Should tighten enabled to disabled", ToolsExternalDefaultEnabled,
+					ToolsExternalDefaultDisabled, ToolsExternalDefaultDisabled},
+				{"Should tighten enabled to ask", ToolsExternalDefaultEnabled,
+					ToolsExternalDefaultAsk, ToolsExternalDefaultAsk},
+				{"Should keep enabled under enabled", ToolsExternalDefaultEnabled,
+					ToolsExternalDefaultEnabled, ToolsExternalDefaultEnabled},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+					if err != nil {
+						t.Fatal(err)
+					}
+					root := t.TempDir()
+					writeFile(t, home.ConfigFile, "[tools.policy]\nexternal_default = \""+
+						string(tc.inherited)+"\"\n")
+					path := workspaceConfigFile(root)
+					if profile != "" {
+						path = workspaceProfileConfigFile(root, profile)
+					}
+					writeFile(t, path, "[tools.policy]\nexternal_default = \""+string(tc.requested)+"\"\n")
+					cfg, err := LoadForHome(
+						home, WithWorkspaceRoot(root), WithProfile(profile), withoutDotEnv(),
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if cfg.Tools.Policy.ExternalDefault != tc.want {
+						t.Fatalf("external default = %q, want %q", cfg.Tools.Policy.ExternalDefault, tc.want)
+					}
+				})
+			}
+			for _, tc := range []struct {
+				name, overlay string
+				want          []string
+			}{
+				{"Should inherit omitted trust", "", []string{"extension:personal", "extension:shared"}},
+				{"Should clear trust explicitly", "trusted_sources = []", nil},
+				{"Should narrow trust to a subset", `trusted_sources = ["extension:shared"]`,
+					[]string{"extension:shared"}},
+				{"Should discard added trust", `trusted_sources = ["extension:shared", "extension:project"]`,
+					[]string{"extension:shared"}},
+				{"Should refuse project-only trust", `trusted_sources = ["extension:project"]`, nil},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+					if err != nil {
+						t.Fatal(err)
+					}
+					root := t.TempDir()
+					writeFile(t, home.ConfigFile, `[tools.policy]
+trusted_sources = ["extension:personal", "extension:shared"]
+`)
+					path := workspaceConfigFile(root)
+					if profile != "" {
+						path = workspaceProfileConfigFile(root, profile)
+					}
+					writeFile(t, path, "[tools.policy]\n"+tc.overlay+"\n")
+					cfg, err := LoadForHome(
+						home, WithWorkspaceRoot(root), WithProfile(profile), withoutDotEnv(),
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !slices.Equal(cfg.Tools.Policy.TrustedSources, tc.want) {
+						t.Fatalf("trusted sources = %v, want %v", cfg.Tools.Policy.TrustedSources, tc.want)
+					}
+				})
+			}
+		})
+	}
 }
 
 func TestLoadRejectsUnknownToolsConfigKeys(t *testing.T) {

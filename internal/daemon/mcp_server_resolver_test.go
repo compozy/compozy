@@ -1413,6 +1413,38 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 			t.Fatalf("workspace trust bypassed approval=%+v %v", decision, err)
 		}
 	})
+	for _, scope := range []string{"workspace", "workspace_profile"} {
+		for _, tc := range []struct {
+			name, policy string
+			admitted     bool
+		}{
+			{"Should retain personal consent when project policy matches", "enabled", true},
+			{"Should require consent when a project tightens enabled to ask", "ask", false},
+			{"Should require consent when a project tightens enabled to disabled", "disabled", false},
+		} {
+			t.Run(tc.name+" in "+scope, func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				writeMCPDeclarationFile(t, home.ConfigFile, "[tools.policy]\nexternal_default = \"enabled\"\n")
+				state, req := newMCPConsentFixtureForHome(t, home)
+				root, err := state.workspaceResolver.Resolve(t.Context(), req.WorkspaceID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				path := filepath.Join(root.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
+				if scope == "workspace_profile" {
+					path = filepath.Join(root.RootDir, compozyconfig.DirName,
+						compozyconfig.ProfilesDirName, "default", compozyconfig.ConfigName)
+				}
+				writeMCPDeclarationFile(t, path,
+					fmt.Sprintf("[tools.policy]\nexternal_default = %q\n", tc.policy))
+				decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+				if err != nil || decision.Admitted != tc.admitted || decision.Waiting == tc.admitted {
+					t.Fatalf("project consent restriction=%+v %v, want admitted=%t", decision, err, tc.admitted)
+				}
+			})
+		}
+	}
 	t.Run("Should commit the file before approval and preserve it on approval failure", func(t *testing.T) {
 		t.Parallel()
 		for _, fail := range []bool{false, true} {
@@ -1454,8 +1486,14 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 
 func newMCPConsentFixture(t *testing.T) (*bootState, settingspkg.MCPConsentRequest) {
 	t.Helper()
+	return newMCPConsentFixtureForHome(t, testHomePaths(t))
+}
+
+func newMCPConsentFixtureForHome(
+	t *testing.T, home compozyconfig.HomePaths,
+) (*bootState, settingspkg.MCPConsentRequest) {
+	t.Helper()
 	db := openDaemonTestGlobalDB(t)
-	home := testHomePaths(t)
 	profiles, err := profilepkg.NewManager(
 		profilepkg.WithStore(db),
 		profilepkg.WithHomePaths(home),

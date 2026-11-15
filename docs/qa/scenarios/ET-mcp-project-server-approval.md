@@ -70,6 +70,10 @@ not performed for this repair under the operator's CI-only directive; integratio
 QA impact 2026-11-15 (release M1): while user/profile policy is disabled, add
 `[tools.policy] external_default = "enabled"` and `trusted_sources = ["mcp:sentry"]` to both
 workspace and workspace-profile config. The server must remain waiting, with no process launch
-and one ignored-policy warning per daemon process across repeated reads. Put enabled/trust policy
-in user or personal profile config and confirm it applies; project values cannot override it.
+and one ignored-grant warning per daemon process across repeated reads. For an unapproved fixture,
+put `enabled` in user or personal profile config with no project restriction and confirm it admits
+the server. Then set `ask` or `disabled` in each project layer: the server must return to waiting
+without starting. A later workspace-profile `enabled` cannot undo a workspace restriction. Verify
+that a project trust list retains only inherited entries, that `[]` removes them all, and that an
+omitted list inherits them; project files cannot add trusted sources.
 No local walk runs in release mode; main CI owns config and MCP consent integration evidence.

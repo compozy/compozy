@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 type toolsOverlay struct {
 	Enabled               *bool                 `toml:"enabled"`
@@ -81,5 +84,29 @@ func (o toolsPolicyOverlay) Apply(dst *ToolsPolicyConfig) {
 	}
 	if o.TrustedSources != nil {
 		dst.TrustedSources = append([]string(nil), (*o.TrustedSources)...)
+	}
+}
+
+func (o *toolsPolicyOverlay) restrictTo(inherited ToolsPolicyConfig) {
+	if o.ExternalDefault != nil {
+		loosens := (*o.ExternalDefault == ToolsExternalDefaultEnabled &&
+			inherited.ExternalDefault != ToolsExternalDefaultEnabled) ||
+			(*o.ExternalDefault == ToolsExternalDefaultAsk &&
+				inherited.ExternalDefault == ToolsExternalDefaultDisabled)
+		if loosens {
+			warnWorkspaceToolConsentPolicy()
+			o.ExternalDefault = nil
+		}
+	}
+	if o.TrustedSources != nil {
+		trusted := make([]string, 0, len(*o.TrustedSources))
+		for _, source := range *o.TrustedSources {
+			if !slices.Contains(inherited.TrustedSources, source) {
+				warnWorkspaceToolConsentPolicy()
+				continue
+			}
+			trusted = append(trusted, source)
+		}
+		o.TrustedSources = &trusted
 	}
 }
