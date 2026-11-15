@@ -276,15 +276,15 @@ func startManagedCommand(
 	cmd.Dir = cfg.Dir
 	cmd.Env = environment
 
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: open stdin pipe: %w", err)
-	}
 	stdout, stdoutWriter, err := os.Pipe()
 	if err != nil {
+		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: open stdout pipe: %w", err)
+	}
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
 		return nil, nil, nil, nil, nil, errors.Join(
-			fmt.Errorf("subprocess: open stdout pipe: %w", err),
-			closeCommandPipes(stdin),
+			fmt.Errorf("subprocess: open stdin pipe: %w", err),
+			closeCommandPipes(stdout, stdoutWriter),
 		)
 	}
 	// An explicitly owned pipe keeps Wait from closing unread stdout.

@@ -452,6 +452,13 @@ func cleanupProcessShutdownContract(t *testing.T, process *Process) {
 		if process == nil {
 			return
 		}
+		defer func() {
+			if stdout := process.Stdout(); stdout != nil {
+				if err := stdout.Close(); err != nil {
+					t.Errorf("close process stdout: %v", err)
+				}
+			}
+		}()
 		select {
 		case <-process.Done():
 			return

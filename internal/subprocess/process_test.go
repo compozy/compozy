@@ -17,6 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
@@ -140,7 +141,7 @@ func TestProcessStdoutLifetime(t *testing.T) {
 			select {
 			case <-process.Done():
 			case <-time.After(2 * time.Second):
-				t.Fatal("process completion blocked on unread stdout")
+				t.Fatal("timed out waiting for helper process exit")
 			}
 			waitErr := process.Wait()
 			if (waitErr != nil) != (tc.exitCode != 0) {
@@ -157,8 +158,37 @@ func TestProcessStdoutLifetime(t *testing.T) {
 			if want := strings.Repeat("short-lived output\n", 64); string(output) != want {
 				t.Fatalf("stdout after exit = %q, want %q", output, want)
 			}
+			if _, err := process.Stdout().Read(make([]byte, 1)); !errors.Is(err, io.EOF) {
+				t.Fatalf("Read(stdout) after EOF error = %v, want EOF", err)
+			}
 		})
 	}
+
+	t.Run("Should bound the output drain when a writer remains open", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			reader, writer := io.Pipe()
+			t.Cleanup(func() {
+				if err := writer.Close(); err != nil {
+					t.Errorf("close retained writer: %v", err)
+				}
+			})
+			process := &Process{stdout: reader}
+			readerDone := make(chan struct{})
+			readErr := make(chan error, 1)
+			go func() {
+				defer close(readerDone)
+				_, err := io.Copy(io.Discard, reader)
+				readErr <- err
+			}()
+			if err := process.waitForStdout(readerDone); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("waitForStdout() error = %v, want deadline exceeded", err)
+			}
+			if err := <-readErr; !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("stdout drain error = %v, want closed pipe", err)
+			}
+		})
+	})
 }
 
 func TestExitStatusExitCodeValue(t *testing.T) {

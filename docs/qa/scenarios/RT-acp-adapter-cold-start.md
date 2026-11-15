@@ -50,7 +50,9 @@ excluding recovered sessions, and one inventory read per doctor invocation.
 QA impact 2026-11-15 (#1747): a short-lived managed installer or adapter may exit
 before its stdout consumer reads. Confirm all emitted output remains readable
 after exit supervision completes, with the original exit code and no closed-file
-read error. A descendant inheriting stdout must not block process-tree cleanup.
+read error. A descendant inheriting stdout must not block process-tree cleanup;
+an escaped writer must trigger bounded transport drain with an explicit error.
+Preparation and native Codex probes must close stdout when they stop consuming it.
 The owning real-process checks are `TestProcessStdoutLifetime`,
 `TestProcessShutdownCancellationContract`, and `TestLocalLauncherEnvironmentInheritance`;
 Linux race and Windows execution are CI-owned. No local replay was run for this change.
