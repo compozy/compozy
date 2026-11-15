@@ -15,7 +15,7 @@ const (
 )
 
 // resolveClientRequestTimeout resolves the unary request budget of the daemon
-// client. The environment override wins over the config key; both are clamped so
+// client. The environment override wins over the config key; both are bounded so
 // a typo cannot remove the bound or hang a command forever. Streams keep their
 // untimed client.
 func resolveClientRequestTimeout(

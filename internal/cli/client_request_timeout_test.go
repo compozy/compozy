@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -129,7 +130,27 @@ func TestResolveClientRequestTimeout(t *testing.T) {
 }
 
 func TestCommandDepsApplyResolvedRequestTimeout(t *testing.T) {
-	t.Parallel()
+	// Invariant: the production loader's timeout rejection reaches the CLI client factory.
+	t.Run("Should reject an out-of-range timeout from the default config loader", func(t *testing.T) {
+		t.Setenv("COMPOZY_HOME", t.TempDir())
+		t.Setenv(ClientRequestTimeoutEnv, "")
+		homePaths, err := compozyconfig.ResolveHomePaths()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(homePaths.ConfigFile, []byte("[client]\nrequest_timeout = \"1s\"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		client, err := (commandDeps{}).withDefaults().newClient(LocalClientTarget("/tmp/compozy.sock"))
+		var timeoutErr *compozyconfig.ClientRequestTimeoutError
+		if !errors.As(err, &timeoutErr) || timeoutErr.Value != time.Second {
+			t.Fatalf("newClient() error = %v, want ClientRequestTimeoutError for 1s", err)
+		}
+		if client != nil {
+			t.Fatalf("newClient() = %T, want no client for rejected configuration", client)
+		}
+	})
 
 	t.Run("Should apply the resolved timeout only to unary requests", func(t *testing.T) {
 		t.Parallel()

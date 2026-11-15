@@ -46,3 +46,11 @@ QA impact 2026-11-13 (#1659): project-scope window-manager writes no longer pin 
 `[window_manager]` section. Scalars and gaps equal to the inherited value are removed from the
 project file; `global_shortcuts` and `cmd_palette.aliases` are written only when the request changes
 them. The keymap stays a whole-map override. Not walked yet.
+
+QA impact 2026-11-15 (#1687): `[client] request_timeout` is machine-only, defaults to 30s,
+and rejects values outside 5s–30m. `COMPOZY_CLIENT_TIMEOUT` wins before config validation.
+User-scope writes apply to subsequent unary CLI requests without a daemon restart; streams remain
+untimed. Profile/workspace overrides are denied. A combined timeout/log change must retain the log
+restart requirement. Existing config reload/profile and CLI timeout suites own automated coverage,
+including the default loader's typed rejection. Local verification and the scenario walk are
+prohibited by release mode; main CI owns execution and the live scenario remains unverified.
