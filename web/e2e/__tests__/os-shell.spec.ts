@@ -4,7 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Browser, CDPSession, Locator, Page } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
@@ -3670,20 +3670,8 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   }
   let worstPeerTask = 0;
   let peerAttribution: ReturnType<typeof attributePeerLongTasks> = [];
-  const peerProfilers: CDPSession[] = [];
   try {
     const peers = [peerA, peerB];
-    // Temporary release diagnosis: sample the unresolved convergence work in CI. These runs
-    // retain the 50ms assertions, but are labeled profiled and excluded from baseline rates.
-    // Start before warm-up so profiler setup adds no delay to the measured command interval.
-    for (const peer of peers) {
-      const profiler = await peer.context().newCDPSession(peer);
-      peerProfilers.push(profiler);
-      await profiler.send("Performance.enable");
-      await profiler.send("Profiler.enable");
-      await profiler.send("Profiler.setSamplingInterval", { interval: 2000 });
-      await profiler.send("Profiler.start");
-    }
     for (const peer of peers) {
       for (const id of perfWindowIDs.values()) {
         await expect(osShellSelectors(peer).tabOfWindow(id)).toHaveCount(1);
@@ -3718,35 +3706,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
       tabForWindow(await windowManagerSnapshot(runtime, workspace.id), marketplaceID)?.id
     ).toBe(tabForWindow(await windowManagerSnapshot(runtime, workspace.id), loopsID)?.id);
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
-    for (const [index, profiler] of peerProfilers.entries()) {
-      const { profile } = await profiler.send("Profiler.stop");
-      const { metrics } = await profiler.send("Performance.getMetrics");
-      await testInfo.attach(`peer-${index}-convergence-timeline`, {
-        body: JSON.stringify({ metrics, probe: peerProbes[index] }),
-        contentType: "application/json",
-      });
-      await testInfo.attach(`peer-${index}-convergence.cpuprofile`, {
-        body: JSON.stringify(profile),
-        contentType: "application/json",
-      });
-      // Read compiled sources only after the measured interval, to locate sampled minified
-      // functions without a local build or changing production bundles.
-      await profiler.send("Debugger.enable");
-      const scriptIds = new Set(
-        profile.nodes
-          .filter(node => (node.hitCount ?? 0) > 0 && node.callFrame.url.includes("/assets/"))
-          .map(node => node.callFrame.scriptId)
-      );
-      for (const scriptId of scriptIds) {
-        const { scriptSource } = await profiler.send("Debugger.getScriptSource", { scriptId });
-        await testInfo.attach(`peer-${index}-script-${scriptId}.js`, {
-          body: scriptSource,
-          contentType: "text/javascript",
-        });
-      }
-    }
   } finally {
-    for (const profiler of peerProfilers) await profiler.detach();
     await peerA.context().close();
     await peerB.context().close();
   }
@@ -3760,7 +3720,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     switchAttribution: attributeSwitchLongTasks(switchProbe, appOfWindow),
     tooltipsShownDuringSwitches: switchProbe.tooltipsShown,
     worstPeerConvergenceTaskMs: worstPeerTask,
-    peerCPUProfiled: true,
     // Each peer long task with the frame it ran in, and how long before the bar converged.
     peerAttribution,
   };
