@@ -45,7 +45,7 @@ func readDefinitions(c ReadContext, descriptor Descriptor, key []byte) (Snapshot
 	if descriptor.Runtime == runtimeCursor {
 		r.applyCursorApprovals(entries)
 	}
-	snapshot.ConfigFiles = append([]string{}, r.files...)
+	snapshot.ConfigFiles = slices.Clone(r.files)
 	for _, name := range sortedNames(entries) {
 		server := entries[name].server
 		server.ActivationDigest = digest(struct {

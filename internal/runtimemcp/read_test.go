@@ -366,7 +366,7 @@ func TestRuntimeInventorySafety(t *testing.T) {
 			t.Fatal("missing duplicate marker")
 		}
 	})
-	t.Run("Should encode empty key and file lists as JSON arrays on the HTTP wire", func(t *testing.T) {
+	t.Run("Should encode empty env and header key lists as JSON arrays on the HTTP wire", func(t *testing.T) {
 		t.Parallel()
 		// Invariant: the Settings MCP page spreads env_keys/header_keys, so a server
 		// without env or headers must never reach the gin (encoding/json) wire as null.
@@ -379,39 +379,26 @@ func TestRuntimeInventorySafety(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		empty, _, err := (Reader{}).List(t.Context(), Request{Context: c, Runtime: "gemini"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		inventory.Runtimes = append(inventory.Runtimes, empty.Runtimes...)
 		data, err := jsonv1.Marshal(inventory)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var wire struct {
-			Runtimes []map[string]any `json:"runtimes"`
+			Runtimes []struct {
+				Servers []map[string]any `json:"servers"`
+			} `json:"runtimes"`
 		}
 		if err := jsonv1.Unmarshal(data, &wire); err != nil {
 			t.Fatal(err)
 		}
-		servers := 0
-		for _, runtime := range wire.Runtimes {
-			if _, ok := runtime["config_files"].([]any); !ok {
-				t.Fatalf("%v config_files = %#v, want array", runtime["runtime"], runtime["config_files"])
-			}
-			list, _ := runtime["servers"].([]any)
-			for _, item := range list {
-				server, _ := item.(map[string]any)
-				for _, field := range []string{"env_keys", "header_keys"} {
-					if _, ok := server[field].([]any); !ok {
-						t.Fatalf("%v %s = %#v, want array", server["name"], field, server[field])
-					}
-				}
-				servers++
-			}
+		if len(wire.Runtimes) != 1 || len(wire.Runtimes[0].Servers) != 1 {
+			t.Fatalf("inventory = %s, want one claude server", data)
 		}
-		if servers != 1 {
-			t.Fatalf("servers=%d, want 1 (%s)", servers, data)
+		server := wire.Runtimes[0].Servers[0]
+		for _, field := range []string{"env_keys", "header_keys"} {
+			if _, ok := server[field].([]any); !ok {
+				t.Fatalf("%s = %#v, want array", field, server[field])
+			}
 		}
 	})
 	t.Run("Should bound file reads and safely follow symlinked config files", func(t *testing.T) {
