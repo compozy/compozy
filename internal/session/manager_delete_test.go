@@ -454,6 +454,7 @@ func TestManagerDelete(t *testing.T) {
 		metaPath := store.SessionMetaFile(session.SessionDir())
 		meta := readMeta(t, metaPath)
 		meta.ID = "different-session"
+		meta.Lineage.RootSessionID = meta.ID
 		payload, err := json.Marshal(meta)
 		if err != nil {
 			t.Fatal(err)
