@@ -134,14 +134,14 @@ func (m *Service) heartbeatCoordinatorLease(
 		if ctx.Err() != nil {
 			return
 		}
-		next := interval
-		switch {
-		case coordinatorLeaseLost(err):
+		next, stop := coordinatorHeartbeatStep(interval, err)
+		if stop {
 			cancel(fmt.Errorf("%w: coordinator run %q: %w", errCoordinatorLeaseLost, run.ID, err))
 			return
+		}
+		switch {
 		case err != nil:
 			slog.Warn("task: renew coordinator lease", "run_id", run.ID, "error", err)
-			next = coordinatorHeartbeatRetryInterval(interval)
 		case renewed != nil:
 			m.recordCoordinatorProgress(ctx, renewed.LoopRunID, renewed.HeartbeatAt)
 		}
@@ -186,4 +186,18 @@ func coordinatorHeartbeatInterval(leaseDuration time.Duration) time.Duration {
 // waiting a full heartbeat interval, which would let the claim expire after two failures.
 func coordinatorHeartbeatRetryInterval(interval time.Duration) time.Duration {
 	return max(interval/3, time.Millisecond)
+}
+
+// coordinatorHeartbeatStep decides when the next renewal runs. A claim the store rejects stops the
+// heartbeat; any other failure retries inside the lease window so a transient error cannot let the
+// claim expire and hand the run to a second attempt.
+func coordinatorHeartbeatStep(interval time.Duration, err error) (time.Duration, bool) {
+	switch {
+	case coordinatorLeaseLost(err):
+		return 0, true
+	case err != nil:
+		return coordinatorHeartbeatRetryInterval(interval), false
+	default:
+		return interval, false
+	}
 }
