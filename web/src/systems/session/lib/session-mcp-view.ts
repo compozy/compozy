@@ -104,7 +104,7 @@ export function sessionMCPControlLabel(
   const parts = [`MCP servers: ${summary.usable} ready`];
   if (summary.attention > 0) parts.push(`${summary.attention} need you`);
   if (options.reloadFailed) parts.push("couldn't start with the new servers");
-  else if (summary.pending_reload) parts.push("changes apply on your next message");
+  if (summary.pending_reload) parts.push("changes apply on your next message");
   return parts.join(", ");
 }
 

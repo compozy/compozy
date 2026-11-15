@@ -7,6 +7,7 @@ import { UIProvider } from "@compozy/ui";
 import {
   sessionMCPAllReadyFixture,
   sessionMCPNeedsSignInFixture,
+  sessionMCPReloadFailedFixture,
   sessionMCPSummaryFixture,
 } from "../../mocks/session-mcp-fixtures";
 import { MCPComposerControl } from "../mcp-composer-control";
@@ -73,6 +74,21 @@ describe("MCPComposerControl", () => {
     expect(
       screen.getByRole("button", {
         name: "MCP servers: 3 ready, 1 need you, changes apply on your next message",
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("composer-mcp-attention")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-mcp-pending")).toBeInTheDocument();
+  });
+
+  it("Should name a failed reload and the change still waiting for the next message", () => {
+    renderControl({
+      summary: sessionMCPSummaryFixture(sessionMCPReloadFailedFixture),
+      data: sessionMCPReloadFailedFixture,
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: /, couldn't start with the new servers, changes apply on your next message$/,
       })
     ).toBeInTheDocument();
     expect(screen.getByTestId("composer-mcp-attention")).toBeInTheDocument();
