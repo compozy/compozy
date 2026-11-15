@@ -50,7 +50,9 @@ Steps:
 7. From a same-workspace session with inherited MCP authority, create an always-on instance without
    naming an MCP restriction. Its stored ceiling retains the caller's inheritance mode and existing
    ancestor ceiling. An explicit tool restriction remains exact. Repeat in another workspace and
-   confirm the instance is bounded by the caller's server set at creation.
+   confirm the instance is bounded by the caller's server set at creation. Include a legacy
+   descendant of a depth-one instance with no intent or spawn marker: its own stored tool/server
+   lists stay restricted, including for a grandchild with only a parent-session link.
 
 Pass: C and every seeded non-delegated session retain tools and call echo without recreation; narrowed sessions keep their limits.
 Same-workspace instance creation preserves stored intent, while cross-workspace creation freezes its

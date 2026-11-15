@@ -67,5 +67,6 @@ native tools `compozy__mcp_list`, `compozy__mcp_allow`, `compozy__mcp_import` an
   older root budgets without materialization flags follow the current native, extension and MCP
   catalog. Forks, continued sessions and recovery sessions refresh their native tools too. Spawned
   and coordinator limits, explicit `allowed_tools` profiles, ancestor ceilings and lists authored
-  after the intent upgrade remain enforced.
+  after the intent upgrade remain enforced. Legacy descendants of delegated always-on instances
+  retain their own tool and server lists even when their session lineage has no spawn marker.
 - The public lineage `permission_policy.mcp_servers` now reports the session's effective server list.
