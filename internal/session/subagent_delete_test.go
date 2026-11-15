@@ -29,6 +29,27 @@ func (d *staleChildSubagents) GetSubagent(
 	return d.memorySubagents.GetSubagent(ctx, workspaceID, id)
 }
 
+type contextCheckingDeleteSubagents struct {
+	*memorySubagents
+}
+
+func (d contextCheckingDeleteSubagents) GetSubagent(
+	ctx context.Context,
+	workspaceID, id string,
+) (store.SessionSubagent, error) {
+	if err := ctx.Err(); err != nil {
+		return store.SessionSubagent{}, err
+	}
+	return d.memorySubagents.GetSubagent(ctx, workspaceID, id)
+}
+
+func (d contextCheckingDeleteSubagents) DeleteSubagent(ctx context.Context, workspaceID, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return d.memorySubagents.DeleteSubagent(ctx, workspaceID, id)
+}
+
 // Invariant: deleting a delegated subagent removes its child session and then its roster row, and
 // the settlement the child deletion triggers never finalizes or hooks the row on its way out.
 // Owner: session subagent delete suite (feature: subagent context menu).
@@ -108,6 +129,37 @@ func TestSubagentDelete(t *testing.T) {
 			})
 		},
 	)
+	t.Run("Should finish roster cleanup after the caller disconnects during child deletion", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		s.store = contextCheckingDeleteSubagents{memorySubagents: db}
+		parent := runtime.snapshots["parent"]
+		parent.Active = false
+		runtime.snapshots["parent"] = parent
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		runtime.deleteSettles = func(ctx context.Context, id string) error {
+			if err := s.OnChildSettled(ctx, id); err != nil {
+				return err
+			}
+			cancel()
+			return nil
+		}
+
+		if err := s.Delete(ctx, SubagentActor{Kind: SubagentActorOperator}, "ws", row.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := db.rows[row.ID]; ok {
+			t.Fatal("deleted child's roster row survived request cancellation")
+		}
+		if len(runtime.deleted) != 1 || runtime.deleted[0] != *row.ChildSessionID {
+			t.Fatalf("deleted children = %v", runtime.deleted)
+		}
+		if runtime.settles != 1 {
+			t.Fatalf("parent settlements = %d, want one", runtime.settles)
+		}
+	})
 	t.Run("Should refuse a provider-native row and keep it", func(t *testing.T) {
 		t.Parallel()
 		s, db, _ := newSubagentTestService(t)

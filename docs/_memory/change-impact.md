@@ -62,6 +62,9 @@ Owner: subagent menu feature, web half (backend half landed in the same branch).
   offer Copy only. `SubagentDeleteDialog` composes the existing Dialog primitives and blocks dismissal
   while the request runs. `useSessionSubagentActions` owns the delete/stop mutations and their rereads.
   This is additive: left click still opens the child session and the rail's existing menus are unchanged.
+- Review repair: after the child is removed, roster deletion, wake rewriting, and parent settlement
+  use a detached bounded cleanup context; a disconnected HTTP/UDS caller cannot strand a running row.
+  The canonical subagent delete service suite covers this boundary. No wire or persistence change.
 - The web consumes the backend's already-listed additive surfaces: `DELETE
   /api/workspaces/{workspace_id}/subagents/{subagent_id}?profile=…` (204; 409 `subagent_not_deletable`),
   the `compozy session subagents delete` CLI verb, and the `subagent_removed` session-stream event

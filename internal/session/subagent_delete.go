@@ -50,6 +50,9 @@ func (s *subagentService) Delete(
 	// The parent lock serializes the removal with delegation links and settlement.
 	// The pre-lock read can be stale, so the current row decides: a delegation that
 	// linked its child meanwhile must lose that session too, never outlive its row.
+	// Child removal is irreversible, so roster cleanup must survive a disconnected caller.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.stopBudget()+defaultLifecycleTimeout)
+	defer cancel()
 	var wakeErr, settleErr error
 	for {
 		unlock := s.lock(row.ParentSessionID)

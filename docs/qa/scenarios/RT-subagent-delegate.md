@@ -175,3 +175,6 @@ a child before removing the row.
 Review follow-up: repeat cancel and parent-stop with a completed intermediary that still has a live
 delegated descendant. The descendant must be canceled synchronously and the intermediary must retain
 its completed status, settlement time, and result. Release-mode execution belongs to main CI.
+
+Delete recovery follow-up: disconnect the HTTP/UDS caller after child history is removed; the roster
+row must still disappear and the idle parent must settle. Main CI owns release-mode execution.
