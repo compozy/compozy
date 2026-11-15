@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/session"
@@ -2189,13 +2190,20 @@ func startHostedMCPClient(
 	if strings.TrimSpace(stdio.Command) == "" {
 		t.Fatalf("hosted MCP stdio server = %#v, want command", stdio)
 	}
-	command := exec.CommandContext(ctx, stdio.Command, stdio.Args...)
+	processCtx, stopProcess := context.WithCancel(context.WithoutCancel(ctx))
+	t.Cleanup(stopProcess)
+	command := exec.CommandContext(processCtx, stdio.Command, stdio.Args...)
 	command.Env = append(os.Environ(), hostedMCPStdioEnv(stdio)...)
 	stderr, err := os.CreateTemp(t.ArtifactDir(), "hosted-mcp-proxy-*.log")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
+		if t.Failed() {
+			if output, err := os.ReadFile(stderr.Name()); err == nil {
+				t.Logf("hosted MCP proxy diagnostics: %s", diagnosticspkg.RedactAndBound(string(output), 16384))
+			}
+		}
 		if err := stderr.Close(); err != nil {
 			t.Error(err)
 		}
@@ -3465,8 +3473,18 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 				if !t.Failed() {
 					return
 				}
+				diagnosticCtx, cancelDiagnostics := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				defer cancelDiagnostics()
+				if output, err := os.ReadFile(
+					filepath.Join(harness.Artifacts.RootDir(), "daemon-process.log"),
+				); err == nil {
+					if len(output) > 32768 {
+						output = output[len(output)-32768:]
+					}
+					t.Logf("consent daemon diagnostics: %s", diagnosticspkg.RedactAndBound(string(output), 32768))
+				}
 				if err := harness.HTTPJSON(
-					ctx,
+					diagnosticCtx,
 					http.MethodGet,
 					"/api/settings/mcp-servers"+query,
 					nil,
@@ -3480,7 +3498,7 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 				}
 				var tools compozycontract.ToolsResponse
 				path := "/api/workspaces/" + harness.WorkspaceID + "/sessions/" + allowedSession.ID + "/tools"
-				if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &tools); err != nil {
+				if err := harness.HTTPJSON(diagnosticCtx, http.MethodGet, path, nil, &tools); err != nil {
 					t.Logf("session tools diagnostics: %v", err)
 					return
 				}
@@ -3490,9 +3508,11 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 					}
 				}
 			}()
+			probeCtx, cancelProbe := context.WithTimeout(ctx, 15*time.Second)
+			defer cancelProbe()
 			waitForRuntimeCondition(t, "consented MCP listing", 15*time.Second, func() bool {
 				found := false
-				for tool, err := range client.Tools(ctx, nil) {
+				for tool, err := range client.Tools(probeCtx, nil) {
 					if err != nil {
 						return false
 					}
@@ -4244,9 +4264,7 @@ func TestDaemonMCPHotActivationInheritance(t *testing.T) {
 			}
 			harness.Restart(t)
 			for _, id := range []string{forked.ID, continued.ID} {
-				if _, err := harness.ResumeSession(ctx, id); err != nil {
-					t.Fatal(err)
-				}
+				// Operator prompts resume stopped rows; attach only accepts a live runtime.
 				if _, err := harness.PromptSession(ctx, id, "noop"); err != nil {
 					t.Fatal(err)
 				}
