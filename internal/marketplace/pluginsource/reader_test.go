@@ -262,11 +262,13 @@ func (f marketplaceRoundTripper) RoundTrip(request *http.Request) (*http.Respons
 
 func githubMarketplaceSource(t *testing.T, handler marketplaceRoundTripper) *GitHubSource {
 	t.Helper()
+	// General fetch/error fixtures remain anonymous; the credential-isolation suite owns authentication.
 	source, err := NewGitHubSource("owner/repo", WithGitHubBaseURL("https://api.example.test"),
 		WithGitHubHTTPClient(&http.Client{Transport: handler}))
 	if err != nil {
 		t.Fatal(err)
 	}
+	github.WithToken("")(source.client)
 	t.Cleanup(func() {
 		if err := source.Close(); err != nil {
 			t.Error(err)
