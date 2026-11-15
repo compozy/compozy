@@ -116,6 +116,13 @@ func WithCancellationSessionController(controller CancellationSessionController)
 	}
 }
 
+// WithCoordinatorInterrupter injects post-commit interruption of in-flight coordinator evaluations.
+func WithCoordinatorInterrupter(interrupter CoordinatorInterrupter) Option {
+	return func(s *service) {
+		s.coordinatorInterrupt = interrupter
+	}
+}
+
 // WithCancellationConcurrency bounds concurrent post-commit session stops.
 func WithCancellationConcurrency(limit int) Option {
 	return func(s *service) {

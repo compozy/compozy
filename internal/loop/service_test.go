@@ -2937,6 +2937,39 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		}
 	})
 
+	t.Run("Should interrupt in-flight coordinator evaluation after terminal cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		run := seedFakeRun(store, loop.StatusRunning)
+		interrupter := &recordingCoordinatorInterrupter{
+			observe: func() loop.Status {
+				store.mu.Lock()
+				defer store.mu.Unlock()
+				return store.runs[run.ID].Status
+			},
+		}
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithCoordinatorInterrupter(interrupter),
+		)
+
+		if err := svc.CancelRun(t.Context(), run.WorkspaceID, run.ID, "operator request", humanActor(t)); err != nil {
+			t.Fatalf("CancelRun() error = %v", err)
+		}
+		if got, want := interrupter.loopRunIDs, []string{string(run.ID)}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("interrupted Loop runs = %#v, want %#v", got, want)
+		}
+		if got, want := interrupter.reasons, []string{"operator request"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("interrupt reasons = %#v, want %#v", got, want)
+		}
+		if interrupter.observed != loop.StatusCanceled {
+			t.Fatalf("status observed during interrupt = %q, want canceled", interrupter.observed)
+		}
+	})
+
 	t.Run("Should force one node and retain on cancel effects", func(t *testing.T) {
 		t.Parallel()
 
@@ -4312,4 +4345,18 @@ func humanActor(t *testing.T) task.ActorContext {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
 	return actor
+}
+
+type recordingCoordinatorInterrupter struct {
+	observe    func() loop.Status
+	observed   loop.Status
+	loopRunIDs []string
+	reasons    []string
+}
+
+func (r *recordingCoordinatorInterrupter) InterruptLoopCoordinatorRuns(loopRunID string, reason string) int {
+	r.observed = r.observe()
+	r.loopRunIDs = append(r.loopRunIDs, loopRunID)
+	r.reasons = append(r.reasons, reason)
+	return 1
 }
