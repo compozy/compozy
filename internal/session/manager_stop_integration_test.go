@@ -740,6 +740,23 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
+		// This fixture has no external MCP sources; retain its native permission intent.
+		manager.SetMCPAuthorityResolver(
+			lineageAuthorityFunc(func(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
+				info := MCPAuthoritySession(ctx, id)
+				if info == nil {
+					var err error
+					info, err = manager.StoredStatus(ctx, id)
+					if err != nil {
+						return store.SessionPermissionPolicy{}, err
+					}
+				}
+				lineage := store.NormalizeSessionLineage(id, info.Lineage)
+				policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+				policy.MCPServers = store.BoundMCPServers(policy, nil)
+				return policy, nil
+			}),
+		)
 
 		session, err := manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:     "coder",

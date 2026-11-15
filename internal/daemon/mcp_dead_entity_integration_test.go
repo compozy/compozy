@@ -79,7 +79,10 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 				t.Fatal(err)
 			}
 			writeDaemonFile(t, server.DefinitionSource, string(declaration))
-			home := integrationHomePaths(t)
+			home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
 			resolver, err := workspacepkg.NewResolver(globalDB, workspacepkg.WithHomePaths(home))
 			if err != nil {
 				t.Fatal(err)
