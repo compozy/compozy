@@ -13,6 +13,7 @@ import (
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/registry"
 )
 
@@ -184,8 +185,9 @@ func (e *ResponseError) Error() string { return e.message }
 
 // responseError retains the HTTP status separately from the bounded upstream diagnostic message.
 func responseError(response *http.Response, operation string, slug string) error {
-	message := readErrorMessage(response.Body)
-	summary := fmt.Sprintf("github: %s request failed for %q: %s", operation, slug, response.Status)
+	message := githubauth.RedactResponse(response, readErrorMessage(response.Body))
+	summary := fmt.Sprintf("github: %s request failed for %q: %d %s",
+		operation, slug, response.StatusCode, http.StatusText(response.StatusCode))
 	if message == "" {
 		return &ResponseError{StatusCode: response.StatusCode, message: summary}
 	}

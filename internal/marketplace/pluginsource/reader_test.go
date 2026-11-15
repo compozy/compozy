@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -91,7 +92,7 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 			}
 		},
 	)
-	t.Run("Should expose rate limiting without recommending credentials for a public source", func(t *testing.T) {
+	t.Run("Should expose rate limiting with actionable authentication guidance", func(t *testing.T) {
 		t.Parallel()
 		calls := 0
 		source := githubMarketplaceSource(t, func(request *http.Request) (*http.Response, error) {
@@ -103,7 +104,7 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 		_, err := source.Fetch(t.Context())
 		failure, ok := errors.AsType[*SourceError](err)
 		if !ok || !errors.Is(err, ErrSourceUnreachable) || failure.Reason != "rate_limited" || calls != 1 ||
-			strings.Contains(err.Error(), "GITHUB_TOKEN") {
+			!strings.Contains(err.Error(), "gh auth login") {
 			t.Fatalf("rate limit = %v, requests %d", err, calls)
 		}
 	})
@@ -170,8 +171,51 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 }
 
 func TestGitHubMarketplaceCredentialIsolation(t *testing.T) {
+	// Invariant: the existing daemon credential reaches only the configured HTTPS API origin.
+	t.Run("Should authenticate HTTPS catalog requests and never send credentials over HTTP", func(t *testing.T) {
+		t.Setenv("GITHUB_TOKEN", "marketplace-sentinel")
+		for _, secure := range []bool{true, false} {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				want := ""
+				if secure {
+					want = "Bearer marketplace-sentinel"
+				}
+				if r.Header.Get("Authorization") != want {
+					t.Error("unexpected catalog authentication")
+				}
+				body := `{"plugins":[]}`
+				if strings.Contains(r.URL.Path, "/commits/") {
+					body = strings.Repeat("a", 40)
+				}
+				if _, err := io.WriteString(w, body); err != nil {
+					t.Error(err)
+				}
+			})
+			var server *httptest.Server
+			if secure {
+				server = httptest.NewTLSServer(handler)
+			} else {
+				server = httptest.NewServer(handler)
+			}
+			t.Cleanup(server.Close)
+			source, err := NewGitHubSource(
+				"owner/repo",
+				WithGitHubBaseURL(server.URL),
+				WithGitHubHTTPClient(server.Client()),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := source.Fetch(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if err := source.Close(); err != nil {
+				t.Error(err)
+			}
+		}
+	})
 	// not parallel: ambient credentials are set only within this serial test.
-	t.Run("Should ignore ambient tokens and cookies without mutating the supplied client", func(t *testing.T) {
+	t.Run("Should reuse GitHub credentials without cookies or mutating the supplied client", func(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "test-ambient-token")
 		jar, err := cookiejar.New(nil)
 		if err != nil {
@@ -182,8 +226,9 @@ func TestGitHubMarketplaceCredentialIsolation(t *testing.T) {
 		client := &http.Client{
 			Jar: jar,
 			Transport: marketplaceRoundTripper(func(request *http.Request) (*http.Response, error) {
-				if request.Header.Get("Authorization") != "" || request.Header.Get("Cookie") != "" {
-					t.Error("marketplace request carried ambient credentials")
+				if request.Header.Get("Authorization") != "Bearer test-ambient-token" ||
+					request.Header.Get("Cookie") != "" {
+					t.Error("marketplace request must reuse the token without cookies")
 				}
 				if strings.Contains(request.URL.Path, "/commits/") {
 					return marketplaceHTTPResponse(t, request, http.StatusOK, strings.Repeat("a", 40)), nil

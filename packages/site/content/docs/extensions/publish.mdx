@@ -144,8 +144,9 @@ Source-union search spans the curated catalog and GitHub:
 compozy extension search notes --sources curated,github
 ```
 
-GitHub discovery is unauthenticated by default and subject to anonymous rate limits; a
-`GITHUB_TOKEN` in the daemon environment raises them. A rate-limited or unreachable source degrades
+GitHub discovery uses `GITHUB_TOKEN` from the daemon environment, then the daemon user's
+`gh auth token` login, and otherwise anonymous access. Run `gh auth login` as that user to
+raise the shared anonymous rate limit. A rate-limited or unreachable source degrades
 to cached-or-omitted results with a `sources_degraded` marker rather than failing the whole search.
 
 The curated catalog remains a separate, editorially selected feed with digest pinning. Publishing

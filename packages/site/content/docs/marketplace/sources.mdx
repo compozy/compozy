@@ -9,6 +9,21 @@ Marketplace. The folder or repository must contain `marketplace.json` at its roo
 Each listed plugin is loaded with the same manifest loader used during installation. The listing
 reports `installable`, `install_blocker`, layout, category, and the digest of its captured package.
 
+## GitHub authentication and rate limits
+
+GitHub plugin sources, extension discovery and update checks use `GITHUB_TOKEN` from the daemon
+process environment, then `gh auth token --hostname github.com` for the daemon's user. Run
+`gh auth login` as that user if the desktop-launched daemon has no environment token. A missing
+or signed-out GitHub CLI falls back to anonymous access. The CLI lookup has a five-second timeout;
+its result stays in memory for one minute and is never written to CompozyOS configuration or caches.
+Extension-instance secret bindings remain private to their extension and are not imported here.
+
+Credentials are sent only to the exact HTTPS API origin, and are removed on cross-origin redirects.
+A source that hits a GitHub rate limit keeps its last good catalog and reports `rate_limited`, the
+retry deadline, and recovery guidance. Reads and explicit refreshes honor `Retry-After` and
+`X-RateLimit-Reset`, with at least a one-minute backoff. Backoff is held in memory for the current
+source configuration; restarting the daemon can make a new attempt.
+
 ## Default sources
 
 CompozyOS ships with preset sources. `compozy-plugins` is the CompozyOS-curated plugin catalog,

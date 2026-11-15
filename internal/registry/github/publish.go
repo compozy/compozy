@@ -230,7 +230,8 @@ func (c *Client) doMutationRequest(
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
-	if token := strings.TrimSpace(c.token); token != "" && c.networkPolicy.IsTrustedOrigin(request.URL) {
+	if token := strings.TrimSpace(c.token); token != "" && request.URL.Scheme == "https" &&
+		c.networkPolicy.IsTrustedOrigin(request.URL) {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
 	response, err := c.httpClient.Do(request)

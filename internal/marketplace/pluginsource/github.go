@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/registry/github"
@@ -29,8 +30,9 @@ var _ io.Closer = (*GitHubSource)(nil)
 type GitHubOption func(*gitHubOptions)
 
 type gitHubOptions struct {
-	baseURL string
-	client  *http.Client
+	baseURL     string
+	client      *http.Client
+	credentials *githubauth.Resolver
 }
 
 func WithGitHubBaseURL(baseURL string) GitHubOption {
@@ -62,9 +64,13 @@ func NewGitHubSource(ref string, options ...GitHubOption) (*GitHubSource, error)
 		client.Timeout = fetchTimeout
 		client.Jar = nil
 	}
+	clientOptions := []github.Option{github.WithHTTPClient(&client)}
+	if configuration.credentials != nil {
+		clientOptions = append(clientOptions, github.WithCredentials(configuration.credentials))
+	}
 	return &GitHubSource{
 		ref: normalized, repo: repo,
-		client: github.NewClient(configuration.baseURL, github.WithToken(""), github.WithHTTPClient(&client)),
+		client: github.NewClient(configuration.baseURL, clientOptions...),
 	}, nil
 }
 
@@ -111,6 +117,9 @@ type SourceError struct {
 var _ error = &SourceError{}
 
 func (e *SourceError) Error() string {
+	if limited, ok := errors.AsType[*githubauth.RateLimitError](e.Cause); ok {
+		return fmt.Sprintf("%s: %s: %s", ErrSourceUnreachable, e.Reason, limited)
+	}
 	return fmt.Sprintf("%s: %s", ErrSourceUnreachable, e.Reason)
 }
 

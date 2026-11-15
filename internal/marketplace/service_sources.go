@@ -14,10 +14,12 @@ import (
 )
 
 type registeredSource struct {
-	binding     SourceBinding
-	generation  int64
-	flight      *refreshFlight
-	lastAttempt time.Time
+	binding      SourceBinding
+	generation   int64
+	flight       *refreshFlight
+	lastAttempt  time.Time
+	backoffUntil time.Time
+	lastRefresh  *refreshFlight
 }
 
 // ValidateSources checks a candidate without publishing source membership or changing generations.

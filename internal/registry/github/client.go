@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/retry"
@@ -46,6 +47,10 @@ type Client struct {
 	maxRetries     int
 	logger         *slog.Logger
 	token          string
+	credentials    *githubauth.Resolver
+	rateMu         sync.Mutex
+	rateLimited    *githubauth.RateLimitError
+	now            func() time.Time
 	closeOnce      sync.Once
 	networkPolicy  outboundpolicy.Policy
 	networkErr     error
@@ -104,6 +109,8 @@ func NewClient(baseURL string, opts ...Option) *Client {
 		maxRetries:     defaultMaxRetries,
 		logger:         slog.Default(),
 		token:          strings.TrimSpace(os.Getenv("GITHUB_TOKEN")),
+		credentials:    githubauth.NewResolver(nil),
+		now:            time.Now,
 	}
 	if client.baseURL == "" {
 		client.baseURL = defaultBaseURL
@@ -213,7 +220,12 @@ func WithLogger(logger *slog.Logger) Option {
 func WithToken(token string) Option {
 	return func(client *Client) {
 		client.token = strings.TrimSpace(token)
+		client.credentials = nil
 	}
+}
+
+func WithCredentials(resolver *githubauth.Resolver) Option {
+	return func(client *Client) { client.credentials = resolver }
 }
 
 // Name reports the registry source name.
