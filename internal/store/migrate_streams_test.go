@@ -1452,19 +1452,10 @@ func TestPermissionIntentMarkerMigration(t *testing.T) {
 					fixtures = append(fixtures, sessionFixture{id, kind, "user", explicitPolicy, false})
 				}
 			}
-			if err := db.Close(); err != nil {
+			// This fixture owns SQL migration intent; runtime telemetry relocation has its own suite.
+			if err := store.Apply(ctx, db, stream); err != nil {
 				t.Fatal(err)
 			}
-			upgraded, err := globaldb.OpenGlobalDB(ctx, dbPath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() {
-				if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
-					t.Error(err)
-				}
-			})
-			db = upgraded.DB()
 			status, err := store.Status(ctx, db, stream)
 			if err != nil || status.Version != 203 {
 				t.Fatalf("upgraded status=%+v err=%v", status, err)
