@@ -222,7 +222,10 @@ describe("visibleSessionOrder", () => {
   // Invariant (#1732): the cycle walks a thread's children in the rows' order, active work first.
   it("Should cycle a thread's active children before the rest", () => {
     const root = session("root");
-    const child = (id: string, badge: string) => ({ ...session(id, undefined, "root"), badge });
+    const child = (id: string, badge: SessionPayload["badge"]) => ({
+      ...session(id, undefined, "root"),
+      badge,
+    });
 
     expect(
       order(

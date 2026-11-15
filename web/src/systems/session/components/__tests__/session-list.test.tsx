@@ -1089,7 +1089,7 @@ describe("SessionList subagents", () => {
 
     // Invariant (#1732): active children never hide behind "Show more", even past the cap.
     it("Should show every active child when they outnumber the cap", () => {
-      const running = { badge: "running" };
+      const running = { badge: "running" } as const;
       renderList({
         sessions: parentWithChildren(10, {
           2: running,
