@@ -3600,8 +3600,13 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 		}
 	}
 
+	// Invariant: the batch gets one configured timeout per target without changing
+	// the shared client. Owner: CLI HTTP client; canonical suite: worktree cleanup.
 	t.Run("Should allow batch removal to outlive the shared client timeout", func(t *testing.T) {
 		t.Parallel()
+		const timeout = time.Second
+		arrived := make(chan struct{}, 1)
+		release := make(chan struct{}, 1)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost || r.URL.Path != "/api/workspaces/ws-1/worktrees/remove" {
 				t.Errorf("batch request = %s %s", r.Method, r.URL.Path)
@@ -3614,10 +3619,9 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 			if len(request.Targets) != 2 || request.Targets[0].Ref != "one" || request.Targets[1].Ref != "two" {
 				t.Errorf("targets = %#v", request.Targets)
 			}
-			timer := time.NewTimer(50 * time.Millisecond)
-			defer timer.Stop()
+			arrived <- struct{}{}
 			select {
-			case <-timer.C:
+			case <-release:
 				if _, err := io.WriteString(
 					w,
 					`{"dry_run":false,"results":[{"target":{"ref":"one"},"state":"removed"},{"target":{"ref":"two"},"state":"removed"}]}`,
@@ -3625,8 +3629,60 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 					t.Error(err)
 				}
 			case <-r.Context().Done():
-				t.Error("batch canceled at the shared client timeout")
+				t.Error("batch canceled before its handler was released")
 			}
+		}))
+		defer server.Close()
+		defer close(release)
+		transport := server.Client()
+		base := transport.Transport
+		transport.Transport = roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			deadline, ok := r.Context().Deadline()
+			remaining := time.Until(deadline)
+			if !ok || remaining <= timeout || remaining > 2*timeout {
+				t.Errorf("batch deadline budget = %s, want (%s, %s]", remaining, timeout, 2*timeout)
+			}
+			return base.RoundTrip(r)
+		})
+		transport.Timeout = timeout
+		client := &daemonClient{
+			httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
+		}
+		type outcome struct {
+			response contract.RemoveWorktreesResponse
+			err      error
+		}
+		completed := make(chan outcome, 1)
+		go func() {
+			response, err := client.RemoveWorktrees(t.Context(), "ws-1", contract.RemoveWorktreesRequest{
+				Targets: []contract.WorktreeRemovalTarget{{Ref: "one"}, {Ref: "two"}},
+			})
+			completed <- outcome{response, err}
+		}()
+		select {
+		case <-arrived:
+		case result := <-completed:
+			t.Fatalf("batch ended before handler arrival: %v", result.err)
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		}
+		release <- struct{}{}
+		result := <-completed
+		if result.err != nil || len(result.response.Results) != 2 || result.response.Results[1].State != "removed" {
+			t.Fatalf("batch response = %#v, %v", result.response, result.err)
+		}
+		if transport.Timeout != timeout {
+			t.Fatal("shared client timeout changed")
+		}
+	})
+
+	t.Run("Should cancel a stalled batch at its multiplied deadline", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				return
+			}
+			<-r.Context().Done()
 		}))
 		defer server.Close()
 		transport := server.Client()
@@ -3634,14 +3690,11 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 		client := &daemonClient{
 			httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
 		}
-		response, err := client.RemoveWorktrees(t.Context(), "ws-1", contract.RemoveWorktreesRequest{
+		_, err := client.RemoveWorktrees(t.Context(), "ws-1", contract.RemoveWorktreesRequest{
 			Targets: []contract.WorktreeRemovalTarget{{Ref: "one"}, {Ref: "two"}},
 		})
-		if err != nil || len(response.Results) != 2 || response.Results[1].State != "removed" {
-			t.Fatalf("batch response = %#v, %v", response, err)
-		}
-		if transport.Timeout != time.Millisecond {
-			t.Fatal("shared client timeout changed")
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("batch error = %v, want deadline exceeded", err)
 		}
 	})
 

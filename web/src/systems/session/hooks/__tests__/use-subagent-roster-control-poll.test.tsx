@@ -177,6 +177,24 @@ describe("subagent roster control poll", () => {
       rows: [],
       snapshotPending: true,
     });
+    // A pending read from the previous activation must also be discarded.
+    const superseded = confirm;
+    enabled = false;
+    rerender();
+    expect(vi.mocked(fetchSessionSubagents).mock.calls[1]?.[3]?.aborted).toBe(true);
+    enabled = true;
+    rerender();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      superseded({ subagents: [row("superseded", "running")], next_cursor: null });
+    });
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)).toMatchObject({
+      rows: [],
+      snapshotPending: true,
+    });
     await act(async () => {
       confirm({ subagents: [], next_cursor: null });
     });

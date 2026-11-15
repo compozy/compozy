@@ -31,6 +31,16 @@ export function useSubagentRosterControlPoll({
   intervalMs: number | false;
 }): void {
   const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!enabled) return;
+    // A read from this activation must not confirm the next prompt's roster.
+    return () => {
+      void queryClient.cancelQueries({
+        queryKey: sessionKeys.subagentRosterPoll(workspaceId, sessionId),
+        exact: true,
+      });
+    };
+  }, [enabled, queryClient, sessionId, workspaceId]);
   const poll = useQuery({
     ...sessionSubagentRosterPollOptions(workspaceId, sessionId),
     enabled: enabled && workspaceId !== "" && sessionId !== "",

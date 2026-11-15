@@ -392,29 +392,16 @@ describe("subagent card drill-in (UT-W16)", () => {
       next_cursor: null,
     });
     let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
-    let selectNext!: () => void;
-    function OpenDrawer() {
-      const drawer = use(SubagentDrawerContext);
-      selectNext = () => drawer?.open(next, { newWindow: false }, WORKSPACE_ID);
-      return (
-        <button
-          type="button"
-          onClick={() => drawer?.open(first, { newWindow: false }, WORKSPACE_ID)}
-        >
-          Inspect first
-        </button>
-      );
-    }
-    render(
-      <QueryClientProvider client={client}>
-        <UIProvider>
-          <SessionSubagentDrawer openSession={vi.fn()}>
-            <OpenDrawer />
-          </SessionSubagentDrawer>
-        </UIProvider>
-      </QueryClientProvider>
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Inspect first" }));
+    const { result } = renderHook(() => use(SubagentDrawerContext), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>
+          <UIProvider>
+            <SessionSubagentDrawer openSession={vi.fn()}>{children}</SessionSubagentDrawer>
+          </UIProvider>
+        </QueryClientProvider>
+      ),
+    });
+    act(() => result.current?.open(first, { newWindow: false }, WORKSPACE_ID));
     await waitFor(() => expect(screen.getByText(first.title)).toBeVisible());
     await waitFor(() => expect(client.isFetching()).toBe(0));
     vi.mocked(fetchSessionSubagents).mockReturnValueOnce(
@@ -423,7 +410,7 @@ describe("subagent card drill-in (UT-W16)", () => {
       })
     );
     // The modal makes its background inert; another host can still select a new row.
-    act(() => selectNext());
+    act(() => result.current?.open(next, { newWindow: false }, WORKSPACE_ID));
     expect(await screen.findByText(next.title)).toBeVisible();
     await act(async () => {
       confirm({ subagents: [], next_cursor: null });
