@@ -118,8 +118,9 @@ func TestRuntimeDecoders(t *testing.T) {
 		c := fixtureContext(t)
 		putFixture(t, c, "codex/config.toml", filepath.Join(c.Home, ".codex", "config.toml"))
 		server := serverFor(t, groupFor(t, c, "codex"), "computer-use")
-		if server.EnvKeys == nil || server.HeaderKeys == nil {
-			t.Fatalf("nil key lists: env=%#v headers=%#v", server.EnvKeys, server.HeaderKeys)
+		if server.EnvKeys == nil || len(server.EnvKeys) != 0 ||
+			server.HeaderKeys == nil || len(server.HeaderKeys) != 0 {
+			t.Fatalf("want empty non-nil key lists: env=%#v headers=%#v", server.EnvKeys, server.HeaderKeys)
 		}
 	})
 	cases := []struct {
