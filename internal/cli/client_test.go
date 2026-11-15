@@ -5550,6 +5550,43 @@ func TestSubagentClientRequests(t *testing.T) {
 			t.Fatalf("row=%#v error=%v", row, err)
 		}
 	})
+	// Invariant: list/show/cancel API errors preserve the released exit code and a single message.
+	// Owner: CLI client error translation; canonical suite: TestSubagentClientRequests.
+	for _, operation := range []string{"list", "show", "cancel"} {
+		for _, status := range []int{http.StatusBadRequest, http.StatusNotFound, http.StatusConflict} {
+			t.Run(fmt.Sprintf("Should preserve exit one for %s status %d", operation, status), func(t *testing.T) {
+				t.Parallel()
+				client := &daemonClient{
+					target: LocalClientTarget("/tmp/compozy.sock"),
+					httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+						if request.URL.Path == "/api/sessions/parent" {
+							return newHTTPResponse(200, `{"session":{"id":"parent","workspace_id":"ws"}}`), nil
+						}
+						return newHTTPResponse(status, `{"code":"subagent_error","error":"request refused"}`), nil
+					})},
+				}
+				var err error
+				switch operation {
+				case "list":
+					_, err = client.ListSessionSubagents(t.Context(), "parent", SubagentListQuery{})
+				case "show":
+					_, err = client.GetSubagent(t.Context(), "ws", "missing")
+				case "cancel":
+					_, err = client.CancelSubagent(t.Context(), "ws", "missing", "")
+				}
+				want := "subagent_error: request refused"
+				if status == http.StatusNotFound {
+					want = "subagent_not_found: subagent missing not found"
+					if operation == "list" {
+						want = "session_not_found: Session parent not found."
+					}
+				}
+				if err == nil || err.Error() != want || cliExitCodeForError(err) != 1 {
+					t.Fatalf("error = %v, exit = %d; want %q, exit 1", err, cliExitCodeForError(err), want)
+				}
+			})
+		}
+	}
 	t.Run("Should encode list filters and preserve the page envelope", func(t *testing.T) {
 		t.Parallel()
 		client := &daemonClient{

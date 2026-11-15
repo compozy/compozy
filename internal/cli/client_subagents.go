@@ -88,7 +88,10 @@ func (c *daemonClient) DeleteSubagent(ctx context.Context, workspaceID, id strin
 		return err
 	}
 	err = c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
-	return subagentClientError(err, "subagent_not_found", "subagent "+id+" not found")
+	if apiError, ok := errors.AsType[*daemonAPIError](err); ok && apiError.payload.Code != "" {
+		return fmt.Errorf("%s: %w", apiError.payload.Code, err)
+	}
+	return err
 }
 
 func subagentClientPath(workspaceID, id string) (string, error) {
@@ -112,10 +115,10 @@ func subagentClientError(err error, notFoundCode, notFoundMessage string) error 
 		return err
 	}
 	if apiError.statusCode == http.StatusNotFound {
-		return fmt.Errorf("%s: %s: %w", notFoundCode, notFoundMessage, err)
+		return fmt.Errorf("%s: %s", notFoundCode, notFoundMessage)
 	}
 	if apiError.payload.Code != "" {
-		return fmt.Errorf("%s: %s: %w", apiError.payload.Code, apiError.payload.Error, err)
+		return fmt.Errorf("%s: %s", apiError.payload.Code, apiError.payload.Error)
 	}
 	return err
 }
