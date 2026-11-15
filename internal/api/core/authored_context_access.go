@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 
 	"github.com/gin-gonic/gin"
 )
@@ -203,6 +204,8 @@ func (h *BaseHandlers) heartbeatWakeEvents(
 func SessionPayloadWithQueue(ctx context.Context, reader interface {
 	InputQueueSummary(context.Context, string) (session.InputQueueSummary, error)
 }, info *session.Info) (contract.SessionPayload, error) {
+	// A payload displays authority; it must not run live MCP discovery per session.
+	ctx = toolspkg.WithCachedMCPProjection(ctx)
 	if authority, ok := reader.(session.MCPAuthorityResolver); ok {
 		if err := session.PopulateEffectiveMCPAuthority(ctx, authority, info); err != nil {
 			return contract.SessionPayload{}, err

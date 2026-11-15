@@ -21,6 +21,9 @@ type mcpAuthorityScope struct {
 type mcpAuthorityReadCache map[mcpAuthorityScopeKey]mcpAuthorityScope
 
 func (r *nativeToolPolicyResolver) MCPAuthorityReadContext(ctx context.Context) context.Context {
+	if mcpAuthorityRead(ctx) {
+		return ctx
+	}
 	return context.WithValue(ctx, mcpAuthorityReadKey{}, make(mcpAuthorityReadCache))
 }
 
