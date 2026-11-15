@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/admission"
@@ -47,6 +48,9 @@ type inMemoryManagerStore struct {
 	coordinatorCompleted      bool
 	coordinatorPlanSuperseded bool
 	lastClaimCriteria         ClaimCriteria
+	getTaskRunErrs            []error
+	heartbeatRunLeaseErrs     []error
+	coordinatorRunActive      func() bool
 }
 
 func TestManagerClaimNextRunInjectsTrustedWorkspaceCapacity(t *testing.T) {
@@ -321,6 +325,7 @@ func (e *forbiddenSessionExecutor) ForceTaskStop(context.Context, string, StopRe
 }
 
 type recordingCoordinatorRunner struct {
+	run   func(context.Context, RunID) (CoordinatorCompletionPlan, error)
 	calls []RunID
 	plan  CoordinatorCompletionPlan
 	err   error
@@ -353,8 +358,11 @@ func (a *recordingCoordinatorTimerArmer) ArmCoordinatorTimer(
 	return nil
 }
 
-func (r *recordingCoordinatorRunner) Run(_ context.Context, taskRunID RunID) (CoordinatorCompletionPlan, error) {
+func (r *recordingCoordinatorRunner) Run(ctx context.Context, taskRunID RunID) (CoordinatorCompletionPlan, error) {
 	r.calls = append(r.calls, taskRunID)
+	if r.run != nil {
+		return r.run(ctx, taskRunID)
+	}
 	if r.err != nil {
 		return CoordinatorCompletionPlan{}, r.err
 	}
@@ -1788,7 +1796,21 @@ func (s *inMemoryManagerStore) TransitionTerminalRun(
 	return cloneTaskRun(updated), nil
 }
 
+func (s *inMemoryManagerStore) CoordinatedLoopRunLive(context.Context, string) (bool, error) {
+	if s.coordinatorRunActive == nil {
+		return true, nil
+	}
+	return s.coordinatorRunActive(), nil
+}
+
 func (s *inMemoryManagerStore) GetTaskRun(_ context.Context, id string) (Run, error) {
+	if len(s.getTaskRunErrs) > 0 {
+		err := s.getTaskRunErrs[0]
+		s.getTaskRunErrs = s.getTaskRunErrs[1:]
+		if err != nil {
+			return Run{}, err
+		}
+	}
 	run, ok := s.runs[strings.TrimSpace(id)]
 	if !ok {
 		return Run{}, ErrTaskRunNotFound
@@ -2189,6 +2211,13 @@ func (s *inMemoryManagerStore) HeartbeatRunLease(
 	_ context.Context,
 	heartbeat LeaseHeartbeat,
 ) (Run, error) {
+	if len(s.heartbeatRunLeaseErrs) > 0 {
+		err := s.heartbeatRunLeaseErrs[0]
+		s.heartbeatRunLeaseErrs = s.heartbeatRunLeaseErrs[1:]
+		if err != nil {
+			return Run{}, err
+		}
+	}
 	normalized, err := heartbeat.Normalize(time.Now().UTC())
 	if err != nil {
 		return Run{}, err
@@ -10087,6 +10116,138 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should renew an inline coordinator for ten simulated minutes", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			store := newInMemoryManagerStore()
+			runner := &recordingCoordinatorRunner{}
+			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
+				initial := store.runs[string(id)]
+				for range 20 {
+					time.Sleep(30 * time.Second)
+					synctest.Wait()
+					current := store.runs[string(id)]
+					if ctx.Err() != nil || !current.LeaseUntil.After(time.Now()) {
+						t.Fatalf(
+							"coordinator lost lease: context=%v lease=%s now=%s", ctx.Err(), current.LeaseUntil, time.Now(),
+						)
+					}
+				}
+				current := store.runs[string(id)]
+				if !current.HeartbeatAt.After(initial.LeaseUntil) || current.Attempt != initial.Attempt {
+					t.Fatalf("coordinator = %#v, want renewed original attempt", current)
+				}
+				return CoordinatorCompletionPlan{Snapshot: GenerationSnapshot{
+					LoopRunID: initial.LoopRunID, Generation: 1,
+				}}, nil
+			}
+			result, err := testManagerStartCoordinatorWithStore(t, store, runner, "long-gate", time.Now)
+			if err != nil || result.Status != TaskRunStatusCompleted || len(runner.calls) != 1 {
+				t.Fatalf("StartRun() = %#v, %v; calls=%v", result, err, runner.calls)
+			}
+		})
+	})
+
+	t.Run("Should tolerate transient storage failures within the confirmed lease", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			store := newInMemoryManagerStore()
+			runner := &recordingCoordinatorRunner{}
+			runner.run = func(_ context.Context, id RunID) (CoordinatorCompletionPlan, error) {
+				synctest.Wait()
+				store.getTaskRunErrs = []error{errors.New("transient read failure")}
+				store.heartbeatRunLeaseErrs = []error{errors.New("transient heartbeat failure")}
+				time.Sleep(30 * time.Second)
+				synctest.Wait()
+				current := store.runs[string(id)]
+				if len(store.getTaskRunErrs) != 0 || len(store.heartbeatRunLeaseErrs) != 0 ||
+					!current.HeartbeatAt.After(current.ClaimedAt) {
+					t.Fatalf("coordinator did not recover its heartbeat: %#v", current)
+				}
+				return CoordinatorCompletionPlan{Snapshot: GenerationSnapshot{
+					LoopRunID: current.LoopRunID, Generation: 1,
+				}}, nil
+			}
+			result, err := testManagerStartCoordinatorWithStore(t, store, runner, "transient-gate", time.Now)
+			if err != nil || result.Status != TaskRunStatusCompleted {
+				t.Fatalf("StartRun() = %#v, %v", result, err)
+			}
+		})
+	})
+
+	t.Run("Should cancel a superseded coordinator before it can settle a stale plan", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			store := newInMemoryManagerStore()
+			runner := &recordingCoordinatorRunner{}
+			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
+				synctest.Wait()
+				current := store.runs[string(id)]
+				current.ClaimTokenHash = "superseding-claim"
+				store.runs[string(id)] = current
+				<-ctx.Done()
+				// Even a runner that ignores cancellation cannot settle its returned plan.
+				return CoordinatorCompletionPlan{Snapshot: GenerationSnapshot{
+					LoopRunID: current.LoopRunID, Generation: 1,
+				}}, nil
+			}
+			_, err := testManagerStartCoordinatorWithStore(t, store, runner, "superseded", time.Now)
+			if !errors.Is(err, ErrInvalidClaimToken) || len(store.coordinatorCompletions) != 0 {
+				t.Fatalf(
+					"StartRun() error=%v completions=%d, want fenced attempt", err, len(store.coordinatorCompletions),
+				)
+			}
+		})
+	})
+
+	t.Run("Should fence a coordinator whose owning Loop becomes inactive", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			store := newInMemoryManagerStore()
+			runner := &recordingCoordinatorRunner{}
+			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
+				synctest.Wait()
+				store.coordinatorRunActive = func() bool { return false }
+				<-ctx.Done()
+				return CoordinatorCompletionPlan{Snapshot: GenerationSnapshot{
+					LoopRunID: store.runs[string(id)].LoopRunID, Generation: 1,
+				}}, nil
+			}
+			_, err := testManagerStartCoordinatorWithStore(t, store, runner, "inactive-owner", time.Now)
+			if !errors.Is(err, ErrCoordinatorInterrupted) || len(store.coordinatorCompletions) != 0 {
+				t.Fatalf(
+					"StartRun() error=%v completions=%d, want owner fence", err, len(store.coordinatorCompletions),
+				)
+			}
+		})
+	})
+
+	t.Run("Should stop before the last confirmed lease expires during repeated renewal errors", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			store := newInMemoryManagerStore()
+			runner := &recordingCoordinatorRunner{}
+			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
+				synctest.Wait()
+				for range 100 {
+					store.heartbeatRunLeaseErrs = append(store.heartbeatRunLeaseErrs, errors.New("busy store"))
+				}
+				deadline := store.runs[string(id)].LeaseUntil
+				<-ctx.Done()
+				if !time.Now().Before(deadline) {
+					t.Fatal("evaluation continued past its last confirmed lease")
+				}
+				return CoordinatorCompletionPlan{}, ctx.Err()
+			}
+			_, err := testManagerStartCoordinatorWithStore(t, store, runner, "unconfirmed-lease", time.Now)
+			if !errors.Is(err, ErrLeaseExpired) || len(store.coordinatorCompletions) != 0 {
+				t.Fatalf(
+					"StartRun() error=%v completions=%d, want lease deadline fence", err, len(store.coordinatorCompletions),
+				)
+			}
+		})
+	})
+
 	t.Run("Should fail closed when committed timers have no armer", func(t *testing.T) {
 		t.Parallel()
 
@@ -10670,11 +10831,17 @@ func testManagerStartCoordinatorWithStore(
 	store *inMemoryManagerStore,
 	runner *recordingCoordinatorRunner,
 	suffix string,
+	clocks ...func() time.Time,
 ) (*Run, error) {
 	t.Helper()
 
 	ctx := t.Context()
 	now := time.Date(2026, 7, 4, 12, 30, 0, 0, time.UTC)
+	clock := func() time.Time { return now }
+	if len(clocks) > 0 {
+		clock = clocks[0]
+		now = clock()
+	}
 	taskRecord := Task{
 		ID:             "task-loop-coordinator-" + suffix,
 		Scope:          ScopeGlobal,
@@ -10711,7 +10878,7 @@ func testManagerStartCoordinatorWithStore(
 		store,
 		WithCoordinatorRunner(runner),
 		WithGenerationStateFinalizer(noopLoopFinalizer{}),
-		WithManagerNow(func() time.Time { return now }),
+		WithManagerNow(clock),
 	)
 	actor, err := DeriveDaemonActorContext("loop", "daemon.loop")
 	if err != nil {

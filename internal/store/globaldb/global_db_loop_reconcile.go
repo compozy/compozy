@@ -229,6 +229,13 @@ func (g *LoopRepo) AdvanceLoopRunProgress(ctx context.Context, loopRunID string,
 		ctx,
 		"globaldb.AdvanceLoopRunProgress",
 		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			owner, err := queries.GetLoopRunByID(ctx, trimmedLoopRunID)
+			if err != nil {
+				return err
+			}
+			if looppkg.Status(owner.Status).Terminal() {
+				return nil
+			}
 			return queries.AdvanceLoopRunProgress(ctx, sqlcgen.AdvanceLoopRunProgressParams{
 				ProgressAt: at, ID: trimmedLoopRunID,
 			})

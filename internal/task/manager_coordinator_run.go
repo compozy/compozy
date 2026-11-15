@@ -69,7 +69,15 @@ func (m *Service) startCoordinatorRun(
 
 	plan, err := m.runClaimedCoordinator(lifecycleCtx, run, req.ClaimToken, actor)
 	if err != nil {
-		return m.failStartedCoordinatorRun(lifecycleCtx, run, req.ClaimToken, actor, err)
+		current, readErr := m.store.GetTaskRun(lifecycleCtx, run.ID)
+		if readErr == nil && (IsTerminalRunStatus(current.Status) ||
+			!VerifyClaimToken(req.ClaimToken, current.ClaimTokenHash)) {
+			if IsTerminalRunStatus(current.Status) {
+				return &current, nil
+			}
+			return &current, err
+		}
+		return m.failStartedCoordinatorRun(lifecycleCtx, run, req.ClaimToken, actor, errorsJoin(err, readErr))
 	}
 	plan = plan.Normalize()
 	if err := m.validateCoordinatorPlan(plan, "coordinator_completion.plan"); err != nil {

@@ -27,6 +27,21 @@ type LoopRunLivenessReader interface {
 	CoordinatedLoopRunLive(ctx context.Context, loopRunID string) (bool, error)
 }
 
+type coordinatorExecutionContextKey struct{}
+
+// CoordinatorIdentity identifies one claimed evaluation without exposing its bearer token.
+type CoordinatorIdentity struct {
+	RunID        string
+	LoopRunID    string
+	EvaluationID string
+}
+
+// CoordinatorExecution returns the current evaluation's process ownership identity.
+func CoordinatorExecution(ctx context.Context) (CoordinatorIdentity, bool) {
+	identity, ok := ctx.Value(coordinatorExecutionContextKey{}).(CoordinatorIdentity)
+	return identity, ok
+}
+
 type inFlightCoordinator struct {
 	loopRunID string
 	cancel    context.CancelCauseFunc
@@ -81,7 +96,10 @@ func (m *Service) runClaimedCoordinator(
 	actor ActorContext,
 ) (CoordinatorCompletionPlan, error) {
 	execCtx, cancel := context.WithCancelCause(ctx)
-	unregister := m.registerInFlightCoordinator(run, cancel)
+	key, unregister := m.registerInFlightCoordinator(run, cancel)
+	execCtx = context.WithValue(execCtx, coordinatorExecutionContextKey{}, CoordinatorIdentity{
+		RunID: run.ID, LoopRunID: run.LoopRunID, EvaluationID: fmt.Sprintf("%s:%d", key.runID, key.seq),
+	})
 	// Cancellation can commit between the claim and the registration above, when the sweep had no
 	// entry to interrupt. A registered evaluation therefore re-reads the Loop run before doing any
 	// work, so it cannot start a gate command for a canceled Run.
@@ -94,19 +112,30 @@ func (m *Service) runClaimedCoordinator(
 			strings.TrimSpace(run.LoopRunID),
 		)
 	}
-	// A gate command can outlive the lease it started under. Recording progress before evaluation
-	// starts keeps `loop runs`/`loop status` live from the first second a gate is in flight.
-	m.recordCoordinatorProgress(execCtx, run.LoopRunID, m.now().UTC())
 	heartbeatDone := make(chan error, 1)
 	go func() {
 		heartbeatDone <- m.heartbeatCoordinatorLease(execCtx, cancel, run, claimToken, actor)
 	}()
-	plan, runErr := m.coordinatorRunner.Run(execCtx, RunID(run.ID))
+	// Renew before the synchronous progress write so storage admission cannot
+	// consume the remaining lease without an active heartbeat.
+	m.recordCoordinatorProgress(execCtx, run.LoopRunID, m.now().UTC())
+	var plan CoordinatorCompletionPlan
+	runErr := context.Cause(execCtx)
+	if runErr == nil {
+		plan, runErr = m.coordinatorRunner.Run(execCtx, RunID(run.ID))
+	}
 	unregister()
 	// An interruption or a lost claim invalidates whatever the runner computed under it.
 	interruption := context.Cause(execCtx)
 	cancel(nil)
-	return coordinatorEvaluationOutcome(plan, runErr, interruption, <-heartbeatDone)
+	heartbeatErr := <-heartbeatDone
+	if runErr == nil && heartbeatErr == nil {
+		// Completion fences transactionally as well; transient reads do not fail a healthy gate.
+		if err := m.checkCoordinatorClaim(ctx, run, claimToken); coordinatorLeaseLost(err) {
+			heartbeatErr = err
+		}
+	}
+	return coordinatorEvaluationOutcome(plan, runErr, interruption, heartbeatErr)
 }
 
 // coordinatorEvaluationOutcome discards a plan computed under an interruption or a lost claim. The
@@ -150,7 +179,9 @@ func (m *Service) loopRunAcceptsCoordinator(ctx context.Context, loopRunID strin
 	return live
 }
 
-func (m *Service) registerInFlightCoordinator(run Run, cancel context.CancelCauseFunc) func() {
+func (m *Service) registerInFlightCoordinator(
+	run Run, cancel context.CancelCauseFunc,
+) (coordinatorEvaluationKey, func()) {
 	runID := strings.TrimSpace(run.ID)
 	m.coordinatorMu.Lock()
 	if m.inFlightCoordinators == nil {
@@ -165,7 +196,7 @@ func (m *Service) registerInFlightCoordinator(run Run, cancel context.CancelCaus
 	m.coordinatorMu.Unlock()
 	// Unregistering deletes only this evaluation's key. A replacement registered for the same run
 	// ID while this evaluation finishes therefore stays reachable for interruption.
-	return func() {
+	return key, func() {
 		m.coordinatorMu.Lock()
 		delete(m.inFlightCoordinators, key)
 		m.coordinatorMu.Unlock()
@@ -185,37 +216,78 @@ func (m *Service) heartbeatCoordinatorLease(
 ) error {
 	leaseDuration := coordinatorLeaseDuration(run)
 	interval := coordinatorHeartbeatInterval(leaseDuration)
-	timer := time.NewTimer(coordinatorFirstHeartbeatDelay(interval, run.LeaseUntil, m.now().UTC()))
-	defer timer.Stop()
+	poll := max(min(interval/3, time.Second), time.Millisecond)
+	ticker := time.NewTicker(poll)
+	defer ticker.Stop()
+	confirmedUntil := run.LeaseUntil
+	next := m.now().UTC().Add(coordinatorFirstHeartbeatDelay(interval, confirmedUntil, m.now().UTC()))
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-timer.C:
+		case <-ticker.C:
+			err := m.checkCoordinatorClaim(ctx, run, claimToken)
+			if err == nil && !m.loopRunAcceptsCoordinator(ctx, run.LoopRunID) {
+				err = ErrCoordinatorInterrupted
+			}
+			if coordinatorLeaseLost(err) {
+				leaseErr := fmt.Errorf("%w: coordinator run %q: %w", errCoordinatorLeaseLost, run.ID, err)
+				cancel(leaseErr)
+				return leaseErr
+			}
+			if errors.Is(err, ErrCoordinatorInterrupted) {
+				cancel(err)
+				return err
+			}
+			if ctx.Err() != nil {
+				return nil
+			}
+			now := m.now().UTC()
+			if err == nil && !now.Before(next) {
+				renewed, renewErr := m.HeartbeatRunLease(ctx, LeaseHeartbeat{
+					RunID: run.ID, ClaimToken: claimToken, LeaseDuration: leaseDuration, Now: now,
+				}, actor)
+				err = renewErr
+				if coordinatorLeaseLost(err) {
+					leaseErr := fmt.Errorf("%w: coordinator run %q: %w", errCoordinatorLeaseLost, run.ID, err)
+					cancel(leaseErr)
+					return leaseErr
+				}
+				if ctx.Err() != nil {
+					return nil
+				}
+				delay, _ := coordinatorHeartbeatStep(interval, err)
+				next = now.Add(delay)
+				if err == nil {
+					confirmedUntil = renewed.LeaseUntil
+				}
+			}
+			if err != nil {
+				slog.Warn("task: observe or renew coordinator lease", "run_id", run.ID, "error", err)
+			}
+			// Generic storage failures must not leave shell work alive beyond the last
+			// confirmed claim. Re-read the clock after I/O, which may have stalled.
+			if !m.now().UTC().Add(poll).Before(confirmedUntil) {
+				leaseErr := fmt.Errorf("%w: %w", errCoordinatorLeaseLost, errors.Join(ErrLeaseExpired, err))
+				cancel(leaseErr)
+				return leaseErr
+			}
 		}
-		renewed, err := m.HeartbeatRunLease(ctx, LeaseHeartbeat{
-			RunID:         run.ID,
-			ClaimToken:    claimToken,
-			LeaseDuration: leaseDuration,
-			Now:           m.now().UTC(),
-		}, actor)
-		if ctx.Err() != nil {
-			return nil
-		}
-		next, stop := coordinatorHeartbeatStep(interval, err)
-		if stop {
-			leaseErr := fmt.Errorf("%w: coordinator run %q: %w", errCoordinatorLeaseLost, run.ID, err)
-			cancel(leaseErr)
-			return leaseErr
-		}
-		switch {
-		case err != nil:
-			slog.Warn("task: renew coordinator lease", "run_id", run.ID, "error", err)
-		case renewed != nil:
-			m.recordCoordinatorProgress(ctx, renewed.LoopRunID, renewed.HeartbeatAt)
-		}
-		timer.Reset(next)
 	}
+}
+
+func (m *Service) checkCoordinatorClaim(ctx context.Context, run Run, token string) error {
+	current, err := m.store.GetTaskRun(ctx, run.ID)
+	if err != nil {
+		return err
+	}
+	if !VerifyClaimToken(token, current.ClaimTokenHash) || current.Status != TaskRunStatusRunning {
+		return ErrInvalidClaimToken
+	}
+	if !current.LeaseUntil.After(m.now().UTC()) {
+		return ErrLeaseExpired
+	}
+	return nil
 }
 
 func (m *Service) recordCoordinatorProgress(ctx context.Context, loopRunID string, at time.Time) {
@@ -241,8 +313,12 @@ func coordinatorLeaseLost(err error) bool {
 }
 
 func coordinatorLeaseDuration(run Run) time.Duration {
-	if !run.ClaimedAt.IsZero() && run.LeaseUntil.After(run.ClaimedAt) {
-		return min(run.LeaseUntil.Sub(run.ClaimedAt), MaxRunLeaseDuration)
+	since := run.HeartbeatAt
+	if since.IsZero() {
+		since = run.ClaimedAt
+	}
+	if !since.IsZero() && run.LeaseUntil.After(since) {
+		return min(run.LeaseUntil.Sub(since), MaxRunLeaseDuration)
 	}
 	return DefaultRunLeaseDuration
 }
@@ -253,7 +329,7 @@ func coordinatorHeartbeatInterval(leaseDuration time.Duration) time.Duration {
 
 // coordinatorFirstHeartbeatDelay keeps the first renewal inside the claimed lease. The transitions
 // and the initial progress write can consume part of the lease before the heartbeat starts, so the
-// wait follows what is left of it instead of a full interval; later renewals keep that cadence.
+// first wait uses at most one third of what remains; later renewals keep the steady cadence.
 func coordinatorFirstHeartbeatDelay(interval time.Duration, leaseUntil time.Time, now time.Time) time.Duration {
 	const minimumDelay = time.Millisecond
 	if interval <= 0 {
@@ -266,7 +342,7 @@ func coordinatorFirstHeartbeatDelay(interval time.Duration, leaseUntil time.Time
 	if remaining < minimumDelay {
 		return minimumDelay
 	}
-	return min(remaining, interval)
+	return max(min(remaining/3, interval), minimumDelay)
 }
 
 // coordinatorHeartbeatRetryInterval keeps a failed renewal inside the same lease window instead of

@@ -268,10 +268,10 @@ func TestManagerCoordinatorInFlightRegistryShouldKeepReplacementsReachable(t *te
 		manager := &Service{}
 		run := Run{ID: "run-registry-superseded", LoopRunID: "loop-run-registry-superseded"}
 		var supersededCause, replacementCause error
-		unregisterSuperseded := manager.registerInFlightCoordinator(run, func(cause error) {
+		_, unregisterSuperseded := manager.registerInFlightCoordinator(run, func(cause error) {
 			supersededCause = cause
 		})
-		unregisterReplacement := manager.registerInFlightCoordinator(run, func(cause error) {
+		_, unregisterReplacement := manager.registerInFlightCoordinator(run, func(cause error) {
 			replacementCause = cause
 		})
 
@@ -301,9 +301,10 @@ func TestManagerCoordinatorInFlightRegistryShouldKeepReplacementsReachable(t *te
 		causes := make([]error, 2)
 		unregister := make([]func(), 0, 2)
 		for index := range causes {
-			unregister = append(unregister, manager.registerInFlightCoordinator(run, func(cause error) {
+			_, stop := manager.registerInFlightCoordinator(run, func(cause error) {
 				causes[index] = cause
-			}))
+			})
+			unregister = append(unregister, stop)
 		}
 		defer func() {
 			for _, stop := range unregister {
@@ -389,11 +390,11 @@ func TestManagerCoordinatorFirstHeartbeatShouldRespectTheRemainingLease(t *testi
 			want:       interval,
 		},
 		{
-			name:       "Should follow the remaining lease when it is shorter than the interval",
+			name:       "Should renew before the remaining lease ends when startup was slow",
 			interval:   interval,
 			leaseUntil: now.Add(20 * time.Second),
 			now:        now,
-			want:       20 * time.Second,
+			want:       20 * time.Second / 3,
 		},
 		{
 			name:       "Should fall back to the interval without a recorded lease end",
@@ -462,6 +463,18 @@ type progressRecordingManagerStore struct {
 
 var _ CoordinatorProgressRecorder = (*progressRecordingManagerStore)(nil)
 var _ LoopRunLivenessReader = (*progressRecordingManagerStore)(nil)
+
+// Match the production store's atomic coordinator heartbeat/progress mutation.
+func (s *progressRecordingManagerStore) HeartbeatRunLease(ctx context.Context, h LeaseHeartbeat) (Run, error) {
+	run, err := s.inMemoryManagerStore.HeartbeatRunLease(ctx, h)
+	if err != nil {
+		return Run{}, err
+	}
+	if err := s.AdvanceLoopRunProgress(ctx, run.LoopRunID, run.HeartbeatAt); err != nil {
+		return Run{}, err
+	}
+	return run, nil
+}
 
 func (s *progressRecordingManagerStore) AdvanceLoopRunProgress(
 	_ context.Context,
