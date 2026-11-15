@@ -49,6 +49,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		t.Cleanup(server.Close)
 		reader := &pluginsource.Sources{GitHubOptions: []pluginsource.GitHubOption{
 			pluginsource.WithGitHubBaseURL(server.URL), pluginsource.WithGitHubHTTPClient(server.Client()),
+			pluginsource.WithGitHubNow(func() time.Time { return now }),
 		}}
 		fetcher := &recordingSource{fetch: func(ctx context.Context) (*Document, error) {
 			if _, err := reader.Fetch(ctx, "owner/repo"); err != nil {
@@ -133,6 +134,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		resolver := &pluginsource.Resolver{Cache: &pluginsource.PackageCache{Root: t.TempDir()}, Sources: pluginsource.Sources{
 			TempDir: t.TempDir(), GitHubOptions: []pluginsource.GitHubOption{
 				pluginsource.WithGitHubBaseURL(server.URL), pluginsource.WithGitHubHTTPClient(server.Client()),
+				pluginsource.WithGitHubNow(func() time.Time { return now }),
 			},
 		}}
 		projector, err := NewPluginProjector(resolver, func(_ context.Context, root, _ string) (PluginInspection, error) {

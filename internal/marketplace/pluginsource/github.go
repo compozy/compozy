@@ -33,6 +33,8 @@ type gitHubOptions struct {
 	baseURL     string
 	client      *http.Client
 	credentials *githubauth.Resolver
+	rateLimits  *githubauth.RateLimitGate
+	now         func() time.Time
 }
 
 func WithGitHubBaseURL(baseURL string) GitHubOption {
@@ -41,6 +43,11 @@ func WithGitHubBaseURL(baseURL string) GitHubOption {
 
 func WithGitHubHTTPClient(client *http.Client) GitHubOption {
 	return func(options *gitHubOptions) { options.client = client }
+}
+
+// WithGitHubNow injects the clock used for upstream quota deadlines.
+func WithGitHubNow(now func() time.Time) GitHubOption {
+	return func(options *gitHubOptions) { options.now = now }
 }
 
 func NewGitHubSource(ref string, options ...GitHubOption) (*GitHubSource, error) {
@@ -64,7 +71,11 @@ func NewGitHubSource(ref string, options ...GitHubOption) (*GitHubSource, error)
 		client.Timeout = fetchTimeout
 		client.Jar = nil
 	}
-	clientOptions := []github.Option{github.WithHTTPClient(&client)}
+	clientOptions := []github.Option{
+		github.WithHTTPClient(&client),
+		github.WithRateLimitGate(configuration.rateLimits),
+		github.WithNow(configuration.now),
+	}
 	if configuration.credentials != nil {
 		clientOptions = append(clientOptions, github.WithCredentials(configuration.credentials))
 	}

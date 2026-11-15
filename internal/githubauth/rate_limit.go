@@ -35,9 +35,9 @@ func (e *RateLimitError) Unwrap() error { return ErrRateLimited }
 
 func RateLimit(response *http.Response, now time.Time) *RateLimitError {
 	if response.StatusCode != http.StatusTooManyRequests &&
-		!(response.StatusCode == http.StatusForbidden &&
-			(response.Header.Get("X-RateLimit-Remaining") == "0" || response.Header.Get("Retry-After") != "" ||
-				secondaryRateLimit(response))) {
+		(response.StatusCode != http.StatusForbidden ||
+			(response.Header.Get("X-RateLimit-Remaining") != "0" && response.Header.Get("Retry-After") == "" &&
+				!secondaryRateLimit(response))) {
 		return nil
 	}
 	deadline := now.Add(time.Minute)

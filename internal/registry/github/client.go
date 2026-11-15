@@ -239,6 +239,15 @@ func WithRateLimitGate(gate *githubauth.RateLimitGate) Option {
 	}
 }
 
+// WithNow injects the clock used for upstream quota deadlines.
+func WithNow(now func() time.Time) Option {
+	return func(client *Client) {
+		if now != nil {
+			client.now = now
+		}
+	}
+}
+
 // Name reports the registry source name.
 func (c *Client) Name() string {
 	return "github"

@@ -102,7 +102,8 @@ func TestResolver(t *testing.T) {
 			if err := <-ownerDone; err != nil {
 				t.Fatal(err)
 			}
-			if token, err := resolver.Resolve(t.Context(), "https://api.github.com"); err != nil || token != "cached-sentinel" || calls != 1 {
+			if token, err := resolver.Resolve(t.Context(), "https://api.github.com"); err != nil ||
+				token != "cached-sentinel" || calls != 1 {
 				t.Fatal("waiter cancellation invalidated the owner's lookup")
 			}
 		})

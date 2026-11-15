@@ -39,7 +39,9 @@ GitHub authentication regression (2026-11-15, issue #1750):
 - For a custom HTTPS GitHub API origin, leave `GITHUB_TOKEN` unset and verify that the
   github.com CLI login is not sent. An explicit environment token may authenticate that origin.
 - Trigger a quota error during an individual plugin package download: keep the prior catalog,
-  suppress explicit refreshes until the deadline, and recover after the quota resets.
+  suppress later package requests to the same API origin during that refresh as well as explicit
+  refreshes until the deadline, and recover after the quota resets. An independent source owner
+  must retain its own quota state.
 
 Validation for this change runs in CI only. HTTP/TLS owning suites and the marketplace HTTP/SQLite
 integration suite cover these boundaries; a live signed-in desktop walk remains unrun.

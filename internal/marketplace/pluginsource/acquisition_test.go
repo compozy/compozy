@@ -8,14 +8,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/registry/gitsrc"
 )
@@ -221,6 +225,46 @@ func TestResolveRemotePackages(t *testing.T) {
 			assertAcquisitionClean(t, resolver)
 		})
 	}
+	// Invariant: packages share upstream quota backoff only within their Sources owner.
+	// Owner: remote acquisition; canonical suite: TestResolveRemotePackages.
+	t.Run("Should suppress later packages after quota and release them at reset", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2100, 11, 15, 12, 0, 0, 0, time.UTC)
+		reset := now.Add(time.Hour)
+		var calls atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
+			http.Error(w, "rate limited", http.StatusForbidden)
+		}))
+		t.Cleanup(server.Close)
+		options := []GitHubOption{
+			WithGitHubBaseURL(server.URL), WithGitHubHTTPClient(server.Client()),
+			WithGitHubNow(func() time.Time { return now }),
+		}
+		sources := &Sources{GitHubOptions: options}
+		for _, name := range []string{"one", "two", "three", "four", "five"} {
+			plugin := PluginSource{Kind: SourceGitHub, Ref: "github:owner/" + name}
+			snapshot, err := sources.openPlugin(t.Context(), plugin)
+			limited, ok := errors.AsType[*githubauth.RateLimitError](err)
+			if snapshot != nil || !ok || !limited.RetryAt.Equal(reset) || calls.Load() != 1 {
+				t.Fatalf("package %s quota = %v, requests=%d", name, err, calls.Load())
+			}
+		}
+		independent := &Sources{GitHubOptions: options}
+		plugin := PluginSource{Kind: SourceGitHub, Ref: "github:owner/other"}
+		_, err := independent.openPlugin(t.Context(), plugin)
+		if !errors.Is(err, githubauth.ErrRateLimited) || calls.Load() != 2 {
+			t.Fatalf("independent owner quota = %v, requests=%d", err, calls.Load())
+		}
+		now = reset
+		_, err = sources.openPlugin(t.Context(), plugin)
+		if !errors.Is(err, githubauth.ErrRateLimited) || calls.Load() != 3 {
+			t.Fatalf("request at reset = %v, requests=%d", err, calls.Load())
+		}
+	})
+
 	for _, ref := range []string{"abcdef1", "main", ""} {
 		t.Run("Should use Git rather than REST for GitHub ref "+ref, func(t *testing.T) {
 			t.Parallel()

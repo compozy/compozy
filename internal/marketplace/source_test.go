@@ -331,7 +331,9 @@ func TestPluginProjectionBudget(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				doc := pluginsource.Document{Plugins: []pluginsource.Plugin{{Name: tc.plugins[0]}, {Name: tc.plugins[1]}}}
+				doc := pluginsource.Document{
+					Plugins: []pluginsource.Plugin{{Name: tc.plugins[0]}, {Name: tc.plugins[1]}},
+				}
 				resolver := &projectionResolver{
 					resolve: func(_ context.Context, _ pluginsource.Document, plugin pluginsource.Plugin) (pluginsource.AcquisitionRecord, error) {
 						if plugin.Name == "early" {

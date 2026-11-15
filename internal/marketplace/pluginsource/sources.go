@@ -14,18 +14,25 @@ import (
 
 // Sources owns public acquisition settings. Configure it before concurrent source refreshes.
 type Sources struct {
-	GitHubOptions  []GitHubOption
-	GitOptions     []gitsrc.Option
-	HTTPClient     *http.Client
-	TempDir        string
-	credentialOnce sync.Once
-	credentials    *githubauth.Resolver
+	GitHubOptions []GitHubOption
+	GitOptions    []gitsrc.Option
+	HTTPClient    *http.Client
+	TempDir       string
+	githubOnce    sync.Once
+	credentials   *githubauth.Resolver
+	rateLimits    *githubauth.RateLimitGate
 }
 
 func (s *Sources) githubOptions() []GitHubOption {
-	s.credentialOnce.Do(func() { s.credentials = githubauth.NewResolver(nil) })
+	s.githubOnce.Do(func() {
+		s.credentials = githubauth.NewResolver(nil)
+		s.rateLimits = &githubauth.RateLimitGate{}
+	})
 	options := append([]GitHubOption(nil), s.GitHubOptions...)
-	return append(options, func(options *gitHubOptions) { options.credentials = s.credentials })
+	return append(options, func(options *gitHubOptions) {
+		options.credentials = s.credentials
+		options.rateLimits = s.rateLimits
+	})
 }
 
 func (s *Sources) Fetch(ctx context.Context, ref string) (document Document, err error) {
