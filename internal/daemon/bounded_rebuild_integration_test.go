@@ -250,6 +250,10 @@ func newBoundedRebuildFixture(
 		Name: resolved.Agents[0].Name, Provider: resolved.Agents[0].Provider,
 		Model: resolved.Agents[0].Model, Prompt: resolved.Agents[0].Prompt, Tools: resolved.Agents[0].Tools,
 	})
+	// The hosted catalog resolves provider policy from the same durable config as the daemon.
+	e2etest.SeedConfig(t, home, e2etest.ConfigSeedOptions{Mutate: func(seed *compozyconfig.Config) {
+		*seed = cfg
+	}})
 	daemon, deps := bootHarnessPolicyDaemon(t, home, &cfg)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -269,7 +273,13 @@ func newBoundedRebuildManager(
 	daemon *Daemon,
 ) *session.Manager {
 	t.Helper()
-	if _, err := daemon.registry.GetWorkspace(t.Context(), resolved.ID); errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+	if _, err := daemon.registry.GetWorkspace(
+		t.Context(),
+		resolved.ID,
+	); errors.Is(
+		err,
+		workspacepkg.ErrWorkspaceNotFound,
+	) {
 		now := time.Now().UTC()
 		if err := daemon.registry.InsertWorkspace(t.Context(), workspacepkg.Workspace{
 			ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir, CreatedAt: now, UpdatedAt: now,

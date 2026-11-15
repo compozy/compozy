@@ -1107,7 +1107,11 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 				}
 			}),
 		)
-		if err := stopGoalSessionOutboxRelay(t.Context(), fixture.daemonInstance.goalOutboxCancel, fixture.daemonInstance.goalOutboxDone); err != nil {
+		if err := stopGoalSessionOutboxRelay(
+			t.Context(),
+			fixture.daemonInstance.goalOutboxCancel,
+			fixture.daemonInstance.goalOutboxDone,
+		); err != nil {
 			t.Fatalf("stop fixture outbox relay: %v", err)
 		}
 		request := fixture.bindingRequest("stop-create-race")
@@ -2066,6 +2070,10 @@ func newLoopGoalManagedRuntimeFixture(
 		resolvedWorkspace.Config = cfg
 		resolvedWorkspace.Agents[0].Provider = acpmock.ProviderName
 		resolvedWorkspace.Agents[0].Model = ""
+		// The real hosted catalog resolves this custom provider through the on-disk overlay.
+		e2etest.SeedConfig(t, homePaths, e2etest.ConfigSeedOptions{Mutate: func(seed *compozyconfig.Config) {
+			*seed = cfg
+		}})
 	}
 	e2etest.WriteAgentDef(t, homePaths, e2etest.AgentSeed{
 		Name: resolvedWorkspace.Agents[0].Name, Provider: resolvedWorkspace.Agents[0].Provider,

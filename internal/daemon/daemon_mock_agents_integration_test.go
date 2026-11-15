@@ -2159,7 +2159,7 @@ func requireHostedMCPStdioServer(
 	}
 	for index := start; index != end; index += step {
 		record := records[index]
-		if record.LifecycleEvent != "session_new" {
+		if record.LifecycleEvent != "session_new" && record.LifecycleEvent != "session_load" {
 			continue
 		}
 		for _, server := range record.MCPServers {
@@ -2170,7 +2170,7 @@ func requireHostedMCPStdioServer(
 		}
 	}
 	t.Fatalf(
-		"diagnostics = %#v, want %s session_new %s stdio MCP server",
+		"diagnostics = %#v, want %s session_new/session_load %s stdio MCP server",
 		records,
 		selection,
 		mcppkg.HostedServerName,
