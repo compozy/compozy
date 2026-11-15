@@ -138,7 +138,7 @@ func waitForProcessGroupIDExit(pgid int, timeout time.Duration, killed bool) err
 			return fmt.Errorf("check process group (pid %d): %w", pgid, err)
 		}
 		if err == nil && killed && runtime.GOOS == "linux" {
-			members, enumerationErr := linuxProcessGroupMembers(pgid)
+			members, enumerationErr := linuxProcessGroupMembers(pgid, true)
 			if enumerationErr == nil && len(members) == 0 {
 				return nil
 			}
@@ -150,8 +150,7 @@ func waitForProcessGroupIDExit(pgid int, timeout time.Duration, killed bool) err
 	}
 }
 
-// KillCommandProcessGroupAndWait forcefully terminates any remaining members of
-// the command's process group, then waits for the group to disappear.
+// KillCommandProcessGroupAndWait kills the command's group and waits until no members can execute.
 func KillCommandProcessGroupAndWait(cmd *exec.Cmd, timeout time.Duration) error {
 	if cmd == nil || cmd.Process == nil || cmd.Process.Pid <= 0 {
 		return nil
@@ -178,7 +177,7 @@ func joinProcessGroupKillResult(signalErr error, waitErr error) error {
 }
 
 func signalProcessGroupMembersLinux(pgid int, sig syscall.Signal, ignoreMissing bool) error {
-	members, err := linuxProcessGroupMembers(pgid)
+	members, err := linuxProcessGroupMembers(pgid, false)
 	if err != nil {
 		return err
 	}
@@ -238,7 +237,7 @@ func waitForLinuxDescendantsToExit(pgid int, timeout time.Duration) {
 	defer ticker.Stop()
 
 	for {
-		members, err := linuxProcessGroupMembers(pgid)
+		members, err := linuxProcessGroupMembers(pgid, false)
 		if err != nil {
 			return
 		}
@@ -258,7 +257,7 @@ func waitForLinuxDescendantsToExit(pgid int, timeout time.Duration) {
 	}
 }
 
-func linuxProcessGroupMembers(pgid int) ([]int, error) {
+func linuxProcessGroupMembers(pgid int, excludeExited bool) ([]int, error) {
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return nil, errProcessGroupEnumerationUnavailable
@@ -282,9 +281,13 @@ func linuxProcessGroupMembers(pgid int) ([]int, error) {
 			}
 			return nil, fmt.Errorf("%w: read process %d: %w", errProcessGroupEnumerationUnavailable, pid, err)
 		}
-		if candidatePGID == pgid && state != "Z" && state != "X" {
-			members = append(members, pid)
+		if candidatePGID != pgid {
+			continue
 		}
+		if excludeExited && (state == "Z" || state == "X") {
+			continue
+		}
+		members = append(members, pid)
 	}
 
 	slices.Sort(members)
