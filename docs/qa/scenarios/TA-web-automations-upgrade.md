@@ -18,6 +18,12 @@ overlaps: TA-web-automations-listing; ET-palette-domain-views
 
 New in the Automations spec (task 07; US-032, US-033, US-035.AC-3; ADR-002, ADR-004). Bootstrap the lab from a v0.3.x home (or seed a v4 window-manager snapshot and palette rows naming `jobs`/`triggers`), then upgrade in place; a fresh home cannot prove the migration.
 
+Release regression walk (2026-11-15): when seeding retired windows through clientless commands,
+select the Triggers tab in the attached browser before restarting the daemon. Verify that this
+selection survives restart, both window records remain unchanged, and visiting Jobs and Triggers
+renders the corresponding Automations detail and listing. Clientless opens preserve each attached
+browser's selection, so the setup must establish the selection it expects to restore.
+
 Verify the daemon side through structured reads, not only the browser: `compozy layout get -o json` shows `automations` windows after the first save, the INFO `windowmanager.snapshot_migrated` log appears once, and the palette personalization read shows one Open Automations pin. The v0.5.0 removal is out of scope for this release's walk; the release note names it.
 
 QA impact 2026-10-08 (fix round 1): include `/triggers?event=session.stopped&q=deploy`

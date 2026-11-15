@@ -207,6 +207,10 @@ test("Automations E2E-007: retired Jobs and Triggers windows reopen as Automatio
       app: "automations",
       route: { pathname: "/automations", search: { start: "event", q: "session.stopped" } },
     });
+    // Clientless opens preserve an attached browser's selection. Choose the tab before
+    // restarting so its reconnect cannot restore the earlier New Tab selection.
+    await shell.tabOfWindow(triggersWindowId).click();
+    await expect(shell.tabOfWindow(triggersWindowId)).toHaveAttribute("aria-selected", "true");
   });
 
   await test.step("both reopen in place after a daemon restart, with no further rewrite", async () => {
@@ -226,8 +230,8 @@ test("Automations E2E-007: retired Jobs and Triggers windows reopen as Automatio
       expect(after.windows[id]).toEqual(before.windows[id]);
     }
     // Each open added its own tab (`new_window_policy = "tab"`), and only the active tab's
-    // windows mount. A fresh client shows the desktop's durable active tab, the last one
-    // opened, so visit each tab the way an operator would.
+    // windows mount. The tab selected before restart remains selected; visit each tab
+    // the way an operator would.
     await expect(shell.tabOfWindow(jobsWindowId)).toHaveCount(1);
     await expect(shell.tabOfWindow(triggersWindowId)).toHaveAttribute("aria-selected", "true");
     await expect(shell.window(triggersWindowId)).toBeAttached();
