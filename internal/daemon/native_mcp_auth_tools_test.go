@@ -1195,6 +1195,29 @@ func newRuntimeMCPCopyFixture(t *testing.T, source string) runtimeMCPCopyFixture
 // Invariant: the session catalog retains blocked rows while projections remain callable-only and reads never discover. Owner: daemon MCP read model; UT-053, UT-080–082, UT-084, UT-091.
 func TestSessionMCPReadModel(t *testing.T) {
 	t.Parallel()
+	t.Run("Should never show a runtime server the runtime will not load as loaded", func(t *testing.T) {
+		t.Parallel()
+		server := func(enabled bool, approval string) runtimemcp.Server {
+			return runtimemcp.Server{EnabledInRuntime: enabled, Approval: approval}
+		}
+		cases := []struct {
+			name         string
+			server       runtimemcp.Server
+			offInCompozy bool
+			want         string
+		}{
+			{name: "enabled", server: server(true, "approved"), want: "loaded_by_runtime"},
+			{name: "disabled", server: server(false, ""), want: "off_in_runtime"},
+			{name: "rejected", server: server(true, "rejected"), want: "off_in_runtime"},
+			{name: "pending", server: server(true, "pending"), want: "waiting_in_runtime"},
+			{name: "switch off", server: server(true, ""), offInCompozy: true, want: "off_in_compozy_sessions"},
+		}
+		for _, tc := range cases {
+			if got := runtimeMCPRowState(&tc.server, tc.offInCompozy); got != tc.want {
+				t.Errorf("%s: state = %q, want %q", tc.name, got, tc.want)
+			}
+		}
+	})
 	for _, userScope := range []bool{false, true} {
 		name := "Should read MCP settings for a default-profile workspace session"
 		if userScope {

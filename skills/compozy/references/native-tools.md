@@ -949,7 +949,8 @@ live in `references/tools-and-skills.md`.
   servers and its runtime's own servers, with `usable`, `attention`, `pending_reload` and
   `last_reload{at,outcome,reason}`. Row states: `ready`, `applies_next_message`, `needs_sign_in`,
   `waiting_approval`, `failed`, `not_available` (reason `Limited by the parent session`); runtime rows
-  use `loaded_by_runtime` or `off_in_compozy_sessions`. It reads cached state only and never discovers,
+  use `loaded_by_runtime`, `off_in_compozy_sessions`, `off_in_runtime` or `waiting_in_runtime` (only
+  `loaded_by_runtime` counts as usable). It reads cached state only and never discovers,
   probes or starts a server. Reads stay inside the caller's workspace and profile. Start here when a
   tool is missing; `compozy__mcp_status.callable_discovery_note` points to it.
 - `compozy__mcp_list` (read; `runtime`, `include_runtimes` default `true`, `workspace` limited to the

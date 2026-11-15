@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -119,21 +120,42 @@ func composeSessionMCP(
 		result.CompozyServers,
 		func(a, b session.MCPServerRow) int { return strings.Compare(a.Name, b.Name) },
 	)
-	for _, server := range runtime.Inventory.Servers {
-		state := "loaded_by_runtime"
-		if runtime.Mode == "off" && runtime.Inventory.RuntimeMCP.CanDisable {
-			state = "off_in_compozy_sessions"
-		}
+	for i := range runtime.Inventory.Servers {
+		server := &runtime.Inventory.Servers[i]
+		state := runtimeMCPRowState(server, runtime.Mode == "off" && runtime.Inventory.RuntimeMCP.CanDisable)
 		result.RuntimeServers.Servers = append(
 			result.RuntimeServers.Servers,
 			session.RuntimeMCPRow{Name: server.Name, Scope: server.Scope, Transport: server.Transport, State: state},
 		)
-		if state == "loaded_by_runtime" && server.EnabledInRuntime && server.Approval != hookAgentEventsPendingKey &&
-			server.Approval != "rejected" {
+		if state == runtimeMCPLoaded {
 			result.Usable++
 		}
 	}
 	return result
+}
+
+const (
+	runtimeMCPLoaded           = "loaded_by_runtime"
+	runtimeMCPOffInCompozy     = "off_in_compozy_sessions"
+	runtimeMCPOffInRuntime     = "off_in_runtime"
+	runtimeMCPWaitingInRuntime = "waiting_in_runtime"
+	runtimeMCPApprovalPending  = "pending"
+	runtimeMCPApprovalRejected = "rejected"
+)
+
+// runtimeMCPRowState keeps the runtime's own enablement and approval visible: a server the runtime
+// will not load is never shown as loaded.
+func runtimeMCPRowState(server *runtimemcp.Server, offInCompozy bool) string {
+	switch {
+	case offInCompozy:
+		return runtimeMCPOffInCompozy
+	case !server.EnabledInRuntime || server.Approval == runtimeMCPApprovalRejected:
+		return runtimeMCPOffInRuntime
+	case server.Approval == runtimeMCPApprovalPending:
+		return runtimeMCPWaitingInRuntime
+	default:
+		return runtimeMCPLoaded
+	}
 }
 
 func sessionMCPRow(

@@ -52,6 +52,10 @@ export function sessionMCPStateView(state: string, runtime: string): SessionMCPS
       return { label: `Loaded by ${runtime}`, tone: "neutral" };
     case "off_in_compozy_sessions":
       return { label: "Off in CompozyOS sessions", tone: "neutral", quiet: true };
+    case "off_in_runtime":
+      return { label: `Off in ${runtime}`, tone: "neutral", quiet: true };
+    case "waiting_in_runtime":
+      return { label: `Waiting for approval in ${runtime}`, tone: "neutral" };
     default:
       return { label: state, tone: "neutral" };
   }

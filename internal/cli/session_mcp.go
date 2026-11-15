@@ -98,8 +98,13 @@ func sessionMCPBundle(result contract.SessionMCPResponse) outputBundle {
 			fmt.Fprintf(&out, "RUNTIME SERVERS (%s)\n", runtimeName)
 			for _, server := range result.RuntimeServers.Servers {
 				label := sessionMCPStateLabel(server.State)
-				if server.State == "loaded_by_runtime" {
+				switch server.State {
+				case "loaded_by_runtime":
 					label = "Loaded by " + runtimeName
+				case "off_in_runtime":
+					label = "Off in " + runtimeName
+				case "waiting_in_runtime":
+					label = "Waiting for approval in " + runtimeName
 				}
 				fmt.Fprintf(&out, "  %-24s %s\n", server.Name, label)
 			}
@@ -126,6 +131,10 @@ func sessionMCPStateLabel(state string) string {
 		return "Loaded by runtime"
 	case "off_in_compozy_sessions":
 		return "Off in CompozyOS sessions"
+	case "off_in_runtime":
+		return "Off in the runtime"
+	case "waiting_in_runtime":
+		return "Waiting for approval in the runtime"
 	default:
 		return state
 	}
