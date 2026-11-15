@@ -85,6 +85,7 @@ type managerOptions struct {
 	reviewObserver        RunReviewRequestedObserver
 	taskHooks             RunHookDispatcher
 	coordinatorRunner     CoordinatorRunner
+	coordinatorPollMax    time.Duration
 	coordinatorPostCommit CoordinatorPostCommitHandler
 	generationFinalizer   GenerationStateFinalizer
 	coordinatorTimerArmer CoordinatorTimerArmer
@@ -118,6 +119,7 @@ type Service struct {
 	reviewObserver          RunReviewRequestedObserver
 	taskHooks               RunHookDispatcher
 	coordinatorRunner       CoordinatorRunner
+	coordinatorPollMax      time.Duration
 	coordinatorPostCommit   CoordinatorPostCommitHandler
 	generationFinalizer     GenerationStateFinalizer
 	coordinatorTimerArmer   CoordinatorTimerArmer
@@ -208,6 +210,11 @@ func WithCoordinatorRunner(runner CoordinatorRunner) Option {
 	return func(opts *managerOptions) {
 		opts.coordinatorRunner = runner
 	}
+}
+
+// WithCoordinatorPollCeiling bounds coordinator ownership observations; nonpositive values use one second.
+func WithCoordinatorPollCeiling(ceiling time.Duration) Option {
+	return func(opts *managerOptions) { opts.coordinatorPollMax = ceiling }
 }
 
 // WithCoordinatorPostCommitHandler injects process-side effects that must run only after commit.

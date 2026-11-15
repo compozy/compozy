@@ -59,6 +59,9 @@ func (s *service) cancelRun(
 	if !result.Applied {
 		return nil
 	}
+	if result.Terminal && result.Run.Status == StatusCanceled {
+		s.interruptCoordinators(ctx, mutation)
+	}
 	s.revokeGoalPromptLeases(ctx, result.RevokedPromptLeases, TransitionCauseOperatorCancel)
 	parentCloseErr := s.applyParentCloseActions(ctx, mutation, parentCloseActions)
 	if result.Terminal {
@@ -228,7 +231,6 @@ func (s *service) finishCommittedRunCancellation(
 	if !result.Terminal || result.Run.Status != StatusCanceled {
 		return
 	}
-	s.interruptCoordinators(ctx, mutation)
 	s.dispatchCoordinatorTerminal(ctx, result.Run, TransitionCauseOperatorCancel, mutation.RequestedAt)
 	s.stopCancellationSessions(ctx, mutation, result.SessionIDs)
 }

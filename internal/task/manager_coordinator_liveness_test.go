@@ -262,6 +262,42 @@ func TestCoordinatorHeartbeatStepShouldKeepRetriesInsideTheLease(t *testing.T) {
 func TestManagerCoordinatorInFlightRegistryShouldKeepReplacementsReachable(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should join only the superseded evaluation before starting its replacement", func(t *testing.T) {
+		t.Parallel()
+		manager := &Service{}
+		oldRun := Run{ID: "same-run", LoopRunID: "same-loop", ClaimTokenHash: "old-hash"}
+		oldCtx, oldCancel := context.WithCancelCause(t.Context())
+		defer oldCancel(nil)
+		oldKey, unregisterOld := manager.registerInFlightCoordinator(oldRun, oldCancel)
+		defer unregisterOld()
+		newRun := oldRun
+		newRun.ClaimTokenHash = "new-hash"
+		newCtx, newCancel := context.WithCancelCause(t.Context())
+		defer newCancel(nil)
+		newKey, unregisterNew := manager.registerInFlightCoordinator(newRun, newCancel)
+		defer unregisterNew()
+		// A late old evaluation cannot select the newer key, even if invoked late.
+		if err := manager.retireSupersededCoordinators(t.Context(), oldKey, oldRun); err != nil {
+			t.Fatal(err)
+		}
+		if newCtx.Err() != nil {
+			t.Fatal("late old evaluation interrupted its replacement")
+		}
+		joined := make(chan struct{})
+		go func() {
+			<-oldCtx.Done()
+			unregisterOld()
+			close(joined)
+		}()
+		if err := manager.retireSupersededCoordinators(t.Context(), newKey, newRun); err != nil {
+			t.Fatal(err)
+		}
+		<-joined
+		if !errors.Is(context.Cause(oldCtx), ErrInvalidClaimToken) || newCtx.Err() != nil {
+			t.Fatalf("takeover causes = old %v, new %v", context.Cause(oldCtx), context.Cause(newCtx))
+		}
+	})
+
 	t.Run("Should keep the replacement registered when the superseded evaluation finishes", func(t *testing.T) {
 		t.Parallel()
 
@@ -463,6 +499,13 @@ type progressRecordingManagerStore struct {
 
 var _ CoordinatorProgressRecorder = (*progressRecordingManagerStore)(nil)
 var _ LoopRunLivenessReader = (*progressRecordingManagerStore)(nil)
+
+func (s *progressRecordingManagerStore) WithLeaseSettlementTransaction(
+	ctx context.Context, action string, fn func(LeaseSettlementMutationStore) error,
+) error {
+	return s.inMemoryManagerStore.WithLeaseSettlementTransaction(ctx, action,
+		func(LeaseSettlementMutationStore) error { return fn(s) })
+}
 
 // Match the production store's atomic coordinator heartbeat/progress mutation.
 func (s *progressRecordingManagerStore) HeartbeatRunLease(ctx context.Context, h LeaseHeartbeat) (Run, error) {

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -44,7 +46,9 @@ func CoordinatorExecution(ctx context.Context) (CoordinatorIdentity, bool) {
 
 type inFlightCoordinator struct {
 	loopRunID string
+	claimHash string
 	cancel    context.CancelCauseFunc
+	done      <-chan struct{}
 }
 
 // coordinatorEvaluationKey identifies one in-flight coordinator evaluation. The key must be unique
@@ -100,6 +104,17 @@ func (m *Service) runClaimedCoordinator(
 	execCtx = context.WithValue(execCtx, coordinatorExecutionContextKey{}, CoordinatorIdentity{
 		RunID: run.ID, LoopRunID: run.LoopRunID, EvaluationID: fmt.Sprintf("%s:%d", key.runID, key.seq),
 	})
+	var confirmedDeadline atomic.Int64
+	confirmedDeadline.Store(run.LeaseUntil.UnixNano())
+	watchDone := make(chan struct{})
+	go func() {
+		defer close(watchDone)
+		m.watchCoordinatorLease(execCtx, cancel, run, &confirmedDeadline)
+	}()
+	defer func() {
+		cancel(nil)
+		<-watchDone
+	}()
 	// Cancellation can commit between the claim and the registration above, when the sweep had no
 	// entry to interrupt. A registered evaluation therefore re-reads the Loop run before doing any
 	// work, so it cannot start a gate command for a canceled Run.
@@ -112,23 +127,15 @@ func (m *Service) runClaimedCoordinator(
 			strings.TrimSpace(run.LoopRunID),
 		)
 	}
+	now := m.now().UTC()
+	firstDue := now.Add(coordinatorFirstHeartbeatDelay(
+		coordinatorHeartbeatInterval(coordinatorLeaseDuration(run)), run.LeaseUntil, now,
+	))
 	heartbeatDone := make(chan error, 1)
 	go func() {
-		heartbeatDone <- m.heartbeatCoordinatorLease(execCtx, cancel, run, claimToken, actor)
+		heartbeatDone <- m.heartbeatCoordinatorLease(execCtx, cancel, run, claimToken, actor, &confirmedDeadline, firstDue)
 	}()
-	// Renew before the synchronous progress write so storage admission cannot
-	// consume the remaining lease without an active heartbeat.
-	m.recordCoordinatorProgress(execCtx, run.LoopRunID, m.now().UTC())
-	var plan CoordinatorCompletionPlan
-	runErr := context.Cause(execCtx)
-	if runErr == nil {
-		if err := m.checkCoordinatorClaim(execCtx, run, claimToken); coordinatorLeaseLost(err) {
-			runErr = err
-		}
-	}
-	if runErr == nil {
-		plan, runErr = m.coordinatorRunner.Run(execCtx, RunID(run.ID))
-	}
+	plan, runErr := m.evaluateClaimedCoordinator(execCtx, key, run, claimToken)
 	unregister()
 	// An interruption or a lost claim invalidates whatever the runner computed under it.
 	interruption := context.Cause(execCtx)
@@ -141,6 +148,23 @@ func (m *Service) runClaimedCoordinator(
 		}
 	}
 	return coordinatorEvaluationOutcome(plan, runErr, interruption, heartbeatErr)
+}
+
+func (m *Service) evaluateClaimedCoordinator(
+	ctx context.Context, key coordinatorEvaluationKey, run Run, claimToken string,
+) (CoordinatorCompletionPlan, error) {
+	// The heartbeat already runs before synchronous storage admission.
+	m.recordCoordinatorProgress(ctx, run.LoopRunID, m.now().UTC())
+	if err := m.checkCoordinatorClaim(ctx, run, claimToken); err != nil {
+		return CoordinatorCompletionPlan{}, err
+	}
+	if err := m.retireSupersededCoordinators(ctx, key, run); err != nil {
+		return CoordinatorCompletionPlan{}, err
+	}
+	if err := context.Cause(ctx); err != nil {
+		return CoordinatorCompletionPlan{}, err
+	}
+	return m.coordinatorRunner.Run(ctx, RunID(run.ID))
 }
 
 // coordinatorEvaluationOutcome discards a plan computed under an interruption or a lost claim. The
@@ -194,18 +218,20 @@ func (m *Service) registerInFlightCoordinator(
 	}
 	m.coordinatorSeq++
 	key := coordinatorEvaluationKey{runID: runID, seq: m.coordinatorSeq}
+	done := make(chan struct{})
 	m.inFlightCoordinators[key] = inFlightCoordinator{
-		loopRunID: strings.TrimSpace(run.LoopRunID),
-		cancel:    cancel,
+		loopRunID: strings.TrimSpace(run.LoopRunID), claimHash: run.ClaimTokenHash,
+		cancel: cancel, done: done,
 	}
 	m.coordinatorMu.Unlock()
 	// Unregistering deletes only this evaluation's key. A replacement registered for the same run
 	// ID while this evaluation finishes therefore stays reachable for interruption.
-	return key, func() {
+	return key, sync.OnceFunc(func() {
 		m.coordinatorMu.Lock()
 		delete(m.inFlightCoordinators, key)
+		close(done)
 		m.coordinatorMu.Unlock()
-	}
+	})
 }
 
 // heartbeatCoordinatorLease renews the claim at a third of its lease duration. A lost claim
@@ -218,16 +244,17 @@ func (m *Service) heartbeatCoordinatorLease(
 	run Run,
 	claimToken string,
 	actor ActorContext,
+	confirmedDeadline *atomic.Int64,
+	firstDue time.Time,
 ) error {
 	leaseDuration := coordinatorLeaseDuration(run)
 	interval := coordinatorHeartbeatInterval(leaseDuration)
 	confirmedUntil := run.LeaseUntil
-	now := m.now().UTC()
-	firstDelay := coordinatorFirstHeartbeatDelay(interval, confirmedUntil, now)
-	poll := max(min(interval/3, time.Second, firstDelay), time.Millisecond)
+	firstDelay := max(firstDue.Sub(m.now().UTC()), time.Millisecond)
+	poll := m.coordinatorPollInterval(interval, firstDelay)
 	ticker := time.NewTicker(poll)
 	defer ticker.Stop()
-	next := now.Add(firstDelay)
+	next := firstDue
 	for {
 		select {
 		case <-ctx.Done():
@@ -267,6 +294,9 @@ func (m *Service) heartbeatCoordinatorLease(
 				next = now.Add(delay)
 				if err == nil {
 					confirmedUntil = renewed.LeaseUntil
+					confirmedDeadline.Store(confirmedUntil.UnixNano())
+					poll = m.coordinatorPollInterval(interval, interval)
+					ticker.Reset(poll)
 				}
 			}
 			if err != nil {
@@ -370,4 +400,60 @@ func coordinatorHeartbeatStep(interval time.Duration, err error) (time.Duration,
 	default:
 		return interval, false
 	}
+}
+
+// watchCoordinatorLease is independent of storage admission. A stalled read or write
+// cannot prevent execution cancellation at the last confirmed ownership deadline.
+func (m *Service) watchCoordinatorLease(
+	ctx context.Context, cancel context.CancelCauseFunc, run Run, confirmed *atomic.Int64,
+) {
+	interval := coordinatorHeartbeatInterval(coordinatorLeaseDuration(run))
+	first := coordinatorFirstHeartbeatDelay(interval, run.LeaseUntil, m.now().UTC())
+	poll := m.coordinatorPollInterval(interval, first)
+	ticker := time.NewTicker(poll)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if !m.now().UTC().Add(poll).Before(time.Unix(0, confirmed.Load())) {
+				cancel(fmt.Errorf("%w: %w", errCoordinatorLeaseLost, ErrLeaseExpired))
+				return
+			}
+			poll = m.coordinatorPollInterval(interval, time.Unix(0, confirmed.Load()).Sub(m.now().UTC())/3)
+			ticker.Reset(poll)
+		}
+	}
+}
+
+func (m *Service) coordinatorPollInterval(interval, firstDelay time.Duration) time.Duration {
+	ceiling := m.coordinatorPollMax
+	if ceiling <= 0 {
+		ceiling = time.Second
+	}
+	return max(min(interval/3, ceiling, firstDelay), time.Millisecond)
+}
+
+// Called only after verifying this evaluation's claim. Capture exact older keys,
+// never interrupt by the shared RunID: a late old caller must not hit a replacement.
+func (m *Service) retireSupersededCoordinators(ctx context.Context, current coordinatorEvaluationKey, run Run) error {
+	var pending []<-chan struct{}
+	m.coordinatorMu.Lock()
+	for key, evaluation := range m.inFlightCoordinators {
+		if key.runID != current.runID || key.seq >= current.seq || evaluation.claimHash == run.ClaimTokenHash {
+			continue
+		}
+		evaluation.cancel(fmt.Errorf("%w: %w", errCoordinatorLeaseLost, ErrInvalidClaimToken))
+		pending = append(pending, evaluation.done)
+	}
+	m.coordinatorMu.Unlock()
+	for _, done := range pending {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		}
+	}
+	return nil
 }

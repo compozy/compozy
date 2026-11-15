@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -26,6 +27,8 @@ import (
 )
 
 type inMemoryManagerStore struct {
+	mu                        sync.Mutex
+	settlementMu              sync.Mutex
 	tasks                     map[string]Task
 	blocks                    map[string]map[string]TaskBlock
 	blockRecurrences          map[string]BlockRecurrence
@@ -49,6 +52,7 @@ type inMemoryManagerStore struct {
 	coordinatorPlanSuperseded bool
 	lastClaimCriteria         ClaimCriteria
 	getTaskRunErrs            []error
+	getTaskRunWait            func(context.Context) error
 	heartbeatRunLeaseErrs     []error
 	coordinatorRunActive      func() bool
 }
@@ -783,6 +787,8 @@ func (s *inMemoryManagerStore) WithLeaseSettlementTransaction(
 	_ string,
 	fn func(LeaseSettlementMutationStore) error,
 ) error {
+	s.settlementMu.Lock()
+	defer s.settlementMu.Unlock()
 	snapshot := s.snapshot()
 	if err := fn(s); err != nil {
 		s.restore(snapshot)
@@ -817,6 +823,8 @@ func (s *inMemoryManagerStore) WithTaskMutationTransaction(
 }
 
 func (s *inMemoryManagerStore) snapshot() inMemoryManagerSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	tasks := make(map[string]Task, len(s.tasks))
 	for id, record := range s.tasks {
 		tasks[id] = cloneTask(record)
@@ -896,6 +904,8 @@ func (s *inMemoryManagerStore) snapshot() inMemoryManagerSnapshot {
 }
 
 func (s *inMemoryManagerStore) restore(snapshot inMemoryManagerSnapshot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.tasks = snapshot.tasks
 	s.blocks = snapshot.blocks
 	s.blockRecurrences = snapshot.blockRecurrences
@@ -1797,13 +1807,26 @@ func (s *inMemoryManagerStore) TransitionTerminalRun(
 }
 
 func (s *inMemoryManagerStore) CoordinatedLoopRunLive(context.Context, string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.coordinatorRunActive == nil {
 		return true, nil
 	}
 	return s.coordinatorRunActive(), nil
 }
 
-func (s *inMemoryManagerStore) GetTaskRun(_ context.Context, id string) (Run, error) {
+func (s *inMemoryManagerStore) GetTaskRun(ctx context.Context, id string) (Run, error) {
+	s.mu.Lock()
+	wait := s.getTaskRunWait
+	s.getTaskRunWait = nil
+	s.mu.Unlock()
+	if wait != nil {
+		if err := wait(ctx); err != nil {
+			return Run{}, err
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if len(s.getTaskRunErrs) > 0 {
 		err := s.getTaskRunErrs[0]
 		s.getTaskRunErrs = s.getTaskRunErrs[1:]
@@ -2069,6 +2092,8 @@ func (s *inMemoryManagerStore) ClaimNextRun(
 	_ context.Context,
 	criteria ClaimCriteria,
 ) (ClaimResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.lastClaimCriteria = criteria
 	normalized, err := criteria.Normalize(time.Now().UTC())
 	if err != nil {
@@ -2211,6 +2236,8 @@ func (s *inMemoryManagerStore) HeartbeatRunLease(
 	_ context.Context,
 	heartbeat LeaseHeartbeat,
 ) (Run, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if len(s.heartbeatRunLeaseErrs) > 0 {
 		err := s.heartbeatRunLeaseErrs[0]
 		s.heartbeatRunLeaseErrs = s.heartbeatRunLeaseErrs[1:]
@@ -2760,6 +2787,8 @@ func (s *inMemoryManagerStore) RecoverExpiredRunLeases(
 	_ context.Context,
 	recovery ExpiredLeaseRecovery,
 ) ([]ExpiredLeaseRecoveryResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	normalized, err := recovery.Normalize(time.Now().UTC())
 	if err != nil {
 		return nil, err
@@ -10122,18 +10151,25 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			store := newInMemoryManagerStore()
 			runner := &recordingCoordinatorRunner{}
 			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
+				store.mu.Lock()
 				initial := store.runs[string(id)]
+				store.mu.Unlock()
 				for range 20 {
 					time.Sleep(30 * time.Second)
 					synctest.Wait()
+					store.mu.Lock()
 					current := store.runs[string(id)]
+					store.mu.Unlock()
 					if ctx.Err() != nil || !current.LeaseUntil.After(time.Now()) {
 						t.Fatalf(
-							"coordinator lost lease: context=%v lease=%s now=%s", ctx.Err(), current.LeaseUntil, time.Now(),
+							"coordinator lost lease: context=%v lease=%s now=%s",
+							ctx.Err(), current.LeaseUntil, time.Now(),
 						)
 					}
 				}
+				store.mu.Lock()
 				current := store.runs[string(id)]
+				store.mu.Unlock()
 				if !current.HeartbeatAt.After(initial.LeaseUntil) || current.Attempt != initial.Attempt {
 					t.Fatalf("coordinator = %#v, want renewed original attempt", current)
 				}
@@ -10155,12 +10191,19 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			runner := &recordingCoordinatorRunner{}
 			runner.run = func(_ context.Context, id RunID) (CoordinatorCompletionPlan, error) {
 				synctest.Wait()
+				store.mu.Lock()
 				store.getTaskRunErrs = []error{errors.New("transient read failure")}
 				store.heartbeatRunLeaseErrs = []error{errors.New("transient heartbeat failure")}
+				store.mu.Unlock()
 				time.Sleep(30 * time.Second)
 				synctest.Wait()
+				store.mu.Lock()
 				current := store.runs[string(id)]
-				if len(store.getTaskRunErrs) != 0 || len(store.heartbeatRunLeaseErrs) != 0 ||
+				store.mu.Unlock()
+				store.mu.Lock()
+				pending := len(store.getTaskRunErrs) + len(store.heartbeatRunLeaseErrs)
+				store.mu.Unlock()
+				if pending != 0 ||
 					!current.HeartbeatAt.After(current.ClaimedAt) {
 					t.Fatalf("coordinator did not recover its heartbeat: %#v", current)
 				}
@@ -10182,9 +10225,13 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			runner := &recordingCoordinatorRunner{}
 			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
 				synctest.Wait()
+				store.settlementMu.Lock()
+				store.mu.Lock()
 				current := store.runs[string(id)]
 				current.ClaimTokenHash = "superseding-claim"
 				store.runs[string(id)] = current
+				store.mu.Unlock()
+				store.settlementMu.Unlock()
 				<-ctx.Done()
 				// Even a runner that ignores cancellation cannot settle its returned plan.
 				return CoordinatorCompletionPlan{Snapshot: GenerationSnapshot{
@@ -10207,16 +10254,49 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			runner := &recordingCoordinatorRunner{}
 			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
 				synctest.Wait()
+				store.mu.Lock()
 				store.coordinatorRunActive = func() bool { return false }
+				store.mu.Unlock()
 				<-ctx.Done()
 				return CoordinatorCompletionPlan{Snapshot: GenerationSnapshot{
-					LoopRunID: store.runs[string(id)].LoopRunID, Generation: 1,
+					LoopRunID: "loop-run-inactive-owner", Generation: 1,
 				}}, nil
 			}
 			_, err := testManagerStartCoordinatorWithStore(t, store, runner, "inactive-owner", time.Now)
 			if !errors.Is(err, ErrCoordinatorInterrupted) || len(store.coordinatorCompletions) != 0 {
 				t.Fatalf(
 					"StartRun() error=%v completions=%d, want owner fence", err, len(store.coordinatorCompletions),
+				)
+			}
+		})
+	})
+
+	t.Run("Should interrupt the gate even while its ownership read is blocked", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			store := newInMemoryManagerStore()
+			runner := &recordingCoordinatorRunner{}
+			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
+				synctest.Wait()
+				store.mu.Lock()
+				store.getTaskRunWait = func(readCtx context.Context) error {
+					<-readCtx.Done()
+					return readCtx.Err()
+				}
+				deadline := store.runs[string(id)].LeaseUntil
+				store.mu.Unlock()
+				<-ctx.Done()
+				if !time.Now().Before(deadline) {
+					t.Fatal("blocked store kept the evaluation alive past its confirmed lease")
+				}
+				return CoordinatorCompletionPlan{}, ctx.Err()
+			}
+			_, err := testManagerStartCoordinatorWithStore(t, store, runner, "blocked-read", time.Now)
+			if !errors.Is(err, ErrLeaseExpired) || len(store.coordinatorCompletions) != 0 {
+				t.Fatalf(
+					"StartRun() error=%v, completions=%d; want deadline cancellation",
+					err,
+					len(store.coordinatorCompletions),
 				)
 			}
 		})
@@ -10229,10 +10309,12 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			runner := &recordingCoordinatorRunner{}
 			runner.run = func(ctx context.Context, id RunID) (CoordinatorCompletionPlan, error) {
 				synctest.Wait()
+				store.mu.Lock()
 				for range 100 {
 					store.heartbeatRunLeaseErrs = append(store.heartbeatRunLeaseErrs, errors.New("busy store"))
 				}
 				deadline := store.runs[string(id)].LeaseUntil
+				store.mu.Unlock()
 				<-ctx.Done()
 				if !time.Now().Before(deadline) {
 					t.Fatal("evaluation continued past its last confirmed lease")
@@ -10242,7 +10324,9 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			_, err := testManagerStartCoordinatorWithStore(t, store, runner, "unconfirmed-lease", time.Now)
 			if !errors.Is(err, ErrLeaseExpired) || len(store.coordinatorCompletions) != 0 {
 				t.Fatalf(
-					"StartRun() error=%v completions=%d, want lease deadline fence", err, len(store.coordinatorCompletions),
+					"StartRun() error=%v completions=%d, want lease deadline fence",
+					err,
+					len(store.coordinatorCompletions),
 				)
 			}
 		})
