@@ -1439,8 +1439,24 @@ func TestClientOutboundPolicy(t *testing.T) {
 		})}
 		for _, base := range []string{"http://registry.example.test", "http://localhost.example.test", "http://127.0.0.2"} {
 			client := NewClient(base, WithToken("transport-sentinel"), WithHTTPClient(transport))
-			_, readErr := client.doRequest(t.Context(), base+"/repos/acme/demo", acceptJSON)
-			_, publishErr := client.doMutationRequest(t.Context(), http.MethodPost, base+"/uploads", acceptBinary, []byte("archive"))
+			readResponse, readErr := client.doRequest(t.Context(), base+"/repos/acme/demo", acceptJSON)
+			if readResponse != nil {
+				if err := readResponse.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}
+			publishResponse, publishErr := client.doMutationRequest(
+				t.Context(),
+				http.MethodPost,
+				base+"/uploads",
+				acceptBinary,
+				[]byte("archive"),
+			)
+			if publishResponse != nil {
+				if err := publishResponse.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}
 			for _, err := range []error{readErr, publishErr} {
 				if !errors.Is(err, outboundpolicy.ErrInsecureTransport) || !strings.Contains(err.Error(), "use HTTPS") {
 					t.Fatalf("insecure endpoint error = %v, want HTTPS recovery guidance", err)
@@ -1451,7 +1467,18 @@ func TestClientOutboundPolicy(t *testing.T) {
 			}
 		}
 		client := NewClient("https://api.example.test", WithToken("transport-sentinel"), WithHTTPClient(transport))
-		_, err := client.doMutationRequest(t.Context(), http.MethodPost, "http://uploads.example.test/upload", acceptBinary, nil)
+		response, err := client.doMutationRequest(
+			t.Context(),
+			http.MethodPost,
+			"http://uploads.example.test/upload",
+			acceptBinary,
+			nil,
+		)
+		if response != nil {
+			if closeErr := response.Body.Close(); closeErr != nil {
+				t.Error(closeErr)
+			}
+		}
 		if !errors.Is(err, outboundpolicy.ErrInsecureTransport) || calls != 0 {
 			t.Fatalf("insecure upload error = %v, network calls = %d", err, calls)
 		}
