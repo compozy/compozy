@@ -121,7 +121,9 @@ describe("subagent roster control poll", () => {
   // Invariant: cached poll data cannot confirm absence before the current activation reads.
   // Owner: control-poll roster publication; canonical suite: this hook's existing suite.
   it("Should wait for a current read on mount and when polling is reactivated", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+    });
     const rosterKey = sessionKeys.subagentRoster(WORKSPACE, SESSION);
     queryClient.setQueryData(sessionKeys.subagentRosterPoll(WORKSPACE, SESSION), {
       subagents: [],
