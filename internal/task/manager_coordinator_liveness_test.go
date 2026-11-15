@@ -90,8 +90,15 @@ func TestManagerCoordinatorLivenessShouldHoldTheClaimWhileEvaluating(t *testing.
 		}
 		// The Loop run must look alive before the evaluation settles, not only after it writes a verdict.
 		harness.store.waitForProgressAt(t, harness.clock.now())
-		if got := harness.store.progressLoopRunIDs(); len(got) != 1 || got[0] != harness.loopRunID {
-			t.Fatalf("loop progress advances while running = %#v, want %q", got, harness.loopRunID)
+		progress := harness.store.progressLoopRunIDs()
+		if len(progress) == 0 {
+			t.Fatal("loop progress advances while running = 0 records, want at least one")
+		}
+		// A renewal can land before the evaluation settles, so extra matching records are valid.
+		for index, loopRunID := range progress {
+			if loopRunID != harness.loopRunID {
+				t.Fatalf("loop progress record %d = %q, want %q", index, loopRunID, harness.loopRunID)
+			}
 		}
 
 		close(release)
@@ -135,6 +142,29 @@ func TestManagerCoordinatorLivenessShouldHoldTheClaimWhileEvaluating(t *testing.
 		}
 		if got := harness.manager.InterruptLoopCoordinatorRuns(harness.loopRunID, "again"); got != 0 {
 			t.Fatalf("InterruptLoopCoordinatorRuns(after settlement) = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should not start an evaluation whose Loop run was canceled before it registered", func(t *testing.T) {
+		t.Parallel()
+
+		harness := newCoordinatorLivenessHarness(t, "canceled-before-register")
+		harness.store.setLoopRunLive(harness.loopRunID, false)
+		calls := 0
+		runner := coordinatorRunnerFunc(func(context.Context, RunID) (CoordinatorCompletionPlan, error) {
+			calls++
+			return CoordinatorCompletionPlan{Yield: true}, nil
+		})
+
+		settled, err := harness.start(runner)
+		if !errors.Is(err, ErrCoordinatorInterrupted) {
+			t.Fatalf("StartRun(canceled before registration) error = %v, want ErrCoordinatorInterrupted", err)
+		}
+		if calls != 0 {
+			t.Fatalf("coordinator runner calls = %d, want none for a canceled Loop run", calls)
+		}
+		if settled == nil || settled.Status.Normalize() != TaskRunStatusFailed {
+			t.Fatalf("StartRun(canceled before registration) run = %#v, want failed settlement", settled)
 		}
 	})
 
@@ -226,6 +256,172 @@ func TestCoordinatorHeartbeatStepShouldKeepRetriesInsideTheLease(t *testing.T) {
 	}
 }
 
+// Invariant: every coordinator evaluation unregisters only itself, so a replacement registered for
+// the same run ID after a recovered lease requeue stays reachable by interruption, and canceling a
+// Loop interrupts every evaluation it still has in flight.
+func TestManagerCoordinatorInFlightRegistryShouldKeepReplacementsReachable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep the replacement registered when the superseded evaluation finishes", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &Service{}
+		run := Run{ID: "run-registry-superseded", LoopRunID: "loop-run-registry-superseded"}
+		var supersededCause, replacementCause error
+		unregisterSuperseded := manager.registerInFlightCoordinator(run, func(cause error) {
+			supersededCause = cause
+		})
+		unregisterReplacement := manager.registerInFlightCoordinator(run, func(cause error) {
+			replacementCause = cause
+		})
+
+		// The superseded attempt returns after the replacement registered.
+		unregisterSuperseded()
+		if interrupted := manager.InterruptLoopCoordinatorRuns(run.LoopRunID, "operator cancel"); interrupted != 1 {
+			t.Fatalf("InterruptLoopCoordinatorRuns(replacement only) = %d, want 1", interrupted)
+		}
+		if !errors.Is(replacementCause, ErrCoordinatorInterrupted) {
+			t.Fatalf("replacement cancel cause = %v, want ErrCoordinatorInterrupted", replacementCause)
+		}
+		if supersededCause != nil {
+			t.Fatalf("superseded cancel cause = %v, want it untouched after unregistering", supersededCause)
+		}
+
+		unregisterReplacement()
+		if interrupted := manager.InterruptLoopCoordinatorRuns(run.LoopRunID, "again"); interrupted != 0 {
+			t.Fatalf("InterruptLoopCoordinatorRuns(after settlement) = %d, want 0", interrupted)
+		}
+	})
+
+	t.Run("Should interrupt both concurrent evaluations for the same Loop run", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &Service{}
+		run := Run{ID: "run-registry-concurrent", LoopRunID: "loop-run-registry-concurrent"}
+		causes := make([]error, 2)
+		unregister := make([]func(), 0, 2)
+		for index := range causes {
+			unregister = append(unregister, manager.registerInFlightCoordinator(run, func(cause error) {
+				causes[index] = cause
+			}))
+		}
+		defer func() {
+			for _, stop := range unregister {
+				stop()
+			}
+		}()
+
+		if interrupted := manager.InterruptLoopCoordinatorRuns(run.LoopRunID, "operator cancel"); interrupted != 2 {
+			t.Fatalf("InterruptLoopCoordinatorRuns(concurrent evaluations) = %d, want 2", interrupted)
+		}
+		for index, cause := range causes {
+			if !errors.Is(cause, ErrCoordinatorInterrupted) {
+				t.Fatalf("evaluation %d cancel cause = %v, want ErrCoordinatorInterrupted", index, cause)
+			}
+		}
+	})
+}
+
+// Invariant: a plan computed under a lost claim is discarded even when the evaluation returns before
+// the heartbeat records the loss, and the first renewal respects what is left of the claimed lease.
+func TestManagerCoordinatorLivenessShouldDiscardPlansFromLostClaims(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should discard the plan when only the heartbeat recorded the lease loss", func(t *testing.T) {
+		t.Parallel()
+
+		leaseErr := fmt.Errorf("%w: coordinator run %q: %w", errCoordinatorLeaseLost, "run-first", ErrLeaseExpired)
+		plan, err := coordinatorEvaluationOutcome(
+			CoordinatorCompletionPlan{Yield: true},
+			nil,
+			nil,
+			leaseErr,
+		)
+		if !errors.Is(err, errCoordinatorLeaseLost) || !errors.Is(err, ErrLeaseExpired) {
+			t.Fatalf("coordinatorEvaluationOutcome(heartbeat loss) error = %v, want the lease loss", err)
+		}
+		if plan.Yield || plan.Snapshot.LoopRunID != "" {
+			t.Fatalf("coordinatorEvaluationOutcome(heartbeat loss) plan = %#v, want it discarded", plan)
+		}
+	})
+
+	t.Run("Should join an interruption with the heartbeat lease loss", func(t *testing.T) {
+		t.Parallel()
+
+		interrupted := fmt.Errorf("%w: loop run canceled", ErrCoordinatorInterrupted)
+		leaseErr := fmt.Errorf("%w: token mismatch", errCoordinatorLeaseLost)
+		_, err := coordinatorEvaluationOutcome(CoordinatorCompletionPlan{}, nil, interrupted, leaseErr)
+		if !errors.Is(err, ErrCoordinatorInterrupted) || !errors.Is(err, errCoordinatorLeaseLost) {
+			t.Fatalf("coordinatorEvaluationOutcome(both causes) error = %v, want both causes", err)
+		}
+	})
+
+	t.Run("Should return the plan when neither cause fired", func(t *testing.T) {
+		t.Parallel()
+
+		want := CoordinatorCompletionPlan{Yield: true}
+		plan, err := coordinatorEvaluationOutcome(want, nil, nil, nil)
+		if err != nil || !plan.Yield {
+			t.Fatalf("coordinatorEvaluationOutcome(clean) = %#v, %v; want the plan", plan, err)
+		}
+	})
+}
+
+// Invariant: the first heartbeat lands inside the claimed lease instead of a full interval after the
+// claim was made, so a claim whose start-up transitions consumed part of its lease still renews.
+func TestManagerCoordinatorFirstHeartbeatShouldRespectTheRemainingLease(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
+	interval := coordinatorHeartbeatInterval(DefaultRunLeaseDuration)
+	tests := []struct {
+		name       string
+		interval   time.Duration
+		leaseUntil time.Time
+		now        time.Time
+		want       time.Duration
+	}{
+		{
+			name:       "Should keep the steady interval when the full lease remains",
+			interval:   interval,
+			leaseUntil: now.Add(DefaultRunLeaseDuration),
+			now:        now,
+			want:       interval,
+		},
+		{
+			name:       "Should follow the remaining lease when it is shorter than the interval",
+			interval:   interval,
+			leaseUntil: now.Add(20 * time.Second),
+			now:        now,
+			want:       20 * time.Second,
+		},
+		{
+			name:       "Should fall back to the interval without a recorded lease end",
+			interval:   interval,
+			leaseUntil: time.Time{},
+			now:        now,
+			want:       interval,
+		},
+		{
+			name:       "Should keep the timer positive for an expired lease",
+			interval:   interval,
+			leaseUntil: now.Add(-time.Minute),
+			now:        now,
+			want:       time.Millisecond,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := coordinatorFirstHeartbeatDelay(tt.interval, tt.leaseUntil, tt.now); got != tt.want {
+				t.Fatalf("coordinatorFirstHeartbeatDelay(%s) = %s, want %s",
+					tt.leaseUntil.Sub(tt.now), got, tt.want)
+			}
+		})
+	}
+}
+
 type coordinatorRunnerFunc func(context.Context, RunID) (CoordinatorCompletionPlan, error)
 
 func (f coordinatorRunnerFunc) Run(ctx context.Context, runID RunID) (CoordinatorCompletionPlan, error) {
@@ -254,14 +450,18 @@ type coordinatorProgress struct {
 	at        time.Time
 }
 
-// progressRecordingManagerStore adds the Loop progress capability the daemon's SQLite store owns.
+// progressRecordingManagerStore adds the Loop progress and liveness capabilities the daemon's
+// SQLite store owns.
 type progressRecordingManagerStore struct {
 	*inMemoryManagerStore
 	progressMu sync.Mutex
 	progress   []coordinatorProgress
+	liveMu     sync.Mutex
+	live       map[string]bool
 }
 
 var _ CoordinatorProgressRecorder = (*progressRecordingManagerStore)(nil)
+var _ LoopRunLivenessReader = (*progressRecordingManagerStore)(nil)
 
 func (s *progressRecordingManagerStore) AdvanceLoopRunProgress(
 	_ context.Context,
@@ -282,6 +482,27 @@ func (s *progressRecordingManagerStore) progressLoopRunIDs() []string {
 		ids = append(ids, progress.loopRunID)
 	}
 	return ids
+}
+
+// CoordinatedLoopRunLive answers the optional Loop liveness capability. A run with no override stays
+// live, matching the production store where the Loop run row decides.
+func (s *progressRecordingManagerStore) CoordinatedLoopRunLive(_ context.Context, loopRunID string) (bool, error) {
+	s.liveMu.Lock()
+	defer s.liveMu.Unlock()
+	live, overridden := s.live[loopRunID]
+	if !overridden {
+		return true, nil
+	}
+	return live, nil
+}
+
+func (s *progressRecordingManagerStore) setLoopRunLive(loopRunID string, live bool) {
+	s.liveMu.Lock()
+	defer s.liveMu.Unlock()
+	if s.live == nil {
+		s.live = make(map[string]bool)
+	}
+	s.live[loopRunID] = live
 }
 
 func (s *progressRecordingManagerStore) waitForProgressAt(t *testing.T, at time.Time) {

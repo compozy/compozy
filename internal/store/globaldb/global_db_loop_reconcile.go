@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -191,6 +192,26 @@ func normalizeLoopCoordinatorReconcileOrigin(origin taskpkg.Origin) (taskpkg.Ori
 	}
 	return normalized, nil
 }
+
+// CoordinatedLoopRunLive reports whether one Loop run still accepts coordinator work. A coordinator
+// evaluation re-reads it after registering so a cancellation that committed before the registration
+// still stops the evaluation before it starts a gate command.
+func (g *LoopRepo) CoordinatedLoopRunLive(ctx context.Context, loopRunID string) (bool, error) {
+	trimmedLoopRunID := strings.TrimSpace(loopRunID)
+	if trimmedLoopRunID == "" {
+		return false, nil
+	}
+	run, err := g.GetLoopRunByID(ctx, looppkg.RunID(trimmedLoopRunID))
+	if errors.Is(err, looppkg.ErrRunNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return run.Status.Live(), nil
+}
+
+var _ taskpkg.LoopRunLivenessReader = (*LoopRepo)(nil)
 
 func (g *LoopRepo) AdvanceLoopRunProgress(ctx context.Context, loopRunID string, at time.Time) error {
 	if err := g.checkReady(ctx, "advance loop run progress"); err != nil {

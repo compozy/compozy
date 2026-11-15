@@ -146,7 +146,8 @@ type Service struct {
 	liveSubscribers         map[uint64]*taskStreamSubscriber
 	nextSubscriberID        uint64
 	coordinatorMu           sync.Mutex
-	inFlightCoordinators    map[string]inFlightCoordinator
+	coordinatorSeq          uint64
+	inFlightCoordinators    map[coordinatorEvaluationKey]inFlightCoordinator
 }
 
 var _ Manager = (*Service)(nil)
