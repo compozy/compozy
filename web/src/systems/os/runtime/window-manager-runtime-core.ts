@@ -288,16 +288,7 @@ export abstract class WindowManagerRuntimeCore {
     const projection = this.runtimeProjection;
     if (this.projectionDeferred || projection === null) return;
     // Keep the publication signal while reusing unchanged selector branches.
-    const started = performance.now();
-    const built = this.buildView();
-    const builtAt = performance.now();
-    const shared = replaceEqualDeep(projection.get(), built);
-    const sharedAt = performance.now();
-    projection.set({ ...shared });
-    const notifiedAt = performance.now();
-    performance.measure("wm-perf:build", { start: started, end: builtAt });
-    performance.measure("wm-perf:share", { start: builtAt, end: sharedAt });
-    performance.measure("wm-perf:notify", { start: sharedAt, end: notifiedAt });
+    projection.set({ ...replaceEqualDeep(projection.get(), this.buildView()) });
   }
 
   protected snapshot(): WindowManagerSnapshot | null {

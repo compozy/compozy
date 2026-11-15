@@ -1,11 +1,10 @@
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Browser, CDPSession, Locator, Page, TestInfo } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
@@ -3643,7 +3642,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   let switchProbe: SwitchProbeRecords = { switches: [], tasks: [], tooltipsShown: 0, frames: [] };
   let switchCount = 0;
   try {
-    await startWindowManagerProfile(switchInput);
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
     await installSwitchProbe(appPage);
@@ -3655,12 +3653,10 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     switchProbe = await readSwitchProbe(appPage);
     longTasks = switchProbe.tasks.map(task => task.duration);
-    await attachWindowManagerProfile(switchInput, testInfo, "switch", switchProbe);
   } finally {
     await switchInput.detach();
   }
   const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
-  console.log(`[wm-perf:switch] ${JSON.stringify(await readWindowManagerTimings(appPage))}`);
   const appOfWindow = new Map([...perfWindowIDs].map(([app, id]) => [id, app]));
 
   const peerA = await openPeerPage(browser, runtime);
@@ -3674,14 +3670,8 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   }
   let worstPeerTask = 0;
   let peerAttribution: ReturnType<typeof attributePeerLongTasks> = [];
-  const peerProfilers: CDPSession[] = [];
   try {
     const peers = [peerA, peerB];
-    for (const peer of peers) {
-      const profiler = await peer.context().newCDPSession(peer);
-      peerProfilers.push(profiler);
-      await startWindowManagerProfile(profiler);
-    }
     for (const peer of peers) {
       for (const id of perfWindowIDs.values()) {
         await expect(osShellSelectors(peer).tabOfWindow(id)).toHaveCount(1);
@@ -3716,14 +3706,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
       tabForWindow(await windowManagerSnapshot(runtime, workspace.id), marketplaceID)?.id
     ).toBe(tabForWindow(await windowManagerSnapshot(runtime, workspace.id), loopsID)?.id);
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
-    console.log(
-      `[wm-perf:peers] ${JSON.stringify(await Promise.all(peers.map(readWindowManagerTimings)))}`
-    );
-    for (const [index, profiler] of peerProfilers.entries()) {
-      await attachWindowManagerProfile(profiler, testInfo, `peer-${index}`, peerProbes[index]);
-    }
   } finally {
-    for (const profiler of peerProfilers) await profiler.detach();
     await peerA.context().close();
     await peerB.context().close();
   }
@@ -3751,53 +3734,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   expect(worstFrame).toBeLessThanOrEqual(50);
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
-
-async function startWindowManagerProfile(profiler: CDPSession) {
-  await profiler.send("Performance.enable");
-  await profiler.send("Profiler.enable");
-  await profiler.send("Profiler.setSamplingInterval", { interval: 2000 });
-  await profiler.send("Profiler.start");
-}
-
-async function attachWindowManagerProfile(
-  profiler: CDPSession,
-  testInfo: TestInfo,
-  name: string,
-  probe: unknown
-) {
-  const directory = testInfo.outputPath("diagnostic-profiles");
-  await mkdir(directory, { recursive: true });
-  const attach = async (filename: string, body: string, contentType: string) => {
-    const target = path.join(directory, filename);
-    await writeFile(target, body);
-    await testInfo.attach(filename, { path: target, contentType });
-  };
-  const { profile } = await profiler.send("Profiler.stop");
-  const { metrics } = await profiler.send("Performance.getMetrics");
-  await attach(`${name}-timeline.json`, JSON.stringify({ metrics, probe }), "application/json");
-  await attach(`${name}.cpuprofile`, JSON.stringify(profile), "application/json");
-  await profiler.send("Debugger.enable");
-  const scriptIds = new Set(
-    profile.nodes
-      .filter(node => (node.hitCount ?? 0) > 0 && node.callFrame.url.includes("/assets/"))
-      .map(node => node.callFrame.scriptId)
-  );
-  for (const scriptId of scriptIds) {
-    const { scriptSource } = await profiler.send("Debugger.getScriptSource", { scriptId });
-    await attach(`${name}-script-${scriptId}.js`, scriptSource, "text/javascript");
-  }
-}
-
-async function readWindowManagerTimings(page: Page) {
-  return page.evaluate(() =>
-    performance
-      .getEntriesByType("measure")
-      .filter(entry => entry.name.startsWith("wm-perf:"))
-      .sort((left, right) => right.duration - left.duration)
-      .slice(0, 30)
-      .map(entry => ({ name: entry.name, start: entry.startTime, duration: entry.duration }))
-  );
-}
 
 /** A long animation frame over 50ms, with its slowest scripts. */
 interface LongFrameRecord {
