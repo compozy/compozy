@@ -368,6 +368,8 @@ func (m *Manager) stageSessionDirectoryDeleteWithAttachmentStaging(
 }
 
 func (m *Manager) rollbackStagedSessionDeletes(ctx context.Context, staged []stagedSessionDelete) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	var rollbackErr error
 	for _, entry := range slices.Backward(staged) {
 		attachmentErr := rollbackStagedAttachmentDelete(entry.attachments)

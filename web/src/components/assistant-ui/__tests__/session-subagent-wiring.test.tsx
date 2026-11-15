@@ -325,6 +325,51 @@ describe("parent timeline activity across subagent updates (#835)", () => {
 });
 
 describe("subagent card drill-in (UT-W16)", () => {
+  // Invariant: a stale cached absence cannot close a newly selected drawer before confirmation.
+  // Owner: roster-to-drawer wiring; canonical suite: UT-W16.
+  it("Should keep inspection open while an older empty roster refetches", async () => {
+    const queued = view("sub-1", { status: "queued", child_session_id: null });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(
+      sessionKeys.subagents(WORKSPACE_ID, SESSION_ID),
+      { pages: [{ subagents: [], next_cursor: null }], pageParams: [""] },
+      { updatedAt: Date.now() - 10_000 }
+    );
+    let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
+    vi.mocked(fetchSessionSubagents).mockReturnValueOnce(
+      new Promise(resolve => {
+        confirm = resolve;
+      })
+    );
+    function OpenDrawer() {
+      const drawer = use(SubagentDrawerContext);
+      return (
+        <button onClick={() => drawer?.open(queued, { newWindow: false }, WORKSPACE_ID)}>
+          Inspect delegation
+        </button>
+      );
+    }
+    render(
+      <QueryClientProvider client={client}>
+        <UIProvider>
+          <SessionSubagentDrawer openSession={vi.fn()}>
+            <OpenDrawer />
+          </SessionSubagentDrawer>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Inspect delegation" }));
+    expect(await screen.findByText("Waiting for the subagent session to start.")).toBeVisible();
+    await act(async () => {
+      confirm({ subagents: [], next_cursor: null });
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Waiting for the subagent session to start.")
+      ).not.toBeInTheDocument()
+    );
+  });
+
   // Invariant: a complete authoritative roster removal closes inspection; partial loading does not.
   // Owner: roster-to-drawer wiring; canonical suite: UT-W16.
   it("Should close a selected drawer when the complete roster removes its row", async () => {

@@ -28,6 +28,3 @@ Stored lists and ancestor ceilings are retained. The original second-resolution 
 preserved: rows in its ambiguous fractional second are not widened automatically. An affected user
 can explicitly re-grant tool or MCP access to that session. Malformed historical permission JSON still
 requires diagnosis rather than silently skipping shipped integrity failures.
-
-Derive requests resolve the target agent before checking transcript freshness, so an unknown agent
-is reported before a stale transcript fence. Transcript fence checks remain enforced for valid agents.

@@ -152,7 +152,7 @@ function SubagentDrawerSelection({
   );
   const removed =
     selected !== null &&
-    roster.complete &&
+    roster.confirmed &&
     !roster.subagents.some(row => row.id === selected.subagent.id);
   useEffect(() => {
     if (removed) onClose();

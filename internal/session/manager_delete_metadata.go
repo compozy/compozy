@@ -15,6 +15,8 @@ const sessionDeleteReceiptName = "deletion-owner.json"
 
 // A deletion receipt preserves only the verified owner and reconciliation scope.
 // It never replaces missing runtime metadata or permits resuming the session.
+// It may survive a failed staging or restoration in the live directory; keeping
+// it there preserves recovery evidence and only tombstone recovery consumes it.
 type sessionDeleteReceipt struct {
 	Owner       store.SessionDBOwner `json:"owner"`
 	ProfileID   string               `json:"profile_id"`

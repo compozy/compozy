@@ -20,6 +20,8 @@ export interface SessionSubagentsModel {
    * read with every page in.
    */
   complete: boolean;
+  /** A complete answer confirmed by the live stream or a finished read after mounting. */
+  confirmed: boolean;
   /** The list read failed and no stream roster stands in. */
   failed: boolean;
   /** Re-reads the list after a failure. */
@@ -110,6 +112,9 @@ export function useSessionSubagents(
       query.data?.pages.flatMap(page => page.subagents.map(subagentViewFromPayload)) ??
       [],
     complete: live !== null || (query.isSuccess && !hasNextPage),
+    confirmed:
+      live !== null ||
+      (query.isSuccess && !hasNextPage && query.isFetchedAfterMount && !query.isFetching),
     failed: live === null && query.isError,
     retry: () => void refetch(),
     stop: async subagent => {

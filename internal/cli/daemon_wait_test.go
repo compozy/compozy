@@ -405,6 +405,10 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 			}
 			return false
 		}
+		deps.inspectProcess = func(pid int) (procutil.ScannedProcess, error) {
+			return procutil.ScannedProcess{PID: pid, StartedAt: info.StartedAt.Add(time.Minute)}, nil
+		}
+		deps.processOwnsFileLock = func(int, string) (bool, error) { return false, nil }
 		runtime, err := loadRuntimeContext(deps)
 		if err != nil {
 			t.Fatal(err)
@@ -414,6 +418,40 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 			t.Fatalf("recycled PID status=%+v err=%v", status, err)
 		}
 	})
+
+	// Invariant: unreadable identity or clock drift is not proof that the daemon exited.
+	// Owner: CLI daemon lifecycle; canonical suite: TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits.
+	for _, test := range []struct {
+		name       string
+		inspectErr error
+		lockHeld   bool
+		lockErr    error
+	}{
+		{name: "Should wait through an unavailable process lookup", inspectErr: errors.New("lookup unavailable")},
+		{name: "Should wait through start-time drift while the daemon owns its lock", lockHeld: true},
+		{name: "Should wait through an unavailable lock-owner lookup", lockErr: os.ErrPermission},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			deps := newTestDeps(t, &stubClient{}).withDefaults()
+			deps.pollInterval = time.Millisecond
+			info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+			checks := 0
+			deps.processAlive = func(int) bool { checks++; return checks < 3 }
+			deps.inspectProcess = func(pid int) (procutil.ScannedProcess, error) {
+				return procutil.ScannedProcess{PID: pid, StartedAt: info.StartedAt.Add(time.Hour)}, test.inspectErr
+			}
+			deps.processOwnsFileLock = func(int, string) (bool, error) { return test.lockHeld, test.lockErr }
+			runtime, err := loadRuntimeContext(deps)
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, err := waitForDaemonStop(t.Context(), deps, runtime, info)
+			if err != nil || status.Status != "stopped" || checks != 3 {
+				t.Fatalf("stop status=%+v err=%v checks=%d, want wait until exit", status, err, checks)
+			}
+		})
+	}
 
 	// Invariant: an exited, unreaped process cannot write to the home and must not delay stop.
 	// Owner: CLI daemon lifecycle; canonical suite: daemon_wait_test.go.

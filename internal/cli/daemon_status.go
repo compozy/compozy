@@ -34,10 +34,25 @@ func waitForDaemonStop(
 		"cli: daemon did not stop before timeout",
 		func(_ context.Context, _ pollEvent) (DaemonStatus, bool, error) {
 			// Discovery is withdrawn before the database and logger finish closing.
-			if deps.processAlive(info.PID) && deps.processMatchesStartTime(info.PID, info.StartedAt) {
+			if deps.processAlive(info.PID) {
 				process, err := deps.inspectProcess(info.PID)
-				if err != nil || !process.Zombie {
+				if err != nil {
 					return DaemonStatus{}, false, nil
+				}
+				if !process.Zombie {
+					// A failed identity lookup is not exit evidence. Clock drift can
+					// also change the observed start time while the daemon owns its lock.
+					if process.StartedAt.IsZero() ||
+						procutil.MatchesObservedStartTime(process.StartedAt, info.StartedAt) {
+						return DaemonStatus{}, false, nil
+					}
+					ownsLock := deps.processOwnsFileLock
+					if ownsLock == nil {
+						ownsLock = procutil.OwnsFileLock
+					}
+					if held, err := ownsLock(info.PID, runtime.HomePaths.DaemonLock); err != nil || held {
+						return DaemonStatus{}, false, nil
+					}
 				}
 			}
 			return daemonStatusWithState(runtime, info, "stopped"), true, nil

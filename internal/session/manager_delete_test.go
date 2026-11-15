@@ -1091,17 +1091,21 @@ func TestManagerDelete(t *testing.T) {
 					return nil
 				}})
 				deleteErr := errors.New("catalog delete failed")
+				deleteCtx, cancelDelete := context.WithCancel(testutil.Context(t))
+				defer cancelDelete()
 				// A slow catalog failure must leave rollback alive past the reader-wait budget.
 				catalog.deleteHook = func(ctx context.Context, _ string) error {
 					select {
 					case <-time.After(200 * time.Millisecond):
+						// Cancellation at the catalog failure must not strand staged history.
+						cancelDelete()
 						return deleteErr
 					case <-ctx.Done():
 						return ctx.Err()
 					}
 				}
 
-				err := h.manager.Delete(testutil.Context(t), session.ID)
+				err := h.manager.Delete(deleteCtx, session.ID)
 				if !errors.Is(err, deleteErr) {
 					t.Fatalf("Delete() error = %v, want %v", err, deleteErr)
 				}
