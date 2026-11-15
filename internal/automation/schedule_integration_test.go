@@ -829,7 +829,7 @@ func (w *schedulerFailureLogCounter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-// Invariant: accepted startup failures settle one fire using only its configured retries.
+// Invariant: startup failures settle one fire using configured retries and discard only eligible intermediate failures.
 // Owner: durable automation scheduler/dispatcher integration suite.
 func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 	t.Parallel()
@@ -840,13 +840,14 @@ func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 		retries  int
 		attempts int
 		failures int
+		discards int
 		untyped  bool
 		accepted bool
 	}{
 		{name: "Should settle a handshake timeout without retry", cause: context.DeadlineExceeded, attempts: 1, failures: 1},
 		{name: "Should settle a cancelled provider startup without retry", cause: context.Canceled, retries: 2, attempts: 1, failures: 1},
-		{name: "Should cap handshake timeout retries on one run", cause: context.DeadlineExceeded, retries: 2, attempts: 3, failures: 3},
-		{name: "Should complete the same fire after a transient handshake timeout", cause: context.DeadlineExceeded, retries: 2, attempts: 2, failures: 1},
+		{name: "Should cap handshake timeout retries on one run", cause: context.DeadlineExceeded, retries: 2, attempts: 3, failures: 3, discards: 2},
+		{name: "Should complete the same fire after a transient handshake timeout", cause: context.DeadlineExceeded, retries: 2, attempts: 2, failures: 1, discards: 1},
 		{name: "Should not retry permanent provider configuration failures", cause: errors.New("invalid provider configuration"), kind: store.FailureStartup, retries: 2, attempts: 1, failures: 1},
 		{name: "Should not retry definition failures", cause: errors.New("agent definition not found"), untyped: true, retries: 2, attempts: 1, failures: 1},
 		{name: "Should not treat preparation timeouts as initialize timeouts", cause: context.DeadlineExceeded, kind: store.FailureStartup, retries: 2, attempts: 1, failures: 1},
@@ -929,8 +930,17 @@ func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 				run.Attempt != tc.attempts || run.EndedAt == nil || (run.Error == "") != completed {
 				t.Fatalf("startup settlement: %+v", run)
 			}
-			if got := len(creator.createCalls()); got != tc.attempts {
+			calls := creator.createCalls()
+			if got := len(calls); got != tc.attempts {
 				t.Fatalf("startup attempts = %d", got)
+			}
+			for i, call := range calls[:tc.failures] {
+				if call.DiscardStartFailureWhen == nil {
+					t.Fatalf("attempt %d has no startup retention policy", i+1)
+				}
+				if got, want := call.DiscardStartFailureWhen(startErr), i < tc.discards; got != want {
+					t.Fatalf("attempt %d discards failed start = %t, want %t", i+1, got, want)
+				}
 			}
 			terminalFailures := 0
 			for _, failure := range hooks.runFailed {
