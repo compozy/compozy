@@ -147,6 +147,12 @@ func TestProcessStdoutLifetime(t *testing.T) {
 			if (waitErr != nil) != (tc.exitCode != 0) {
 				t.Fatalf("Wait() error = %v, want exit code %d", waitErr, tc.exitCode)
 			}
+			if tc.exitCode != 0 {
+				exitErr, ok := errors.AsType[*exec.ExitError](waitErr)
+				if !ok || exitErr.ExitCode() != tc.exitCode {
+					t.Fatalf("Wait() error = %v, want ExitError with exit code %d", waitErr, tc.exitCode)
+				}
+			}
 			status, ok := process.ExitStatus()
 			if !ok || status.ExitCode != tc.exitCode {
 				t.Fatalf("ExitStatus() = %+v, %t; want exit code %d", status, ok, tc.exitCode)
@@ -1502,7 +1508,7 @@ func newHelperServer(scenario string, shutdownMarker string) *helperServer {
 
 func (h *helperServer) run() int {
 	if h.scenario == "raw_output" || h.scenario == "raw_output_exit_23" {
-		if _, err := io.WriteString(os.Stdout, strings.Repeat("short-lived output\n", 64)); err != nil {
+		if _, err := os.Stdout.WriteString(strings.Repeat("short-lived output\n", 64)); err != nil {
 			writeHelperDiagnostic("raw output: %v\n", err)
 			return 1
 		}
