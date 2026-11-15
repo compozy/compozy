@@ -52,7 +52,7 @@ import (
 // Owner: daemon orchestration; canonical suite for the new subagent journey (IT-001/IT-013 queue and replay halves).
 func TestSubagentDaemonIntegration(t *testing.T) {
 	// Invariant: deleting child history retains one terminal result and wakes its parent once.
-	for _, deletion := range []string{"running", "stopped", "missing history", "store recovery"} {
+	for _, deletion := range []string{"running", "stopped", "missing history", "store recovery", "wait recovery"} {
 		t.Run("Should settle and deliver a deleted child with "+deletion, func(t *testing.T) {
 			t.Parallel()
 			d, manager, workspace := newSubagentDaemonIntegration(t)
@@ -84,7 +84,14 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if deletion == "store recovery" {
+			if deletion == "wait recovery" {
+				if _, err := d.registry.(*globaldb.GlobalDB).DB().ExecContext(ctx,
+					`UPDATE session_subagents SET wake_policy = ? WHERE id = ?`, store.SubagentWakePolicySettledOnly, row.ID,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if deletion == "store recovery" || deletion == "wait recovery" {
 				if err := d.registry.(store.SessionCatalog).DeleteSession(ctx, childID); err != nil {
 					t.Fatal(err)
 				}
@@ -111,14 +118,15 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 				t.Fatalf("deleted child delegation = %+v, %v", current, err)
 			}
 			if deletion != "running" && (current.Status != store.SubagentStatusInterrupted ||
-				current.Error == nil || *current.Error != "delegation interrupted: child session deleted") {
+				current.Error == nil || *current.Error != "delegation interrupted: child session deleted" ||
+				current.Result != nil || current.ResultTruncated) {
 				t.Fatalf("unsettled delete lost its interruption: %+v", current)
 			}
 			summary, err := service.Summaries(ctx, []string{parent.ID})
 			if err != nil || summary[parent.ID].Live != 0 {
 				t.Fatal(summary, err)
 			}
-			if deletion != "store recovery" {
+			if deletion != "store recovery" && deletion != "wait recovery" {
 				if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
 					t.Fatal(err)
 				}
@@ -194,7 +202,8 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 		select {
 		case got := <-done:
 			if got.err != nil || got.row.Status != store.SubagentStatusInterrupted ||
-				got.row.Delivery != store.SubagentDeliveryNone || got.row.WakeMessageID != nil || got.row.WaitTimedOut {
+				got.row.Delivery != store.SubagentDeliveryAcknowledged || got.row.WakeMessageID != nil || got.row.WaitTimedOut ||
+				got.row.Result != nil || got.row.ResultTruncated || got.row.Error == nil {
 				t.Fatalf("wait-mode result = %+v, %v", got.row, got.err)
 			}
 		case <-ctx.Done():

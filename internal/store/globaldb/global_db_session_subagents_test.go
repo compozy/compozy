@@ -988,14 +988,8 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 					t.Fatalf("summaries = %+v, %v; want no live subagent", summaries[parent], err)
 				}
 				pending, err := db.HasPendingSubagentWake(ctx, workspace, parent)
-				wantPending := test.wakePolicy == store.SubagentWakePolicyAlways
-				wantDelivery := store.SubagentDeliveryNone
-				if wantPending {
-					wantDelivery = store.SubagentDeliveryPending
-				}
-				if err != nil || pending != wantPending || got.Delivery != wantDelivery {
-					t.Fatalf("pending wake = %v, delivery = %s, error = %v; want %v/%s",
-						pending, got.Delivery, err, wantPending, wantDelivery)
+				if err != nil || !pending || got.Delivery != store.SubagentDeliveryPending {
+					t.Fatalf("pending interruption = %v, delivery = %s, error = %v", pending, got.Delivery, err)
 				}
 			})
 		}

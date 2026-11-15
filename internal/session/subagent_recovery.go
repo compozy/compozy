@@ -298,6 +298,13 @@ func (s *subagentService) recoverPending(ctx context.Context) error {
 	}
 	seen := make(map[string]bool)
 	for _, row := range pending {
+		if row.ChildSessionID == nil && store.IsSubagentStatusTerminal(row.Status) {
+			observed := s.observeSettledWorktree(ctx, row)
+			unlock := s.lock(row.ParentSessionID)
+			_, factsErr := s.persistTerminalWorktreeFacts(ctx, observed, row)
+			unlock()
+			s.recoveryResult(ctx, row.ID, "deleted_child_facts", factsErr)
+		}
 		if seen[row.ParentSessionID] {
 			continue
 		}

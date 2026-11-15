@@ -73,7 +73,19 @@ func (s *subagentService) planDelivery(ctx context.Context, row store.SessionSub
 }
 
 func (s *subagentService) claim(ctx context.Context, parent string, ids []string) error {
-	ids = slices.DeleteFunc(slices.Clone(ids), s.deletingDelivery)
+	var deferred []string
+	ids = slices.DeleteFunc(slices.Clone(ids), func(id string) bool {
+		if s.deletingDelivery(id) {
+			deferred = append(deferred, id)
+			return true
+		}
+		return false
+	})
+	if len(deferred) > 0 {
+		if err := s.store.SetPending(ctx, deferred); err != nil {
+			return err
+		}
+	}
 	if len(ids) == 0 {
 		return nil
 	}

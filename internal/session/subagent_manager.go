@@ -22,6 +22,7 @@ func (m *Manager) prepareSubagentSessionDelete(ctx context.Context, child string
 	if err != nil {
 		return nil, err
 	}
+	row = service.observeSettledWorktree(ctx, row)
 	return func(deleted bool) {
 		if !deleted {
 			return
@@ -39,15 +40,22 @@ func (s *subagentService) onChildSessionDeleted(ctx context.Context, before stor
 		unlock()
 		return nil
 	}
+	if err == nil && store.IsSubagentStatusTerminal(row.Status) {
+		row, err = s.persistTerminalWorktreeFacts(ctx, before, row)
+	}
 	// Normal child finalization stores a result, including an empty one. Only
 	// deletion can interrupt this formerly live row without reading its transcript.
-	if err == nil && !store.IsSubagentStatusTerminal(before.Status) &&
-		row.Status == store.SubagentStatusInterrupted && row.Result == nil {
+	wasLive := !store.IsSubagentStatusTerminal(before.Status)
+	terminalized := wasLive && row.Status == store.SubagentStatusInterrupted && row.Result == nil
+	if err == nil && terminalized {
 		s.publishTerminal(ctx, row)
 	} else if err == nil {
 		s.publish(ctx, row)
 	}
-	if err == nil && (row.Delivery == store.SubagentDeliveryNone || row.Delivery == store.SubagentDeliveryPending) {
+	// A completed wait result with delivery=none already reached its caller.
+	// Pending delivery from a concurrent finalizer may have been held by roster deletion.
+	if err == nil && (terminalized || (wasLive && row.Delivery == store.SubagentDeliveryPending)) &&
+		(row.Delivery == store.SubagentDeliveryNone || row.Delivery == store.SubagentDeliveryPending) {
 		err = s.planDelivery(ctx, row)
 	}
 	if err == nil {

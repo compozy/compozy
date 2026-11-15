@@ -599,6 +599,31 @@ func TestSubagentLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	// Invariant: deleting history preserves an inline result's completed delivery policy.
+	t.Run("Should preserve a completed wait result after deleting its child", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		current := db.rows[row.ID]
+		current.WakePolicy = store.SubagentWakePolicySettledOnly
+		db.rows[row.ID] = current
+		settleTestChild(t, s, runtime, &row)
+		before := db.rows[row.ID]
+		parent := runtime.snapshots[row.ParentSessionID]
+		parent.Active = false
+		runtime.snapshots[row.ParentSessionID] = parent
+		current = before
+		current.ChildSessionID = nil
+		current.ChildActivity = store.SubagentChildActivityStopped
+		db.rows[row.ID] = current
+		if err := s.onChildSessionDeleted(t.Context(), before); err != nil {
+			t.Fatal(err)
+		}
+		if got := db.rows[row.ID]; got.Delivery != store.SubagentDeliveryNone ||
+			got.Status != before.Status || got.Result == nil || *got.Result != *before.Result || len(db.wakes) != 0 {
+			t.Fatalf("completed wait result changed or woke parent: %+v, %+v", got, db.wakes)
+		}
+	})
 	// Invariant: deletion cannot dispatch a second settled hook when another finalizer won.
 	t.Run("Should preserve a concurrent finalizer when child history is deleted", func(t *testing.T) {
 		t.Parallel()
@@ -4406,7 +4431,7 @@ func TestSubagentIsolationRecoveryMatrix(t *testing.T) {
 // Owner: subagent lifecycle; canonical suite (UT-031, UT-035).
 func TestSubagentIsolationRetention(t *testing.T) {
 	t.Parallel()
-	for _, outcome := range []string{"completed", "failed", "canceled", "cascade"} {
+	for _, outcome := range []string{"completed", "failed", "canceled", "cascade", "deleted", "deleted recovery"} {
 		t.Run("Should retain checkout after "+outcome, func(t *testing.T) {
 			t.Parallel()
 			s, db, runtime := newSubagentTestService(t)
@@ -4421,7 +4446,35 @@ func TestSubagentIsolationRetention(t *testing.T) {
 			req := subagentTestRequest()
 			req.Isolation = "worktree"
 			row := requireSubagent(t, s, req)
+			wantHooks := 1
 			switch outcome {
+			case "deleted", "deleted recovery":
+				if err := runtime.Stop(t.Context(), *row.ChildSessionID); err != nil {
+					t.Fatal(err)
+				}
+				before := db.rows[row.ID]
+				if outcome == "deleted" {
+					before = s.observeSettledWorktree(t.Context(), before)
+				}
+				current := db.rows[row.ID]
+				current.Status = store.SubagentStatusInterrupted
+				current.ChildActivity = store.SubagentChildActivityStopped
+				current.ChildSessionID = nil
+				current.Delivery = store.SubagentDeliveryPending
+				db.rows[row.ID] = current
+				if outcome == "deleted" {
+					if err := s.onChildSessionDeleted(t.Context(), before); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					wantHooks = 0 // Recovery does not replay best-effort settled hooks.
+					parent := runtime.snapshots["parent"]
+					parent.Active = false
+					runtime.snapshots["parent"] = parent
+					if err := s.Recover(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+				}
 			case "failed":
 				runtime.turnErrors[*row.ChildSessionID] = "failed turn"
 				settleTestChild(t, s, runtime, &row)
@@ -4448,8 +4501,8 @@ func TestSubagentIsolationRetention(t *testing.T) {
 				t.Fatal(got, err, wt.rollbacks)
 			}
 			// The once-only settled hook carries the final worktree facts, including after a cancel.
-			if rows := hook.recorded(); len(rows) != 1 || rows[0].WorktreeState().Facts.PRStatus != "none" {
-				t.Fatalf("settled hooks = %d %+v, want one carrying the final facts", len(rows), rows)
+			if rows := hook.recorded(); len(rows) != wantHooks || (wantHooks > 0 && rows[0].WorktreeState().Facts.PRStatus != "none") {
+				t.Fatalf("settled hooks = %d %+v, want %d carrying final facts", len(rows), rows, wantHooks)
 			}
 		})
 	}

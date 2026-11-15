@@ -185,7 +185,10 @@ QA impact 2026-11-15 (child-session deletion): delete the child session while it
 running or waiting, using the session menu or session DELETE route. The delegation row must remain
 readable with a terminal outcome and stopped child activity; the parent must receive its result wake
 once for asynchronous delegation, and its live-child / pending-wake wait must clear after delivery.
-For a `wait` delegation, the waiting call returns the interruption without an additional wake. Repeat with a stopped child
+For a `wait` delegation, the waiting call acknowledges the interruption without an additional wake.
+If the daemon exits before that acknowledgement, recovery delivers the still-pending result.
+For an isolated child, the retained worktree Git/PR facts accompany status and settled hooks;
+recovery can observe those facts even after the child link is gone. Repeat with a stopped child
 whose settlement callback was missed, missing child history, and deletion followed by daemon
 recovery. Completed delegations retain their original result, error, settlement time and delivery.
 Deleting the delegation row itself still removes the row and suppresses a result wake.

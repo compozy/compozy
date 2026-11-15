@@ -40,25 +40,8 @@ func (s *subagentService) Delete(
 	if row.Origin == store.SubagentOriginProviderNative {
 		return ErrSubagentNotDeletable
 	}
-	unlock := s.lock(row.ParentSessionID)
-	releaseDelivery := s.suppressDeletingDelivery(id)
-	unlock()
-	defer func() {
-		unlock := s.lock(row.ParentSessionID)
-		defer unlock()
-		releaseDelivery()
-		if err != nil {
-			// A failed removal retains its row and must resume any delivery suppressed
-			// while child deletion stopped or terminalized it.
-			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-			defer cancel()
-			current, readErr := s.store.GetSubagent(cleanup, workspace, id)
-			if readErr == nil && store.IsSubagentStatusTerminal(current.Status) &&
-				(current.Delivery == store.SubagentDeliveryNone || current.Delivery == store.SubagentDeliveryPending) {
-				s.logError(cleanup, "delete_delivery_reconcile", s.planDelivery(cleanup, current))
-			}
-		}
-	}()
+	finishDelivery := s.prepareDeletingDelivery(ctx, row)
+	defer func() { finishDelivery(err != nil) }()
 	deletedChild := ""
 	if row.ChildSessionID != nil {
 		deletedChild = *row.ChildSessionID
@@ -251,4 +234,22 @@ func (s *subagentService) deletingDelivery(id string) bool {
 	s.deletingChildrenMu.Lock()
 	defer s.deletingChildrenMu.Unlock()
 	return s.deletingDeliveries[id] > 0
+}
+
+// prepareDeletingDelivery serializes the delivery guard with wake claims. A failed
+// removal reconciles its retained row through the same owner as session deletion.
+func (s *subagentService) prepareDeletingDelivery(ctx context.Context, row store.SessionSubagent) func(bool) {
+	unlock := s.lock(row.ParentSessionID)
+	release := s.suppressDeletingDelivery(row.ID)
+	unlock()
+	return func(failed bool) {
+		unlock := s.lock(row.ParentSessionID)
+		release()
+		unlock()
+		if failed {
+			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+			defer cancel()
+			s.logError(cleanup, "delete_delivery_reconcile", s.onChildSessionDeleted(cleanup, row))
+		}
+	}
 }
