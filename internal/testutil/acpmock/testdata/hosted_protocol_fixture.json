@@ -16,9 +16,7 @@
                     "steps": [
                         {
                             "kind": "assistant",
-                            "chunks": [
-                                "noop"
-                            ]
+                            "chunks": ["noop"]
                         }
                     ]
                 }
