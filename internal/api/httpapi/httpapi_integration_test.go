@@ -3598,6 +3598,25 @@ func (d *integrationDriver) Crash(acpSessionID string, waitErr error) error {
 	return nil
 }
 
+// HTTP fixtures declare no external MCP sources. Preserve session intent while replacing
+// the daemon-owned source-admission boundary with an empty admitted catalog.
+type integrationMCPAuthority struct{ manager *session.Manager }
+
+func (r integrationMCPAuthority) EffectiveMCPAuthority(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
+	info := session.MCPAuthoritySession(ctx, id)
+	if info == nil {
+		var err error
+		info, err = r.manager.StoredStatus(ctx, id)
+		if err != nil {
+			return store.SessionPermissionPolicy{}, err
+		}
+	}
+	lineage := store.NormalizeSessionLineage(id, info.Lineage)
+	policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+	policy.MCPServers = store.BoundMCPServers(policy, nil)
+	return policy, nil
+}
+
 func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	return newIntegrationRuntimeWithPermissionWait(t, 100*time.Millisecond)
 }
@@ -3688,6 +3707,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	manager.SetMCPAuthorityResolver(integrationMCPAuthority{manager: manager})
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
 		defer cancel()

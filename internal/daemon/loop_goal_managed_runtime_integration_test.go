@@ -30,6 +30,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspace"
 )
@@ -2066,6 +2067,11 @@ func newLoopGoalManagedRuntimeFixture(
 		resolvedWorkspace.Agents[0].Provider = acpmock.ProviderName
 		resolvedWorkspace.Agents[0].Model = ""
 	}
+	e2etest.WriteAgentDef(t, homePaths, e2etest.AgentSeed{
+		Name: resolvedWorkspace.Agents[0].Name, Provider: resolvedWorkspace.Agents[0].Provider,
+		Model: resolvedWorkspace.Agents[0].Model, Prompt: resolvedWorkspace.Agents[0].Prompt,
+		Tools: resolvedWorkspace.Agents[0].Tools,
+	})
 	daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {

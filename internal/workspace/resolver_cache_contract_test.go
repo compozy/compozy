@@ -350,8 +350,10 @@ func TestWorkspaceContractAgentConfigResolution(t *testing.T) {
 		writeFile(t, profileConfig, "[tools.policy]\nexternal_default = 'disabled'\n")
 		writeAgentDef(t, filepath.Join(home.AgentsDir, "personal-agent", agentDefinitionFile),
 			"personal-agent", "user-model")
-		for _, policy := range []string{"disabled", "enabled"} {
-			writeFile(t, profileConfig, "[tools.policy]\nexternal_default = '"+policy+"'\n")
+		for _, policy := range []compozyconfig.ToolsExternalDefault{
+			compozyconfig.ToolsExternalDefaultDisabled, compozyconfig.ToolsExternalDefaultEnabled,
+		} {
+			writeFile(t, profileConfig, "[tools.policy]\nexternal_default = '"+string(policy)+"'\n")
 			got, err := resolver.ResolveAgentConfig(t.Context(), "@user", "personal")
 			if err != nil {
 				t.Fatalf("ResolveAgentConfig(User) error = %v", err)

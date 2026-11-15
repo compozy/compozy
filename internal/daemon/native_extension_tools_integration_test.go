@@ -926,6 +926,8 @@ func bindNativeExtensionIntegrationSession(t *testing.T, deps *daemonNativeTools
 	if err != nil {
 		t.Fatal(err)
 	}
+	// This fixture has no external MCP sources; source admission belongs to daemon composition.
+	manager.SetMCPAuthorityResolver(sessionMCPAuthorityStub{})
 	created, err := manager.Create(
 		t.Context(),
 		new(session.CreateOpts{

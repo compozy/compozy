@@ -1007,6 +1007,15 @@ func newHarnessIntegrationManager(
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	authority, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+		Config: &resolvedWorkspace.Config, Sessions: manager,
+		WorkspaceResolver: &harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace},
+		ProfileNames:      nativeProfileReaderStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.SetMCPAuthorityResolver(authority)
 	return manager
 }
 
@@ -1099,6 +1108,20 @@ func (r *harnessIntegrationWorkspaceResolver) ResolveForProfile(
 	}
 	resolved.ProfileName = strings.TrimSpace(profileName)
 	return resolved, nil
+}
+
+func (r *harnessIntegrationWorkspaceResolver) ResolveAgentConfig(
+	ctx context.Context, ref, profileName string,
+) (workspacepkg.ResolvedAgentConfig, error) {
+	resolved, err := r.ResolveForProfile(ctx, ref, profileName)
+	if err != nil {
+		return workspacepkg.ResolvedAgentConfig{}, err
+	}
+	return workspacepkg.ResolvedAgentConfig{
+		Workspace: resolved.Workspace, WorkspaceID: resolved.ID,
+		ProfileID: resolved.ProfileID, ProfileName: resolved.ProfileName,
+		Config: resolved.Config, Agents: resolved.Agents,
+	}, nil
 }
 
 func (r *harnessIntegrationWorkspaceResolver) ResolveOrRegister(
