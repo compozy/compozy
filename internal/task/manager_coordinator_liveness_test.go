@@ -60,6 +60,45 @@ func TestManagerCoordinatorLivenessShouldHoldTheClaimWhileEvaluating(t *testing.
 		}
 	})
 
+	t.Run("Should advance Loop progress while the gate evaluation is still running", func(t *testing.T) {
+		t.Parallel()
+
+		harness := newCoordinatorLivenessHarness(t, "progress")
+		started := make(chan struct{})
+		release := make(chan struct{})
+		runner := coordinatorRunnerFunc(func(ctx context.Context, _ RunID) (CoordinatorCompletionPlan, error) {
+			close(started)
+			select {
+			case <-release:
+				return CoordinatorCompletionPlan{Yield: true}, nil
+			case <-ctx.Done():
+				return CoordinatorCompletionPlan{}, ctx.Err()
+			}
+		})
+		harness.prepare(runner)
+
+		settled := make(chan error, 1)
+		go func() {
+			_, err := harness.startRun(harness.t.Context())
+			settled <- err
+		}()
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("coordinator evaluation did not start")
+		}
+		// The Loop run must look alive before the evaluation settles, not only after it writes a verdict.
+		harness.store.waitForProgressAt(t, harness.clock.now())
+		if got := harness.store.progressLoopRunIDs(); len(got) != 1 || got[0] != harness.loopRunID {
+			t.Fatalf("loop progress advances while running = %#v, want %q", got, harness.loopRunID)
+		}
+
+		close(release)
+		if err := <-settled; err != nil {
+			t.Fatalf("StartRun(evaluating coordinator) error = %v", err)
+		}
+	})
+
 	t.Run("Should interrupt the evaluation and discard its plan when the Loop run is canceled", func(t *testing.T) {
 		t.Parallel()
 
@@ -114,8 +153,8 @@ func TestManagerCoordinatorLivenessShouldHoldTheClaimWhileEvaluating(t *testing.
 		if !errors.Is(err, errCoordinatorLeaseLost) || !errors.Is(err, ErrLeaseExpired) {
 			t.Fatalf("StartRun(superseded coordinator) error = %v, want lost expired lease", err)
 		}
-		if got := harness.store.progressLoopRunIDs(); len(got) != 0 {
-			t.Fatalf("loop progress advances = %#v, want none after the claim was lost", got)
+		if got := harness.manager.InterruptLoopCoordinatorRuns(harness.loopRunID, "late"); got != 0 {
+			t.Fatalf("InterruptLoopCoordinatorRuns(superseded) = %d, want 0", got)
 		}
 	})
 }
@@ -202,6 +241,7 @@ type coordinatorLivenessHarness struct {
 	loopRunID string
 	runID     string
 	manager   *Service
+	claim     *ClaimResult
 }
 
 func newCoordinatorLivenessHarness(t *testing.T, suffix string) *coordinatorLivenessHarness {
@@ -256,6 +296,13 @@ func (h *coordinatorLivenessHarness) claimCriteria(now time.Time) ClaimCriteria 
 func (h *coordinatorLivenessHarness) start(runner CoordinatorRunner) (*Run, error) {
 	h.t.Helper()
 
+	h.prepare(runner)
+	return h.startRun(h.t.Context())
+}
+
+func (h *coordinatorLivenessHarness) prepare(runner CoordinatorRunner) {
+	h.t.Helper()
+
 	h.manager = newTaskManagerForTestWithOptions(
 		h.t,
 		h.store,
@@ -267,8 +314,12 @@ func (h *coordinatorLivenessHarness) start(runner CoordinatorRunner) (*Run, erro
 	if err != nil {
 		h.t.Fatalf("ClaimNextRun() error = %v", err)
 	}
-	return h.manager.StartRun(h.t.Context(), claim.Run.ID, StartRun{
-		ClaimToken:     claim.ClaimToken,
-		IdempotencyKey: claim.Run.IdempotencyKey,
+	h.claim = claim
+}
+
+func (h *coordinatorLivenessHarness) startRun(ctx context.Context) (*Run, error) {
+	return h.manager.StartRun(ctx, h.claim.Run.ID, StartRun{
+		ClaimToken:     h.claim.ClaimToken,
+		IdempotencyKey: h.claim.Run.IdempotencyKey,
 	}, h.actor)
 }
