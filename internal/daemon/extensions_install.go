@@ -7,10 +7,29 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
+
+// preparedExtensionReplacement is the reinstall transaction shared by published
+// acquisitions and staged local bundles.
+type preparedExtensionReplacement interface {
+	Origin() marketplacepkg.Origin
+	ValidateReinstall(*extensionpkg.ExtensionInfo) error
+	MatchesInstalled(*extensionpkg.ExtensionInfo) bool
+	Reinstall(
+		context.Context,
+		*extensionpkg.ExtensionInfo,
+		extensionpkg.MarketplaceUpdatePreflight,
+		extensionpkg.MarketplaceUpdateCommit,
+		extensionpkg.MarketplaceUpdateRollback,
+		extensionpkg.MutationReload,
+		extensionpkg.MutationReload,
+	) ([]diagnosticcontract.DiagnosticItem, error)
+}
 
 type preparedDaemonExtensionInstall struct {
 	target    extensionMutationTarget
@@ -19,7 +38,10 @@ type preparedDaemonExtensionInstall struct {
 	manifest  *extensionpkg.Manifest
 	commit    func() error
 	cleanup   func() error
-	published *extensionpkg.PreparedMarketplaceManagedInstall
+	published preparedExtensionReplacement
+	// enrollAttachment marks an acquisition that may attach the selected scope to an
+	// already-installed package. A local bundle replaces the code only.
+	enrollAttachment bool
 }
 
 func (p preparedDaemonExtensionInstall) Close() error {
@@ -78,6 +100,11 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
+	if req.Replace {
+		if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor); err != nil {
+			return preparedDaemonExtensionInstall{}, err
+		}
+	}
 	cfg := s.marketplaceConfig()
 	if err := extensionpkg.ValidateUnverifiedSideLoad(
 		manifest.Name,
@@ -96,19 +123,39 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	}
 	provenance := extensionpkg.LocalPathProvenance(manifest, req.Ref, checksum, s.now(), req.AllowUnverified)
 	provenance.InstalledBy = installedBy
+	installOpts := []extensionpkg.InstallOption{
+		extensionpkg.WithInstallProvenance(provenance),
+		extensionpkg.WithInstallScope(target.scope),
+	}
+	if req.Replace {
+		installOpts = append(installOpts, extensionpkg.WithInstallReplaceExisting())
+	}
+	prepared, err := extensionpkg.PrepareLocalManagedInstall(
+		s.homePaths,
+		s.registry,
+		manifest,
+		req.Ref,
+		checksum,
+		installOpts...,
+	)
+	if err != nil {
+		return preparedDaemonExtensionInstall{}, err
+	}
 	return preparedDaemonExtensionInstall{
 		name: manifest.Name, manifest: manifest, digest: checksum, target: target,
+		published: prepared,
 		commit: func() error {
-			return extensionpkg.InstallLocalManaged(
-				s.homePaths,
-				s.registry,
-				manifest,
-				req.Ref,
-				checksum,
-				extensionpkg.WithInstallProvenance(provenance),
-				extensionpkg.WithInstallScope(target.scope),
-			)
+			// The early check only fails fast; the commit repeats it under the lifecycle
+			// lock so an attachment enrolled meanwhile cannot be overwritten by a caller
+			// that does not own it.
+			if req.Replace {
+				if err := s.authorizeExtensionReplace(ctx, manifest.Name, actor); err != nil {
+					return err
+				}
+			}
+			return prepared.Commit()
 		},
+		cleanup: prepared.Close,
 	}, nil
 }
 
@@ -151,7 +198,7 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	}
 	return preparedDaemonExtensionInstall{
 		name: prepared.Name(), manifest: manifest, target: target,
-		digest: prepared.Digest(), published: prepared,
+		digest: prepared.Digest(), published: prepared, enrollAttachment: true,
 		commit: func() error {
 			_, commitErr := prepared.Commit(target.scope)
 			return commitErr

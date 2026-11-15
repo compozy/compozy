@@ -42,6 +42,15 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 	if digest := schema.Properties["expected_digest"]; digest != nil && digest.Value != nil {
 		digest.Value.Pattern = `^[a-fA-F0-9]{64}$`
 	}
+	if replace := schema.Properties["replace"]; replace != nil && replace.Value != nil {
+		// A schema default makes openapi-typescript require this optional request field.
+		replace.Value.Description = "Replace the installed extension of the same name. Applies to local_path " +
+			"installs only, since published sources replace implicitly. The previous version stays installed " +
+			"only when the replacement fails before the reinstall transaction completes; a failure after it " +
+			"returns, such as enable failing, does not restore it. A marketplace-owned name is refused with " +
+			"extension_name_conflict. Replacing a package attached outside the caller's workspace requires " +
+			"operator authority."
+	}
 }
 
 func customizeExtensionUpdateRequestSchema(schema *openapi3.Schema) {

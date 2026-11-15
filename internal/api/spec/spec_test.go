@@ -3395,6 +3395,26 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 				},
 			},
 		}
+		// The install and preview requests gain the optional replace flag.
+		replaceProperty := map[string]any{
+			"type": "boolean",
+			"description": "Replace the installed extension of the same name. Applies to local_path installs only, " +
+				"since published sources replace implicitly. The previous version stays installed only when the " +
+				"replacement fails before the reinstall transaction completes; a failure after it returns, such as " +
+				"enable failing, does not restore it. A marketplace-owned name is refused with " +
+				"extension_name_conflict. Replacing a package attached outside the caller's workspace requires " +
+				"operator authority.",
+		}
+		for _, path := range []string{"/api/extensions", "/api/extensions/preview-install"} {
+			requestProperties := baseline
+			for _, key := range []string{
+				"paths", path, "post", "requestBody", "content", "application/json", "schema", "properties",
+			} {
+				requestProperties = requestProperties[key].(map[string]any)
+			}
+			requestProperties["replace"] = replaceProperty
+		}
+
 		// Only the installation response gains the optional enable outcome.
 		installProperties := baseline
 		for _, key := range []string{

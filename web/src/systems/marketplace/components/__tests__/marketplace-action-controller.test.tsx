@@ -606,6 +606,7 @@ describe("useMarketplaceActionController", () => {
       enable: true,
       expected_digest: verified.digest_sha256,
       ref: verified.install_slug,
+      replace: false,
       source: "curated",
       version: verified.version,
     };
@@ -828,6 +829,7 @@ describe("useMarketplaceActionController", () => {
         enable: true,
         expected_digest: unverified.digest_sha256,
         ref: unverified.install_slug,
+        replace: false,
         source: "curated",
         version: unverified.version,
       })
@@ -1061,6 +1063,7 @@ describe("useMarketplaceActionController", () => {
           enable: true,
           expected_digest: portable.digest_sha256,
           ref: portable.install_slug,
+          replace: false,
           source,
           version: portable.version,
         })

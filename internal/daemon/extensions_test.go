@@ -2941,6 +2941,457 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 	}
 }
 
+// Invariant: a replace rewrites the single name-keyed package every attachment resolves, so
+// replacing outside the caller's own workspace attachment requires operator authority.
+// Owner: daemon install authority; canonical suite: TestDaemonExtensionInstallReplaceAuthority.
+func TestDaemonExtensionInstallReplaceAuthority(t *testing.T) {
+	t.Parallel()
+
+	newReplaceService := func(t *testing.T) (*daemonExtensionService, *extensionpkg.Registry, string) {
+		t.Helper()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		db := deps.ExtensionEvents.(*globaldb.GlobalDB)
+		workspaceRoot := t.TempDir()
+		stamp := store.FormatTimestamp(time.Date(2026, 11, 13, 0, 0, 0, 0, time.UTC))
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO workspaces
+			(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			"ws-install", workspaceRoot, "Replace workspace", stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO workspaces
+			(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			"ws-other", t.TempDir(), "Foreign workspace", stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Profiles: deps.ProfileManager, HomePaths: deps.HomePaths,
+			Logger: discardLogger(),
+		}, withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
+			withDaemonExtensionWorkspaceResolver(&daemonExtensionWorkspaceResolverStub{
+				resolved: workspacepkg.ResolvedWorkspace{
+					ID: "ws-install", RootDir: workspaceRoot, WorkspaceID: "ws-install",
+				},
+			})).(*daemonExtensionService)
+		return service, registry, extensionpkg.ManagedInstallPath(deps.HomePaths, "tool-ext")
+	}
+	installFixture := func(
+		t *testing.T, service *daemonExtensionService, workspaceID string, dir string, replace bool,
+	) {
+		t.Helper()
+		operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "replace fixture")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: dir,
+			WorkspaceID: workspaceID, AllowUnverified: true, Replace: replace,
+		}, operator); err != nil {
+			t.Fatalf("fixture install error = %v", err)
+		}
+	}
+	workspaceCaller := func(t *testing.T) taskpkg.ActorContext {
+		t.Helper()
+		caller, err := taskpkg.DeriveAgentSessionActorContext("session-replace", "ws-install")
+		if err != nil {
+			t.Fatal(err)
+		}
+		caller.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
+		return caller
+	}
+
+	t.Run("Should refuse a workspace caller replacing a global package", func(t *testing.T) {
+		t.Parallel()
+		service, registry, packageDir := newReplaceService(t)
+		installFixture(t, service, "", writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0"), false)
+		before, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		beforeChecksum, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source:  contract.InstallExtensionSourceLocalPath,
+			Ref:     writeNativeLocalExtensionFixture(t, "tool-ext", "2.0.0"),
+			Replace: true, AllowUnverified: true,
+		}, workspaceCaller(t))
+		if !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("global replace error = %v, want permission denied", err)
+		}
+
+		after, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.Version != before.Version || after.Checksum != before.Checksum {
+			t.Fatalf("global package changed: before=%+v after=%+v", before, after)
+		}
+		afterChecksum, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if afterChecksum != beforeChecksum {
+			t.Fatalf("global package files changed: before=%s after=%s", beforeChecksum, afterChecksum)
+		}
+		attachments, err := registry.Installations(t.Context(), "tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(attachments) != 1 || attachments[0].Scope != (extensionpkg.InstallationScope{}) {
+			t.Fatalf("global attachments changed: %#v", attachments)
+		}
+	})
+
+	t.Run("Should allow a workspace caller replacing its own workspace package", func(t *testing.T) {
+		t.Parallel()
+		service, registry, _ := newReplaceService(t)
+		installFixture(t, service, "ws-install", writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0"), false)
+
+		item, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source:  contract.InstallExtensionSourceLocalPath,
+			Ref:     writeNativeLocalExtensionFixture(t, "tool-ext", "2.0.0"),
+			Replace: true, AllowUnverified: true,
+		}, workspaceCaller(t))
+		if err != nil {
+			t.Fatalf("workspace replace error = %v", err)
+		}
+		if item.Name != "tool-ext" || item.Version != "2.0.0" {
+			t.Fatalf("workspace replace payload = %#v", item)
+		}
+		installed, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if installed.Version != "2.0.0" {
+			t.Fatalf("workspace replace version = %q", installed.Version)
+		}
+		attachments, err := registry.Installations(t.Context(), "tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := extensionpkg.InstallationScope{WorkspaceID: "ws-install"}
+		if len(attachments) != 1 || attachments[0].Scope != want {
+			t.Fatalf("workspace attachments = %#v, want %v", attachments, want)
+		}
+	})
+
+	// The early check fails fast but the commit repeats it under the lifecycle lock: an
+	// attachment enrolled between preparation and commit must not lose its code to a
+	// caller that does not own it.
+	t.Run("Should recheck replacement authority inside the commit lock", func(t *testing.T) {
+		t.Parallel()
+		service, registry, packageDir := newReplaceService(t)
+		installFixture(t, service, "ws-install", writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0"), false)
+		before, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		beforeChecksum, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		actor := workspaceCaller(t)
+		request := contract.InstallExtensionRequest{
+			Source:  contract.InstallExtensionSourceLocalPath,
+			Ref:     writeNativeLocalExtensionFixture(t, "tool-ext", "2.0.0"),
+			Replace: true, AllowUnverified: true,
+		}
+		target, err := service.resolveExtensionScope(
+			t.Context(), request.Scope, request.WorkspaceID, request.Profile, actor,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prepared, err := service.prepareExtensionInstall(t.Context(), request, actor, "session-replace", target)
+		if err != nil {
+			t.Fatalf("prepare error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := prepared.Close(); closeErr != nil {
+				t.Fatalf("prepared.Close() error = %v", closeErr)
+			}
+		})
+
+		// A concurrent AttachInstallation lands after the early authorization cleared the
+		// caller and before the replacement takes the lifecycle lock.
+		foreign := extensionpkg.InstallationScope{WorkspaceID: "ws-other"}
+		if err := registry.AttachInstallation(t.Context(), "tool-ext", foreign); err != nil {
+			t.Fatal(err)
+		}
+		reinstall := func() error {
+			return service.lifecycle.withPackageMutation(t.Context(), []string{prepared.name}, func() error {
+				installed, getErr := registry.Get(prepared.name)
+				if getErr != nil {
+					return getErr
+				}
+				var item contract.ExtensionPayload
+				return service.reinstallPreparedExtension(
+					t.Context(), prepared, installed, request, actor, &item,
+				)
+			})
+		}
+		if err := reinstall(); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("replacement under the lock error = %v, want permission denied", err)
+		}
+
+		after, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.Version != before.Version || after.Checksum != before.Checksum {
+			t.Fatalf("package changed under a refused replacement: before=%+v after=%+v", before, after)
+		}
+		afterChecksum, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if afterChecksum != beforeChecksum {
+			t.Fatalf(
+				"package files changed under a refused replacement: before=%s after=%s",
+				beforeChecksum,
+				afterChecksum,
+			)
+		}
+
+		if err := registry.DetachInstallation(t.Context(), "tool-ext", foreign); err != nil {
+			t.Fatal(err)
+		}
+		if err := reinstall(); err != nil {
+			t.Fatalf("replacement after the foreign attachment detached error = %v", err)
+		}
+		installed, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if installed.Version != "2.0.0" {
+			t.Fatalf("replacement version = %q, want 2.0.0", installed.Version)
+		}
+	})
+
+	t.Run("Should let an operator replace a global package", func(t *testing.T) {
+		t.Parallel()
+		service, registry, _ := newReplaceService(t)
+		installFixture(t, service, "", writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0"), false)
+		installFixture(t, service, "", writeNativeLocalExtensionFixture(t, "tool-ext", "2.0.0"), true)
+		installed, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if installed.Version != "2.0.0" {
+			t.Fatalf("operator global replace version = %q", installed.Version)
+		}
+	})
+}
+
+// Invariant: a local replacement publishes through the published reinstall transaction, so a
+// failure after the package commit restores the previous version instead of uninstalling it,
+// and a marketplace-owned name is never rewritten as a local bundle.
+// Owner: daemon local install replacement transaction.
+// Canonical suite: TestDaemonExtensionLocalInstallReplace.
+func TestDaemonExtensionLocalInstallReplace(t *testing.T) {
+	t.Parallel()
+
+	newService := func(t *testing.T) (*daemonExtensionService, *extensionpkg.Registry) {
+		t.Helper()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		db := deps.ExtensionEvents.(*globaldb.GlobalDB)
+		stamp := store.FormatTimestamp(time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC))
+		workspaces := map[string]string{}
+		for _, id := range []string{"ws-install", "ws-other"} {
+			root := t.TempDir()
+			workspaces[id] = root
+			if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO workspaces
+				(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+				id, root, "Replace "+id, stamp, stamp); err != nil {
+				t.Fatal(err)
+			}
+		}
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Profiles: deps.ProfileManager, HomePaths: deps.HomePaths,
+			Logger: discardLogger(),
+		}, withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
+			withDaemonExtensionWorkspaceResolver(replaceWorkspaceResolver{
+				workspaces: workspaces,
+			})).(*daemonExtensionService)
+		return service, registry
+	}
+	operator := func(t *testing.T, workspaceID string) taskpkg.ActorContext {
+		t.Helper()
+		actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
+			"operator", workspaceID, taskpkg.OriginKindCLI, "local replace",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return actor
+	}
+
+	t.Run("Should restore the previous version when the target scope has no attachment", func(t *testing.T) {
+		t.Parallel()
+
+		service, registry := newService(t)
+		packageDir := extensionpkg.ManagedInstallPath(service.homePaths, "tool-ext")
+		if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath,
+			Ref:    writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0"),
+			Scope:  "workspace", WorkspaceID: "ws-install", AllowUnverified: true,
+		}, operator(t, "ws-install")); err != nil {
+			t.Fatalf("fixture install error = %v", err)
+		}
+		before, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		beforeChecksum, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// No --scope: the replacement manifest's workspace default selects ws-other, which
+		// has no attachment, so the final status step fails after the package committed.
+		_, err = service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath,
+			Ref: writeNativeLocalExtensionFixtureWithWorkspaceServer(
+				t, "tool-ext", "2.0.0", "workspace",
+			),
+			Replace: true, AllowUnverified: true,
+		}, operator(t, "ws-other"))
+		if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("unattached target replacement error = %v, want extension not found", err)
+		}
+
+		after, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatalf("registry record after a failed replacement error = %v", err)
+		}
+		if after.Version != before.Version || after.Checksum != before.Checksum {
+			t.Fatalf("package changed by a failed replacement: before=%+v after=%+v", before, after)
+		}
+		afterChecksum, err := extensionpkg.ComputeDirectoryChecksum(packageDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if afterChecksum != beforeChecksum {
+			t.Fatalf("package files changed by a failed replacement: before=%s after=%s",
+				beforeChecksum, afterChecksum)
+		}
+		manifest, err := extensionpkg.LoadManifest(packageDir)
+		if err != nil {
+			t.Fatalf("LoadManifest(restored) error = %v", err)
+		}
+		if manifest.Version != "1.0.0" {
+			t.Fatalf("restored manifest version = %q, want 1.0.0", manifest.Version)
+		}
+		attachments, err := registry.Installations(t.Context(), "tool-ext")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := extensionpkg.InstallationScope{WorkspaceID: "ws-install"}
+		if len(attachments) != 1 || attachments[0].Scope != want {
+			t.Fatalf("attachments after a failed replacement = %#v, want %v", attachments, want)
+		}
+	})
+
+	t.Run("Should refuse to convert a marketplace extension into a local one", func(t *testing.T) {
+		t.Parallel()
+
+		service, registry := newService(t)
+		sourceDir := writeNativeLocalExtensionFixture(t, "tool-ext", "1.0.0")
+		manifest, err := extensionpkg.LoadManifest(sourceDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.Install(
+			manifest,
+			sourceDir,
+			checksum,
+			extensionpkg.WithInstallSource(extensionpkg.SourceMarketplace),
+			extensionpkg.WithInstallProvenance(extensionpkg.ExtensionProvenance{
+				InstalledFrom: extensionpkg.ExtensionInstalledFromMarketplace,
+				SourceName:    "curated",
+				SourceRef:     "acme/tool-ext",
+				EntryID:       "entry-tool-ext",
+			}),
+		); err != nil {
+			t.Fatalf("fixture marketplace install error = %v", err)
+		}
+
+		_, err = service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source:  contract.InstallExtensionSourceLocalPath,
+			Ref:     writeNativeLocalExtensionFixture(t, "tool-ext", "2.0.0"),
+			Replace: true, AllowUnverified: true,
+		}, operator(t, ""))
+		if !errors.Is(err, extensionpkg.ErrExtensionNameConflict) {
+			t.Fatalf("marketplace replacement error = %v, want name conflict", err)
+		}
+		installed, err := registry.Get("tool-ext")
+		if err != nil {
+			t.Fatalf("registry record after a refused replacement error = %v", err)
+		}
+		if installed.Source != extensionpkg.SourceMarketplace || installed.Version != "1.0.0" ||
+			installed.Provenance.SourceRef != "acme/tool-ext" {
+			t.Fatalf("marketplace record rewritten by a local replacement: %#v", installed)
+		}
+	})
+}
+
+type replaceWorkspaceResolver struct {
+	workspaces map[string]string
+}
+
+func (r replaceWorkspaceResolver) Resolve(
+	ctx context.Context, ref string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	if err := ctx.Err(); err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	root, ok := r.workspaces[strings.TrimSpace(ref)]
+	if !ok {
+		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+	}
+	id := strings.TrimSpace(ref)
+	return workspacepkg.ResolvedWorkspace{ID: id, RootDir: root, WorkspaceID: id}, nil
+}
+
+func (r replaceWorkspaceResolver) ResolveOrRegister(
+	ctx context.Context, path string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	if err := ctx.Err(); err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	for id, root := range r.workspaces {
+		if strings.TrimSpace(path) == root {
+			return workspacepkg.ResolvedWorkspace{ID: id, RootDir: root, WorkspaceID: id}, nil
+		}
+	}
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func writeNativeLocalExtensionFixtureWithWorkspaceServer(
+	t *testing.T, name, version, scope string,
+) string {
+	t.Helper()
+
+	dir := writeNativeLocalExtensionFixture(t, name, version)
+	manifestPath := filepath.Join(dir, "extension.toml")
+	content, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(extension.toml) error = %v", err)
+	}
+	sections := fmt.Sprintf("\n[resources.mcp_servers.server]\ncommand = \"server\"\ndefault_scope = %q\n", scope)
+	if err := os.WriteFile(manifestPath, append(content, []byte(sections)...), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
+	}
+	return dir
+}
+
 func TestDaemonExtensionInstallEnable(t *testing.T) {
 	t.Parallel()
 	t.Run("Should mask internal enable failures for every consumer", func(t *testing.T) {

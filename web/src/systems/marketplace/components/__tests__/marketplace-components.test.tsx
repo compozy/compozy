@@ -1516,6 +1516,7 @@ describe("Extension source installation", () => {
         confirm_gateway_digest: "sha256:local-network",
         inputs: { token: { value: "literal-secret" } },
         ref: "/srv/hello/dist/gen-a1b2c3",
+        replace: false,
         source: "local_path",
       })
     );
@@ -1636,6 +1637,7 @@ describe("Extension source installation", () => {
       expect(mocks.installExtension).toHaveBeenCalledWith({
         enable: false,
         ref: "https://git.example.com/acme/hello.git@v1.2.3",
+        replace: false,
         source: "git",
       })
     );
@@ -1664,6 +1666,7 @@ describe("Extension source installation", () => {
     expect(mocks.installExtension).toHaveBeenCalledWith({
       enable: false,
       ref: "/srv/hello/dist/gen-a1b2c3",
+      replace: false,
       source: "local_path",
     });
 
@@ -1673,6 +1676,7 @@ describe("Extension source installation", () => {
         enable: false,
         allow_unverified: true,
         ref: "/srv/hello/dist/gen-a1b2c3",
+        replace: false,
         source: "local_path",
       })
     );
