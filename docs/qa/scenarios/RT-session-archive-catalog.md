@@ -115,6 +115,12 @@ always-on agent's archived main session. In the sessions sidebar open Archived. 
 5. Make one thread fail mid-run (for example, hold its session directory open read-only): the run
    ends under "Some sessions weren't deleted", listing that archived session, and **Try again**
    retries only that thread.
+   Also hold a read-only history lease indefinitely: the delete must fail within its reader-wait
+   budget, record the failure against that thread's root, retain its remaining sessions, and keep
+   deleting other roots. The run must settle as partial (or failed if nothing was deleted), and a
+   new run must be admissible. Release the lease before retrying the failed root. The canonical
+   Manager and cleanup service suites cover the timeout and per-root continuation respectively;
+   verification for this change is CI-only, with the manual walk pending.
 6. Start a large run and press **Stop**: it ends after the deletes in flight, and what was deleted
    stays deleted. Restore one archived thread while a run is going: it is skipped, not deleted.
 7. Through the CLI, `compozy session cleanup` only previews. `--yes` starts the run;

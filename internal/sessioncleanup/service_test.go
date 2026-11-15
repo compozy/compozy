@@ -241,6 +241,42 @@ func TestServiceStart(t *testing.T) {
 		}
 	})
 
+	// Invariant: a reader-wait timeout fails its root, keeps that thread reachable, and continues the run.
+	// Owner: cleanup orchestration; canonical service suite at the Deleter I/O boundary.
+	t.Run("Should record a delete timeout per root and continue other threads", func(t *testing.T) {
+		t.Parallel()
+		rows := []store.SessionHistoryCleanupRow{
+			archivedRow("a", "", 10),
+			archivedRow("a-child", "a", 10),
+			archivedRow("b", "", 10),
+		}
+		deleter := &fakeDeleter{results: map[string]error{
+			"a-child": fmt.Errorf("quiesce read-only pool: %w", context.DeadlineExceeded),
+		}}
+		h := newServiceHarness(t, rows, deleter)
+		if _, _, err := h.service.Start(context.Background(), serviceRequest()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		run := h.waitForSettled(t)
+		if run.State != RunPartial || run.FailedThreads != 1 || run.Deleted != 1 || run.FinishedAt == nil {
+			t.Fatalf("run = %+v, want settled partial with one failed thread and one deletion", run)
+		}
+		want := Failure{
+			RootID: "a", WorkspaceID: "ws-1", Title: "Thread a",
+			Code: FailureDeleteFailed, Message: context.DeadlineExceeded.Error(),
+		}
+		if len(run.Failures) != 1 || run.Failures[0] != want {
+			t.Fatalf("Failures = %+v, want [%+v]", run.Failures, want)
+		}
+		if got := h.deleter.deletedIDs(); !slices.Equal(got, []string{"b"}) {
+			t.Fatalf("deleted = %v, want [b] with the failed root retained", got)
+		}
+		if _, _, err := h.service.Start(context.Background(), serviceRequest()); err != nil {
+			t.Fatalf("Start(after timeout run settled) error = %v", err)
+		}
+		h.waitForSettled(t)
+	})
+
 	t.Run("Should fail the run when nothing could be deleted", func(t *testing.T) {
 		t.Parallel()
 		rows := []store.SessionHistoryCleanupRow{archivedRow("a", "", 10)}
