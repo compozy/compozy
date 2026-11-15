@@ -11,11 +11,16 @@ import { VIEW_TRANSITION_CLASS } from "@compozy/ui";
 import { shallowEqual } from "@xstate/store";
 
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
+import { OsWindowErrorBoundary } from "../../components/os-window-error-boundary";
 import { useDesktop } from "../../hooks/use-desktop";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
 import { useProfileFlowIntent } from "./use-profile-flow-intent";
-import { SettingsPageState, settingsSectionSlugFromPathname } from "@/systems/settings";
+import {
+  findSettingsSection,
+  SettingsPageState,
+  settingsSectionSlugFromPathname,
+} from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
 export interface SettingsSectionPageProps {
@@ -137,7 +142,9 @@ function focusCommandFromSearch(search: Record<string, unknown>): string | undef
  * (never a loading frame) until the next one's code is ready, then cross-fades to it. The boundary
  * is keyed by section and listens for enter and exit only: an `update` boundary here would also
  * fade the whole page for every transition-lane change inside it (a dialog opening, a deferred
- * value settling), which is a large snapshot for no swap.
+ * value settling), which is a large snapshot for no swap. A render failure stays inside the section
+ * (the keyed transition remounts the boundary per section), so the nav keeps working and another
+ * section still opens.
  */
 function SettingsSectionOutlet({
   activeSlug,
@@ -163,7 +170,9 @@ function SettingsSectionOutlet({
           enter={VIEW_TRANSITION_CLASS.fade}
           exit={VIEW_TRANSITION_CLASS.fade}
         >
-          <SectionPage focusCommandId={focusCommandId} />
+          <OsWindowErrorBoundary title={findSettingsSection(shownSlug)?.label ?? "Settings"}>
+            <SectionPage focusCommandId={focusCommandId} />
+          </OsWindowErrorBoundary>
         </ViewTransition>
       </Suspense>
     </div>

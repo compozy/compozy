@@ -4,7 +4,8 @@
 // The active window's search shortcut also works from desktop focus, without taking a keystroke
 // owned by a field, dialog, modified chord or another handler. The section area shows the
 // section's own skeleton while its code loads, and keeps the page on screen while the next
-// section's code loads. Owner: Settings window navigation.
+// section's code loads. A section that fails to render shows its own error inside the section
+// area; the nav keeps working and another section still opens. Owner: Settings window navigation.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -35,6 +36,15 @@ import { statusOptions } from "@/systems/status/lib/query-options";
 import { statusFixture } from "@/systems/status/mocks/fixtures";
 import { SettingsWindow } from "../settings-window";
 import { SettingsWindowNav } from "../settings-window-nav";
+
+// The section's render-time failure is the only behavior under test: MCP rows read
+// `env_keys` as an array, and a null from the daemon threw while rendering (v0.7.1).
+vi.mock("@/routes/_app/settings/-mcp-settings-page", () => ({
+  MCPSettingsPage: () => {
+    const server = { env_keys: null as unknown as string[] };
+    return <span>{[...server.env_keys].join(",")}</span>;
+  },
+}));
 
 const cleanups: Array<() => void> = [];
 
@@ -274,5 +284,30 @@ describe("Settings window section area", () => {
 
     await waitFor(() => expect(outlet).not.toContainElement(wallpaper), { timeout: 20_000 });
     expect(outlet).not.toHaveAttribute("aria-busy");
+  }, 30_000);
+
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real lazy module loading may consume the 20s observable waitFor budget; retain the 30s outer deadline.
+  it("Should contain a section render failure to the section and still open another section", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    cleanups.push(() => consoleError.mockRestore());
+    const { queryClient, snapshotKey } = await renderSettingsWindow("/settings/mcp");
+    const outlet = screen.getByTestId("settings-shell-outlet");
+
+    const failure = await screen.findByRole("alert", {}, { timeout: 20_000 });
+    expect(outlet).toContainElement(failure);
+    expect(failure).toHaveTextContent("MCP servers couldn't open");
+    expect(screen.getByTestId("settings-section-appearance")).toBeInTheDocument();
+
+    act(() => {
+      queryClient.setQueryData(
+        snapshotKey,
+        parseWindowManagerSnapshot(windowManagerStorySnapshot("/settings/appearance"))
+      );
+    });
+
+    expect(
+      await screen.findByRole("radiogroup", { name: "Wallpaper" }, { timeout: 20_000 })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
   }, 30_000);
 });
