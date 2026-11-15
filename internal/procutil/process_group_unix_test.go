@@ -112,6 +112,77 @@ func TestSignalProcessGroupIDStrict(t *testing.T) {
 		}
 	})
 
+	// Invariant: final group delivery includes replacements forked during descendant draining.
+	// Owning layer/canonical suite: procutil real-process group signaling.
+	t.Run("Should terminate a child replaced while the original descendants drain", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("ordered descendant signaling is Linux-specific")
+		}
+		group := startNicenessProcessGroup(
+			t,
+			"sleep 600 & child=$!; echo $child; wait $child; sleep 600 & wait",
+		)
+		group.readPID(t)
+		if err := KillProcessGroupIDAndWait(group.pgid, time.Second); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: a catchable signal is delivered once per existing group member.
+	// Owning layer/canonical suite: procutil real-process group signaling.
+	t.Run("Should preserve one graceful signal delivery to a surviving descendant", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("ordered descendant signaling is Linux-specific")
+		}
+		child := `n=0
+trap 'n=$((n+1))' TERM
+trap 'echo "$n"' USR1
+echo $$
+while :; do read hold <&3; done`
+		script := "sh -c '" + strings.ReplaceAll(child, "'", "'\"'\"'") + "' & wait"
+		group := startNicenessProcessGroup(t, script)
+		pid := group.readPID(t)
+		if err := SignalProcessGroupIDStrict(group.pgid, syscall.SIGTERM); err != nil {
+			t.Fatal(err)
+		}
+		if err := Signal(pid, syscall.SIGUSR1); err != nil {
+			t.Fatal(err)
+		}
+		if count := group.readPID(t); count != 1 {
+			t.Fatalf("descendant received %d TERM signals, want one", count)
+		}
+	})
+
+	// Invariant: an unreaped zombie cannot execute and does not keep group cleanup pending.
+	// Owning layer/canonical suite: procutil real-process group signaling.
+	t.Run("Should finish forced group cleanup before its leader is reaped", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("zombie observation uses the Linux process table")
+		}
+		//nolint:noctx // This test retains the exited child until its cleanup Wait.
+		command := exec.Command("sh", "-c", "exec sleep 600")
+		ConfigureCommandProcessGroup(command)
+		if err := command.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := command.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Error(err)
+			}
+			if err := command.Wait(); err != nil {
+				if _, signaled := errors.AsType[*exec.ExitError](err); !signaled {
+					t.Error(err)
+				}
+			}
+		})
+		if err := KillProcessGroupIDAndWait(command.Process.Pid, time.Second); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Should retain best-effort behavior for the general process-group helper", func(t *testing.T) {
 		t.Parallel()
 

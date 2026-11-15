@@ -34,7 +34,13 @@ func (defaultInterrupter) InterruptProcess(ctx context.Context, record ProcessRe
 	if waitForRecordExit(ctx, record, defaultInterruptGrace) {
 		return nil
 	}
-	if record.ProcessGroupID <= 0 && !procutil.MatchesStartTime(record.PID, record.StartedAt) {
+	if record.ProcessGroupID > 0 {
+		if err := procutil.KillProcessGroupIDAndWait(record.ProcessGroupID, defaultKillGrace); err != nil {
+			return fmt.Errorf("toolruntime: kill process group for %q: %w", record.ID, err)
+		}
+		return nil
+	}
+	if !procutil.MatchesStartTime(record.PID, record.StartedAt) {
 		return nil
 	}
 	if err := classifySignalError(record, syscall.SIGKILL, signalRecord(record, syscall.SIGKILL)); err != nil {
@@ -42,13 +48,6 @@ func (defaultInterrupter) InterruptProcess(ctx context.Context, record ProcessRe
 	}
 	if waitForRecordExit(ctx, record, defaultKillGrace) {
 		return nil
-	}
-	if record.ProcessGroupID > 0 {
-		return fmt.Errorf(
-			"toolruntime: process group %d for process %q did not exit after interrupt",
-			record.ProcessGroupID,
-			record.ID,
-		)
 	}
 	if procutil.MatchesStartTime(record.PID, record.StartedAt) {
 		return fmt.Errorf("toolruntime: process %q did not exit after interrupt", record.ID)

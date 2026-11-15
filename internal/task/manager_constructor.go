@@ -11,6 +11,7 @@ func newService(options managerOptions) *Service {
 		reviewObserver:        options.reviewObserver,
 		taskHooks:             defaultTaskRunHooks(options.taskHooks),
 		coordinatorRunner:     options.coordinatorRunner,
+		coordinatorPollMax:    options.coordinatorPollMax,
 		coordinatorPostCommit: options.coordinatorPostCommit,
 		generationFinalizer:   options.generationFinalizer,
 		coordinatorTimerArmer: options.coordinatorTimerArmer,

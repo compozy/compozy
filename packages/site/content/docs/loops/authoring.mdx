@@ -86,3 +86,43 @@ is no parallel authoring path.
 
 See the [CLI reference](/docs/cli/loop) and the
 [Loops API](/docs/api/loops) for exact flags and payloads.
+
+## Long-running command gates
+
+The coordinator renews its claim while a command gate runs and updates the run's progress timestamp.
+The completed gate attempt and machine verdict are saved when evaluation finishes; human decisions
+remain separate.
+A successful gate attempt means the evaluation completed; consult its verdict for approval or rejection.
+Every command must keep its work in the foreground: the entire local process group is cleaned up
+after command completion, including after a successful exit. Helpers that remain in the gate process group are included in cleanup. A gate does not need a longer lease setting to run beyond five minutes.
+
+Cancel sends SIGTERM to the gate's process group, allows a five-second cleanup grace, then sends
+SIGKILL to finish the supervisor and any remaining members.
+Daemon restart recovery reaps registered gate groups whose leader identity still validates before admitting replacement work.
+Cleanup failures remain visible. If the supervisor cannot be joined, its process record stays pending
+while its leader identity still validates, allowing later validated interruption or restart cleanup.
+Once that leader is reaped, the error remains terminal; an unproven group is never signaled again.
+Run containers in the foreground: do not use `docker run -d`. Resources held by a container daemon
+or remote host need author-owned cleanup, for example `docker run --rm` with a cleanup trap:
+
+```sh
+scratch=$(mktemp -d)
+cleanup() {
+  if [ -s "$scratch/container-id" ]; then
+    docker rm -f "$(cat "$scratch/container-id")" >/dev/null 2>&1 || :
+  fi
+  rm -f "$scratch/container-id"
+  rmdir "$scratch"
+}
+trap cleanup EXIT
+trap 'exit 143' TERM
+docker run --rm --cidfile "$scratch/container-id" your-scanner:tag
+```
+
+Traps cannot run after SIGKILL or a host crash. Authors must also arrange recovery cleanup for
+externally held resources. CompozyOS does not infer container identities from shell text or remove
+containers by workspace; an explicit external-resource ownership contract is tracked in
+[issue #1743](https://github.com/compozy/compozy/issues/1743).
+
+An in-process cancellation allows five seconds after SIGTERM before SIGKILL. Cleanup traps are best
+effort within that grace; they cannot guarantee cleanup after a daemon crash or for a slow remote API.

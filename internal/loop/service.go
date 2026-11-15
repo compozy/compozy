@@ -41,6 +41,7 @@ type service struct {
 	coordinatorActivator  CoordinatorRunActivator
 	goalLeaseRevoker      GoalPromptLeaseRevoker
 	cancellationSessions  CancellationSessionController
+	coordinatorInterrupt  CoordinatorInterrupter
 	cancellationLimit     int
 	responderPolicy       ResponderPolicy
 	runtimeCatalog        WorkspaceRuntimeCatalog

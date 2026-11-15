@@ -31,18 +31,20 @@ func (r *Registry) ReconcileBoot(ctx context.Context) (BootReconcileReport, erro
 		report.Checked++
 		if record.StartedByPID <= 0 || !r.validateRecovered(record) {
 			report.Stale++
-			if updateErr := r.markStale(
+			if updateErr := r.updateRecoveredState(
 				ctx,
-				record.ID,
+				record,
+				ProcessStateStale,
 				"boot reconciliation skipped: process ownership did not validate",
+				new(r.now().UTC()),
 			); updateErr != nil {
 				errs = append(errs, updateErr)
 			}
 			continue
 		}
-		if updateErr := r.updateState(
+		if updateErr := r.updateRecoveredState(
 			ctx,
-			record.ID,
+			record,
 			ProcessStateInterrupting,
 			bootReconcileReason,
 			nil,
@@ -53,10 +55,12 @@ func (r *Registry) ReconcileBoot(ctx context.Context) (BootReconcileReport, erro
 		if interruptErr := r.interrupter.InterruptProcess(ctx, record); interruptErr != nil {
 			if errors.Is(interruptErr, ErrOwnershipValidationFailed) {
 				report.Stale++
-				if updateErr := r.markStale(
+				if updateErr := r.updateRecoveredState(
 					ctx,
-					record.ID,
+					record,
+					ProcessStateStale,
 					"boot reconciliation skipped: process ownership changed before signaling",
+					new(r.now().UTC()),
 				); updateErr != nil {
 					errs = append(errs, updateErr)
 				}
@@ -69,9 +73,9 @@ func (r *Registry) ReconcileBoot(ctx context.Context) (BootReconcileReport, erro
 			continue
 		}
 		completedAt := r.now().UTC()
-		if updateErr := r.updateState(
+		if updateErr := r.updateRecoveredState(
 			ctx,
-			record.ID,
+			record,
 			ProcessStateInterrupted,
 			bootReconcileReason,
 			&completedAt,

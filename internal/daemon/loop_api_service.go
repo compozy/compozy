@@ -186,6 +186,7 @@ func loopAPIServiceOptions(
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
 		looppkg.WithInputEntityCatalog(daemonLoopInputEntityCatalog{state: state}),
 		looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: state.sessions}),
+		looppkg.WithCoordinatorInterrupter(loopCoordinatorInterrupter{state: state}),
 		looppkg.WithResponderPolicy(responderPolicy),
 	}
 	if revoker, ok := state.sessions.(loopManagedInputLeaseRevoker); ok {

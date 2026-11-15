@@ -49,6 +49,7 @@ type Registry struct {
 
 type activeProcess struct {
 	verifiedAt time.Time
+	retired    bool
 	record     ProcessRecord
 	interrupt  InterruptFunc
 }

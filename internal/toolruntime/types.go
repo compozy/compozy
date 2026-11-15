@@ -95,6 +95,9 @@ type ProcessCompletion struct {
 	ExitCode *int
 	Err      error
 	Error    string
+	// CleanupPending releases the execution callback while retaining the record
+	// for ownership-validated interruption or restart reconciliation.
+	CleanupPending bool
 }
 
 // ProcessQuery filters persisted process records.

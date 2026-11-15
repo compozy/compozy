@@ -38,7 +38,7 @@ func evaluateDefinitionOfDone(
 	runtimeCatalog WorkspaceRuntimeCatalog,
 	outputs []GenerationOutput,
 	history GenerationHistory,
-	evaluatedAt time.Time,
+	clock func() time.Time,
 ) (definitionOfDoneEvaluation, error) {
 	terminal := &task.CoordinatorTerminal{
 		Status: string(StatusDone),
@@ -103,7 +103,7 @@ func evaluateDefinitionOfDone(
 	return definitionOfDoneEvaluation{
 		terminal: result,
 		gate: &definitionOfDoneGateEvaluation{
-			runtime: runtimeGate, verdict: verdict, control: control, at: evaluatedAt.UTC(),
+			runtime: runtimeGate, verdict: verdict, control: control, at: gateEvaluationTime(clock),
 		},
 	}, nil
 }

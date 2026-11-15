@@ -54,7 +54,7 @@ func (r *CoordinatorRunner) finishSucceededGenerationPlan(
 	}
 	doneEvaluation, err := evaluateDefinitionOfDone(
 		ctx, conditionRun, generation, resolved, effective, topology, gateEvaluator,
-		r.store, r.controls, r.runtimeCatalog, advancedOutputs, conditionHistory, r.now().UTC(),
+		r.store, r.controls, r.runtimeCatalog, advancedOutputs, conditionHistory, r.now,
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err

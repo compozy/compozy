@@ -71,6 +71,7 @@ func applyGateEvaluationIntents(
 	for _, decision := range evaluations.routeDecisions {
 		payload.Events = append(payload.Events, routeDecisionEvent(decision))
 	}
+	payload.Attempts = append(payload.Attempts, evaluations.attempts...)
 	payload.Controls = append(payload.Controls, evaluations.gateRevisionMutations()...)
 	plan.Snapshot.Payload = payload
 	return nil

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -97,6 +98,87 @@ func TestRegistryRegisterValidatesPIDStartTime(t *testing.T) {
 
 func TestRegistryCompletionPersistsBeforeRetiringActiveHandle(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: unfinished cleanup remains recoverable, but a changed process
+	// identity is never signaled. Owner: toolruntime registry lifecycle suite.
+	for _, mode := range []string{"live retry", "boot retry", "stale identity", "periodic stale identity"} {
+		t.Run("Should retain pending cleanup for "+mode, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			store := NewMemoryStore()
+			interrupter := &recordingInterrupter{}
+			valid := true
+			options := []Option{
+				WithVerifier(func(_ int, _ time.Time) bool { return valid }),
+				WithInterrupter(interrupter),
+			}
+			registry := NewRegistry(store, options...)
+			handle, err := registry.Register(ctx, RegisterConfig{
+				ID: "pending-cleanup", Source: ProcessSourceSubprocess,
+				Owner: ProcessOwner{RunID: "loop-cleanup"}, PID: 123, ProcessGroupID: 123,
+				StartedAt: time.Date(2026, 4, 24, 9, 0, 0, 0, time.UTC),
+				Interrupt: func(context.Context, ProcessRecord) error {
+					t.Fatal("finished execution callback was retained")
+					return nil
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupErr := errors.New("group cleanup failed")
+			if err := handle.Complete(ctx, ProcessCompletion{
+				Err: cleanupErr, ExitCode: new(3), CleanupPending: true,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			record := listAllRecords(t, store)[0]
+			if record.State != ProcessStateInterrupting || record.CompletedAt != nil ||
+				record.Error != cleanupErr.Error() {
+				t.Fatalf("pending record = %#v", record)
+			}
+			valid = !strings.Contains(mode, "stale identity")
+			resolvedRegistry := registry
+			switch mode {
+			case "boot retry":
+				resolvedRegistry = NewRegistry(store, options...)
+				report, err := resolvedRegistry.ReconcileBoot(ctx)
+				if err != nil || report.Interrupted != 1 {
+					t.Fatalf("ReconcileBoot() = %#v, %v", report, err)
+				}
+			case "periodic stale identity":
+				if err := registry.Reconcile(ctx); err != nil {
+					t.Fatal(err)
+				}
+			default:
+				if _, err := registry.Interrupt(ctx, InterruptScope{ProcessID: handle.ID()}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			record = listAllRecords(t, store)[0]
+			wantState, wantCalls := ProcessStateInterrupted, 1
+			if !valid {
+				wantState, wantCalls = ProcessStateStale, 0
+			}
+			if record.State != wantState || record.CompletedAt == nil || interrupter.calls != wantCalls {
+				t.Fatalf(
+					"resolved record = %#v, signals = %d; want %q, %d",
+					record,
+					interrupter.calls,
+					wantState,
+					wantCalls,
+				)
+			}
+			if !strings.Contains(record.Error, cleanupErr.Error()) || record.ExitCode == nil || *record.ExitCode != 3 {
+				t.Fatalf("recovery erased execution evidence: %#v", record)
+			}
+			resolvedRegistry.mu.RLock()
+			retained := len(resolvedRegistry.active)
+			resolvedRegistry.mu.RUnlock()
+			if retained != 0 {
+				t.Fatalf("retired process handles = %d, want none after terminal cleanup", retained)
+			}
+		})
+	}
 
 	t.Run("Should allow completion retry after transient store update failure", func(t *testing.T) {
 		t.Parallel()

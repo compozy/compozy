@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -20,9 +23,12 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolruntime"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
@@ -631,6 +637,183 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 }
 
 func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: the daemon checkpoints gate ownership before reaping the shell,
+	// and a fresh registry cleans a recovered tree without a live callback.
+	// Owner: daemon command adapter; canonical runtime adapter suite.
+	t.Run("Should checkpoint even a short command before reaping its leader", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		processes := toolruntime.NewMemoryStore()
+		runner := loopGateCommandRunner{
+			workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{
+					"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: root}},
+				},
+			},
+			processRegistry: toolruntime.NewRegistry(processes),
+		}
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command", LoopRunID: "loop-command", Command: "exit 3",
+		})
+		if err != nil || result.ExitCode != 3 {
+			t.Fatalf("RunCommand() = %#v, %v; want exit 3", result, err)
+		}
+		records, err := processes.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{})
+		if err != nil || len(records) != 1 || records[0].Owner.RunID != "loop-command" ||
+			records[0].ExitCode == nil || *records[0].ExitCode != 3 || records[0].State == toolruntime.ProcessStateRunning {
+			t.Fatalf("completed process records = %#v, %v", records, err)
+		}
+	})
+
+	// Invariant: only an unjoined supervisor can retain retryable ownership;
+	// reaped leaders keep terminal cleanup evidence. Owner: daemon adapter suite.
+	for _, pending := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve cleanup evidence with unjoined supervisor %t", pending), func(t *testing.T) {
+			t.Parallel()
+			// The supervisor and registry are real; only the cleanup failure at the
+			// process-I/O boundary is injected to exercise both completion outcomes.
+			//nolint:noctx // Explicit group cleanup and Wait join own this command.
+			cmd := exec.Command("sh", "-c", "exit 3")
+			statusPath, cleanup, err := prepareLoopGateCommand(t.Context(), cmd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(cleanup)
+			procutil.ConfigureCommandProcessGroup(cmd)
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			joined := make(chan struct{})
+			go func() {
+				defer close(joined)
+				if err := cmd.Wait(); err != nil {
+					if _, signaled := errors.AsType[*exec.ExitError](err); !signaled {
+						t.Error(err)
+					}
+				}
+			}()
+			t.Cleanup(func() {
+				if err := procutil.KillCommandProcessGroupAndWait(cmd, time.Second); err != nil {
+					t.Error(err)
+				}
+				testutil.Receive(t, "cleanup evidence supervisor joined", 5*time.Second, joined)
+			})
+			if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+				t.Fatal(err)
+			}
+			processes := toolruntime.NewMemoryStore()
+			runner := loopGateCommandRunner{processRegistry: toolruntime.NewRegistry(processes)}
+			finished := make(chan struct{})
+			defer close(finished)
+			handle, err := runner.registerCommand(t.Context(), gate.CommandRequest{LoopRunID: "cleanup-evidence"},
+				cmd, func() {}, finished)
+			if err != nil {
+				t.Fatal(err)
+			}
+			testutil.Eventually(t, "authored exit three", 5*time.Second, func() bool {
+				code, ready, err := loopGateCommandExit(statusPath)
+				return err == nil && ready && code == 3
+			})
+			cleanupErr := errors.New("group cleanup failed")
+			wantState := toolruntime.ProcessStateFailed
+			if pending {
+				cleanupErr = errors.Join(cleanupErr, errLoopGateSupervisorUnjoined)
+				wantState = toolruntime.ProcessStateInterrupting
+			} else {
+				if err := procutil.KillCommandProcessGroupAndWait(cmd, time.Second); err != nil {
+					t.Fatal(err)
+				}
+				testutil.Receive(t, "reaped cleanup supervisor", 5*time.Second, joined)
+			}
+			runner.completeCommand(t.Context(), handle, loopGateCommandResult(3, nil, cleanupErr))
+			records, err := processes.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{})
+			if err != nil || len(records) != 1 || records[0].State != wantState ||
+				records[0].ExitCode == nil || *records[0].ExitCode != 3 {
+				t.Fatalf("cleanup records = %#v, %v; want %q with exit 3", records, err, wantState)
+			}
+			if err := runner.processRegistry.Reconcile(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := toolruntime.NewRegistry(processes).ReconcileBoot(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			records, err = processes.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{})
+			if err != nil || len(records) != 1 || !strings.Contains(records[0].Error, cleanupErr.Error()) ||
+				records[0].ExitCode == nil || *records[0].ExitCode != 3 {
+				t.Fatalf("recovery erased cleanup evidence: %#v, %v", records, err)
+			}
+		})
+	}
+
+	t.Run("Should recover descendants after the authored shell has already exited", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		// The real command supervisor stays alive as the recovery anchor while
+		// its authored child exits and leaves a helper holding the streams.
+		cmd := exec.CommandContext(t.Context(), "sh", "-c", `sleep 600 & echo $! > child.pid`)
+		cmd.Dir = root
+		statusPath, cleanup, err := prepareLoopGateCommand(t.Context(), cmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cleanup()
+		procutil.ConfigureCommandProcessGroup(cmd)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		joined := make(chan struct{})
+		go func() {
+			defer close(joined)
+			if err := cmd.Wait(); err != nil {
+				if _, signaled := errors.AsType[*exec.ExitError](err); !signaled {
+					t.Error(err)
+				}
+			}
+		}()
+		t.Cleanup(func() {
+			if err := procutil.KillCommandProcessGroupAndWait(cmd, time.Second); err != nil {
+				t.Error(err)
+			}
+			testutil.Receive(t, "recovery anchor joined", 5*time.Second, joined)
+		})
+		if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+			t.Fatal(err)
+		}
+		processes := toolruntime.NewMemoryStore()
+		registry := toolruntime.NewRegistry(processes)
+		if _, err := registry.Register(t.Context(), toolruntime.RegisterConfig{
+			Source: toolruntime.ProcessSourceSubprocess,
+			Owner:  toolruntime.ProcessOwner{RunID: "loop-exited-shell"},
+			PID:    cmd.Process.Pid, ProcessGroupID: cmd.Process.Pid,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		testutil.Eventually(t, "authored shell exited", 5*time.Second, func() bool {
+			_, ready, err := loopGateCommandExit(statusPath)
+			return ready && err == nil
+		})
+		childPID := waitForLoopGateChildPID(t, filepath.Join(root, "child.pid"))
+		report, err := toolruntime.NewRegistry(processes).ReconcileBoot(t.Context())
+		if err != nil || report.Interrupted != 1 || report.Stale != 0 {
+			t.Fatalf("recovery after shell exit = %#v, %v; want owned group cleanup", report, err)
+		}
+		requireLoopGateProcessGone(t, childPID)
+	})
+
+	t.Run("Should recover a registered gate tree after a daemon restart", func(t *testing.T) {
+		t.Parallel()
+		testLoopGateManualRestartCleanup(t)
+	})
+
+	// Invariant: an exit without authored status is infrastructure failure.
+	// Owner: daemon command adapter; canonical runtime adapter suite.
+	t.Run("Should fail when the supervisor dies before authored completion", func(t *testing.T) {
+		t.Parallel()
+		testLoopGateSupervisorDeath(t)
+	})
+
 	t.Run("Should resolve the run workspace before starting the command", func(t *testing.T) {
 		t.Parallel()
 
@@ -672,6 +855,221 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 			t.Fatalf("daemon executable command = %#v", result)
 		}
 	})
+
+	// Invariant: the supervisor preserves normal signal handling in authored
+	// foreground commands. Owner: daemon adapter; canonical runtime adapter suite.
+	t.Run("Should allow an authored command to interrupt its child with SIGINT", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: root}},
+			},
+		}}
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command",
+			Command:     `sh -c 'kill -INT "$$"; exit 7'; test "$?" -gt 128`,
+		})
+		if err != nil || result.ExitCode != 0 {
+			t.Fatalf("RunCommand(SIGINT) = %#v, %v; want interrupted child", result, err)
+		}
+	})
+
+	t.Run("Should reap a SIGTERM-ignoring process tree when the gate is interrupted", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		runner := loopGateCommandRunner{
+			workspaceResolver: loopActionBinderWorkspaceResolver{byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+			}},
+			shutdownGrace: 50 * time.Millisecond,
+		}
+		errLoopCanceled := errors.New("loop run canceled")
+		ctx, cancel := context.WithCancelCause(t.Context())
+		defer cancel(nil)
+		type commandOutcome struct {
+			result gate.CommandResult
+			err    error
+		}
+		done := make(chan commandOutcome, 1)
+		joined := make(chan struct{})
+		t.Cleanup(func() {
+			cancel(nil)
+			testutil.Receive(t, "interrupted gate joined", 10*time.Second, joined)
+		})
+		go func() {
+			defer close(joined)
+			result, err := runner.RunCommand(ctx, gate.CommandRequest{
+				WorkspaceID: "ws-command",
+				// Both the shell and its descendant ignore SIGTERM, so only a process-group SIGKILL
+				// (never a single-pid kill) can reap the tree.
+				Command: `trap '' TERM; sh -c 'trap "" TERM; while :; do sleep 0.2; done' &` +
+					` echo $! > child.pid; wait`,
+			})
+			done <- commandOutcome{result: result, err: err}
+		}()
+		childPID := waitForLoopGateChildPID(t, filepath.Join(rootDir, "child.pid"))
+
+		cancel(errLoopCanceled)
+		var outcome commandOutcome
+		select {
+		case outcome = <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatal("RunCommand() did not return after interruption")
+		}
+		if !errors.Is(outcome.err, errLoopCanceled) {
+			t.Fatalf("RunCommand(interrupted) = %#v, %v; want the interruption cause", outcome.result, outcome.err)
+		}
+		requireLoopGateProcessGone(t, childPID)
+	})
+
+	// Invariant: an out-of-group pipe holder cannot replace an authored exit
+	// status with an infrastructure error. Owner: daemon command adapter suite.
+	t.Run("Should preserve command status when a detached process holds captured output", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		runner := loopGateCommandRunner{
+			workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{
+					"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: root}},
+				},
+			},
+			// Exercise a configured drain longer than the old fixed join bound.
+			drainTimeout: 3 * time.Second,
+		}
+		t.Cleanup(func() {
+			data, err := os.ReadFile(filepath.Join(root, "detached.pid"))
+			if errors.Is(err, os.ErrNotExist) {
+				return
+			}
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			pid, err := strconv.Atoi(string(data))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			process, err := os.FindProcess(pid)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if err := process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Error(err)
+			}
+			requireLoopGateProcessGone(t, pid)
+		})
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command",
+			Command: `COMPOZY_GATE_DETACHED_HOLDER=1 "$COMPOZY_BIN" ` +
+				`-test.run '^TestLoopGateDetachedPipeHolderProcess$'; exit 3`,
+		})
+		if err != nil || result.ExitCode != 3 {
+			t.Fatalf("RunCommand(detached holder) = %#v, %v; want exit 3", result, err)
+		}
+		if _, err := os.Stat(filepath.Join(root, "detached.pid")); err != nil {
+			t.Fatalf("detached pipe holder did not start: %v", err)
+		}
+	})
+
+	t.Run("Should reap descendants the shell leaves running after it exits", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+			},
+		}}
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command",
+			Command:     `sleep 60 >/dev/null 2>&1 & echo $! > child.pid`,
+		})
+		if err != nil || result.ExitCode != 0 {
+			t.Fatalf("RunCommand() = %#v, %v; want exit 0", result, err)
+		}
+		requireLoopGateProcessGone(t, waitForLoopGateChildPID(t, filepath.Join(rootDir, "child.pid")))
+	})
+
+	t.Run("Should return when a backgrounded descendant holds the captured streams open", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+			},
+		}}
+		type commandOutcome struct {
+			result  gate.CommandResult
+			elapsed time.Duration
+			err     error
+		}
+		done := make(chan commandOutcome, 1)
+		ctx, cancel := context.WithCancel(t.Context())
+		joined := make(chan struct{})
+		t.Cleanup(func() {
+			cancel()
+			testutil.Receive(t, "output gate joined", 10*time.Second, joined)
+		})
+		go func() {
+			defer close(joined)
+			started := time.Now()
+			// The backgrounded sleep inherits stdout and stderr without any redirection, so output
+			// draining must not be what decides when the gate finishes.
+			result, err := runner.RunCommand(ctx, gate.CommandRequest{
+				WorkspaceID: "ws-command",
+				Command:     `sleep 600 & echo $! > child.pid; echo gate-ready`,
+			})
+			done <- commandOutcome{result: result, elapsed: time.Since(started), err: err}
+		}()
+
+		var outcome commandOutcome
+		select {
+		case outcome = <-done:
+		case <-time.After(30 * time.Second):
+			t.Fatal("RunCommand() did not return while a backgrounded descendant held the captured streams")
+		}
+		if outcome.err != nil || outcome.result.ExitCode != 0 {
+			t.Fatalf("RunCommand() = %#v, %v; want exit 0", outcome.result, outcome.err)
+		}
+		if !strings.Contains(outcome.result.Stdout, "gate-ready") {
+			t.Fatalf(
+				"RunCommand() stdout = %q, want the output written before the drain was cut",
+				outcome.result.Stdout,
+			)
+		}
+		if outcome.elapsed >= 30*time.Second {
+			t.Fatalf("RunCommand() took %s, want well under the 600s background sleep", outcome.elapsed)
+		}
+		requireLoopGateProcessGone(t, waitForLoopGateChildPID(t, filepath.Join(rootDir, "child.pid")))
+	})
+
+	t.Run(
+		"Should keep the exit code when a backgrounded descendant holds the captured streams open",
+		func(t *testing.T) {
+			t.Parallel()
+
+			rootDir := t.TempDir()
+			runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{
+					"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+				},
+			}}
+			result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+				WorkspaceID: "ws-command",
+				Command:     `sleep 600 & echo $! > child.pid; exit 3`,
+			})
+			// The drain bound must not replace the command's status with an exec.ErrWaitDelay failure.
+			if err != nil || result.ExitCode != 3 {
+				t.Fatalf("RunCommand() = %#v, %v; want exit 3", result, err)
+			}
+			requireLoopGateProcessGone(t, waitForLoopGateChildPID(t, filepath.Join(rootDir, "child.pid")))
+		},
+	)
 
 	t.Run("Should fail before execution when the workspace cannot be resolved", func(t *testing.T) {
 		t.Parallel()
@@ -2405,4 +2803,178 @@ func TestCreateOptionsFromProfileKeepsGrantCeiling(t *testing.T) {
 			}
 		})
 	}
+}
+
+func waitForLoopGateChildPID(t *testing.T, path string) int {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			if pid, parseErr := strconv.Atoi(strings.TrimSpace(string(data))); parseErr == nil && pid > 0 {
+				return pid
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("gate command child pid was not written to %s", path)
+	return 0
+}
+
+func requireLoopGateProcessGone(t *testing.T, pid int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if loopGateProcessReaped(t, pid) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("gate command descendant pid %d survived; want its process group reaped", pid)
+}
+
+// Recovery owns cleanup here: the old execution has no adapter waiter that
+// could accidentally reap descendants on behalf of the fresh registry.
+func testLoopGateManualRestartCleanup(t *testing.T) {
+	t.Helper()
+	root := t.TempDir()
+	//nolint:noctx // The test explicitly owns group termination and joins Wait.
+	cmd := exec.Command("sh", "-c",
+		`trap '' TERM; sh -c 'trap "" TERM; echo $$ > child.pid; while :; do sleep 1; done' & wait`)
+	cmd.Dir = root
+	_, cleanup, err := prepareLoopGateCommand(t.Context(), cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	procutil.ConfigureCommandProcessGroup(cmd)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	joined := make(chan struct{})
+	go func() {
+		defer close(joined)
+		if err := cmd.Wait(); err != nil {
+			if _, signaled := errors.AsType[*exec.ExitError](err); !signaled {
+				t.Error(err)
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		if err := procutil.KillCommandProcessGroupAndWait(cmd, time.Second); err != nil {
+			t.Error(err)
+		}
+		testutil.Receive(t, "manual recovery supervisor joined", 5*time.Second, joined)
+	})
+	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+		t.Fatal(err)
+	}
+	processes := toolruntime.NewMemoryStore()
+	if _, err := toolruntime.NewRegistry(processes).Register(t.Context(), toolruntime.RegisterConfig{
+		Source: toolruntime.ProcessSourceSubprocess,
+		Owner:  toolruntime.ProcessOwner{RunID: "loop-command"},
+		PID:    cmd.Process.Pid, ProcessGroupID: cmd.Process.Pid,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	childPID := waitForLoopGateChildPID(t, filepath.Join(root, "child.pid"))
+	report, err := toolruntime.NewRegistry(processes).ReconcileBoot(t.Context())
+	if err != nil || report.Interrupted != 1 || report.Stale != 0 {
+		t.Fatalf("boot reconciliation = %#v, %v; want owned group cleanup", report, err)
+	}
+	requireLoopGateProcessGone(t, childPID)
+	if err := procutil.WaitForProcessGroupIDExit(cmd.Process.Pid, time.Second); err != nil {
+		t.Fatalf("gate group survived restart recovery: %v", err)
+	}
+}
+
+func testLoopGateSupervisorDeath(t *testing.T) {
+	t.Helper()
+	root := t.TempDir()
+	processes := toolruntime.NewMemoryStore()
+	runner := loopGateCommandRunner{
+		workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: root}},
+			},
+		},
+		processRegistry: toolruntime.NewRegistry(processes),
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	type commandOutcome struct {
+		result gate.CommandResult
+		err    error
+	}
+	finished := make(chan commandOutcome, 1)
+	done := make(chan struct{})
+	var record toolruntime.ProcessRecord
+	t.Cleanup(func() {
+		cancel()
+		if record.ProcessGroupID > 0 {
+			if err := procutil.KillProcessGroupIDAndWait(record.ProcessGroupID, time.Second); err != nil {
+				t.Errorf("cleanup gate group: %v", err)
+			}
+		}
+		testutil.Receive(t, "gate cleanup joined", 10*time.Second, done)
+	})
+	go func() {
+		defer close(done)
+		result, err := runner.RunCommand(ctx, gate.CommandRequest{
+			WorkspaceID: "ws-command", LoopRunID: "loop-command",
+			Command: `trap '' TERM; sh -c 'trap "" TERM; echo ready > child-ready; while :; do sleep 1; done' & wait`,
+		})
+		finished <- commandOutcome{result: result, err: err}
+	}()
+	testutil.Eventually(t, "registered gate and resistant descendant", 5*time.Second, func() bool {
+		records, err := processes.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{})
+		if err != nil || len(records) != 1 {
+			return false
+		}
+		record = records[0]
+		_, err = os.Stat(filepath.Join(root, "child-ready"))
+		return err == nil
+	})
+	process, err := os.FindProcess(record.PID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	outcome := testutil.Receive(t, "gate completion", 10*time.Second, finished)
+	if !errors.Is(outcome.err, errLoopGateSupervisorExited) {
+		t.Fatalf("RunCommand() = %#v, %v; want lost supervisor error", outcome.result, outcome.err)
+	}
+	if err := procutil.WaitForProcessGroupIDExit(record.ProcessGroupID, time.Second); err != nil {
+		t.Fatalf("gate group survived restart recovery: %v", err)
+	}
+}
+
+// TestLoopGateDetachedPipeHolderProcess runs only in the authored command's
+// helper process. Its child deliberately escapes the gate group while inheriting
+// stdout/stderr; the parent test owns that child's explicit cleanup.
+func TestLoopGateDetachedPipeHolderProcess(_ *testing.T) {
+	if os.Getenv("COMPOZY_GATE_DETACHED_HOLDER") != "1" {
+		return
+	}
+	//nolint:noctx // The subprocess must survive this helper's intentional exit.
+	cmd := exec.Command("sh", "-c", "exec sleep 600")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	procutil.ConfigureCommandProcessGroup(cmd)
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile("detached.pid", []byte(strconv.Itoa(cmd.Process.Pid)), 0o600); err != nil {
+		if killErr := cmd.Process.Kill(); killErr != nil {
+			fmt.Fprintln(os.Stderr, killErr)
+		}
+		if _, waitErr := cmd.Process.Wait(); waitErr != nil {
+			fmt.Fprintln(os.Stderr, waitErr)
+		}
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	os.Exit(0)
 }

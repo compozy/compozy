@@ -61,6 +61,12 @@ type CancellationSessionController interface {
 	StopLoopSession(context.Context, string, string) error
 }
 
+// CoordinatorInterrupter stops in-flight coordinator evaluations, including gate commands, after a
+// Run's cancellation commits terminal truth.
+type CoordinatorInterrupter interface {
+	InterruptLoopCoordinatorRuns(loopRunID string, reason string) int
+}
+
 // CancellationSessionControllerFuncs adapts cancellation callbacks.
 type CancellationSessionControllerFuncs struct {
 	Stop func(context.Context, string, string) error

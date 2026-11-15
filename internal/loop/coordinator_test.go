@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/deadentity"
@@ -1296,7 +1297,7 @@ func TestGateRoutePlannerShouldSelectAndRecordTarget(t *testing.T) {
 		resolved.Definition.Graph.Nodes[1],
 		&outputs,
 		collector,
-		time.Now(),
+		time.Now,
 	)
 	if err != nil {
 		t.Fatalf("evaluateGateNode() error = %v", err)
@@ -3872,67 +3873,94 @@ func TestCoordinatorRunnerShouldExposePreviousHistoryToRerunGate(t *testing.T) {
 }
 
 func TestCoordinatorRunnerShouldPersistEveryGateVerdictInSucceededGeneration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should retain in-body and definition-of-done verdict intents together", func(t *testing.T) {
 		t.Parallel()
-
-		graph := dsl.Graph{
-			Nodes: []dsl.Node{
-				{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
-				testRouteGateNode("quality"),
-			},
-			Edges: []dsl.Edge{{From: "draft", To: "quality"}},
-		}
-		run := Run{
-			ID: "looprun-all-verdicts", WorkspaceID: "ws-1", LoopName: "delivery",
-			Status: StatusRunning, Generation: 1, IterationCap: 2,
-		}
-		coordinatorRun := task.Run{
-			ID: "run-coordinator-all-verdicts", TaskID: "task-coordinator-all-verdicts",
-			RunKind: task.RunKindCoordinator, LoopRunID: string(run.ID), Status: task.TaskRunStatusClaimed,
-		}
-		runner := newCoordinatorRunnerForTestWithDefinition(
-			t,
-			run,
-			coordinatorRun,
-			nil,
-			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
-				{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":1}`},
-				{Generation: 1, NodeID: "quality", Status: generationOutputPending},
-			}}},
-			dsl.Definition{
-				Graph:    graph,
-				Contract: dsl.Contract{Verification: []dsl.GateCriterion{testRouteCriterion()}},
-			},
-			WithCoordinatorGateEvaluator(gateEvaluatorFunc(
-				func(_ context.Context, _ gate.Gate, input gate.GateInput) (gate.Verdict, error) {
-					if input.Placement == gate.PlacementDefinitionOfDone {
-						verdict := testRouteVerdict(gate.RouteNextGeneration)
-						verdict.Route.Placement = gate.PlacementDefinitionOfDone
-						return verdict, nil
-					}
-					return gate.Verdict{
-						Outcome: gate.VerdictOutcomeApproved,
-						Criteria: []gate.CriterionResult{{
-							ID: "check", Type: dsl.CriterionCommand,
-							Outcome: gate.VerdictOutcomeApproved, Passed: true,
-						}},
-						Route: gate.RouteDecision{
-							Placement: gate.PlacementInBody, Action: gate.RouteContinue,
-						},
-					}, nil
+		synctest.Test(t, func(t *testing.T) {
+			evaluations := 0
+			graph := dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+					testRouteGateNode("quality"),
 				},
-			)),
-		)
+				Edges: []dsl.Edge{{From: "draft", To: "quality"}},
+			}
+			run := Run{
+				ID: "looprun-all-verdicts", WorkspaceID: "ws-1", LoopName: "delivery",
+				Status: StatusRunning, Generation: 1, IterationCap: 2,
+			}
+			coordinatorRun := task.Run{
+				ID: "run-coordinator-all-verdicts", TaskID: "task-coordinator-all-verdicts",
+				RunKind: task.RunKindCoordinator, LoopRunID: string(run.ID), Status: task.TaskRunStatusClaimed,
+			}
+			runner := newCoordinatorRunnerForTestWithDefinition(
+				t,
+				run,
+				coordinatorRun,
+				nil,
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+					{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":1}`},
+					{Generation: 1, NodeID: "quality", Status: generationOutputPending},
+				}}},
+				dsl.Definition{
+					Graph:    graph,
+					Contract: dsl.Contract{Verification: []dsl.GateCriterion{testRouteCriterion()}},
+				},
+				WithCoordinatorGateEvaluator(gateEvaluatorFunc(
+					func(_ context.Context, _ gate.Gate, input gate.GateInput) (gate.Verdict, error) {
+						evaluations++
+						if input.Placement == gate.PlacementDefinitionOfDone {
+							time.Sleep(2 * time.Minute)
+							verdict := testRouteVerdict(gate.RouteNextGeneration)
+							verdict.Route.Placement = gate.PlacementDefinitionOfDone
+							return verdict, nil
+						}
+						time.Sleep(10 * time.Minute)
+						return gate.Verdict{
+							Outcome: gate.VerdictOutcomeApproved,
+							Criteria: []gate.CriterionResult{{
+								ID: "check", Type: dsl.CriterionCommand,
+								Outcome: gate.VerdictOutcomeApproved, Passed: true,
+							}},
+							Route: gate.RouteDecision{
+								Placement: gate.PlacementInBody, Action: gate.RouteContinue,
+							},
+						}, nil
+					},
+				)),
+			)
 
-		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
-		if err != nil {
-			t.Fatalf("Run() error = %v", err)
-		}
-		verdicts := coordinatorSnapshotPayloadForTest(t, plan).Verdicts
-		if len(verdicts) != 2 || verdicts[0].GateID != "quality" ||
-			verdicts[1].GateID != definitionOfDoneGateID {
-			t.Fatalf("verdict intents = %#v, want quality and definition of done", verdicts)
-		}
+			started := time.Now()
+			plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			payload := coordinatorSnapshotPayloadForTest(t, plan)
+			if evaluations != 2 {
+				t.Fatalf("evaluations = %d, want one per gate", evaluations)
+			}
+			if len(payload.Attempts) != 1 || payload.Attempts[0].NodeID != "quality" ||
+				payload.Attempts[0].EndedAt.Sub(payload.Attempts[0].StartedAt) != 10*time.Minute {
+				t.Fatalf("gate attempts = %#v, want one ten-minute evaluation", payload.Attempts)
+			}
+			foundContract := false
+			for _, control := range payload.Controls {
+				if control.NodeID == definitionOfDoneGateID {
+					foundContract = true
+					if !control.At.Equal(started.Add(12 * time.Minute)) {
+						t.Fatalf("definition-of-done decision time = %s, want evaluation completion", control.At)
+					}
+				}
+			}
+			if !foundContract {
+				t.Fatal("missing definition-of-done revision after rejection")
+			}
+			verdicts := payload.Verdicts
+			if len(verdicts) != 2 || verdicts[0].GateID != "quality" ||
+				verdicts[1].GateID != definitionOfDoneGateID {
+				t.Fatalf("verdict intents = %#v, want quality and definition of done", verdicts)
+			}
+		})
 	})
 }
 

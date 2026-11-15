@@ -13,6 +13,25 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 - Reference grammar, metric criteria, and runtime selection
 - Hooks, SSE, watch sources, and watch events
 - Agent-authored review and repair
+- Long-running command gates
+
+## Long-running command gates
+
+Coordinator claims renew while inline gates execute; `last_progress_at` advances without redispatching
+the active attempt. Completed gate attempts and machine verdicts are committed after evaluation.
+A successful gate attempt means the evaluation completed; consult its verdict for approval or rejection.
+Every command must keep its work in the foreground: the entire local process group is cleaned up
+after command completion, including after a successful exit. Helpers that remain in the gate process group are included in cleanup.
+`loop cancel` sends SIGTERM to the gate process group, allows a five-second cleanup grace, then
+sends SIGKILL to finish the supervisor and remaining members. Registered
+gate groups whose leader identity still validates are reaped during daemon restart reconciliation before replacement work starts.
+Cleanup failures stay pending only if the supervisor cannot be joined and its leader identity still
+validates. Once the leader is reaped, the error remains terminal; an unproven group is never signaled again.
+Run containers in the foreground (no `-d`). Authors own cleanup of resources held by a container
+daemon or remote host: use `docker run --rm` and a cleanup `trap`, plus recovery cleanup for crashes
+or SIGKILL, which cannot execute traps. The daemon does not infer external resource identities.
+In-process cancellation allows five seconds after SIGTERM before SIGKILL; cleanup traps are best
+effort within that grace. Slow remote cleanup still requires author-owned recovery.
 
 ## The Tool Set And CLI Verbs
 
