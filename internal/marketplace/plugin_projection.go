@@ -173,13 +173,13 @@ func (p *PluginProjector) project(
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
+	if err := projectionError(results); err != nil {
+		return nil, nil, err
+	}
 	entries := make([]Entry, 0, len(results))
 	diagnostics := append([]pluginsource.Diagnostic(nil), doc.Diagnostics...)
 	exhausted := workCtx.Err() != nil
 	for index, result := range results {
-		if result.err != nil {
-			return nil, nil, result.err
-		}
 		diagnostics = append(diagnostics, result.diagnostics...)
 		if err := ValidateIcon(doc.Plugins[index].Icon); err != nil {
 			diagnostics = append(diagnostics, pluginsource.Diagnostic{
@@ -198,6 +198,25 @@ func (p *PluginProjector) project(
 		)
 	}
 	return entries, diagnostics, nil
+}
+
+// Put the latest quota deadline first so errors.As callers retain every worker's backoff.
+func projectionError(results []projectedPlugin) error {
+	var failures []error
+	var latest *githubauth.RateLimitError
+	for _, result := range results {
+		if result.err == nil {
+			continue
+		}
+		failures = append(failures, result.err)
+		if limited, ok := errors.AsType[*githubauth.RateLimitError](result.err); ok &&
+			(latest == nil || limited.RetryAt.After(latest.RetryAt)) {
+			latest = limited
+			last := len(failures) - 1
+			failures[0], failures[last] = failures[last], failures[0]
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func (p *PluginProjector) projectOne(

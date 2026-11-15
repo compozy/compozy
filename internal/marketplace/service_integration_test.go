@@ -3,10 +3,13 @@
 package marketplace
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -82,15 +86,40 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		}
 	})
 
+	// Invariant: package quota backoff preserves SQLite state and resumes real acquisition after reset.
+	// Owner: service/package composition; canonical HTTP/SQLite integration suite.
 	t.Run("Should preserve the catalog and back off when a plugin package hits GitHub quota", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2100, 11, 15, 12, 0, 0, 0, time.UTC)
 		reset := now.Add(time.Hour)
-		var limited atomic.Bool
+		root := t.TempDir()
+		manifestPath := filepath.Join(".claude-plugin", "plugin.json")
+		packageRoot := filepath.Join(root, "repository")
+		if err := os.MkdirAll(filepath.Join(packageRoot, ".claude-plugin"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		manifest := `{"name":"tool","version":"1.0.0"}`
+		if err := os.WriteFile(filepath.Join(packageRoot, manifestPath), []byte(manifest), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var archive bytes.Buffer
+		if _, err := fileutil.WriteTarGzipDirectory(t.Context(), &archive, root, nil, fileutil.TarGzipLimits{}); err != nil {
+			t.Fatal(err)
+		}
+		var limited, projectPackages atomic.Bool
+		var tarballs atomic.Int32
 		var calls atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			calls.Add(1)
 			if strings.Contains(r.URL.Path, "/tarball/") {
+				tarballs.Add(1)
+				if !limited.Load() {
+					w.Header().Set("Content-Type", "application/gzip")
+					if _, err := w.Write(archive.Bytes()); err != nil {
+						t.Error(err)
+					}
+					return
+				}
 				w.Header().Set("X-RateLimit-Remaining", "0")
 				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
 				http.Error(w, "rate limited", http.StatusTooManyRequests)
@@ -106,21 +135,30 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 				pluginsource.WithGitHubBaseURL(server.URL), pluginsource.WithGitHubHTTPClient(server.Client()),
 			},
 		}}
-		projector, err := NewPluginProjector(resolver, func(context.Context, string, string) (PluginInspection, error) {
-			t.Error("rate-limited package must not reach inspection")
-			return PluginInspection{}, nil
+		projector, err := NewPluginProjector(resolver, func(_ context.Context, root, _ string) (PluginInspection, error) {
+			if limited.Load() {
+				t.Error("rate-limited package must not reach inspection")
+			}
+			content, err := os.ReadFile(filepath.Join(root, manifestPath))
+			if err == nil && string(content) != manifest {
+				t.Errorf("recovered package manifest = %q", content)
+			}
+			return PluginInspection{Contents: PluginContents{Skills: 1}}, err
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		fetcher := &recordingSource{fetch: func(ctx context.Context) (*Document, error) {
-			if limited.Load() {
-				_, _, err := projector.Project(ctx, pluginsource.Document{
+			if projectPackages.Load() {
+				entries, _, err := projector.Project(ctx, pluginsource.Document{
 					SourceRef: "github:owner/catalog", Plugins: []pluginsource.Plugin{{Name: "tool", Source: pluginsource.PluginSource{
 						Kind: pluginsource.SourceGitHub, Ref: "github:owner/plugin",
 					}}},
 				}, "team", nil)
-				return nil, err
+				if err != nil {
+					return nil, err
+				}
+				return testDocument(now, entries...), nil
 			}
 			return testDocument(now, testEntry("stable", "Stable", "Cached plugin")), nil
 		}}
@@ -137,6 +175,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		if _, err := service.Refresh(t.Context()); err != nil {
 			t.Fatal(err)
 		}
+		projectPackages.Store(true)
 		limited.Store(true)
 		for range 2 {
 			if _, err := service.Refresh(t.Context()); err == nil || !strings.Contains(err.Error(), "retry after") {
@@ -144,7 +183,8 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			}
 		}
 		page, err := service.Browse(t.Context(), "", 0, 10)
-		if err != nil || !page.Stale || len(page.Entries) != 1 || page.Entries[0].EntryID != "stable" || calls.Load() != 2 {
+		if err != nil || !page.Stale || len(page.Entries) != 1 || page.Entries[0].EntryID != "stable" ||
+			calls.Load() != 2 || tarballs.Load() != 1 {
 			t.Fatalf("package quota lost cached projection: %+v, %v, requests=%d", page, err, calls.Load())
 		}
 		now = reset
@@ -153,7 +193,8 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		page, err = service.Browse(t.Context(), "", 0, 10)
-		if err != nil || page.Stale || len(page.Entries) != 1 {
+		if err != nil || page.Stale || len(page.Entries) != 1 || page.Entries[0].EntryID != "tool" ||
+			!page.Entries[0].Installable || calls.Load() != 4 || tarballs.Load() != 2 {
 			t.Fatalf("recovered projection = %+v, %v", page, err)
 		}
 	})
