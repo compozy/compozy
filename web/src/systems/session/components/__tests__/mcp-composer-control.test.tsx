@@ -48,7 +48,8 @@ describe("MCPComposerControl", () => {
     const trigger = screen.getByRole("button", { name: "MCP servers: 3 ready, 1 need you" });
     // Icon-only: the counts live in the name, and the attention dot stands in for the old warning tint.
     expect(trigger.textContent).toBe("");
-    expect(trigger).toHaveAttribute("data-marker", "attention");
+    expect(screen.getByTestId("composer-mcp-attention")).toBeInTheDocument();
+    expect(screen.queryByTestId("composer-mcp-pending")).not.toBeInTheDocument();
     await user.click(trigger);
     expect(onOpenChange).toHaveBeenLastCalledWith(true);
 
@@ -62,6 +63,20 @@ describe("MCPComposerControl", () => {
       "sign_in"
     );
     expect(screen.getByTestId("composer-mcp-context7")).toHaveTextContent("Loaded by Claude Code");
+  });
+
+  it("Should keep a pending change visible and named while a server also needs the operator", () => {
+    renderControl({
+      summary: { ...sessionMCPSummaryFixture(sessionMCPNeedsSignInFixture), pending_reload: true },
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "MCP servers: 3 ready, 1 need you, changes apply on your next message",
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("composer-mcp-attention")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-mcp-pending")).toBeInTheDocument();
   });
 
   it("UT-W09: Should keep the last rows as out of date when a reread fails", async () => {

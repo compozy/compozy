@@ -263,12 +263,12 @@ export function MCPComposerControl({
 }: MCPComposerControlProps) {
   const { summary, data, failed = false } = body;
   if (summary === null) return null;
-  const warn = summary.attention > 0 || data?.last_reload?.outcome === "failed";
-  const label = sessionMCPControlLabel(summary);
-  // Icon-only and neutral like its toolbar neighbours; the count lives in the name and tooltip.
-  // A dot keeps what the label no longer shows: a server that needs the operator, else a change
-  // that applies on the next message.
-  const marker = warn ? "attention" : summary.pending_reload ? "pending" : null;
+  const reloadFailed = data?.last_reload?.outcome === "failed";
+  const warn = summary.attention > 0 || reloadFailed;
+  const label = sessionMCPControlLabel(summary, { reloadFailed });
+  // Icon-only and neutral like its toolbar neighbours; the name and tooltip carry the counts and
+  // states. Two independent dots repeat them visually: attention top-right, a pending change
+  // bottom-right.
   return (
     <Popover defaultOpen={defaultOpen} onOpenChange={open => onOpenChange?.(open)}>
       <PopoverTrigger
@@ -279,20 +279,23 @@ export function MCPComposerControl({
             aria-label={label}
             title={label}
             data-testid="composer-mcp-button"
-            data-marker={marker ?? undefined}
             className="relative shrink-0 data-[popup-open]:bg-surface-2"
           />
         }
       >
         <Plug aria-hidden="true" />
-        {marker ? (
+        {warn ? (
           <span
             aria-hidden="true"
-            data-testid="composer-mcp-marker"
-            className={cn(
-              "absolute top-1 right-1 size-1.5 rounded-full",
-              marker === "attention" ? "bg-warning" : "bg-info"
-            )}
+            data-testid="composer-mcp-attention"
+            className="absolute top-1 right-1 size-1.5 rounded-full bg-warning"
+          />
+        ) : null}
+        {summary.pending_reload ? (
+          <span
+            aria-hidden="true"
+            data-testid="composer-mcp-pending"
+            className="absolute right-1 bottom-1 size-1.5 rounded-full bg-info"
           />
         ) : null}
       </PopoverTrigger>

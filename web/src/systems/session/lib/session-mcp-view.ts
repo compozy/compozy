@@ -97,9 +97,15 @@ export function sessionMCPControlView(data: SessionMCPResponse): SessionMCPContr
   };
 }
 
-export function sessionMCPControlLabel(summary: SessionMCPSummary): string {
-  const ready = `MCP servers: ${summary.usable} ready`;
-  return summary.attention > 0 ? `${ready}, ${summary.attention} need you` : ready;
+export function sessionMCPControlLabel(
+  summary: SessionMCPSummary,
+  options: { reloadFailed?: boolean } = {}
+): string {
+  const parts = [`MCP servers: ${summary.usable} ready`];
+  if (summary.attention > 0) parts.push(`${summary.attention} need you`);
+  if (options.reloadFailed) parts.push("couldn't start with the new servers");
+  else if (summary.pending_reload) parts.push("changes apply on your next message");
+  return parts.join(", ");
 }
 
 /** The popover header's caption, in order of what the operator most needs to know. */

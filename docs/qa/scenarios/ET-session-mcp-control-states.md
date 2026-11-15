@@ -4,7 +4,7 @@ area: ET
 title: The session composer MCP control shows ready, sign-in, approval and limited-by-parent states
 persona: Nia
 journey:
-expected: The composer's icon-only "MCP servers" control sits last in the tool group, names the usable count in its accessible name and tooltip, shows a warning dot on attention and an info dot on pending change, and its popover shows CompozyOS rows (Ready · N tools, Needs sign-in + Sign in, Waiting for approval + Allow, Couldn't connect), the runtime section read-only with Manage in Settings, and a collapsed "Not available in this session" group in a narrowed child session.
+expected: The composer's icon-only "MCP servers" control sits last in the tool group, names the usable count, attention and pending change in its accessible name and tooltip, shows a top dot on attention and an independent bottom dot on pending change, and its popover shows CompozyOS rows (Ready · N tools, Needs sign-in + Sign in, Waiting for approval + Allow, Couldn't connect), the runtime section read-only with Manage in Settings, and a collapsed "Not available in this session" group in a narrowed child session.
 entry_points: session composer MCP control (mcpControl slot); GET /api/workspaces/{ws}/sessions/{id}/mcp; session.mcp_changed
 qa_status: untested
 bug_ids:
