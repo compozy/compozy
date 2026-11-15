@@ -348,6 +348,13 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 			resolved.Config.Providers["acpmock-replacement"] = acpmock.ProviderConfig(command)
 			resolved.Agents[0].Name = "compaction-claude"
 			resolved.Agents[0].Prompt = "Exercise maintenance startup isolation."
+			e2etest.WriteAgentDef(t, home, e2etest.AgentSeed{
+				Name: resolved.Agents[0].Name, Provider: resolved.Agents[0].Provider,
+				Model: resolved.Agents[0].Model, Prompt: resolved.Agents[0].Prompt, Tools: resolved.Agents[0].Tools,
+			})
+			e2etest.SeedConfig(t, home, e2etest.ConfigSeedOptions{Mutate: func(seed *compozyconfig.Config) {
+				*seed = resolved.Config
+			}})
 			manager := newBoundedRebuildManager(t, home, deps, resolved, daemon)
 			opts := session.CreateOpts{AgentName: "compaction-claude", Workspace: resolved.ID}
 			active, err := manager.Create(t.Context(), &(opts))
@@ -418,6 +425,16 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 						MaxMessageBytes: 4096,
 					}
 					resolved.Agents[0].Tools = []string{"compozy__session_compact"}
+					e2etest.WriteAgentDef(t, home, e2etest.AgentSeed{
+						Name:     resolved.Agents[0].Name,
+						Provider: resolved.Agents[0].Provider,
+						Model:    resolved.Agents[0].Model,
+						Prompt:   resolved.Agents[0].Prompt,
+						Tools:    resolved.Agents[0].Tools,
+					})
+					e2etest.SeedConfig(t, home, e2etest.ConfigSeedOptions{Mutate: func(seed *compozyconfig.Config) {
+						*seed = resolved.Config
+					}})
 				}
 				daemon, deps = bootHarnessPolicyDaemon(t, home, &resolved.Config)
 				cleanupMaintenanceDaemon(t, daemon)

@@ -52,6 +52,7 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 			FixturePath:  mockFixturePath(t, "local_fixture.json"),
 			FixtureAgent: "local-default",
 			AgentName:    "local-default",
+			Tools:        []string{"compozy__session_changes"},
 		}},
 	})
 	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)

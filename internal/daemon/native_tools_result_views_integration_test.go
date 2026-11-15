@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -24,6 +25,10 @@ func TestNativeResultViewsIntegration(t *testing.T) {
 		workspace := newHarnessIntegrationWorkspace(t, home, cfg, filepath.Join(home.HomeDir, "workspace"))
 		workspace.Agents[0].Name = "general"
 		workspace.Agents[0].Tools = nativeResultViewPermissions().Tools
+		e2etest.WriteAgentDef(t, home, e2etest.AgentSeed{
+			Name: workspace.Agents[0].Name, Provider: workspace.Agents[0].Provider,
+			Model: workspace.Agents[0].Model, Prompt: workspace.Agents[0].Prompt, Tools: workspace.Agents[0].Tools,
+		})
 		daemon, deps := bootHarnessPolicyDaemon(t, home, &cfg)
 		t.Cleanup(func() {
 			if err := daemon.Shutdown(context.Background()); err != nil {
