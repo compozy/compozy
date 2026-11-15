@@ -208,6 +208,10 @@ func TestSubagentDelete(t *testing.T) {
 		s, db, _ := newSubagentTestService(t)
 		row := requireSubagent(t, s, subagentTestRequest())
 		wakeID := "wake-1"
+		deleted := db.rows[row.ID]
+		deleted.WakeMessageID = &wakeID
+		deleted.Delivery = store.SubagentDeliveryClaimed
+		db.rows[row.ID] = deleted
 		db.rows["other"] = store.SessionSubagent{
 			ID: "other", WorkspaceID: "ws", ParentSessionID: "parent",
 			Origin: store.SubagentOriginDelegated, Status: store.SubagentStatusCompleted,
