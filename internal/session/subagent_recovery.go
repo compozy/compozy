@@ -298,6 +298,7 @@ func (s *subagentService) recoverPending(ctx context.Context) error {
 	}
 	// A successor claims every pending row for its parent in one batch. Save all
 	// retained checkout facts before composing any parent's completion message.
+	seen := make(map[string]bool)
 	for _, row := range pending {
 		if row.ChildSessionID != nil || !store.IsSubagentStatusTerminal(row.Status) ||
 			row.WorktreeState().ID == "" || row.WorktreeState().Facts.PRStatus != "" {
@@ -307,11 +308,12 @@ func (s *subagentService) recoverPending(ctx context.Context) error {
 		unlock := s.lock(row.ParentSessionID)
 		_, factsErr := s.persistTerminalWorktreeFacts(ctx, observed, row)
 		unlock()
-		if factsErr != nil {
-			return factsErr
+		if factsErr != nil && !errors.Is(factsErr, store.ErrSubagentNotFound) {
+			s.recoveryResult(ctx, row.ID, "deleted_child_facts", factsErr)
+			// Keep this parent's batch pending, without blocking other recovery or boot.
+			seen[row.ParentSessionID] = true
 		}
 	}
-	seen := make(map[string]bool)
 	for _, row := range pending {
 		if seen[row.ParentSessionID] {
 			continue

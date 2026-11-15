@@ -834,6 +834,54 @@ func (h *subagentTestHook) DispatchSubagentSettled(context.Context, store.Sessio
 // Invariant: boot repairs every interrupted boundary from durable inputs; owner: service recovery (IT-031).
 func TestSubagentRecovery(t *testing.T) {
 	t.Parallel()
+	// Invariant: a lost row or failed fact write cannot block unrelated parent wakes or orphan cleanup.
+	for _, failure := range []string{"row removed", "fact write failed"} {
+		t.Run("Should continue recovery when deleted child facts have "+failure, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			wt := &subagentWorktreeStub{facts: SubagentWorktreeFacts{PRStatus: "none"}}
+			s.worktrees = wt
+			parent := runtime.snapshots["parent"]
+			parent.Active = false
+			runtime.snapshots["parent"] = parent
+			other := parent
+			info := *parent.Info
+			info.ID = "other"
+			other.Info = &info
+			runtime.snapshots["other"] = other
+			for _, parentID := range []string{"parent", "other"} {
+				db.rows[parentID] = store.SessionSubagent{
+					ID: parentID, WorkspaceID: "ws", ParentSessionID: parentID, Title: parentID,
+					Origin: store.SubagentOriginDelegated, Status: store.SubagentStatusInterrupted,
+					ChildActivity: store.SubagentChildActivityStopped, WorkState: store.SubagentWorkStateResultAvailable,
+					WakePolicy: store.SubagentWakePolicyAlways, Delivery: store.SubagentDeliveryPending,
+				}
+			}
+			row := db.rows["parent"]
+			row.Worktree = &store.SubagentWorktreeState{ID: "wt", Branch: "pending-facts"}
+			row.Isolation = SubagentIsolationWorktree
+			db.rows[row.ID] = row
+			if failure == "row removed" {
+				wt.observe = func() { delete(db.rows, row.ID) }
+			} else {
+				db.finalizeErrIDs = map[string]error{row.ID: errors.New("fact write unavailable")}
+			}
+			db.orphans = []string{"orphan"}
+			runtime.snapshots["orphan"] = subagentSnapshot{Info: &Info{ID: "orphan", State: StateActive}}
+			if err := s.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if db.rows["other"].Delivery != store.SubagentDeliveryClaimed || len(runtime.queues) != 1 ||
+				!slices.Contains(runtime.stopped, "orphan") {
+				t.Fatalf("unrelated recovery blocked: row=%+v queues=%v stopped=%v",
+					db.rows["other"], runtime.queues, runtime.stopped)
+			}
+			if failure == "fact write failed" && db.rows[row.ID].Delivery != store.SubagentDeliveryPending {
+				t.Fatalf("failed fact write lost pending batch: %+v", db.rows[row.ID])
+			}
+		})
+	}
+
 	t.Run("Should recover reservation admission wake and orphan boundaries IT-031 service", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)
