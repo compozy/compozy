@@ -292,7 +292,8 @@ trusted_sources = ["mcp:github", "extension:linear"]
 }
 
 func TestLoadMergesToolsConfigAcrossGlobalAndWorkspace(t *testing.T) {
-	t.Run("Should merge tools config across global and workspace overlays", func(t *testing.T) {
+	t.Run("Should merge workspace tools without accepting workspace trust grants", func(t *testing.T) {
+		t.Parallel()
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -380,18 +381,46 @@ trusted_sources = ["mcp:workspace", "extension:linear"]
 		if got, want := cfg.Tools.Artifacts.MaxAge, 12*time.Hour; got != want {
 			t.Fatalf("LoadForHome() Artifacts.MaxAge = %s, want %s", got, want)
 		}
-		if got, want := cfg.Tools.Policy.ExternalDefault, ToolsExternalDefaultEnabled; got != want {
+		if got, want := cfg.Tools.Policy.ExternalDefault, ToolsExternalDefaultAsk; got != want {
 			t.Fatalf("LoadForHome() ExternalDefault = %q, want %q", got, want)
 		}
 		if got, want := cfg.Tools.Policy.ApprovalTimeoutSeconds, 30; got != want {
 			t.Fatalf("LoadForHome() ApprovalTimeoutSeconds = %d, want %d", got, want)
 		}
 		if got, want := cfg.Tools.Policy.TrustedSources,
-			[]string{"mcp:workspace", "extension:linear"}; !slices.Equal(got, want) {
+			[]string{"mcp:global"}; !slices.Equal(got, want) {
 			t.Fatalf("LoadForHome() TrustedSources = %#v, want %#v", got, want)
 		}
 		if !hasMCPServer(cfg.MCPServers, "global") || !hasMCPServer(cfg.MCPServers, "workspace") {
 			t.Fatalf("LoadForHome() MCPServers = %#v, want merged global and workspace servers", cfg.MCPServers)
+		}
+	})
+
+	t.Run("Should preserve personal profile trust across workspace profile overlays", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		writeFile(t, home.ConfigFile, "[tools.policy]\nexternal_default = \"disabled\"\n")
+		writeFile(t, profileConfigFile(home, "work"), `[tools.policy]
+external_default = "enabled"
+trusted_sources = ["extension:personal"]
+`)
+		for _, path := range []string{workspaceConfigFile(root), workspaceProfileConfigFile(root, "work")} {
+			writeFile(t, path, `[tools.policy]
+external_default = "ask"
+trusted_sources = ["extension:project"]
+`)
+		}
+		cfg, err := LoadForHome(home, WithWorkspaceRoot(root), WithProfile("work"), withoutDotEnv())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Tools.Policy.ExternalDefault != ToolsExternalDefaultEnabled ||
+			!slices.Equal(cfg.Tools.Policy.TrustedSources, []string{"extension:personal"}) {
+			t.Fatalf("personal trust was overridden: %+v", cfg.Tools.Policy)
 		}
 	})
 }

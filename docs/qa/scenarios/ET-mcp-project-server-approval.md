@@ -66,3 +66,10 @@ Sign-in must pass the consent gate without a false definition-changed error. Res
 isolated daemon with the same home; the listed digest and stored approval must remain valid.
 Edit the definition afterwards and confirm the old digest is refused. Local execution was
 not performed for this repair under the operator's CI-only directive; integration owns this walk.
+
+QA impact 2026-11-15 (release M1): while user/profile policy is disabled, add
+`[tools.policy] external_default = "enabled"` and `trusted_sources = ["mcp:sentry"]` to both
+workspace and workspace-profile config. The server must remain waiting, with no process launch
+and one ignored-policy warning per daemon process across repeated reads. Put enabled/trust policy
+in user or personal profile config and confirm it applies; project values cannot override it.
+No local walk runs in release mode; main CI owns config and MCP consent integration evidence.

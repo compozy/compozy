@@ -1396,7 +1396,7 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 			}
 		}
 	})
-	t.Run("Should honor enabled external default without an approval", func(t *testing.T) {
+	t.Run("Should keep project servers pending despite workspace trust grants", func(t *testing.T) {
 		t.Parallel()
 		state, req := newMCPConsentFixture(t)
 		root, err := state.workspaceResolver.Resolve(t.Context(), req.WorkspaceID)
@@ -1406,11 +1406,11 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		writeMCPDeclarationFile(
 			t,
 			filepath.Join(root.RootDir, compozyconfig.DirName, compozyconfig.ConfigName),
-			"[tools.policy]\nexternal_default = \"enabled\"\n",
+			"[tools.policy]\nexternal_default = \"enabled\"\ntrusted_sources = [\"mcp:sentry\"]\n",
 		)
 		decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
-		if err != nil || !decision.Admitted || decision.Waiting {
-			t.Fatalf("enabled=%+v %v", decision, err)
+		if err != nil || decision.Admitted || !decision.Waiting {
+			t.Fatalf("workspace trust bypassed approval=%+v %v", decision, err)
 		}
 	})
 	t.Run("Should commit the file before approval and preserve it on approval failure", func(t *testing.T) {

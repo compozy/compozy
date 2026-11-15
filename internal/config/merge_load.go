@@ -16,6 +16,10 @@ const configBaseURLKey = "base_url"
 
 var warnShellScopeDeprecation = sync.OnceFunc(func() { slog.Warn(ShellScopeDeprecationWarning) })
 
+var warnWorkspaceToolConsentPolicy = sync.OnceFunc(func() {
+	slog.Warn("config: workspace tools.policy.external_default and trusted_sources ignored; configure them in user or profile config")
+})
+
 // ApplyConfigOverlayFile deep-merges an optional TOML config file into dst.
 func ApplyConfigOverlayFile(path string, dst *Config) error {
 	if dst == nil {
@@ -34,6 +38,13 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 }
 
 func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) error {
+	if roleSource == RoleFieldSourceWorkspace || roleSource == RoleFieldSourceWorkspaceProfile {
+		if overlay.Tools.Policy.ExternalDefault != nil || overlay.Tools.Policy.TrustedSources != nil {
+			warnWorkspaceToolConsentPolicy()
+			overlay.Tools.Policy.ExternalDefault = nil
+			overlay.Tools.Policy.TrustedSources = nil
+		}
+	}
 	if roleSource != RoleFieldSourceGlobal && overlay.Agents.Heartbeat.Sources.present() {
 		slog.Warn("config: [agents.heartbeat.sources] is daemon-wide; overlay ignored")
 		overlay.Agents.Heartbeat.Sources = heartbeatSourcesOverlay{}

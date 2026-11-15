@@ -459,7 +459,9 @@ applies only to MCP sources without operator consent: project-file servers waiti
 Servers added through CompozyOS, servers in operator-owned home files, enabled extensions and their
 servers are admitted regardless. `enabled` admits unapproved project servers; `disabled` and `ask`
 keep them waiting and never start them. `ask` still prompts per call for consented sources. Dynamic
-tools stay denied. Approval workflow: `references/tools-and-skills.md` (MCP Activation And Consent).
+tools stay denied. Set `external_default` and `trusted_sources` in user or personal profile config
+only: workspace and workspace-profile values are ignored with one warning per daemon process.
+Project files cannot grant their own consent or read-only trust. Approval workflow: `references/tools-and-skills.md` (MCP Activation And Consent).
 
 ## Provider Sign-In Recovery
 

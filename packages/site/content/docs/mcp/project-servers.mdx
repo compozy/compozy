@@ -138,7 +138,9 @@ servers without your consent, which means project servers waiting for approval:
 | `ask`                | Wait for approval; never started. | Callable, with an approval prompt on each call. |
 | `enabled`            | Callable without approval.        | Callable.                                       |
 
-Dynamic tools stay denied whatever the value.
+Configure this policy in your user or personal profile config. Workspace and workspace-profile
+`external_default` and `trusted_sources` values are ignored with one warning per daemon process;
+a project cannot approve its own servers. Dynamic tools stay denied whatever the value.
 
 ## Troubleshooting
 
