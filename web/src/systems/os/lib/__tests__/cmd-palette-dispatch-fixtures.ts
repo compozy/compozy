@@ -67,7 +67,6 @@ export function shellFixture(): PaletteShellHandlers {
     openNewTab: vi.fn(),
     activateWindow: vi.fn(),
     focusDirection: vi.fn(),
-    directionalFocusId: vi.fn(() => state.focusedId),
     openPaletteExecution: vi.fn(),
   };
 }
@@ -103,6 +102,7 @@ export function opContext(bar: TabBarFixture | null, focusedId: string | null) {
     closeWindow: vi.fn(() => Promise.resolve(true)),
     arrangeLayout: vi.fn(),
     focusDirection: vi.fn(),
+    directionalFocusId: vi.fn(() => state.focusedId),
     swapDirection: vi.fn(),
     unsplitWindow: vi.fn(),
     tileWindow: vi.fn(),
