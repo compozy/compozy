@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -3683,6 +3684,9 @@ func newTestDeps(t *testing.T, client DaemonClient) commandDeps {
 		},
 		processMatchesStartTime: func(int, time.Time) bool {
 			return true
+		},
+		inspectProcess: func(pid int) (procutil.ScannedProcess, error) {
+			return procutil.ScannedProcess{PID: pid}, nil
 		},
 		getwd: func() (string, error) {
 			return "/workspace/project", nil
