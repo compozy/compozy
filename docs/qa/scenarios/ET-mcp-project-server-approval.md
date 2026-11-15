@@ -46,6 +46,14 @@ Steps:
    for profile default. Sessions can use it from their next message.").
 8. `compozy mcp allow sentry --workspace <ws> --revoke`; the next call fails with `source_disabled`.
 9. Open a second workspace with the same file: `sentry` is waiting there too (no cross-workspace leak).
+
+Release CI follow-up 2026-11-15: the real hosted-client leg in
+`TestDaemonWorkspaceMCPExecutionConsent` opts in to MCP 2026 tool-list change notifications,
+so its private 60-second SDK cache invalidates after revoke and same-definition Settings approval.
+The existing waiting/allowed/revoked/reapproved listing and call assertions remain intact. This
+corrects the fixture's protocol setup; daemon consent, cache TTL and user-facing behavior are unchanged.
+All temporary consent/proxy diagnostics were removed after diagnosis. CI verification is pending;
+no local QA ran under release mode.
 10. `compozy mcp allow linear --workspace <ws>` for a personal server → `mcp_approval_not_required`.
 
 Pass: no process start before approval; every message matches `_dx.md` Errors.

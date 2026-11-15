@@ -29,7 +29,6 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/session"
@@ -2199,11 +2198,6 @@ func startHostedMCPClient(
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if t.Failed() {
-			if output, err := os.ReadFile(stderr.Name()); err == nil {
-				t.Logf("hosted MCP proxy diagnostics: %s", diagnosticspkg.RedactAndBound(string(output), 16384))
-			}
-		}
 		if err := stderr.Close(); err != nil {
 			t.Error(err)
 		}
@@ -3460,7 +3454,11 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 			t,
 			ctx,
 			requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerLatest),
-			&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+			&sdkmcp.ClientOptions{
+				Capabilities: &sdkmcp.ClientCapabilities{},
+				// MCP 2026 list caches invalidate through an opted-in change subscription.
+				ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) {},
+			},
 		)
 		defer func() {
 			if err := client.Close(); err != nil {
@@ -3469,45 +3467,6 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 		}()
 		assertListed := func(want bool) {
 			t.Helper()
-			defer func() {
-				if !t.Failed() {
-					return
-				}
-				diagnosticCtx, cancelDiagnostics := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-				defer cancelDiagnostics()
-				if output, err := os.ReadFile(
-					filepath.Join(harness.Artifacts.RootDir(), "daemon-process.log"),
-				); err == nil {
-					if len(output) > 32768 {
-						output = output[len(output)-32768:]
-					}
-					t.Logf("consent daemon diagnostics: %s", diagnosticspkg.RedactAndBound(string(output), 32768))
-				}
-				if err := harness.HTTPJSON(
-					diagnosticCtx,
-					http.MethodGet,
-					"/api/settings/mcp-servers"+query,
-					nil,
-					&listing,
-				); err != nil {
-					t.Logf("consent listing diagnostics: %v", err)
-					return
-				}
-				for _, item := range listing.MCPServers {
-					t.Logf("MCP consent = %+v, callable = %t", item.Approval, item.CallableInSessions)
-				}
-				var tools compozycontract.ToolsResponse
-				path := "/api/workspaces/" + harness.WorkspaceID + "/sessions/" + allowedSession.ID + "/tools"
-				if err := harness.HTTPJSON(diagnosticCtx, http.MethodGet, path, nil, &tools); err != nil {
-					t.Logf("session tools diagnostics: %v", err)
-					return
-				}
-				for _, tool := range tools.Tools {
-					if tool.Descriptor.ToolID.String() == "mcp__sentry__echo" {
-						t.Logf("MCP callable = %t, reasons = %v", tool.Decision.Callable, tool.Decision.ReasonCodes)
-					}
-				}
-			}()
 			probeCtx, cancelProbe := context.WithTimeout(ctx, 15*time.Second)
 			defer cancelProbe()
 			waitForRuntimeCondition(t, "consented MCP listing", 15*time.Second, func() bool {
