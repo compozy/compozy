@@ -211,6 +211,40 @@ func (h *BaseHandlers) writeSessionEventBatch(
 	return afterSequence, nil
 }
 
+func (h *BaseHandlers) writeRawSequenceGap(
+	ctx context.Context,
+	writer FlushWriter,
+	sessionID string,
+	info *session.Info,
+	query store.EventQuery,
+	cursor, throughSequence int64,
+) (int64, error) {
+	for cursor < throughSequence {
+		query.AfterSequence = cursor
+		query.Limit = int(min(int64(query.Limit), throughSequence-cursor))
+		page, err := h.Sessions.Events(ctx, sessionID, query)
+		if err != nil {
+			return cursor, err
+		}
+		end := 0
+		for end < len(page) && page[end].Sequence <= throughSequence {
+			end++
+		}
+		next, err := h.writeSessionEventBatch(writer, page[:end], info)
+		if err != nil {
+			return cursor, err
+		}
+		if end < len(page) || len(page) < query.Limit {
+			return throughSequence, nil
+		}
+		if next <= cursor {
+			return cursor, fmt.Errorf("raw sequence gap did not advance beyond %d", cursor)
+		}
+		cursor = next
+	}
+	return cursor, nil
+}
+
 func (h *BaseHandlers) writeSessionStoppedEvent(writer FlushWriter, latest *session.Info) error {
 	if latest == nil || latest.State != session.StateStopped {
 		return nil
@@ -329,9 +363,15 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 					afterSequence,
 					event.Sequence,
 				)
-				subscription.cancelIfActive()
-				h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
-				return
+				// Concurrent writers can publish ahead of an already committed prompt batch.
+				var err error
+				afterSequence, err = h.writeRawSequenceGap(
+					c.Request.Context(), writer, sessionID, currentInfo, pollQuery, afterSequence, event.Sequence-1,
+				)
+				if err != nil {
+					h.writeTranscriptStreamError(writer, err)
+					return
+				}
 			}
 			nextSequence, err := h.writeSessionEventBatch(writer, []store.SessionEvent{event}, currentInfo)
 			if err != nil {

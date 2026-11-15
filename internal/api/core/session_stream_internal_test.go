@@ -285,8 +285,10 @@ func TestSessionStreamFallbackCancelsSubscriptionBeforePolling(t *testing.T) {
 	}{
 		{name: "Should cancel raw subscription before polling after closed subscription"},
 		{
-			name:  "Should cancel raw subscription before polling after sequence gap",
-			event: &store.SessionEvent{Sequence: 3},
+			name: "Should cancel raw subscription before polling after consumer degradation",
+			event: &store.SessionEvent{
+				Type: contract.SessionStreamEventConsumerDegraded, Content: `{}`,
+			},
 		},
 	}
 
@@ -330,6 +332,107 @@ func TestSessionStreamFallbackCancelsSubscriptionBeforePolling(t *testing.T) {
 			waitForStreamTestSignal(t, canceled, "subscription cancel")
 			close(streamDone)
 			waitForStreamTestSignal(t, done, "stream fallback return")
+		})
+	}
+}
+
+func TestRawSessionStreamSequenceGap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep filtered gap replay within the observed watermark", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			events: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if id != "sess-a" || query.Type != acp.EventTypeAgentMessage || query.AfterSequence != 1 {
+					t.Fatalf("filtered gap replay session=%s query=%#v", id, query)
+				}
+				return []store.SessionEvent{
+					{Sequence: 2, Type: acp.EventTypeAgentMessage},
+					{Sequence: 6, Type: acp.EventTypeAgentMessage},
+				}, nil
+			},
+		}}
+		writer := &streamTestFlushWriter{}
+		cursor, err := handlers.writeRawSequenceGap(
+			t.Context(), writer, "sess-a", streamTestSessionInfo("sess-a"),
+			store.EventQuery{Type: acp.EventTypeAgentMessage, Forward: true, Limit: 200}, 1, 3,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cursor != 3 || strings.Count(writer.String(), "id: ") != 1 ||
+			!strings.Contains(writer.String(), "id: 2\n") {
+			t.Fatalf("filtered gap cursor=%d frames=%s; want only row 2 through watermark 3", cursor, writer.String())
+		}
+	})
+
+	for _, testCase := range []struct {
+		name string
+		err  error
+	}{
+		{name: "Should replay missing rows once and keep receiving pushed events"},
+		{name: "Should report a failed gap replay and release the subscription", err: errors.New("gap unavailable")},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			streamDone := make(chan struct{})
+			canceled := false
+			reads := 0
+			handlers := &BaseHandlers{
+				Sessions: sessionManagerStub{
+					status: func(_ context.Context, id string) (*session.Info, error) {
+						return streamTestSessionInfo(id), nil
+					},
+					events: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+						reads++
+						if canceled || id != "sess-a" || !query.Forward || query.AfterSequence != 1 ||
+							query.Limit != 1 {
+							t.Fatalf("gap replay after cancellation=%v: session=%s query=%#v", canceled, id, query)
+						}
+						return []store.SessionEvent{{Sequence: 2, Type: acp.EventTypeAgentMessage}}, testCase.err
+					},
+				},
+				PollInterval: time.Hour,
+			}
+			handlers.SetStreamDone(streamDone)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
+			writer := &streamTestFlushWriter{}
+			events := make(chan store.SessionEvent, 4)
+			events <- store.SessionEvent{Sequence: 3, Type: session.EventTypeMCPChanged}
+			events <- store.SessionEvent{Sequence: 2, Type: acp.EventTypeAgentMessage}
+			events <- store.SessionEvent{Sequence: 3, Type: session.EventTypeMCPChanged}
+			events <- store.SessionEvent{Sequence: 4, Type: session.EventTypeSessionStopped}
+			handlers.streamRawSessionEvents(
+				ctx, writer, "sess-a", streamTestSessionInfo("sess-a"), store.EventQuery{Limit: 200, Forward: true},
+				[]store.SessionEvent{{Sequence: 1, Type: acp.EventTypeAgentMessage}},
+				sessionEventStreamSubscription{events: events, cancel: sync.OnceFunc(func() {
+					canceled = true
+					close(streamDone)
+				})},
+			)
+			if !canceled || reads != 1 {
+				t.Fatalf("subscription canceled=%v, gap reads=%d; want cleanup and one replay", canceled, reads)
+			}
+			body := writer.String()
+			if testCase.err != nil {
+				if strings.Count(body, "event: error\n") != 1 || !strings.Contains(body, testCase.err.Error()) {
+					t.Fatalf("missing gap replay error: %s", body)
+				}
+				return
+			}
+			var ids []string
+			for line := range strings.SplitSeq(body, "\n") {
+				if id, ok := strings.CutPrefix(line, "id: "); ok {
+					ids = append(ids, id)
+				}
+			}
+			if !reflect.DeepEqual(ids, []string{"1", "2", "3", "4"}) ||
+				!strings.Contains(body, "event: "+session.EventTypeSessionStopped) {
+				t.Fatalf("raw replay cursors=%v, want contiguous replay and pushed stop: %s", ids, body)
+			}
 		})
 	}
 }

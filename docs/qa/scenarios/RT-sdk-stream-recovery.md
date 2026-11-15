@@ -21,3 +21,12 @@ Record event IDs from a live session subscription, interrupt the transport, and 
 QA impact 2026-10-17: App SDK implementation adds this user-visible journey. Authored planning only;
 no live execution verdict is recorded. Execute in the assigned isolated lab and attach current-head
 evidence before marking it passed.
+
+QA impact 2026-11-15: while reading `frames=raw`, publish an MCP summary during a burst of
+assistant output. Concurrent publication may arrive ahead of earlier committed rows: the stream
+must replay the missing range once and retain its live subscription for subsequent output. Stall
+one TCP reader during the unchanged 50,000-chunk journey and verify durable completion plus one
+correlated `stream.consumer_degraded` diagnostic when its queue overflows. Gap recovery must not
+silently switch that reader to polling before overflow. `TestRawSessionStreamSequenceGap` owns
+ordered replay and subscription cleanup; `TestDaemonE2EACPmockTransportStorm` owns the real daemon
+and TCP boundary. CI owns execution in release mode; no local replay is claimed.

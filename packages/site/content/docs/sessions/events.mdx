@@ -27,6 +27,10 @@ Use the persisted session stream when you need reconnect support or a live trans
 Use `frames=raw` on that stream when you need audit-grade event rows. Use the prompt stream when
 you are driving one interactive prompt call.
 
+Raw streams recover gaps caused by concurrent event publication from durable history, then continue
+receiving live events. If a reader's live queue overflows, `stream.consumer_degraded` instructs it to
+recover after its last consumed cursor; the running prompt continues independently.
+
 ### Daemon log events for continued sessions
 
 A session created by `compozy session continue` records one `session.derived` event in the daemon log,
