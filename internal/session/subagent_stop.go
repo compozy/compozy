@@ -64,6 +64,8 @@ func (s *subagentService) Cancel(
 		unlock()
 		return s.retireCanceledChild(ctx, row, row.Status)
 	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	err = s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: row.ParentSessionID, IDs: []string{id}})
 	if err == nil {
 		err = s.finalizeCanceled(ctx, row)

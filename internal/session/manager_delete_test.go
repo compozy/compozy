@@ -154,6 +154,82 @@ func (f sessionWindowReconcilerFunc) ReconcileDeletedSession(
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
+	// Invariant: contention respects the caller deadline without staging or losing history.
+	// Owner: Manager deletion admission; canonical suite: TestManagerDelete.
+	t.Run("Should cancel lifecycle admission and allow deletion after contention", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		info, err := h.manager.prepareSessionDelete(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.lifecycleMu.Lock()
+		unlock := sync.OnceFunc(h.manager.lifecycleMu.Unlock)
+		defer unlock()
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		deleted := make(chan error, 1)
+		go func() { deleted <- h.manager.deletePreparedSession(ctx, created.ID, info, nil) }()
+		select {
+		case err := <-deleted:
+			if !errors.Is(err, context.DeadlineExceeded) ||
+				!strings.Contains(err.Error(), "await delete lifecycle lock") {
+				t.Fatalf("Delete(contended) error = %v", err)
+			}
+		case <-testutil.Context(t).Done():
+			t.Fatal("deletion ignored its deadline while waiting for the lifecycle lock")
+		}
+		if _, err := os.Stat(created.DBPath()); err != nil {
+			t.Fatalf("history changed before admission: %v", err)
+		}
+		assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+		unlock()
+		if err := h.manager.Delete(t.Context(), created.ID); err != nil {
+			t.Fatalf("Delete(after contention) error = %v", err)
+		}
+	})
+
+	// Invariant: recovery uses the verified database owner independently of reconciliation scope.
+	// Owner: Manager deletion recovery; canonical suite: TestManagerDelete.
+	t.Run("Should recover a receipt whose reconciliation workspace differs from its owner", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		created := createSession(t, h)
+		if err := h.manager.Stop(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		info, err := h.manager.Status(ctx, created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(created.MetaPath()); err != nil {
+			t.Fatal(err)
+		}
+		info.WorkspaceID = "reconciliation-workspace"
+		staged, err := h.manager.stageSessionDirectoryDeleteWithoutAttachments(ctx, created.ID, info)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := staged.capabilities.Release(); err != nil {
+			t.Fatal(err)
+		}
+		if err := catalog.DeleteSession(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		recovered := newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		shutdownQueryStoreRuntimeForTest(t, recovered)
+		assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+		if _, err := os.Stat(created.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("deleted session directory error = %v", err)
+		}
+	})
+
 	// Invariant: a stuck reader bounds deletion without losing history or blocking retry.
 	// Owner: session deletion; canonical Manager suite over the real read-only pool and SQLite.
 	for _, test := range []struct {
@@ -394,6 +470,10 @@ func TestManagerDelete(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
+				attachmentPath := ""
+				if !missingDirectory {
+					attachmentPath = writeSessionAttachmentFixture(t, h.harness, session.ID, "delete-me")
+				}
 				if missingDirectory {
 					if err := os.RemoveAll(session.SessionDir()); err != nil {
 						t.Fatal(err)
@@ -432,6 +512,14 @@ func TestManagerDelete(t *testing.T) {
 				})
 				if err != nil || len(rows) != 0 {
 					t.Fatalf("catalog after delete = %+v, %v", rows, err)
+				}
+				if _, err := os.Lstat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("deleted session files remain: %v", err)
+				}
+				if attachmentPath != "" {
+					if _, err := os.Stat(attachmentPath); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("deleted attachment remains: %v", err)
+					}
 				}
 				assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
 				if err := (historyCleanupDeleter{manager: h.manager}).DeleteArchived(t.Context(), target); err != nil {
@@ -1079,17 +1167,21 @@ func TestManagerDelete(t *testing.T) {
 					return nil
 				}})
 				deleteErr := errors.New("catalog delete failed")
+				deleteCtx, cancelDelete := context.WithCancel(testutil.Context(t))
+				defer cancelDelete()
 				// A slow catalog failure must leave rollback alive past the reader-wait budget.
 				catalog.deleteHook = func(ctx context.Context, _ string) error {
 					select {
 					case <-time.After(200 * time.Millisecond):
+						// Cancellation at the catalog failure must not strand staged history.
+						cancelDelete()
 						return deleteErr
 					case <-ctx.Done():
 						return ctx.Err()
 					}
 				}
 
-				err := h.manager.Delete(testutil.Context(t), session.ID)
+				err := h.manager.Delete(deleteCtx, session.ID)
 				if !errors.Is(err, deleteErr) {
 					t.Fatalf("Delete() error = %v, want %v", err, deleteErr)
 				}
@@ -1242,6 +1334,7 @@ func TestManagerDelete(t *testing.T) {
 			run: func(t *testing.T) {
 				tests := []struct {
 					name           string
+					missingMeta    bool
 					catalogKnown   bool
 					catalogPresent bool
 					wantRestored   bool
@@ -1260,6 +1353,15 @@ func TestManagerDelete(t *testing.T) {
 						name:         "Should finish deletion when the catalog no longer owns the session",
 						catalogKnown: true,
 					},
+				}
+				for _, present := range []bool{false, true} {
+					tests = append(tests, struct {
+						name                                                    string
+						missingMeta, catalogKnown, catalogPresent, wantRestored bool
+					}{
+						name:        fmt.Sprintf("Should recover missing metadata with catalog present=%t", present),
+						missingMeta: true, catalogKnown: true, catalogPresent: present, wantRestored: present,
+					})
 				}
 				for _, test := range tests {
 					t.Run(test.name, func(t *testing.T) {
@@ -1281,6 +1383,11 @@ func TestManagerDelete(t *testing.T) {
 						info, err := h.manager.Status(ctx, session.ID)
 						if err != nil {
 							t.Fatalf("Status() error = %v", err)
+						}
+						if test.missingMeta {
+							if err := os.Remove(session.MetaPath()); err != nil {
+								t.Fatal(err)
+							}
 						}
 						staged, err := h.manager.stageSessionDirectoryDelete(ctx, session.ID, info)
 						if err != nil {

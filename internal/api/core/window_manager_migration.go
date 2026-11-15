@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -38,7 +39,13 @@ func (h *BaseHandlers) windowManagerMigration(c *gin.Context, mutation bool) {
 			return
 		}
 	}
-	status, err := service.Migration(c.Request.Context(), workspace, request.Action, request.Replace)
+	ctx := c.Request.Context()
+	if mutation {
+		var cancel context.CancelFunc
+		ctx, cancel = windowManagerMutationContext(ctx)
+		defer cancel()
+	}
+	status, err := service.Migration(ctx, workspace, request.Action, request.Replace)
 	if err != nil {
 		h.respondWindowManagerError(c, workspace, err)
 		return

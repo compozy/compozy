@@ -14,9 +14,15 @@ export interface SubagentRoster {
   rows: readonly SubagentView[];
   /** Rows held across a reconnect that no frame has confirmed since. */
   staleIds: ReadonlySet<string>;
+  /** The current subscription has not supplied its whole roster yet, even when empty. */
+  snapshotPending?: boolean;
 }
 
-export const EMPTY_SUBAGENT_ROSTER: SubagentRoster = { rows: [], staleIds: new Set() };
+export const EMPTY_SUBAGENT_ROSTER: SubagentRoster = {
+  rows: [],
+  staleIds: new Set(),
+  snapshotPending: true,
+};
 
 export function applySubagentsSnapshot(payload: SubagentsSnapshotPayload): SubagentRoster {
   return { rows: (payload.subagents ?? []).map(subagentViewFromPayload), staleIds: new Set() };
@@ -36,18 +42,21 @@ export function applySubagentUpdated(
   const staleIds = roster.staleIds.has(next.id)
     ? new Set([...roster.staleIds].filter(id => id !== next.id))
     : roster.staleIds;
-  if (index < 0) return { rows: [next, ...roster.rows], staleIds };
+  if (index < 0) return { ...roster, rows: [next, ...roster.rows], staleIds };
   const current = roster.rows[index]!;
   if (instant(next.updated_at) < instant(current.updated_at)) return roster;
   const rows = [...roster.rows];
   rows[index] = { ...next, created_at: current.created_at };
-  return { rows, staleIds };
+  return { ...roster, rows, staleIds };
 }
 
 /** A reconnect began: every held row is unconfirmed until the next snapshot. */
 export function markSubagentRosterStale(roster: SubagentRoster): SubagentRoster {
-  if (roster.rows.length === 0) return roster;
-  return { rows: roster.rows, staleIds: new Set(roster.rows.map(row => row.id)) };
+  return {
+    rows: roster.rows,
+    staleIds: new Set(roster.rows.map(row => row.id)),
+    snapshotPending: true,
+  };
 }
 
 /** Drops one removed row, with any stale mark it still held; absent leaves the roster as is. */
@@ -57,7 +66,7 @@ export function applySubagentRemoved(roster: SubagentRoster, id: string): Subage
   const staleIds = roster.staleIds.has(id)
     ? new Set([...roster.staleIds].filter(staleId => staleId !== id))
     : roster.staleIds;
-  return { rows, staleIds };
+  return { ...roster, rows, staleIds };
 }
 
 export function findSubagent(roster: SubagentRoster, id: string): SubagentView | undefined {

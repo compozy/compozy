@@ -99,6 +99,8 @@ export function sessionSubagentRosterPollOptions(workspaceId: string, sessionId:
       } while (cursor);
       return { subagents, next_cursor: null };
     },
+    staleTime: 0,
+    refetchOnWindowFocus: false,
     retry: false,
   });
 }

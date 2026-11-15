@@ -118,6 +118,146 @@ describe("subagent roster control poll", () => {
     );
   });
 
+  // Invariant: cached poll data cannot confirm absence before the current activation reads.
+  // Owner: control-poll roster publication; canonical suite: this hook's existing suite.
+  it("Should wait for a current read on mount and when polling is reactivated", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+    });
+    const rosterKey = sessionKeys.subagentRoster(WORKSPACE, SESSION);
+    queryClient.setQueryData(sessionKeys.subagentRosterPoll(WORKSPACE, SESSION), {
+      subagents: [],
+      next_cursor: null,
+    });
+    let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
+    vi.mocked(fetchSessionSubagents).mockImplementation(
+      () =>
+        new Promise(resolve => {
+          confirm = resolve;
+        })
+    );
+    let enabled = true;
+    const { rerender } = renderHook(
+      () =>
+        useSubagentRosterControlPoll({
+          workspaceId: WORKSPACE,
+          sessionId: SESSION,
+          enabled,
+          intervalMs: false,
+        }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) =>
+          createElement(QueryClientProvider, { client: queryClient }, children),
+      }
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(queryClient.getQueryData(rosterKey)).toBeUndefined();
+    await act(async () => {
+      confirm({ subagents: [row("current", "running")], next_cursor: null });
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows[0]?.id).toBe("current")
+    );
+    enabled = false;
+    rerender();
+    queryClient.setQueryData<SubagentRoster>(rosterKey, {
+      rows: [],
+      staleIds: new Set(),
+      snapshotPending: true,
+    });
+    enabled = true;
+    rerender();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(2);
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)).toMatchObject({
+      rows: [],
+      snapshotPending: true,
+    });
+    // A pending read from the previous activation must also be discarded.
+    const superseded = confirm;
+    enabled = false;
+    rerender();
+    expect(vi.mocked(fetchSessionSubagents).mock.calls[1]?.[3]?.aborted).toBe(true);
+    enabled = true;
+    rerender();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      superseded({ subagents: [row("superseded", "running")], next_cursor: null });
+    });
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)).toMatchObject({
+      rows: [],
+      snapshotPending: true,
+    });
+    await act(async () => {
+      confirm({ subagents: [], next_cursor: null });
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.snapshotPending).not.toBe(true)
+    );
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows).toEqual([]);
+    queryClient.clear();
+  });
+
+  // Invariant: releasing one window cannot strand another stopped-history reader.
+  // Owner: shared control-poll query lifetime; canonical suite: this hook's suite.
+  it.each(["unmount", "disable"])(
+    "Should restart a shared stopped-history read when another window releases it via %s",
+    async action => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const reads: ((page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void)[] = [];
+      vi.mocked(fetchSessionSubagents).mockImplementation(
+        () => new Promise(resolve => reads.push(resolve))
+      );
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client: queryClient }, children);
+      const first = renderHook(
+        ({ enabled }: { enabled: boolean }) =>
+          useSubagentRosterControlPoll({
+            workspaceId: WORKSPACE,
+            sessionId: SESSION,
+            enabled,
+            intervalMs: false,
+          }),
+        { wrapper, initialProps: { enabled: true } }
+      );
+      const second = renderHook(
+        () =>
+          useSubagentRosterControlPoll({
+            workspaceId: WORKSPACE,
+            sessionId: SESSION,
+            enabled: true,
+            intervalMs: false,
+          }),
+        { wrapper }
+      );
+      expect(fetchSessionSubagents).toHaveBeenCalledTimes(1);
+      if (action === "unmount") first.unmount();
+      else first.rerender({ enabled: false });
+      await waitFor(() => expect(fetchSessionSubagents).toHaveBeenCalledTimes(2));
+      await act(async () => {
+        reads[1]!({ subagents: [row("remaining", "completed")], next_cursor: null });
+      });
+      const rosterKey = sessionKeys.subagentRoster(WORKSPACE, SESSION);
+      await waitFor(() =>
+        expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows[0]?.id).toBe("remaining")
+      );
+      await act(async () => {
+        reads[0]!({ subagents: [], next_cursor: null });
+      });
+      expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.rows[0]?.id).toBe("remaining");
+      if (action === "disable") first.unmount();
+      second.unmount();
+      queryClient.clear();
+    }
+  );
+
   it("Should read every page so older cards keep their state", async () => {
     vi.mocked(fetchSessionSubagents)
       .mockResolvedValueOnce({ subagents: [row("sub-new", "running")], next_cursor: "page-2" })

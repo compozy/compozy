@@ -138,16 +138,12 @@ func (m *Manager) cleanupSessionDeleteTombstoneWithContext(
 		retErr = errors.Join(retErr, directory.Close())
 	}()
 
-	meta, err := readSessionMetaFromDirectory(directory)
+	meta, owner, err := readSessionDeleteMetadata(ctx, directory)
 	if err != nil {
 		return fmt.Errorf("session: read deletion tombstone metadata: %w", err)
 	}
 	if strings.TrimSpace(meta.ID) != target {
 		return fmt.Errorf("session: deletion tombstone metadata id %q does not match %q", meta.ID, target)
-	}
-	owner, err := meta.DatabaseOwner()
-	if err != nil {
-		return err
 	}
 	database, err := lease.BindOwnedFile(ctx, owner, store.SessionDBFile(path))
 	if err != nil {

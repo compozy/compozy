@@ -31,3 +31,8 @@ The topbar ⋯ now matches the listing row's `…`: it adds Run now, Edit and, f
 public link is live, Copy link (the published public address shown in the rail), moving Copy
 automation id behind Copy ▸ beside it. Run now and Edit stay as topbar buttons too. Status stays
 `untested`.
+
+Follow-up regression walk (#1741): open an uncached automation in a new window and focus a
+background automation window. While its live-data lease is disabled, detail remains loading and never
+flashes the unavailable message. A completed 404 still shows the unavailable state. CI owns hook and
+browser validation; manual walk pending.

@@ -122,3 +122,10 @@ outstanding reads. These expected cancellations must not produce MCP authority f
 genuine resolver failures still warn and expose no additional server authority. The existing
 session-hardening browser suite keeps its sensitive-data checks on console, network and daemon logs.
 Validation for this repair is pending in main CI; no local lab was run.
+
+Follow-up regression walk (#1741): hold a workspace-removal preparation open while another stopped
+session is deleted. Its caller deadline must end lifecycle-lock admission without staging a directory
+or losing history; release the preparation and retry successfully. Recover missing-metadata tombstones
+on Windows with a mutation-capable directory handle. Recovery binds the database using the receipt's
+immutable owner even when its reconciliation workspace differs. The existing `TestManagerDelete`
+suite owns these cases; final-head CI verification is pending, and no local lab was run.

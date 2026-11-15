@@ -92,6 +92,139 @@ func TestWindowManagerHandlers(t *testing.T) {
 		})
 	}
 
+	// Invariant: accepted layout/client writes survive disconnects while revision CAS still rejects stale writes.
+	// Owner: core HTTP/UDS mutation lifetime; canonical suite: TestWindowManagerHandlers.
+	t.Run("Should detach accepted layout and client writes without bypassing CAS", func(t *testing.T) {
+		t.Parallel()
+		repository := &windowManagerMigrationRepositoryStub{
+			Repository: windowmanager.NewMemoryRepository(),
+			status:     windowmanager.MigrationStatus{State: "migrated", FromVersion: 5},
+		}
+		f := newWindowManagerHandlerFixtureWithRepository(t, repository)
+		path := windowManagerTestPath("workspace-a")
+		exported := performWindowManagerTestRequest(t, f.router, http.MethodGet, path+"/layout", "")
+		requireWindowManagerStatus(t, exported, http.StatusOK)
+		var document contract.WindowManagerLayoutDocument
+		decodeWindowManagerTestBody(t, exported, &document)
+		document.Desktops[0].Name = "After disconnect"
+		body := marshalWindowManagerTestJSON(
+			t,
+			map[string]any{"workspace_id": "workspace-a", "expected_revision": 0, "document": document},
+		)
+		disconnected := func(method, path, body string) *httptest.ResponseRecorder {
+			t.Helper()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			r := httptest.NewRequestWithContext(ctx, method, path, strings.NewReader(body))
+			r.Header.Set("Content-Type", "application/json")
+			r.Body = &windowManagerDisconnectBody{ReadCloser: r.Body, disconnect: cancel}
+			response := httptest.NewRecorder()
+			f.router.ServeHTTP(response, r)
+			if ctx.Err() == nil {
+				t.Fatal("body did not disconnect")
+			}
+			return response
+		}
+		requireWindowManagerStatus(t, disconnected(http.MethodPut, path+"/layout", body), http.StatusOK)
+		requireWindowManagerStatus(t, disconnected(http.MethodPut, path+"/layout", body), http.StatusConflict)
+		requireWindowManagerStatus(
+			t,
+			disconnected(http.MethodPost, path+"/clients", `{"workspace_id":"workspace-a","client_id":"client"}`),
+			http.StatusCreated,
+		)
+		if clients := listWindowManagerTestClients(t, f.router, "workspace-a"); len(clients.Clients) != 1 {
+			t.Fatal("client not persisted")
+		}
+		requireWindowManagerStatus(
+			t,
+			disconnected(http.MethodPost, path+"/migration", `{"action":"ack"}`),
+			http.StatusOK,
+		)
+		status, err := repository.Migration(t.Context(), "workspace-a", "", false)
+		if err != nil || !status.Acknowledged {
+			t.Fatalf("migration acknowledgement not applied after disconnect: %+v, %v", status, err)
+		}
+	})
+
+	// Invariant: profile writes retain their version and scope guards after accepting the body.
+	t.Run("Should finish accepted profile writes under a bounded lifetime", func(t *testing.T) {
+		t.Parallel()
+		f := newWindowManagerHandlerFixture(t)
+		calledPut, calledDelete := false, false
+		check := func(ctx context.Context) {
+			t.Helper()
+			deadline, ok := ctx.Deadline()
+			if ctx.Err() != nil || !ok || time.Until(deadline) > windowManagerCommandTimeout {
+				t.Error("profile mutation context is canceled or unbounded")
+			}
+		}
+		f.handlers.Resources = stubResourceService{
+			GetFn: func(ctx context.Context, _ resources.ResourceKind, _ string) (resources.RawRecord, error) {
+				check(ctx)
+				return resources.RawRecord{
+					Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
+				}, nil
+			},
+			PutFn: func(ctx context.Context, draft resources.RawDraft) (resources.RawRecord, error) {
+				check(ctx)
+				calledPut = true
+				if draft.ExpectedVersion != 1 {
+					t.Errorf("put version=%d", draft.ExpectedVersion)
+				}
+				return resources.RawRecord{}, nil
+			},
+			DeleteFn: func(ctx context.Context, _ resources.ResourceKind, _ string, expected int64) error {
+				check(ctx)
+				calledDelete = true
+				if expected != 2 {
+					t.Errorf("delete version=%d", expected)
+				}
+				return nil
+			},
+		}
+		for _, tc := range []struct {
+			method, body string
+			status       int
+		}{
+			{http.MethodPut, `{"scope":{"kind":"workspace","id":"workspace-a"},"expected_version":1,"spec":{"version":1}}`, http.StatusOK},
+			{http.MethodDelete, `{"expected_version":2}`, http.StatusNoContent},
+		} {
+			ctx, cancel := context.WithCancel(t.Context())
+			r := httptest.NewRequestWithContext(
+				ctx,
+				tc.method,
+				windowManagerTestPath("workspace-a")+"/layout-profiles/test",
+				strings.NewReader(tc.body),
+			)
+			r.Header.Set("Content-Type", "application/json")
+			r.Body = &windowManagerDisconnectBody{ReadCloser: r.Body, disconnect: cancel, afterRead: true}
+			response := httptest.NewRecorder()
+			f.router.ServeHTTP(response, r)
+			if ctx.Err() == nil {
+				t.Error("request did not disconnect")
+			}
+			cancel()
+			requireWindowManagerStatus(t, response, tc.status)
+		}
+		if !calledPut || !calledDelete {
+			t.Fatal("profile mutations not applied")
+		}
+	})
+
+	t.Run("Should bound detached mutations and preserve request values", func(t *testing.T) {
+		t.Parallel()
+		type contextKey struct{}
+		request, cancelRequest := context.WithCancel(context.WithValue(t.Context(), contextKey{}, "actor"))
+		cancelRequest()
+		ctx, cancel := windowManagerMutationContext(request)
+		defer cancel()
+		deadline, bounded := ctx.Deadline()
+		if ctx.Err() != nil || !bounded || time.Until(deadline) > windowManagerCommandTimeout ||
+			ctx.Value(contextKey{}) != "actor" {
+			t.Fatal("mutation lifetime lost its bound or identity")
+		}
+	})
+
 	t.Run("Should preview without writing, commit once, and expose revision conflicts", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)
@@ -1125,11 +1258,12 @@ func TestWindowManagerHandlers(t *testing.T) {
 type windowManagerDisconnectBody struct {
 	io.ReadCloser
 	disconnect context.CancelFunc
+	afterRead  bool
 }
 
 func (body *windowManagerDisconnectBody) Read(buffer []byte) (int, error) {
 	count, err := body.ReadCloser.Read(buffer)
-	if errors.Is(err, io.EOF) {
+	if errors.Is(err, io.EOF) || (body.afterRead && count > 0) {
 		body.disconnect()
 	}
 	return count, err

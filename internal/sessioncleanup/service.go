@@ -20,7 +20,8 @@ const (
 	// the session manager's lifecycle lock for its catalog and directory step,
 	// so a second worker only overlaps the per-session preparation; more would
 	// queue on that lock and crowd out the daemon's other lifecycle work.
-	defaultConcurrency = 2
+	defaultConcurrency   = 2
+	defaultDeleteTimeout = 30 * time.Second
 	// defaultProgressInterval throttles progress wakes on the catalog stream.
 	defaultProgressInterval = 300 * time.Millisecond
 	maxRootIDs              = 1000
@@ -75,6 +76,16 @@ func WithConcurrency(workers int) Option {
 	return func(s *Service) { s.concurrency = workers }
 }
 
+// WithDeleteTimeout bounds one accepted delete, including lifecycle lock admission.
+// Nonpositive values retain the default timeout.
+func WithDeleteTimeout(timeout time.Duration) Option {
+	return func(s *Service) {
+		if timeout > 0 {
+			s.deleteTimeout = timeout
+		}
+	}
+}
+
 // WithProgressInterval sets the minimum gap between progress wakes.
 func WithProgressInterval(interval time.Duration) Option {
 	return func(s *Service) { s.progressInterval = interval }
@@ -88,6 +99,7 @@ type Service struct {
 	logger           *slog.Logger
 	now              func() time.Time
 	concurrency      int
+	deleteTimeout    time.Duration
 	progressInterval time.Duration
 
 	mu          sync.Mutex
@@ -110,6 +122,7 @@ func NewService(lister Lister, deleter Deleter, opts ...Option) (*Service, error
 		logger:           slog.Default(),
 		now:              func() time.Time { return time.Now().UTC() },
 		concurrency:      defaultConcurrency,
+		deleteTimeout:    defaultDeleteTimeout,
 		progressInterval: defaultProgressInterval,
 		runs:             make(map[string]*cleanupRun),
 		ownerCtx:         ownerCtx,
@@ -327,11 +340,13 @@ func (s *Service) deleteThread(ctx context.Context, run *cleanupRun, scope Scope
 		if ctx.Err() != nil {
 			return
 		}
-		err := s.deleter.DeleteArchived(context.WithoutCancel(ctx), store.ArchivedSessionDelete{
+		deleteCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.deleteTimeout)
+		err := s.deleter.DeleteArchived(deleteCtx, store.ArchivedSessionDelete{
 			SessionID:   sessionID,
 			ProfileID:   scope.ProfileID,
 			WorkspaceID: thread.WorkspaceID,
 		})
+		cancel()
 		if err != nil && !errors.Is(err, store.ErrSessionNotArchived) {
 			s.logger.Warn(
 				"sessioncleanup: delete archived session",

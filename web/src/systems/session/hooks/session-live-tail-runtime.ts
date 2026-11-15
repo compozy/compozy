@@ -279,6 +279,7 @@ export function createSessionLiveTailRuntime({
   };
 
   const openStream = (handlers: SessionLiveTailStreamHandlers) => {
+    updateSubagentRoster(markSubagentRosterStale);
     const streamCursor = transcriptStreamCursor(readTranscript());
     const source = eventSourceFactory(buildSessionStreamUrl(workspaceId, sessionId, streamCursor));
     recordSessionDebugEvent(SESSION_DEBUG_EVENTS.sseOpen, {

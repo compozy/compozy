@@ -97,7 +97,7 @@ export function useAutomationDetailPage(
   const status = automationDetailStatus({
     accessError,
     entity,
-    loading: detailQuery.isLoading || workspaceLoading,
+    loading: detailQuery.isPending || workspaceLoading,
     error: detailQuery.error,
   });
 

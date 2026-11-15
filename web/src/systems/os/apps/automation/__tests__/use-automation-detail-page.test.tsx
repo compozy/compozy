@@ -29,8 +29,13 @@ beforeEach(() => {
 const state = vi.hoisted(() => ({
   activeWorkspaceId: "ws_checkout_api" as string | null,
   navigate: vi.fn(),
-  job: { data: undefined as unknown, error: null as unknown, isLoading: false },
-  trigger: { data: undefined as unknown, error: null as unknown, isLoading: false },
+  job: { data: undefined as unknown, error: null as unknown, isLoading: false, isPending: false },
+  trigger: {
+    data: undefined as unknown,
+    error: null as unknown,
+    isLoading: false,
+    isPending: false,
+  },
   runs: [] as unknown[],
   loopError: null as unknown,
   update: vi.fn(),
@@ -97,8 +102,8 @@ describe("useAutomationDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.activeWorkspaceId = "ws_checkout_api";
-    state.job = { data: morningDigestJob, error: null, isLoading: false };
-    state.trigger = { data: rerunDeliveryTrigger, error: null, isLoading: false };
+    state.job = { data: morningDigestJob, error: null, isLoading: false, isPending: false };
+    state.trigger = { data: rerunDeliveryTrigger, error: null, isLoading: false, isPending: false };
     state.runs = [];
     state.loopError = null;
   });
@@ -144,6 +149,7 @@ describe("useAutomationDetailPage", () => {
       data: undefined,
       error: new AutomationApiError("not found", 404),
       isLoading: false,
+      isPending: false,
     };
     const missing = renderHook(() => useAutomationDetailPage("job", "ghost"));
     expect(missing.result.current.panel.status).toBe("missing");
@@ -151,14 +157,26 @@ describe("useAutomationDetailPage", () => {
       "This automation is no longer available."
     );
 
-    state.job = { data: undefined, error: new AutomationApiError("boom", 500), isLoading: false };
+    state.job = {
+      data: undefined,
+      error: new AutomationApiError("boom", 500),
+      isLoading: false,
+      isPending: false,
+    };
     const failed = renderHook(() => useAutomationDetailPage("job", "morning-digest"));
     expect(failed.result.current.panel.status).toBe("error");
     expect(failed.result.current.panel.statusMessage).toBe("boom");
 
-    state.job = { data: undefined, error: null, isLoading: true };
+    state.job = { data: undefined, error: null, isLoading: true, isPending: true };
     const loading = renderHook(() => useAutomationDetailPage("job", "morning-digest"));
     expect(loading.result.current.panel.status).toBe("loading");
+  });
+
+  // Invariant: an unfetched detail remains loading while its window lease is disabled.
+  it("Should keep a pending disabled detail in the loading state", () => {
+    state.job = { data: undefined, error: null, isLoading: false, isPending: true };
+    const { result } = renderHook(() => useAutomationDetailPage("job", "morning-digest"));
+    expect(result.current.panel.status).toBe("loading");
   });
 
   it("Should return to the listing with its previous search on Back (UT-062)", () => {
@@ -197,7 +215,7 @@ describe("useAutomationDetailPage", () => {
   });
 
   it("Should queue a Run now even while Off and insert the run first (UT-074)", async () => {
-    state.job = { data: dependencyReviewJob, error: null, isLoading: false };
+    state.job = { data: dependencyReviewJob, error: null, isLoading: false, isPending: false };
     state.runs = [makeDetailRun()];
     state.runNow.mockResolvedValueOnce(makeDetailRun({ id: "run_queued", status: "scheduled" }));
     const { result } = renderHook(() => useAutomationDetailPage("job", "dependency-review"));

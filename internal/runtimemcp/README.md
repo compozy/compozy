@@ -35,8 +35,8 @@ so its digests must never be stored or compared across processes.
 
 ## Safety and activation
 
-Every configuration file is acquired through `fileutil.ReadRegularFile` without following
-symlinks and with an 8 MiB limit. Invalid, oversized, unavailable or unsupported plugin
+Symlinked configuration files are resolved, then acquired through
+`fileutil.ReadRegularFile` with an 8 MiB limit. Invalid, oversized, unavailable or unsupported plugin
 bundle files produce a runtime-local `read_state=unreadable` with a sanitized error. Other
 runtime groups remain available. Claude's exclusive `managed-mcp.json` also disables the
 runtime switch in its inventory group.

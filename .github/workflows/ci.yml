@@ -814,6 +814,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload subagent drawer QA evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: subagent-drawer-evidence-shard-${{ matrix.shard }}
+          path: .tmp/playwright/test-results/*session-subagent*/compozy-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload worktree cleanup UI evidence
         if: always()
         uses: actions/upload-artifact@v7

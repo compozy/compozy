@@ -59,3 +59,11 @@ Same-workspace instance creation preserves stored intent, while cross-workspace 
 inherited bounds. Release repair validation is pending in main CI; no local QA lab was run.
 
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
+
+Follow-up regression walk (#1741): repeat the upgrade from a database already at 00203 with a
+legacy depth-one instance's main session, a parent-linked child and grandchild, an archived descendant,
+and a same-ID/profile-boundary control. Their stored lists stay exact; depth-zero and foreign-profile
+sessions retain their own authority. Seed a stale `meta.json` with `list` markers while the corrected
+catalog says `inherit`: read-only inspection must leave the file unchanged, and resume uses catalog
+intent. Sessions in the ambiguous fractional second of Goose 202 retain their restrictions; explicitly
+re-grant access when needed. CI owns upgrade verification; the manual walk is pending.

@@ -1506,6 +1506,27 @@ describe("SessionList subagents", () => {
     );
   });
 
+  // Invariant: rank changes across pages never duplicate a subagent or inflate the shown count.
+  // Owner: subagent branch view model; canonical suite: session-list UT-W17.
+  it("Should deduplicate subagents repeated across urgency pages", async () => {
+    const user = userEvent.setup();
+    vi.mocked(globalThis.fetch).mockImplementation(async input =>
+      new URL((input as Request).url).searchParams.get("cursor") === "page-2"
+        ? subagentPage(7, 15)
+        : subagentPage(0, 8, "page-2")
+    );
+    renderList({
+      sessions: [row("parent", { badge: "running", ...summary(3, 15) })],
+      subagentThreadIds: ["parent"],
+    });
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    await user.click(await within(branch).findByRole("button", { name: "Show 7 more" }));
+    await waitFor(() =>
+      expect(within(branch).getAllByRole("button", { name: /^Open Subagent/ })).toHaveLength(15)
+    );
+    expect(within(branch).queryByRole("button", { name: /^Show .* more/ })).not.toBeInTheDocument();
+  });
+
   // Invariant (#1732): the daemon pages active work first, so while every loaded row is active the
   // branch reads the next page, and it shows every active row past its page size.
   it("Should read on while a page holds only active subagents and show every active row", async () => {

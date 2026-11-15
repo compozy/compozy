@@ -33,3 +33,9 @@ a CLI/HTTP/UDS/tool parity re-walk.
 qa-impact: 2026-09-01 walked P1, P1b, P2 and the zoom walk's CLI check on the structural zoom: `compozy window zoom` without a client returns a lifted window home and lifts it again; `window list` carries `zoomed`; two browser clients converge and only the lifted client's view is repaired.
 
 qa-impact: 2026-11-13 window-tabs-split S10. Shapes moved to v6. Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build, one workspace open in the Web shell. Perform the same sequence once per surface (CLI, native tools via an agent, HTTP with curl, UDS): open two windows, split them with `window.move` placement `right`, unsplit with placement `tab`, reorder (`compozy window reorder <id> --index 0` / `compozy__window_reorder` / `window.tab.reorder`), activate, pin, close with scope `left`, reopen. After each surface, `compozy layout get -o json` shows identical topology (IDs aside) and each step advanced the revision once. POST `window.stack.reorder` over HTTP: it succeeds and the result has `deprecations[0].replacement` = `window.tab.reorder`. `GET …/window-manager/migration` and `compozy layout migration status -o json` return the same object.
+
+Follow-up regression walk (#1741): disconnect after each complete accepted write (layout replace,
+migration acknowledgement/retry, profile put/delete, client claim/unregister). Read back committed
+state from another client. Each mutation retains its bounded 30-second lifetime and actor context;
+a stale revision/version still conflicts, and foreign workspace/profile access remains refused.
+Reads, previews and streams still stop with their request. CI owns verification; manual walk pending.

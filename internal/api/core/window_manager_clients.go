@@ -69,8 +69,10 @@ func (h *BaseHandlers) RegisterWindowManagerClient(c *gin.Context) {
 	// One client id belongs to one profile at a time. The claim is one operation so
 	// that two registrations racing for different profiles cannot both succeed and
 	// leave an attachment nobody can disambiguate (US-026).
+	ctx, cancel := windowManagerMutationContext(c.Request.Context())
+	defer cancel()
 	client, err := h.WindowManager.ClaimClient(
-		c.Request.Context(),
+		ctx,
 		profileID,
 		windowmanager.ClientRegistration{
 			WorkspaceID: workspaceID, ClientID: canonicalClientID, Kind: request.Kind,
@@ -102,7 +104,9 @@ func (h *BaseHandlers) UnregisterWindowManagerClient(c *gin.Context) {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
 	}
-	if err := service.UnregisterClient(c.Request.Context(), workspaceID, clientID); err != nil {
+	ctx, cancel := windowManagerMutationContext(c.Request.Context())
+	defer cancel()
+	if err := service.UnregisterClient(ctx, workspaceID, clientID); err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
 	}
