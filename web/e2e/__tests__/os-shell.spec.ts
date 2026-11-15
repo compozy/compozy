@@ -3644,6 +3644,9 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   try {
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
+    await switchInput.send("Profiler.enable");
+    await switchInput.send("Profiler.setSamplingInterval", { interval: 2000 });
+    await switchInput.send("Profiler.start");
     await installSwitchProbe(appPage);
     const start = Date.now();
     while (Date.now() - start < 3000) {
@@ -3653,6 +3656,24 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     switchProbe = await readSwitchProbe(appPage);
     longTasks = switchProbe.tasks.map(task => task.duration);
+    const { profile } = await switchInput.send("Profiler.stop");
+    await testInfo.attach("switch-work.cpuprofile", {
+      body: JSON.stringify(profile),
+      contentType: "application/json",
+    });
+    await switchInput.send("Debugger.enable");
+    const scriptIds = new Set(
+      profile.nodes
+        .filter(node => (node.hitCount ?? 0) > 0 && node.callFrame.url.includes("/assets/"))
+        .map(node => node.callFrame.scriptId)
+    );
+    for (const scriptId of scriptIds) {
+      const { scriptSource } = await switchInput.send("Debugger.getScriptSource", { scriptId });
+      await testInfo.attach(`switch-script-${scriptId}.js`, {
+        body: scriptSource,
+        contentType: "text/javascript",
+      });
+    }
   } finally {
     await switchInput.detach();
   }
