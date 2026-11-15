@@ -17,3 +17,11 @@ overlaps: RT-072; ET-web-runtime-selector-minimal-slider
 ---
 
 Added by #1107. Walk with an isolated acpmock lab (set_config_option is observable in the mock's request log) and, when credentials allow, a real Claude Agent Bridge session dropped from xhigh to medium mid-turn.
+
+QA impact 2026-11-15 (#1681): select an advertised model, effort, generic ACP option, or speed
+whose provider confirms through a later `config_option_update`. Confirmation during readback or
+at the settlement deadline must succeed without an extra set request; a provider that never
+confirms must retain the prior effective value and return an unconfirmed rejection. The existing
+`TestConfigureRuntime` suite owns the subprocess and deterministic revision-race coverage.
+Release mode prohibits local verification; current-main CI owns execution and the live walk remains
+unverified. No new CLI/HTTP/native tool shape, config key, hook, or persisted state is introduced.

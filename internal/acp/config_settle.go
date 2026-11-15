@@ -49,6 +49,7 @@ func (d *Driver) applyConfigOption(
 		if err := apply(ctx); err != nil {
 			return err
 		}
+		since, _ := process.configRevisionAndChange()
 		if confirmed() {
 			return nil
 		}
@@ -56,9 +57,11 @@ func (d *Driver) applyConfigOption(
 		// provider may publish the value after any of them. The response merge
 		// itself bumps the revision, so the wait starts after it and only a later
 		// update counts as new information.
-		since, _ := process.configRevisionAndChange()
 		if err := waitForConfigRevision(ctx, process, since, budget); err != nil {
 			if errors.Is(err, errConfigSettleTimeout) {
+				if confirmed() {
+					return nil
+				}
 				// No newer revision arrived: re-sending would just repeat the same call.
 				return errConfigOptionUnconfirmed
 			}

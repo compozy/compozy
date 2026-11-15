@@ -1475,6 +1475,29 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 func TestConfigureRuntime(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should accept a confirmation published during readback without resending", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New(WithConfigSettleBudget(time.Millisecond))
+		proc := &AgentProcess{}
+		proc.setConfigOptions([]SessionConfigOption{{ID: "reasoning_effort", CurrentValueID: "medium"}})
+		requests := 0
+		err := driver.applyConfigOption(t.Context(), proc, func(context.Context) error {
+			requests++
+			return nil
+		}, func() bool {
+			options, _ := proc.configOptionsSnapshot()
+			proc.setConfigOptionCurrent("reasoning_effort", "high")
+			return options[0].CurrentValueID == "high"
+		})
+		if err != nil {
+			t.Fatalf("applyConfigOption() error = %v, want the concurrent confirmation accepted", err)
+		}
+		if requests != 1 {
+			t.Fatalf("set requests = %d, want 1", requests)
+		}
+	})
+
 	// Invariant: requested intent is not effective until provider readback confirms it.
 	t.Run("Should preserve prior effort when the provider does not confirm a change", func(t *testing.T) {
 		t.Parallel()
