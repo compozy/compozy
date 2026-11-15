@@ -1122,7 +1122,9 @@ describe("SessionList subagents", () => {
       const firstSix = ["child-1", "child-2", "child-3", "child-4", "child-5", "child-6"];
       expect(childRowIds()).toEqual(firstSix);
 
-      update(children.map(child => (child.id === "child-8" ? { ...child, badge: "running" } : child)));
+      update(
+        children.map(child => (child.id === "child-8" ? { ...child, badge: "running" } : child))
+      );
       expect(childRowIds()).toEqual([
         "child-8",
         "child-1",
