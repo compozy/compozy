@@ -66,7 +66,25 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 		return err
 	}
 	for _, row := range rows {
-		if row.ChildSessionID == nil || row.Status == store.SubagentStatusQueued {
+		if row.Status == store.SubagentStatusQueued {
+			continue
+		}
+		if row.ChildSessionID == nil {
+			if s.inFlight(row.ID) {
+				continue
+			}
+			// The delegation never linked a child session: the start failed after the
+			// reservation and the settlement was lost. Nothing can resume it, so settle
+			// the row instead of leaving it running for the life of the daemon. Isolated
+			// rows keep their own path, which also releases the worktree and wakes the
+			// parent.
+			if row.Isolation == SubagentIsolationWorktree {
+				if err := s.recoverOrphanedIsolation(ctx, row); err != nil {
+					s.recoveryResult(ctx, row.ID, "orphaned_isolation", err)
+				}
+				continue
+			}
+			s.recoveryResult(ctx, row.ID, "orphaned_delegation", s.failRecovered(ctx, row, ""))
 			continue
 		}
 		if row.Isolation == SubagentIsolationWorktree {
@@ -74,6 +92,26 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 			continue
 		}
 		s.recoveryResult(ctx, row.ID, "child_reconciled", s.recoverChild(ctx, row))
+	}
+	return nil
+}
+
+// recoverOrphanedIsolation settles an isolated row whose start never linked a
+// child. A failed rollback must not keep the row running until the next boot:
+// the row still settles and the parent still wakes, while the checkout stays
+// queued for recoverIsolationCleanup, which retries the rollback from disk.
+func (s *subagentService) recoverOrphanedIsolation(ctx context.Context, row store.SessionSubagent) error {
+	if err := s.recoverIsolation(ctx, row); err != nil {
+		s.recoveryResult(ctx, row.ID, "orphaned_isolation_compensation", err)
+		// The cleanup recovery only selects rows marked pending, so the marker has
+		// to be durable before the row becomes terminal. When it cannot be written,
+		// keep the row running for the next boot instead of finalizing a checkout
+		// nobody will collect.
+		if markErr := s.markWorktreeCleanupPending(ctx, row.ID); markErr != nil {
+			s.recoveryResult(ctx, row.ID, "orphaned_isolation_cleanup_marker", markErr)
+			return nil
+		}
+		return s.settleRecoveredIsolation(ctx, row, subagentRecoveredInterrupted)
 	}
 	return nil
 }
@@ -136,7 +174,7 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 // live delegate call, no caller is left to receive the failure, so the parent
 // is told through an ordinary wake (always, whatever the original wait policy).
 func (s *subagentService) failRecovered(ctx context.Context, row store.SessionSubagent, child string) error {
-	failed, err := s.failDelegation(ctx, row, child, errors.New("delegation interrupted"))
+	failed, err := s.failDelegation(ctx, row, child, errors.New(subagentRecoveredInterrupted))
 	if err != nil {
 		return err
 	}
