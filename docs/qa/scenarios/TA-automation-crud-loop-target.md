@@ -79,3 +79,14 @@ idempotent retry. Live sessions, delegated executions and sessionless admissions
 refused without mutation; other profiles must remain inaccessible. Owning manager and
 handler/CLI suites cover these contracts with real SQLite at the persistence boundary.
 Local tests and runtime QA are prohibited for this parallel dispatch; CI evidence is pending.
+
+QA impact 2026-11-14 (#1720): run a scheduled agent with `retry = { strategy = "backoff",
+max_retries = 2, base_delay = "2s" }`. Delay the first ACP initialize handshake beyond its
+control deadline, then allow the next attempt to initialize. Verify one scheduled fire completes
+with attempt 2 and no intermediate failed session or attention entry. Keep timing out to verify
+three total attempts, delays of two and four seconds, and one retained final failure with diagnostics.
+Repeat with `retry.strategy = "none"`, authentication refusal, invalid provider/agent definition,
+package preparation failure, and failed cleanup: none may start another attempt. A provider that
+already accepted a session must not be started again. Scheduler integration owns policy/fire identity;
+session lifecycle tests own real SQLite/artifact retention. CI and provider replay remain pending;
+local verification is forbidden for this dispatch.

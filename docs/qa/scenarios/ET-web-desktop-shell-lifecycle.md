@@ -216,6 +216,17 @@ CPU throttled 6x, a 20 s idle window on both peers recorded 6 and 4 long tasks o
 71–130 ms before the change and none after. The workspace hook suites cover both
 behaviors; repeated unmodified E2E-023 runs passed with 0 ms peer-convergence tasks.
 
+QA impact 2026-11-14 (#1700, third pass): a retained window's live-data lease (enabled
+reads, live streams such as the home activity stream, app preload) now follows focus only
+after the new lease has held for 500 ms. Click quickly through several tabs and confirm the
+tabs show at once with their cached content, then rest on one: within about half a second
+its live data resumes (a session tab's live tail follows new turns again, the home
+dashboard's activity stream reconnects) and the tab left behind pauses. A burst that only passes
+through a tab must not start that tab's streams or reads. Hiding the browser document still
+pauses every window immediately. The OS interaction-hook suite owns the settle and
+pass-through invariants; E2E-023 keeps the 11-tab fixture and the 50 ms switch/convergence
+and 500 ms restore limits.
+
 QA impact 2026-11-14 (#1700): keep the command palette closed during the 11-tab
 switch burst, then open it on a session tab. Its focused-session commands and worktree
 selection must target that current window, including after another close/switch/reopen.

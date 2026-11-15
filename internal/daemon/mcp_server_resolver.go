@@ -108,7 +108,14 @@ func resolveDaemonMCPResource(
 		}
 		return mcppkg.ResolvedServer{
 			ReadOnlyOverrideOrigin: new(toolspkg.MCPReadOnlyOverrideOperatorConfig),
-			Server:                 server, Target: target, HealthKey: extensionMCPHealthKey(ctx, state, record),
+			ConsentScope: mcpauth.ConsentScope{
+				ProfileID:   source.ProfileID,
+				WorkspaceID: source.WorkspaceID,
+				ResourceID:  source.ResourceID,
+			},
+			Server:    server,
+			Target:    target,
+			HealthKey: extensionMCPHealthKey(ctx, state, record),
 		}, nil
 	}
 	return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP resource %q is unavailable", resourceID)

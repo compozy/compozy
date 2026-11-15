@@ -149,16 +149,14 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 		return nil
 	}
 	if spec.sessionType == SessionTypeUser {
-		input := spec.lineage
-		if spec.instancePermissionCeiling != nil {
-			// The daemon reapplies its computed ceiling after validating caller provenance.
-			input = store.CloneSessionLineage(input)
-			input.PermissionPolicy = store.SessionPermissionPolicy{}
-		}
+		// Creation already validated authored provenance; this policy is daemon materialization.
+		input := store.CloneSessionLineage(spec.lineage)
+		input.PermissionPolicy = store.SessionPermissionPolicy{}
 		lineage, err := m.prepareProvenanceLineage(ctx, spec.sessionType, spec.workspace.ID, input)
 		if err != nil {
 			return err
 		}
+		lineage.PermissionPolicy = spec.lineage.PermissionPolicy
 		spec.lineage = lineage
 		return store.ValidateSessionLineage(spec.sessionID, lineage)
 	}

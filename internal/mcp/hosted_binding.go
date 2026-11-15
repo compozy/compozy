@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -59,17 +60,22 @@ func (s *HostedService) Bind(
 	s.mu.Lock()
 	active := s.binds[bindID]
 	if active != nil {
-		active.initialToolDigest = hostedExternalToolDigest(projection.Tools)
+		active.initialToolDigest = projection.Catalog.Digest
+		active.initialCatalog = tools.AdvertisedCatalog{
+			Digest: projection.Catalog.Digest, Servers: maps.Clone(projection.Catalog.Servers),
+			ServerDigests: maps.Clone(projection.Catalog.ServerDigests),
+		}
 	}
 	s.mu.Unlock()
 	if active == nil {
 		return HostedBindResponse{}, ErrHostedBindNotFound
 	}
 	return HostedBindResponse{
-		BindID: bindID,
-		Scope:  record.scope(),
-		Tools:  projection.Tools,
-		Digest: projection.Digest,
+		Catalog: projection.Catalog,
+		BindID:  bindID,
+		Scope:   record.scope(),
+		Tools:   projection.Tools,
+		Digest:  projection.Digest,
 	}, nil
 }
 

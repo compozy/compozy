@@ -70,3 +70,5 @@ agree row for row. A save that needs a daemon restart shows the same restart not
 and **Restart CompozyOS** action in the MCPs view as in Settings. Targeted verification: the Marketplace component suite and the
 `McpServers`/`McpServersSearch` Storybook stories rendered the nine-server matrix in Chromium; a live
 walk remains outstanding.
+
+QA impact 2026-11-14 (MCP hot activation spec): The MCP body now stacks a CompozyOS group (with an approval cell: Waiting for approval · Added by a file in this project / Changed since you allowed it, plus Allow) above one read-only group per runtime, with a runtime filter. A waiting server has no runtime status (never started or probed). Re-walk the matrix with a waiting project server and with runtime groups present (see ET-runtime-mcp-inventory-copy).

@@ -135,6 +135,13 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 }
 
 func TestSessionWorkspaceStatusMappings(t *testing.T) {
+	// Invariant: client cancellation wins over a wrapped reload failure; owner: session HTTP error mapping.
+	if got := statusForSessionError(
+		&session.MCPReloadError{Provider: "claude", Cause: context.Canceled},
+	); got != statusClientClosedRequest {
+		t.Fatalf("canceled reload status=%d", got)
+	}
+
 	t.Parallel()
 
 	if got := statusForWorkspaceError(workspacepkg.ErrWorkspaceNotFound); got != http.StatusNotFound {

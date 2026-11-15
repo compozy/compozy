@@ -30,6 +30,7 @@ import (
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -917,6 +918,7 @@ func bindNativeExtensionIntegrationSession(t *testing.T, deps *daemonNativeTools
 	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(deps.HomePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithDriver(newHarnessIntegrationDriver()),
 		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolved}),
 		session.WithSessionIDGenerator(func() (string, error) { return id, nil }),

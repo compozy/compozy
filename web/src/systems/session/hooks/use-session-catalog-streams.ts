@@ -87,13 +87,17 @@ function parseSessionCatalogEvent(event: Event): SessionCatalogEventPayload | un
   }
 }
 
-/** A project-folder change names its profile but no workspace or session. */
-function isWorkspaceLayoutEvent(event: Event): boolean {
-  if (!(event instanceof MessageEvent) || typeof event.data !== "string") return false;
+/**
+ * Kinds that name a profile but no workspace or session: a project-folder change, and a
+ * history cleanup (#1717) that progressed or ended.
+ */
+function profileEventKind(event: Event): "workspace_layout" | "history_cleanup" | undefined {
+  if (!(event instanceof MessageEvent) || typeof event.data !== "string") return undefined;
   try {
-    return (JSON.parse(event.data) as { kind?: unknown }).kind === "workspace_layout";
+    const kind = (JSON.parse(event.data) as { kind?: unknown }).kind;
+    return kind === "workspace_layout" || kind === "history_cleanup" ? kind : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
@@ -200,6 +204,8 @@ function openSessionCatalogStream(
     void queryClient.invalidateQueries({ predicate: isSessionProcessesQuery });
     // So can a workspace_layout change: project folders reread on every (re)connect.
     void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLayouts() });
+    // A cleanup's progress and its end can fall outside the replay window too.
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.historyCleanup() });
     // A location-change event can fall outside the bounded replay window.
     const files = {
       predicate: ({ queryKey: key }: { queryKey: QueryKey }) =>
@@ -211,10 +217,17 @@ function openSessionCatalogStream(
     void queryClient.cancelQueries(files).then(() => queryClient.invalidateQueries(files));
   };
   const handleCatalogChange: EventListener = event => {
-    if (isWorkspaceLayoutEvent(event)) {
+    const profileKind = profileEventKind(event);
+    if (profileKind === "workspace_layout") {
       // Project folders changed (issue #1044): no session moved, the layout rereads.
       markLive();
       void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLayouts() });
+      return;
+    }
+    if (profileKind === "history_cleanup") {
+      // A cleanup run moved on; each session it deleted arrives as its own `deleted` event.
+      markLive();
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.historyCleanup() });
       return;
     }
     const payload = parseSessionCatalogEvent(event);

@@ -257,6 +257,9 @@ func (r *RuntimeRegistry) DiagnosticGet(ctx context.Context, scope Scope, id Too
 
 // Call runs the central provider-agnostic registry dispatch pipeline.
 func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest) (result ToolResult, err error) {
+	if req.ToolID == ToolIDSessionMCPList {
+		ctx = WithCachedMCPProjection(ctx)
+	}
 	if r != nil && r.projectionInvalidator != nil {
 		defer r.projectionInvalidator()
 	}
@@ -392,6 +395,13 @@ func denialErrorForView(view *ToolView) error {
 			fmt.Sprintf("tool %q is conflicted", id),
 			ErrToolConflict,
 			reasons...)
+	}
+	if view.Descriptor.Source.Kind == SourceMCP && slices.Contains(reasons, ReasonMCPAuthRequired) &&
+		!slices.Contains(reasons, ReasonSessionDenied) {
+		return MCPAuthRequiredError(
+			id,
+			firstNonEmpty(view.Descriptor.Source.RawServerName, view.Descriptor.Source.Owner),
+		)
 	}
 	if !view.Availability.Executable {
 		return NewToolError(

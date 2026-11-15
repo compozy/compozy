@@ -67,6 +67,7 @@ func TestInstanceAuthority(t *testing.T) {
 	t.Run("Should intersect all permission categories without widening the child", func(t *testing.T) {
 		t.Parallel()
 		child := store.SessionPermissionPolicy{
+			MCPServersMode: store.PermissionList, ToolsMode: store.PermissionList,
 			Tools:          []string{"tool__read"},
 			Skills:         []string{"read"},
 			MCPServers:     []string{"docs"},

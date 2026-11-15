@@ -24,6 +24,9 @@ func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *SessionLinea
 		return nil
 	}
 	normalized := store.NormalizeSessionLineage("", lineage)
+	if normalized.EffectiveMCPServers != nil {
+		normalized.PermissionPolicy.MCPServers = normalized.EffectiveMCPServers
+	}
 	// Project the enforced budget: a stored zero means "unset" and agents read it literally.
 	budget := store.EffectiveSessionSpawnBudget(normalized.SpawnBudget)
 	payload := &SessionLineagePayload{

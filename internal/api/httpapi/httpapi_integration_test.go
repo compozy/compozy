@@ -30,6 +30,7 @@ import (
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -3675,6 +3676,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(driver),

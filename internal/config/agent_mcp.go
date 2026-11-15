@@ -191,3 +191,9 @@ func validateAgentMCPSecretRefs(server MCPServer) error {
 	}
 	return nil
 }
+
+func stampAgentMCPDefinitionSources(agent *AgentDef, path string) {
+	for i := range agent.MCPServers {
+		agent.MCPServers[i].DefinitionSource = path
+	}
+}

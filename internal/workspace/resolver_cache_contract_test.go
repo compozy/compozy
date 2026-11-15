@@ -341,6 +341,29 @@ func agentCapabilityIDsForContract(agents []compozyconfig.AgentDef, name string)
 func TestWorkspaceContractAgentConfigResolution(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should resolve current User profile config without project lookup", func(t *testing.T) {
+		t.Parallel()
+		home := newTestHomePaths(t)
+		resolver := newTestResolver(t, newMockWorkspaceStore(),
+			WithHomePaths(home), WithProfileAvailabilityChecker(userProfileSource{}))
+		profileConfig := filepath.Join(home.ProfilesDir, "personal", "config.toml")
+		writeFile(t, profileConfig, "[tools.policy]\nexternal_default = 'disabled'\n")
+		writeAgentDef(t, filepath.Join(home.AgentsDir, "personal-agent", agentDefinitionFile),
+			"personal-agent", "user-model")
+		for _, policy := range []string{"disabled", "enabled"} {
+			writeFile(t, profileConfig, "[tools.policy]\nexternal_default = '"+policy+"'\n")
+			got, err := resolver.ResolveAgentConfig(t.Context(), "@user", "personal")
+			if err != nil {
+				t.Fatalf("ResolveAgentConfig(User) error = %v", err)
+			}
+			if got.WorkspaceID != "" || got.ID != "" || got.RootDir != "" ||
+				got.ProfileID != "profile-personal" || got.Config.Tools.Policy.ExternalDefault != policy ||
+				agentModel(got.Agents, "personal-agent") != "user-model" {
+				t.Fatalf("User agent config = %#v", got)
+			}
+		}
+	})
+
 	t.Run("Should isolate caller mutations from cold and warm narrow cache results", func(t *testing.T) {
 		t.Parallel()
 

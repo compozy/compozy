@@ -138,16 +138,9 @@ func (s *HostedService) ToolDigest(ctx context.Context, sessionID string) (strin
 	if err != nil {
 		return "", ErrHostedProjectionFailed
 	}
-	return hostedExternalToolDigest(projection.Tools), nil
+	return projection.Catalog.Digest, nil
 }
 
 func hostedExternalToolDigest(views []tools.ToolView) string {
-	var external []tools.ToolView
-	for idx := range views {
-		view := &views[idx]
-		if view.Descriptor.Source.Kind == tools.SourceMCP {
-			external = append(external, *view)
-		}
-	}
-	return hostedProjectionDigest(external)
+	return tools.AdvertisedCatalogDigest(views)
 }

@@ -266,7 +266,9 @@ func (m *Manager) rebindReleasedRuntime(
 	}
 	routePlan.spec.fallbackAttempt = routePlan.attempt
 	routePlan.reloadACPSessionID = snapshot.runtimeRelease.acpSessionID
-	return m.replacePromptRuntime(ctx, session, snapshot, routePlan)
+	process, err := m.replacePromptRuntime(ctx, session, snapshot, routePlan)
+	plan.replayed = routePlan.replayed
+	return process, err
 }
 
 // releaseBoundRuntime verifies the old writer has exited before a worktree move

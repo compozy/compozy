@@ -16,8 +16,8 @@ import {
   subagentRosterTitle,
   subagentRuntimeLabel,
   subagentWaitingBannerRows,
-  sortSubagentsByUrgency,
 } from "../subagent-format";
+import { sortSubagentsByUrgency } from "../../../lib/subagent-roster";
 import { subagentHoverPreview } from "../subagent-hover-preview";
 import {
   middleTruncate,
@@ -272,7 +272,8 @@ describe("subagentDisplay", () => {
     expect(subagentGroupGlyph([withStatus("canceled", "e")])).toBe("stopped");
   });
 
-  it("Should order rows waiting > failed > working > queued > settled, newest first within", () => {
+  // Invariant (#1732): active work (waiting, working, resumed) leads, then failed, queued, settled.
+  it("Should order rows waiting > working > failed > queued > settled, newest first within", () => {
     const rows = [
       withStatus("completed", "done", 5),
       withStatus("queued", "queued", 4),
@@ -290,10 +291,10 @@ describe("subagentDisplay", () => {
     ];
     expect(sortSubagentsByUrgency(rows).map(row => row.id)).toEqual([
       "waiting",
-      "failed",
       "new-run",
       "old-run",
       "resumed",
+      "failed",
       "queued",
       "done",
     ]);

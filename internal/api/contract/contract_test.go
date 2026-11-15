@@ -733,6 +733,29 @@ x-root: retained
 }
 
 func TestSessionPayloadJSONShape(t *testing.T) {
+	// Invariant: public lineage reports effective MCP names without replacing persisted intent.
+	// Owner: public lineage boundary; canonical suite: session payload (UT-107).
+	t.Run("Should publish effective servers for inherited lineage [UT-107]", func(t *testing.T) {
+		t.Parallel()
+		for _, effective := range [][]string{{"linear", "sentry"}, {}} {
+			lineage := &store.SessionLineage{
+				RootSessionID:       "root",
+				EffectiveMCPServers: effective,
+				PermissionPolicy: store.SessionPermissionPolicy{
+					MCPServersMode: store.PermissionInherit,
+					MCPServers:     []string{"stale-snapshot"},
+				},
+			}
+			payload := contract.SessionLineagePayloadFromStore(lineage)
+			if !slices.Equal(payload.PermissionPolicy.MCPServers, effective) {
+				t.Fatalf("public authority=%+v", payload.PermissionPolicy)
+			}
+			if !slices.Equal(lineage.PermissionPolicy.MCPServers, []string{"stale-snapshot"}) {
+				t.Fatal("public mapper mutated stored intent")
+			}
+		}
+	})
+
 	t.Run("Should preserve session payload JSON shape", func(t *testing.T) {
 		t.Parallel()
 

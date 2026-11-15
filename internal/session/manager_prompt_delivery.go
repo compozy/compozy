@@ -232,7 +232,8 @@ func (m *Manager) deliverPersistedPromptEvent(
 	persistenceDone <-chan struct{},
 	out chan<- acp.AgentEvent,
 ) (terminal bool, delivered bool) {
-	if persisted.TurnID != turnID {
+	// Session lifecycle rows have their own payloads and share the turn log with ACP output.
+	if persisted.TurnID != turnID || !isPromptOutputEventType(persisted.Type) {
 		return false, false
 	}
 	event, err := transcript.UnmarshalAgentEvent(persisted.Content)

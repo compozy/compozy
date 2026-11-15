@@ -1,3 +1,4 @@
+import { MCP_CHANGED_EVENT_TYPE, MCP_RELOADED_EVENT_TYPE } from "../lib/session-mcp-reload-event";
 import type { SessionEventPayload, SessionMessage } from "../types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -10,6 +11,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * pending truth is always reread from the exact-authority GET.
  */
 export function entriesContainClarifyEvent(entries: readonly unknown[] | undefined): boolean {
+  return entriesContainEventType(entries, type => type === "clarify");
+}
+
+/**
+ * True when any applied entry carries `session.mcp_changed` or `session.mcp_reloaded`: the wake
+ * signal to reread the session's MCP servers. The session payload's summary rereads with every
+ * frame already.
+ */
+export function entriesContainMCPEvent(entries: readonly unknown[] | undefined): boolean {
+  return entriesContainEventType(
+    entries,
+    type => type === MCP_CHANGED_EVENT_TYPE || type === MCP_RELOADED_EVENT_TYPE
+  );
+}
+
+function entriesContainEventType(
+  entries: readonly unknown[] | undefined,
+  matches: (type: unknown) => boolean
+): boolean {
   if (!entries) {
     return false;
   }
@@ -22,7 +42,7 @@ export function entriesContainClarifyEvent(entries: readonly unknown[] | undefin
         isRecord(part) &&
         part.type === "data-compozy-event" &&
         isRecord(part.data) &&
-        part.data.type === "clarify"
+        matches(part.data.type)
       ) {
         return true;
       }

@@ -25,6 +25,7 @@ type MCPAuthTargetRequest struct {
 // MCPAuthBeginRequest starts one daemon-owned OAuth session.
 type MCPAuthBeginRequest struct {
 	MCPAuthTargetRequest
+	DefinitionDigest       string
 	CallbackURL            string
 	ApprovedScopes         []string
 	ApproveScopeEscalation bool
@@ -37,10 +38,16 @@ type MCPAuthExchangeRequest struct {
 }
 
 // GetMCPAuthStatus returns redacted auth state for one exact configured MCP server.
+const mcpManualOwner = "manual"
+
 func (s *service) GetMCPAuthStatus(
 	ctx context.Context,
 	req MCPAuthTargetRequest,
 ) (mcpauth.Status, error) {
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
+	)
 	if s.mcpAuth == nil {
 		return mcpauth.Status{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
 	}
@@ -65,10 +72,41 @@ func (s *service) BeginMCPAuth(
 	ctx context.Context,
 	req MCPAuthBeginRequest,
 ) (mcpauth.BeginResult, error) {
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
+	)
 	if s.mcpAuth == nil {
 		return mcpauth.BeginResult{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
 	}
 	target, server, err := s.resolveMCPAuthTarget(ctx, req.MCPAuthTargetRequest)
+	if req.DefinitionDigest != "" && !strings.HasPrefix(target.Owner, "extension:") &&
+		(err != nil || target.Scope == mcpauth.ScopeWorkspace || target.Scope == mcpauth.ScopeWorkspaceProfile) {
+		definitions, resolveErr := s.mcpApprovalDefinitions(ctx, req.MCPAuthTargetRequest)
+		if resolveErr != nil {
+			return mcpauth.BeginResult{}, resolveErr
+		}
+		selected, selectErr := s.selectMCPApprovalDefinition(
+			ctx,
+			req.Name,
+			req.ProfileName,
+			definitions,
+			req.DefinitionDigest,
+		)
+		if selectErr != nil {
+			return mcpauth.BeginResult{}, selectErr
+		}
+		if selected.inherited {
+			return mcpauth.BeginResult{}, validationError(
+				fmt.Errorf(
+					"settings: authorize inherited MCP server %q at %s",
+					req.Name,
+					describeMCPAuthTarget(selected.target),
+				),
+			)
+		}
+		target, server, err = selected.target, selected.server, nil
+	}
 	if err != nil {
 		return mcpauth.BeginResult{}, err
 	}
@@ -83,6 +121,9 @@ func (s *service) BeginMCPAuth(
 		return mcpauth.BeginResult{}, validationError(
 			errors.New("settings: MCP auth approved_scopes require approve_scope_escalation = true"),
 		)
+	}
+	if err := s.approveMCPAuthBegin(ctx, req, target, server); err != nil {
+		return mcpauth.BeginResult{}, err
 	}
 	callbackURL := strings.TrimSpace(req.CallbackURL)
 	var result mcpauth.BeginResult
@@ -102,6 +143,10 @@ func (s *service) ExchangeMCPAuth(
 	ctx context.Context,
 	req MCPAuthExchangeRequest,
 ) (mcpauth.Status, error) {
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
+	)
 	if s.mcpAuth == nil {
 		return mcpauth.Status{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
 	}
@@ -176,11 +221,15 @@ func mcpAuthTargetRequest(target mcpauth.Target) MCPAuthTargetRequest {
 	return request
 }
 
-// LogoutMCPAuth revokes and removes one exact scoped credential set.
+// LogoutMCPAuth removes one exact scoped credential set locally.
 func (s *service) LogoutMCPAuth(
 	ctx context.Context,
 	req MCPAuthTargetRequest,
 ) (mcpauth.Status, error) {
+	ctx = mcpauth.WithConsentScope(
+		ctx,
+		mcpauth.ConsentScope{ProfileName: req.ProfileName, WorkspaceID: req.WorkspaceID},
+	)
 	if s.mcpAuth == nil {
 		return mcpauth.Status{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
 	}
@@ -236,7 +285,7 @@ func (s *service) resolveMCPAuthDefinition(
 	if err != nil {
 		return mcpAuthDefinition{}, err
 	}
-	if target.Owner != "manual" {
+	if target.Owner != mcpManualOwner {
 		resolved, server, err := s.resolveExtensionMCPAuthTarget(ctx, req)
 		if err != nil {
 			return mcpAuthDefinition{}, err
@@ -270,12 +319,18 @@ func (s *service) resolveMCPAuthDefinition(
 				inherited: !mcpAuthTargetCovers(target, resolvedTarget),
 			}, nil
 		}
+		if published, found, err := s.resolvePublishedMCPDefinition(ctx, req); err != nil || found {
+			return published, err
+		}
 		return mcpAuthDefinition{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
 		)
 	}
 	entry, ok := mcpSourceForTarget(target.ServerName, targetKind, sources)
 	if !ok {
+		if published, found, err := s.resolvePublishedMCPDefinition(ctx, req); err != nil || found {
+			return published, err
+		}
 		return mcpAuthDefinition{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
 		)
@@ -399,4 +454,26 @@ func mcpAuthTargetForSource(entry mcpSourceEntry) (mcpauth.Target, error) {
 		return mcpauth.Target{}, fmt.Errorf("settings: invalid MCP auth target: %w", err)
 	}
 	return target, nil
+}
+
+func (s *service) approveMCPAuthBegin(
+	ctx context.Context, req MCPAuthBeginRequest, target mcpauth.Target, server compozyconfig.MCPServer,
+) error {
+	if s.mcpConsent != nil {
+		consent := consentRequestForTarget(target, server)
+		consent.ProfileName = req.ProfileName
+		decision, consentErr := s.mcpConsent.MCPConsent(ctx, consent)
+		if consentErr != nil {
+			return consentErr
+		}
+		if !decision.Admitted {
+			if req.DefinitionDigest == "" {
+				return s.waitingMCPApprovalError(ctx, req.MCPAuthTargetRequest)
+			}
+			if _, consentErr = s.mcpConsent.ApproveMCP(ctx, consent, req.DefinitionDigest, false); consentErr != nil {
+				return consentErr
+			}
+		}
+	}
+	return nil
 }

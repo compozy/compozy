@@ -244,6 +244,7 @@ export {
   MCPServersTableSkeleton,
   MCPServersManagementBody,
   MCPServersManagementDialogs,
+  MCPServersByRuntimeView,
   SettingsPageRestartNotice,
   mcpServerRowTestId,
   isExtensionOwnedMCPServer,
@@ -319,7 +320,11 @@ export type {
   SettingsMarketplaceCatalogSectionProps,
   SettingsMarketplaceSourcesSectionProps,
 } from "./components";
-export type { MCPOverrideEditorProps, MCPServerEditorProps } from "./components";
+export type {
+  MCPOverrideEditorProps,
+  MCPServerEditorProps,
+  MCPServersByRuntimeViewProps,
+} from "./components";
 export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";
 export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state";
 export { settingsProviderToOption } from "./lib/provider-runtime-option";
@@ -361,6 +366,8 @@ export {
   useSettingsProvider,
   useSettingsProviders,
 } from "./hooks/use-settings-collections";
+export { isMCPApprovalWaiting, mcpApprovalTarget } from "./lib/mcp-runtime-view-model";
+export { useAllowMCPServer } from "./hooks/use-mcp-runtime-mutations";
 
 // Hooks -- mutations
 export {

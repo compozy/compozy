@@ -23,7 +23,7 @@ const (
 )
 
 type autoTitleSpawnSessions interface {
-	Spawn(context.Context, session.SpawnOpts) (*session.Session, error)
+	Spawn(context.Context, *session.SpawnOpts) (*session.Session, error)
 	PromptSynthetic(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 	StopWithCause(context.Context, string, session.StopCause, string) error
 }
@@ -139,8 +139,8 @@ func (g *forkedAutoTitleGenerator) Generate(
 func (g *forkedAutoTitleGenerator) autoTitleSpawnOpts(
 	request autoTitleRequest,
 	route roleAttemptRoute,
-) session.SpawnOpts {
-	return session.SpawnOpts{
+) *session.SpawnOpts {
+	return &session.SpawnOpts{
 		ParentSessionID:     strings.TrimSpace(request.SessionID),
 		AgentName:           route.AgentName,
 		Provider:            route.Provider,

@@ -29,29 +29,37 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 		return []contract.SettingsMCPServerItemPayload{}
 	}
 	payloads := make([]contract.SettingsMCPServerItemPayload, 0, len(values))
-	for _, value := range values {
+	for i := range values {
+		value := &values[i]
 		payloads = append(payloads, contract.SettingsMCPServerItemPayload{
-			HeadersConfigured: value.HeadersConfigured,
-			ReadOnlyTools:     cloneStrings(value.ReadOnlyToolNames()),
-			Name:              strings.TrimSpace(value.Name),
-			Owner:             vault.NormalizeMCPOwner(value.Owner),
-			RuntimeName:       settingsMCPRuntimeName(value),
-			Override:          settingsMCPExtensionOverridePayload(value.Override),
-			Transport:         strings.TrimSpace(string(value.Transport)),
-			Command:           strings.TrimSpace(value.Command),
-			Args:              cloneStrings(value.Args),
-			EnvKeys:           cloneStrings(value.EnvKeys),
-			SecretEnvKeys:     cloneStrings(value.SecretEnvKeys),
-			URL:               strings.TrimSpace(value.URL),
-			Auth:              settingsMCPAuthConfigPayload(value.Auth, value.ClientSecretConfigured),
-			AuthStatus:        settingsMCPAuthStatusPayload(value.AuthStatus),
-			RuntimeStatus:     settingsMCPServerRuntimeStatusPayload(value.RuntimeStatus),
-			Scope:             contract.SettingsScopeKind(value.Scope),
-			WorkspaceID:       strings.TrimSpace(value.WorkspaceID),
-			Profile:           strings.TrimSpace(value.ProfileName),
-			CatalogEntry:      strings.TrimSpace(value.CatalogEntry),
-			CatalogVersion:    strings.TrimSpace(value.CatalogVersion),
-			SourceMetadata:    settingsSourceMetadataPayload(value.SourceMetadata),
+			Approval: contract.SettingsMCPApprovalStatePayload{
+				Reason:           value.Approval.Reason,
+				Required:         value.Approval.Required,
+				State:            value.Approval.State,
+				DefinitionDigest: value.Approval.DefinitionDigest,
+			},
+			CallableInSessions: value.CallableInSessions,
+			HeadersConfigured:  value.HeadersConfigured,
+			ReadOnlyTools:      cloneStrings(value.ReadOnlyToolNames()),
+			Name:               strings.TrimSpace(value.Name),
+			Owner:              vault.NormalizeMCPOwner(value.Owner),
+			RuntimeName:        settingsMCPRuntimeName(value),
+			Override:           settingsMCPExtensionOverridePayload(value.Override),
+			Transport:          strings.TrimSpace(string(value.Transport)),
+			Command:            strings.TrimSpace(value.Command),
+			Args:               cloneStrings(value.Args),
+			EnvKeys:            cloneStrings(value.EnvKeys),
+			SecretEnvKeys:      cloneStrings(value.SecretEnvKeys),
+			URL:                strings.TrimSpace(value.URL),
+			Auth:               settingsMCPAuthConfigPayload(value.Auth, value.ClientSecretConfigured),
+			AuthStatus:         settingsMCPAuthStatusPayload(value.AuthStatus),
+			RuntimeStatus:      settingsMCPServerRuntimeStatusPayload(value.RuntimeStatus),
+			Scope:              contract.SettingsScopeKind(value.Scope),
+			WorkspaceID:        strings.TrimSpace(value.WorkspaceID),
+			Profile:            strings.TrimSpace(value.ProfileName),
+			CatalogEntry:       strings.TrimSpace(value.CatalogEntry),
+			CatalogVersion:     strings.TrimSpace(value.CatalogVersion),
+			SourceMetadata:     settingsSourceMetadataPayload(value.SourceMetadata),
 		})
 	}
 	return payloads
@@ -117,7 +125,7 @@ func mcpSecretValuesFromPayload(payload *contract.SettingsMCPSecretValuesPayload
 	}
 }
 
-func settingsMCPRuntimeName(value settingspkg.MCPServerItem) string {
+func settingsMCPRuntimeName(value *settingspkg.MCPServerItem) string {
 	if name := strings.TrimSpace(value.RuntimeName); name != "" {
 		return name
 	}

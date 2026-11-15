@@ -274,3 +274,74 @@ func (m *Manager) releaseMissingSessionStart(
 	accepted.session.clearProviderSecretRedactions()
 	return false, errors.Join(ErrRecoveryPersistence, cause)
 }
+
+// retainAcceptedSessionAfterDiscardFailure preserves history when deletion rolls back.
+func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
+	ctx context.Context, accepted *acceptedSessionStart, failure error,
+) (bool, error) {
+	verified, processErr := m.stopFailedStartProcess(accepted, true)
+	if !verified {
+		return true, processErr
+	}
+	failure = errors.Join(failure, processErr)
+	if err := m.reopenAcceptedSessionRecorder(ctx, accepted); err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			return m.releaseMissingSessionStart(ctx, accepted, err)
+		}
+		return true, err
+	}
+	if err := m.persistRetainedFailedStart(ctx, accepted, failure); err != nil {
+		return true, err
+	}
+	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, nil)
+	complete := cleanupErr == nil
+	if cleanup, ok := accepted.storage.recorder.(interface{ CleanupComplete() bool }); ok {
+		complete = cleanup.CleanupComplete()
+	}
+	if !complete {
+		accepted.recorderClosing = true
+		return true, errors.Join(processErr, cleanupErr, accepted.retainedFailure.diagnosticErr)
+	}
+	accepted.storage.recorder = nil
+	m.finishRetainedSessionStart(ctx, accepted)
+	return false, errors.Join(processErr, cleanupErr, accepted.retainedFailure.diagnosticErr)
+}
+
+// finishRetainedSessionStart releases the active projection after writes and cleanup finish.
+func (m *Manager) finishRetainedSessionStart(ctx context.Context, accepted *acceptedSessionStart) {
+	m.removeActive(accepted.session.ID)
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, accepted.session.Info()))
+	if accepted.persistFailure {
+		m.notifyFailedStart(ctx, accepted.session)
+	}
+	if accepted.session.stopWasRequested() || (accepted.run != nil && accepted.run.stopJoined.Load()) {
+		m.dispatchSessionPostStop(ctx, accepted.session)
+		if !accepted.persistFailure {
+			m.notifyStoppedSession(ctx, accepted.session)
+		}
+	}
+	if m.hostedMCP != nil {
+		m.hostedMCP.CancelLaunch(accepted.session.ID)
+	}
+	accepted.session.clearProviderSecretRedactions()
+}
+
+// reopenAcceptedSessionRecorder restores the retained owner without clearing prior history.
+func (m *Manager) reopenAcceptedSessionRecorder(ctx context.Context, accepted *acceptedSessionStart) error {
+	if accepted.storage.recorder != nil {
+		return nil
+	}
+	// A failed rollback must not recreate storage at a missing original directory.
+	if _, err := m.readMetaWithContext(ctx, accepted.session.ID); err != nil {
+		return err
+	}
+	spec := *accepted.spec
+	spec.clearEventStoreOnOpen = false
+	storage, err := m.openSessionStartRecorder(ctx, &spec, accepted.storage)
+	if err != nil {
+		return err
+	}
+	accepted.storage = storage
+	accepted.session.setRecorder(storage.recorder)
+	return nil
+}

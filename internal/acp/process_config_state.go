@@ -24,13 +24,12 @@ func (p *AgentProcess) configRevisionAfterResponse() uint64 {
 
 // A notification processed after the response returned is newer than the response, so
 // retain the notification snapshot on overlap and confirm against that snapshot.
-func (p *AgentProcess) setConfigOptionsResponse(options []SessionConfigOption, revision uint64) []SessionConfigOption {
+func (p *AgentProcess) setConfigOptionsResponse(options []SessionConfigOption, revision uint64) {
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
 	if p.configRevision == revision {
 		p.setConfigOptionsLocked(options)
 	}
-	return CloneSessionConfigOptions(p.caps.ConfigOptions)
 }
 
 func (p *AgentProcess) setConfigOptionCurrent(optionID string, current string) {
@@ -47,8 +46,12 @@ func (p *AgentProcess) setConfigOptionCurrent(optionID string, current string) {
 	defer p.capsMu.Unlock()
 	for index := range p.caps.ConfigOptions {
 		if strings.TrimSpace(p.caps.ConfigOptions[index].ID) == id {
+			if p.caps.ConfigOptions[index].CurrentValueID == value {
+				return
+			}
 			p.caps.ConfigOptions[index].CurrentValueID = value
 			p.configRevision++
+			p.notifyConfigChangedLocked()
 			return
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/session"
@@ -828,27 +829,52 @@ func (w *schedulerFailureLogCounter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-// Invariant: accepted startup failures settle one fire using only its configured retries.
+// Invariant: startup failures settle one fire using configured retries and discard only eligible intermediate failures.
 // Owner: durable automation scheduler/dispatcher integration suite.
 func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name    string
-		cause   error
-		retries int
+		name     string
+		cause    error
+		kind     store.FailureKind
+		retries  int
+		attempts int
+		failures int
+		discards int
+		untyped  bool
+		accepted bool
 	}{
-		{name: "Should settle a handshake timeout without retry", cause: context.DeadlineExceeded},
-		{name: "Should settle a cancelled provider startup without retry", cause: context.Canceled},
-		{name: "Should cap handshake timeout retries on one run", cause: context.DeadlineExceeded, retries: 2},
+		{name: "Should settle a handshake timeout without retry", cause: context.DeadlineExceeded, attempts: 1, failures: 1},
+		{name: "Should settle a cancelled provider startup without retry", cause: context.Canceled, retries: 2, attempts: 1, failures: 1},
+		{name: "Should cap handshake timeout retries on one run", cause: context.DeadlineExceeded, retries: 2, attempts: 3, failures: 3, discards: 2},
+		{name: "Should complete the same fire after a transient handshake timeout", cause: context.DeadlineExceeded, retries: 2, attempts: 2, failures: 1, discards: 1},
+		{name: "Should not retry permanent provider configuration failures", cause: errors.New("invalid provider configuration"), kind: store.FailureStartup, retries: 2, attempts: 1, failures: 1},
+		{name: "Should not retry definition failures", cause: errors.New("agent definition not found"), untyped: true, retries: 2, attempts: 1, failures: 1},
+		{name: "Should not treat preparation timeouts as initialize timeouts", cause: context.DeadlineExceeded, kind: store.FailureStartup, retries: 2, attempts: 1, failures: 1},
+		{name: "Should not retry authentication failures joined with a deadline", cause: errors.Join(context.DeadlineExceeded,
+			&acpsdk.RequestError{Code: -32000, Message: "authentication required"}), retries: 2, attempts: 1, failures: 1},
+		{name: "Should not retry after provider session acceptance", cause: context.DeadlineExceeded, accepted: true, retries: 2, attempts: 1, failures: 1},
+		{name: "Should not retry while failed startup cleanup retains ownership", cause: errors.Join(context.DeadlineExceeded,
+			session.ErrRecoveryPersistence), retries: 2, attempts: 1, failures: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t)
 			db := openAutomationIntegrationDB(t, ctx)
 			clock := clockwork.NewFakeClockAt(time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC))
-			startErr := acp.WrapFailure(store.FailureHandshake, "ACP initialize failed", tc.cause)
-			plans := make([]sessionAttemptPlan, tc.retries+1)
-			for i := range plans {
+			kind := tc.kind
+			if kind == "" {
+				kind = store.FailureHandshake
+			}
+			startErr := acp.WrapFailure(kind, "ACP startup failed", tc.cause)
+			if tc.untyped {
+				startErr = tc.cause
+			}
+			if tc.accepted {
+				startErr = acp.WrapAcceptedStart("accepted-provider-session", startErr)
+			}
+			plans := make([]sessionAttemptPlan, tc.attempts)
+			for i := range tc.failures {
 				plans[i].createErr = startErr
 			}
 			creator := newRecordingSessionCreator(plans...)
@@ -860,7 +886,8 @@ func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 					return nil
 				}))
 			job := testJob(AutomationScopeGlobal, "startup-failure", "")
-			job.Schedule = &ScheduleSpec{Mode: ScheduleModeAt, Time: clock.Now().Add(time.Minute).Format(time.RFC3339)}
+			fireAt := clock.Now().Add(time.Minute)
+			job.Schedule = &ScheduleSpec{Mode: ScheduleModeAt, Time: fireAt.Format(time.RFC3339)}
 			if tc.retries > 0 {
 				job.Retry = RetryConfig{Strategy: RetryStrategyBackoff, MaxRetries: tc.retries, BaseDelay: "1s"}
 			}
@@ -873,8 +900,13 @@ func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 				t.Fatal(err)
 			}
 			clock.Advance(time.Minute)
-			if err := scheduler.executeScheduledJob(ctx, job.ID); !errors.Is(err, tc.cause) {
-				t.Fatalf("dispatch error = %v, want startup failure", err)
+			dispatchErr := scheduler.executeScheduledJob(ctx, job.ID)
+			completed := tc.failures < tc.attempts
+			if completed && dispatchErr != nil {
+				t.Fatalf("dispatch error = %v, want recovery", dispatchErr)
+			}
+			if !completed && !errors.Is(dispatchErr, tc.cause) {
+				t.Fatalf("dispatch error = %v, want startup failure", dispatchErr)
 			}
 			for range 3 {
 				clock.Advance(2 * time.Minute)
@@ -890,11 +922,25 @@ func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 				t.Fatalf("runs = %d, want 1", len(runs))
 			}
 			run := runs[0]
-			if run.Status != RunFailed || run.Attempt != tc.retries+1 || run.EndedAt == nil || run.Error == "" {
-				t.Fatalf("unsettled startup failure: %+v", run)
+			wantStatus := RunFailed
+			if completed {
+				wantStatus = RunCompleted
 			}
-			if got := len(creator.createCalls()); got != tc.retries+1 {
+			if run.ID != scheduledRunID(job.ID, fireAt) || run.Status != wantStatus ||
+				run.Attempt != tc.attempts || run.EndedAt == nil || (run.Error == "") != completed {
+				t.Fatalf("startup settlement: %+v", run)
+			}
+			calls := creator.createCalls()
+			if got := len(calls); got != tc.attempts {
 				t.Fatalf("startup attempts = %d", got)
+			}
+			for i, call := range calls[:tc.failures] {
+				if call.DiscardStartFailureWhen == nil {
+					t.Fatalf("attempt %d has no startup retention policy", i+1)
+				}
+				if got, want := call.DiscardStartFailureWhen(startErr), i < tc.discards; got != want {
+					t.Fatalf("attempt %d discards failed start = %t, want %t", i+1, got, want)
+				}
 			}
 			terminalFailures := 0
 			for _, failure := range hooks.runFailed {
@@ -905,10 +951,14 @@ func TestSchedulerIntegrationStartupFailure(t *testing.T) {
 					terminalFailures++
 				}
 			}
-			if terminalFailures != 1 {
-				t.Fatalf("terminal failure hooks = %d, want 1", terminalFailures)
+			wantTerminalFailures := 1
+			if completed {
+				wantTerminalFailures = 0
 			}
-			if len(delays) != tc.retries {
+			if len(hooks.runFailed) != tc.failures || terminalFailures != wantTerminalFailures {
+				t.Fatalf("failure hooks = %d, terminal = %d", len(hooks.runFailed), terminalFailures)
+			}
+			if len(delays) != tc.attempts-1 {
 				t.Fatalf("retry delays = %v", delays)
 			}
 			for i, delay := range delays {

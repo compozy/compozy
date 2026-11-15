@@ -125,6 +125,21 @@ export type SettingsMCPServerListFilter = NonNullable<OperationQuery<"listSettin
 export type SettingsMCPServerPutFilter = NonNullable<OperationQuery<"putSettingsMCPServer">>;
 export type SettingsMCPServerDeleteFilter = NonNullable<OperationQuery<"deleteSettingsMCPServer">>;
 
+// Project-file consent (spec mcp-extension-hot-activation, S1): Allow binds the definition digest the
+// operator saw, so a file changed in between is refused instead of approved.
+export type SettingsMCPApprovalRequest = OperationRequestBody<"putSettingsMCPApproval">;
+export type SettingsMCPApprovalResult = OperationResponse<"putSettingsMCPApproval", 200>;
+
+// Runtime MCP inventory (S4) and copy into CompozyOS (S4b). The inventory carries names and key
+// names only; values never reach the browser.
+export type RuntimeMCPInventory = OperationResponse<"listRuntimeMCPServers", 200>;
+export type RuntimeMCPSnapshot = RuntimeMCPInventory["runtimes"][number];
+export type RuntimeMCPServer = RuntimeMCPSnapshot["servers"][number];
+export type RuntimeMCPInventoryFilter = NonNullable<OperationQuery<"listRuntimeMCPServers">>;
+export type RuntimeMCPImportRequest = OperationRequestBody<"importRuntimeMCPServer">;
+export type RuntimeMCPImportResult = OperationResponse<"importRuntimeMCPServer", 201>;
+export type RuntimeMCPImportScope = NonNullable<RuntimeMCPImportRequest["scope"]>;
+
 // Daemon-mediated OAuth (ADR-016). The begin response returns the ONLY live PKCE
 // authorization URL; the exchange/logout responses return the fresh auth-status shape.
 export type SettingsMCPAuthFilter = NonNullable<OperationQuery<"beginSettingsMCPAuth">>;

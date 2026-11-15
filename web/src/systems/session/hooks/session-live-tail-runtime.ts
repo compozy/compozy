@@ -43,6 +43,7 @@ import type {
 } from "../types";
 import {
   entriesContainClarifyEvent,
+  entriesContainMCPEvent,
   numberFromEventID,
   parseSessionStreamPayload,
   terminalFailureMessage,
@@ -290,6 +291,7 @@ export function createSessionLiveTailRuntime({
       if (!payload) return;
       handlers.frame({
         containsClarification: entriesContainClarifyEvent(payload.entries),
+        containsMCPChange: entriesContainMCPEvent(payload.entries),
         cursor: Math.max(payload.max_sequence, numberFromEventID(message.lastEventId) ?? 0),
         kind: "snapshot",
         payload,
@@ -301,6 +303,7 @@ export function createSessionLiveTailRuntime({
       if (!payload) return;
       handlers.frame({
         containsClarification: entriesContainClarifyEvent(payload.entries),
+        containsMCPChange: entriesContainMCPEvent(payload.entries),
         cursor: Math.max(payload.cursor, numberFromEventID(message.lastEventId) ?? 0),
         kind: "delta",
         payload,
@@ -404,6 +407,7 @@ export function createSessionLiveTailRuntime({
     applyTerminal,
     invalidateClarifications: () =>
       invalidateExact(sessionKeys.clarifications(workspaceId, sessionId), "clarifications"),
+    invalidateMCP: () => invalidateExact(sessionKeys.mcp(workspaceId, sessionId), "session MCP"),
     invalidateCommands: () =>
       invalidateExact(sessionKeys.commands(workspaceId, sessionId), "session commands"),
     invalidateGoal: () => invalidateExact(sessionKeys.goal(workspaceId, sessionId), "session Goal"),

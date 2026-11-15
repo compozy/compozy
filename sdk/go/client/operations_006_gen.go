@@ -92,6 +92,28 @@ func (c *Client) DeleteSettingsHook(ctx context.Context, params DeleteSettingsHo
 	return &out, nil
 }
 
+// DeleteSettingsMCPApprovalParams carries the path, query, and header parameters.
+type DeleteSettingsMCPApprovalParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// DeleteSettingsMCPApproval Revoke workspace MCP consent
+func (c *Client) DeleteSettingsMCPApproval(ctx context.Context, params DeleteSettingsMCPApprovalParams) error {
+	path := "/api/settings/mcp-servers/{name}/approval"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("workspace_id", params.WorkspaceID)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
 // DeleteSettingsMCPServerParams carries the path, query, and header parameters.
 type DeleteSettingsMCPServerParams struct {
 	Name        string  `url:"name"`
@@ -424,20 +446,4 @@ func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*Lo
 type DisableGatewayProviderParams struct {
 	Name string `url:"name"`
 	Tier string `url:"tier"`
-}
-
-// DisableGatewayProvider Disable one named connectivity provider for a gateway tier
-func (c *Client) DisableGatewayProvider(ctx context.Context, params DisableGatewayProviderParams) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/providers/{name}/disable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("tier", params.Tier)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -1,23 +1,23 @@
-import { AlertCircle, Cable, Plus, SearchX } from "@compozy/ui/icons";
-
-import { Button, Empty, SkeletonRegion } from "@compozy/ui";
-
 import type { MCPServerManagement } from "../hooks/use-settings-mcp-page";
+import { runtimeProviderName } from "../lib/mcp-runtime-view-model";
 import { MCPAuthorizeDialog } from "./mcp-authorize-dialog";
+import { MCPCopyToCompozyDialog } from "./mcp-copy-to-compozy-dialog";
+import { MCPRuntimeModeSwitch } from "./mcp-runtime-mode-switch";
 import { MCPOverrideEditor } from "./mcp-override-editor";
 import { MCPSelectionStrip } from "./mcp-selection-strip";
 import { MCPServerDeleteDialog } from "./mcp-server-delete-dialog";
 import { MCPServerEditor } from "./mcp-server-editor";
 import { isExtensionOwnedMCPServer } from "./mcp-server-labels";
-import { MCPServersTable, MCPServersTableSkeleton } from "./mcp-servers-table";
+import { MCPServersByRuntimeView } from "./mcp-servers-by-runtime-view";
 
 interface MCPServersManagementProps {
   management: MCPServerManagement;
 }
 
 /**
- * Selection strip, then loading · error · empty · query-empty · matrix, one at a time, from the
- * collection query. Shared by Settings › MCP servers and the Marketplace MCPs view.
+ * Selection strip, then the servers by owner: the CompozyOS group and one read-only group per
+ * runtime, with loading · error · empty · no match one at a time. Shared by Settings › MCP servers
+ * and the Marketplace MCPs view.
  */
 export function MCPServersManagementBody({ management }: MCPServersManagementProps) {
   const selected = management.selected;
@@ -36,80 +36,56 @@ export function MCPServersManagementBody({ management }: MCPServersManagementPro
 }
 
 function MCPServersManagementState({ management }: MCPServersManagementProps) {
-  const { collection } = management;
-  if (collection.isPending) {
-    return (
-      <SkeletonRegion data-testid="settings-page-mcp-loading" label="Loading MCP servers">
-        <MCPServersTableSkeleton />
-      </SkeletonRegion>
-    );
-  }
-  if (collection.error && !collection.data) {
-    return (
-      <Empty
-        action={
-          <Button onClick={() => void collection.refetch()} size="sm" type="button">
-            Try again
-          </Button>
-        }
-        cause={collection.error.message}
-        data-testid="settings-page-mcp-error"
-        description="Check that CompozyOS is running, then try again."
-        framed
-        icon={AlertCircle}
-        title="Couldn't load MCP servers"
-        titleAs="h3"
-      />
-    );
-  }
-  if (management.servers.length === 0) {
-    return (
-      <Empty
-        action={
-          <Button
-            data-testid="settings-page-mcp-empty-create"
-            onClick={management.openCreate}
-            size="sm"
-            type="button"
-          >
-            <Plus aria-hidden="true" />
-            Add MCP server
-          </Button>
-        }
-        data-testid="settings-page-mcp-empty"
-        description="Servers you add here, and the ones your extensions add, show up in this list."
-        icon={Cable}
-        title="No MCP servers yet"
-      />
-    );
-  }
-  if (management.filteredServers.length === 0) {
-    return (
-      <Empty
-        action={
-          <Button
-            onClick={() => management.setQuery("")}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            Clear search
-          </Button>
-        }
-        data-testid="settings-page-mcp-query-empty"
-        description={`Nothing matches "${management.query}".`}
-        icon={SearchX}
-        title="No MCP servers match"
-      />
-    );
-  }
+  const { collection, runtime } = management;
+  const inventory = runtime.inventory;
   return (
-    <MCPServersTable
-      onAuthorize={management.authorize}
-      onEdit={management.edit}
-      onSelect={management.select}
-      selectedServer={management.selectedKey}
-      servers={management.filteredServers}
+    <MCPServersByRuntimeView
+      compozy={{
+        state: collection.isPending
+          ? "pending"
+          : collection.error && !collection.data
+            ? "error"
+            : "ready",
+        errorMessage: collection.error?.message,
+        onRetry: () => void collection.refetch(),
+        servers: management.servers,
+        visibleServers: management.filteredServers,
+        onCreate: management.openCreate,
+        table: {
+          onAuthorize: management.authorize,
+          onEdit: management.edit,
+          onSelect: management.select,
+          selectedServer: management.selectedKey,
+          onAllow: runtime.allow,
+          allowingServer: runtime.allowingKey,
+          approvalNotes: runtime.approvalNotes,
+          highlightedServer: runtime.highlightedKey,
+        },
+      }}
+      filter={runtime.runtimeFilter}
+      onClearQuery={() => management.setQuery("")}
+      onCopy={runtime.openCopy}
+      onFilterChange={runtime.setRuntimeFilter}
+      onShowFile={runtime.showFile}
+      query={management.query}
+      renderModeSwitch={snapshot => (
+        <MCPRuntimeModeSwitch
+          data-testid={`settings-mcp-runtime-switch-${snapshot.runtime}`}
+          mode={snapshot.runtime_mcp.mode}
+          provider={runtimeProviderName(snapshot.runtime)}
+          runtimeName={snapshot.display_name}
+        />
+      )}
+      runtimes={{
+        state: inventory.isPending
+          ? "pending"
+          : inventory.error && !inventory.data
+            ? "error"
+            : "ready",
+        errorMessage: inventory.error?.message,
+        onRetry: () => void inventory.refetch(),
+        snapshots: runtime.snapshots,
+      }}
     />
   );
 }
@@ -139,6 +115,23 @@ export function MCPServersManagementDialogs({ management }: MCPServersManagement
         scope={management.authorization.scope}
         server={management.authorization.server}
       />
+      {management.runtime.copying ? (
+        <MCPCopyToCompozyDialog
+          canTurnOff={management.runtime.copying.snapshot.runtime_mcp.can_disable}
+          failure={management.runtime.copyFailure}
+          key={JSON.stringify([
+            management.runtime.copying.server.runtime,
+            management.runtime.copying.server.name,
+          ])}
+          onClose={management.runtime.closeCopy}
+          onSubmit={management.runtime.submitCopy}
+          profile={management.profile === "default" ? null : management.profile}
+          runtimeName={management.runtime.copying.snapshot.display_name}
+          server={management.runtime.copying.server}
+          submitting={management.runtime.copySubmitting}
+          workspaceId={management.workspaceId}
+        />
+      ) : null}
       <MCPServerDeleteDialog
         error={management.removal.error?.message ?? null}
         isDeleting={management.removal.isPending}

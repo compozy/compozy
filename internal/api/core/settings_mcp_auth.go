@@ -108,6 +108,7 @@ func (h *BaseHandlers) BeginSettingsMCPAuth(c *gin.Context) {
 		return
 	}
 	result, err := h.Settings.BeginMCPAuth(c.Request.Context(), settingspkg.MCPAuthBeginRequest{
+		DefinitionDigest:       body.DefinitionDigest,
 		MCPAuthTargetRequest:   target,
 		CallbackURL:            callbackURL,
 		ApprovedScopes:         cloneStrings(body.ApprovedScopes),

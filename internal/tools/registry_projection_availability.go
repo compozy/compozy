@@ -71,6 +71,14 @@ func projectionAvailabilities(
 	return availability
 }
 
+// PolicyProjection projects an already resolved scope without reentering its policy resolver.
+func (r *RuntimeRegistry) PolicyProjection(ctx context.Context, scope Scope, inputs PolicyInputs) ([]ToolView, error) {
+	cache := &policyResolutionCache{values: map[policyResolutionScope]policyResolution{
+		{registry: r, scope: scope}: {inputs: clonePolicyInputs(inputs)},
+	}}
+	return r.OperatorProjection(context.WithValue(ctx, policyResolutionKey{}, cache), scope)
+}
+
 // DiagnosticProjection returns all indexed tools with effective diagnostics for the supplied scope.
 func (r *RuntimeRegistry) DiagnosticProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
 	ctx = withPolicyResolutionCache(ctx)

@@ -5,7 +5,11 @@ import { useEffect, useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useSession } from "@/systems/session";
-import { isReservedDesktopPartition, useBreadthMode } from "@/systems/workspace";
+import {
+  GLOBAL_DESKTOP_WORKSPACE_ID,
+  isReservedDesktopPartition,
+  useBreadthMode,
+} from "@/systems/workspace";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
 import { ClientCommandChannel } from "../lib/client-command-channel";
@@ -97,10 +101,19 @@ export function useDesktopChrome(
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
   const [terminalClose] = useState(() => new TerminalWindowClose());
   const [unsavedClose] = useState(() => new UnsavedWindowClose());
+  // All projects reaches the terminal guard as itself, not as a missing project:
+  // an unbound terminal window there closes view-only instead of being trapped.
+  const terminalCloseWorkspaceId =
+    activeWorkspaceId === GLOBAL_DESKTOP_WORKSPACE_ID
+      ? GLOBAL_DESKTOP_WORKSPACE_ID
+      : terminalWorkspaceId;
   useEffect(() => {
     // Unsaved edits ask first: keeping them must not leave a terminal already terminated.
     manager.setCloseGuard(
-      composeCloseGuards(unsavedClose.guard, terminalClose.guard(terminalWorkspaceId, queryClient)),
+      composeCloseGuards(
+        unsavedClose.guard,
+        terminalClose.guard(terminalCloseWorkspaceId, queryClient)
+      ),
       unsavedClose.settled
     );
     return () => {
@@ -108,7 +121,7 @@ export function useDesktopChrome(
       terminalClose.cancel();
       manager.setCloseGuard(null);
     };
-  }, [manager, terminalClose, unsavedClose, terminalWorkspaceId, profileId, queryClient]);
+  }, [manager, terminalClose, unsavedClose, terminalCloseWorkspaceId, profileId, queryClient]);
   // The seam is built deeper in the tree (it needs the shell's own handlers), so
   // the stream reaches it through a ref rather than the shell reaching upward.
   const [clientCommandChannel] = useState(() => new ClientCommandChannel());

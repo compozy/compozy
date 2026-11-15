@@ -20,6 +20,8 @@ import (
 )
 
 type settingsRuntimeSurface struct {
+	digestKey         []byte
+	state             *bootState
 	config            compozyconfig.Config
 	startedAt         time.Time
 	sessions          SessionManager
@@ -60,9 +62,19 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		return &settingsRuntimeSurface{}, nil
 	}
 
+	if state.mcpDigestKeys == nil {
+		return nil, errors.New("daemon: MCP digest key provider is required")
+	}
+	digestKey, err := state.mcpDigestKeys.Key()
+	if err != nil {
+		return nil, err
+	}
+	if len(digestKey) == 0 {
+		return nil, errors.New("daemon: MCP digest key is required")
+	}
 	now, pid, info := settingsRuntimeFunctions(d)
 	mcpAuthStore, mcpAuthRegistrations, secretResolver, secretRefs := settingsMCPAuthDependencies(state)
-	mcpAuthManager, err := newSettingsMCPAuthManagerWithConfig(
+	mcpAuthManager, err := newSettingsMCPAuthManagerWithAuthorization(
 		mcpAuthStore,
 		&daemonMCPAuthNotifier{
 			writer: state.registry,
@@ -72,6 +84,9 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		mcpAuthRegistrations,
 		secretResolver,
 		state.cfg.MCP.OAuth,
+		func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+			return authorizeMCPAuthNetwork(ctx, state, cfg)
+		},
 		state.mcpAuthGeneration,
 	)
 	if err != nil {
@@ -83,6 +98,8 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 	}
 
 	return &settingsRuntimeSurface{
+		digestKey:         digestKey,
+		state:             state,
 		config:            state.cfg,
 		startedAt:         state.startedAt,
 		sessions:          state.sessions,

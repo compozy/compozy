@@ -100,10 +100,11 @@ type AgentToolPolicy struct {
 
 // SessionToolPolicy captures concrete resolved lineage atoms.
 type SessionToolPolicy struct {
-	Enforced    bool     `json:"enforced"`
-	Tools       []ToolID `json:"tools,omitempty"`
-	MCPServers  []string `json:"mcp_servers,omitempty"`
-	MCPByServer bool     `json:"mcp_by_server,omitempty"`
+	Enforced          bool     `json:"enforced"`
+	Tools             []ToolID `json:"tools,omitempty"`
+	MCPServers        []string `json:"mcp_servers,omitempty"`
+	MCPByServer       bool     `json:"mcp_by_server,omitempty"`
+	ExtensionsInherit bool     `json:"extensions_inherit,omitempty"`
 }
 
 // PolicyInputs contains the config-neutral inputs for effective policy.
@@ -300,6 +301,10 @@ func (e *EffectivePolicyEvaluator) evaluateSourcePolicy(
 	}
 	if e.hasExplicitSourceGrant(d) || e.hasExplicitToolGrant(d.ID) {
 		decision.SourcePolicyResult = policyResultAllowed
+		if e.externalDefault() == ExternalDefaultAsk {
+			decision.SourcePolicyResult = policyResultApprovalRequired
+			return true, true
+		}
 		return true, false
 	}
 	if e.isTrustedReadOnlySource(d) {

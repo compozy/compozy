@@ -18,6 +18,7 @@
 - Session rebuild bounds
 - Host load management
 - Stdio MCP server processes
+- Runtime MCP switch and external tool policy
 - Session messaging
 - Agent overrides
 - Retired memory and compaction settings
@@ -432,6 +433,33 @@ profile config only (workspace layers are rejected), applies live, and defaults 
   `provider_disabled` (HTTP 409); running sessions continue. Fallback chains and roles skip it.
 - The default provider can't be turned off (`provider_default_disable_rejected`); change
   `defaults.provider` first. Re-enabling removes the key and an emptied `[providers.<id>]` block.
+
+## Runtime MCP Switch And External Tool Policy
+
+`[providers.<id>] runtime_mcp` decides whether a runtime CLI loads its own MCP servers (the ones in
+its own files, listed read-only by `compozy mcp list`) in CompozyOS sessions. Default `"load"`.
+`"off"` is accepted only for `claude`, `copilot` and `qwen-code`; any other provider fails validation
+with `runtime_mcp_unsupported` ("<Runtime> always loads its own MCP servers; runtime_mcp can only be
+\"load\""). The key is live: set it with `compozy config set providers.claude.runtime_mcp off`,
+`compozy__config_set`, the provider PUT behind Settings → Providers, or the switch on that runtime's
+group in Settings → MCP servers. Open sessions apply it on their next message (one reload, reason
+`runtime_mcp`).
+
+- Claude: `off` launches with a strict MCP config and claude.ai connectors disabled. When the machine
+  has a managed `managed-mcp.json`, the stored `off` stays valid but has no effect, and the inventory
+  reports the switch unavailable with a note.
+- Copilot and Qwen Code: `off` passes one `--disable-mcp-server <name>` per server in the session's
+  runtime inventory (Copilot also `--disable-builtin-mcps`), recomputed at every launch. A server added
+  to the runtime file later triggers a reload at the next message. If that inventory cannot be read,
+  the `off` launch is refused instead of loading servers silently.
+- Always-on agents keep their existing isolation whatever the value.
+
+`tools.policy.external_default` keeps its values (`disabled` default, `ask`, `enabled`) and now
+applies only to MCP sources without operator consent: project-file servers waiting for approval.
+Servers added through CompozyOS, servers in operator-owned home files, enabled extensions and their
+servers are admitted regardless. `enabled` admits unapproved project servers; `disabled` and `ask`
+keep them waiting and never start them. `ask` still prompts per call for consented sources. Dynamic
+tools stay denied. Approval workflow: `references/tools-and-skills.md` (MCP Activation And Consent).
 
 ## Provider Sign-In Recovery
 

@@ -372,6 +372,7 @@ func providerMutableConfigPolicy(clean []string) (PathPolicy, bool) {
 			"auth_mode",
 			"env_policy",
 			"home_policy",
+			"runtime_mcp",
 			"steer_capability",
 			"session_mcp_transport",
 			"auth_status_command":

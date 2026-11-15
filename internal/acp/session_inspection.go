@@ -59,7 +59,7 @@ func InspectSessionModels(ctx context.Context, req SessionInspectionRequest) (Se
 				continue
 			}
 			if !model.ReadOnly {
-				if _, err := driver.applySessionModel(ctx, proc, value.Value); err != nil {
+				if _, err := driver.applySessionModel(ctx, proc, value.Value, false); err != nil {
 					result.recordModelError(value.Value, err)
 					continue
 				}

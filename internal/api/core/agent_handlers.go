@@ -96,7 +96,16 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
-	agent, err := writeAgentDefinitionWithMCP(c.Request.Context(), h.Vault, path, draft, false, req.Agent.MCPServers)
+	var warnings []string
+	agent, err := writeAgentDefinitionWithMCP(
+		c.Request.Context(),
+		h.Vault,
+		path,
+		draft,
+		false,
+		req.Agent.MCPServers,
+		agentMCPApprovalContext(h.Settings, workspaceID, profileName, &warnings),
+	)
 	if err != nil {
 		h.respondError(c, statusForCreateAgentError(err), err)
 		return
@@ -114,7 +123,8 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	entry := h.agentCatalogEntryFromDef(agent, workspaceID)
 	h.logAgentMutation("create", &entry, startedAt, time.Since(syncStartedAt))
 	c.JSON(http.StatusCreated, contract.AgentResponse{
-		Agent: AgentPayloadFromEntryWithConfig(&entry, &runtimeConfig),
+		Agent:    AgentPayloadFromEntryWithConfig(&entry, &runtimeConfig),
+		Warnings: warnings,
 	})
 }
 

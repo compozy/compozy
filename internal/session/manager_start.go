@@ -10,11 +10,17 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workref"
 )
 
 type sessionStartRuntime struct {
+	activationCatalog      *tools.AdvertisedCatalog
+	activationMode         string
+	activationDigest       string
+	activationRequest      *runtimemcp.Request
 	nativeToolsUnavailable bool
 	// startupRebuilt marks a startup definition reassembled for a switched provider or model.
 	startupRebuilt bool

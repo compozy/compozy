@@ -317,26 +317,11 @@ export function subagentLocationRows(
   return rows;
 }
 
-// Sidebar order: waiting > failed > working > queued > settled.
-const urgency = (subagent: SubagentView): number => {
-  const { glyph } = subagentDisplay(subagent);
-  if (glyph === "attention") return 0;
-  if (glyph === "failed") return 1;
-  if (glyph === "running" || glyph === "delegated") return 2;
-  if (glyph === "queued") return 3;
-  return 4;
-};
-
 // Newest first by creation; a row without a creation instant (an older daemon,
 // a partial fixture) falls back to its last update instead of breaking the sort.
 const orderKey = (subagent: SubagentView): string =>
   subagent.created_at || subagent.updated_at || "";
 const byNewest = (a: SubagentView, b: SubagentView) => orderKey(b).localeCompare(orderKey(a));
-
-/** Most urgent first (waiting > failed > working > queued > settled), then newest. */
-export function sortSubagentsByUrgency(subagents: readonly SubagentView[]): SubagentView[] {
-  return [...subagents].sort((a, b) => urgency(a) - urgency(b) || byNewest(a, b));
-}
 
 /** Inspector roster split (UT-W19): failed pinned, then live (waiting first), then previous. */
 export interface SubagentRosterGroups {

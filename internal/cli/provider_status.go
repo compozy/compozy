@@ -83,7 +83,7 @@ func buildProviderAuthStatus(
 		Login:         authproviders.DescribeProviderLogin(provider, nil, classification),
 		Credentials:   credentials,
 	}
-	nativeReady, err := populateProviderNativeCLIStatus(ctx, providerNativeCLIStatusInput{
+	nativeReady, err := populateProviderNativeCLIStatus(ctx, &providerNativeCLIStatusInput{
 		record:       &record,
 		providerName: providerName,
 		provider:     provider,
@@ -212,7 +212,7 @@ type providerNativeCLIStatusInput struct {
 
 func populateProviderNativeCLIStatus(
 	ctx context.Context,
-	input providerNativeCLIStatusInput,
+	input *providerNativeCLIStatusInput,
 ) (bool, error) {
 	if input.provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNativeCLI {
 		return true, nil
