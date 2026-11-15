@@ -113,6 +113,15 @@ func TestRuntimeDecoders(t *testing.T) {
 			t.Fatal("project auto-approved")
 		}
 	})
+	t.Run("Should keep empty env and header keys as arrays", func(t *testing.T) {
+		t.Parallel()
+		c := fixtureContext(t)
+		putFixture(t, c, "codex/config.toml", filepath.Join(c.Home, ".codex", "config.toml"))
+		server := serverFor(t, groupFor(t, c, "codex"), "computer-use")
+		if server.EnvKeys == nil || server.HeaderKeys == nil {
+			t.Fatalf("nil key lists: env=%#v headers=%#v", server.EnvKeys, server.HeaderKeys)
+		}
+	})
 	cases := []struct {
 		name, runtime, fixture, path, server, transport string
 		enabled                                         bool

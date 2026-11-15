@@ -140,8 +140,9 @@ func describeServer(runtime, name, scope, path, label string, definition object,
 		EnabledInRuntime: enabled,
 		Approval:         "not_required",
 		Auth:             "unknown",
-		EnvKeys:          keys(env),
-		HeaderKeys:       keys(headers),
+		// The wire contract requires both lists as arrays, so empty stays [] instead of null.
+		EnvKeys:    append([]string{}, keys(env)...),
+		HeaderKeys: append([]string{}, keys(headers)...),
 	}
 	s.EnvKeys = append(s.EnvKeys, names(definition["env_vars"])...)
 	for _, value := range obj(definition["env_http_headers"]) {

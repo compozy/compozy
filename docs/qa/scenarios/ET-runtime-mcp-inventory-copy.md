@@ -33,7 +33,10 @@ Steps:
 
 1. Settings → MCP servers: CompozyOS group first, then groups "Claude Code", "Codex", "Pi" and the
    other runtimes; each header names the runtime, count and "Loaded in CompozyOS sessions" or
-   "<Runtime> always loads its own servers". Env/header key names show, values never. Screenshot.
+   "<Runtime> always loads its own servers". Env/header key names show, values never. Rows without
+   env vars or headers (`cua-driver`, `computer-use`) render without key chips, and
+   `GET /api/settings/runtime-mcp-servers` returns `"env_keys": []` and `"header_keys": []` for them,
+   never `null` (#1752). Screenshot.
 2. Filter "Codex": only the Codex group remains. Screenshot. Repeat in Marketplace → MCPs.
 3. Corrupt `~/.claude.json` temporarily: only the Claude group shows "Couldn't read ~/.claude.json: …";
    others unaffected. Restore.
