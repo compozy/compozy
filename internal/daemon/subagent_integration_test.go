@@ -51,6 +51,104 @@ import (
 // Invariant: real daemon wiring reserves, launches ACP, persists a result and delivers one wake.
 // Owner: daemon orchestration; canonical suite for the new subagent journey (IT-001/IT-013 queue and replay halves).
 func TestSubagentDaemonIntegration(t *testing.T) {
+	// Invariant: deleting child history retains one terminal result and wakes its parent once.
+	for _, deletion := range []string{"running", "stopped", "missing history", "store recovery"} {
+		t.Run("Should settle and deliver a deleted child with "+deletion, func(t *testing.T) {
+			t.Parallel()
+			d, manager, workspace := newSubagentDaemonIntegration(t)
+			ctx := t.Context()
+			parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+			service := d.SubagentService()
+			row, err := service.Delegate(ctx, session.SubagentRequest{
+				Caller: caller, Task: "hold parent", Title: "Deleted child",
+			})
+			if err != nil || row.ChildSessionID == nil {
+				t.Fatal(row, err)
+			}
+			childID := *row.ChildSessionID
+			waitForRuntimeCondition(t, "child active before deletion", 10*time.Second, func() bool {
+				child, ok := manager.Get(childID)
+				return ok && child.IsPrompting() && child.CurrentTurnID() != ""
+			})
+			if deletion != "running" {
+				// Model a lost stop callback without changing the real daemon, store or ACP boundary.
+				manager.SetSubagentService(nil)
+				t.Cleanup(func() { manager.SetSubagentService(service) })
+				if err := manager.Stop(ctx, childID); err != nil {
+					t.Fatal(err)
+				}
+				manager.SetSubagentService(service)
+			}
+			if deletion == "missing history" {
+				if err := os.RemoveAll(filepath.Join(d.homePaths.SessionsDir, childID)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if deletion == "store recovery" {
+				if err := d.registry.(store.SessionCatalog).DeleteSession(ctx, childID); err != nil {
+					t.Fatal(err)
+				}
+				manager.SetSubagentService(nil)
+				if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+					t.Fatal(err)
+				}
+				waitForRuntimeCondition(t, "parent idle before recovery", 10*time.Second, func() bool {
+					return !parent.IsPrompting() && parent.CurrentTurnID() == ""
+				})
+				manager.SetSubagentService(service)
+				if err := service.Recover(ctx); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := manager.Delete(ctx, childID); err != nil {
+				t.Fatal(err)
+			}
+			current, err := service.Get(ctx, workspace, row.ID)
+			if err != nil || !store.IsSubagentStatusTerminal(current.Status) ||
+				current.WorkState != store.SubagentWorkStateResultAvailable || current.ChildSessionID != nil ||
+				current.ChildActivity != store.SubagentChildActivityStopped || current.SettledAt == nil ||
+				(current.Delivery != store.SubagentDeliveryClaimed && current.Delivery != store.SubagentDeliveryDelivered) ||
+				current.WakeMessageID == nil {
+				t.Fatalf("deleted child delegation = %+v, %v", current, err)
+			}
+			if deletion != "running" && (current.Status != store.SubagentStatusInterrupted ||
+				current.Error == nil || *current.Error != "delegation interrupted: child session deleted") {
+				t.Fatalf("unsettled delete lost its interruption: %+v", current)
+			}
+			summary, err := service.Summaries(ctx, []string{parent.ID})
+			if err != nil || summary[parent.ID].Live != 0 {
+				t.Fatal(summary, err)
+			}
+			if deletion != "store recovery" {
+				if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+					t.Fatal(err)
+				}
+			}
+			waitForRuntimeCondition(t, "deleted child wake delivered", 10*time.Second, func() bool {
+				current, err := service.Get(ctx, workspace, row.ID)
+				return err == nil && current.Delivery == store.SubagentDeliveryDelivered && !parent.IsPrompting()
+			})
+			if err := service.Recover(ctx); err != nil {
+				t.Fatal(err)
+			}
+			pending, err := d.registry.(goalSubagentWakeReader).HasPendingSubagentWake(ctx, workspace, parent.ID)
+			if err != nil || pending {
+				t.Fatalf("pending wake after delivery = %v, %v", pending, err)
+			}
+			events, err := manager.Events(ctx, parent.ID, store.EventQuery{Limit: 100})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wakes := 0
+			for _, event := range events {
+				if event.Type == acp.EventTypeSyntheticReentry {
+					wakes++
+				}
+			}
+			if wakes != 1 {
+				t.Fatalf("deleted child wake count = %d, want 1", wakes)
+			}
+		})
+	}
 	// IT-018: boot must publish the subagent service to both public transports.
 	t.Run("Should expose subagent routes over HTTP and UDS after boot", func(t *testing.T) {
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{

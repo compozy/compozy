@@ -876,32 +876,43 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 			priorSettled *time.Time
 			wantError    string
 			wakePolicy   string
+			archived     bool
 		}{
 			{
-				name: "running", status: store.SubagentStatusRunning,
+				name: "Should interrupt running work", status: store.SubagentStatusRunning,
 				activity:  store.SubagentChildActivityWorking,
 				wantError: "delegation interrupted: child session deleted",
 			},
 			{
-				name: "queued", status: store.SubagentStatusQueued,
+				name: "Should interrupt queued work", status: store.SubagentStatusQueued,
 				activity:  store.SubagentChildActivityIdle,
 				wantError: "delegation interrupted: child session deleted",
 			},
 			{
-				name: "waiting", status: store.SubagentStatusWaiting,
+				name: "Should interrupt waiting work", status: store.SubagentStatusWaiting,
 				activity:  store.SubagentChildActivityIdle,
 				wantError: "delegation interrupted: child session deleted",
 			},
 			{
-				name: "already stopped child activity", status: store.SubagentStatusRunning,
+				name: "Should interrupt work with already stopped activity", status: store.SubagentStatusRunning,
 				activity:  store.SubagentChildActivityStopped,
 				wantError: "delegation interrupted: child session deleted",
 			},
 			{
-				name: "preserves prior error and settlement", status: store.SubagentStatusRunning,
+				name: "Should preserve prior error and settlement", status: store.SubagentStatusRunning,
 				activity:   store.SubagentChildActivityWorking,
 				priorError: &priorError, priorSettled: &priorSettled,
 				wantError: priorError,
+			},
+			{
+				name: "Should retain an always wake", status: store.SubagentStatusRunning,
+				activity: store.SubagentChildActivityWorking, wakePolicy: store.SubagentWakePolicyAlways,
+				wantError: "delegation interrupted: child session deleted",
+			},
+			{
+				name: "Should interrupt archived child work", status: store.SubagentStatusRunning,
+				activity: store.SubagentChildActivityStopped, archived: true,
+				wantError: "delegation interrupted: child session deleted",
 			},
 		}
 		for _, test := range cases {
@@ -941,7 +952,19 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 				); err != nil {
 					t.Fatal(err)
 				}
-				if err := db.DeleteSession(ctx, "child"); err != nil {
+				var err error
+				if test.archived {
+					if _, err := db.DB().ExecContext(ctx, `UPDATE sessions SET archived_at = ? WHERE id = ?`,
+						store.FormatTimestamp(now), "child"); err != nil {
+						t.Fatal(err)
+					}
+					err = db.DeleteArchivedSession(ctx, store.ArchivedSessionDelete{
+						SessionID: "child", WorkspaceID: workspace, ProfileID: store.DefaultProfileID,
+					})
+				} else {
+					err = db.DeleteSession(ctx, "child")
+				}
+				if err != nil {
 					t.Fatal(err)
 				}
 				got, err := db.GetSubagent(ctx, workspace, "delegation")
@@ -953,7 +976,7 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 					got.ChildActivity != store.SubagentChildActivityStopped ||
 					got.ChildSessionID != nil ||
 					got.Error == nil || *got.Error != test.wantError ||
-					got.SettledAt == nil {
+					got.SettledAt == nil || got.Delivery != store.SubagentDeliveryPending {
 					t.Fatalf("deleted child left a non-terminal delegation: %+v", got)
 				}
 				if test.priorSettled != nil &&
@@ -965,8 +988,8 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 					t.Fatalf("summaries = %+v, %v; want no live subagent", summaries[parent], err)
 				}
 				pending, err := db.HasPendingSubagentWake(ctx, workspace, parent)
-				if err != nil || pending {
-					t.Fatalf("HasPendingSubagentWake = %v, %v; want false", pending, err)
+				if err != nil || !pending {
+					t.Fatalf("HasPendingSubagentWake = %v, %v; want a pending interruption result", pending, err)
 				}
 			})
 		}

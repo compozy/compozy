@@ -180,3 +180,14 @@ its completed status, settlement time, and result. Release-mode execution belong
 
 Delete recovery follow-up: disconnect the HTTP/UDS caller after child history is removed; the roster
 row must still disappear and the idle parent must settle. Main CI owns release-mode execution.
+
+QA impact 2026-11-15 (child-session deletion): delete the child session while its delegation is
+running or waiting, using the session menu or session DELETE route. The delegation row must remain
+readable with a terminal outcome and stopped child activity; the parent must receive its result wake
+once, and its live-child / pending-wake wait must clear after delivery. Repeat with a stopped child
+whose settlement callback was missed, missing child history, and deletion followed by daemon
+recovery. Completed delegations retain their original result, error, settlement time and delivery.
+Deleting the delegation row itself still removes the row and suppresses a result wake.
+Owning automation: `TestGlobalDBSubagentStateUpdates` and the deleted-child cases in
+`TestSubagentDaemonIntegration`, using real SQLite and ACP subprocesses. Execution is CI-only for
+this change; the earlier real-provider verdict is not renewed by this scenario update.

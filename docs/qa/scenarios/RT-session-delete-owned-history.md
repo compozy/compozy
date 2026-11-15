@@ -129,3 +129,11 @@ or losing history; release the preparation and retry successfully. Recover missi
 on Windows with a mutation-capable directory handle. Recovery binds the database using the receipt's
 immutable owner even when its reconciliation workspace differs. The existing `TestManagerDelete`
 suite owns these cases; final-head CI verification is pending, and no local lab was run.
+
+Child-delegation follow-up 2026-11-15: after deleting a delegated child session, retain its parent's
+delegation result and deliver one completion wake. The store terminalizes any unobserved live row
+in the deletion transaction, including archived-only deletion, and the manager reconciles delivery
+after releasing its lifecycle lock. Exercise running, stopped and missing-history children, plus
+recovery after a store-only delete; the parent must stop waiting after delivery. Coverage belongs to
+`TestSubagentDaemonIntegration` and `TestGlobalDBSubagentStateUpdates`. CI-only execution is required
+for this batch; no local daemon or manual QA walk was run.

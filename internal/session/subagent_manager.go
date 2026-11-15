@@ -3,11 +3,59 @@ package session
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"sync"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 )
+
+func (m *Manager) prepareSubagentSessionDelete(ctx context.Context, child string) (func(bool), error) {
+	service, ok := m.subagentService().(*subagentService)
+	if !ok || service.childSettlementSuppressed(child) {
+		return func(bool) {}, nil
+	}
+	row, err := service.store.GetSubagentByChild(ctx, child)
+	if errors.Is(err, store.ErrSubagentNotFound) {
+		return func(bool) {}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return func(deleted bool) {
+		if !deleted {
+			return
+		}
+		settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+		defer cancel()
+		m.logSubagentError(service.onChildSessionDeleted(settleCtx, row))
+	}, nil
+}
+
+func (s *subagentService) onChildSessionDeleted(ctx context.Context, before store.SessionSubagent) error {
+	unlock := s.lock(before.ParentSessionID)
+	row, err := s.store.GetSubagent(ctx, before.WorkspaceID, before.ID)
+	if errors.Is(err, store.ErrSubagentNotFound) {
+		unlock()
+		return nil
+	}
+	if err == nil && !store.IsSubagentStatusTerminal(before.Status) {
+		s.publishTerminal(ctx, row)
+	} else if err == nil {
+		s.publish(ctx, row)
+	}
+	if err == nil && row.Delivery == store.SubagentDeliveryPending {
+		err = s.planDelivery(ctx, row)
+	}
+	if err == nil {
+		err = s.settleParent(ctx, before.ParentSessionID)
+	}
+	unlock()
+	if err != nil {
+		return err
+	}
+	return s.OnChildSettled(ctx, before.ParentSessionID)
+}
 
 func (m *Manager) logSubagentError(err error) {
 	if err != nil {

@@ -2333,12 +2333,8 @@ UPDATE session_subagents SET
  child_activity = 'stopped',
  delivery = CASE
   WHEN status IN ('completed','failed','canceled','interrupted') THEN delivery
-  WHEN delivery IN ('delivered','acknowledged','disposed') THEN delivery
-  ELSE 'disposed' END,
- wake_message_id = CASE
-  WHEN status IN ('completed','failed','canceled','interrupted') THEN wake_message_id
-  WHEN delivery IN ('delivered','acknowledged','disposed') THEN wake_message_id
-  ELSE NULL END,
+  WHEN delivery = 'none' THEN 'pending'
+  ELSE delivery END,
  updated_at = ?1
 WHERE origin = 'delegated' AND child_session_id = ?2
  AND (child_activity <> 'stopped' OR status NOT IN ('completed','failed','canceled','interrupted'))

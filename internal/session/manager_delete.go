@@ -71,6 +71,13 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 		return err
 	}
 
+	finishSubagent, err := m.prepareSubagentSessionDelete(ctx, target)
+	if err != nil {
+		return err
+	}
+	// Settlement snapshots sessions, so defer it until after the lifecycle mutex is released.
+	defer func() { finishSubagent(err == nil) }()
+
 	return m.deletePreparedSession(ctx, target, info, archived)
 }
 
@@ -149,8 +156,16 @@ func (m *Manager) deleteMissingSession(
 	if err := m.removeSessionGoals(ctx, &stopInfo); err != nil {
 		return true, fmt.Errorf("session: cancel Goals before delete: %w", err)
 	}
+	finishSubagent, err := m.prepareSubagentSessionDelete(ctx, target)
+	if err != nil {
+		return true, err
+	}
+	deleted := false
+	defer func() { finishSubagent(deleted) }()
 	if _, err := os.Lstat(store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))); err == nil {
-		return true, m.deletePreparedSession(ctx, target, info, archived)
+		deleteErr := m.deletePreparedSession(ctx, target, info, archived)
+		deleted = deleteErr == nil
+		return true, deleteErr
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return true, err
 	}
@@ -161,6 +176,7 @@ func (m *Manager) deleteMissingSession(
 	if err := m.deleteSessionCatalogRow(ctx, target, archived); err != nil {
 		return true, err
 	}
+	deleted = true
 	m.replyWatchSessionDeleted(ctx, target)
 	m.publishCommittedSessionDelete(&stagedSessionDelete{info: info})
 	if err := m.reconcileDeletedSessionWindows(
