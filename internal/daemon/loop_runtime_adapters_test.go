@@ -2829,7 +2829,7 @@ func TestLoopGateDetachedPipeHolderProcess(_ *testing.T) {
 	cmd := exec.Command("sh", "-c", "exec sleep 600")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	procutil.ConfigureCommandSession(cmd)
+	procutil.ConfigureCommandProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
