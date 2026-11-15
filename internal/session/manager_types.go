@@ -74,6 +74,8 @@ type CreateOpts struct {
 	// DiscardStartFailure prevents internal retry attempts from leaving durable
 	// session artifacts when provider startup fails before Create returns.
 	DiscardStartFailure bool
+	// DiscardStartFailureWhen selects unaccepted startup failures owned by an internal retry policy.
+	DiscardStartFailureWhen func(error) bool
 	// deriveSelectsRuntime records the explicit runtime fields as the child's selected runtime.
 	deriveSelectsRuntime bool
 }

@@ -87,6 +87,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts *CreateOpts) (ses
 		creationIdentityPinned:   opts.CreationProfile != nil || opts.CreationIdentity != nil,
 		creationIdentityEnabled:  true,
 		discardStartFailure:      opts.DiscardStartFailure,
+		discardStartFailureWhen:  opts.DiscardStartFailureWhen,
 		parentSoulDigest:         strings.TrimSpace(opts.ParentSoulDigest),
 		derivation:               store.CloneSessionDerivation(opts.Derivation),
 		importedContext:          store.CloneSessionImportedContext(opts.ImportedContext),

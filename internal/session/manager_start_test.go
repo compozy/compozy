@@ -424,6 +424,124 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	})
 }
 
+// Invariant: internal retries discard only selected unaccepted starts and retain terminal or cleanup diagnostics.
+func TestCreateConditionalStartupFailureRetention(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		discard          bool
+		accepted         bool
+		cleanupFailure   bool
+		directoryFailure bool
+	}{
+		{name: "Should remove intermediate retry session artifacts", discard: true},
+		{name: "Should retain terminal startup failure diagnostics"},
+		{name: "Should retain failures after provider acceptance", discard: true, accepted: true},
+		{name: "Should prevent a retry when cleanup retains the failed session", discard: true, cleanupFailure: true},
+		{name: "Should prevent a retry and release active ownership when directory commit fails", discard: true, directoryFailure: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cleanupErr := errors.New("catalog deletion unavailable")
+			var h *deriveHarness
+			var failedSessionID, stagedPath string
+			h = newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
+				if tc.directoryFailure {
+					return WithSessionCatalog(&triageDeleteCatalog{
+						GlobalDB: db, beforeDelete: func(_ context.Context, id string) error {
+							failedSessionID = id
+							entries, err := os.ReadDir(h.homePaths.SessionsDir)
+							if err != nil {
+								return err
+							}
+							for _, entry := range entries {
+								if !strings.HasPrefix(entry.Name(), sessionDeleteStagedPrefix) {
+									continue
+								}
+								stagedPath = filepath.Join(h.homePaths.SessionsDir, entry.Name())
+								committedName := strings.Replace(
+									entry.Name(), sessionDeleteStagedPrefix, sessionDeleteCommittedPrefix, 1,
+								)
+								// A nonempty destination makes the real commit rename fail.
+								committedPath := filepath.Join(h.homePaths.SessionsDir, committedName)
+								if err := os.Mkdir(committedPath, 0o700); err != nil {
+									return err
+								}
+								return os.WriteFile(filepath.Join(committedPath, "collision"), nil, 0o600)
+							}
+							return errors.New("staged session directory missing")
+						},
+					})
+				}
+				if tc.cleanupFailure {
+					return WithSessionCatalog(&triageDeleteCatalog{
+						GlobalDB: db, beforeDelete: func(context.Context, string) error { return cleanupErr },
+					})
+				}
+				return WithSessionCatalog(db)
+			})
+			startErr := acp.WrapFailure(store.FailureHandshake, "ACP initialize failed", context.DeadlineExceeded)
+			if tc.accepted {
+				startErr = acp.WrapAcceptedStart("provider-session", startErr)
+			}
+			h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) { return nil, startErr }
+			_, err := h.manager.Create(t.Context(), &CreateOpts{
+				AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+				DiscardStartFailureWhen: func(err error) bool {
+					if !errors.Is(err, startErr) {
+						t.Fatalf("startup policy error = %v", err)
+					}
+					return tc.discard
+				},
+			})
+			if !errors.Is(err, startErr) {
+				t.Fatalf("Create error = %v, want startup failure", err)
+			}
+			if tc.cleanupFailure && (!errors.Is(err, ErrRecoveryPersistence) || !errors.Is(err, cleanupErr)) {
+				t.Fatalf("cleanup ownership lost: %v", err)
+			}
+			startupErr := err
+			rows, err := h.db.ListSessions(t.Context(), store.SessionListQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, Archive: store.SessionArchiveInclude,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.directoryFailure {
+				if !errors.Is(startupErr, ErrRecoveryPersistence) {
+					t.Fatalf("directory cleanup allowed retry: %v", startupErr)
+				}
+				if len(rows) != 0 {
+					t.Fatalf("deleted catalog rows = %+v", rows)
+				}
+				if _, active := h.manager.Get(failedSessionID); active {
+					t.Fatal("failed directory commit retained active start")
+				}
+				if h.manager.sessionStartRun(failedSessionID) != nil {
+					t.Fatal("failed directory commit retained start owner")
+				}
+				if _, err := os.Stat(store.SessionDBFile(stagedPath)); err != nil {
+					t.Fatalf("recovery tombstone lost its database: %v", err)
+				}
+				return
+			}
+			if tc.discard && !tc.accepted && !tc.cleanupFailure {
+				if len(rows) != 0 {
+					t.Fatalf("intermediate failed sessions = %+v", rows)
+				}
+				entries, err := os.ReadDir(h.homePaths.SessionsDir)
+				if err != nil || len(entries) != 0 {
+					t.Fatalf("intermediate session artifacts = %v, error = %v", entries, err)
+				}
+				return
+			}
+			if len(rows) != 1 || rows[0].Failure == nil || rows[0].Failure.Kind != store.FailureHandshake ||
+				rows[0].Failure.Summary == "" || rows[0].State != string(StateStopped) {
+				t.Fatalf("retained startup diagnostics = %+v", rows)
+			}
+		})
+	}
+}
+
 // Invariant: provider launch filters secrets, preserves CLI profile names and exports stable process ownership.
 // Owner: session launch environment; canonical session start environment suite.
 func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
