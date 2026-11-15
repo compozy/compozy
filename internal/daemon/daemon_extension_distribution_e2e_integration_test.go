@@ -519,7 +519,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		BinaryPath: binaryPath,
 		ConfigSeed: configSeed,
 		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+			FixturePath:  mockFixturePath(t, "hosted_protocol_fixture.json"),
 			FixtureAgent: "hosted-native",
 			AgentName:    "mock-installed-extension",
 		}},

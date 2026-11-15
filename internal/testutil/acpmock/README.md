@@ -50,6 +50,11 @@ It uses MCP `tools/call`; no operator API invocation or synthetic tool response 
   continue to leave the injected server untouched. Sessions the daemon starts without that
   server, such as Goal judges, still start; only a native step executed there fails.
 
+`testdata/hosted_protocol_fixture.json` leaves hosted MCP unopened for tests that own the
+provider-side stdio client themselves. Use `hosted_native_tools_fixture.json` when the agent
+process owns native calls. A launch admits one active client; protocol tests must acknowledge
+the initial tool catalog before changing sources to exercise reloads from a served catalog.
+
 `testdata/native_tool_delegate_fixture.json` supplies `subagent-delegator` and
 `subagent-worker`. Register both under those agent names, prompt the parent with
 `delegate child work`, and inspect its transcript for `delegate-child`. The parent discovers

@@ -753,7 +753,7 @@ func TestDaemonHostedMCPLiveAuthRefresh(t *testing.T) {
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			MockAgents: []e2etest.MockAgentSpec{
 				{
-					FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+					FixturePath:  mockFixturePath(t, "hosted_protocol_fixture.json"),
 					FixtureAgent: "hosted-native",
 					AgentName:    "mock-live-mcp",
 				},
@@ -922,7 +922,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			MockAgents: []e2etest.MockAgentSpec{
 				{
-					FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+					FixturePath:  mockFixturePath(t, "hosted_protocol_fixture.json"),
 					FixtureAgent: "hosted-native",
 					AgentName:    "mock-hosted-native",
 				},
@@ -1100,7 +1100,7 @@ matcher = {tool_id = "compozy__task_list"}
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			MockAgents: []e2etest.MockAgentSpec{{
-				FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+				FixturePath:  mockFixturePath(t, "hosted_protocol_fixture.json"),
 				FixtureAgent: "hosted-native",
 				AgentName:    "mock-hosted-provider-legacy",
 			}},
@@ -1142,7 +1142,7 @@ matcher = {tool_id = "compozy__task_list"}
 				cfg.Providers["codex"] = provider
 			}},
 			MockAgents: []e2etest.MockAgentSpec{{
-				FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+				FixturePath:  mockFixturePath(t, "hosted_protocol_fixture.json"),
 				FixtureAgent: "hosted-native",
 				AgentName:    "mock-provider-models",
 			}},
@@ -3378,7 +3378,7 @@ func TestDaemonWorkspaceMCPExecutionConsent(t *testing.T) {
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			MockAgents: []e2etest.MockAgentSpec{
 				{
-					FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+					FixturePath:  mockFixturePath(t, "hosted_protocol_fixture.json"),
 					FixtureAgent: "hosted-native",
 					AgentName:    "mock-consent",
 				},
@@ -3827,7 +3827,7 @@ func TestDaemonMCPHotActivation(t *testing.T) {
 	for _, change := range []string{"settings", "file", "launch failure"} {
 		t.Run("Should activate an MCP after "+change, func(t *testing.T) {
 			t.Parallel()
-			fixture, err := os.ReadFile(mockFixturePath(t, "hosted_native_tools_fixture.json"))
+			fixture, err := os.ReadFile(mockFixturePath(t, "hosted_protocol_fixture.json"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3849,6 +3849,7 @@ func TestDaemonMCPHotActivation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 			defer cancel()
 			active := createBoundFixtureBackedSession(t, ctx, harness, "mock-activation", "activation")
+			retainActivationCatalog(t, ctx, harness, "mock-activation", active.ID)
 			before, err := harness.SessionEvents(ctx, active.ID)
 			if err != nil {
 				t.Fatal(err)
@@ -4044,6 +4045,21 @@ func activationPromptHTTP(
 	return response.StatusCode, body
 }
 
+// The protocol test owns the provider-side client and acknowledges the initial catalog
+// before changing sources, so the next prompt compares against tools actually served.
+func retainActivationCatalog(t *testing.T, ctx context.Context, harness *e2etest.RuntimeHarness, agent, id string) {
+	t.Helper()
+	client := activationHostedClient(t, ctx, harness, agent, id)
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := client.ListTools(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func activationHostedClient(
 	t *testing.T,
 	ctx context.Context,
@@ -4112,7 +4128,7 @@ func TestDaemonMCPHotActivationInheritance(t *testing.T) {
 			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 				MockAgents: []e2etest.MockAgentSpec{
 					{
-						FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+						FixturePath:  mockFixturePath(t, "hosted_protocol_fixture.json"),
 						FixtureAgent: "hosted-native",
 						AgentName:    "mock-inherit",
 					},
@@ -4245,7 +4261,7 @@ func TestDaemonMCPHotActivationInheritance(t *testing.T) {
 			registration := harness.RegisterMockAgent(
 				t,
 				e2etest.MockAgentSpec{
-					FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+					FixturePath:  mockFixturePath(t, "hosted_protocol_fixture.json"),
 					FixtureAgent: "hosted-native",
 					AgentName:    "mock-always",
 				},
@@ -4291,6 +4307,13 @@ func TestDaemonMCPHotActivationInheritance(t *testing.T) {
 			}
 			if _, err := harness.PromptSession(ctx, mainID, "noop"); err != nil {
 				t.Fatal(err)
+			}
+			targets := []struct{ id, agent string }{
+				{forked.ID, "mock-inherit"}, {continued.ID, "mock-inherit"},
+				{child, "mock-inherit"}, {mainID, "mock-always"},
+			}
+			for _, target := range targets {
+				retainActivationCatalog(t, ctx, harness, target.agent, target.id)
 			}
 			// Install and exercise enablement after all cached hosts have bound.
 			source := filepath.Join(t.TempDir(), "activation")
@@ -4370,7 +4393,7 @@ func TestDaemonMCPHotActivationInheritance(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			for _, target := range []struct{ id, agent string }{{forked.ID, "mock-inherit"}, {continued.ID, "mock-inherit"}, {child, "mock-inherit"}, {mainID, "mock-always"}} {
+			for _, target := range targets {
 				waitForRuntimeCondition(t, "inherited late catalog", 10*time.Second, func() bool {
 					return activationSessionHasTool(ctx, harness, target.id, "mcp__echo__echo") &&
 						activationSessionHasTool(ctx, harness, target.id, "ext__activation__ping")
