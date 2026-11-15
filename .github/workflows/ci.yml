@@ -773,15 +773,6 @@ jobs:
           CI: "true"
           COMPOZY_E2E_WEB_SHARD: ${{ matrix.shard }}/6
 
-      - name: Upload E2E-023 switch CPU diagnostics
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: e2e023-diagnostics-shard-${{ matrix.shard }}
-          path: .tmp/playwright/test-results/*E2E-023*/diagnostic-profiles
-          if-no-files-found: ignore
-          retention-days: 7
-
       - name: Upload session lifecycle QA evidence
         if: always()
         uses: actions/upload-artifact@v7

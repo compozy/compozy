@@ -27,7 +27,6 @@ import { windowManagerStore } from "../stores/window-manager-store";
 import type { DesktopOverviewSegmentRequest } from "../stores/window-manager-store-types";
 import type { FocusedSessionControls } from "../components/focused-session-controls";
 import { useDesktop } from "./use-desktop";
-import { useDesktopManagerSurfaces } from "./use-desktop-manager-surfaces";
 import { useDesktopOverlays } from "./use-desktop-overlays";
 import { useDesktopPager, useDesktopShellState } from "./use-desktop-shell-state";
 import type { DesktopShellModel } from "./use-desktop-shell-model";
@@ -161,7 +160,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     onOpenBell: () => overlays.setOverlayOpen("bell", true),
     bellOpen: overlays.activeOverlay === "bell",
   });
-  const managerSurfaces = useDesktopManagerSurfaces();
   const reducedMotion = useOsDocumentReducedMotion();
   const transition = useDesktopTransitionIntent();
   const { manager, coordinator } = useOsShell();
@@ -331,7 +329,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     desktop,
     desktopRef,
     manager,
-    managerSurfaces,
     onDesktopManagerOpenChange: setDesktopManagerOpen,
     desktopSwitchShortcuts,
     onOpenDesktopOverview: openDesktopOverview,

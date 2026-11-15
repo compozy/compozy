@@ -86,5 +86,3 @@ export function useDesktopManagerSurfaces() {
     pending,
   };
 }
-
-export type DesktopManagerSurfacesModel = ReturnType<typeof useDesktopManagerSurfaces>;

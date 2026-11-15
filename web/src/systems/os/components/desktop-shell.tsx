@@ -226,7 +226,6 @@ function DesktopShellScopedBody({
     desktop,
     desktopRef,
     manager,
-    managerSurfaces,
     onDesktopManagerOpenChange,
     desktopSwitchShortcuts,
     onOpenDesktopOverview,
@@ -374,7 +373,6 @@ function DesktopShellScopedBody({
           "row-span-2 row-start-2",
           desktop.presentation !== "compact" ? "col-start-2 rounded-tl-lg" : "col-span-full"
         )}
-        model={managerSurfaces}
         needsYouDesktopIds={pager.needsYouDesktopIds}
         switchShortcuts={desktopSwitchShortcuts}
         onCreateDesktop={() => manager.createDesktop()}
