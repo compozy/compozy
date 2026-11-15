@@ -1,5 +1,17 @@
 # Compozy Change Impact
 
+## User-scope MCP policy resolution — 2026-11-15
+
+Owner: release `rel/main-health`, CI regression introduced by #1725.
+
+- User session creation, automation execution, and native tool discovery resolve the live user/profile
+  configuration through the narrow agent resolver without looking up `@user` as a registered project.
+  Project roots and skills are excluded from this resolution; explicit permission ceilings remain intact.
+- Existing CLI/HTTP/UDS and native tool contracts are preserved. No new hooks, extension APIs, config
+  keys, database shapes, or official skill changes. Web uses the same session and automation endpoints.
+- QA: `RT-session-cwd-resume`; release rules prohibit local verification, so runtime/E2E proof belongs
+  to current-main CI. The focused resolver regression is in `TestWorkspaceContractAgentConfigResolution`.
+
 ## Per-model reasoning effort ceiling — 2026-11-14
 
 Owner: `fix/model-effort-levels`. Web-only bug fix (internal regime, SD-013).

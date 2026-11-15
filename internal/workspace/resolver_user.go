@@ -56,6 +56,21 @@ func (r *Resolver) ResolveUser(ctx context.Context, profileID string) (ResolvedW
 	return resolved, nil
 }
 
+func (r *Resolver) resolveUserAgentConfig(
+	ctx context.Context, profileName, profileID string,
+) (ResolvedAgentConfig, error) {
+	scan, err := r.scanAgentConfig(ctx, Workspace{}, profileName)
+	if err != nil {
+		return ResolvedAgentConfig{}, err
+	}
+	resolved, err := r.buildResolvedAgentConfig(ctx, Workspace{}, scan.agents, profileName)
+	if err != nil {
+		return ResolvedAgentConfig{}, err
+	}
+	resolved.ProfileID = profileID
+	return resolved, nil
+}
+
 func (r *Resolver) userWorkDir(value string) (string, error) {
 	root := strings.TrimSpace(value)
 	if root == "~" {
