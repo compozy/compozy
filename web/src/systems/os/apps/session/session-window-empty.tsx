@@ -13,17 +13,17 @@ import {
 } from "@/systems/session";
 
 const SessionProcessChoiceDialog = lazy(() =>
-  import("@/systems/session/components/session-process-choice-dialog").then(module => ({
+  import("@/systems/session").then(module => ({
     default: module.SessionProcessChoiceDialog,
   }))
 );
 const SessionLaterDialog = lazy(() =>
-  import("@/systems/session/components/session-later-dialog").then(module => ({
+  import("@/systems/session").then(module => ({
     default: module.SessionLaterDialog,
   }))
 );
 const SessionRenameDialog = lazy(() =>
-  import("@/systems/session/components/session-rename-dialog").then(module => ({
+  import("@/systems/session").then(module => ({
     default: module.SessionRenameDialog,
   }))
 );
