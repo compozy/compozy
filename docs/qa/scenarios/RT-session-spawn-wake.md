@@ -318,3 +318,11 @@ would need an explicit ordering contract. Lifecycle catalog absence is typed `Er
 the alarm discards a deleted child, while storage errors remain retryable. Lifecycle persistence
 and recovery propagate either failure without publishing a fabricated transition; API not-found
 classification remains available through wrapping.
+
+QA impact 2026-11-15 — With a parent agent whose tool allowlist or deny patterns exclude an
+otherwise admitted extension or MCP tool, spawn a less restricted child using default inheritance.
+The spawn succeeds and its effective tools stay within the parent's ceiling. Repeat with an
+explicit request for the excluded tool: the spawn is refused with a subset error. Existing
+inheritance without a tool-policy difference keeps its live intent. Automated owner:
+`TestManagerSpawnResolvesPermissionSelection`; execution and the public-surface walk remain
+unrun locally under release-mode instructions.

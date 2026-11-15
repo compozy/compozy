@@ -55,7 +55,29 @@ func (m *Manager) resolveSpawnPermissionPolicy(
 		policy.Tools = append(slices.Clone(base), selected...)
 		policy.MaterializedTools = false
 	}
-	return bindSpawnPermissionIntent(parent, opts, ceiling, policy)
+	policy, err = bindSpawnPermissionIntent(parent, opts, ceiling, policy)
+	if err != nil {
+		return store.SessionPermissionPolicy{}, err
+	}
+	_, _, toolsNamed := spawnPermissionSelections(parent, opts)
+	if toolsNamed {
+		return policy, nil
+	}
+	candidate := *opts
+	candidate.PermissionPolicy = policy
+	child, err := m.effectiveSpawnAuthority(ctx, parent, &candidate)
+	if err != nil {
+		return store.SessionPermissionPolicy{}, err
+	}
+	bounded := slices.DeleteFunc(slices.Clone(child.Tools), func(id string) bool {
+		return !slices.Contains(ceiling.Tools, id)
+	})
+	if len(bounded) != len(child.Tools) {
+		policy.Tools = bounded
+		policy.ToolsMode = store.PermissionList
+		policy.MaterializedTools = false
+	}
+	return store.NormalizeSessionPermissionPolicy(policy), nil
 }
 
 // bindSpawnPermissionIntent records the immutable inherited bounds, separately from live authority.

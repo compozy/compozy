@@ -1922,6 +1922,63 @@ func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: default inheritance intersects live child tools with the parent's effective ceiling.
+	// Owner: session spawn admission; composition-root authority is the unit-test I/O boundary.
+	for _, deniedTool := range []string{"mcp__remote__read", "extension__example__read"} {
+		for _, explicit := range []bool{false, true} {
+			name := "Should narrow inherited " + deniedTool
+			if explicit {
+				name = "Should refuse an explicit request for " + deniedTool
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				h := newHostedMCPHarness(t)
+				parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
+					ToolsMode: store.PermissionInherit, MCPServersMode: store.PermissionInherit,
+					Tools: []string{testToolRead},
+				}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+				cleanupSessionStop(t, h, parent.ID)
+				authority := h.manager.mcpAuthority
+				h.manager.SetMCPAuthorityResolver(lineageAuthorityFunc(func(
+					ctx context.Context, id string,
+				) (store.SessionPermissionPolicy, error) {
+					policy, err := authority.EffectiveMCPAuthority(ctx, id)
+					if err != nil {
+						return policy, err
+					}
+					if id != parent.ID && policy.ToolsMode == store.PermissionInherit {
+						policy.Tools = append(slices.Clone(policy.Tools), deniedTool)
+					}
+					return store.NormalizeSessionPermissionPolicy(policy), nil
+				}))
+				opts := SpawnOpts{
+					ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute, InheritPermissions: true,
+				}
+				if explicit {
+					opts.PermissionNarrowing = &SubagentPermissionNarrowing{Tools: []string{deniedTool}}
+				}
+				child, err := h.manager.Spawn(t.Context(), &opts)
+				if explicit {
+					if !errors.Is(err, ErrSpawnPermissionDenied) {
+						t.Fatalf("explicit escalation = %v, want refusal", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("default inheritance = %v", err)
+				}
+				cleanupSessionStop(t, h, child.ID)
+				stored := readMeta(t, child.MetaPath()).Lineage.PermissionPolicy
+				if stored.ToolsMode != store.PermissionList || !slices.Equal(stored.Tools, []string{testToolRead}) {
+					t.Fatalf("persisted child ceiling = %+v", stored)
+				}
+				effective, err := h.manager.EffectiveMCPAuthority(t.Context(), child.ID)
+				if err != nil || !slices.Equal(effective.Tools, []string{testToolRead}) {
+					t.Fatalf("effective child tools = %v, %v", effective.Tools, err)
+				}
+			})
+		}
+	}
 }
 
 func TestManagerSpawnNamesTheRefusedPermission(t *testing.T) {
