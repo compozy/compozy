@@ -1,6 +1,6 @@
 // Suite: Window-manager shared transport handlers.
 // Invariants: WM-TRANSPORT-002 strict command schemas and status/body envelopes;
-// WM-GO-014 workspace/client isolation.
+// WM-GO-014 workspace/client isolation; accepted commands survive client disconnection.
 // Owning layer: shared HTTP/UDS core handlers. Canonical suite: this file.
 // Boundary IN: strict wire decoding, path/body identity, and public error mapping.
 // Boundary OUT: reducer, persistence, and topology semantics belong to internal/windowmanager.
@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,63 @@ import (
 )
 
 func TestWindowManagerHandlers(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		workspace string
+		allowed   bool
+	}{
+		{"Should persist an accepted pin after the client disconnects", "workspace-a", true},
+		{"Should refuse an unknown workspace after the client disconnects", "missing-workspace", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			repository := windowmanager.NewMemoryRepository()
+			fixture := newWindowManagerHandlerFixtureWithRepository(t, repository)
+			opened := performWindowManagerTestRequest(t, fixture.router, http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", 0, "window.open",
+					`{"window":{"id":"window-a","app":"tasks","desktop_id":"desktop-default",`+
+						`"route":{"pathname":"/tasks","search":{}}}}`))
+			requireWindowManagerStatus(t, opened, http.StatusOK)
+			body := windowManagerTestCommandBody(test.workspace, 1, "window.pin",
+				`{"window_id":"window-a","pinned":true}`)
+			requestCtx, disconnect := context.WithCancel(t.Context())
+			defer disconnect()
+			request := httptest.NewRequestWithContext(requestCtx, http.MethodPost,
+				windowManagerTestPath(test.workspace)+"/commands", strings.NewReader(body))
+			request.Header.Set("Content-Type", "application/json")
+			request.Body = &windowManagerDisconnectBody{ReadCloser: request.Body, disconnect: disconnect}
+			response := httptest.NewRecorder()
+			fixture.router.ServeHTTP(response, request)
+			if !errors.Is(requestCtx.Err(), context.Canceled) {
+				t.Fatal("request was not canceled after its complete body was read")
+			}
+			if test.allowed {
+				requireWindowManagerStatus(t, response, http.StatusOK)
+			} else {
+				requireWindowManagerError(
+					t,
+					response,
+					http.StatusNotFound,
+					contract.WindowManagerErrorWorkspaceNotFound,
+				)
+			}
+			stored, err := repository.Load(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			for _, tab := range stored.Desktops[0].Tabs {
+				if tab.ID == stored.Windows["window-a"].TabID {
+					if tab.Pinned != test.allowed {
+						t.Fatalf("persisted pin = %v, want %v", tab.Pinned, test.allowed)
+					}
+					return
+				}
+			}
+			t.Fatal("persisted window tab is missing")
+		})
+	}
+
 	t.Run("Should preview without writing, commit once, and expose revision conflicts", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)
@@ -1062,6 +1120,19 @@ func TestWindowManagerHandlers(t *testing.T) {
 			t.Fatal("net.ErrClosed was classified as an unexpected socket failure")
 		}
 	})
+}
+
+type windowManagerDisconnectBody struct {
+	io.ReadCloser
+	disconnect context.CancelFunc
+}
+
+func (body *windowManagerDisconnectBody) Read(buffer []byte) (int, error) {
+	count, err := body.ReadCloser.Read(buffer)
+	if errors.Is(err, io.EOF) {
+		body.disconnect()
+	}
+	return count, err
 }
 
 type windowManagerHandlerFixture struct {

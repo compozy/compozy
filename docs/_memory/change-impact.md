@@ -6405,3 +6405,15 @@ CLI, HTTP/UDS and `compozy__session_continue` share the manager behavior; Web re
 the same existing errors. No route/DTO, hook, extension API, config, persistence, workspace
 isolation or official skill change. `ET-cli-session-continue`, `TestContinueSession` and
 the unchanged runtime E2E own validation; release CI is the only execution gate.
+
+## Release main-health: accepted layout commands survive disconnect
+
+The shared HTTP/UDS command handler gives accepted window-manager commands an independent,
+30-second execution lifetime. Profile selection still precedes admission; workspace authorization,
+revision CAS and commit run in order with the same request values after a client disconnect.
+Pin and other commands on this route therefore finish saving across an immediate Web reload.
+CLI/native window tools, DTOs, hooks, extension APIs, config, schema, official skills and
+workspace/profile isolation keep their existing contracts. No Web source or E2E expectation
+changes. `TestWindowManagerHandlers` owns admission/cancellation and persisted read-back;
+the unchanged Tabs-split E2E-004 and `ET-web-desktop-shell-lifecycle` own browser acceptance.
+Main CI is the only execution gate under the release directive.

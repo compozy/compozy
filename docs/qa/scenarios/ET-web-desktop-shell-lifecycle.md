@@ -16,6 +16,12 @@ last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
+qa-impact: 2026-11-15 accepted window-manager commands retain workspace authorization and
+finish their durable commit within a separate 30-second lifetime after a browser disconnect.
+Pin a tab and immediately reload; its pin and leftmost position must survive. Repeat with
+another layout change. Tabs-split E2E-004 remains unchanged and CI owns the real-browser check;
+the shared handler suite cancels the request after body admission and reads committed state.
+
 qa-impact: 2026-11-13 (#1660) ordinary tab/head clicks below the 5 px drag threshold must
 not prepare drop geometry or publish an active drag view. Verify click activation and
 head controls, then drag across the threshold (including a release without an intermediate

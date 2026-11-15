@@ -1,13 +1,17 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
 )
+
+const windowManagerCommandTimeout = 30 * time.Second
 
 // GetWindowManagerSnapshot returns the complete authorized workspace aggregate.
 func (h *BaseHandlers) GetWindowManagerSnapshot(c *gin.Context) {
@@ -73,7 +77,13 @@ func (h *BaseHandlers) handleWindowManagerCommand(c *gin.Context, previewOnly bo
 		c.JSON(http.StatusOK, payload)
 		return
 	}
-	result, err := service.Execute(c.Request.Context(), request)
+	// A reload can close the connection after admission but before the layout commit.
+	ctx, cancel := context.WithTimeout(
+		context.WithoutCancel(c.Request.Context()),
+		windowManagerCommandTimeout,
+	)
+	defer cancel()
+	result, err := service.Execute(ctx, request)
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
