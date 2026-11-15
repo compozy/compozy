@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 const testMCPDefinitionFingerprint = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -1320,4 +1321,80 @@ func seedMCPOwnerMigrationFixture(t *testing.T, previous *sql.DB) []string {
 		FROM (SELECT * FROM vault_secrets ORDER BY ref)`,
 	}
 	return queries
+}
+
+// Invariant: approvals survive reopen and a same-name definition in another file
+// cannot overwrite them. Owner: globaldb MCP persistence; canonical auth storage suite.
+func TestMCPApprovalSourceIsolationAndReopen(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain independent source keys and update one approval", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspaceID := "ws_1111111111111111"
+		if err := db.InsertWorkspace(
+			t.Context(),
+			compozyworkspace.Workspace{ID: workspaceID, RootDir: t.TempDir(), Name: "approval"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		first := store.MCPApproval{
+			ID:               "mcpa-one",
+			ProfileID:        store.DefaultProfileID,
+			WorkspaceID:      workspaceID,
+			ServerName:       "sentry",
+			SourceID:         ".compozy/mcp.json",
+			DefinitionDigest: "first",
+			ApprovedAt:       time.Now().UTC(),
+		}
+		second := first
+		second.ID = "mcpa-two"
+		second.SourceID = ".compozy/agents/worker/mcp.json"
+		second.DefinitionDigest = "second"
+		for _, approval := range []store.MCPApproval{first, second} {
+			if err := db.PutMCPServerApproval(t.Context(), approval); err != nil {
+				t.Fatal(err)
+			}
+		}
+		first.ID = "mcpa-update"
+		first.DefinitionDigest = "updated"
+		if err := db.PutMCPServerApproval(t.Context(), first); err != nil {
+			t.Fatal(err)
+		}
+		path := db.Path()
+		if err := db.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenGlobalDB(t.Context(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		rows, err := reopened.ListMCPServerApprovals(t.Context(), store.DefaultProfileID, workspaceID)
+		if err != nil || len(rows) != 2 {
+			t.Fatalf("reopened approvals=%+v %v", rows, err)
+		}
+		for _, row := range rows {
+			if row.SourceID == first.SourceID && row.DefinitionDigest != "updated" ||
+				row.SourceID == second.SourceID && row.DefinitionDigest != "second" {
+				t.Fatalf("source overwrite=%+v", row)
+			}
+		}
+		if err := reopened.DeleteMCPServerApproval(
+			t.Context(),
+			store.DefaultProfileID,
+			workspaceID,
+			first.ServerName,
+			first.SourceID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		rows, err = reopened.ListMCPServerApprovals(t.Context(), store.DefaultProfileID, workspaceID)
+		if err != nil || len(rows) != 1 || rows[0].SourceID != second.SourceID {
+			t.Fatalf("source-specific revoke=%+v %v", rows, err)
+		}
+	})
 }

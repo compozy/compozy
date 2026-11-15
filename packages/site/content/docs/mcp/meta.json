@@ -1,0 +1,5 @@
+{
+    "title": "MCP servers",
+    "icon": "Network",
+    "pages": ["add-a-server", "project-servers", "runtime-servers"]
+}

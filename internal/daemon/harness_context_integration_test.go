@@ -20,6 +20,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/providerexec"
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -418,14 +419,14 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				}
 				worker, err := manager.Spawn(
 					t.Context(),
-					session.SpawnOpts{ParentSessionID: parent.ID, AgentName: agentName, TTL: time.Minute},
+					&session.SpawnOpts{ParentSessionID: parent.ID, AgentName: agentName, TTL: time.Minute},
 				)
 				if err != nil {
 					t.Fatal(err)
 				}
 				stop(worker)
 				assertLatestPrompt("spawned worker", true)
-				child, err := manager.Spawn(t.Context(), session.SpawnOpts{
+				child, err := manager.Spawn(t.Context(), &session.SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       agentName,
 					SpawnRole:       session.SpawnRoleAutoTitle,
@@ -746,7 +747,7 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			var created *session.Session
 			var err error
 			if role == session.SpawnRoleAutoTitle {
-				created, err = manager.Spawn(t.Context(), session.SpawnOpts{
+				created, err = manager.Spawn(t.Context(), &session.SpawnOpts{
 					ParentSessionID: parent.ID, AgentName: workspace.Agents[0].Name, SpawnRole: role, TTL: time.Minute,
 				})
 			} else {
@@ -978,8 +979,15 @@ func newHarnessIntegrationManager(
 ) *session.Manager {
 	t.Helper()
 
+	inventoryOption := session.WithRuntimeMCPInventory(deps.RuntimeMCPInventory)
+	if deps.RuntimeMCPInventory == nil {
+		inventoryOption = session.WithRuntimeMCPReader(runtimemcp.Reader{
+			DigestKey: []byte("session-runtime-mcp-test-key"),
+		})
+	}
 	opts := []session.Option{
 		session.WithHomePaths(homePaths),
+		inventoryOption,
 		session.WithDriver(driver),
 		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace}),
 		session.WithStore(

@@ -19,6 +19,28 @@ func (q *Queries) DeleteAppMetadata(ctx context.Context, key string) error {
 	return err
 }
 
+const deleteArchivedSession = `-- name: DeleteArchivedSession :execrows
+DELETE FROM sessions
+WHERE id = ?1
+  AND workspace_id = ?2
+  AND profile_id = ?3
+  AND archived_at IS NOT NULL
+`
+
+type DeleteArchivedSessionParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+}
+
+func (q *Queries) DeleteArchivedSession(ctx context.Context, arg DeleteArchivedSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteArchivedSession, arg.ID, arg.WorkspaceID, arg.ProfileID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteSession = `-- name: DeleteSession :execrows
 DELETE FROM sessions WHERE id = ?1
 `

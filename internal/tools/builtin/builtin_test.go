@@ -1348,6 +1348,8 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDMCPList, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDMCPImport, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDSessionChanges, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentDraftInstructions, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDSessionPendingInteractions, risk: toolspkg.RiskRead, readOnly: true},
@@ -1620,6 +1622,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__mcp_auth_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_mcp_list", risk: toolspkg.RiskRead, readOnly: true},
+		{id: "compozy__mcp_allow", risk: toolspkg.RiskMutating, readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__mcp_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__monitor_cancel", risk: toolspkg.RiskMutating,
@@ -1738,6 +1742,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_unarchive", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_cleanup", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_later", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_resume_later", risk: toolspkg.RiskMutating,
@@ -3615,7 +3621,15 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expand(mcp) error = %v", err)
 		}
-		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPStatus}; !slices.Equal(mcp, want) {
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDMCPAllow,
+			toolspkg.ToolIDMCPImport,
+			toolspkg.ToolIDMCPList,
+			toolspkg.ToolIDMCPStatus,
+		}; !slices.Equal(
+			mcp,
+			want,
+		) {
 			t.Fatalf("mcp expansion = %#v, want %#v", mcp, want)
 		}
 
@@ -3847,6 +3861,36 @@ func TestBuiltinEditLevelAutoApprovals(t *testing.T) {
 			t.Fatalf("unasked builtin mutations at approve-edits changed:\ngot  %v\nwant %v", got, want)
 		}
 	})
+	// Invariant: agents cannot grant source consent without operator approval in any mode.
+	// Owner: native tool policy; canonical suite: builtin permission approvals.
+	for _, mode := range []toolspkg.PermissionMode{
+		toolspkg.PermissionModeDenyAll, toolspkg.PermissionModeApproveReads,
+		toolspkg.PermissionModeApproveEdits, toolspkg.PermissionModeAuto, toolspkg.PermissionModeApproveAll,
+	} {
+		t.Run("Should require MCP consent approval at "+string(mode), func(t *testing.T) {
+			t.Parallel()
+			for _, available := range []bool{true, false} {
+				evaluator, err := toolspkg.NewEffectivePolicyEvaluator(toolspkg.PolicyInputs{
+					SystemPermissionMode: mode, ApprovalAvailable: available,
+				}, toolspkg.ToolsetCatalog{}, []toolspkg.ToolID{toolspkg.ToolIDMCPAllow})
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, descriptor := range NativeDescriptors() {
+					if descriptor.ID != toolspkg.ToolIDMCPAllow {
+						continue
+					}
+					decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !decision.ApprovalRequired || decision.Callable != available {
+						t.Fatalf("MCP consent decision with approval available=%v: %+v", available, decision)
+					}
+				}
+			}
+		})
+	}
 }
 
 // TestAgentKindToolText verifies canonical kind enums and current descriptor text.
@@ -3885,6 +3929,8 @@ func TestCheckInWritableInventory(t *testing.T) {
 	t.Run("Should confine native check-in writes to operator notifications [UT-005]", func(t *testing.T) {
 		t.Parallel()
 		classified := map[toolspkg.ToolID]bool{
+			toolspkg.ToolIDMCPAllow:                   false,
+			toolspkg.ToolIDMCPImport:                  false,
 			"compozy__agent_create":                   false,
 			"compozy__agent_draft_instructions":       false,
 			"compozy__agent_heartbeat_wake":           false,
@@ -3972,6 +4018,7 @@ func TestCheckInWritableInventory(t *testing.T) {
 			"compozy__session_approve":                false,
 			"compozy__session_archive":                false,
 			"compozy__session_clarify_answer":         false,
+			"compozy__session_cleanup":                false,
 			"compozy__session_compact":                false,
 			"compozy__session_continue":               false,
 			"compozy__session_create":                 false,

@@ -11,38 +11,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/store"
 )
-
-// Root resource budgets describe the current configuration. Delegated sessions
-// and instance ceilings retain their explicitly authorized server allowlist.
-func (m *Manager) refreshRootMCPPolicy(ctx context.Context, session *Session) error {
-	meta := session.Meta()
-	lineage := store.NormalizeSessionLineage(meta.ID, meta.Lineage)
-	if store.HierarchyParentSessionID(lineage) != "" || !lineage.PermissionPolicy.MaterializedMCPServers ||
-		session.Info().InstanceID != "" ||
-		(normalizeSessionType(Type(meta.SessionType)) != SessionTypeUser &&
-			normalizeSessionType(Type(meta.SessionType)) != SessionTypeSystem) {
-		return nil
-	}
-	plan, err := m.currentMCPRuntimePlan(ctx, session)
-	if err != nil {
-		return err
-	}
-	spec := &plan.spec
-	if spec.instancePermissionCeiling != nil {
-		return nil
-	}
-	names := spec.lineage.PermissionPolicy.MCPServers
-	if slices.Equal(names, lineage.PermissionPolicy.MCPServers) {
-		return nil
-	}
-	session.mu.Lock()
-	session.Lineage = store.NormalizeSessionLineage(session.ID, session.Lineage)
-	session.Lineage.PermissionPolicy.MCPServers = slices.Clone(names)
-	session.mu.Unlock()
-	return m.persistSessionLifecycleState(ctx, session, false)
-}
 
 // ErrHostedMCPBindMissing identifies a lost proxy binding that requires native-session recovery.
 var ErrHostedMCPBindMissing = errors.New("session: hosted MCP bind is missing")

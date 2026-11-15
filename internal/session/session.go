@@ -146,6 +146,7 @@ type Session struct {
 	interactionLifecycleMu       sync.Mutex
 	lifecycleNotifyMu            sync.Mutex // Orders creation and terminal callbacks across activation hooks.
 	hostedMCPRequiresReload      bool
+	activation                   activationState
 	hostedMCPDigest              string
 	directMCPDigest              string
 	permissionDenials            *acp.PermissionDenials

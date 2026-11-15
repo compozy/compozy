@@ -32,6 +32,10 @@ func diffProviderSettings(
 			continue
 		}
 
+		currentRuntimeMCP := currentProvider.EffectiveRuntimeMCP()
+		desiredRuntimeMCP := desiredProvider.EffectiveRuntimeMCP()
+		currentProvider.RuntimeMCP = ""
+		desiredProvider.RuntimeMCP = ""
 		currentModels := currentProvider.Models
 		desiredModels := desiredProvider.Models
 		currentEnabled := currentProvider.Enabled
@@ -42,6 +46,9 @@ func diffProviderSettings(
 		desiredProvider.Enabled = nil
 		if !reflect.DeepEqual(currentProvider, desiredProvider) {
 			changed = append(changed, "providers."+providerID)
+		}
+		if currentRuntimeMCP != desiredRuntimeMCP {
+			changed = append(changed, "providers."+providerID+".runtime_mcp")
 		}
 		if !reflect.DeepEqual(currentModels, desiredModels) {
 			changed = append(changed, "providers."+providerID+".models")

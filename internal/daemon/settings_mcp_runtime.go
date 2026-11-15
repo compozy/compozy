@@ -26,6 +26,12 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	server compozyconfig.MCPServer,
 ) (settingspkg.MCPServerRuntimeStatus, error) {
 	status := settingspkg.MCPServerRuntimeStatus{Configured: true}
+	if err := s.requireMCPConsent(ctx, target, server); err != nil {
+		status.State = mcpWaitingApproval
+		status.Probe = settingspkg.MCPServerProbeSkipped
+		status.Reason = mcpWaitingApproval
+		return status, nil
+	}
 	key, tracked := settingsMCPDeadEntityKey(target, server.EffectiveRuntimeName())
 	if suppressed, err := s.suppressedMCPRuntimeStatus(ctx, key, tracked); err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, err
@@ -89,14 +95,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 			return settingspkg.MCPServerRuntimeStatus{}, fmt.Errorf("daemon: record MCP runtime recovery: %w", err)
 		}
 	}
-	return settingspkg.MCPServerRuntimeStatus{
-		Configured:      true,
-		Initialized:     true,
-		State:           settingspkg.MCPServerRuntimeStateReady,
-		Probe:           settingspkg.MCPServerProbeSucceeded,
-		ToolCount:       len(tools),
-		ProtocolVersion: strings.TrimSpace(protocolVersion),
-	}, nil
+	return readyMCPRuntimeStatus(len(tools), protocolVersion), nil
 }
 
 func (s *settingsRuntimeSurface) newMCPProbeExecutor(
@@ -122,7 +121,19 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 			}
 			return resolved, nil
 		}),
+		mcppkg.WithDefinitionDigestKey(s.digestKey),
 		mcppkg.WithRuntimeHealthRegistry(s.mcpHealthRegistry),
+		mcppkg.WithConsentCheck(
+			func(ctx context.Context, _ toolspkg.SourceRef, resolved mcppkg.ResolvedServer) error {
+				return s.requireMCPConsent(ctx, resolved.Target, resolved.Server)
+			},
+		),
+		mcppkg.WithAuthNetworkAuthorization(func(ctx context.Context, cfg mcpauth.ServerConfig) error {
+			if s.state == nil {
+				return nil
+			}
+			return authorizeMCPAuthNetwork(ctx, s.state, cfg)
+		}),
 		mcppkg.WithTokenStore(s.mcpAuthStore),
 		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
 		mcppkg.WithSecretLookup(s.lookupSecret),
@@ -294,4 +305,15 @@ func runtimeStatusFromMCPProbeError(err error) settingspkg.MCPServerRuntimeStatu
 		status.State = settingspkg.MCPServerRuntimeStateRuntimeUnavailable
 	}
 	return status
+}
+
+func readyMCPRuntimeStatus(toolCount int, protocolVersion string) settingspkg.MCPServerRuntimeStatus {
+	return settingspkg.MCPServerRuntimeStatus{
+		Configured:      true,
+		Initialized:     true,
+		State:           settingspkg.MCPServerRuntimeStateReady,
+		Probe:           settingspkg.MCPServerProbeSucceeded,
+		ToolCount:       toolCount,
+		ProtocolVersion: strings.TrimSpace(protocolVersion),
+	}
 }

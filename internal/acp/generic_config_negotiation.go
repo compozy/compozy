@@ -50,12 +50,10 @@ func (d *Driver) applySessionConfigSelections(
 		if selection.matches(option) {
 			continue
 		}
+		// applySessionConfigOption returns only after the provider confirmed the value,
+		// including a late config_option_update.
 		if err := d.applySessionConfigOption(ctx, process, selection); err != nil {
 			return fmt.Errorf("acp: apply config option %q: %w", selection.ID, err)
-		}
-		updated, ok := findConfigOptionByID(process.CapsSnapshot().ConfigOptions, selection.ID)
-		if !ok || !selection.matches(updated) {
-			return fmt.Errorf("acp: provider did not confirm config option %q", selection.ID)
 		}
 	}
 	return nil

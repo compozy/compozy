@@ -306,7 +306,8 @@ type AgentProbeHealthPayload struct {
 
 // AgentResponse is a daemon API value.
 type AgentResponse struct {
-	Agent AgentPayload `json:"agent"`
+	Warnings []string     `json:"warnings,omitempty"`
+	Agent    AgentPayload `json:"agent"`
 }
 
 // AgentRuntimeValueSource is a daemon API value.
@@ -445,6 +446,3 @@ type AgentSoulPutByPathRequest struct {
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
-
-// AgentSoulRevisionAction is a daemon API value.
-type AgentSoulRevisionAction string

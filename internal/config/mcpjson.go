@@ -74,6 +74,7 @@ func parseMCPServersJSON(content []byte, source string, agentSidecar bool) ([]MC
 		return nil, err
 	}
 	for idx, server := range servers {
+		servers[idx].DefinitionSource = source
 		if err := server.Validate(fmt.Sprintf("mcp.json %q[%d]", sourceName, idx)); err != nil {
 			return nil, fmt.Errorf("config: validate MCP JSON %q: %w", sourceName, err)
 		}

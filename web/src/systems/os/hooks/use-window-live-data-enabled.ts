@@ -1,59 +1,29 @@
+import { useAtom } from "@xstate/store-react";
 import { useContext } from "react";
 
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 import { WindowLiveDataContext } from "../contexts/window-live-data-context";
-import type { OsDesktopRuntimeStore, OsWindow } from "../lib/os-types";
-import { useDesktop } from "./use-desktop";
+import { settledLiveDataOwners } from "../lib/live-data-lease";
+import { useOsShell } from "./use-os-shell";
 
-const LIVE_DATA_WINDOW_BUDGET = 2;
-
-function canOwnLiveData(window: OsWindow, activeDesktopId: string | null): boolean {
-  return window.desktopId === activeDesktopId && window.shown;
-}
-
-function liveDataOwners(state: OsDesktopRuntimeStore): readonly string[] {
-  const owners: string[] = [];
-  const append = (windowId: string | null) => {
-    if (windowId === null || owners.includes(windowId)) return;
-    const window = state.windows[windowId];
-    if (window === undefined || !canOwnLiveData(window, state.activeDesktopId)) return;
-    owners.push(windowId);
-  };
-
-  append(state.focusedId);
-  for (const windowId of state.client?.focusOrder ?? []) {
-    append(windowId);
-    if (owners.length === LIVE_DATA_WINDOW_BUDGET) return owners;
-  }
-
-  const windowIds = Object.keys(state.windows);
-  while (owners.length < LIVE_DATA_WINDOW_BUDGET) {
-    let nextId: string | null = null;
-    for (const windowId of windowIds) {
-      const window = state.windows[windowId];
-      if (
-        owners[0] === windowId ||
-        owners[1] === windowId ||
-        !canOwnLiveData(window, state.activeDesktopId)
-      )
-        continue;
-      if (nextId === null || windowId.localeCompare(nextId) < 0) nextId = windowId;
-    }
-    if (nextId === null) break;
-    owners.push(nextId);
-  }
-  return owners;
-}
+export { LIVE_DATA_SETTLE_MS } from "../lib/live-data-lease";
 
 /** Defaults to live outside the retained-window OS shell. */
 export function useCurrentWindowLiveDataEnabled(): boolean {
   return useContext(WindowLiveDataContext);
 }
 
-/** Bounds retained-window streams while keeping one visible background window live. */
+/**
+ * Bounds retained-window streams while keeping one visible background window live. The lease
+ * follows focus once it has held for `LIVE_DATA_SETTLE_MS` (`settledLiveDataOwners`); a hidden
+ * document pauses every window at once.
+ */
 export function useWindowLiveDataEnabled(windowId: string): boolean {
   const documentVisible = useDocumentVisible();
-  const windowLive = useDesktop(state => liveDataOwners(state).includes(windowId));
+  const { projection } = useOsShell();
+  const windowLive = useAtom(settledLiveDataOwners(projection), owners =>
+    owners.includes(windowId)
+  );
   return documentVisible && windowLive;
 }

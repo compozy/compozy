@@ -332,7 +332,7 @@ func TestManagerSpawnSoulLineage(t *testing.T) {
 			t.Fatal("parent SoulDigest = empty, want parent snapshot")
 		}
 
-		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		child, err := h.manager.Spawn(testutil.Context(t), &SpawnOpts{
 			ParentSessionID: parent.ID,
 			AgentName:       "reviewer",
 			Name:            "child reviewer",

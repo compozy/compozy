@@ -43,6 +43,13 @@ func WithQueryStore(opener QueryStoreOpener) Option {
 	}
 }
 
+// WithQueryQuiesceTimeout bounds waiting for stored readers; non-positive values use the five-second default.
+func WithQueryQuiesceTimeout(timeout time.Duration) Option {
+	return func(manager *Manager) {
+		manager.queryQuiesceTimeout = timeout
+	}
+}
+
 // WithPromptAssembler injects prompt assembly for session startup.
 func WithPromptAssembler(assembler PromptAssembler) Option {
 	return func(manager *Manager) {

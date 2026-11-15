@@ -32,11 +32,29 @@ func (s *subagentService) delegationPermissions(
 	if err != nil {
 		return "", store.SessionPermissionPolicy{}, err
 	}
-	mode, policy, err := subagentPermissions(parent, req, limit)
+	effectiveParent := *parent
+	effectiveParent.Lineage = store.CloneSessionLineage(store.NormalizeSessionLineage(parent.ID, parent.Lineage))
+	if resolver, ok := s.runtime.(MCPAuthorityResolver); ok {
+		policy, err := resolver.EffectiveMCPAuthority(ctx, parent.ID)
+		if err != nil {
+			return "", store.SessionPermissionPolicy{}, err
+		}
+		effectiveParent.Lineage.PermissionPolicy = policy
+	}
+	mode, policy, err := subagentPermissions(&effectiveParent, req, limit)
 	if err != nil {
 		return "", store.SessionPermissionPolicy{}, &SubagentError{
 			Code: "permission_escalation_denied", Message: err.Error(), Err: err,
 		}
+	}
+	// The effective set validates the request; only explicitly named categories become lists.
+	if req.Narrowing == nil || req.Narrowing.Tools == nil {
+		policy.ToolsMode = store.PermissionInherit
+		policy.Tools = store.NormalizeSessionLineage(parent.ID, parent.Lineage).PermissionPolicy.Tools
+	}
+	if req.Narrowing == nil || req.Narrowing.MCPServers == nil {
+		policy.MCPServersMode = store.PermissionInherit
+		policy.MCPServers = nil
 	}
 	return mode, policy, nil
 }
@@ -113,7 +131,7 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		opts.IsolatedWorktreeID = row.WorktreeState().ID
 		opts.Subagent.WorktreeID = row.WorktreeState().ID
 	}
-	return s.startDelegation(ctx, req, row, opts, finishFlight)
+	return s.startDelegation(ctx, req, row, &opts, finishFlight)
 }
 
 func subagentSpawnOptions(row store.SessionSubagent, target SubagentTarget,
@@ -147,7 +165,7 @@ func (s *subagentService) startDelegation(
 	ctx context.Context,
 	req SubagentRequest,
 	row store.SessionSubagent,
-	opts SpawnOpts,
+	opts *SpawnOpts,
 	finishFlight func(),
 ) (Subagent, error) {
 	id := row.ID
@@ -271,7 +289,7 @@ func (s *subagentService) failDelegation(
 	defer cancel()
 	unlock := s.lock(row.ParentSessionID)
 	summary := cause.Error()
-	settled, changed, err := s.store.FinalizeSubagent(
+	settled, changed, err := s.finalizeSubagentWithRetry(
 		cleanup,
 		store.SubagentFinalize{
 			ID:        row.ID,
@@ -282,11 +300,19 @@ func (s *subagentService) failDelegation(
 		},
 	)
 	if err == nil && changed {
-		s.publishTerminal(cleanup, settled)
+		// The retries may have spent the whole cleanup budget; publishing on a
+		// dead context skips the parent catalog upsert.
+		publishCtx, publishCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+		s.publishTerminal(publishCtx, settled)
+		publishCancel()
 	}
 	unlock()
 	if child != "" {
-		err = errors.Join(err, s.runtime.Stop(cleanup, child))
+		// The terminal write above may have consumed the cleanup budget on retries;
+		// the child still has to be stopped under its own bounded context.
+		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+		err = errors.Join(err, s.runtime.Stop(stopCtx, child))
+		stopCancel()
 	}
 	if err != nil {
 		return Subagent{}, errors.Join(cause, err)

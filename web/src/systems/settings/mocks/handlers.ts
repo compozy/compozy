@@ -28,6 +28,7 @@ import {
   settingsRestartStatusFixture,
   settingsSkillsSectionFixture,
 } from "./fixtures";
+import { runtimeMCPInventoryFixture } from "./runtime-mcp-fixtures";
 import {
   settingsHooksCollectionFixtureFor,
   settingsPersonaSectionFixtureFor,
@@ -390,6 +391,21 @@ export const handlers: HttpHandler[] = [
   ),
   compozyApiMock.delete("/api/settings/mcp-servers/{name}", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))
+  ),
+  // Runtime inventory: no coding-agent servers by default, so a story or test opts into groups.
+  compozyApiMock.get("/api/settings/runtime-mcp-servers", () =>
+    HttpResponse.json(runtimeMCPInventoryFixture([]))
+  ),
+  compozyApiMock.put("/api/settings/mcp-servers/{name}/approval", ({ params }) =>
+    HttpResponse.json({
+      approval: {
+        server_name: String(params.name),
+        workspace_id: "ws-platform",
+        profile: "default",
+        state: "allowed",
+        approved_at: "2026-11-14T16:31:00Z",
+      },
+    })
   ),
   compozyApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
     HttpResponse.json(mcpAuthBeginFixture)

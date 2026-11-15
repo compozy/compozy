@@ -1,0 +1,1 @@
+{ "mcpServers": { "copilot": { "type": "local", "command": "echo" } } }

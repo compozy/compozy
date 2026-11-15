@@ -15,7 +15,7 @@ const maxMCPToolListPages = 1_000
 
 func (e *CallExecutor) descriptorsFromTools(
 	source toolspkg.SourceRef,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	tools []*mcpsdk.Tool,
 ) ([]toolspkg.MCPToolDescriptor, error) {
 	server := resolved.Server

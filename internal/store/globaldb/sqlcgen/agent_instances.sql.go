@@ -418,7 +418,7 @@ SELECT id, parent_session_id, instance_id FROM sessions WHERE id=?1
 UNION
 SELECT s.id, s.parent_session_id, s.instance_id FROM sessions s JOIN ancestry a ON s.id=a.parent_session_id
 )
-SELECT s.id, s.agent_name, s.profile_id, s.permission_policy_json, s.effective_workspace_access,
+SELECT s.id, s.agent_name, s.profile_id, s.permission_policy_json, s.effective_workspace_access, s.lineage_kind, s.session_type,
 COALESCE((SELECT i.id FROM ancestry a JOIN agent_instances i ON i.id=a.instance_id LIMIT 1),'') AS originating_instance_id,
 COALESCE((SELECT MAX(i.depth) FROM ancestry a JOIN agent_instances i ON i.id=a.instance_id),0) AS instance_depth
 FROM sessions s WHERE s.id=?1
@@ -430,6 +430,8 @@ type GetInstanceCallerRow struct {
 	ProfileID                string `json:"profile_id"`
 	PermissionPolicyJson     string `json:"permission_policy_json"`
 	EffectiveWorkspaceAccess string `json:"effective_workspace_access"`
+	LineageKind              string `json:"lineage_kind"`
+	SessionType              string `json:"session_type"`
 	OriginatingInstanceID    any    `json:"originating_instance_id"`
 	InstanceDepth            any    `json:"instance_depth"`
 }
@@ -443,6 +445,8 @@ func (q *Queries) GetInstanceCaller(ctx context.Context, sessionID string) (GetI
 		&i.ProfileID,
 		&i.PermissionPolicyJson,
 		&i.EffectiveWorkspaceAccess,
+		&i.LineageKind,
+		&i.SessionType,
 		&i.OriginatingInstanceID,
 		&i.InstanceDepth,
 	)

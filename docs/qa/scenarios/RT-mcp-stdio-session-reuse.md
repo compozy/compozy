@@ -32,3 +32,5 @@ Stop the daemon and confirm no server process remains, the pool homes directory 
 
 QA impact 2026-10-31 (#1068): new scenario. Walked on the branch build against base `37439a2c9`;
 see the report for before/after launch counts and timings.
+
+QA impact 2026-11-14 (MCP hot activation spec): A project-file stdio server waiting for approval is never launched by discovery, status probes or calls. Re-walk with an unapproved `.compozy/mcp.json` stdio server and confirm zero starts until **Allow** (ET-mcp-project-server-approval).

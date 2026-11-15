@@ -258,12 +258,13 @@ func (g *SessionRepo) ReconcileSessions(
 			if _, ok := seen[id]; ok {
 				continue
 			}
-			if err := queries.MarkSessionOrphaned(ctx, sqlcgen.MarkSessionOrphanedParams{
-				State: sessionStateOrphaned, UpdatedAt: orphanedAt, ID: id,
-			}); err != nil {
-				return fmt.Errorf("store: mark orphaned session %q: %w", id, err)
+			marked, err := markReconciledSessionOrphaned(ctx, queries, id, orphanedAt)
+			if err != nil {
+				return err
 			}
-			attemptResult.Orphaned = append(attemptResult.Orphaned, id)
+			if marked {
+				attemptResult.Orphaned = append(attemptResult.Orphaned, id)
+			}
 		}
 
 		result = attemptResult
@@ -371,6 +372,7 @@ func newSessionCatalogRecord(sessionInput *store.SessionInfo) (sessionCatalogRec
 	session := *sessionInput
 
 	lineage := store.NormalizeSessionLineage(session.ID, session.Lineage)
+	lineage.PermissionPolicy = store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, session.SessionType)
 	if err := store.ValidateSessionLineage(session.ID, lineage); err != nil {
 		return sessionCatalogRecord{}, err
 	}

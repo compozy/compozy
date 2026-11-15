@@ -18,13 +18,18 @@ import (
 )
 
 type memorySubagents struct {
-	mu                 sync.Mutex
-	rows               map[string]store.SessionSubagent
-	wakes              map[string]store.SessionSubagentWake
-	writes             int
-	rewrites           map[string]string
-	orphans            []string
-	committedAdmission bool
+	mu                   sync.Mutex
+	rows                 map[string]store.SessionSubagent
+	wakes                map[string]store.SessionSubagentWake
+	writes               int
+	worktreeCleanupErr   error
+	worktreeCleanupCalls int
+	rewrites             map[string]string
+	orphans              []string
+	committedAdmission   bool
+	finalizeFailures     int
+	finalizeCalls        int
+	finalizeErrIDs       map[string]error
 }
 
 var _ store.SubagentStore = (*memorySubagents)(nil)
@@ -189,6 +194,15 @@ func (d *memorySubagents) FinalizeSubagent(
 ) (store.SessionSubagent, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if err := d.finalizeErrIDs[in.ID]; err != nil {
+		return store.SessionSubagent{}, false, err
+	}
+	d.finalizeCalls++
+	if d.finalizeFailures > 0 {
+		d.finalizeFailures--
+		return store.SessionSubagent{}, false,
+			fmt.Errorf("store: wait for local sqlite writer admission: %w", context.DeadlineExceeded)
+	}
 	row, ok := d.rows[in.ID]
 	if !ok {
 		return row, false, store.ErrSubagentNotFound
@@ -383,7 +397,10 @@ func (d *memorySubagents) Dispose(_ context.Context, f store.SubagentDisposeFilt
 	}
 	return rows, nil
 }
-func (d *memorySubagents) UpgradeWakePolicy(_ context.Context, id string) (store.SessionSubagent, error) {
+func (d *memorySubagents) UpgradeWakePolicy(ctx context.Context, id string) (store.SessionSubagent, error) {
+	if err := ctx.Err(); err != nil {
+		return store.SessionSubagent{}, err
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	row := d.rows[id]
@@ -443,6 +460,8 @@ type subagentTestRuntime struct {
 	permissionLimit                 *SubagentPermissionLimit
 	permissionLimitErr              error
 	stopDescendants                 func(context.Context, string) error
+	terminationBudget               time.Duration
+	publishParent                   func(context.Context, string)
 	inputStatuses                   map[string]string
 	errorResume                     error
 	mu                              sync.Mutex
@@ -498,13 +517,13 @@ func (r *subagentTestRuntime) Capabilities(
 ) ([]SubagentAgentOption, []SubagentProviderOption, error) {
 	return nil, nil, nil
 }
-func (r *subagentTestRuntime) Spawn(_ context.Context, opts SpawnOpts) (string, error) {
+func (r *subagentTestRuntime) Spawn(_ context.Context, opts *SpawnOpts) (string, error) {
 	if r.spawnBlock != nil {
 		<-r.spawnBlock
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.spawned = append(r.spawned, opts)
+	r.spawned = append(r.spawned, *opts)
 	if r.spawnErr != nil {
 		return "", r.spawnErr
 	}
@@ -534,6 +553,13 @@ func (r *subagentTestRuntime) HasAdmission(_ context.Context, row store.SessionS
 	_, ok := r.admitted[row.ID]
 	return ok, nil
 }
+func (r *subagentTestRuntime) TerminationBudget() time.Duration {
+	if r.terminationBudget > 0 {
+		return r.terminationBudget
+	}
+	return defaultLifecycleTimeout
+}
+
 func (r *subagentTestRuntime) Stop(ctx context.Context, id string) error {
 	// The runtime boundary owns cascading just as Manager.Stop does in production.
 	if r.stopDescendants != nil {
@@ -564,10 +590,13 @@ func (r *subagentTestRuntime) Result(_ context.Context, id string) (subagentTurn
 }
 
 func (r *subagentTestRuntime) QueueWake(
-	_ context.Context,
+	ctx context.Context,
 	wake store.SessionSubagentWake,
 	rows []store.SessionSubagent,
 ) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.queueFull > 0 {
@@ -586,7 +615,10 @@ func (r *subagentTestRuntime) CancelWake(_ context.Context, wake store.SessionSu
 func (r *subagentTestRuntime) Steer(context.Context, string, string, string, string) (acp.SteerResult, error) {
 	return r.steer, r.steerErr
 }
-func (r *subagentTestRuntime) PublishParent(_ context.Context, id string) {
+func (r *subagentTestRuntime) PublishParent(ctx context.Context, id string) {
+	if r.publishParent != nil {
+		r.publishParent(ctx, id)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.publishes = append(r.publishes, id)
@@ -894,6 +926,10 @@ func (d *memorySubagents) AssociateSubagentWorktree(_ context.Context, row store
 func (d *memorySubagents) SetSubagentWorktreeCleanup(_ context.Context, id, state string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.worktreeCleanupCalls++
+	if d.worktreeCleanupErr != nil {
+		return d.worktreeCleanupErr
+	}
 	row := d.rows[id]
 	wt := row.WorktreeState()
 	wt.Cleanup = state

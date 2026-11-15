@@ -47,23 +47,26 @@ func (m *Manager) applyInstanceCeiling(
 	if err != nil || ceiling == nil {
 		return err
 	}
-	tools, err := concreteDelegationTools(*resolved, m.toolsetCatalog, m.toolUniverse)
+	policy, err := m.instanceToolPolicy(spec, resolved, ceiling.Policy)
 	if err != nil {
 		return err
 	}
-	policy := ceiling.Policy
-	policy.Tools = agentinstance.IntersectPermissions(ceiling.Policy, store.SessionPermissionPolicy{Tools: tools}).Tools
-	if err := ValidatePermissionSubset(ceiling.Policy, policy); err != nil {
+	effective, err := m.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, &Info{
+		ID: spec.sessionID, ProfileID: spec.profileID, WorkspaceID: spec.workspace.ID,
+		AgentName: spec.agentName, Type: spec.sessionType,
+		Lineage: &store.SessionLineage{PermissionPolicy: policy},
+	}), spec.sessionID)
+	if err != nil {
 		return err
 	}
-	policy.WorkspacePaths = withManagedWorktree(ceiling.Policy, spec)
+	policy.WorkspacePaths = withManagedWorktree(policy, spec)
 	resolved.ToolPolicyEnforced = true
 	resolved.Tools = slices.Clone(policy.Tools)
 	resolved.Toolsets = nil
 	resolved.MCPServers = slices.DeleteFunc(
 		slices.Clone(resolved.MCPServers),
 		func(server compozyconfig.MCPServer) bool {
-			return !slices.Contains(policy.MCPServers, server.Name)
+			return !slices.Contains(effective.MCPServers, server.Name)
 		},
 	)
 	spec.instancePermissionCeiling = &policy
@@ -83,6 +86,32 @@ func (m *Manager) applyInstanceCeiling(
 	spec.origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, Ceiling: ceiling.Grant}
 	spec.effectiveWorkspaceAccess = workspaceaccess.NarrowGrant(spec.effectiveWorkspaceAccess, ceiling.Grant)
 	return nil
+}
+
+func (m *Manager) instanceToolPolicy(
+	spec *sessionStartSpec,
+	resolved *compozyconfig.ResolvedAgent,
+	policy store.SessionPermissionPolicy,
+) (store.SessionPermissionPolicy, error) {
+	tools, err := concreteDelegationTools(*resolved, m.toolsetCatalog, m.toolUniverse)
+	if err != nil {
+		return store.SessionPermissionPolicy{}, err
+	}
+	if spec.lineage != nil && (spec.sessionType == SessionTypeSpawned || spec.startAction == sessionStartActionResume) {
+		stored := spec.lineage.PermissionPolicy
+		policy = agentinstance.IntersectPermissions(policy, stored)
+		policy.MaterializedTools = stored.MaterializedTools && slices.Equal(policy.Tools, stored.Tools)
+		policy.MaterializedMCPServers = stored.MaterializedMCPServers &&
+			slices.Equal(policy.MCPServers, stored.MCPServers)
+	}
+	definitionPolicy := store.SessionPermissionPolicy{Tools: tools, ToolsMode: store.PermissionInherit}
+	if resolved.ToolPolicyEnforced || len(resolved.Tools) > 0 || len(resolved.Toolsets) > 0 {
+		definitionPolicy.ToolsMode = store.PermissionList
+	}
+	boundedTools := agentinstance.IntersectPermissions(policy, definitionPolicy).Tools
+	policy.MaterializedTools = policy.MaterializedTools && slices.Equal(policy.Tools, boundedTools)
+	policy.Tools = boundedTools
+	return policy, nil
 }
 
 // withManagedWorktree admits a worktree of a workspace inside the ceiling. Managed worktrees belong

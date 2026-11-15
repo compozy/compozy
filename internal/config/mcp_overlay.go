@@ -3,22 +3,24 @@ package config
 import "strings"
 
 type mcpServerOverlay struct {
-	ReadOnlyTools  *[]string           `toml:"read_only_tools"`
-	Name           *string             `toml:"name"`
-	Transport      *MCPServerTransport `toml:"transport"`
-	Command        *string             `toml:"command"`
-	Args           *[]string           `toml:"args"`
-	Env            *map[string]string  `toml:"env"`
-	SecretEnv      *map[string]string  `toml:"secret_env"`
-	Headers        *map[string]string  `toml:"headers"`
-	SecretHeaders  *map[string]string  `toml:"secret_headers"`
-	URL            *string             `toml:"url"`
-	Auth           mcpAuthOverlay      `toml:"auth"`
-	CatalogEntry   *string             `toml:"catalog_entry"`
-	CatalogVersion *string             `toml:"catalog_version"`
+	definitionSource string
+	ReadOnlyTools    *[]string           `toml:"read_only_tools"`
+	Name             *string             `toml:"name"`
+	Transport        *MCPServerTransport `toml:"transport"`
+	Command          *string             `toml:"command"`
+	Args             *[]string           `toml:"args"`
+	Env              *map[string]string  `toml:"env"`
+	SecretEnv        *map[string]string  `toml:"secret_env"`
+	Headers          *map[string]string  `toml:"headers"`
+	SecretHeaders    *map[string]string  `toml:"secret_headers"`
+	URL              *string             `toml:"url"`
+	Auth             mcpAuthOverlay      `toml:"auth"`
+	CatalogEntry     *string             `toml:"catalog_entry"`
+	CatalogVersion   *string             `toml:"catalog_version"`
 }
 
 func (o mcpServerOverlay) Apply(dst *MCPServer) {
+	dst.DefinitionSource = o.definitionSource
 	if o.ReadOnlyTools != nil {
 		dst.ReadOnlyTools = append([]string(nil), (*o.ReadOnlyTools)...)
 	}

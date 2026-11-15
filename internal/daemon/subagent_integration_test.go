@@ -1516,7 +1516,7 @@ func TestSubagentRecoveryDaemonIntegration(t *testing.T) {
 		}
 		orphan, err := manager.Spawn(
 			t.Context(),
-			session.SpawnOpts{
+			&session.SpawnOpts{
 				ParentSessionID:  parent.ID,
 				ParentTurnID:     caller.TurnID,
 				AgentName:        "subagent-test",
@@ -1748,7 +1748,7 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 		if _, _, err := db.ReserveSubagent(t.Context(), row); err != nil {
 			t.Fatal(err)
 		}
-		child, err := manager.Spawn(t.Context(), session.SpawnOpts{
+		child, err := manager.Spawn(t.Context(), &session.SpawnOpts{
 			ParentSessionID:  parent.ID,
 			ParentTurnID:     caller.TurnID,
 			AgentName:        "subagent-test",
@@ -3235,7 +3235,7 @@ func TestIsolatedSubagentRecoveryIntegration(t *testing.T) {
 				stage == "indeterminate" {
 				child, err := manager.Spawn(
 					t.Context(),
-					session.SpawnOpts{
+					&session.SpawnOpts{
 						ParentSessionID:    parent.ID,
 						ParentTurnID:       caller.TurnID,
 						AgentName:          "subagent-test",

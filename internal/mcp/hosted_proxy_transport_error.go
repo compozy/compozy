@@ -31,9 +31,14 @@ func hostedToolErrorStructuredContent(err error) any {
 	}
 	if toolErr, ok := errors.AsType[*tools.ToolError](err); ok {
 		return contract.ToolErrorResponse{Error: contract.ToolErrorPayload{
-			Code: toolErr.Code, Message: toolErr.Error(), ToolID: toolErr.ToolID,
-			ReasonCodes:   append([]tools.ReasonCode(nil), toolErr.ReasonCodes...),
-			PartialResult: toolErr.PartialResult,
+			Retryable:       toolErr.Retryable,
+			ClientMessageID: toolErr.ClientMessageID,
+			ProviderError:   toolErr.ProviderError,
+			Code:            toolErr.Code,
+			Message:         toolErr.Error(),
+			ToolID:          toolErr.ToolID,
+			ReasonCodes:     append([]tools.ReasonCode(nil), toolErr.ReasonCodes...),
+			PartialResult:   toolErr.PartialResult,
 		}}
 	}
 	if provider, ok := errors.AsType[hostedToolResponseProvider](err); ok && provider != nil {

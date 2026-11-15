@@ -45,6 +45,7 @@ var userScopeMigrationInventory = []string{
 	"extension_installations",
 	"extension_dev_links",
 	"mcp_auth_tokens",
+	"mcp_server_approvals",
 	"mcp_oauth_registrations",
 	"model_catalog_execution_contexts",
 	"notification_cursors",

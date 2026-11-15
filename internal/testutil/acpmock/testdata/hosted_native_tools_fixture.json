@@ -15,10 +15,42 @@
                     },
                     "steps": [
                         {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__tool_search",
+                            "tool_call_id": "hosted-bootstrap",
+                            "raw_input": { "query": "session" }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__session_mcp_list",
+                            "tool_call_id": "hosted-mcp-list",
+                            "raw_input": {}
+                        },
+                        {
                             "kind": "assistant",
                             "chunks": ["noop"]
                         }
                     ]
+                }
+            ],
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "category": "model",
+                    "current": "claude-sonnet-5",
+                    "values": [
+                        {
+                            "value": "claude-sonnet-5",
+                            "label": "Claude Sonnet 5"
+                        }
+                    ]
+                },
+                {
+                    "id": "effort",
+                    "name": "Effort",
+                    "current": "high",
+                    "values": [{ "value": "high", "label": "High" }]
                 }
             ]
         }

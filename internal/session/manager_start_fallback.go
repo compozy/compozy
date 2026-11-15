@@ -114,6 +114,7 @@ func (m *Manager) launchAcceptedSessionAttempt(
 			"session: start %s agent process for %q: %w", spec.startAction, spec.sessionID, err,
 		)
 	}
+	m.commitActivation(accepted.session, runtime)
 	return startOpts, nil
 }
 

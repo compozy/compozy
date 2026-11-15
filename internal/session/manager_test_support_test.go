@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -169,6 +170,7 @@ func newManagerWithHarness(t testing.TB, h *harness, extraOpts ...Option) *Manag
 
 	opts := []Option{
 		WithHomePaths(h.homePaths),
+		WithRuntimeMCPInventory(runtimeMCPFileInventory{systemRoot: t.TempDir()}),
 		WithDriver(h.driver),
 		WithNotifier(h.notifier),
 		WithPromptAssembler(
@@ -211,8 +213,84 @@ func newManagerWithHarness(t testing.TB, h *harness, extraOpts ...Option) *Manag
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	// The production composition root owns live source admission. Session tests replace that
+	// I/O boundary with the fixture's configured and explicitly granted server names.
+	manager.SetMCPAuthorityResolver(
+		lineageAuthorityFunc(func(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
+			info := MCPAuthoritySession(ctx, id)
+			if info == nil {
+				var err error
+				info, err = manager.StoredStatus(ctx, id)
+				if err != nil {
+					return store.SessionPermissionPolicy{}, err
+				}
+			}
+			lineage := store.NormalizeSessionLineage(id, info.Lineage)
+			policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+			names := fixtureMCPAuthorityNames(h, manager, info, policy)
+			policy.MCPServers = store.BoundMCPServers(policy, names)
+			return policy, nil
+		}),
+	)
 	installAbsentWorkSources(manager)
 	return manager
+}
+
+// fixtureMCPAuthorityNames reads the fixture's admitted source catalog, not runtime discovery.
+// Authority checks must not resolve agents or enumerate skills again during create, resume or reads.
+func fixtureMCPAuthorityNames(
+	h *harness, manager *Manager, info *Info, policy store.SessionPermissionPolicy,
+) []string {
+	names := slices.Clone(policy.MCPServers)
+	h.resolver.mu.Lock()
+	resolved := h.resolver.byRef[info.WorkspaceID]
+	profileName := ""
+	switch {
+	case info.ProfileID == store.DefaultProfileID:
+		profileName = sessionDefaultProfileName
+	case manager != nil && manager.profileNames != nil:
+		if name, err := manager.profileNames.ProfileName(context.Background(), info.ProfileID); err == nil {
+			profileName = name
+		}
+	}
+	if profiled, ok := h.resolver.byProfile[profileName]; ok && profiled.ID == info.WorkspaceID {
+		resolved = profiled
+	}
+	h.resolver.mu.Unlock()
+	for _, server := range resolved.Config.MCPServers {
+		names = append(names, server.Name)
+	}
+	provider := info.Provider
+	for _, agent := range resolved.Agents {
+		if agent.Name != info.AgentName {
+			continue
+		}
+		if provider == "" {
+			provider = agent.Provider
+		}
+		for _, server := range agent.MCPServers {
+			names = append(names, server.Name)
+		}
+	}
+	if provider == "" {
+		provider = resolved.Config.Defaults.Provider
+	}
+	for _, server := range resolved.Config.Providers[provider].MCPServers {
+		names = append(names, server.Name)
+	}
+	if registry, ok := manager.skillRegistry.(*fakeSkillRegistry); ok {
+		registry.mu.Lock()
+		defer registry.mu.Unlock()
+		for _, skill := range registry.skillsByWorkspace[info.WorkspaceID] {
+			if skill == nil || !skill.Enabled {
+				continue
+			}
+			for _, server := range skill.MCPServers {
+				names = append(names, server.Name)
+			}
+		}
+	}
+	return names
 }
 
 func cleanupTestManager(t *testing.T, manager *Manager) {

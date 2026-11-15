@@ -684,9 +684,20 @@ func TestSubagentLifecycle(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
 			row := requireSubagent(t, s, subagentTestRequest())
 			settleTestChild(t, s, runtime, &row)
+			if got := db.rows[row.ID]; got.Status != store.SubagentStatusCompleted ||
+				got.ChildActivity != store.SubagentChildActivityIdle {
+				t.Fatal(got)
+			}
+			if err := s.recordChildActivity(
+				t.Context(),
+				db.rows[row.ID],
+				store.SubagentChildActivityWorking,
+			); err != nil {
+				t.Fatal(err)
+			}
 			settled := db.rows[row.ID]
 			if settled.Status != store.SubagentStatusCompleted ||
-				settled.ChildActivity != store.SubagentChildActivityIdle {
+				settled.ChildActivity != store.SubagentChildActivityWorking {
 				t.Fatal(settled)
 			}
 			updates, cancel, err := s.SubscribeSubagentUpdates(t.Context(), "parent")
@@ -976,7 +987,7 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			t.Fatal(db.rows[row.ID])
 		}
 	})
-	t.Run("Should cancel descendants first and continue after stop errors UT-034 IT-028 service", func(t *testing.T) {
+	t.Run("Should cancel descendants first and surface a child stop error UT-034 IT-028 service", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
@@ -989,10 +1000,12 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 				Status:          "running",
 				Delivery:        "none",
 			}
-			runtime.errorStop = testSubagentError()
+			stopErr := testSubagentError()
+			runtime.errorStop = stopErr
 			got, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
 			synctest.Wait()
-			if err != nil || got.Status != "cancel_requested" || db.rows[row.ID].Delivery != "disposed" {
+			if !errors.Is(err, stopErr) || got.Status != "cancel_requested" ||
+				db.rows[row.ID].Delivery != "disposed" {
 				t.Fatal(got, err)
 			}
 			if db.rows[row.ID].Status != store.SubagentStatusCanceled ||
@@ -1006,8 +1019,9 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			row.Status = "completed"
 			db.rows[row.ID] = row.SessionSubagent
 			got, err = s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
-			if err != nil || got.Status != "completed" || len(runtime.stopped) != 2 {
-				t.Fatal(got, err)
+			if !errors.Is(err, stopErr) || got.Status != "completed" || len(runtime.stopped) != 4 ||
+				runtime.stopped[3] != *row.ChildSessionID {
+				t.Fatal(got, err, runtime.stopped)
 			}
 		})
 	})
@@ -3042,6 +3056,419 @@ func TestSubagentRecoveryIsolation(t *testing.T) {
 	}
 }
 
+// An orphaned delegation is a row that reached running without ever linking a
+// child session: the start failed after the reservation and the failure
+// settlement was lost to storage contention. Nothing can resume it.
+func orphanedDelegationRow() store.SessionSubagent {
+	return store.SessionSubagent{
+		ID:              "orphan",
+		WorkspaceID:     "ws",
+		ParentSessionID: "parent",
+		ParentTurnID:    "turn",
+		Origin:          store.SubagentOriginDelegated,
+		Status:          store.SubagentStatusRunning,
+		WakePolicy:      store.SubagentWakePolicyAlways,
+		Delivery:        store.SubagentDeliveryPending,
+		StartedAt:       new(time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)),
+	}
+}
+
+func TestRecoverFinalizesOrphanedDelegation(t *testing.T) {
+	t.Run("Should settle an orphaned delegation the recovery can never resume", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		db.rows["orphan"] = orphanedDelegationRow()
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		row := db.rows["orphan"]
+		if row.Status != store.SubagentStatusFailed {
+			t.Fatalf("status = %q, want %q", row.Status, store.SubagentStatusFailed)
+		}
+		if row.SettledAt == nil {
+			t.Fatal("settled_at = nil, want the recovery instant")
+		}
+		if row.Error == nil || !strings.Contains(*row.Error, "delegation interrupted") {
+			t.Fatalf("error = %v, want the delegation-interrupted summary", row.Error)
+		}
+	})
+}
+
+func TestRecoverWakesParentAfterCallerCancellation(t *testing.T) {
+	for _, policy := range []string{store.SubagentWakePolicyAlways, store.SubagentWakePolicySettledOnly} {
+		t.Run("Should wake the parent after recovery cancellation with "+policy, func(t *testing.T) {
+			t.Parallel()
+			s, db, r := newSubagentTestService(t)
+			row := orphanedDelegationRow()
+			row.WakePolicy = policy
+			db.rows[row.ID] = row
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			r.publishParent = func(context.Context, string) { cancel() }
+
+			if err := s.failRecovered(ctx, row, ""); err != nil {
+				t.Fatalf("failRecovered() error = %v", err)
+			}
+			settled := db.rows[row.ID]
+			if settled.Status != store.SubagentStatusFailed || settled.WakePolicy != store.SubagentWakePolicyAlways {
+				t.Fatalf("row = %+v, want failed with an unconditional wake", settled)
+			}
+			if len(db.wakes) != 1 || len(r.queues) != 1 {
+				t.Fatalf("wakes = %+v queues = %+v, want one recovery wake", db.wakes, r.queues)
+			}
+		})
+	}
+}
+
+func TestRecoverFinalizesOrphanedIsolatedDelegation(t *testing.T) {
+	t.Run("Should settle an orphaned isolated delegation and wake the parent", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		// The isolated recovery path compensates through the worktree service, which the
+		// daemon always wires; an empty stub means the reservation never got a worktree.
+		s.worktrees = &subagentWorktreeStub{}
+		row := orphanedDelegationRow()
+		row.Isolation = SubagentIsolationWorktree
+		db.rows["orphan"] = row
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		settled := db.rows["orphan"]
+		if settled.Status != store.SubagentStatusFailed {
+			t.Fatalf("status = %q, want %q", settled.Status, store.SubagentStatusFailed)
+		}
+		if settled.WakePolicy != store.SubagentWakePolicyAlways {
+			t.Fatalf("wake policy = %q, want the parent woken for an orphaned isolated lane", settled.WakePolicy)
+		}
+		if settled.SettledAt == nil {
+			t.Fatal("settled_at = nil, want the recovery instant")
+		}
+	})
+}
+
+// A rollback that fails cannot keep the row running until the next boot: the
+// row still settles and the parent still wakes, while the checkout keeps its
+// pending cleanup so recoverIsolationCleanup retries it.
+func TestRecoverSettlesOrphanedIsolationWhenCompensationFails(t *testing.T) {
+	t.Run("Should settle an orphaned isolated row when the worktree compensation fails", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, r := newSubagentTestService(t)
+		s.worktrees = &subagentWorktreeStub{lookupErr: errors.New("worktree lookup unavailable")}
+		var logs strings.Builder
+		s.logger = slog.New(slog.NewTextHandler(&logs, nil))
+		row := orphanedDelegationRow()
+		row.Isolation = SubagentIsolationWorktree
+		row.WakePolicy = store.SubagentWakePolicySettledOnly
+		db.rows["orphan"] = row
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		settled := db.rows["orphan"]
+		if settled.Status != store.SubagentStatusFailed {
+			t.Fatalf("status = %q, want %q even when the rollback failed", settled.Status, store.SubagentStatusFailed)
+		}
+		if settled.WakePolicy != store.SubagentWakePolicyAlways {
+			t.Fatalf(
+				"wake policy = %q, want %q for a failed orphan",
+				settled.WakePolicy,
+				store.SubagentWakePolicyAlways,
+			)
+		}
+		if got := settled.WorktreeState().Cleanup; got != "pending" {
+			t.Fatalf("worktree cleanup = %q, want %q for recoverIsolationCleanup to retry", got, "pending")
+		}
+		if len(db.wakes) != 1 || len(r.queues) != 1 {
+			t.Fatalf("wakes = %+v queues = %+v, want one planned wake", db.wakes, r.queues)
+		}
+		// Both failures surface: the settle result is not allowed to swallow the
+		// compensation error that made the fallback necessary.
+		if !strings.Contains(logs.String(), "orphaned_isolation_compensation") ||
+			!strings.Contains(logs.String(), "worktree lookup unavailable") {
+			t.Fatalf("logs = %q, want the compensation error reported", logs.String())
+		}
+	})
+}
+
+// A checkout is only collectable when the row is marked pending, so a fallback
+// that cannot write the marker must not finalize the delegation.
+func TestRecoverKeepsOrphanRunningWhenCleanupMarkerFails(t *testing.T) {
+	t.Run("Should keep the orphan running when the cleanup marker cannot be written", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		row := orphanedDelegationRow()
+		row.Isolation = SubagentIsolationWorktree
+		db.rows["orphan"] = row
+		markerErr := errors.New("cleanup marker unavailable")
+		db.worktreeCleanupErr = markerErr
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		if got := db.rows["orphan"].Status; got != store.SubagentStatusRunning {
+			t.Fatalf("status = %q, want the row left for the next boot", got)
+		}
+	})
+}
+
+func TestRecoverSkipsInFlightOrphan(t *testing.T) {
+	t.Run("Should skip an orphan whose delegation is still in flight", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		db.rows["orphan"] = orphanedDelegationRow()
+		s.mu.Lock()
+		s.flights["orphan"] = &subagentFlight{}
+		s.mu.Unlock()
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		if row := db.rows["orphan"]; row.Status != store.SubagentStatusRunning {
+			t.Fatalf("status = %q, want the live delegation untouched", row.Status)
+		}
+	})
+}
+
+// failWakePolicyOnce makes the first settlement fail its wake-policy upgrade
+// after the terminal write already landed, forcing the orphaned fallback to
+// settle the row a second time.
+type failWakePolicyOnce struct {
+	store.SubagentStore
+	mu    sync.Mutex
+	calls int
+}
+
+func (d *failWakePolicyOnce) UpgradeWakePolicy(
+	ctx context.Context,
+	id string,
+) (store.SessionSubagent, error) {
+	d.mu.Lock()
+	d.calls++
+	fail := d.calls == 1
+	d.mu.Unlock()
+	if fail {
+		return store.SessionSubagent{}, errors.New("wake policy store unavailable")
+	}
+	return d.SubagentStore.UpgradeWakePolicy(ctx, id)
+}
+
+// The fallback settles again when the first settlement already made the row
+// terminal but lost the wake. Settling twice must still leave one wake and one
+// delivery: the status guard skips the second publish and the wake join reuses
+// the pending message.
+func TestRecoverSettlesOrphanedIsolationOnceWhenTailFails(t *testing.T) {
+	t.Run("Should settle an orphaned isolated row once when the settlement tail fails", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, r := newSubagentTestService(t)
+		s.worktrees = &subagentWorktreeStub{}
+		row := orphanedDelegationRow()
+		row.Isolation = SubagentIsolationWorktree
+		row.WakePolicy = store.SubagentWakePolicySettledOnly
+		db.rows["orphan"] = row
+		failing := &failWakePolicyOnce{SubagentStore: db}
+		s.store = failing
+
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatalf("Recover() error = %v", err)
+		}
+
+		settled := db.rows["orphan"]
+		if settled.Status != store.SubagentStatusFailed || settled.WakePolicy != store.SubagentWakePolicyAlways {
+			t.Fatalf("row = %+v, want a settled row with the parent woken", settled)
+		}
+		if failing.calls != 2 {
+			t.Fatalf("wake policy calls = %d, want the fallback to settle a second time", failing.calls)
+		}
+		if len(db.wakes) != 1 || len(r.queues) != 1 {
+			t.Fatalf("wakes = %+v queues = %+v, want exactly one wake and one delivery", db.wakes, r.queues)
+		}
+		if len(r.publishes) != 1 {
+			t.Fatalf("parent publishes = %d, want one terminal publication", len(r.publishes))
+		}
+	})
+}
+
+// A terminal write that loses writer admission must be retried: surfacing it once
+// leaves the delegation running forever with no settlement. The retry has to
+// outlive the caller budget that the first attempt already spent.
+func TestFinalizeSubagentRetryOutlivesExpiredCallerContext(t *testing.T) {
+	t.Run("Should retry a terminal write past the expired caller context", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		db.rows["orphan"] = orphanedDelegationRow()
+		db.finalizeFailures = 1
+		s.store = slowFinalizeSubagents{SubagentStore: db}
+
+		ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
+		defer cancel()
+		<-ctx.Done()
+
+		settled, changed, err := s.finalizeSubagentWithRetry(ctx, store.SubagentFinalize{
+			ID:        "orphan",
+			Status:    store.SubagentStatusFailed,
+			WorkState: store.SubagentWorkStateResultAvailable,
+			SettledAt: time.Date(2026, 10, 8, 0, 1, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("finalizeSubagentWithRetry() error = %v", err)
+		}
+		if !changed || settled.Status != store.SubagentStatusFailed {
+			t.Fatalf("settled = %+v changed = %v, want a failed terminal write", settled, changed)
+		}
+		if stored := db.rows["orphan"]; stored.Status != store.SubagentStatusFailed {
+			t.Fatalf("stored row = %+v, want a failed terminal write", stored)
+		}
+	})
+}
+
+func TestFinalizeSubagentRetriesWriterContention(t *testing.T) {
+	t.Run("Should retry a terminal write that lost writer admission", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+		db.rows["orphan"] = orphanedDelegationRow()
+		db.finalizeFailures = 2
+
+		settled, changed, err := s.finalizeSubagentWithRetry(t.Context(), store.SubagentFinalize{
+			ID:        "orphan",
+			Status:    store.SubagentStatusFailed,
+			WorkState: store.SubagentWorkStateResultAvailable,
+			Error:     new("delegation interrupted"),
+			SettledAt: time.Date(2026, 10, 8, 0, 1, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("finalizeSubagentWithRetry() error = %v", err)
+		}
+		if !changed {
+			t.Fatal("changed = false, want the terminal write to apply")
+		}
+		if settled.Status != store.SubagentStatusFailed {
+			t.Fatalf("status = %q, want %q", settled.Status, store.SubagentStatusFailed)
+		}
+		if want := 3; db.finalizeCalls != want {
+			t.Fatalf("finalize calls = %d, want %d after two contention failures", db.finalizeCalls, want)
+		}
+	})
+}
+
+// A permanent store error is not contention and must surface immediately.
+func TestFinalizeSubagentDoesNotRetryPermanentErrors(t *testing.T) {
+	t.Run("Should surface a permanent store error without retrying", func(t *testing.T) {
+		t.Parallel()
+
+		s, db, _ := newSubagentTestService(t)
+
+		_, _, err := s.finalizeSubagentWithRetry(t.Context(), store.SubagentFinalize{
+			ID:        "missing",
+			Status:    store.SubagentStatusFailed,
+			SettledAt: time.Date(2026, 10, 8, 0, 1, 0, 0, time.UTC),
+		})
+		if !errors.Is(err, store.ErrSubagentNotFound) {
+			t.Fatalf("error = %v, want the missing-row error", err)
+		}
+		if want := 1; db.finalizeCalls != want {
+			t.Fatalf("finalize calls = %d, want %d", db.finalizeCalls, want)
+		}
+	})
+}
+
+// slowFinalizeSubagents makes each terminal write spend fake time, so a retry
+// can outlive the caller's cleanup context without slowing the suite down.
+type slowFinalizeSubagents struct {
+	store.SubagentStore
+	delay time.Duration
+}
+
+func (d slowFinalizeSubagents) FinalizeSubagent(
+	ctx context.Context,
+	in store.SubagentFinalize,
+) (store.SessionSubagent, bool, error) {
+	time.Sleep(d.delay)
+	if err := ctx.Err(); err != nil {
+		return store.SessionSubagent{}, false, err
+	}
+	return d.SubagentStore.FinalizeSubagent(ctx, in)
+}
+
+func publishContextProbe(r *subagentTestRuntime) (published *int, publishErr *error) {
+	published, publishErr = new(int), new(error)
+	r.publishParent = func(ctx context.Context, _ string) {
+		*published++
+		*publishErr = ctx.Err()
+	}
+	return published, publishErr
+}
+
+// The retry owns a 30 s budget while the caller's cleanup context lasts 5 s.
+// Publishing the settled row on that spent context silently drops the parent
+// catalog refresh, so the publication needs a bounded context of its own.
+func TestFailDelegationPublishesTerminalWithLiveContext(t *testing.T) {
+	t.Run("Should publish a failed delegation on a live context", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			s, db, r := newSubagentTestService(t)
+			db.rows["orphan"] = orphanedDelegationRow()
+			db.finalizeFailures = 2
+			s.store = slowFinalizeSubagents{SubagentStore: db, delay: 3 * time.Second}
+			published, publishErr := publishContextProbe(r)
+
+			if _, err := s.failDelegation(t.Context(), db.rows["orphan"], "", testSubagentError()); err != nil {
+				t.Fatalf("failDelegation() error = %v", err)
+			}
+			if *published != 1 {
+				t.Fatalf("PublishParent calls = %d, want 1", *published)
+			}
+			if *publishErr != nil {
+				t.Fatalf("PublishParent context error = %v, want a live publication context", *publishErr)
+			}
+		})
+	})
+}
+
+func TestFailIsolatedDelegationPublishesTerminalWithLiveContext(t *testing.T) {
+	t.Run("Should publish a failed isolated delegation on a live context", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			s, db, r := newSubagentTestService(t)
+			row := orphanedDelegationRow()
+			row.Isolation = SubagentIsolationWorktree
+			row.Worktree = &store.SubagentWorktreeState{ID: "wt-1", BaseSHA: "base"}
+			db.rows["orphan"] = row
+			db.finalizeFailures = 2
+			s.worktrees = &subagentWorktreeStub{worktree: SubagentWorktree{ID: "wt-1"}}
+			s.store = slowFinalizeSubagents{SubagentStore: db, delay: 3 * time.Second}
+			published, publishErr := publishContextProbe(r)
+
+			cause := testSubagentError()
+			if _, err := s.failIsolatedDelegation(t.Context(), db.rows["orphan"], "", cause); !errors.Is(err, cause) {
+				t.Fatalf("failIsolatedDelegation() error = %v, want %v", err, cause)
+			}
+			if *published != 1 {
+				t.Fatalf("PublishParent calls = %d, want 1", *published)
+			}
+			if *publishErr != nil {
+				t.Fatalf("PublishParent context error = %v, want a live publication context", *publishErr)
+			}
+		})
+	})
+}
+
 func TestSubagentUserSteerSlot(t *testing.T) {
 	t.Run("Should queue without displacing user steer UT-057", func(t *testing.T) {
 		t.Parallel()
@@ -3247,22 +3674,22 @@ func TestSubagentRecoveryCorruptChild(t *testing.T) {
 	})
 }
 
-// N2: accepting cancellation finalizes the row before an independent lifecycle-owned stop.
+// N2: cancellation finalizes the row, then retires the child session before returning.
 // Owner: service cancellation; canonical subagent service suite.
-type blockedSubagentStop struct {
+type cancelStopRuntime struct {
 	*subagentTestRuntime
-	entered chan context.Context
-	release chan struct{}
+	onStop  func(context.Context, string)
+	stopErr error
 }
 
-func (r blockedSubagentStop) Stop(ctx context.Context, id string) error {
-	r.entered <- ctx
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-r.release:
-		return r.subagentTestRuntime.Stop(ctx, id)
+func (r cancelStopRuntime) Stop(ctx context.Context, id string) error {
+	if r.onStop != nil {
+		r.onStop(ctx, id)
 	}
+	if r.stopErr != nil {
+		return r.stopErr
+	}
+	return r.subagentTestRuntime.Stop(ctx, id)
 }
 
 // cancelReadBarrier signals the first row read of a Cancel so a test can link
@@ -3341,7 +3768,7 @@ func TestSubagentCancelLifetime(t *testing.T) {
 			}
 		})
 	})
-	t.Run("Should leave a row that settled while cancel waited", func(t *testing.T) {
+	t.Run("Should stop the residual child of a row that settled while cancel waited", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
@@ -3349,62 +3776,202 @@ func TestSubagentCancelLifetime(t *testing.T) {
 			read := make(chan struct{})
 			s.store = cancelReadBarrier{SubagentStore: db, read: read, once: &sync.Once{}}
 			unlock := s.lock("parent")
-			done := make(chan SubagentCancelOutcome, 1)
+			type cancelResult struct {
+				out SubagentCancelOutcome
+				err error
+			}
+			done := make(chan cancelResult, 1)
 			go func() {
-				out, _ := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
-				done <- out
+				out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+				done <- cancelResult{out: out, err: err}
 			}()
 			<-read
 			settled := db.rows[row.ID]
 			settled.Status = store.SubagentStatusCompleted
 			db.rows[row.ID] = settled
 			unlock()
-			out := <-done
+			result := <-done
 			synctest.Wait()
+			if result.err != nil {
+				t.Fatal(result.err)
+			}
+			out := result.out
 			if out.Status != store.SubagentStatusCompleted ||
-				db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed ||
-				len(runtime.stopped) != 0 {
-				t.Fatal(out, db.rows[row.ID], runtime.stopped)
+				db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed {
+				t.Fatal(out, db.rows[row.ID])
+			}
+			if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+				t.Fatal("residual child session was not stopped", runtime.stopped)
 			}
 		})
 	})
-	t.Run("Should finalize synchronously and keep stopping after the request is canceled", func(t *testing.T) {
+	t.Run("Should stop the child with a bounded context that survives request cancellation", func(t *testing.T) {
 		t.Parallel()
-		synctest.Test(t, func(t *testing.T) {
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		runtime.terminationBudget = 30 * time.Second
+		var stopCtx context.Context
+		var stopCtxErr error
+		s.runtime = cancelStopRuntime{
+			subagentTestRuntime: runtime,
+			onStop: func(ctx context.Context, _ string) {
+				stopCtx, stopCtxErr = ctx, ctx.Err()
+				if got := db.rows[row.ID].Status; got != store.SubagentStatusCanceled {
+					t.Errorf("row status at stop = %q, want canceled", got)
+				}
+			},
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		out, err := s.Cancel(ctx, SubagentActor{Kind: "operator"}, row.ID, "")
+		if err != nil || out.Status != "cancel_requested" ||
+			db.rows[row.ID].Status != store.SubagentStatusCanceled ||
+			db.rows[row.ID].Delivery != store.SubagentDeliveryDisposed {
+			t.Fatal(out, db.rows[row.ID], err)
+		}
+		if stopCtx == nil {
+			t.Fatal("child session was not stopped")
+		}
+		if stopCtxErr != nil {
+			t.Fatal("stop inherited request cancellation", stopCtxErr)
+		}
+		deadline, ok := stopCtx.Deadline()
+		if !ok {
+			t.Fatal("stop context has no deadline")
+		}
+		// A shorter bound would return before the cooperative ladder reaches
+		// forced termination.
+		if remaining := time.Until(deadline); remaining < 25*time.Second {
+			t.Fatalf("stop deadline in %s, want the 30s termination budget", remaining)
+		}
+		if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+			t.Fatal(runtime.stopped)
+		}
+	})
+}
+
+func TestSubagentCancelStopsChild(t *testing.T) {
+	for _, edge := range []string{"cancel", "parent stop"} {
+		t.Run("Should freeze descendants through a terminal intermediary on "+edge, func(t *testing.T) {
+			t.Parallel()
 			s, db, runtime := newSubagentTestService(t)
-			row := requireSubagent(t, s, subagentTestRequest())
-			blocked := blockedSubagentStop{runtime, make(chan context.Context), make(chan struct{})}
-			s.runtime = blocked
-			start := make(chan struct{})
-			launch := s.launch
-			s.launch = func(f func()) {
-				launch(func() {
-					select {
-					case <-start:
-						f()
-					case <-s.ctx.Done():
+			root := requireSubagent(t, s, subagentTestRequest())
+			terminal := db.rows[root.ID]
+			terminal.ID, terminal.ParentSessionID = "terminal", *root.ChildSessionID
+			terminal.ChildSessionID = new("terminal-session")
+			terminal.Status = store.SubagentStatusCompleted
+			terminal.SettledAt = new(s.now().Add(-time.Minute))
+			terminal.Result = new("retained result")
+			db.rows[terminal.ID] = terminal
+			live := db.rows[root.ID]
+			live.ID, live.ParentSessionID = "nested", *terminal.ChildSessionID
+			live.ChildSessionID = new("nested-session")
+			db.rows[live.ID] = live
+			runtime.snapshots[*terminal.ChildSessionID] = subagentSnapshot{
+				Info: &Info{ID: *terminal.ChildSessionID, State: StateStopped},
+			}
+			s.runtime = cancelStopRuntime{
+				subagentTestRuntime: runtime,
+				onStop: func(context.Context, string) {
+					if got := db.rows[live.ID].Status; got != store.SubagentStatusCanceled {
+						t.Errorf("descendant status at stop = %q, want canceled", got)
 					}
-				})
+				},
 			}
-			ctx, cancel := context.WithCancel(t.Context())
-			out, err := s.Cancel(ctx, SubagentActor{Kind: "operator"}, row.ID, "")
-			cancel()
-			if err != nil || out.Status != "cancel_requested" ||
-				db.rows[row.ID].Status != store.SubagentStatusCanceled ||
-				db.rows[row.ID].Delivery != store.SubagentDeliveryDisposed {
-				t.Fatal(out, db.rows[row.ID], err)
+			var err error
+			if edge == "cancel" {
+				_, err = s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, root.ID, "")
+			} else {
+				err = s.OnParentStopped(t.Context(), *root.ChildSessionID)
 			}
-			close(start)
-			stopCtx := <-blocked.entered
-			if stopCtx.Err() != nil {
-				t.Fatal("stop inherited request cancellation", stopCtx.Err())
+			if err != nil {
+				t.Fatal(err)
 			}
-			close(blocked.release)
-			synctest.Wait()
-			if len(runtime.stopped) != 1 {
-				t.Fatal(runtime.stopped)
+			if got := db.rows[live.ID].Status; got != store.SubagentStatusCanceled {
+				t.Fatalf("descendant status = %q, want canceled", got)
+			}
+			if got := db.rows[terminal.ID]; got.Status != terminal.Status ||
+				got.Result == nil || *got.Result != *terminal.Result ||
+				got.SettledAt == nil || !got.SettledAt.Equal(*terminal.SettledAt) {
+				t.Fatalf("terminal result changed: %+v", got)
 			}
 		})
+	}
+
+	t.Run("Should stop the child session of a live subagent", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		child := *row.ChildSessionID
+		out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+		if err != nil || out.Status != "cancel_requested" ||
+			db.rows[row.ID].Status != store.SubagentStatusCanceled {
+			t.Fatal(out, err, db.rows[row.ID])
+		}
+		if !slices.Contains(runtime.stopped, child) {
+			t.Fatalf("child session %s was not stopped: %v", child, runtime.stopped)
+		}
+		if snap := runtime.snapshots[child]; snap.Active || snap.Info == nil || snap.Info.State != StateStopped {
+			t.Fatalf("child snapshot = %+v", snap)
+		}
+	})
+	t.Run("Should accept a child session that is already retired", func(t *testing.T) {
+		t.Parallel()
+		for _, stopErr := range []error{ErrSessionNotActive, ErrSessionNotFound} {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			s.runtime = cancelStopRuntime{subagentTestRuntime: runtime, stopErr: stopErr}
+			out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+			if err != nil || out.Status != "cancel_requested" ||
+				db.rows[row.ID].Status != store.SubagentStatusCanceled {
+				t.Fatal(stopErr, out, err, db.rows[row.ID])
+			}
+		}
+	})
+	t.Run("Should stop the residual child of a terminal row", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		settledAt := s.now().Add(-time.Minute)
+		settled := db.rows[row.ID]
+		settled.Status, settled.SettledAt = store.SubagentStatusCompleted, &settledAt
+		db.rows[row.ID] = settled
+		out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+		if err != nil || out.Status != store.SubagentStatusCompleted {
+			t.Fatal(out, err)
+		}
+		if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+			t.Fatalf("residual child session was not stopped: %v", runtime.stopped)
+		}
+		if got := db.rows[row.ID]; got.Status != store.SubagentStatusCompleted ||
+			got.SettledAt == nil || !got.SettledAt.Equal(settledAt) {
+			t.Fatalf("terminal row changed by cancel: %+v", got)
+		}
+	})
+	t.Run("Should stop the child when descendant cleanup fails", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		descendant := db.rows[row.ID]
+		descendant.ID = "grandchild"
+		descendant.ParentSessionID = *row.ChildSessionID
+		descendant.ChildSessionID = new("grandchild-session")
+		db.rows[descendant.ID] = descendant
+		cleanupErr := errors.New("descendant cleanup unavailable")
+		db.finalizeErrIDs = map[string]error{"grandchild": cleanupErr}
+		var stoppedIDs []string
+		s.runtime = cancelStopRuntime{
+			subagentTestRuntime: runtime,
+			onStop:              func(_ context.Context, id string) { stoppedIDs = append(stoppedIDs, id) },
+		}
+
+		out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+		if !errors.Is(err, cleanupErr) || out.Status != "cancel_requested" {
+			t.Fatalf("Cancel() = %+v, %v; want the cleanup error surfaced", out, err)
+		}
+		if !slices.Contains(stoppedIDs, *row.ChildSessionID) {
+			t.Fatalf("child stop was not attempted after a cleanup error: %v", stoppedIDs)
+		}
 	})
 }
 

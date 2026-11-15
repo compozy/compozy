@@ -26,6 +26,7 @@ type ProviderSettings struct {
 	BaseURL          string
 	AuthMode         compozyconfig.ProviderAuthMode
 	EnvPolicy        compozyconfig.ProviderEnvPolicy
+	RuntimeMCP       string
 	HomePolicy       compozyconfig.ProviderHomePolicy
 	AuthStatusCmd    string
 	AuthLoginCmd     string

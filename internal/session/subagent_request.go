@@ -180,12 +180,14 @@ func subagentPermissions(
 		if n.Tools != nil {
 			policy.Tools = n.Tools
 			policy.MaterializedTools = false
+			policy.ToolsMode = store.PermissionList
 		}
 		if n.Skills != nil {
 			policy.Skills = n.Skills
 		}
 		if n.MCPServers != nil {
 			policy.MCPServers = n.MCPServers
+			policy.MCPServersMode = store.PermissionList
 		}
 		if n.WorkspacePaths != nil {
 			policy.WorkspacePaths = n.WorkspacePaths

@@ -24,6 +24,7 @@ func registerHostedMCPRoutes(api gin.IRouter, handlers *Handlers) {
 		hosted.GET("/projection/stream", handlers.streamHostedMCPProjection)
 		hosted.POST("/tools/call", handlers.callHostedMCP)
 		hosted.POST("/release", handlers.releaseHostedMCP)
+		hosted.POST("/served", handlers.reportHostedMCPServed)
 	}
 }
 

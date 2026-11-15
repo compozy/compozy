@@ -1440,15 +1440,15 @@ WHERE parent_session_id = ?1
  AND (?3 = '[]' OR origin IN (SELECT value FROM json_each(?3)))
  AND (?4 = '[]' OR status IN (SELECT value FROM json_each(?4)))
  AND (?5 = '' OR
-  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+   WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
    WHEN status = 'queued' THEN 3 ELSE 4 END) > CAST(?6 AS INTEGER) OR
-  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+   WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
    WHEN status = 'queued' THEN 3 ELSE 4 END) = CAST(?6 AS INTEGER) AND
    (created_at,id) < (?7,?5)))
-ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-  WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+  WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
   WHEN status = 'queued' THEN 3 ELSE 4 END,
  created_at DESC,id DESC LIMIT ?8
 `
@@ -1464,8 +1464,8 @@ type ListSubagentsByParentUrgencyParams struct {
 	PageLimit  int64  `json:"page_limit"`
 }
 
-// Most urgent first, matching the clients' display order: waiting, failed,
-// working (a resumed child included), queued, settled; then newest.
+// Active work first, matching the clients' display order: waiting, working
+// (a resumed child included), then failed, queued, settled; then newest.
 func (q *Queries) ListSubagentsByParentUrgency(ctx context.Context, arg ListSubagentsByParentUrgencyParams) ([]SessionSubagent, error) {
 	rows, err := q.db.QueryContext(ctx, listSubagentsByParentUrgency,
 		arg.Parent,
@@ -1867,7 +1867,7 @@ const reconcileStoppedSubagentChildActivity = `-- name: ReconcileStoppedSubagent
 UPDATE session_subagents SET child_activity = 'stopped', updated_at = ?1
 WHERE origin = 'delegated' AND child_activity IN ('working','idle')
  AND status IN ('completed','failed','canceled','interrupted')
- AND child_session_id IN (SELECT id FROM sessions WHERE state = 'stopped')
+ AND (child_session_id IS NULL OR child_session_id IN (SELECT id FROM sessions WHERE state = 'stopped'))
 RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number, child_activity, usage_total_tokens, usage_tool_uses
 `
 
@@ -2303,6 +2303,21 @@ func (q *Queries) SettleSubagentWakeRows(ctx context.Context, arg SettleSubagent
 		return nil, err
 	}
 	return items, nil
+}
+
+const stopDeletedSubagentChildActivity = `-- name: StopDeletedSubagentChildActivity :exec
+UPDATE session_subagents SET child_activity = 'stopped', updated_at = ?1
+WHERE origin = 'delegated' AND child_session_id = ?2 AND child_activity <> 'stopped'
+`
+
+type StopDeletedSubagentChildActivityParams struct {
+	Now     string         `json:"now"`
+	ChildID sql.NullString `json:"child_id"`
+}
+
+func (q *Queries) StopDeletedSubagentChildActivity(ctx context.Context, arg StopDeletedSubagentChildActivityParams) error {
+	_, err := q.db.ExecContext(ctx, stopDeletedSubagentChildActivity, arg.Now, arg.ChildID)
+	return err
 }
 
 const subagentSummaries = `-- name: SubagentSummaries :many

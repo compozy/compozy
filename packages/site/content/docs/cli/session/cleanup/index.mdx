@@ -1,0 +1,81 @@
+---
+title: "compozy session cleanup"
+description: "Delete archived sessions in bulk, in the background"
+---
+
+## compozy session cleanup
+
+Delete archived sessions in bulk, in the background
+
+### Synopsis
+
+Plan a cleanup of the profile's archived sessions and, with --yes, delete them in the daemon's background. Without --yes it only previews what would go. Only archived sessions are deleted: child sessions still in the session list or in Later stay, with everything under them. Worktrees stay, as with a single delete. By default it picks threads archived more than 7 days ago in the current workspace and deletes them whole.
+
+```
+compozy session cleanup [flags]
+```
+
+### Examples
+
+```
+  # Preview what a cleanup of the current workspace would delete
+  compozy session cleanup
+
+  # Delete every thread archived more than 30 days ago, across all workspaces
+  compozy session cleanup --older-than 30 --all-workspaces --yes
+
+  # Keep main sessions; delete only their archived subagents
+  compozy session cleanup --subagents --any-time --yes
+
+  # Follow or stop the running cleanup
+  compozy session cleanup status
+  compozy session cleanup stop
+```
+
+### Options
+
+```
+      --all-workspaces     Clean up every project and User scope
+      --any-time           Pick every archived thread, whenever it was archived
+      --before string      Pick threads archived before this date: YYYY-MM-DD (local midnight) or RFC 3339
+      --children           Delete archived child sessions, keeping main sessions
+      --everything         Delete picked threads whole: main sessions, child sessions, and subagents (the default)
+  -h, --help               help for cleanup
+      --older-than int     Pick threads archived more than this many days ago (default 7)
+      --session strings    Limit the cleanup to these archived main sessions, as a retry of failed threads does
+      --subagents          Delete archived subagents, keeping main sessions
+      --workspace string   Workspace ID, name, or path (defaults to the current workspace)
+      --yes                Delete; without it the command only previews
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session cleanup -o json
+```
+
+## Subcommands
+
+| Command                                                            | Description                                                              |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| [compozy session cleanup status](/docs/cli/session/cleanup/status) | Show the running or most recent archived-history cleanup                 |
+| [compozy session cleanup stop](/docs/cli/session/cleanup/stop)     | Stop the running archived-history cleanup; what it deleted stays deleted |

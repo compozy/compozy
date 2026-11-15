@@ -72,8 +72,10 @@ func (e *EffectivePolicyEvaluator) evaluateCallContext(
 	if requiresSourceApproval {
 		requireApproval(&decision, e.inputs.ApprovalAvailable)
 	}
-	if e.inputs.CheckIn == nil &&
-		(e.permissionMode() != PermissionModeApproveReads || !isInstanceSelfServiceCall(d, input)) {
+	if d.ID == ToolIDMCPAllow {
+		requireApproval(&decision, e.inputs.ApprovalAvailable)
+	}
+	if e.inputs.CheckIn == nil && !e.inputSkipsPermissionCeiling(d, input) {
 		e.applyPermissionCeiling(d, &decision)
 	}
 	if e.inputs.CheckIn != nil {
@@ -104,6 +106,9 @@ func (e *EffectivePolicyEvaluator) applyRestrictions(d Descriptor, decision *Eff
 	}
 	if e.inputs.Session.Enforced {
 		_, allowed := e.sessionAllowed[d.ID]
+		if d.Source.Kind == SourceExtension && e.inputs.Session.ExtensionsInherit {
+			allowed = true
+		}
 		if d.Source.Kind == SourceMCP {
 			allowed = e.sessionAllowsMCP(d)
 		}

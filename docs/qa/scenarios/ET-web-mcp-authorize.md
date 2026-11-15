@@ -54,3 +54,5 @@ scopes are requested, cancel preserves the existing token, and approval sends
 QA result 2026-07-30: the installed Linear target truthfully exposed the authorization handoff and
 remained authorization-required; the UI did not claim completion or expose token material. Human
 Linear consent and the resulting authenticated refetch remain `blocked-verify`.
+
+QA impact 2026-11-14 (MCP hot activation spec): Sign in on a project server waiting for approval sends the row's `definition_digest`, so one click allows and signs in. Sign in is also offered from the session composer MCP control (ET-mcp-signin-from-session-control); a completed sign-in reaches open sessions on their next message.

@@ -42,6 +42,10 @@ func WithMCPDeadEntityService(service MCPDeadEntityService) MCPProviderOption {
 	}
 }
 
+func WithMCPConsent(check func(context.Context, SourceRef, string) (bool, error)) MCPProviderOption {
+	return func(p *MCPProvider) { p.consent = check }
+}
+
 type mcpReliability struct {
 	service MCPDeadEntityService
 
@@ -59,6 +63,18 @@ func (p *MCPProvider) listSourceDescriptors(
 	profileID string,
 	timeout time.Duration,
 ) ([]Descriptor, bool, error) {
+	if p.consent != nil {
+		admitted, err := p.consent(ctx, source, profileID)
+		if err != nil {
+			return nil, false, err
+		}
+		if !admitted {
+			return nil, true, nil
+		}
+	}
+	if cachedMCPProjection(ctx) {
+		return p.cachedSourceDescriptors(source), true, nil
+	}
 	key, tracked := mcpDeadEntityKey(source, profileID)
 	var reliabilityState *mcpReliabilityState
 	if tracked && p.reliability != nil {
@@ -80,6 +96,7 @@ func (p *MCPProvider) listSourceDescriptors(
 		if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
 			return nil, false, contextError
 		}
+		p.discoveryFailures.Store(source, struct{}{})
 		if tracked && p.reliability != nil {
 			if recordErr := p.reliability.service.RecordFailure(
 				ctx,
@@ -91,7 +108,7 @@ func (p *MCPProvider) listSourceDescriptors(
 			}
 			return p.reliability.cached(key, reliabilityState), false, nil
 		}
-		return nil, false, nil
+		return p.cachedSourceDescriptors(source), false, nil
 	}
 
 	descriptors := make([]Descriptor, 0, len(discovered))
@@ -102,6 +119,8 @@ func (p *MCPProvider) listSourceDescriptors(
 		}
 		descriptors = append(descriptors, descriptor)
 	}
+	p.discoveryFailures.Delete(source)
+	p.discovered.Store(source, cloneDescriptors(descriptors))
 	if tracked && p.reliability != nil {
 		if err := p.reliability.service.RecordSuccess(ctx, key); err != nil {
 			return nil, false, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)
@@ -113,18 +132,26 @@ func (p *MCPProvider) listSourceDescriptors(
 
 // ForgetMCPServer retires one workspace MCP server's volatile reliability state.
 func (p *MCPProvider) ForgetMCPServer(workspaceID string, serverName string) {
-	if p == nil || p.reliability == nil {
+	if p == nil {
 		return
 	}
-	p.reliability.forgetSource(workspaceID, serverName)
+	p.forgetDiscovered(func(source SourceRef) bool {
+		return source.WorkspaceID == workspaceID && mcpSourceServerName(source) == serverName
+	})
+	if p.reliability != nil {
+		p.reliability.forgetSource(workspaceID, serverName)
+	}
 }
 
 // ForgetWorkspace retires cached MCP descriptors owned by one workspace.
 func (p *MCPProvider) ForgetWorkspace(workspaceID string) {
-	if p == nil || p.reliability == nil {
+	if p == nil {
 		return
 	}
-	p.reliability.forgetWorkspace(workspaceID)
+	p.forgetDiscovered(func(source SourceRef) bool { return source.WorkspaceID == workspaceID })
+	if p.reliability != nil {
+		p.reliability.forgetWorkspace(workspaceID)
+	}
 }
 
 func (r *mcpReliability) dead(ctx context.Context, source SourceRef, profileID string) bool {

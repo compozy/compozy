@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -40,6 +41,10 @@ func (f MCPSourceListerFunc) ListMCPSources(ctx context.Context) ([]SourceRef, e
 
 // MCPProvider adapts daemon-owned MCP discovery and calls into registry descriptors.
 type MCPProvider struct {
+	discovered        sync.Map // source identity -> last discovered descriptors
+	discoveryFailures sync.Map // source identity -> failed latest discovery
+
+	consent         func(context.Context, SourceRef, string) (bool, error)
 	discoveryBudget time.Duration
 	source          SourceRef
 	sources         MCPSourceLister
@@ -175,12 +180,14 @@ func (p *MCPProvider) Resolve(ctx context.Context, scope Scope, id ToolID) (Hand
 			auth:        p.auth,
 			scope:       scope,
 			reliability: p.reliability,
+			provider:    p,
 		}, true, nil
 	}
 	return nil, false, nil
 }
 
 type mcpHandle struct {
+	provider    *MCPProvider
 	descriptor  Descriptor
 	exec        MCPCallExecutor
 	auth        MCPAuthStatusProvider
@@ -201,27 +208,29 @@ func (h *mcpHandle) Availability(ctx context.Context, scope Scope) Availability 
 	if h == nil || isNilInterface(h.exec) {
 		return Unavailable(ReasonBackendNotExecutable)
 	}
+	if !isNilInterface(h.auth) {
+		status, err := h.auth.Status(ctx, h.descriptor.Source, "")
+		if err != nil {
+			return Unavailable(ReasonBackendUnhealthy)
+		}
+		if reason, known := MCPAuthStatusReason(status); known && reason != ReasonMCPAuthUnconfigured {
+			return Availability{
+				Enabled: true, Available: true, Authorized: false, Executable: false,
+				ReasonCodes: []ReasonCode{reason},
+			}
+		}
+	}
 	if h.reliability != nil && h.reliability.dead(ctx, h.descriptor.Source, scope.ProfileID) {
 		return Unavailable(ReasonBackendDead)
 	}
-	if isNilInterface(h.auth) {
-		return Available()
+	if h.provider != nil {
+		source := h.descriptor.Source
+		source.RawToolName = ""
+		if _, failed := h.provider.discoveryFailures.Load(source); failed {
+			return Unavailable(ReasonBackendUnhealthy)
+		}
 	}
-	status, err := h.auth.Status(ctx, h.descriptor.Source, "")
-	if err != nil {
-		return Unavailable(ReasonBackendUnhealthy)
-	}
-	reason, ok := MCPAuthStatusReason(status)
-	if !ok || reason == ReasonMCPAuthUnconfigured {
-		return Available()
-	}
-	return Availability{
-		Enabled:     true,
-		Available:   true,
-		Authorized:  false,
-		Executable:  false,
-		ReasonCodes: []ReasonCode{reason},
-	}
+	return Available()
 }
 
 func (h *mcpHandle) Call(ctx context.Context, req CallRequest) (ToolResult, error) {

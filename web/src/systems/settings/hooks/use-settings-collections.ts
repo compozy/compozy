@@ -6,11 +6,13 @@ import {
   settingsMCPServerDetailOptions,
   settingsProviderDetailOptions,
   settingsProvidersListOptions,
+  settingsRuntimeMCPInventoryOptions,
 } from "../lib/query-options";
 import type {
   SettingsHookListFilter,
   SettingsMCPServerListFilter,
   SettingsMCPServerGetFilter,
+  RuntimeMCPInventoryFilter,
 } from "../types";
 
 interface QueryEnabledOptions {
@@ -50,4 +52,11 @@ export function useSettingsMCPServers(
   return useQuery(
     settingsMCPServersListOptions(filter, options.enabled ?? true, options.refetchInterval)
   );
+}
+
+export function useRuntimeMCPInventory(
+  filter: RuntimeMCPInventoryFilter = {},
+  options: QueryEnabledOptions = {}
+) {
+  return useQuery(settingsRuntimeMCPInventoryOptions(filter, options.enabled ?? true));
 }

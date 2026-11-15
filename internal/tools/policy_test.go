@@ -343,16 +343,22 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		}
 	})
 
-	// Invariant: an explicit native-only override is exhaustive even when it inherits a server grant.
+	// Invariant: native-only narrowing preserves admission by effective MCP server (UT-016).
 	// Owner: effective policy evaluator; canonical suite: TestEffectivePolicyEvaluator.
-	t.Run("Should deny MCP tools under an explicit native-only tool override", func(t *testing.T) {
+	t.Run("Should admit MCP tools under a native-only override with by-server authority [UT-016]", func(t *testing.T) {
 		t.Parallel()
 		descriptor := validDescriptor()
 		descriptor.ID = "mcp__docs__lookup"
 		descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: "lookup"}
 		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
-			SystemPermissionMode: PermissionModeApproveAll, ExternalDefault: ExternalDefaultEnabled,
-			Session: SessionToolPolicy{Enforced: true, Tools: []ToolID{ToolIDSkillView}, MCPServers: []string{"docs"}},
+			SystemPermissionMode: PermissionModeApproveAll,
+			ExternalDefault:      ExternalDefaultEnabled,
+			Session: SessionToolPolicy{
+				Enforced:    true,
+				Tools:       []ToolID{ToolIDSkillView},
+				MCPServers:  []string{"docs"},
+				MCPByServer: true,
+			},
 		}, ToolsetCatalog{}, []ToolID{descriptor.ID, ToolIDSkillView})
 		if err != nil {
 			t.Fatal(err)
@@ -361,8 +367,34 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if decision.Callable {
-			t.Fatalf("explicit tool ceiling widened: %+v", decision)
+		if !decision.Callable {
+			t.Fatalf("by-server admission was lost: %+v", decision)
+		}
+	})
+	t.Run("Should deny MCP tools under a native-only override without by-server authority", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		descriptor.ID = "mcp__docs__lookup"
+		descriptor.Source = SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs", RawToolName: "lookup"}
+		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveAll,
+			ExternalDefault:      ExternalDefaultEnabled,
+			Session: SessionToolPolicy{
+				Enforced:    true,
+				Tools:       []ToolID{ToolIDSkillView},
+				MCPServers:  []string{"docs"},
+				MCPByServer: false,
+			},
+		}, ToolsetCatalog{}, []ToolID{descriptor.ID, ToolIDSkillView})
+		if err != nil {
+			t.Fatal(err)
+		}
+		decision, err := evaluator.Evaluate(ctx, Scope{}, descriptor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decision.Callable || !slices.Contains(decision.ReasonCodes, ReasonSessionDenied) {
+			t.Fatalf("native-only tool override was widened: %+v", decision)
 		}
 	})
 
@@ -769,4 +801,65 @@ func TestCheckInPolicy(t *testing.T) {
 			})
 		}
 	})
+}
+
+// Invariant (UT-035/038/094): ask remains per-call for consented external sources,
+// dynamic tools never become enabled, and a session ceiling excludes MCP approval mutations.
+// Owner: tool policy; canonical suite: TestMCPConsentPolicy.
+func TestMCPConsentPolicy(t *testing.T) {
+	t.Parallel()
+	for _, external := range []ExternalDefault{ExternalDefaultDisabled, ExternalDefaultAsk, ExternalDefaultEnabled} {
+		t.Run(string(external), func(t *testing.T) {
+			t.Parallel()
+			descriptor := mcpDescriptor("mcp__remote__read", "remote", "read")
+			inputs := DefaultPolicyInputs()
+			inputs.SystemPermissionMode = PermissionModeApproveAll
+			inputs.ExternalDefault = external
+			inputs.ApprovalAvailable = true
+			inputs.AllowSources = []SourceGrant{{Kind: SourceMCP, Owner: "remote"}}
+			evaluator, err := NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, []ToolID{descriptor.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(t.Context(), Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if external == ExternalDefaultAsk {
+				requireDecisionReason(t, decision, ReasonApprovalRequired)
+			} else if !decision.Callable {
+				t.Fatalf("consented source denied: %+v", decision)
+			}
+			descriptor.Source.Kind = SourceDynamic
+			decision, err = evaluator.Evaluate(t.Context(), Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable {
+				t.Fatal("dynamic source became callable")
+			}
+			requireDecisionReason(t, decision, ReasonSourceDisabled)
+		})
+	}
+	descriptor := validDescriptor()
+	descriptor.ID = ToolIDMCPAllow
+	inputs := DefaultPolicyInputs()
+	inputs.SystemPermissionMode = PermissionModeApproveAll
+	inputs.Session = SessionToolPolicy{Enforced: true, Tools: []ToolID{"compozy__mcp_list"}}
+	evaluator, err := NewEffectivePolicyEvaluator(
+		inputs,
+		ToolsetCatalog{},
+		[]ToolID{descriptor.ID, "compozy__mcp_list"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision, err := evaluator.Evaluate(t.Context(), Scope{}, descriptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Callable {
+		t.Fatal("restricted session can mutate MCP approvals")
+	}
+	requireDecisionReason(t, decision, ReasonSessionDenied)
 }

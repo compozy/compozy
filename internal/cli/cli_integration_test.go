@@ -41,6 +41,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 
+	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
@@ -4133,6 +4134,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 
 	manager, err := session.NewManager(
 		session.WithHomePaths(d.homePaths),
+		session.WithRuntimeMCPReader(runtimemcp.Reader{DigestKey: []byte("session-runtime-mcp-test-key")}),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(func() *integrationDriver {
@@ -4154,6 +4156,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("new session manager: %w", err)
 	}
+	manager.SetMCPAuthorityResolver(cliIntegrationMCPAuthority{sessions: manager})
 	d.mu.Lock()
 	d.manager = manager
 	d.mu.Unlock()
@@ -5023,4 +5026,25 @@ func TestSessionPromptOriginIntegration(t *testing.T) {
 			)
 		}
 	})
+}
+
+// cliIntegrationMCPAuthority decodes the stored lineage intent; this harness has no daemon resolver.
+type cliIntegrationMCPAuthority struct{ sessions *session.Manager }
+
+func (r cliIntegrationMCPAuthority) EffectiveMCPAuthority(
+	ctx context.Context,
+	id string,
+) (store.SessionPermissionPolicy, error) {
+	info := session.MCPAuthoritySession(ctx, id)
+	if info == nil {
+		var err error
+		info, err = r.sessions.StoredStatus(ctx, id)
+		if err != nil {
+			return store.SessionPermissionPolicy{}, err
+		}
+	}
+	lineage := store.NormalizeSessionLineage(id, info.Lineage)
+	policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+	policy.MCPServers = store.BoundMCPServers(policy, nil)
+	return policy, nil
 }

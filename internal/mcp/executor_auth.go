@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -16,7 +17,7 @@ const (
 	authStatusRefreshFailed = "refresh_failed"
 )
 
-func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedServer) error {
+func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedServer) error {
 	server := resolved.Server
 	if !mcpauth.OAuthCapable(server) {
 		return nil
@@ -30,7 +31,7 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedSe
 		if server.Auth.IsZero() {
 			return nil
 		}
-		return unavailableAuthError(toolspkg.ReasonMCPAuthRequired)
+		return toolspkg.MCPAuthRequiredError("", server.Name)
 	case string(mcpauth.StatusAuthenticated):
 		return nil
 	case string(mcpauth.StatusExpired):
@@ -61,13 +62,16 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedSe
 			reason = toolspkg.ReasonMCPAuthRequired
 		}
 		reason = e.authorizationFailureReason(ctx, resolved, reason)
+		if reason == toolspkg.ReasonMCPAuthRequired {
+			return toolspkg.MCPAuthRequiredError("", server.Name)
+		}
 		return unavailableAuthError(reason)
 	}
 }
 
 func (e *CallExecutor) authorizationFailureReason(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	fallback toolspkg.ReasonCode,
 ) toolspkg.ReasonCode {
 	if e == nil || e.auth == nil || fallback != toolspkg.ReasonMCPAuthRequired {
@@ -90,10 +94,10 @@ func (e *CallExecutor) authorizationFailureReason(
 
 func (e *CallExecutor) authStatus(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 ) (toolspkg.MCPAuthStatus, error) {
 	server := resolved.Server
-	cfg, err := e.serverAuthConfig(ctx, ResolvedServer{Server: server, Target: resolved.Target}, e.resolveSecretRef)
+	cfg, err := e.serverAuthConfig(ctx, resolved, e.resolveSecretRef)
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
@@ -123,7 +127,7 @@ func (e *CallExecutor) authStatus(
 
 func (e *CallExecutor) refreshAuth(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 ) (toolspkg.MCPAuthStatus, error) {
 	if e.auth == nil {
 		return toolspkg.MCPAuthStatus{}, toolspkg.NewValidationError(
@@ -156,7 +160,7 @@ func (e *CallExecutor) refreshAuth(
 	return redactedAuthStatus(status), nil
 }
 
-func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved ResolvedServer) string {
+func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved *ResolvedServer) string {
 	if e == nil || e.auth == nil {
 		return ""
 	}
@@ -210,7 +214,7 @@ func redactedAuthStatus(status mcpauth.Status) toolspkg.MCPAuthStatus {
 
 func (e *CallExecutor) serverAuthConfig(
 	ctx context.Context,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	resolve func(context.Context, string) (string, error),
 ) (mcpauth.ServerConfig, error) {
 	server, secrets, err := resolved.Server.RenderInputs(
@@ -222,5 +226,14 @@ func (e *CallExecutor) serverAuthConfig(
 	for _, secret := range secrets {
 		registerMCPRequestSecret(ctx, secret)
 	}
-	return mcpauth.ServerConfigFromMCP(ctx, resolved.Target, server, resolve)
+	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, server, resolve)
+	cfg.ConsentScope = resolved.ConsentScope
+	if cfg.ConsentScope == (mcpauth.ConsentScope{}) {
+		cfg.ConsentScope = mcpauth.ConsentScopeFromContext(ctx)
+	}
+	if err != nil {
+		return mcpauth.ServerConfig{}, err
+	}
+	cfg.DefinitionDigest, err = compozyconfig.MCPDefinitionDigest(resolved.Server, e.digestKey)
+	return cfg, err
 }

@@ -61,6 +61,11 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	if err != nil {
 		return nil, "", err
 	}
+	if e.consent != nil {
+		if err := e.consent(ctx, source, resolved); err != nil {
+			return nil, "", err
+		}
+	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
 	var runtimeHealthErr error
 	servedFromCache := false
@@ -75,16 +80,16 @@ func (e *CallExecutor) ListToolsWithProtocol(
 		}
 		e.runtimeHealth.RecordSuccess(healthObservation)
 	}()
-	if err := e.ensureAuthorized(ctx, resolved); err != nil {
+	if err := e.ensureAuthorized(ctx, &resolved); err != nil {
 		runtimeHealthErr = err
 		return nil, "", err
 	}
-	authorizationHeader := e.authorizationHeader(ctx, resolved)
-	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(ctx, resolved, authorizationHeader); ok {
+	authorizationHeader := e.authorizationHeader(ctx, &resolved)
+	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(ctx, &resolved, authorizationHeader); ok {
 		servedFromCache = true
 		return cached, cachedProtocol, nil
 	}
-	client, err := e.openClient(ctx, resolved, authorizationHeader)
+	client, err := e.openClient(ctx, &resolved, authorizationHeader)
 	if err != nil {
 		runtimeHealthErr = err
 		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
@@ -94,7 +99,7 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	}()
 	protocolVersion = negotiatedProtocolVersion(client.session)
 	descriptors, runtimeHealthErr, err = e.listToolsFromClient(
-		ctx, client, source, resolved, protocolVersion, authorizationHeader,
+		ctx, client, source, &resolved, protocolVersion, authorizationHeader,
 	)
 	if err != nil {
 		return nil, "", err
@@ -108,7 +113,7 @@ func (e *CallExecutor) listToolsFromClient(
 	ctx context.Context,
 	client *managedMCPClient,
 	source toolspkg.SourceRef,
-	resolved ResolvedServer,
+	resolved *ResolvedServer,
 	protocolVersion string,
 	authorizationHeader string,
 ) (descriptors []toolspkg.MCPToolDescriptor, healthErr error, err error) {
@@ -168,6 +173,11 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if e.consent != nil {
+		if err := e.consent(ctx, source, resolved); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
 	var runtimeHealthErr error
 	defer func() {
@@ -177,12 +187,12 @@ func (e *CallExecutor) CallTool(
 		}
 		e.runtimeHealth.RecordSuccess(healthObservation)
 	}()
-	if err := e.ensureAuthorized(ctx, resolved); err != nil {
+	if err := e.ensureAuthorized(ctx, &resolved); err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, err
 	}
-	authorizationHeader := e.authorizationHeader(ctx, resolved)
-	client, err := e.openClient(ctx, resolved, authorizationHeader)
+	authorizationHeader := e.authorizationHeader(ctx, &resolved)
+	client, err := e.openClient(ctx, &resolved, authorizationHeader)
 	if err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
@@ -278,7 +288,7 @@ func (e *CallExecutor) Status(
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, err
 	}
-	return e.authStatus(ctx, resolved)
+	return e.authStatus(ctx, &resolved)
 }
 
 func (e *CallExecutor) callContext(ctx context.Context) (context.Context, context.CancelFunc) {

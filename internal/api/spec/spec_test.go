@@ -3291,6 +3291,9 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		if addMCPReloadErrorFields(baseline) == 0 {
+			t.Fatal("approved MCP reload error fields: no historical error schemas found")
+		}
 		addNativeReadPagingSchemas(t, baseline)
 		addManualJobWaitParameters(t, baseline)
 		if addNativeResultViewSchemas(baseline) == 0 {
@@ -3370,6 +3373,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+		addMCPHotActivationSchemas(t, baseline, current)
 		addMarketplacePluginCatalogSchemas(baseline)
 		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
 			"type": "array",
@@ -6877,5 +6881,86 @@ func addWindowManagerTabHookSchemas(t *testing.T, baseline map[string]any) {
 	walk(baseline)
 	if changes != 5 {
 		t.Fatalf("approved window-manager tab hooks: updated %d historical enums, want 5", changes)
+	}
+}
+
+// MCP reload failures return retry information before prompt acceptance.
+func addMCPReloadErrorFields(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addMCPReloadErrorFields(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addMCPReloadErrorFields(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok &&
+			((properties["error"] != nil && properties["current_turn_id"] != nil && properties["unknown_keys"] != nil) ||
+				(properties["tool_id"] != nil && properties["reason_codes"] != nil && properties["partial_result"] != nil)) {
+			properties["retryable"] = map[string]any{"type": "boolean"}
+			properties["client_message_id"] = map[string]any{"type": "string"}
+			properties["provider_error"] = map[string]any{"type": "string"}
+			count++
+		}
+	}
+	return count
+}
+
+// These additions expose MCP status without changing any historical field.
+func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) {
+	t.Helper()
+	components := current["components"].(map[string]any)["schemas"].(map[string]any)
+	sessionProperties := components["SessionPayload"].(map[string]any)["properties"].(map[string]any)
+	serverProperties := components["SettingsMCPServerItemPayload"].(map[string]any)["properties"].(map[string]any)
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				visit(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if len(properties) == 1 && properties["agent"] != nil {
+				properties["warnings"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+			}
+			if properties["approve_scope_escalation"] != nil && properties["approved_scopes"] != nil &&
+				properties["mode"] != nil {
+				properties["definition_digest"] = map[string]any{"type": "string"}
+			}
+			if properties["lineage"] != nil && properties["runtime"] != nil && properties["queue"] != nil {
+				properties["mcp_summary"] = sessionProperties["mcp_summary"]
+			}
+			if properties["auth_acp_method"] != nil && properties["runtime_provider"] != nil &&
+				properties["session_env"] != nil {
+				properties["runtime_mcp"] = map[string]any{"type": "string"}
+			}
+			if properties["transport"] != nil && properties["source_metadata"] != nil && properties["env_keys"] != nil {
+				for _, name := range []string{"approval", "callable_in_sessions"} {
+					if serverProperties[name] == nil {
+						t.Fatalf("missing approved MCP field %s", name)
+					}
+					properties[name] = serverProperties[name]
+				}
+				node["required"] = append([]any{"approval", "callable_in_sessions"}, node["required"].([]any)...)
+			}
+		}
+	}
+	visit(baseline)
+	baselineComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	for _, name := range []string{"MCPSummary", "SettingsMCPApprovalStatePayload"} {
+		if baselineComponents[name] != nil || components[name] == nil {
+			t.Fatalf("unexpected historical or missing approved MCP schema %s", name)
+		}
+		baselineComponents[name] = components[name]
 	}
 }

@@ -116,16 +116,18 @@ type HostedBindRequest struct {
 
 // HostedBindResponse proves a hosted proxy has bound to one launch record.
 type HostedBindResponse struct {
-	BindID string           `json:"bind_id"`
-	Scope  tools.Scope      `json:"scope"`
-	Tools  []tools.ToolView `json:"tools"`
-	Digest string           `json:"digest"`
+	Catalog tools.AdvertisedCatalog `json:"catalog"`
+	BindID  string                  `json:"bind_id"`
+	Scope   tools.Scope             `json:"scope"`
+	Tools   []tools.ToolView        `json:"tools"`
+	Digest  string                  `json:"digest"`
 }
 
 // HostedProjectionResponse is a full session-callable projection snapshot.
 type HostedProjectionResponse struct {
-	Tools  []tools.ToolView `json:"tools"`
-	Digest string           `json:"digest"`
+	Catalog tools.AdvertisedCatalog `json:"catalog"`
+	Tools   []tools.ToolView        `json:"tools"`
+	Digest  string                  `json:"digest"`
 }
 
 // HostedCallRequest invokes one hosted MCP tool through the registry.
@@ -162,6 +164,7 @@ type hostedLaunchRecord struct {
 	expectedBin      string
 	createdAt        time.Time
 	established      bool
+	everBound        bool
 	correlationID    string
 	runID            string
 	generation       int64
@@ -172,6 +175,8 @@ type hostedLaunchRecord struct {
 
 type hostedBindRecord struct {
 	initialToolDigest string
+	initialCatalog    tools.AdvertisedCatalog
+	servedDigest      string
 	initialDeadline   time.Time
 	eagerTools        bool
 	digestMemo        *hostedProjectionDigestMemo

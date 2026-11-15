@@ -347,6 +347,14 @@ compozy automation jobs create \
 
 Use `--retry none` to disable retries explicitly.
 
+For agent startup, `backoff` retries only a transient Agent Client Protocol (ACP) initialize
+handshake timeout before the provider accepts a session. Authentication, configuration, agent
+definition, package preparation, and post-acceptance failures are terminal. The same configured
+`max_retries` and `base_delay` apply; `none` never retries startup. Intermediate initialize failures
+do not leave failed sessions in the sidebar. The scheduled fire keeps its run identity and attempt
+counter, and an exhausted retry retains the final failed session and diagnostics. If session
+cleanup cannot release ownership, the run fails without starting another attempt.
+
 ## Fire limits
 
 Fire limits cap how often a job can dispatch within a rolling window. They protect the daemon from

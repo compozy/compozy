@@ -104,7 +104,7 @@ func TestAgentPreStartHookProviderRouting(t *testing.T) {
 		}
 		collectEvents(t, events)
 
-		child, err := h.manager.Spawn(t.Context(), SpawnOpts{
+		child, err := h.manager.Spawn(t.Context(), &SpawnOpts{
 			ParentSessionID: created.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
