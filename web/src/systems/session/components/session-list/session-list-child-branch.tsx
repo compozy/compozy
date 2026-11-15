@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 
 import { TreeBranch } from "@compozy/ui";
 
-import { isNeedsYouBadge } from "../../lib/session-badge";
+import { isActiveChildSession } from "../../lib/session-hierarchy";
 import type { SessionPayload } from "../../types";
 import { SessionListBranchMore } from "./session-list-branch-more";
 
@@ -11,7 +11,7 @@ const CHILD_BRANCH_LIMIT = 6;
 
 export interface SessionListChildBranchProps {
   sessionId: string;
-  /** The parent's child sessions in list order. */
+  /** The parent's child sessions, active work first, then list order. */
   childSessions: readonly SessionPayload[];
   currentSessionId: string | undefined;
   /** The list's bulk selection; a selected child stays on screen. */
@@ -21,10 +21,12 @@ export interface SessionListChildBranchProps {
 }
 
 /**
- * A parent row's open child-session list: the first six children in list
- * order, then "Show N more" for the rest and "Show less" to fold back. A child
- * past the cap that is open, selected, or needs you stays in its place among
- * the shown rows, so the list never hides what the operator is working on.
+ * A parent row's open child-session list: the first six children, active work
+ * first (a child that needs you, failed or is running leads the list), then
+ * "Show N more" for the rest and "Show less" to fold back. Every active child
+ * shows even past the cap, and a child past the cap that is open or selected
+ * stays in its place among the shown rows, so the list never hides active work
+ * or what the operator is working on.
  * Once shown, such a child stays until "Show less", so a row does not vanish
  * under the pointer or from focus when it is deselected or left. Keyboard
  * cycles and ranges still walk every child: landing on a hidden one opens or
@@ -44,7 +46,7 @@ export function SessionListChildBranch({
     index < CHILD_BRANCH_LIMIT ||
     child.id === currentSessionId ||
     selectedIds?.has(child.id) === true ||
-    isNeedsYouBadge(child.badge);
+    isActiveChildSession(child);
   // Remember each child the pins brought past the cap (state adjusted during render).
   const newlyRevealed = childSessions.filter(
     (child, index) => index >= CHILD_BRANCH_LIMIT && pinned(child, index) && !revealed.has(child.id)

@@ -1064,23 +1064,79 @@ describe("SessionList subagents", () => {
       expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
     });
 
-    it("Should keep the open child and a child that needs you in place past the cap", () => {
+    // Invariant (#1732): children that need you or are running lead the open list in their list
+    // order; the open child past the cap still stays in its place.
+    it("Should lead with active children and keep the open child past the cap", () => {
       renderList({
-        sessions: parentWithChildren(10, { 8: { badge: "waiting-for-input" } }),
+        sessions: parentWithChildren(10, {
+          8: { badge: "waiting-for-input" },
+          9: { badge: "running" },
+        }),
         currentSessionId: "child-10",
       });
 
       expect(childRowIds()).toEqual([
+        "child-8",
+        "child-9",
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-10",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 3 more" })).toBeInTheDocument();
+    });
+
+    // Invariant (#1732): active children never hide behind "Show more", even past the cap.
+    it("Should show every active child when they outnumber the cap", () => {
+      const running = { badge: "running" } as const;
+      renderList({
+        sessions: parentWithChildren(10, {
+          2: running,
+          3: running,
+          5: running,
+          6: { badge: "failed" },
+          8: running,
+          9: running,
+          10: running,
+        }),
+      });
+
+      expect(childRowIds()).toEqual([
+        "child-2",
+        "child-3",
+        "child-5",
+        "child-6",
+        "child-8",
+        "child-9",
+        "child-10",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 3 more" })).toBeInTheDocument();
+    });
+
+    // Invariant (#1732): a child that starts running past the cap moves to the front, and returns
+    // to its place in the list once it settles.
+    it("Should move a child to the front while it runs and back once it settles", () => {
+      const children = parentWithChildren(9);
+      const { update } = renderList({ sessions: children });
+      const firstSix = ["child-1", "child-2", "child-3", "child-4", "child-5", "child-6"];
+      expect(childRowIds()).toEqual(firstSix);
+
+      update(
+        children.map(child => (child.id === "child-8" ? { ...child, badge: "running" } : child))
+      );
+      expect(childRowIds()).toEqual([
+        "child-8",
         "child-1",
         "child-2",
         "child-3",
         "child-4",
         "child-5",
-        "child-6",
-        "child-8",
-        "child-10",
       ]);
-      expect(screen.getByRole("button", { name: "Show 2 more" })).toBeInTheDocument();
+
+      update(children);
+      expect(childRowIds()).toEqual(firstSix);
+      expect(screen.getByRole("button", { name: "Show 3 more" })).toBeInTheDocument();
     });
 
     it("Should select hidden children in a range and show them", () => {
@@ -1293,7 +1349,8 @@ describe("SessionList subagents", () => {
   });
 
   // Invariant: branch rows carry the session StateGlyph and word — running and completed never
-  // read alike — and the loaded rows order by urgency. Owner: the rail's subagent branch.
+  // read alike — and the loaded rows order active work first (#1732). Owner: the rail's subagent
+  // branch.
   it("Should mark branch rows with distinct glyphs and words, most urgent first", async () => {
     const settledAt = "2026-10-08T12:30:00Z";
     vi.mocked(globalThis.fetch).mockResolvedValue(
@@ -1318,13 +1375,13 @@ describe("SessionList subagents", () => {
     const rows = [...branch.querySelectorAll('[data-slot="session-subagent-row"]')];
     expect(rows.map(node => node.getAttribute("data-state"))).toEqual([
       "attention",
-      "failed",
       "running",
+      "failed",
       "done",
     ]);
     expect(
       rows.map(node => node.querySelector('[data-slot="state-glyph"]')?.getAttribute("data-state"))
-    ).toEqual(["attention", "failed", "running", "done"]);
+    ).toEqual(["attention", "running", "failed", "done"]);
     const open = (title: string) =>
       within(branch).getByRole("button", { name: `Open ${title} · claude · Coder` });
     expect(open("Subagent 3")).toHaveAttribute("aria-description", "Working");
@@ -1442,6 +1499,122 @@ describe("SessionList subagents", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("session-sidebar-subagents-parent")).not.toBeInTheDocument()
     );
+  });
+
+  // Invariant (#1732): the daemon pages active work first, so while every loaded row is active the
+  // branch reads the next page, and it shows every active row past its page size.
+  it("Should read on while a page holds only active subagents and show every active row", async () => {
+    const page = (rows: Array<[number, string]>, nextCursor?: string) =>
+      new Response(
+        JSON.stringify({
+          subagents: rows.map(([index, status]) => wireSubagent(index, status)),
+          ...(nextCursor ? { next_cursor: nextCursor } : {}),
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+    const range = (from: number, to: number, status: string): Array<[number, string]> =>
+      Array.from({ length: to - from }, (_, offset) => [from + offset, status]);
+    vi.mocked(globalThis.fetch).mockImplementation(async input =>
+      new URL((input as Request).url).searchParams.get("cursor") === "page-2"
+        ? page([...range(8, 11, "running"), ...range(11, 16, "completed")], "page-3")
+        : page(range(0, 8, "running"), "page-2")
+    );
+    renderList({
+      sessions: [row("parent", { badge: "running", ...summary(11, 30) })],
+      subagentThreadIds: ["parent"],
+    });
+
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    await waitFor(() =>
+      expect(branch.querySelectorAll('[data-slot="session-subagent-row"]')).toHaveLength(11)
+    );
+    const states = [...branch.querySelectorAll('[data-slot="session-subagent-row"]')].map(node =>
+      node.getAttribute("data-state")
+    );
+    expect(new Set(states)).toEqual(new Set(["running"]));
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(within(branch).getByRole("button", { name: "Show 8 more" })).toBeInTheDocument();
+  });
+
+  // Invariant (#1732 review): the branch reads on only once a first-page refetch has landed, so
+  // fetchNextPage never cancels that refetch and leaves a stale first page.
+  it("Should not read the next page while a stale first page refetches", async () => {
+    const user = userEvent.setup();
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+    const firstPage = () => ({
+      subagents: Array.from({ length: 8 }, (_, index) => wireSubagent(index, "running")),
+      next_cursor: "page-2",
+    });
+    let answer: (page: Response) => void = () => undefined;
+    const cursors: Array<string | null> = [];
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const cursor = new URL((input as Request).url).searchParams.get("cursor");
+      cursors.push(cursor);
+      if (cursor === "page-2") return json({ subagents: [wireSubagent(8, "completed")] });
+      return new Promise<Response>(resolve => {
+        answer = resolve;
+      });
+    });
+    const { queryClient } = renderList({
+      sessions: [row("parent", { badge: "running", ...summary(8, 9) })],
+    });
+    queryClient.setQueryData(
+      sessionKeys.subagentBranch(primarySessionFixture.workspace_id ?? "", "parent"),
+      { pages: [firstPage()], pageParams: [""] },
+      { updatedAt: 0 }
+    );
+
+    await user.click(screen.getByRole("button", { name: "8 of 9 subagents running" }));
+    await waitFor(() => expect(cursors).toEqual([null]));
+    // The loaded page is all active, but the refetch is still in flight: nothing reads on yet.
+    await act(() => new Promise(resolve => setTimeout(resolve, 50)));
+    expect(cursors).toEqual([null]);
+    answer(json(firstPage()));
+    await waitFor(() => expect(cursors).toEqual([null, "page-2"]));
+    const branch = screen.getByTestId("session-sidebar-subagents-parent");
+    await waitFor(() =>
+      expect(branch.querySelectorAll('[data-slot="session-subagent-row"]')).toHaveLength(8)
+    );
+  });
+
+  // Invariant (#1732): a live roster orders like the paged route before the branch cuts its rows,
+  // so a running subagent past the newest page shows, and a status change reorders the rows.
+  it("Should show a live roster's running subagent past the page and follow its transitions", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { badge: "running", ...summary(1, 12) });
+    const { queryClient } = renderList({ sessions: [parent] });
+    const workspaceId = primarySessionFixture.workspace_id ?? "";
+    // Newest first, the oldest subagent the only one working.
+    const roster = (running: number) => ({
+      rows: Array.from({ length: 12 }, (_, offset) => 11 - offset).map(index =>
+        subagentViewFromPayload({
+          ...wireSubagent(index, index === running ? "running" : "completed"),
+        } as never)
+      ),
+      staleIds: new Set<string>(),
+    });
+    queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), roster(0));
+    renderHook(() => useSubagentRoster(workspaceId, "parent"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    await user.click(screen.getByRole("button", { name: "1 of 12 subagents running" }));
+
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    const rows = () => [...branch.querySelectorAll('[data-slot="session-subagent-row"]')];
+    await waitFor(() => expect(rows()).toHaveLength(8));
+    expect(rows()[0]).toHaveTextContent("Subagent 0");
+    expect(rows()[0]).toHaveAttribute("data-state", "running");
+
+    act(() => {
+      queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), roster(1));
+    });
+    await waitFor(() => expect(rows()[0]).toHaveTextContent(/Subagent 1(?!\d)/));
+    expect(rows()[0]).toHaveAttribute("data-state", "running");
+    expect(within(branch).queryByText("Subagent 0")).not.toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   // M9: an open parent's stream-fed roster feeds the branch; the list route stays cold.

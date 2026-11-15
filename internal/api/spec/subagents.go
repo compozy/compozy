@@ -22,7 +22,7 @@ func registrySubagentOperations() []OperationSpec {
 				queryParam("cursor", "Opaque next_cursor from the previous page", false),
 				enumQueryParam(
 					"order",
-					"Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest",
+					"Row order: newest first (default), or most urgent first (waiting, working, failed, queued, settled) then newest",
 					[]string{"newest", "urgency"},
 				),
 			},

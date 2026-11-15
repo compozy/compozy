@@ -1440,15 +1440,15 @@ WHERE parent_session_id = ?1
  AND (?3 = '[]' OR origin IN (SELECT value FROM json_each(?3)))
  AND (?4 = '[]' OR status IN (SELECT value FROM json_each(?4)))
  AND (?5 = '' OR
-  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+   WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
    WHEN status = 'queued' THEN 3 ELSE 4 END) > CAST(?6 AS INTEGER) OR
-  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+   WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
    WHEN status = 'queued' THEN 3 ELSE 4 END) = CAST(?6 AS INTEGER) AND
    (created_at,id) < (?7,?5)))
-ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
-  WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1
+  WHEN status = 'waiting' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'failed' THEN 2
   WHEN status = 'queued' THEN 3 ELSE 4 END,
  created_at DESC,id DESC LIMIT ?8
 `
@@ -1464,8 +1464,8 @@ type ListSubagentsByParentUrgencyParams struct {
 	PageLimit  int64  `json:"page_limit"`
 }
 
-// Most urgent first, matching the clients' display order: waiting, failed,
-// working (a resumed child included), queued, settled; then newest.
+// Active work first, matching the clients' display order: waiting, working
+// (a resumed child included), then failed, queued, settled; then newest.
 func (q *Queries) ListSubagentsByParentUrgency(ctx context.Context, arg ListSubagentsByParentUrgencyParams) ([]SessionSubagent, error) {
 	rows, err := q.db.QueryContext(ctx, listSubagentsByParentUrgency,
 		arg.Parent,
