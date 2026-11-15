@@ -5558,12 +5558,20 @@ func TestSubagentClientRequests(t *testing.T) {
 				t.Parallel()
 				client := &daemonClient{
 					target: LocalClientTarget("/tmp/compozy.sock"),
-					httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
-						if request.URL.Path == "/api/sessions/parent" {
-							return newHTTPResponse(200, `{"session":{"id":"parent","workspace_id":"ws"}}`), nil
-						}
-						return newHTTPResponse(status, `{"code":"subagent_error","error":"request refused"}`), nil
-					})},
+					httpClient: &http.Client{
+						Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+							if request.URL.Path == "/api/sessions/parent" {
+								return newHTTPResponse(
+									200,
+									`{"session":{"id":"parent","workspace_id":"ws"}}`,
+								), nil
+							}
+							return newHTTPResponse(
+								status,
+								`{"code":"subagent_error","error":"request refused"}`,
+							), nil
+						}),
+					},
 				}
 				var err error
 				switch operation {
