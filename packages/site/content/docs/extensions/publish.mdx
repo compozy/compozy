@@ -82,6 +82,9 @@ archive and a `<asset>.sha256` sidecar to the release. The result names all thre
   field, and an unresolvable credential fails before any upload.
 </OperatorNote>
 
+Publishing sends credentials only over HTTPS, including when using a custom GitHub API endpoint.
+An HTTP endpoint is anonymous and cannot authorize a release upload.
+
 `publish` is a CLI-local and native-tool verb. It has no HTTP or UDS route.
 
 ## What the digest sidecar does — and does not do

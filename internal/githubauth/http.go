@@ -14,7 +14,7 @@ func Authorize(ctx context.Context, request *http.Request, origin string, resolv
 	if resolver == nil || !IsAPIOrigin(request.URL, origin) {
 		return nil
 	}
-	token, err := resolver.Resolve(ctx)
+	token, err := resolver.Resolve(ctx, origin)
 	if err != nil {
 		return err
 	}
@@ -66,6 +66,11 @@ func (t credentialTransport) RoundTrip(request *http.Request) (*http.Response, e
 		request.Header.Del("Authorization")
 	}
 	return t.base.RoundTrip(request)
+}
+
+func IsAPIOriginURL(destination, origin string) bool {
+	parsed, err := url.Parse(destination)
+	return err == nil && IsAPIOrigin(parsed, origin)
 }
 
 func IsAPIOrigin(destination *url.URL, origin string) bool {

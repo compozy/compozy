@@ -72,7 +72,7 @@ func TestManagerCheck(t *testing.T) {
 		})
 		for range 2 {
 			state, _, err := manager.Check(t.Context(), CheckOptions{ForceRefresh: true})
-			if err == nil || !strings.Contains(state.LastError, "authenticated") ||
+			if err == nil || !strings.Contains(state.LastError, "(authenticated)") ||
 				strings.Contains(state.LastError, "update-sentinel") {
 				t.Fatal("release rate limit diagnostic is missing or unsafe")
 			}

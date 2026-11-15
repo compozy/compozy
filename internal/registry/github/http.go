@@ -31,10 +31,7 @@ func (c *Client) doRequest(
 	if strings.TrimSpace(rawURL) == "" {
 		return nil, errors.New("github: request URL is required")
 	}
-	c.rateMu.Lock()
-	limited := c.rateLimited
-	c.rateMu.Unlock()
-	if limited != nil && c.now().Before(limited.RetryAt) {
+	if limited := c.rateLimits.Check(c.baseURL, c.now()); limited != nil {
 		return nil, limited
 	}
 
@@ -43,6 +40,9 @@ func (c *Client) doRequest(
 		c.requestRetryPolicy(),
 		retryGitHubRequest,
 		func(ctx context.Context) (*http.Response, error) {
+			if limited := c.rateLimits.Check(c.baseURL, c.now()); limited != nil {
+				return nil, &githubRequestAttemptError{cause: limited}
+			}
 			request, err := c.newRequest(ctx, rawURL, accept)
 			if err != nil {
 				return nil, &githubRequestAttemptError{cause: err}
@@ -202,9 +202,7 @@ func (c *Client) checkRateLimit(response *http.Response) error {
 		return nil
 	}
 	if limited := githubauth.RateLimit(response, c.now()); limited != nil {
-		c.rateMu.Lock()
-		c.rateLimited = limited
-		c.rateMu.Unlock()
+		c.rateLimits.Record(c.baseURL, limited)
 		return joinErrors(limited, closeResponseBody(response.Body, "rate limit response"))
 	}
 	remainingValue := strings.TrimSpace(response.Header.Get("X-RateLimit-Remaining"))

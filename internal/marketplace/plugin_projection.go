@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
 
@@ -249,6 +250,9 @@ func (p *PluginProjector) projectError(
 ) projectedPlugin {
 	if err == nil {
 		return projectedPlugin{}
+	}
+	if errors.Is(err, githubauth.ErrRateLimited) {
+		return projectedPlugin{err: err}
 	}
 	code := "load_failed"
 	switch {

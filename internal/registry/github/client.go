@@ -48,8 +48,7 @@ type Client struct {
 	logger         *slog.Logger
 	token          string
 	credentials    *githubauth.Resolver
-	rateMu         sync.Mutex
-	rateLimited    *githubauth.RateLimitError
+	rateLimits     *githubauth.RateLimitGate
 	now            func() time.Time
 	closeOnce      sync.Once
 	networkPolicy  outboundpolicy.Policy
@@ -110,6 +109,7 @@ func NewClient(baseURL string, opts ...Option) *Client {
 		logger:         slog.Default(),
 		token:          strings.TrimSpace(os.Getenv("GITHUB_TOKEN")),
 		credentials:    githubauth.NewResolver(nil),
+		rateLimits:     &githubauth.RateLimitGate{},
 		now:            time.Now,
 	}
 	if client.baseURL == "" {
@@ -225,7 +225,18 @@ func WithToken(token string) Option {
 }
 
 func WithCredentials(resolver *githubauth.Resolver) Option {
-	return func(client *Client) { client.credentials = resolver }
+	return func(client *Client) {
+		client.token = ""
+		client.credentials = resolver
+	}
+}
+
+func WithRateLimitGate(gate *githubauth.RateLimitGate) Option {
+	return func(client *Client) {
+		if gate != nil {
+			client.rateLimits = gate
+		}
+	}
 }
 
 // Name reports the registry source name.

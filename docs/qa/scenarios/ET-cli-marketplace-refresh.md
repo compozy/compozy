@@ -30,10 +30,16 @@ GitHub authentication regression (2026-11-15, issue #1750):
 - Repeat without either credential. Keep anonymous access, cached catalog entries and the prior
   successful update timestamp. A 403 quota limit or 429 must show authentication state, the retry
   deadline and recovery guidance; repeated reads and forced refreshes must send no requests before
-  the later reset/retry deadline, and must recover after it.
+  the retry deadline (and primary reset deadline when its remaining quota is zero), and must
+  recover after it.
 - Verify redirects to another origin and HTTP destinations receive no Authorization header;
   diagnostics, events and provider environments contain no token. Missing or logged-out `gh` falls
   back silently; CLI lookup is bounded and its cache is memory-only.
+
+- For a custom HTTPS GitHub API origin, leave `GITHUB_TOKEN` unset and verify that the
+  github.com CLI login is not sent. An explicit environment token may authenticate that origin.
+- Trigger a quota error during an individual plugin package download: keep the prior catalog,
+  suppress explicit refreshes until the deadline, and recover after the quota resets.
 
 Validation for this change runs in CI only. HTTP/TLS owning suites and the marketplace HTTP/SQLite
 integration suite cover these boundaries; a live signed-in desktop walk remains unrun.

@@ -609,7 +609,7 @@ func TestClientRateLimitExceeded(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient(server.URL, WithHTTPClient(server.Client()))
+	client := NewClient(server.URL, WithHTTPClient(server.Client()), WithToken(""))
 	_, err := client.Info(t.Context(), "acme/demo")
 	if err == nil {
 		t.Fatal("Info() error = nil, want rate-limit failure")
@@ -1888,8 +1888,9 @@ func (r *scriptedErrorReadCloser) Close() error {
 
 func newReleaseResponseClient(body io.ReadCloser) *Client {
 	return &Client{
-		baseURL: "https://api.example.com",
-		now:     time.Now,
+		baseURL:    "https://api.example.com",
+		rateLimits: &githubauth.RateLimitGate{},
+		now:        time.Now,
 		httpClient: &http.Client{Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,

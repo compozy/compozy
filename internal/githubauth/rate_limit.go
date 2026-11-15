@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -42,7 +43,8 @@ func RateLimit(response *http.Response, now time.Time) *RateLimitError {
 	} else if retryAt, err := http.ParseTime(response.Header.Get("Retry-After")); err == nil {
 		deadline = later(deadline, retryAt)
 	}
-	if reset, err := strconv.ParseInt(response.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil {
+	if reset, err := strconv.ParseInt(response.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil &&
+		response.Header.Get("X-RateLimit-Remaining") == "0" {
 		deadline = later(deadline, time.Unix(reset, 0))
 	}
 	return &RateLimitError{RetryAt: deadline, Authenticated: response.Request != nil &&
@@ -54,4 +56,33 @@ func later(left, right time.Time) time.Time {
 		return right
 	}
 	return left
+}
+
+// RateLimitGate retains upstream deadlines across transient clients owned by one service.
+// Each configured API origin has an independent quota boundary.
+type RateLimitGate struct {
+	mu      sync.Mutex
+	limited map[string]*RateLimitError
+}
+
+func (g *RateLimitGate) Check(origin string, now time.Time) *RateLimitError {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	limited := g.limited[origin]
+	if limited != nil && now.Before(limited.RetryAt) {
+		return limited
+	}
+	delete(g.limited, origin)
+	return nil
+}
+
+func (g *RateLimitGate) Record(origin string, limited *RateLimitError) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.limited == nil {
+		g.limited = make(map[string]*RateLimitError)
+	}
+	if prior := g.limited[origin]; prior == nil || limited.RetryAt.After(prior.RetryAt) {
+		g.limited[origin] = limited
+	}
 }

@@ -277,9 +277,10 @@ timeout = "10s"
 
 `base_url` accepts `https` or `http`; `http` logs an insecure-scheme warning and never receives a
 GitHub token. For authenticated release access and higher rate limits, the GitHub client uses
-`GITHUB_TOKEN` from the daemon environment, then the daemon user's `gh auth token` login.
-Without either credential, it uses anonymous access. Credentials stay on the configured HTTPS API
-origin and are removed on redirects to other origins.
+`GITHUB_TOKEN` from the daemon environment, then the daemon user's `gh auth token` login for
+`https://api.github.com`. Custom HTTPS API origins use only the explicit environment token; they
+never receive the CLI's github.com credential. Without an applicable credential, access is anonymous.
+Credentials stay on the configured HTTPS API origin and are removed on redirects to other origins.
 
 After changing policy, reconcile and inspect the daemon's apply record:
 

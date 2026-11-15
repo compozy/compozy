@@ -10,10 +10,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,6 +40,53 @@ type nativeExtensionSource struct {
 	latestVersion string
 	downloads     map[string]*registrypkg.DownloadResult
 	download      func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error)
+}
+
+// Invariant: transient registry sources share only their owning service's upstream quota deadline.
+func TestExtensionMarketplaceSourceBackoff(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
+		http.Error(w, "rate limited", http.StatusForbidden)
+	}))
+	t.Cleanup(server.Close)
+	cfg := compozyconfig.ExtensionsConfig{}
+	cfg.Sources.GitHub.Enabled = true
+	cfg.Sources.GitHub.BaseURL = server.URL
+	service := &daemonExtensionService{extensionConfig: cfg}
+	for range 2 {
+		sources, err := service.marketplaceSourceLoader()(t.Context())
+		if err != nil || len(sources) != 1 {
+			t.Fatalf("sources = %v, %v", sources, err)
+		}
+		_, err = sources[0].Search(t.Context(), "plugin", registrypkg.SearchOpts{})
+		if err == nil || !strings.Contains(err.Error(), "retry after") {
+			t.Fatalf("quota error = %v", err)
+		}
+		if err := sources[0].Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("requests during backoff = %d", calls.Load())
+	}
+	other := &daemonExtensionService{extensionConfig: cfg}
+	sources, err := other.marketplaceSourceLoader()(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sources[0].Search(t.Context(), "plugin", registrypkg.SearchOpts{}); err == nil {
+		t.Fatal("missing quota failure")
+	}
+	if err := sources[0].Close(); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 2 {
+		t.Fatal("quota state leaked between service owners")
+	}
 }
 
 func TestNativeExtensionScopedActorContextShouldCarryProfileScope(t *testing.T) {

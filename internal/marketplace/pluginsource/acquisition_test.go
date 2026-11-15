@@ -146,7 +146,7 @@ func TestResolveAndAcquire(t *testing.T) {
 }
 
 func TestResolveRemotePackages(t *testing.T) {
-	t.Parallel()
+	t.Setenv("GITHUB_TOKEN", "acquisition-sentinel")
 	commit := strings.Repeat("e", 40)
 	tests := []struct {
 		name   string
@@ -176,8 +176,12 @@ func TestResolveRemotePackages(t *testing.T) {
 			client := &http.Client{
 				Transport: marketplaceRoundTripper(func(request *http.Request) (*http.Response, error) {
 					requests++
-					if request.Header.Get("Authorization") != "" || request.Header.Get("Cookie") != "" {
-						t.Error("public package acquisition carried credentials")
+					wantAuthorization := ""
+					if request.URL.Host == "api.github.com" {
+						wantAuthorization = "Bearer acquisition-sentinel"
+					}
+					if request.Header.Get("Authorization") != wantAuthorization || request.Header.Get("Cookie") != "" {
+						t.Error("package acquisition crossed its credential boundary")
 					}
 					if strings.Contains(request.URL.Path, "/commits/") {
 						ref := tc.source.GitRef

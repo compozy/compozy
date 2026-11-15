@@ -26,16 +26,24 @@ func NewResolver(getenv func(string) string) *Resolver {
 		getenv = os.Getenv
 	}
 	return &Resolver{getenv: getenv, now: time.Now, run: func(ctx context.Context) ([]byte, error) {
-		return exec.CommandContext(ctx, "gh", "auth", "token", "--hostname", "github.com").Output()
+		command := exec.CommandContext(ctx, "gh", "auth", "token", "--hostname", "github.com")
+		configureCredentialCommand(command)
+		command.WaitDelay = time.Second
+		command.Env = append(command.Environ(), "GH_PROMPT_DISABLED=1")
+		return command.Output()
 	}}
 }
 
-func (r *Resolver) Resolve(ctx context.Context) (string, error) {
+func (r *Resolver) Resolve(ctx context.Context, origin string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 	if token := strings.TrimSpace(r.getenv("GITHUB_TOKEN")); token != "" {
 		return token, nil
+	}
+	// The CLI login belongs to github.com; a configured mirror does not own that credential.
+	if !IsAPIOriginURL(origin, "https://api.github.com") {
+		return "", nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

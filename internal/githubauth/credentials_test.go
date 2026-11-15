@@ -26,9 +26,22 @@ func TestResolver(t *testing.T) {
 			t.Error("environment credentials must take precedence")
 			return nil, nil
 		}
-		token, err := resolver.Resolve(t.Context())
+		token, err := resolver.Resolve(t.Context(), "https://api.github.com")
 		if err != nil || token != "environment-sentinel" {
 			t.Fatal("environment credential was not resolved")
+		}
+	})
+	t.Run("Should never consult the github.com CLI login for a custom API origin", func(t *testing.T) {
+		t.Parallel()
+		resolver := NewResolver(func(string) string { return "" })
+		resolver.run = func(context.Context) ([]byte, error) {
+			t.Fatal("custom API attempted to read a github.com credential")
+			return nil, nil
+		}
+		for _, origin := range []string{"https://github.enterprise.test", "http://api.github.com", "https://api.github.com:8443"} {
+			if token, err := resolver.Resolve(t.Context(), origin); err != nil || token != "" {
+				t.Fatal("custom API did not remain anonymous")
+			}
 		}
 	})
 	t.Run("Should bound gh lookup and reuse only its in-memory result", func(t *testing.T) {
@@ -46,7 +59,7 @@ func TestResolver(t *testing.T) {
 			return []byte("cli-sentinel\n"), nil
 		}
 		for range 2 {
-			token, err := resolver.Resolve(t.Context())
+			token, err := resolver.Resolve(t.Context(), "https://api.github.com")
 			if err != nil || token != "cli-sentinel" {
 				t.Fatal("CLI credential was not resolved")
 			}
@@ -55,7 +68,7 @@ func TestResolver(t *testing.T) {
 			t.Fatalf("gh calls = %d, want 1", calls)
 		}
 		now = now.Add(time.Minute)
-		if _, err := resolver.Resolve(t.Context()); err != nil || calls != 2 {
+		if _, err := resolver.Resolve(t.Context(), "https://api.github.com"); err != nil || calls != 2 {
 			t.Fatal("expired cache was not refreshed")
 		}
 	})
@@ -65,13 +78,13 @@ func TestResolver(t *testing.T) {
 		resolver.run = func(context.Context) ([]byte, error) {
 			return []byte("private-output-sentinel"), errors.New("private-error-sentinel")
 		}
-		token, err := resolver.Resolve(t.Context())
+		token, err := resolver.Resolve(t.Context(), "https://api.github.com")
 		if err != nil || token != "" {
 			t.Fatal("CLI failure did not fall back anonymously")
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		if _, err := resolver.Resolve(ctx); !errors.Is(err, context.Canceled) {
+		if _, err := resolver.Resolve(ctx, "https://api.github.com"); !errors.Is(err, context.Canceled) {
 			t.Fatal("caller cancellation was lost")
 		}
 	})
@@ -81,20 +94,22 @@ func TestRateLimit(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
 	for _, test := range []struct {
-		name  string
-		retry string
-		reset time.Time
-		want  time.Time
+		name      string
+		retry     string
+		reset     time.Time
+		remaining string
+		want      time.Time
 	}{
-		{"Should honor the later reset deadline", "120", now.Add(time.Hour), now.Add(time.Hour)},
-		{"Should honor an HTTP date retry deadline", now.Add(2 * time.Hour).Format(http.TimeFormat), now.Add(time.Hour), now.Add(2 * time.Hour)},
-		{"Should retain the minimum backoff for malformed headers", "invalid", now, now.Add(time.Minute)},
-		{"Should not overflow an excessive retry duration", "9223372036854775807", now, now.Add(time.Minute)},
+		{"Should honor an exhausted primary quota reset", "120", now.Add(time.Hour), "0", now.Add(time.Hour)},
+		{"Should use retry-after for a secondary quota", "120", now.Add(time.Hour), "42", now.Add(120 * time.Second)},
+		{"Should honor an HTTP date retry deadline", now.Add(2 * time.Hour).Format(http.TimeFormat), now.Add(time.Hour), "0", now.Add(2 * time.Hour)},
+		{"Should retain the minimum backoff for malformed headers", "invalid", now, "0", now.Add(time.Minute)},
+		{"Should not overflow an excessive retry duration", "9223372036854775807", now, "0", now.Add(time.Minute)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			limited := RateLimit(&http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{
-				"Retry-After": {test.retry}, "X-Ratelimit-Reset": {strconv.FormatInt(test.reset.Unix(), 10)},
+				"X-Ratelimit-Remaining": {test.remaining}, "Retry-After": {test.retry}, "X-Ratelimit-Reset": {strconv.FormatInt(test.reset.Unix(), 10)},
 			}}, now)
 			if limited == nil || !limited.RetryAt.Equal(test.want) || !errors.Is(limited, ErrRateLimited) ||
 				!strings.Contains(limited.Error(), "gh auth login") {

@@ -82,6 +82,82 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve the catalog and back off when a plugin package hits GitHub quota", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2100, 11, 15, 12, 0, 0, 0, time.UTC)
+		reset := now.Add(time.Hour)
+		var limited atomic.Bool
+		var calls atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			if strings.Contains(r.URL.Path, "/tarball/") {
+				w.Header().Set("X-RateLimit-Remaining", "0")
+				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
+				http.Error(w, "rate limited", http.StatusTooManyRequests)
+				return
+			}
+			if _, err := io.WriteString(w, strings.Repeat("a", 40)); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		resolver := &pluginsource.Resolver{Cache: &pluginsource.PackageCache{Root: t.TempDir()}, Sources: pluginsource.Sources{
+			TempDir: t.TempDir(), GitHubOptions: []pluginsource.GitHubOption{
+				pluginsource.WithGitHubBaseURL(server.URL), pluginsource.WithGitHubHTTPClient(server.Client()),
+			},
+		}}
+		projector, err := NewPluginProjector(resolver, func(context.Context, string, string) (PluginInspection, error) {
+			t.Error("rate-limited package must not reach inspection")
+			return PluginInspection{}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher := &recordingSource{fetch: func(ctx context.Context) (*Document, error) {
+			if limited.Load() {
+				_, _, err := projector.Project(ctx, pluginsource.Document{
+					SourceRef: "github:owner/catalog", Plugins: []pluginsource.Plugin{{Name: "tool", Source: pluginsource.PluginSource{
+						Kind: pluginsource.SourceGitHub, Ref: "github:owner/plugin",
+					}}},
+				}, "team", nil)
+				return nil, err
+			}
+			return testDocument(now, testEntry("stable", "Stable", "Cached plugin")), nil
+		}}
+		service, err := NewService(t.Context(), openMarketplaceTestStore(t), marketplaceTestBindings(t, fetcher),
+			time.Minute, time.Minute, WithNow(func() time.Time { return now }))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := service.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		limited.Store(true)
+		for range 2 {
+			if _, err := service.Refresh(t.Context()); err == nil || !strings.Contains(err.Error(), "retry after") {
+				t.Fatal("package rate limit did not reach source refresh")
+			}
+		}
+		page, err := service.Browse(t.Context(), "", 0, 10)
+		if err != nil || !page.Stale || len(page.Entries) != 1 || page.Entries[0].EntryID != "stable" || calls.Load() != 2 {
+			t.Fatalf("package quota lost cached projection: %+v, %v, requests=%d", page, err, calls.Load())
+		}
+		now = reset
+		limited.Store(false)
+		if _, err := service.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		page, err = service.Browse(t.Context(), "", 0, 10)
+		if err != nil || page.Stale || len(page.Entries) != 1 {
+			t.Fatalf("recovered projection = %+v, %v", page, err)
+		}
+	})
+
 	// Invariant: an independent source failure cannot hide another flight or restart it during backoff.
 	// Owner: service refresh publication; canonical HTTP/SQLite integration suite.
 	t.Run("Should finish a healthy source beside a failed source without polling retries", func(t *testing.T) {
