@@ -58,6 +58,7 @@ import type { SessionPayload, WorkspacePlacementPayload } from "../../types";
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { useSubagentRoster } from "../../hooks/use-subagent-roster";
 import { sessionKeys } from "../../lib/query-keys";
+import { SubagentDrawerContext, subagentDrawerLogic } from "../../contexts/subagent-drawer-context";
 import { sessionParentPickerStore } from "../../hooks/use-session-parent-picker";
 import { sessionScopedDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
 import { preloadSessionEntry } from "../../lib/session-entry-preload";
@@ -197,6 +198,7 @@ function renderList(
     clear?: SessionClearRequest;
     /** The desktop shell the rail opens windows through; absent outside the shell. */
     shell?: OsShellHandle;
+    drawer?: React.ContextType<typeof SubagentDrawerContext>;
   } = {}
 ) {
   const onSelect = vi.fn();
@@ -270,7 +272,9 @@ function renderList(
     <QueryClientProvider client={queryClient}>
       <AgentIdentityProvider>
         <OsShellContext value={overrides.shell ?? null}>
-          <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+          <SubagentDrawerContext value={overrides.drawer ?? null}>
+            <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+          </SubagentDrawerContext>
         </OsShellContext>
       </AgentIdentityProvider>
     </QueryClientProvider>
@@ -1880,51 +1884,83 @@ describe("SessionList subagents", () => {
   });
 
   // Invariant: Delete confirms, then permanently removes the delegated row and its child
-  // session in the parent's profile; the rail's branch drops the row on the same answer.
+  // session in the parent's profile; the rail drops the row and closes only its matching drawer.
   // Owner: rail's subagent actions + branch; canonical suite: this sidebar suite.
-  it("Should delete a delegated subagent after its confirmation", async () => {
-    const user = userEvent.setup();
-    let rows = [wireSubagent(1, "running")];
-    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      const request = input as Request;
-      if (request.method === "DELETE") {
-        const subagentId = new URL(request.url).pathname.split("/").at(-1);
-        rows = rows.filter(item => item.subagent_id !== subagentId);
-        return new Response(null, { status: 204 });
-      }
-      return new Response(JSON.stringify({ subagents: rows }), {
-        headers: { "Content-Type": "application/json" },
+  it.each([
+    {
+      name: "matching drawer",
+      id: "sub-1",
+      workspaceId: primarySessionFixture.workspace_id,
+      closes: true,
+    },
+    {
+      name: "another subagent",
+      id: "sub-2",
+      workspaceId: primarySessionFixture.workspace_id,
+      closes: false,
+    },
+    {
+      name: "another workspace",
+      id: "sub-1",
+      workspaceId: "other-workspace",
+      closes: false,
+    },
+  ])(
+    "Should close only the matching drawer after confirmed deletion: $name",
+    async ({ id, workspaceId, closes }) => {
+      const user = userEvent.setup();
+      let rows = [wireSubagent(1, "running")];
+      const drawerStore = subagentDrawerLogic.createStore();
+      const selectedSubagent = { ...subagentViewFromPayload(rows[0]!), id };
+      drawerStore.trigger.opened({ subagent: selectedSubagent, workspaceId, trigger: null });
+      const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+        const request = input as Request;
+        if (request.method === "DELETE") {
+          const subagentId = new URL(request.url).pathname.split("/").at(-1);
+          rows = rows.filter(item => item.subagent_id !== subagentId);
+          return new Response(null, { status: 204 });
+        }
+        return new Response(JSON.stringify({ subagents: rows }), {
+          headers: { "Content-Type": "application/json" },
+        });
       });
-    });
-    vi.mocked(globalThis.fetch).mockImplementation(fetcher);
-    renderList({ sessions: [row("parent", summary(1, 1))], subagentThreadIds: ["parent"] });
+      vi.mocked(globalThis.fetch).mockImplementation(fetcher);
+      renderList({
+        sessions: [row("parent", summary(1, 1))],
+        subagentThreadIds: ["parent"],
+        drawer: { store: drawerStore, open: vi.fn(), content: () => null },
+      });
 
-    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
-    const open = await within(branch).findByRole("button", {
-      name: "Open Subagent 1 · claude · Coder",
-    });
-    fireEvent.contextMenu(open);
-    await user.click(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-delete"));
+      const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+      const open = await within(branch).findByRole("button", {
+        name: "Open Subagent 1 · claude · Coder",
+      });
+      fireEvent.contextMenu(open);
+      await user.click(await screen.findByTestId("session-sidebar-subagent-menu-sub-1-delete"));
 
-    expect(await screen.findByRole("dialog", { name: "Delete subagent" })).toBeVisible();
-    await user.click(screen.getByTestId("subagent-delete-dialog-confirm"));
+      expect(await screen.findByRole("dialog", { name: "Delete subagent" })).toBeVisible();
+      await user.click(screen.getByTestId("subagent-delete-dialog-confirm"));
 
-    await waitFor(() => {
-      const request = fetcher.mock.calls
-        .map(([input]) => input as Request)
-        .find(item => item.method === "DELETE");
-      expect(request).toBeDefined();
-      const url = new URL(request!.url);
-      expect(url.pathname).toBe(
-        `/api/workspaces/${primarySessionFixture.workspace_id}/subagents/sub-1`
+      await waitFor(() => {
+        const request = fetcher.mock.calls
+          .map(([input]) => input as Request)
+          .find(item => item.method === "DELETE");
+        expect(request).toBeDefined();
+        const url = new URL(request!.url);
+        expect(url.pathname).toBe(
+          `/api/workspaces/${primarySessionFixture.workspace_id}/subagents/sub-1`
+        );
+        expect(url.searchParams.get("profile")).toBe("default");
+      });
+      await waitFor(() => expect(within(branch).queryByText("Subagent 1")).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "Delete subagent" })).not.toBeInTheDocument()
       );
-      expect(url.searchParams.get("profile")).toBe("default");
-    });
-    await waitFor(() => expect(within(branch).queryByText("Subagent 1")).not.toBeInTheDocument());
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Delete subagent" })).not.toBeInTheDocument()
-    );
-  });
+      expect(drawerStore.getSnapshot().context.selected).toEqual(
+        closes ? null : { subagent: selectedSubagent, workspaceId }
+      );
+    }
+  );
 
   // Invariant: the confirmation owns its host's lifetime, not the branch's. The catalog stream
   // reports the deletion (the parent's summary falls to zero, so the rail unmounts the branch)

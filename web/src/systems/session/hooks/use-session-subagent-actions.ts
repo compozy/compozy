@@ -1,12 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
-import { useCallback } from "react";
+import { use, useCallback } from "react";
 
 import { toast } from "@compozy/ui";
 
 import { cancelSubagent, deleteSubagent } from "../adapters/subagent-api";
 import type { SubagentView } from "../components/subagents/types";
 import { sessionKeys } from "../lib/query-keys";
+import { SubagentDrawerContext } from "../contexts/subagent-drawer-context";
 import { invalidateWorkspaceSessionCatalog } from "../lib/session-query-invalidation";
 import { applySubagentRemoved, type SubagentRoster } from "../lib/subagent-roster";
 import {
@@ -52,6 +53,7 @@ function hasSubagentScope(scope: SubagentActionScope): boolean {
  * lives in the owning XState store, not in React state.
  */
 export function useSessionSubagentActions(): SessionSubagentActionsModel {
+  const drawer = use(SubagentDrawerContext);
   const queryClient = useQueryClient();
   const store = useStore(sessionSubagentActionsLogic);
   const { pending, failure } = useSelector(store, snapshot => snapshot.context);
@@ -73,6 +75,12 @@ export function useSessionSubagentActions(): SessionSubagentActionsModel {
       });
       void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
+      if (drawer) {
+        const selected = drawer.store.getSnapshot().context.selected;
+        if (selected?.workspaceId === workspaceId && selected.subagent.id === subagent.id) {
+          drawer.store.trigger.closed();
+        }
+      }
       store.trigger.deleteClosed();
     },
     onError: error => {

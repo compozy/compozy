@@ -62,6 +62,9 @@ Owner: subagent menu feature, web half (backend half landed in the same branch).
   offer Copy only. `SubagentDeleteDialog` composes the existing Dialog primitives and blocks dismissal
   while the request runs. `useSessionSubagentActions` owns the delete/stop mutations and their rereads.
   This is additive: left click still opens the child session and the rail's existing menus are unchanged.
+- Drawer follow-up: a successful row deletion closes the selected subagent drawer only when its
+  current subagent ID and workspace match the removed row. A different selection stays open.
+  Existing sidebar confirmation coverage owns this interaction; no public contract changes.
 - Review repair: after the child is removed, roster deletion, wake rewriting, and parent settlement
   use a detached bounded cleanup context; a disconnected HTTP/UDS caller cannot strand a running row.
   The canonical subagent delete service suite covers this boundary. No wire or persistence change.

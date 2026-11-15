@@ -168,3 +168,7 @@ subagents` cases in `session-list.test.tsx` (menu shape, confirmation delete, st
 `SubagentDeleteDialog` cases in `subagent-components.test.tsx`, the `deleteSubagent` adapter case, and
 the `subagent_removed` stream case in `use-session-live-tail.test.tsx`. Live walk pending; verdict
 unchanged.
+
+Delete drawer follow-up: open a delegated subagent in the drawer and delete it from the rail. On
+success the matching drawer closes. If another subagent is selected before DELETE answers, that
+selection remains open. Main CI owns release-mode execution.
