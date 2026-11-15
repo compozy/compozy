@@ -93,8 +93,7 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 					Kind: resources.ResourceScopeKindWorkspace,
 					ID:   workspaceID,
 				},
-				SourcePath: server.DefinitionSource,
-				Spec:       server,
+				Spec: server,
 			}})
 			state := &bootState{
 				mcpDigestKeys:     vault.NewMCPDigestKeyProvider(t.TempDir()),
@@ -112,9 +111,13 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := globalDB.PutMCPServerApproval(ctx, store.MCPApproval{
-				ID: "recovery-fixture-approval", ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID,
-				ServerName: server.Name, SourceID: filepath.ToSlash(filepath.Join(compozyconfig.DirName, compozyconfig.MCPJSONName)),
-				DefinitionDigest: digest, ApprovedAt: now,
+				ID:               "recovery-fixture-approval",
+				ProfileID:        store.DefaultProfileID,
+				WorkspaceID:      workspaceID,
+				ServerName:       server.Name,
+				SourceID:         filepath.ToSlash(filepath.Join(compozyconfig.DirName, compozyconfig.MCPJSONName)),
+				DefinitionDigest: digest,
+				ApprovedAt:       now,
 			}); err != nil {
 				t.Fatal(err)
 			}

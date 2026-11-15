@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -2622,6 +2623,27 @@ func (d *integrationDriver) Stop(_ context.Context, proc *session.AgentProcess) 
 	return nil
 }
 
+// UDS fixtures admit no external MCP sources while retaining the session's native authority.
+type integrationMCPAuthority struct{ manager *session.Manager }
+
+func (r integrationMCPAuthority) EffectiveMCPAuthority(
+	ctx context.Context,
+	id string,
+) (store.SessionPermissionPolicy, error) {
+	info := session.MCPAuthoritySession(ctx, id)
+	if info == nil {
+		var err error
+		info, err = r.manager.StoredStatus(ctx, id)
+		if err != nil {
+			return store.SessionPermissionPolicy{}, err
+		}
+	}
+	lineage := store.NormalizeSessionLineage(id, info.Lineage)
+	policy := store.DecodeIntent(lineage.PermissionPolicy, lineage.Kind, string(info.Type))
+	policy.MCPServers = store.BoundMCPServers(policy, nil)
+	return policy, nil
+}
+
 func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	t.Helper()
 
@@ -2794,6 +2816,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	manager.SetMCPAuthorityResolver(integrationMCPAuthority{manager: manager})
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
 		defer cancel()
