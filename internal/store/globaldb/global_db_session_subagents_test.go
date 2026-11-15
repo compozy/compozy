@@ -820,7 +820,9 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 						}
 						got, err := db.GetSubagent(ctx, workspace, "deleted")
 						if err != nil || got.ChildSessionID != nil || got.ChildActivity != store.SubagentChildActivityStopped ||
-							got.Status != status || got.Result == nil || *got.Result != *settled.Result ||
+							got.Status != status ||
+							got.Result == nil ||
+							*got.Result != *settled.Result ||
 							got.Error == nil ||
 							*got.Error != *settled.Error ||
 							got.SettledAt == nil ||

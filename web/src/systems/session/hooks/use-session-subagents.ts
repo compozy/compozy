@@ -84,7 +84,8 @@ export function useLiveSubagentRoster(
   const readObservers = useCallback(() => find()?.getObserversCount() ?? 0, [find]);
   const data = useSyncExternalStore(enabled ? subscribe : subscribeIdle, readData);
   const observers = useSyncExternalStore(enabled ? subscribe : subscribeIdle, readObservers);
-  if (!enabled || !data || observers === 0 || data.staleIds.size > 0) return null;
+  if (!enabled || !data || observers === 0 || data.snapshotPending || data.staleIds.size > 0)
+    return null;
   return data.rows.length >= SUBAGENT_LIST_PAGE_SIZE ? null : data;
 }
 
@@ -139,11 +140,11 @@ function usePagedSubagents(
     enabled,
     ...(confirmOnMount ? { refetchOnMount: "always" as const } : {}),
   });
-  const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = query;
+  const { hasNextPage, isFetching, isFetchingNextPage, fetchNextPage, isError } = query;
   useEffect(() => {
-    if (enabled && allPages && hasNextPage && !isFetchingNextPage && !isError)
+    if (enabled && allPages && hasNextPage && !isFetching && !isFetchingNextPage && !isError)
       void fetchNextPage().catch(() => undefined);
-  }, [enabled, allPages, hasNextPage, isFetchingNextPage, fetchNextPage, isError]);
+  }, [enabled, allPages, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage, isError]);
   return query;
 }
 

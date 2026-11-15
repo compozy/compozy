@@ -1128,10 +1128,12 @@ describe("useSessionLiveTail", () => {
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);
     const rosterKey = sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID);
+    queryClient.setQueryData<SubagentRoster>(rosterKey, { rows: [], staleIds: new Set() });
     const { result, sources } = renderLiveTail({ queryClient });
     await act(async () => {
       await vi.waitFor(() => expect(result.current.status).toBe("success"));
     });
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.snapshotPending).toBe(true);
     const subagent = {
       subagent_id: "sub-1",
       workspace_id: WORKSPACE_ID,
@@ -1193,6 +1195,16 @@ describe("useSessionLiveTail", () => {
       sources[1]?.emit("subagents_snapshot", { session_id: SESSION_ID, subagents: [subagent] });
     });
     expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.staleIds.size).toBe(0);
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.snapshotPending).not.toBe(true);
+    act(() => sources[1]?.emit("subagents_snapshot", { session_id: SESSION_ID, subagents: [] }));
+    act(() => sources[1]?.onerror?.(new Event("error")));
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)).toMatchObject({
+      rows: [],
+      snapshotPending: true,
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    act(() => sources[2]?.emit("subagents_snapshot", { session_id: SESSION_ID, subagents: [] }));
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.snapshotPending).not.toBe(true);
   });
 
   // Invariant: `subagent_removed` drops exactly its row from the stream-owned roster and

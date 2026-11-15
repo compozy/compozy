@@ -186,3 +186,9 @@ confirms its absence. A live roster test keeps its stream observer mounted acros
 updates; the paged list cannot decide that removal. If roster deletion reaches its deadline after
 child removal, the retained row still settles under a fresh bounded recovery lifetime and remains
 retryable. UT-W16 and `TestSubagentDelete` own these regressions; final-head CI verification is pending.
+
+Reconnect confirmation (#1741): keep a cached empty roster across a stream restart or disconnect.
+Inspection stays open until the new subscription snapshot or a fresh complete list confirms absence.
+A cached continuation must not cancel that confirmation refetch; the subsequent page walk uses its
+new cursor and cannot retain a deleted first-page row. UT-W01 and UT-W16 own these regressions; CI
+remains the only execution environment for this dispatch.

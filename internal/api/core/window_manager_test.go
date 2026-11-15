@@ -96,7 +96,11 @@ func TestWindowManagerHandlers(t *testing.T) {
 	// Owner: core HTTP/UDS mutation lifetime; canonical suite: TestWindowManagerHandlers.
 	t.Run("Should detach accepted layout and client writes without bypassing CAS", func(t *testing.T) {
 		t.Parallel()
-		f := newWindowManagerHandlerFixture(t)
+		repository := &windowManagerMigrationRepositoryStub{
+			Repository: windowmanager.NewMemoryRepository(),
+			status:     windowmanager.MigrationStatus{State: "migrated", FromVersion: 5},
+		}
+		f := newWindowManagerHandlerFixtureWithRepository(t, repository)
 		path := windowManagerTestPath("workspace-a")
 		exported := performWindowManagerTestRequest(t, f.router, http.MethodGet, path+"/layout", "")
 		requireWindowManagerStatus(t, exported, http.StatusOK)
@@ -136,6 +140,10 @@ func TestWindowManagerHandlers(t *testing.T) {
 			disconnected(http.MethodPost, path+"/migration", `{"action":"ack"}`),
 			http.StatusOK,
 		)
+		status, err := repository.Migration(t.Context(), "workspace-a", "", false)
+		if err != nil || !status.Acknowledged {
+			t.Fatalf("migration acknowledgement not applied after disconnect: %+v, %v", status, err)
+		}
 	})
 
 	// Invariant: profile writes retain their version and scope guards after accepting the body.

@@ -140,6 +140,11 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 		if err != nil {
 			return fmt.Errorf("session: refresh resumed lineage: %w", err)
 		}
+		// The resume reservation is pending, so the generic metadata reader skips
+		// catalog binding. Existing sessions must still retain migrated intent.
+		if _, err := m.resolveStoredSessionOwner(ctx, &meta); err != nil {
+			return fmt.Errorf("session: bind resumed lineage authority: %w", err)
+		}
 		spec.sessionType = normalizeSessionType(Type(meta.SessionType))
 		spec.lineage = store.NormalizeSessionLineage(spec.sessionID, meta.Lineage)
 		m.releaseResumedParentStopBinding(ctx, spec)

@@ -84,11 +84,15 @@ describe("subagent roster (UT-W01)", () => {
   });
 
   it("Should mark held rows stale on reconnect until an update or the next snapshot confirms them", () => {
-    expect(markSubagentRosterStale(EMPTY_SUBAGENT_ROSTER)).toBe(EMPTY_SUBAGENT_ROSTER);
+    // Empty caches also lose absence authority until the subscription's snapshot.
+    expect(markSubagentRosterStale(snapshot()).snapshotPending).toBe(true);
+    expect(EMPTY_SUBAGENT_ROSTER.snapshotPending).toBe(true);
     const held = markSubagentRosterStale(snapshot(row("a"), row("b")));
     expect(held.staleIds).toEqual(new Set(["a", "b"]));
     const confirmed = applySubagentUpdated(held, update(row("a", { updated_at: at(3) })));
     expect(confirmed.staleIds).toEqual(new Set(["b"]));
+    expect(confirmed.snapshotPending).toBe(true);
+    expect(snapshot().snapshotPending).not.toBe(true);
     expect(snapshot(row("a"), row("b")).staleIds.size).toBe(0);
   });
 });

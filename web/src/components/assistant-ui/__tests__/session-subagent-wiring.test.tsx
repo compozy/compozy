@@ -332,6 +332,11 @@ describe("subagent card drill-in (UT-W16)", () => {
   it("Should keep inspection open while an older empty roster refetches", async () => {
     const queued = view("sub-1", { status: "queued", child_session_id: null });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
+      rows: [],
+      staleIds: new Set(),
+      snapshotPending: true,
+    });
     client.setQueryData(
       sessionKeys.subagents(WORKSPACE_ID, SESSION_ID),
       { pages: [{ subagents: [], next_cursor: null }], pageParams: [""] },
@@ -344,6 +349,7 @@ describe("subagent card drill-in (UT-W16)", () => {
       })
     );
     function OpenDrawer() {
+      useQuery(sessionSubagentRosterOptions(WORKSPACE_ID, SESSION_ID));
       const drawer = use(SubagentDrawerContext);
       return (
         <button
@@ -386,23 +392,17 @@ describe("subagent card drill-in (UT-W16)", () => {
       next_cursor: null,
     });
     let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
+    let selectNext!: () => void;
     function OpenDrawer() {
       const drawer = use(SubagentDrawerContext);
+      selectNext = () => drawer?.open(next, { newWindow: false }, WORKSPACE_ID);
       return (
-        <>
-          <button
-            type="button"
-            onClick={() => drawer?.open(first, { newWindow: false }, WORKSPACE_ID)}
-          >
-            Inspect first
-          </button>
-          <button
-            type="button"
-            onClick={() => drawer?.open(next, { newWindow: false }, WORKSPACE_ID)}
-          >
-            Inspect next
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={() => drawer?.open(first, { newWindow: false }, WORKSPACE_ID)}
+        >
+          Inspect first
+        </button>
       );
     }
     render(
@@ -422,7 +422,8 @@ describe("subagent card drill-in (UT-W16)", () => {
         confirm = resolve;
       })
     );
-    fireEvent.click(screen.getByRole("button", { name: "Inspect next" }));
+    // The modal makes its background inert; another host can still select a new row.
+    act(() => selectNext());
     expect(await screen.findByText(next.title)).toBeVisible();
     await act(async () => {
       confirm({ subagents: [], next_cursor: null });
@@ -787,6 +788,50 @@ describe("composer subagents control (issue #766 wiring)", () => {
     expect(within(popover).getByRole("status")).toHaveTextContent("Loading subagents");
     expect(within(popover).queryByText("Nothing delegated yet.")).not.toBeInTheDocument();
     queryClient.clear();
+  });
+
+  // Invariant: confirmation refreshes cached pages before following their continuation.
+  // Owner: cold roster query orchestration; canonical suite: this wiring suite.
+  it("Should finish the confirmation refetch before walking the current roster pages", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(sessionKeys.subagents(WORKSPACE_ID, SESSION_ID), {
+      pages: [{ subagents: [subagentPayload("deleted")], next_cursor: "old-page-2" }],
+      pageParams: [""],
+    });
+    let confirm!: (page: Awaited<ReturnType<typeof fetchSessionSubagents>>) => void;
+    vi.mocked(fetchSessionSubagents)
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          confirm = resolve;
+        })
+      )
+      .mockResolvedValueOnce({ subagents: [subagentPayload("last")], next_cursor: null });
+    const { result } = renderHook(
+      () => useSessionSubagents(WORKSPACE_ID, SESSION_ID, { confirmOnMount: true }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetchSessionSubagents).mock.calls[0]?.[3]?.aborted).toBe(false);
+    expect(result.current.confirmed).toBe(false);
+    await act(async () => {
+      confirm({ subagents: [subagentPayload("current")], next_cursor: "new-page-2" });
+    });
+    await waitFor(() => expect(result.current.confirmed).toBe(true));
+    expect(result.current.subagents.map(row => row.id)).toEqual(["current", "last"]);
+    expect(fetchSessionSubagents).toHaveBeenLastCalledWith(
+      WORKSPACE_ID,
+      SESSION_ID,
+      { limit: 200, cursor: "new-page-2" },
+      expect.any(AbortSignal)
+    );
+    client.clear();
   });
 
   it("Should stop a failed cold page walk until the operator retries", async () => {
