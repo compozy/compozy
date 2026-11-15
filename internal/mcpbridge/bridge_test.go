@@ -149,7 +149,7 @@ func TestBridge(t *testing.T) {
 	})
 
 	t.Run("Should stop serving and release the child on close", func(t *testing.T) {
-		t.Parallel()
+		// Keep other bridge fixtures from reclaiming the closed ephemeral port before the probe.
 		bridge := startHelperBridge(t)
 		if err := bridge.Close(); err != nil {
 			t.Fatalf("Close() error = %v", err)
