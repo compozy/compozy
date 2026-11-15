@@ -40,6 +40,7 @@ import { usePaletteFocus, usePaletteTabs } from "../use-os-palette-entities";
 import { useOsWindowMember } from "../use-os-window-member";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
 import {
+  LIVE_DATA_SETTLE_MS,
   useCurrentWindowLiveDataEnabled,
   useWindowLiveDataEnabled,
 } from "../use-window-live-data-enabled";
@@ -999,6 +1000,7 @@ describe("useWindowLiveDataEnabled", () => {
   });
 
   it("Should lease live data to the focused and most recent visible background window", () => {
+    vi.useFakeTimers();
     const shell = createShell();
     const third = windowFixture("window:third");
     const { result } = renderHook(
@@ -1022,9 +1024,61 @@ describe("useWindowLiveDataEnabled", () => {
         },
       })
     );
+    // The lease moves once the new focus has held for the settle interval.
+    expect(result.current).toEqual({ primary: true, peer: true, third: false });
+    act(() => vi.advanceTimersByTime(LIVE_DATA_SETTLE_MS));
     expect(result.current).toEqual({ primary: true, peer: false, third: true });
     act(() => shell.setRuntimeState({ activeDesktopId: "desktop:other" }));
+    act(() => vi.advanceTimersByTime(LIVE_DATA_SETTLE_MS));
     expect(result.current).toEqual({ primary: false, peer: false, third: false });
+  });
+
+  it("Should keep the settled lease while focus only passes through other windows", () => {
+    vi.useFakeTimers();
+    const shell = createShell();
+    const third = windowFixture("window:third");
+    const settled = shell.state;
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return {
+          primary: useWindowLiveDataEnabled("window:primary"),
+          peer: useWindowLiveDataEnabled("window:peer"),
+          third: useWindowLiveDataEnabled("window:third"),
+        };
+      },
+      { wrapper: shell.wrapper }
+    );
+    const mountedRenders = renders;
+    const passThrough = {
+      windows: { ...settled.windows, [third.id]: third },
+      focusedId: third.id,
+      client: {
+        ...settled.client!,
+        focusedWindowId: third.id,
+        focusOrder: [third.id, "window:primary", "window:peer"],
+      },
+    };
+
+    // A burst of switches that returns to the settled focus before the interval ends.
+    for (let round = 0; round < 4; round += 1) {
+      act(() => shell.setRuntimeState(passThrough));
+      act(() => vi.advanceTimersByTime(LIVE_DATA_SETTLE_MS - 1));
+      act(() =>
+        shell.setRuntimeState({
+          windows: passThrough.windows,
+          focusedId: settled.focusedId,
+          client: settled.client,
+        })
+      );
+      act(() => vi.advanceTimersByTime(LIVE_DATA_SETTLE_MS - 1));
+      expect(result.current).toEqual({ primary: true, peer: true, third: false });
+    }
+    act(() => vi.advanceTimersByTime(LIVE_DATA_SETTLE_MS));
+    expect(result.current).toEqual({ primary: true, peer: true, third: false });
+    // Callers subscribe to the settled lease only: passing through never re-renders them.
+    expect(renders).toBe(mountedRenders);
   });
 
   it("Should fill the live budget by ID while excluding windows that are not shown", () => {
