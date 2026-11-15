@@ -20,4 +20,10 @@ story: An operator who split two windows wants one of them back as its own tab w
 
 scope: The four unsplit gestures in the Web shell and their CLI equivalent; split creation is ET-window-manager-layout-gestures.
 
+qa-impact: Release main-health fixes commands issued immediately after directional focus. In an
+A | B split, press Control+ArrowRight followed immediately by Control+Alt+ArrowLeft: B moves to
+the left edge and keeps focus, even while its focus response is pending. Repeat with the bound
+Move to new tab shortcut: B leaves the split. The existing Tabs-split E2E-010 and client-op table
+suite own these paths; main CI supplies release-mode validation.
+
 Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build (unique home, port and socket). Open three windows in one tab split as A | B | C. (1) Click "Move to new tab" in B's header: B becomes the tab right after the source tab, A | C stay split. ⌘Z restores the split. (2) Focus C and use Window › Move to new tab. (3) Bind `window.unsplit` in Settings › Shortcuts, focus A in a split and press it. (4) Drag a split window's header up onto the tab bar and drop it: it lands as its own tab at the drop position; Escape mid-drag restores the split. Confirm a single-window tab shows no "Move to new tab". CLI: `compozy window move --workspace <id> --revision <r> --id <w> --desktop <d> --placement tab` moves a split window into its own tab and the Web shell converges.

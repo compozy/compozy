@@ -84,25 +84,31 @@ describe("cmd-palette client-op table — tabs", () => {
 });
 
 describe("cmd-palette client-op table — splits", () => {
-  it("Should route unsplit, tab moves and the retargeted tiles to the focused window [US-012]", () => {
-    const context = opContext(tabBarFixture(), "w-2");
-    void run("window.unsplit", context);
-    void run("window.tab.move_left", context);
-    void run("window.tab.move_right", context);
-    for (const edge of ["left", "right", "top", "bottom"]) void run(`window.tile.${edge}`, context);
+  it.each(["w-2", "w-3"])(
+    "Should route split commands to the latest focus %s [US-012]",
+    focusedId => {
+      const context = opContext(tabBarFixture(), "w-2");
+      // The shown client view can still name w-2 while a directional focus to w-3 awaits its answer.
+      vi.mocked(context.manager.directionalFocusId).mockReturnValue(focusedId);
+      void run("window.unsplit", context);
+      void run("window.tab.move_left", context);
+      void run("window.tab.move_right", context);
+      for (const edge of ["left", "right", "top", "bottom"])
+        void run(`window.tile.${edge}`, context);
 
-    expect(context.manager.unsplitWindow).toHaveBeenCalledExactlyOnceWith("w-2");
-    expect(vi.mocked(context.manager.moveTab).mock.calls).toEqual([
-      ["w-2", "left"],
-      ["w-2", "right"],
-    ]);
-    expect(vi.mocked(context.manager.tileWindow).mock.calls).toEqual([
-      ["w-2", "left"],
-      ["w-2", "right"],
-      ["w-2", "top"],
-      ["w-2", "bottom"],
-    ]);
-  });
+      expect(context.manager.unsplitWindow).toHaveBeenCalledExactlyOnceWith(focusedId);
+      expect(vi.mocked(context.manager.moveTab).mock.calls).toEqual([
+        [focusedId, "left"],
+        [focusedId, "right"],
+      ]);
+      expect(vi.mocked(context.manager.tileWindow).mock.calls).toEqual([
+        [focusedId, "left"],
+        [focusedId, "right"],
+        [focusedId, "top"],
+        [focusedId, "bottom"],
+      ]);
+    }
+  );
 
   it("Should route each swap direction to the controller's directional swap [#1658]", () => {
     const context = opContext(tabBarFixture(), "w-2");

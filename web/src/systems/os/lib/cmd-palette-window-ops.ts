@@ -24,7 +24,7 @@ const TILE_EDGES = ["left", "right", "top", "bottom"] as const;
 export const SWAP_DIRECTIONS = ["left", "right", "up", "down"] as const;
 
 function focusedWindowId(context: PaletteClientOpContext): string | null {
-  return currentState(context).focusedId;
+  return context.manager.directionalFocusId();
 }
 
 /** Activates a tab of the active desktop's bar, chosen from the bar order and the active index. */

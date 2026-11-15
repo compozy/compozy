@@ -6362,3 +6362,12 @@ capturing source fences. Fork/continue still preserve every source entry and the
 is test synchronization with the existing `session.mcp_changed` contract; no production surface,
 permissions, hook, config, persistence, official skill or workspace isolation behavior changes.
 `ET-web-session-fork-from-here` names the same baseline; main CI owns the browser scenario validation.
+
+## Release main-health: layout commands after directional focus
+
+Web commands acting on the focused window reuse the controller's existing pending-focus resolver,
+so a tile, unsplit or tab move issued before the focus response lands targets the window just
+chosen. The unchanged Tabs-split E2E-010 owns the real browser sequence; the client-op table suite
+covers the old client view alongside the newer focus intent. `ET-window-unsplit-four-ways` records
+the affected walk. No native tool, CLI/HTTP/UDS shape, hook, extension, config, persistence,
+official skill or workspace/profile isolation contract changes. Main CI owns validation.
