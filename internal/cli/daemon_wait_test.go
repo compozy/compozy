@@ -399,13 +399,10 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 		deps := newTestDeps(t, &stubClient{}).withDefaults()
 		info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
 		deps.processAlive = func(int) bool { return true }
-		deps.processMatchesStartTime = func(pid int, started time.Time) bool {
-			if pid != info.PID || !started.Equal(info.StartedAt) {
-				t.Fatal("wrong process identity")
-			}
-			return false
-		}
 		deps.inspectProcess = func(pid int) (procutil.ScannedProcess, error) {
+			if pid != info.PID {
+				t.Fatalf("process identity = %d, want %d", pid, info.PID)
+			}
 			return procutil.ScannedProcess{PID: pid, StartedAt: info.StartedAt.Add(time.Minute)}, nil
 		}
 		deps.processOwnsFileLock = func(int, string) (bool, error) { return false, nil }

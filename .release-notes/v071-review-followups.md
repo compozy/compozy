@@ -9,7 +9,7 @@ development build wrote stale intent markers into a session's metadata.
 
 Deleting stopped history whose metadata is missing now removes its event database and attachments,
 with the same owner checks and recoverable staging as normal deletion. Subagent cancellation finishes
-its accepted settlement after a client disconnects, failed roster removal leaves a terminal row that
+its accepted settlement after a client disconnects. Failed roster removal leaves a terminal row that
 can be deleted again even after its removal deadline expires. Archived cleanup bounds individual
 deletions, including lifecycle-lock admission, and stops cached child
 activity atomically. Raw session streams end on a replayed stop and fall back to polling after a failed

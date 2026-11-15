@@ -163,16 +163,21 @@ func TestManagerDelete(t *testing.T) {
 		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
 			t.Fatal(err)
 		}
+		info, err := h.manager.prepareSessionDelete(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		h.manager.lifecycleMu.Lock()
 		unlock := sync.OnceFunc(h.manager.lifecycleMu.Unlock)
 		defer unlock()
 		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 		defer cancel()
 		deleted := make(chan error, 1)
-		go func() { deleted <- h.manager.Delete(ctx, created.ID) }()
+		go func() { deleted <- h.manager.deletePreparedSession(ctx, created.ID, info, nil) }()
 		select {
 		case err := <-deleted:
-			if !errors.Is(err, context.DeadlineExceeded) {
+			if !errors.Is(err, context.DeadlineExceeded) ||
+				!strings.Contains(err.Error(), "await delete lifecycle lock") {
 				t.Fatalf("Delete(contended) error = %v", err)
 			}
 		case <-testutil.Context(t).Done():

@@ -42,5 +42,10 @@ func (m *lifecycleMutex) LockContext(ctx context.Context) error {
 }
 
 func (m *lifecycleMutex) Unlock() {
-	m.token <- struct{}{}
+	m.init()
+	select {
+	case m.token <- struct{}{}:
+	default:
+		panic("session: unlock of unlocked lifecycle mutex")
+	}
 }
