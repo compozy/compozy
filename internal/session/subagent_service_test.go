@@ -906,7 +906,8 @@ func TestSubagentRecovery(t *testing.T) {
 					queued = len(runtime.queues)
 					runtime.mu.Unlock()
 					if err != nil || got.Delivery != store.SubagentDeliveryPending || queued != 1 {
-						t.Fatalf("fact recovery ignored the configured retry delay: %+v, queues=%d, %v", got, queued, err)
+						t.Fatalf("fact recovery ignored the configured retry delay: %+v, queues=%d, %v",
+							got, queued, err)
 					}
 					time.Sleep(time.Nanosecond)
 					synctest.Wait()
