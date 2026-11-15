@@ -49,10 +49,7 @@ func (s *subagentService) finalize(ctx context.Context, row store.SessionSubagen
 		return nil
 	}
 	if store.IsSubagentStatusTerminal(current.Status) {
-		if err := s.persistTerminalWorktreeFacts(ctx, row, current); err != nil {
-			return err
-		}
-		return s.updateChildActivity(ctx, current)
+		return s.refreshTerminalSubagent(ctx, row, current)
 	}
 	facts := row.WorktreeState().Facts
 	row = current
@@ -103,21 +100,33 @@ func (s *subagentService) updateSubagentWorkState(
 	return err
 }
 
-func (s *subagentService) persistTerminalWorktreeFacts(ctx context.Context, row, current store.SessionSubagent) error {
+func (s *subagentService) refreshTerminalSubagent(
+	ctx context.Context, observed, current store.SessionSubagent,
+) error {
+	current, err := s.persistTerminalWorktreeFacts(ctx, observed, current)
+	if errors.Is(err, store.ErrSubagentNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return s.updateChildActivity(ctx, current)
+}
+
+func (s *subagentService) persistTerminalWorktreeFacts(
+	ctx context.Context, row, current store.SessionSubagent,
+) (store.SessionSubagent, error) {
 	if row.WorktreeState().Facts.PRStatus != "" && current.WorktreeState().Facts.PRStatus == "" {
-		settled, _, err := s.store.FinalizeSubagent(
-			ctx,
-			store.SubagentFinalize{ID: row.ID, Status: current.Status, WorktreeFacts: subagentFinalFacts(row)},
-		)
+		settled, err := s.store.RecordSubagentWorktreeFacts(ctx, row)
 		if err == nil {
 			s.publish(ctx, settled)
 			if _, deferred := s.awaitingFacts.LoadAndDelete(row.ID); deferred {
 				s.dispatchSettledHook(settled)
 			}
 		}
-		return err
+		return settled, err
 	}
-	return nil
+	return current, nil
 }
 
 func (s *subagentService) finalizeAvailable(
@@ -214,8 +223,13 @@ func (s *subagentService) settleParent(ctx context.Context, parent string) error
 }
 
 func (s *subagentService) observeSettledWorktree(ctx context.Context, row store.SessionSubagent) store.SessionSubagent {
-	if s.worktrees == nil || row.WorktreeState().ID == "" || row.WorktreeState().Facts.PRStatus != "" ||
-		row.ChildSessionID == nil {
+	if s.worktrees == nil || row.WorktreeState().ID == "" || row.WorktreeState().Facts.PRStatus != "" {
+		return row
+	}
+	if row.ChildSessionID == nil {
+		if store.IsSubagentStatusTerminal(row.Status) && row.ChildActivity == store.SubagentChildActivityStopped {
+			return s.observeSubagentWorktree(ctx, row)
+		}
 		return row
 	}
 	snap, err := s.runtime.Snapshot(ctx, *row.ChildSessionID)
@@ -234,6 +248,12 @@ func (s *subagentService) observeSettledWorktree(ctx context.Context, row store.
 	if err != nil || summary[*row.ChildSessionID].Live > 0 {
 		return row
 	}
+	return s.observeSubagentWorktree(ctx, row)
+}
+
+func (s *subagentService) observeSubagentWorktree(
+	ctx context.Context, row store.SessionSubagent,
+) store.SessionSubagent {
 	wt := row.WorktreeState()
 	wt.Facts = s.worktrees.Observe(ctx, row.WorkspaceID, wt.ID, wt.BaseSHA)
 	row.Worktree = &wt

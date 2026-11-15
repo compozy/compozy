@@ -180,3 +180,29 @@ its completed status, settlement time, and result. Release-mode execution belong
 
 Delete recovery follow-up: disconnect the HTTP/UDS caller after child history is removed; the roster
 row must still disappear and the idle parent must settle. Main CI owns release-mode execution.
+
+QA impact 2026-11-15 (child-session deletion): delete the child session while its delegation is
+running or waiting, using the session menu or session DELETE route. The delegation row must remain
+readable with a terminal outcome and stopped child activity; the parent must receive its result wake
+once for asynchronous delegation, and its live-child / pending-wake wait must clear after delivery.
+For a `wait` delegation, the waiting call acknowledges the interruption without an additional wake.
+If the daemon exits before that acknowledgement, recovery delivers the still-pending result.
+For an isolated child, the retained worktree Git/PR facts accompany status and settled hooks;
+recovery can observe those facts even after the child link is gone. Repeat with a stopped child
+whose settlement callback was missed, missing child history, and deletion followed by daemon
+recovery. Completed delegations retain their original result, error, settlement time and delivery.
+If saving recovered checkout facts fails transiently, the parent stays pending while other parents
+recover; the delivery retry must save the facts and wake the parent without another user turn.
+Deleting the delegation row itself still removes the row and suppresses a result wake, including
+when another result joins an older wake during deletion. A failed deletion must resume a retained
+pending result even if the delegation had already completed before deletion started.
+Owning automation: `TestGlobalDBSubagentStateUpdates` and the deleted-child cases in
+`TestSubagentDaemonIntegration`, using real SQLite and ACP subprocesses. Execution is CI-only for
+this change; the earlier real-provider verdict is not renewed by this scenario update.
+
+Roster-removal failure follow-up: if child deletion commits but removing the retained delegation
+fails or reaches its cleanup deadline, the row stays terminal and its ordinary result remains
+deliverable with its final retained-checkout facts. A later roster-delete retry removes it
+successfully. `TestSubagentDelete` owns this failure-boundary coverage; its context-checking store
+fake verifies reconciliation has a fresh cleanup lifetime even when observing checkout facts
+exhausts its separate deadline. Final-head CI remains the execution authority for this change.

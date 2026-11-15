@@ -296,7 +296,18 @@ func (s *subagentService) recoverPending(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// A successor claims every pending row for its parent in one batch. Save all
+	// retained checkout facts before composing any parent's completion message.
 	seen := make(map[string]bool)
+	for _, row := range pending {
+		factsErr := s.recoverDeletedChildFacts(ctx, row)
+		if factsErr != nil && !errors.Is(factsErr, store.ErrSubagentNotFound) {
+			s.recoveryResult(ctx, row.ID, "deleted_child_facts", factsErr)
+			// Keep this parent's batch pending, without blocking other recovery or boot.
+			s.retryWakeAfter(row.ParentSessionID, s.recoveryRetryDelay)
+			seen[row.ParentSessionID] = true
+		}
+	}
 	for _, row := range pending {
 		if seen[row.ParentSessionID] {
 			continue
@@ -311,6 +322,33 @@ func (s *subagentService) recoverPending(ctx context.Context) error {
 			continue
 		}
 		s.recoveryResult(ctx, row.ID, "pending_claimed", s.OnParentTurnSettled(ctx, row.ParentSessionID, ""))
+	}
+	return nil
+}
+
+func (s *subagentService) recoverDeletedChildFacts(ctx context.Context, row store.SessionSubagent) error {
+	if row.ChildSessionID != nil || !store.IsSubagentStatusTerminal(row.Status) ||
+		row.WorktreeState().ID == "" || row.WorktreeState().Facts.PRStatus != "" {
+		return nil
+	}
+	observed := s.observeSettledWorktree(ctx, row)
+	unlock := s.lock(row.ParentSessionID)
+	defer unlock()
+	_, err := s.persistTerminalWorktreeFacts(ctx, observed, row)
+	return err
+}
+
+// A retry must save every retained checkout's facts before successor composes the
+// parent's batch. Observation stays outside the parent lock, as it does at boot.
+func (s *subagentService) recoverPendingFacts(ctx context.Context, parent string) error {
+	pending, err := s.store.ListPending(ctx, parent)
+	if err != nil {
+		return err
+	}
+	for _, row := range pending {
+		if err := s.recoverDeletedChildFacts(ctx, row); err != nil && !errors.Is(err, store.ErrSubagentNotFound) {
+			return err
+		}
 	}
 	return nil
 }

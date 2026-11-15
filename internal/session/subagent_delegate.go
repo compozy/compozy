@@ -385,6 +385,13 @@ func (s *subagentService) wait(
 		}
 		if store.IsSubagentStatusTerminal(current.Status) || current.Delivery == store.SubagentDeliveryDisposed ||
 			current.Delivery == "held" {
+			if current.Status == store.SubagentStatusInterrupted && current.ChildSessionID == nil &&
+				current.Result == nil && current.WakePolicy == store.SubagentWakePolicySettledOnly &&
+				current.Delivery == store.SubagentDeliveryPending {
+				return s.Status(ctx, SubagentCaller{
+					WorkspaceID: row.WorkspaceID, SessionID: row.ParentSessionID, TurnID: row.ParentTurnID,
+				}, row.ID)
+			}
 			return current, nil
 		}
 		select {

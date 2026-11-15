@@ -599,6 +599,63 @@ func TestSubagentLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	// Invariant: deleting history preserves an inline result's completed delivery policy.
+	t.Run("Should preserve a completed wait result after deleting its child", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		current := db.rows[row.ID]
+		current.WakePolicy = store.SubagentWakePolicySettledOnly
+		db.rows[row.ID] = current
+		settleTestChild(t, s, runtime, &row)
+		before := db.rows[row.ID]
+		parent := runtime.snapshots[row.ParentSessionID]
+		parent.Active = false
+		runtime.snapshots[row.ParentSessionID] = parent
+		current = before
+		current.ChildSessionID = nil
+		current.ChildActivity = store.SubagentChildActivityStopped
+		db.rows[row.ID] = current
+		if err := s.onChildSessionDeleted(t.Context(), before); err != nil {
+			t.Fatal(err)
+		}
+		if got := db.rows[row.ID]; got.Delivery != store.SubagentDeliveryNone ||
+			got.Status != before.Status || got.Result == nil || *got.Result != *before.Result || len(db.wakes) != 0 {
+			t.Fatalf("completed wait result changed or woke parent: %+v, %+v", got, db.wakes)
+		}
+	})
+	// Invariant: deletion cannot dispatch a second settled hook when another finalizer won.
+	t.Run("Should preserve a concurrent finalizer when child history is deleted", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			hook := &subagentTestHook{}
+			s.settled = hook
+			row := requireSubagent(t, s, subagentTestRequest())
+			before := db.rows[row.ID]
+			runtime.snapshots[*row.ChildSessionID] = subagentSnapshot{
+				Info: &Info{ID: *row.ChildSessionID, State: StateStopped, StopReason: store.StopAgentCrashed},
+			}
+			if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if hook.calls != 1 {
+				t.Fatalf("initial settled hooks = %d, want 1", hook.calls)
+			}
+			current := db.rows[row.ID]
+			current.ChildSessionID = nil
+			current.ChildActivity = store.SubagentChildActivityStopped
+			db.rows[row.ID] = current
+			if err := s.onChildSessionDeleted(t.Context(), before); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if hook.calls != 1 {
+				t.Fatalf("delete repeated settled hook: %d", hook.calls)
+			}
+		})
+	})
 	// Invariant: a settled delegation keeps its terminal outcome while child_activity follows the child session.
 	t.Run("Should track child activity after settlement without changing the outcome", func(t *testing.T) {
 		t.Parallel()
@@ -777,6 +834,101 @@ func (h *subagentTestHook) DispatchSubagentSettled(context.Context, store.Sessio
 // Invariant: boot repairs every interrupted boundary from durable inputs; owner: service recovery (IT-031).
 func TestSubagentRecovery(t *testing.T) {
 	t.Parallel()
+	// Invariant: a lost row or failed fact write cannot block unrelated parent wakes or orphan cleanup.
+	for _, failure := range []string{"row removed", "fact write failed"} {
+		t.Run("Should continue recovery when deleted child facts have "+failure, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s, db, runtime := newSubagentTestService(t)
+				WithSubagentRecoveryRetryDelay(2 * time.Second)(s)
+				wt := &subagentWorktreeStub{facts: SubagentWorktreeFacts{PRStatus: "none"}}
+				s.worktrees = wt
+				parent := runtime.snapshots["parent"]
+				parent.Active = false
+				runtime.snapshots["parent"] = parent
+				other := parent
+				info := *parent.Info
+				info.ID = "other"
+				other.Info = &info
+				runtime.snapshots["other"] = other
+				for _, parentID := range []string{"parent", "other"} {
+					db.rows[parentID] = store.SessionSubagent{
+						ID:              parentID,
+						WorkspaceID:     "ws",
+						ParentSessionID: parentID,
+						Title:           parentID,
+						Origin:          store.SubagentOriginDelegated,
+						Status:          store.SubagentStatusInterrupted,
+						ChildActivity:   store.SubagentChildActivityStopped,
+						WorkState:       store.SubagentWorkStateResultAvailable,
+						WakePolicy:      store.SubagentWakePolicyAlways,
+						Delivery:        store.SubagentDeliveryPending,
+					}
+				}
+				row := db.rows["parent"]
+				row.Worktree = &store.SubagentWorktreeState{ID: "wt", Branch: "pending-facts"}
+				row.Isolation = SubagentIsolationWorktree
+				db.rows[row.ID] = row
+				if failure == "row removed" {
+					wt.observe = func() { delete(db.rows, row.ID) }
+				} else {
+					db.worktreeFactsErrIDs = map[string]error{row.ID: errors.New("fact write unavailable")}
+				}
+				db.orphans = []string{"orphan"}
+				runtime.snapshots["orphan"] = subagentSnapshot{Info: &Info{ID: "orphan", State: StateActive}}
+				if err := s.Recover(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				healthy, err := db.GetSubagent(t.Context(), "ws", "other")
+				if err != nil {
+					t.Fatal(err)
+				}
+				runtime.mu.Lock()
+				queued, orphanStopped := len(runtime.queues), slices.Contains(runtime.stopped, "orphan")
+				runtime.mu.Unlock()
+				if healthy.Delivery != store.SubagentDeliveryClaimed || queued != 1 || !orphanStopped {
+					t.Fatalf("unrelated recovery blocked: row=%+v queues=%d orphanStopped=%v",
+						healthy, queued, orphanStopped)
+				}
+				if failure == "fact write failed" {
+					got, err := db.GetSubagent(t.Context(), "ws", row.ID)
+					if err != nil || got.Delivery != store.SubagentDeliveryPending {
+						t.Fatalf("failed fact write lost pending batch: %+v, %v", got, err)
+					}
+					synctest.Wait()
+					db.mu.Lock()
+					delete(db.worktreeFactsErrIDs, row.ID)
+					db.mu.Unlock()
+					time.Sleep(s.recoveryRetryDelay - time.Nanosecond)
+					synctest.Wait()
+					got, err = db.GetSubagent(t.Context(), "ws", row.ID)
+					runtime.mu.Lock()
+					queued = len(runtime.queues)
+					runtime.mu.Unlock()
+					if err != nil || got.Delivery != store.SubagentDeliveryPending || queued != 1 {
+						t.Fatalf("fact recovery ignored the configured retry delay: %+v, queues=%d, %v",
+							got, queued, err)
+					}
+					time.Sleep(time.Nanosecond)
+					synctest.Wait()
+					got, err = db.GetSubagent(t.Context(), "ws", row.ID)
+					if err != nil || got.Delivery != store.SubagentDeliveryClaimed || got.WakeMessageID == nil ||
+						got.WorktreeState().Facts.PRStatus != "none" {
+						t.Fatalf("transient fact failure did not recover without a parent turn: %+v, %v", got, err)
+					}
+					runtime.mu.Lock()
+					text := runtime.queues[*got.WakeMessageID]
+					queued = len(runtime.queues)
+					runtime.mu.Unlock()
+					if queued != 2 || !strings.Contains(text, "Branch pending-facts") ||
+						strings.Contains(text, "PR status unknown") {
+						t.Fatalf("retry composed wake before saving checkout facts: queues=%d text=%q", queued, text)
+					}
+				}
+			})
+		})
+	}
+
 	t.Run("Should recover reservation admission wake and orphan boundaries IT-031 service", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)
@@ -4374,13 +4526,13 @@ func TestSubagentIsolationRecoveryMatrix(t *testing.T) {
 // Owner: subagent lifecycle; canonical suite (UT-031, UT-035).
 func TestSubagentIsolationRetention(t *testing.T) {
 	t.Parallel()
-	for _, outcome := range []string{"completed", "failed", "canceled", "cascade"} {
+	for _, outcome := range []string{"completed", "failed", "canceled", "cascade", "deleted", "deleted recovery"} {
 		t.Run("Should retain checkout after "+outcome, func(t *testing.T) {
 			t.Parallel()
 			s, db, runtime := newSubagentTestService(t)
 			s.launch = func(run func()) { run() }
 			wt := &subagentWorktreeStub{
-				worktree: SubagentWorktree{ID: "wt"},
+				worktree: SubagentWorktree{ID: "wt", Branch: "first-branch"},
 				facts:    SubagentWorktreeFacts{PRStatus: "none"},
 			}
 			s.worktrees = wt
@@ -4389,7 +4541,52 @@ func TestSubagentIsolationRetention(t *testing.T) {
 			req := subagentTestRequest()
 			req.Isolation = "worktree"
 			row := requireSubagent(t, s, req)
+			wantHooks := 1
 			switch outcome {
+			case "deleted", "deleted recovery":
+				if err := runtime.Stop(t.Context(), *row.ChildSessionID); err != nil {
+					t.Fatal(err)
+				}
+				before := db.rows[row.ID]
+				if outcome == "deleted" {
+					before = s.observeSettledWorktree(t.Context(), before)
+				}
+				current := db.rows[row.ID]
+				current.Status = store.SubagentStatusInterrupted
+				current.ChildActivity = store.SubagentChildActivityStopped
+				current.ChildSessionID = nil
+				current.Delivery = store.SubagentDeliveryPending
+				db.rows[row.ID] = current
+				if outcome == "deleted" {
+					if err := s.onChildSessionDeleted(t.Context(), before); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					wantHooks = 0 // Recovery does not replay best-effort settled hooks.
+					// Both rows must carry facts before the shared parent wake is composed.
+					second := current
+					second.ID += "-second"
+					second.Title = "Second deleted child"
+					checkout := current.WorktreeState()
+					checkout.ID, checkout.Branch = "wt-second", "second-branch"
+					second.Worktree = &checkout
+					db.rows[second.ID] = second
+					parent := runtime.snapshots["parent"]
+					parent.Active = false
+					runtime.snapshots["parent"] = parent
+					if err := s.Recover(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					if len(runtime.queues) != 1 || db.rows[second.ID].WorktreeState().Facts.PRStatus != "none" {
+						t.Fatalf("batched recovery lost checkout facts: %+v, %+v", runtime.queues, db.rows[second.ID])
+					}
+					for _, text := range runtime.queues {
+						if !strings.Contains(text, "first-branch") || !strings.Contains(text, "second-branch") ||
+							strings.Contains(text, "PR status unknown") {
+							t.Fatalf("wake composed before all checkout facts were saved: %s", text)
+						}
+					}
+				}
 			case "failed":
 				runtime.turnErrors[*row.ChildSessionID] = "failed turn"
 				settleTestChild(t, s, runtime, &row)
@@ -4416,8 +4613,9 @@ func TestSubagentIsolationRetention(t *testing.T) {
 				t.Fatal(got, err, wt.rollbacks)
 			}
 			// The once-only settled hook carries the final worktree facts, including after a cancel.
-			if rows := hook.recorded(); len(rows) != 1 || rows[0].WorktreeState().Facts.PRStatus != "none" {
-				t.Fatalf("settled hooks = %d %+v, want one carrying the final facts", len(rows), rows)
+			if rows := hook.recorded(); len(rows) != wantHooks ||
+				(wantHooks > 0 && rows[0].WorktreeState().Facts.PRStatus != "none") {
+				t.Fatalf("settled hooks = %d %+v, want %d carrying final facts", len(rows), rows, wantHooks)
 			}
 		})
 	}

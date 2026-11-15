@@ -51,6 +51,187 @@ import (
 // Invariant: real daemon wiring reserves, launches ACP, persists a result and delivers one wake.
 // Owner: daemon orchestration; canonical suite for the new subagent journey (IT-001/IT-013 queue and replay halves).
 func TestSubagentDaemonIntegration(t *testing.T) {
+	// Invariant: deleting child history retains one terminal result and wakes its parent once.
+	for _, deletion := range []string{"running", "stopped", "missing history", "store recovery", "wait recovery"} {
+		t.Run("Should settle and deliver a deleted child with "+deletion, func(t *testing.T) {
+			t.Parallel()
+			d, manager, workspace := newSubagentDaemonIntegration(t)
+			ctx := t.Context()
+			parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+			service := d.SubagentService()
+			row, err := service.Delegate(ctx, session.SubagentRequest{
+				Caller: caller, Task: "hold parent", Title: "Deleted child",
+			})
+			if err != nil || row.ChildSessionID == nil {
+				t.Fatal(row, err)
+			}
+			childID := *row.ChildSessionID
+			waitForRuntimeCondition(t, "child active before deletion", 10*time.Second, func() bool {
+				child, ok := manager.Get(childID)
+				return ok && child.IsPrompting() && child.CurrentTurnID() != ""
+			})
+			if deletion != "running" {
+				// Model a lost stop callback without changing the real daemon, store or ACP boundary.
+				manager.SetSubagentService(nil)
+				t.Cleanup(func() { manager.SetSubagentService(service) })
+				if err := manager.Stop(ctx, childID); err != nil {
+					t.Fatal(err)
+				}
+				manager.SetSubagentService(service)
+			}
+			if deletion == "missing history" {
+				if err := os.RemoveAll(filepath.Join(d.homePaths.SessionsDir, childID)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if deletion == "wait recovery" {
+				if _, err := d.registry.(*globaldb.GlobalDB).DB().ExecContext(ctx,
+					`UPDATE session_subagents SET wake_policy = ? WHERE id = ?`, store.SubagentWakePolicySettledOnly, row.ID,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if deletion == "store recovery" || deletion == "wait recovery" {
+				if err := d.registry.(store.SessionCatalog).DeleteSession(ctx, childID); err != nil {
+					t.Fatal(err)
+				}
+				manager.SetSubagentService(nil)
+				if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+					t.Fatal(err)
+				}
+				waitForRuntimeCondition(t, "parent idle before recovery", 10*time.Second, func() bool {
+					return !parent.IsPrompting() && parent.CurrentTurnID() == ""
+				})
+				manager.SetSubagentService(service)
+				if err := service.Recover(ctx); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := manager.Delete(ctx, childID); err != nil {
+				t.Fatal(err)
+			}
+			current, err := service.Get(ctx, workspace, row.ID)
+			if err != nil || !store.IsSubagentStatusTerminal(current.Status) ||
+				current.WorkState != store.SubagentWorkStateResultAvailable || current.ChildSessionID != nil ||
+				current.ChildActivity != store.SubagentChildActivityStopped || current.SettledAt == nil ||
+				(current.Delivery != store.SubagentDeliveryClaimed && current.Delivery != store.SubagentDeliveryDelivered) ||
+				current.WakeMessageID == nil {
+				t.Fatalf("deleted child delegation = %+v, %v", current, err)
+			}
+			if deletion != "running" && (current.Status != store.SubagentStatusInterrupted ||
+				current.Error == nil || *current.Error != "delegation interrupted: child session deleted" ||
+				current.Result != nil || current.ResultTruncated) {
+				t.Fatalf("unsettled delete lost its interruption: %+v", current)
+			}
+			summary, err := service.Summaries(ctx, []string{parent.ID})
+			if err != nil || summary[parent.ID].Live != 0 {
+				t.Fatal(summary, err)
+			}
+			if deletion != "store recovery" && deletion != "wait recovery" {
+				if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+					t.Fatal(err)
+				}
+			}
+			waitForRuntimeCondition(t, "deleted child wake delivered", 10*time.Second, func() bool {
+				current, err := service.Get(ctx, workspace, row.ID)
+				return err == nil && current.Delivery == store.SubagentDeliveryDelivered && !parent.IsPrompting()
+			})
+			if err := service.Recover(ctx); err != nil {
+				t.Fatal(err)
+			}
+			pending, err := d.registry.(goalSubagentWakeReader).HasPendingSubagentWake(ctx, workspace, parent.ID)
+			if err != nil || pending {
+				t.Fatalf("pending wake after delivery = %v, %v", pending, err)
+			}
+			events, err := manager.Events(ctx, parent.ID, store.EventQuery{Limit: 100})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wakes := 0
+			for _, event := range events {
+				if event.Type == acp.EventTypeSyntheticReentry {
+					wakes++
+				}
+			}
+			if wakes != 1 {
+				t.Fatalf("deleted child wake count = %d, want 1", wakes)
+			}
+		})
+	}
+	// Invariant: a wait-mode caller receives deletion interruption without a later wake.
+	t.Run("Should return a deleted child to its waiting caller without a second wake", func(t *testing.T) {
+		t.Parallel()
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+		service := d.SubagentService()
+		type result struct {
+			row session.Subagent
+			err error
+		}
+		done := make(chan result, 1)
+		go func() {
+			row, err := service.Delegate(ctx, session.SubagentRequest{
+				Caller: caller, Task: "hold parent", Title: "Deleted waiting child",
+				Mode: session.SubagentModeWait, Timeout: 30 * time.Second,
+			})
+			done <- result{row, err}
+		}()
+		var childID string
+		waitForRuntimeCondition(t, "wait-mode child active", 10*time.Second, func() bool {
+			page, err := service.List(ctx, store.SubagentListQuery{
+				WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 10,
+			})
+			if err != nil || len(page.Items) != 1 || page.Items[0].ChildSessionID == nil {
+				return false
+			}
+			childID = *page.Items[0].ChildSessionID
+			child, ok := manager.Get(childID)
+			return ok && child.IsPrompting() && child.CurrentTurnID() != ""
+		})
+		// A missed stop callback makes deletion itself own terminalization and wait notification.
+		manager.SetSubagentService(nil)
+		t.Cleanup(func() { manager.SetSubagentService(service) })
+		if err := manager.Stop(ctx, childID); err != nil {
+			t.Fatal(err)
+		}
+		manager.SetSubagentService(service)
+		if err := manager.Delete(ctx, childID); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case got := <-done:
+			if got.err != nil || got.row.Status != store.SubagentStatusInterrupted ||
+				got.row.Delivery != store.SubagentDeliveryAcknowledged || got.row.WakeMessageID != nil || got.row.WaitTimedOut ||
+				got.row.Result != nil || got.row.ResultTruncated || got.row.Error == nil {
+				t.Fatalf("wait-mode result = %+v, %v", got.row, got.err)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "wait-mode parent settled", 10*time.Second, func() bool {
+			return !parent.IsPrompting() && parent.CurrentTurnID() == ""
+		})
+		if err := service.Recover(ctx); err != nil {
+			t.Fatal(err)
+		}
+		pending, err := d.registry.(goalSubagentWakeReader).HasPendingSubagentWake(ctx, workspace, parent.ID)
+		if err != nil || pending {
+			t.Fatalf("wait-mode pending wake = %v, %v", pending, err)
+		}
+		events, err := manager.Events(ctx, parent.ID, store.EventQuery{Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, event := range events {
+			if event.Type == acp.EventTypeSyntheticReentry {
+				t.Fatal("wait-mode result produced a second synthetic wake")
+			}
+		}
+	})
 	// IT-018: boot must publish the subagent service to both public transports.
 	t.Run("Should expose subagent routes over HTTP and UDS after boot", func(t *testing.T) {
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{

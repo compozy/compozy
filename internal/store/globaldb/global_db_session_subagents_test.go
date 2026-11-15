@@ -864,6 +864,170 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should terminalise a deleted child of a non-terminal delegation", func(t *testing.T) {
+		t.Parallel()
+		priorError := "preexisting failure"
+		priorSettled := time.Date(2026, 10, 8, 11, 0, 0, 0, time.UTC)
+		cases := []struct {
+			name         string
+			status       string
+			activity     store.SubagentChildActivity
+			priorError   *string
+			priorSettled *time.Time
+			wantError    string
+			wakePolicy   string
+			archived     bool
+		}{
+			{
+				name: "Should interrupt running work", status: store.SubagentStatusRunning,
+				activity:  store.SubagentChildActivityWorking,
+				wantError: "delegation interrupted: child session deleted",
+			},
+			{
+				name: "Should interrupt queued work", status: store.SubagentStatusQueued,
+				activity:  store.SubagentChildActivityIdle,
+				wantError: "delegation interrupted: child session deleted",
+			},
+			{
+				name: "Should interrupt waiting work", status: store.SubagentStatusWaiting,
+				activity:  store.SubagentChildActivityIdle,
+				wantError: "delegation interrupted: child session deleted",
+			},
+			{
+				name: "Should interrupt work with already stopped activity", status: store.SubagentStatusRunning,
+				activity:  store.SubagentChildActivityStopped,
+				wantError: "delegation interrupted: child session deleted",
+			},
+			{
+				name: "Should preserve prior error and settlement", status: store.SubagentStatusRunning,
+				activity:   store.SubagentChildActivityWorking,
+				priorError: &priorError, priorSettled: &priorSettled,
+				wantError: priorError,
+			},
+			{
+				name: "Should retain an always wake", status: store.SubagentStatusRunning,
+				activity: store.SubagentChildActivityWorking, wakePolicy: store.SubagentWakePolicyAlways,
+				wantError: "delegation interrupted: child session deleted",
+			},
+			{
+				name: "Should interrupt archived child work", status: store.SubagentStatusRunning,
+				activity: store.SubagentChildActivityStopped, archived: true,
+				wantError: "delegation interrupted: child session deleted",
+			},
+		}
+		for _, test := range cases {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				db, workspace, parent, now := subagentFixture(t)
+				ctx := t.Context()
+				registerSubagentSession(t, db, workspace, "child", parent, store.SubagentSpawnRole, now)
+				if test.wakePolicy == store.SubagentWakePolicyAlways {
+					reserveSubagentWithPolicy(
+						t, db.SessionRepo, workspace, parent, "delegation",
+						store.SubagentWakePolicyAlways, now,
+					)
+				} else {
+					reserveSubagent(t, db.SessionRepo, workspace, parent, "delegation", now)
+				}
+				if _, err := db.LinkChild(ctx, "delegation", "child", now); err != nil {
+					t.Fatal(err)
+				}
+				if test.wakePolicy == store.SubagentWakePolicyAlways {
+					pendingBefore, err := db.HasPendingSubagentWake(ctx, workspace, parent)
+					if err != nil || !pendingBefore {
+						t.Fatalf("fixture pending wake = %v, %v; want true", pendingBefore, err)
+					}
+				}
+				var errorValue any
+				if test.priorError != nil {
+					errorValue = *test.priorError
+				}
+				var settledValue any
+				if test.priorSettled != nil {
+					settledValue = store.FormatTimestamp(*test.priorSettled)
+				}
+				if _, err := db.DB().ExecContext(ctx,
+					`UPDATE session_subagents SET status = ?, child_activity = ?, error = ?, settled_at = ? WHERE id = ?`,
+					test.status, test.activity.String(), errorValue, settledValue, "delegation",
+				); err != nil {
+					t.Fatal(err)
+				}
+				var err error
+				if test.archived {
+					if _, err := db.DB().ExecContext(ctx, `UPDATE sessions SET archived_at = ? WHERE id = ?`,
+						store.FormatTimestamp(now), "child"); err != nil {
+						t.Fatal(err)
+					}
+					err = db.DeleteArchivedSession(ctx, store.ArchivedSessionDelete{
+						SessionID: "child", WorkspaceID: workspace, ProfileID: store.DefaultProfileID,
+					})
+				} else {
+					err = db.DeleteSession(ctx, "child")
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := db.GetSubagent(ctx, workspace, "delegation")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got.Status != store.SubagentStatusInterrupted ||
+					got.WorkState != store.SubagentWorkStateResultAvailable ||
+					got.ChildActivity != store.SubagentChildActivityStopped ||
+					got.ChildSessionID != nil ||
+					got.Error == nil || *got.Error != test.wantError ||
+					got.SettledAt == nil {
+					t.Fatalf("deleted child left a non-terminal delegation: %+v", got)
+				}
+				if test.priorSettled != nil &&
+					store.FormatTimestamp(*got.SettledAt) != store.FormatTimestamp(*test.priorSettled) {
+					t.Fatalf("settled_at = %s, want %s preserved", got.SettledAt, test.priorSettled)
+				}
+				summaries, err := db.Summaries(ctx, []string{parent})
+				if err != nil || summaries[parent].Live != 0 {
+					t.Fatalf("summaries = %+v, %v; want no live subagent", summaries[parent], err)
+				}
+				pending, err := db.HasPendingSubagentWake(ctx, workspace, parent)
+				if err != nil || !pending || got.Delivery != store.SubagentDeliveryPending {
+					t.Fatalf("pending interruption = %v, delivery = %s, error = %v", pending, got.Delivery, err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve a completed child's pending result", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		ctx := t.Context()
+		registerSubagentSession(t, db, workspace, "child", parent, store.SubagentSpawnRole, now)
+		reserveSubagent(t, db.SessionRepo, workspace, parent, "delegation", now)
+		if _, err := db.LinkChild(ctx, "delegation", "child", now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(ctx,
+			`UPDATE session_subagents SET status = ?, work_state = ?, result = ?, delivery = ?, child_activity = ? WHERE id = ?`,
+			store.SubagentStatusCompleted, store.SubagentWorkStateResultAvailable,
+			"saved result", "pending", store.SubagentChildActivityWorking.String(), "delegation",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.DeleteSession(ctx, "child"); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.GetSubagent(ctx, workspace, "delegation")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Status != store.SubagentStatusCompleted || got.Delivery != "pending" ||
+			got.Result == nil || *got.Result != "saved result" || got.ChildSessionID != nil {
+			t.Fatalf("completed child lost its pending result: %+v", got)
+		}
+		pending, err := db.HasPendingSubagentWake(ctx, workspace, parent)
+		if err != nil || !pending {
+			t.Fatalf("HasPendingSubagentWake = %v, %v; want true for a pending result", pending, err)
+		}
+	})
+
 	t.Run("Should roll back child activity when deleting the session fails", func(t *testing.T) {
 		t.Parallel()
 		db, workspace, parent, now := subagentFixture(t)
@@ -1636,6 +1800,89 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 // Owner: global session repository; canonical subagent persistence suite (Migration B, UT-035).
 func TestSubagentWorktreePersistence(t *testing.T) {
 	t.Parallel()
+	// Invariant: recording an observation cannot settle or contaminate a replacement delegation.
+	for _, tc := range []struct {
+		name        string
+		replace     bool
+		terminal    bool
+		sameCreated bool
+	}{
+		{name: "Should record facts without changing the observed terminal state"},
+		{name: "Should reject stale facts after a live replacement reuses the ID", replace: true},
+		{name: "Should reject stale facts after a terminal replacement reuses the ID", replace: true, terminal: true},
+		{
+			name:    "Should reject stale facts when a replacement shares the creation timestamp",
+			replace: true, terminal: true, sameCreated: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, ws, parent, now := subagentFixture(t)
+			row, created, err := db.ReserveSubagent(t.Context(), store.SessionSubagent{
+				ID: "observed", WorkspaceID: ws, ParentSessionID: parent, ParentTurnID: "turn",
+				Origin: store.SubagentOriginDelegated, IdempotencyKey: "same-key", RequestFingerprint: "fp",
+				Title: "Original", Depth: 1, Isolation: "worktree", WakePolicy: store.SubagentWakePolicyAlways,
+				Status: store.SubagentStatusInterrupted, WorkState: store.SubagentWorkStateResultAvailable,
+				Result: new("original result"), Error: new("original error"), SettledAt: new(now), CreatedAt: now,
+			})
+			if err != nil || !created {
+				t.Fatal(row, created, err)
+			}
+			row.Worktree = &store.SubagentWorktreeState{ID: "original-checkout"}
+			if err := db.AssociateSubagentWorktree(t.Context(), row); err != nil {
+				t.Fatal(err)
+			}
+			observed := row
+			wt := row.WorktreeState()
+			wt.Facts = store.SubagentWorktreeFacts{PRStatus: "none", HeadSHA: "old-head", ObservedAt: now}
+			observed.Worktree = &wt
+			if tc.replace {
+				if err := db.DeleteSubagent(t.Context(), ws, row.ID); err != nil {
+					t.Fatal(err)
+				}
+				row.Title = "Replacement"
+				row.Result, row.Error, row.SettledAt = nil, nil, nil
+				row.Status, row.WorkState = store.SubagentStatusRunning, store.SubagentWorkStateWorking
+				if !tc.sameCreated {
+					row.CreatedAt = now.Add(time.Second)
+				}
+				if tc.terminal {
+					row.Status = store.SubagentStatusCompleted
+					row.Result, row.SettledAt = new("replacement result"), new(now.Add(2*time.Second))
+				}
+				row, created, err = db.ReserveSubagent(t.Context(), row)
+				if err != nil || !created {
+					t.Fatal(row, created, err)
+				}
+				row.Worktree = &store.SubagentWorktreeState{ID: "original-checkout"}
+				if tc.sameCreated {
+					row.Worktree.ID = "replacement-checkout"
+				}
+				if err := db.AssociateSubagentWorktree(t.Context(), row); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want, err := db.GetSubagent(t.Context(), ws, row.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, recordErr := db.RecordSubagentWorktreeFacts(t.Context(), observed)
+			if tc.replace {
+				if !errors.Is(recordErr, store.ErrSubagentNotFound) {
+					t.Fatalf("stale observation = %v, want ErrSubagentNotFound", recordErr)
+				}
+			} else {
+				if recordErr != nil {
+					t.Fatal(recordErr)
+				}
+				want.Worktree.Facts = observed.WorktreeState().Facts
+			}
+			got, err := db.GetSubagent(t.Context(), ws, row.ID)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("recording facts changed unrelated state: got=%+v want=%+v err=%v", got, want, err)
+			}
+		})
+	}
 	t.Run("Should preserve existing subagent state across Migration B and reopen", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)

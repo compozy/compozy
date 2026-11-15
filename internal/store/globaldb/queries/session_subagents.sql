@@ -33,8 +33,21 @@ WHERE origin = 'delegated' AND child_activity IN ('working','idle')
 RETURNING *;
 
 -- name: StopDeletedSubagentChildActivity :exec
-UPDATE session_subagents SET child_activity = 'stopped', updated_at = sqlc.arg(now)
-WHERE origin = 'delegated' AND child_session_id = sqlc.arg(child_id) AND child_activity <> 'stopped';
+UPDATE session_subagents SET
+ status = CASE WHEN status IN ('completed','failed','canceled','interrupted') THEN status ELSE 'interrupted' END,
+ work_state = CASE WHEN status IN ('completed','failed','canceled','interrupted') THEN work_state ELSE 'result_available' END,
+ error = CASE WHEN status IN ('completed','failed','canceled','interrupted') THEN error
+  ELSE COALESCE(error, 'delegation interrupted: child session deleted') END,
+ settled_at = CASE WHEN status IN ('completed','failed','canceled','interrupted') THEN settled_at
+  ELSE COALESCE(settled_at, sqlc.arg(now)) END,
+ child_activity = 'stopped',
+ delivery = CASE
+  WHEN status IN ('completed','failed','canceled','interrupted') THEN delivery
+  WHEN delivery = 'none' THEN 'pending'
+  ELSE delivery END,
+ updated_at = sqlc.arg(now)
+WHERE origin = 'delegated' AND child_session_id = sqlc.arg(child_id)
+ AND (child_activity <> 'stopped' OR status NOT IN ('completed','failed','canceled','interrupted'));
 
 -- name: ListSubagentsByParent :many
 SELECT * FROM session_subagents

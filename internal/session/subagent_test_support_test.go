@@ -30,6 +30,7 @@ type memorySubagents struct {
 	finalizeFailures     int
 	finalizeCalls        int
 	finalizeErrIDs       map[string]error
+	worktreeFactsErrIDs  map[string]error
 }
 
 var _ store.SubagentStore = (*memorySubagents)(nil)
@@ -247,6 +248,29 @@ func (d *memorySubagents) FinalizeSubagent(
 	row.PendingTask = nil
 	d.rows[row.ID] = row
 	return row, true, nil
+}
+
+func (d *memorySubagents) RecordSubagentWorktreeFacts(
+	_ context.Context, observed store.SessionSubagent,
+) (store.SessionSubagent, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.worktreeFactsErrIDs[observed.ID]; err != nil {
+		return store.SessionSubagent{}, err
+	}
+	current, ok := d.rows[observed.ID]
+	if !ok || current.WorkspaceID != observed.WorkspaceID || !current.CreatedAt.Equal(observed.CreatedAt) ||
+		current.WorktreeState().ID == "" || current.WorktreeState().ID != observed.WorktreeState().ID ||
+		!store.IsSubagentStatusTerminal(current.Status) {
+		return store.SessionSubagent{}, store.ErrSubagentNotFound
+	}
+	wt := current.WorktreeState()
+	if wt.Facts.PRStatus == "" && observed.WorktreeState().Facts.PRStatus != "" {
+		wt.Facts = observed.WorktreeState().Facts
+		current.Worktree = &wt
+		d.rows[current.ID] = current
+	}
+	return current, nil
 }
 
 func (d *memorySubagents) OpenOrJoinWake(
@@ -695,16 +719,17 @@ func newSubagentTestService(t *testing.T) (*subagentService, *memorySubagents, *
 	ctx, cancel := context.WithCancel(t.Context())
 	var wg sync.WaitGroup
 	s := &subagentService{
-		store:       db,
-		runtime:     runtime,
-		ctx:         ctx,
-		now:         func() time.Time { return time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC) },
-		resultLimit: func(context.Context, string) (int, error) { return 60000, nil },
-		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-		parents:     make(map[string]*subagentParentLock),
-		flights:     make(map[string]*subagentFlight),
-		subscribers: make(map[string]map[*subagentSubscription]struct{}),
-		progress:    make(map[string]*subagentProgress),
+		store:              db,
+		runtime:            runtime,
+		ctx:                ctx,
+		now:                func() time.Time { return time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC) },
+		resultLimit:        func(context.Context, string) (int, error) { return 60000, nil },
+		logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
+		recoveryRetryDelay: defaultSubagentRecoveryRetryDelay,
+		parents:            make(map[string]*subagentParentLock),
+		flights:            make(map[string]*subagentFlight),
+		subscribers:        make(map[string]map[*subagentSubscription]struct{}),
+		progress:           make(map[string]*subagentProgress),
 	}
 	var idMu sync.Mutex
 	next := 0

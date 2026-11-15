@@ -73,6 +73,22 @@ func (s *subagentService) planDelivery(ctx context.Context, row store.SessionSub
 }
 
 func (s *subagentService) claim(ctx context.Context, parent string, ids []string) error {
+	var deferred []string
+	ids = slices.DeleteFunc(slices.Clone(ids), func(id string) bool {
+		if s.deletingDelivery(id) {
+			deferred = append(deferred, id)
+			return true
+		}
+		return false
+	})
+	if len(deferred) > 0 {
+		if err := s.store.SetPending(ctx, deferred); err != nil {
+			return err
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
 	id, err := s.newID()
 	if err != nil {
 		return err
@@ -84,6 +100,26 @@ func (s *subagentService) claim(ctx context.Context, parent string, ids []string
 	wake, rows, err := s.store.GetWake(ctx, wake.WakeMessageID)
 	if err != nil {
 		return err
+	}
+	if slices.ContainsFunc(rows, func(row store.SessionSubagent) bool { return s.deletingDelivery(row.ID) }) {
+		// Joining an existing batch can bring back a member whose deletion now
+		// suppresses delivery. Return the batch to pending and reclaim only the
+		// available members, preserving retry attempts through the existing owner.
+		if err := s.runtime.CancelWake(ctx, wake); err != nil {
+			return err
+		}
+		pending, err := s.settleWakeRows(ctx, wake.WakeMessageID, true)
+		if err != nil {
+			return err
+		}
+		var available []string
+		for _, row := range pending {
+			s.publish(ctx, row)
+			if !s.deletingDelivery(row.ID) {
+				available = append(available, row.ID)
+			}
+		}
+		return s.claim(ctx, parent, available)
 	}
 	for _, row := range rows {
 		s.publish(ctx, row)
