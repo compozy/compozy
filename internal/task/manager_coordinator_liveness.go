@@ -27,13 +27,14 @@ type inFlightCoordinator struct {
 
 // InterruptLoopCoordinatorRuns cancels every in-flight coordinator evaluation for one Loop run and
 // reports how many were interrupted. Subprocesses started under that evaluation observe the
-// cancellation through their execution context.
+// cancellation through their execution context, so a canceled Run cannot leave a gate command
+// running against its workspace.
 func (m *Service) InterruptLoopCoordinatorRuns(loopRunID string, reason string) int {
 	loopRunID = strings.TrimSpace(loopRunID)
 	if m == nil || loopRunID == "" {
 		return 0
 	}
-	cause := fmt.Errorf("%w: loop run %q %s", ErrCoordinatorInterrupted, loopRunID, strings.TrimSpace(reason))
+	cause := fmt.Errorf("%w: loop run %q: %s", ErrCoordinatorInterrupted, loopRunID, coordinatorInterruptReason(reason))
 	m.coordinatorMu.Lock()
 	defer m.coordinatorMu.Unlock()
 	interrupted := 0
@@ -47,6 +48,14 @@ func (m *Service) InterruptLoopCoordinatorRuns(loopRunID string, reason string) 
 	return interrupted
 }
 
+func coordinatorInterruptReason(reason string) string {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return "coordinator evaluation interrupted"
+	}
+	return reason
+}
+
 // runClaimedCoordinator executes the coordinator under its claim, renewing the lease while the
 // evaluation runs so the backstop cannot dispatch a second attempt for the same run.
 func (m *Service) runClaimedCoordinator(
@@ -57,6 +66,9 @@ func (m *Service) runClaimedCoordinator(
 ) (CoordinatorCompletionPlan, error) {
 	execCtx, cancel := context.WithCancelCause(ctx)
 	unregister := m.registerInFlightCoordinator(run, cancel)
+	// A gate command can outlive the lease it started under. Recording progress before evaluation
+	// starts keeps `loop runs`/`loop status` live from the first second a gate is in flight.
+	m.recordCoordinatorProgress(execCtx, run.LoopRunID, m.now().UTC())
 	heartbeatDone := make(chan struct{})
 	go func() {
 		defer close(heartbeatDone)
@@ -93,9 +105,9 @@ func (m *Service) registerInFlightCoordinator(run Run, cancel context.CancelCaus
 	}
 }
 
-// heartbeatCoordinatorLease renews the claim at a third of its lease. A lost claim cancels the
-// evaluation through its cancel cause; a transient renewal failure retries on the next tick while
-// the lease still holds.
+// heartbeatCoordinatorLease renews the claim at a third of its lease duration. A lost claim
+// cancels the evaluation through its cancel cause. A transient renewal failure is retried well
+// before the lease expires; only a claim the store rejects stops the evaluation.
 func (m *Service) heartbeatCoordinatorLease(
 	ctx context.Context,
 	cancel context.CancelCauseFunc,
@@ -104,13 +116,14 @@ func (m *Service) heartbeatCoordinatorLease(
 	actor ActorContext,
 ) {
 	leaseDuration := coordinatorLeaseDuration(run)
-	ticker := time.NewTicker(coordinatorHeartbeatInterval(leaseDuration))
-	defer ticker.Stop()
+	interval := coordinatorHeartbeatInterval(leaseDuration)
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 		}
 		renewed, err := m.HeartbeatRunLease(ctx, LeaseHeartbeat{
 			RunID:         run.ID,
@@ -121,18 +134,18 @@ func (m *Service) heartbeatCoordinatorLease(
 		if ctx.Err() != nil {
 			return
 		}
-		if coordinatorLeaseLost(err) {
+		next := interval
+		switch {
+		case coordinatorLeaseLost(err):
 			cancel(fmt.Errorf("%w: coordinator run %q: %w", errCoordinatorLeaseLost, run.ID, err))
 			return
-		}
-		if err != nil {
+		case err != nil:
 			slog.Warn("task: renew coordinator lease", "run_id", run.ID, "error", err)
-			continue
+			next = coordinatorHeartbeatRetryInterval(interval)
+		case renewed != nil:
+			m.recordCoordinatorProgress(ctx, renewed.LoopRunID, renewed.HeartbeatAt)
 		}
-		if renewed == nil {
-			continue
-		}
-		m.recordCoordinatorProgress(ctx, renewed.LoopRunID, renewed.HeartbeatAt)
+		timer.Reset(next)
 	}
 }
 
@@ -145,7 +158,7 @@ func (m *Service) recordCoordinatorProgress(ctx context.Context, loopRunID strin
 	if at.IsZero() {
 		at = m.now().UTC()
 	}
-	// Progress is advisory liveness; the renewed lease above is the authoritative ownership proof.
+	// Progress is advisory liveness; the renewed lease is the authoritative ownership proof.
 	if err := recorder.AdvanceLoopRunProgress(ctx, loopRunID, at.UTC()); err != nil && ctx.Err() == nil {
 		slog.Warn("task: advance loop progress for coordinator lease", "loop_run_id", loopRunID, "error", err)
 	}
@@ -167,4 +180,10 @@ func coordinatorLeaseDuration(run Run) time.Duration {
 
 func coordinatorHeartbeatInterval(leaseDuration time.Duration) time.Duration {
 	return max(leaseDuration/3, time.Millisecond)
+}
+
+// coordinatorHeartbeatRetryInterval keeps a failed renewal inside the same lease window instead of
+// waiting a full heartbeat interval, which would let the claim expire after two failures.
+func coordinatorHeartbeatRetryInterval(interval time.Duration) time.Duration {
+	return max(interval/3, time.Millisecond)
 }
