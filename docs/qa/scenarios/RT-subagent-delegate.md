@@ -199,3 +199,9 @@ pending result even if the delegation had already completed before deletion star
 Owning automation: `TestGlobalDBSubagentStateUpdates` and the deleted-child cases in
 `TestSubagentDaemonIntegration`, using real SQLite and ACP subprocesses. Execution is CI-only for
 this change; the earlier real-provider verdict is not renewed by this scenario update.
+
+Roster-removal failure follow-up: if child deletion commits but removing the retained delegation
+fails or reaches its cleanup deadline, the row stays terminal and its ordinary result remains
+deliverable. A later roster-delete retry removes it successfully. `TestSubagentDelete` owns this
+failure-boundary coverage; its context-checking store fake verifies reconciliation has a fresh
+cleanup lifetime. Final-head CI remains the execution authority for this change.

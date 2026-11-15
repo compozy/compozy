@@ -72,9 +72,6 @@ func (s *subagentService) Delete(
 		}
 		if child == "" || child == deletedChild {
 			err = s.store.DeleteSubagent(ctx, workspace, id)
-			if err != nil && deletedChild != "" {
-				err = errors.Join(err, s.settleRetainedDeletedChild(ctx, current))
-			}
 			if err == nil {
 				// Other completion writers claim and rewrite wakes and settle the parent under
 				// this same lock; both decisions must see the row already removed.
@@ -101,16 +98,6 @@ func (s *subagentService) Delete(
 	s.logError(ctx, "delete_parent_settle", settleErr)
 	s.logError(ctx, "delete_parent_propagate", s.OnChildSettled(ctx, row.ParentSessionID))
 	return nil
-}
-
-// settleRetainedDeletedChild runs under the parent lock after irreversible child deletion.
-func (s *subagentService) settleRetainedDeletedChild(ctx context.Context, row store.SessionSubagent) error {
-	recovery, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-	defer cancel()
-	return errors.Join(
-		s.dispose(recovery, store.SubagentDisposeFilter{ParentSessionID: row.ParentSessionID, IDs: []string{row.ID}}),
-		s.finalizeCanceled(recovery, row),
-	)
 }
 
 // deleteActorScope resolves who owns the deletion: an operator acts on the
