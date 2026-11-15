@@ -340,6 +340,7 @@ func (r *CoordinatorRunner) liveControlEvalContext(
 		gateEvaluations:    gateEvaluations,
 		history:            history,
 		now:                r.now().UTC(),
+		clock:              r.now,
 	}
 }
 

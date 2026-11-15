@@ -26,6 +26,7 @@ type gateEvaluationKey struct {
 }
 
 type gateEvaluationCollector struct {
+	attempts             []NodeAttempt
 	values               map[gateEvaluationKey]gateEvaluation
 	predicateDiagnostics []PredicateDiagnostic
 	routeDecisions       []routeDecision

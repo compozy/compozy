@@ -24,6 +24,10 @@ func attachCoordinatorEffectIntents(
 		if !found {
 			return fmt.Errorf("%w: effect attempt references unknown node %q", ErrValidation, attempt.NodeID)
 		}
+		// Gate attempts describe completed evaluations, not action lifecycle transitions.
+		if node.Class == dsl.NodeClassControl && node.Kind == string(dsl.ControlGate) {
+			continue
+		}
 		if err := attachAttemptEffectIntents(run, node, attempt, &payload); err != nil {
 			return err
 		}
