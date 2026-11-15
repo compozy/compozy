@@ -818,9 +818,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      # Temporary release diagnosis: retain peer CPU profiles even when the sample passes.
-      - name: Upload web E2E artifacts
-        if: failure() || matrix.shard == 2
+      - name: Upload web E2E artifacts on failure
+        if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: e2e-web-artifacts-shard-${{ matrix.shard }}
