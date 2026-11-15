@@ -16,8 +16,8 @@ import {
   subagentRosterTitle,
   subagentRuntimeLabel,
   subagentWaitingBannerRows,
-  sortSubagentsByUrgency,
 } from "../subagent-format";
+import { sortSubagentsByUrgency } from "../../../lib/subagent-roster";
 import { subagentHoverPreview } from "../subagent-hover-preview";
 import {
   middleTruncate,

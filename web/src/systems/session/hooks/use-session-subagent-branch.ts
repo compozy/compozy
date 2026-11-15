@@ -1,9 +1,9 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { isActiveSubagent, sortSubagentsByUrgency } from "../components/subagents/subagent-format";
 import type { SubagentView } from "../components/subagents/types";
 import { subagentViewFromPayload } from "../lib/subagent-payload";
+import { isActiveSubagent, sortSubagentsByUrgency } from "../lib/subagent-roster";
 import {
   SUBAGENT_BRANCH_PAGE_SIZE,
   sessionSubagentBranchOptions,
@@ -52,7 +52,7 @@ export function useSessionSubagentBranch(
     ...sessionSubagentBranchOptions(workspaceId, sessionId),
     enabled: scoped && live === null,
   });
-  const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = query;
+  const { hasNextPage, isFetching, isFetchingNextPage, fetchNextPage, isError } = query;
   const loaded = sortSubagentsByUrgency(
     live?.rows ??
       query.data?.pages.flatMap(page => page.subagents.map(subagentViewFromPayload)) ??
@@ -66,10 +66,11 @@ export function useSessionSubagentBranch(
   const failed = live === null && isError;
   // Every loaded row is active, so the next page may hold more active work.
   const activeTail = live === null && loaded.length > 0 && active === loaded.length;
+  // Wait for any read in flight: fetchNextPage would cancel a first-page refetch.
   useEffect(() => {
-    if (activeTail && hasNextPage && !isFetchingNextPage && !isError)
+    if (activeTail && hasNextPage && !isFetching && !isError)
       void fetchNextPage().catch(() => undefined);
-  }, [activeTail, hasNextPage, isFetchingNextPage, isError, fetchNextPage]);
+  }, [activeTail, hasNextPage, isFetching, isError, fetchNextPage]);
 
   return {
     rows,

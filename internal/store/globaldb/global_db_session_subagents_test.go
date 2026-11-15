@@ -682,30 +682,33 @@ func TestGlobalDBSubagents(t *testing.T) {
 			{id: "resumed", at: 2, rank: 2, want: []string{"failed", "queued", "done-b", "done-a"}},
 			{id: "queued", at: 3, rank: 3, want: []string{"done-b", "done-a"}},
 		} {
-			page := legacy
-			page.Cursor, err = listcursor.Encode(1, "subagents", fingerprint, subagentPosition{
-				CreatedAt: store.FormatTimestamp(at(tc.at)), ID: tc.id, Rank: tc.rank,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var rest []string
-			for range 4 {
-				got, err := s.ListSubagents(ctx, page)
+			t.Run("Should page on from a version 1 cursor at "+tc.id, func(t *testing.T) {
+				page := legacy
+				var err error
+				page.Cursor, err = listcursor.Encode(1, "subagents", fingerprint, subagentPosition{
+					CreatedAt: store.FormatTimestamp(at(tc.at)), ID: tc.id, Rank: tc.rank,
+				})
 				if err != nil {
-					t.Fatalf("version 1 cursor at %s = %v", tc.id, err)
+					t.Fatal(err)
 				}
-				for _, row := range got.Items {
-					rest = append(rest, row.ID)
+				var rest []string
+				for range 4 {
+					got, err := s.ListSubagents(ctx, page)
+					if err != nil {
+						t.Fatalf("version 1 cursor at %s = %v", tc.id, err)
+					}
+					for _, row := range got.Items {
+						rest = append(rest, row.ID)
+					}
+					if got.NextCursor == "" {
+						break
+					}
+					page.Cursor = got.NextCursor
 				}
-				if got.NextCursor == "" {
-					break
+				if !slices.Equal(rest, tc.want) {
+					t.Fatalf("version 1 cursor at %s pages %v, want %v", tc.id, rest, tc.want)
 				}
-				page.Cursor = got.NextCursor
-			}
-			if !slices.Equal(rest, tc.want) {
-				t.Fatalf("version 1 cursor at %s pages %v, want %v", tc.id, rest, tc.want)
-			}
+			})
 		}
 		newest, err := s.ListSubagents(ctx, store.SubagentListQuery{ParentSessionID: parent, Limit: 1})
 		if err != nil || len(newest.Items) != 1 || newest.Items[0].ID != "done-b" {
