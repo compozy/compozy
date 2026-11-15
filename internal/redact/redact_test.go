@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -184,6 +185,31 @@ func TestStringUsesDynamicSecretsAndRemainsIdempotent(t *testing.T) {
 		cleanup()
 		if ContainsRegisteredSecret("org/model-" + secret) {
 			t.Fatal("ContainsRegisteredSecret(after cleanup) = true, want false")
+		}
+	})
+
+	t.Run("Should derive reversible encodings once per registered secret change", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "encoded-registry-secret-9c2f"
+		registry := newDynamicSecretRegistry()
+		registry.register(secret)
+		encodings := registry.encodingsSnapshot()
+		for _, want := range []string{
+			base64.StdEncoding.EncodeToString([]byte(secret)),
+			base64.RawURLEncoding.EncodeToString([]byte(secret)),
+			strings.ToUpper(hex.EncodeToString([]byte(secret))),
+		} {
+			if !slices.Contains(encodings, want) {
+				t.Fatalf("encodings = %q, missing %q", encodings, want)
+			}
+		}
+		if again := registry.encodingsSnapshot(); &again[0] != &encodings[0] {
+			t.Fatal("encodingsSnapshot rebuilt the encodings without a registry change")
+		}
+		registry.unregister(secret)
+		if got := registry.encodingsSnapshot(); len(got) != 0 {
+			t.Fatalf("encodings after unregister = %q, want none", got)
 		}
 	})
 

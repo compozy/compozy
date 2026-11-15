@@ -5859,3 +5859,75 @@ func (*linkedCandidateQueryReader) WorkCandidates(
 ) (WorkCandidates, error) {
 	return WorkCandidates{}, nil
 }
+
+type readModeAuthorityKey struct{}
+
+// readModeAuthority records which sessions resolved authority and whether the read mode was on.
+type readModeAuthority struct{ calls map[string]bool }
+
+func (a *readModeAuthority) MCPAuthorityReadContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, readModeAuthorityKey{}, true)
+}
+
+func (a *readModeAuthority) EffectiveMCPAuthority(
+	ctx context.Context,
+	id string,
+) (store.SessionPermissionPolicy, error) {
+	readMode, _ := ctx.Value(readModeAuthorityKey{}).(bool)
+	a.calls[id] = readMode
+	return store.SessionPermissionPolicy{MCPServers: []string{"grafana"}}, nil
+}
+
+func TestManagerListForWorkspaceResolvesAuthorityInReadMode(t *testing.T) {
+	t.Parallel()
+	// Invariant: a workspace listing resolves MCP authority in read mode and skips archived
+	// sessions; opening an archived session still resolves it. Owner: session queries.
+	t.Run("Should resolve live sessions in read mode and leave archived sessions empty", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		live := createSession(t, h.harness)
+		archived := createSession(t, h.harness)
+		if err := h.manager.Stop(t.Context(), archived.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, archived.ID); err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+		authority := &readModeAuthority{calls: map[string]bool{}}
+		h.manager.SetMCPAuthorityResolver(authority)
+
+		infos, err := h.manager.ListForWorkspace(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatalf("ListForWorkspace() error = %v", err)
+		}
+		byID := make(map[string]*Info, len(infos))
+		for _, info := range infos {
+			byID[info.ID] = info
+		}
+		if readMode, called := authority.calls[live.ID]; !called || !readMode {
+			t.Fatalf("live session authority call = %v, read mode = %v; want a read-mode call", called, readMode)
+		}
+		if got := byID[live.ID].Lineage.EffectiveMCPServers; !slices.Equal(got, []string{"grafana"}) {
+			t.Fatalf("live EffectiveMCPServers = %q, want [grafana]", got)
+		}
+		if _, called := authority.calls[archived.ID]; called {
+			t.Fatal("archived session resolved authority during a listing")
+		}
+		if got := byID[archived.ID].Lineage.EffectiveMCPServers; got == nil || len(got) != 0 {
+			t.Fatalf("archived EffectiveMCPServers = %#v, want empty", got)
+		}
+
+		info, err := h.manager.Status(t.Context(), archived.ID)
+		if err != nil {
+			t.Fatalf("Status(archived) error = %v", err)
+		}
+		_, called := authority.calls[archived.ID]
+		if !called || !slices.Equal(info.Lineage.EffectiveMCPServers, []string{"grafana"}) {
+			t.Fatalf(
+				"Status(archived) servers = %q, resolved = %v; want resolved",
+				info.Lineage.EffectiveMCPServers,
+				called,
+			)
+		}
+	})
+}

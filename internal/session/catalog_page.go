@@ -190,7 +190,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		candidates = candidates[:normalized.Limit]
 	}
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
-	m.decorateMCPAuthorities(ctx, page.Sessions)
+	m.decorateMCPAuthorities(ctx, page.Sessions, nil)
 	if err := m.populateCatalogRelations(
 		ctx,
 		normalized,

@@ -48,7 +48,7 @@ func (m *Manager) Descendants(ctx context.Context, workspaceID string, sessionID
 		return nil, err
 	}
 	infos := sessionInfosFromCatalog(rows)
-	m.decorateMCPAuthorities(ctx, infos)
+	m.decorateMCPAuthorities(ctx, infos, nil)
 	return infos, nil
 }
 

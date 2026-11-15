@@ -84,9 +84,30 @@ func (m *Manager) decorateMCPAuthority(ctx context.Context, info *Info) {
 	}
 }
 
-func (m *Manager) decorateMCPAuthorities(ctx context.Context, infos []*Info) {
+// decorateMCPAuthorities resolves list authority in read mode: one policy resolution per
+// profile and workspace, no per-session MCP discovery. Archived sessions cannot run, so
+// a listing leaves their servers empty; Status and the session detail resolve them.
+func (m *Manager) decorateMCPAuthorities(ctx context.Context, infos []*Info, rows sessionInventory) {
 	ctx = m.mcpAuthorityReadContext(ctx)
 	for _, info := range infos {
+		if info == nil {
+			continue
+		}
+		if rows.archived(info) {
+			info.Lineage = store.CloneSessionLineage(store.NormalizeSessionLineage(info.ID, info.Lineage))
+			info.Lineage.EffectiveMCPServers = []string{}
+			continue
+		}
 		m.decorateMCPAuthority(ctx, info)
 	}
+}
+
+// archived reports archive state from the session or its catalog row; listings carry the
+// archive timestamp only on the row.
+func (rows sessionInventory) archived(info *Info) bool {
+	if info.ArchivedAt != nil {
+		return true
+	}
+	row := rows[info.ID]
+	return row != nil && row.ArchivedAt != nil
 }

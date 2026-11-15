@@ -58,8 +58,12 @@ func exactBinaryJSONString(value string) string {
 }
 
 func registeredSecretEncodings() []string {
+	return dynamicSecrets.encodingsSnapshot()
+}
+
+func secretEncodings(secrets []string) []string {
 	unique := make(map[string]struct{})
-	for _, secret := range dynamicSecrets.valuesSnapshot() {
+	for _, secret := range secrets {
 		secretBytes := []byte(secret)
 		for _, encoding := range []*base64.Encoding{
 			base64.StdEncoding,

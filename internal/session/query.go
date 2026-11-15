@@ -40,9 +40,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 	case err == nil:
 	case errors.Is(err, os.ErrNotExist):
 		m.pruneMetadataCache(nil)
-		for _, info := range active {
-			m.decorateMCPAuthority(ctx, info)
-		}
+		m.decorateMCPAuthorities(ctx, active, nil)
 		return sortSessionInfos(active), nil
 	default:
 		return nil, fmt.Errorf("session: read sessions directory %q: %w", m.homePaths.SessionsDir, err)
@@ -80,9 +78,7 @@ func (m *Manager) mergePersistedSessionInfos(
 		infos = append(infos, info)
 	}
 
-	for _, info := range infos {
-		m.decorateMCPAuthority(ctx, info)
-	}
+	m.decorateMCPAuthorities(ctx, infos, rows)
 	return sortSessionInfos(infos), nil
 }
 
