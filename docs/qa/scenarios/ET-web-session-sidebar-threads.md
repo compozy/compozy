@@ -154,12 +154,14 @@ Drawer inspection steps were verified in the targeted [2026-10-28 run](../report
 animation to settle before clicking `Show 2 more`. In CI run 40807072482,
 Playwright scrolled the still-clipped fold to reach the button; its scrollTop
 changed from 19 to 2 during the pointer action, so the click did not expand the
-live ten-child roster. The test still asserts eight rows before the click and
+live ten-child roster. At that revision, the test asserted eight rows before the click and
 ten afterwards, with unchanged timeouts. This synchronization observes only the
 fold animation, not the children's continuously spinning Working glyphs.
 Focused re-walk: all three repetitions of the unchanged full E2E-009 journey
 passed against the isolated daemon (including the 8-to-10 row assertion, drawer
 navigation, inspector roster, and live completion). No full local E2E lane ran.
+After #1732, this 8-to-10 paging expectation applies to settled subagents only;
+all ten active subagents must show without expansion, as specified below.
 
 QA impact 2026-10-29 (#1036): when a session's runtime moves to another provider, its row's provider
 mark now follows the new binding in every scope, not only after a reload. Session-scoped rereads
@@ -266,3 +268,15 @@ failed row, but never skips an unseen one (compatibility shim, removed in v0.8.0
 in `session-folders.test.ts`, `subagent-format.test.ts`, and the globaldb urgency paging case. Flag
 only — the live walk is deferred to CI and the next QA cycle under the parallel-dispatch operator
 restriction.
+
+qa-impact: 2026-11-15 — E2E-009 co-delivery for active-first branches (#1732, #1733)
+
+The existing acpmock journey delegates ten real subagents and asserts all ten rows are visible
+when the branch opens, with no "Show more" while they are active. Drawer navigation and the
+inspector's separate six-row cap remain covered. After all ten complete, close the parent's window
+and open another session in a fresh page so the parent's branch uses the HTTP list route: assert eight settled rows,
+click "Show 2 more", verify a successful urgency-list request with a continuation cursor,
+and assert all ten distinct rows are visible with no remaining expansion button. The fold
+animation must settle before the paging click. Automated owner:
+`web/e2e/__tests__/session-subagents-navigation.spec.ts` (E2E-009). This replaces the obsolete
+expectation that active rows require expansion. No local run; verification belongs to main CI.

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { sessionWindow } from "../fixtures/os-navigation";
+import { closeAppWindow, sessionWindow } from "../fixtures/os-navigation";
 import { type BrowserRuntime, waitForSeedSessionActive } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace } from "../fixtures/workspace";
@@ -15,7 +15,8 @@ import { ensureProjectWorkspace } from "../fixtures/workspace";
  * keep their nesting. Runtime truth comes from acpmock agents: the parent turn
  * calls `compozy__subagent_delegate` ten times through its hosted MCP server
  * (`native_tool_call`, like a real agent), and each child works for 30 s and
- * then completes.
+ * then completes. Every active child stays visible past the branch cap; once
+ * they settle, a cold branch pages the same roster eight rows at a time.
  */
 
 const fixturePath = path.resolve(
@@ -216,13 +217,16 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
     await browserArtifacts.captureScreenshot("subagents-sidebar-indicator", appPage);
   });
 
-  await test.step("unfolding the branch shows eight subagents, then Show 2 more", async () => {
+  await test.step("unfolding the branch shows all ten active subagents without Show more", async () => {
     await sidebar.getByRole("button", { name: "10 of 10 subagents running" }).click();
     const branch = sidebar.getByTestId(`session-sidebar-subagents-${parent.id}`);
-    await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(8);
+    // Invariant (#1732): every active row shows, even beyond the eight-row cap.
+    // Owner: browser/daemon navigation; canonical suite: E2E-009.
+    await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(10);
+    await expect(branch.getByRole("button", { name: /^Show \d+ more$/ })).toHaveCount(0);
     // The rows mount before their grid fold finishes opening. Clicking while
     // clipped makes scrollIntoView scroll the fold, then its settling geometry
-    // can move Show more between pointerdown and pointerup.
+    // can move the row between pointerdown and pointerup.
     await expect
       .poll(() =>
         branch.evaluate(element => {
@@ -232,8 +236,11 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
         })
       )
       .toBe(0);
-    await branch.getByRole("button", { name: "Show 2 more" }).click();
-    await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(10);
+    for (const row of subagents) {
+      await expect(
+        branch.getByRole("button", { name: new RegExp(`^Open ${row.title} · `) })
+      ).toBeVisible();
+    }
     await browserArtifacts.captureScreenshot("subagents-sidebar-branch", appPage);
     // Invariant: a listed child opens its live drawer while preserving the parent.
     // Owner: browser/daemon navigation; canonical suite: E2E-009.
@@ -343,5 +350,51 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
       Array.from({ length: 10 }, () => "completed")
     );
     await browserArtifacts.captureScreenshot("subagents-indicator-settled-live", appPage);
+  });
+
+  await test.step("the settled branch shows eight rows and pages its last two with a cursor", async () => {
+    // Paging belongs to settled rows now: active work must never require Show more.
+    // Close the parent's window before opening a fresh page on another session,
+    // so no parent stream feeds the branch instead of the real paged list route.
+    await closeAppWindow(appPage, parentWin);
+    await expect(parentWin).toHaveCount(0);
+    await appPage.goto(runtime.url(`/agents/${childAgent}/sessions/${other.id}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const coldSidebar = sessionWindow(appPage, other.id).getByTestId("session-sidebar");
+    const indicator = coldSidebar.getByRole("button", { name: "10 subagents", exact: true });
+    await expect(indicator).toBeVisible();
+    if ((await indicator.getAttribute("aria-expanded")) !== "true") await indicator.click();
+    const branch = coldSidebar.getByTestId(`session-sidebar-subagents-${parent.id}`);
+    await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(8);
+    const more = branch.getByRole("button", { name: "Show 2 more", exact: true });
+    await expect(more).toBeVisible();
+    await expect
+      .poll(() =>
+        branch.evaluate(element => {
+          const fold = element.closest('[data-slot="session-list-branch"]');
+          if (!fold) throw new Error("Subagent branch is missing its fold");
+          return fold.getAnimations().filter(animation => animation.playState === "running").length;
+        })
+      )
+      .toBe(0);
+    const nextPage = appPage.waitForResponse(response => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === sessionAPIPath(parent.workspace_id, parent.id, "/subagents") &&
+        url.searchParams.get("order") === "urgency" &&
+        Boolean(url.searchParams.get("cursor"))
+      );
+    });
+    await more.click();
+    expect((await nextPage).ok()).toBe(true);
+    await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(10);
+    for (const row of subagents) {
+      await expect(
+        branch.getByRole("button", { name: new RegExp(`^Open ${row.title} · `) })
+      ).toBeVisible();
+    }
+    await expect(more).toHaveCount(0);
+    await browserArtifacts.captureScreenshot("subagents-sidebar-settled-paged", appPage);
   });
 });
