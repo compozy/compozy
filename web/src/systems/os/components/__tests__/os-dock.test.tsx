@@ -355,7 +355,10 @@ describe("OsDock", () => {
     view.rerender(<OsDock items={switched} onSelect={onSelect} renderItemMenu={renderItemMenu} />);
 
     expect(renderItemMenu.mock.calls.map(([item]) => item.id)).toEqual(["tasks", "dashboard"]);
-    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveAttribute(
+      "aria-current",
+      "true"
+    );
     expect(screen.getByRole("button", { name: "Tasks" })).not.toHaveAttribute("aria-current");
     const nextSelect = vi.fn();
     view.rerender(
