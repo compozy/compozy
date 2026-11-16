@@ -58,8 +58,8 @@ export function AgentSettingsMcpSection({
           workspaceId={workspaceId}
           additions={additions}
           onClose={() => setAdding(false)}
-          onAdd={server => {
-            onPatch({ mcpAdditions: [...additions, server] });
+          onSave={next => {
+            onPatch({ mcpAdditions: next });
             setAdding(false);
           }}
         />

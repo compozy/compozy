@@ -2,11 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { AgentMCPAddDialog } from "../agent-mcp-add-dialog";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeAll, afterEach, afterAll } from "vitest";
 
 import { AgentMcpServersPanel } from "../agent-mcp-servers-panel";
 import type { AgentPayload } from "../../types";
+import type { ServerInput } from "../../hooks/use-agent-mcp-add-dialog";
+import { mcpManagementServerFixtures } from "@/systems/settings/mocks/fixtures";
 
 const agentWithMcp: AgentPayload = {
   label: "Coder",
@@ -133,21 +135,27 @@ beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-function renderAddDialog() {
-  const onAdd = vi.fn();
+function renderAddDialog({
+  agent = { ...agentWithMcp, mcp_servers: [] },
+  additions = [],
+}: { agent?: AgentPayload; additions?: ServerInput[] } = {}) {
+  const onSave = vi.fn();
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <AgentMCPAddDialog
-        agent={{ ...agentWithMcp, mcp_servers: [] }}
-        additions={[]}
-        onAdd={onAdd}
-        onClose={vi.fn()}
-      />
+      <AgentMCPAddDialog agent={agent} additions={additions} onSave={onSave} onClose={vi.fn()} />
     </QueryClientProvider>
   );
-  fireEvent.click(screen.getByRole("button", { name: "Add new server" }));
+  return onSave;
+}
+
+function renderNewServerEditor() {
+  const onSave = renderAddDialog();
+  // The created server is the last staged entry; the picker's toggles come first.
+  const onAdd = vi.fn();
+  onSave.mockImplementation((next: ServerInput[]) => onAdd(next.at(-1)));
+  fireEvent.click(screen.getByRole("button", { name: "Add a new server" }));
   fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-transport-remote"));
   fireEvent.change(screen.getByTestId("settings-mcp-servers-editor-name-input"), {
     target: { value: "docs" },
@@ -158,9 +166,101 @@ function renderAddDialog() {
   return onAdd;
 }
 
+function serveConfiguredServers() {
+  server.use(
+    http.get("*/api/settings/mcp-servers", () =>
+      HttpResponse.json({ mcp_servers: mcpManagementServerFixtures })
+    )
+  );
+}
+
+// The picker owns which configured servers an agent gets: checked state is the
+// saved agent plus staging, and Save hands back the full next staged list.
+describe("Agent MCP server picker", () => {
+  it("Should check saved and staged servers and stage only the person's changes", async () => {
+    serveConfiguredServers();
+    const onSave = renderAddDialog({
+      agent: { ...agentWithMcp, mcp_servers: [{ name: "sentry", reference: true }] },
+      additions: [
+        { name: "linear", reference: true },
+        { name: "local-docs", command: "docs-server" },
+      ],
+    });
+    const sentry = await screen.findByRole("checkbox", { name: "sentry" });
+    expect(sentry).toBeChecked();
+    expect(sentry).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("checkbox", { name: "linear" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "notion" })).not.toBeChecked();
+    expect(screen.getByTestId("agent-mcp-picker-save")).toHaveTextContent("Save · 2 servers");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "linear" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "notion" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "grafana" }));
+    expect(screen.getByTestId("agent-mcp-picker-save")).toHaveTextContent("Save · 3 servers");
+    fireEvent.click(screen.getByTestId("agent-mcp-picker-save"));
+
+    expect(onSave).toHaveBeenCalledWith([
+      { name: "local-docs", command: "docs-server" },
+      { name: "notion", reference: true },
+      { name: "grafana", reference: true },
+    ]);
+  });
+
+  it("Should describe each server from its source, sign-in state and tool count", async () => {
+    serveConfiguredServers();
+    renderAddDialog();
+    const list = await screen.findByTestId("agent-mcp-picker-list");
+    const row = (name: string) =>
+      within(list).getByRole("checkbox", { name }).closest("label") as HTMLElement;
+    expect(row("linear")).toHaveTextContent("Remote · Added by a file in this project");
+    expect(row("linear")).toHaveTextContent("Needs sign-in");
+    expect(row("github-local")).toHaveTextContent("Runs on this computer");
+    expect(row("sentry")).toHaveTextContent("18 tools");
+    expect(row("sentry")).not.toHaveTextContent("Needs sign-in");
+  });
+
+  it("Should filter by name and say plainly when nothing matches or nothing exists", async () => {
+    serveConfiguredServers();
+    renderAddDialog();
+    const search = await screen.findByRole("textbox", { name: "Search servers" });
+    fireEvent.change(search, { target: { value: "SENT" } });
+    expect(
+      within(screen.getByTestId("agent-mcp-picker-list")).getAllByRole("checkbox")
+    ).toHaveLength(1);
+    fireEvent.change(search, { target: { value: "zzz" } });
+    expect(screen.getByText("No servers match “zzz”.")).toBeInTheDocument();
+  });
+
+  it("Should keep picked servers when a new server is created from the picker", async () => {
+    serveConfiguredServers();
+    const onSave = renderAddDialog();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "notion" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add a new server" }));
+    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-transport-stdio"));
+    fireEvent.change(screen.getByTestId("settings-mcp-servers-editor-name-input"), {
+      target: { value: "docs" },
+    });
+    fireEvent.change(screen.getByTestId("settings-mcp-servers-editor-command-input"), {
+      target: { value: "docs-server" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add server" }));
+    expect(onSave).toHaveBeenCalledWith([
+      { name: "notion", reference: true },
+      expect.objectContaining({ name: "docs", command: "docs-server" }),
+    ]);
+  });
+
+  it("Should offer adding a server when the person has none yet", async () => {
+    renderAddDialog();
+    expect(await screen.findByText(/You have no servers to pick yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Search servers" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a new server" })).toBeEnabled();
+  });
+});
+
 describe("Agent MCP attachment credentials", () => {
   it("Should ignore hidden HTTP header rows when switching to stdio", () => {
-    const onAdd = renderAddDialog();
+    const onAdd = renderNewServerEditor();
     fireEvent.click(screen.getByRole("button", { name: "Add header credential" }));
     expect(screen.getByRole("button", { name: "Add server" })).toBeDisabled();
     fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-transport-stdio"));
@@ -174,7 +274,7 @@ describe("Agent MCP attachment credentials", () => {
   });
 
   it("Should reject header names that repeat after trimming and case folding", () => {
-    const onAdd = renderAddDialog();
+    const onAdd = renderNewServerEditor();
     fireEvent.click(screen.getByRole("button", { name: "Add header credential" }));
     fireEvent.change(screen.getByLabelText("Header secret 1"), { target: { value: "first" } });
     fireEvent.click(screen.getByRole("button", { name: "Add header credential" }));
@@ -194,7 +294,7 @@ describe("Agent MCP attachment credentials", () => {
     );
   });
   it("Should reject invalid header names before staging and recover after correction", () => {
-    const onAdd = renderAddDialog();
+    const onAdd = renderNewServerEditor();
     fireEvent.click(screen.getByRole("button", { name: "Add header credential" }));
     fireEvent.change(screen.getByLabelText("Header name 1"), {
       target: { value: "Authorization:" },
@@ -215,7 +315,7 @@ describe("Agent MCP attachment credentials", () => {
   it.each(["Content-Type", "Cookie", "MCP-Session-Id", "proxy-authorization", "set-cookie"])(
     "Should reject reserved header %s before staging",
     name => {
-      const onAdd = renderAddDialog();
+      const onAdd = renderNewServerEditor();
       fireEvent.click(screen.getByRole("button", { name: "Add header credential" }));
       fireEvent.change(screen.getByLabelText("Header name 1"), { target: { value: name } });
       fireEvent.change(screen.getByLabelText("Header secret 1"), {
@@ -228,7 +328,7 @@ describe("Agent MCP attachment credentials", () => {
   );
 
   it("Should reject Authorization while OAuth is enabled and recover when it is disabled", () => {
-    const onAdd = renderAddDialog();
+    const onAdd = renderNewServerEditor();
     fireEvent.click(screen.getByRole("button", { name: "Add header credential" }));
     fireEvent.change(screen.getByLabelText("Header secret 1"), { target: { value: "credential" } });
     fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-mode-advanced"));

@@ -4,7 +4,7 @@ area: ET
 title: Attach configured and new MCP servers from an agent's Tools sheet
 persona: Dora
 journey: J-31
-expected: Editable agents attach configured servers by name or new connections through the shared MCP editor. Saves write only the agent sidecar, retain existing frontmatter and sidecar entries, keep allowed tools unchanged, and store credentials in Vault. Removed configured targets show Broken reference. Package-owned agents are read-only.
+expected: Editable agents pick configured servers from a searchable checklist (attached by name) or add new connections through the shared MCP editor. Saves write only the agent sidecar, retain existing frontmatter and sidecar entries, keep allowed tools unchanged, and store credentials in Vault. Removed configured targets show Broken reference. Package-owned agents are read-only.
 entry_points: Agents → agent profile → Tools → MCP servers → Add MCP server
 qa_status: pass
 bug_ids: ""
@@ -17,8 +17,8 @@ overlaps: MS-web-agent-permissions, MS-web-mcp-editor-simple-advanced
 ---
 
 1. Bootstrap an isolated targeted API/CLI/Web lab. Create an editable agent with an existing frontmatter server and configure a manual MCP server.
-2. Open its Tools sheet, choose Add MCP server, pick the configured server, and Save. Reload and verify the attachment through `agent info -o json` and the HTTP read. The sidecar stores only `{ "reference": true }` under that name. Allowed tools and the old server remain unchanged.
-3. Add a new HTTP server through Add new server. Enter a header credential and Save. Reload; verify the server remains attached, the header value exists only in Vault, and agent files and public read responses do not contain plaintext credentials or Vault refs.
+2. Open its Tools sheet and choose Add MCP server. The "Tools for <agent>" checklist lists your configured servers with a plain source line and either their tool count or Needs sign-in; servers the agent already uses are checked and cannot be unchecked there. Search narrows the list and says plainly when nothing matches. Check the configured server, confirm the primary reads "Save · N servers", Save the dialog, then Save the agent. Reload and verify the attachment through `agent info -o json` and the HTTP read. The sidecar stores only `{ "reference": true }` under that name. Allowed tools and the old server remain unchanged.
+3. Reopen the checklist: the staged server is checked; uncheck it and Save, and confirm it leaves the pending list without a write. Then add a new HTTP server through Add a new server (Cancel in the editor returns to the checklist with its checks intact). Enter a header credential and Save. Reload; verify the server remains attached, the header value exists only in Vault, and agent files and public read responses do not contain plaintext credentials or Vault refs.
 4. Change the configured server's endpoint. The attachment follows the current definition. Remove that server and reload: Broken reference is visible; the agent never launches a stale copied definition.
 5. Add a stdio server with a Vault environment binding. Verify persistence through CLI and HTTP; repeat an unrelated Tools edit and confirm existing attachments and bindings survive.
 6. Open a package/extension-owned agent. The MCP list is visible and the add action is absent; a crafted write is rejected by the existing package ownership boundary.

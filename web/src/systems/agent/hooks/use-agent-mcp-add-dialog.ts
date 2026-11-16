@@ -3,27 +3,37 @@ import { useQuery } from "@tanstack/react-query";
 import { settingsMCPServersListOptions, validateDraft, type MCPDraft } from "@/systems/settings";
 import { vaultSecretsListOptions } from "@/systems/vault";
 import { useProfileReadScope } from "@/systems/profiles";
-import type { AgentPayload, UpdateAgentParams } from "../types";
+import type { AgentPayload } from "../types";
 import { agentMCPAddDialogLogic } from "../stores/agent-mcp-add-dialog-store";
+import {
+  agentMCPPickerRows,
+  filterAgentMCPPickerRows,
+  nextAgentMCPAdditions,
+  type ServerInput,
+} from "../lib/agent-mcp-picker-model";
 
-export type ServerInput = NonNullable<UpdateAgentParams["agent"]["mcp_servers"]>[number];
+export type { ServerInput };
 
 /** Binds one dialog store to scoped Query data and derives validation without storing it. */
 export function useAgentMCPAddDialog({
   agent,
   additions,
   workspaceId,
-  onAdd,
+  onSave,
   onClose,
 }: {
   agent: AgentPayload;
   additions: ServerInput[];
   workspaceId?: string | null;
-  onAdd: (server: ServerInput) => void;
+  /** Receives the full next staged list: picker toggles plus any server created here. */
+  onSave: (additions: ServerInput[]) => void;
   onClose: () => void;
 }) {
   const store = useStore(agentMCPAddDialogLogic);
-  const { mode, draft, selected, headers } = useSelector(store, snapshot => snapshot.context);
+  const { mode, query, overrides, draft, headers } = useSelector(
+    store,
+    snapshot => snapshot.context
+  );
   const { destination } = useProfileReadScope();
   const servers = useQuery(
     settingsMCPServersListOptions({
@@ -32,10 +42,21 @@ export function useAgentMCPAddDialog({
     })
   );
   const vault = useQuery(vaultSecretsListOptions({ namespace: "mcp" }));
-  const used = new Set([...(agent.mcp_servers ?? []), ...additions].map(server => server.name));
-  const available = (servers.data?.mcp_servers ?? []).filter(
-    server => (!server.owner || server.owner === "manual") && !used.has(server.name)
-  );
+  const saved = new Set((agent.mcp_servers ?? []).map(server => server.name));
+  const used = new Set([
+    ...saved,
+    ...additions.map(server => server.name),
+    ...Object.keys(overrides).filter(name => overrides[name]),
+  ]);
+  const rows = agentMCPPickerRows({
+    entries: servers.data?.mcp_servers ?? [],
+    agent,
+    additions,
+    overrides,
+  });
+  const visibleRows = filterAgentMCPPickerRows(rows, query);
+  const checkedCount = rows.filter(row => row.checked).length;
+  const pickedAdditions = () => nextAgentMCPAdditions(additions, overrides, saved);
   const validation = validateDraft(draft);
   const nameConflict = used.has(draft.name.trim());
   const errors = nameConflict
@@ -64,8 +85,14 @@ export function useAgentMCPAddDialog({
     draft,
     onDraftChange: (update: (draft: MCPDraft) => MCPDraft) =>
       store.trigger.draftChanged({ draft: update(store.getSnapshot().context.draft) }),
-    selected,
-    onSelectServer: (name: string) => store.trigger.serverSelected({ name }),
+    onBackToPicker: () => store.trigger.pickerRequested(),
+    query,
+    onQueryChange: (next: string) => store.trigger.queryChanged({ query: next }),
+    rows,
+    visibleRows,
+    checkedCount,
+    onToggleServer: (name: string, checked: boolean) =>
+      store.trigger.serverToggled({ name, checked }),
     headers,
     onHeaderAdd: () => store.trigger.headerAdded({ id: crypto.randomUUID() }),
     onHeaderChange: (id: string, patch: { key?: string; value?: string }) =>
@@ -73,7 +100,6 @@ export function useAgentMCPAddDialog({
     onHeaderRemove: (id: string) => store.trigger.headerRemoved({ id }),
     servers,
     vault,
-    available,
     validation,
     nameConflict,
     errors,
@@ -81,7 +107,8 @@ export function useAgentMCPAddDialog({
     headerError,
     headerErrors,
     agent,
-    onAdd,
+    onSave: () => onSave(pickedAdditions()),
+    onCreate: (server: ServerInput) => onSave([...pickedAdditions(), server]),
     onClose,
   };
 }

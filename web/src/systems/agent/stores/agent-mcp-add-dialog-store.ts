@@ -10,7 +10,9 @@ interface HeaderCredential {
 
 interface AgentMCPAddDialogState {
   mode: "pick" | "new";
-  selected: string;
+  query: string;
+  /** The person's checkbox changes only; checked state is derived from the agent + staging. */
+  overrides: Record<string, boolean>;
   draft: MCPDraft;
   headers: HeaderCredential[];
 }
@@ -19,7 +21,8 @@ interface AgentMCPAddDialogState {
 export const agentMCPAddDialogLogic = createStoreLogic({
   context: (): AgentMCPAddDialogState => ({
     mode: "pick",
-    selected: "",
+    query: "",
+    overrides: {},
     draft: emptyDraft(),
     headers: [],
   }),
@@ -27,11 +30,15 @@ export const agentMCPAddDialogLogic = createStoreLogic({
     newServerRequested: context => ({
       ...context,
       mode: "new" as const,
-      selected: "",
       draft: emptyDraft(),
       headers: [],
     }),
-    serverSelected: (context, event: { name: string }) => ({ ...context, selected: event.name }),
+    pickerRequested: context => ({ ...context, mode: "pick" as const }),
+    queryChanged: (context, event: { query: string }) => ({ ...context, query: event.query }),
+    serverToggled: (context, event: { name: string; checked: boolean }) => ({
+      ...context,
+      overrides: { ...context.overrides, [event.name]: event.checked },
+    }),
     draftChanged: (context, event: { draft: MCPDraft }) => ({ ...context, draft: event.draft }),
     headerAdded: (context, event: { id: string }) => ({
       ...context,
