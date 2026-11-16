@@ -89,7 +89,10 @@ func (s *settingsRuntimeSurface) MCPServerCachedRuntimeStatus(
 		unknown.State, unknown.Reason = mcpWaitingApproval, mcpWaitingApproval
 		return unknown, nil
 	}
-	deadKey, tracked := settingsMCPDeadEntityKey(target, server.EffectiveRuntimeName())
+	deadKey, tracked, err := s.settingsMCPDeadEntityKey(ctx, target, server.EffectiveRuntimeName())
+	if err != nil {
+		return unknown, err
+	}
 	if tracked && s.deadEntities != nil {
 		dead, err := s.deadEntities.Status(ctx, deadKey)
 		if err != nil {
