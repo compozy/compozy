@@ -142,7 +142,9 @@ const (
 	ReattemptHalt ReattemptStrategy = "halt"
 )
 
-// CompletionState records whether a terminal run satisfied full or partial coverage.
+// CompletionState records whether the settled collect outputs had full or partial coverage.
+// It is independent of Status: a failed run with no partial collect reports complete, and
+// the reason for the failure lives in the briefing outcome (reason_code, node_id, message).
 type CompletionState string
 
 const (

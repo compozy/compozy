@@ -76,6 +76,6 @@ func (r *CoordinatorRunner) finishIdleGenerationPlan(
 	if parked {
 		return parkedPlan, nil
 	}
-	plan.Terminal = noReadyNodesTerminal()
+	plan.Terminal = noReadyNodesTerminal(graph, topology, advancedOutputs)
 	return plan, nil
 }

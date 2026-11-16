@@ -55,7 +55,7 @@ func compareAndSwapLoopRunStatusWithEffects(
 		return fmt.Errorf("%w: run_id=%s from=%s to=%s", looppkg.ErrTransitionConflict, runID, from, to)
 	}
 	if err := appendLoopRunStatusEventWithFailureAndEffects(
-		ctx, exec, runID, current.WorkspaceID, from, to, cause, nil, effects, at,
+		ctx, exec, runID, current.WorkspaceID, from, to, cause, nil, nil, effects, at,
 	); err != nil {
 		return err
 	}

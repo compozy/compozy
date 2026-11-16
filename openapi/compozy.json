@@ -24652,6 +24652,15 @@
           "cause": {
             "type": "string"
           },
+          "message": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
           "status": {
             "type": "string"
           }

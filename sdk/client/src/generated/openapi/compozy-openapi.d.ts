@@ -15246,6 +15246,9 @@ export interface components {
       /** Format: date-time */
       at: string;
       cause: string;
+      message?: string;
+      node_id?: string;
+      reason_code?: string;
       status: string;
     };
     RunPayload: {
