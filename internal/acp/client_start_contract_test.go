@@ -3283,11 +3283,13 @@ func TestTriageStartup(t *testing.T) {
 		{"Should reject a Claude name backed by an unsupported runtime", "claude", "kimi-cli", "triage_config_mode", false},
 		{"Should reject an overlay without a runtime provider", "claude-secondary", "", "triage_config_mode", false},
 		{"Should reject an unconfirmed planning mode", "opencode", "", "triage_config_unconfirmed", false},
+		{"Should reject an unconfirmed Claude overlay planning mode", "claude-secondary", "claude", "triage_config_unconfirmed", false},
 		{"Should reject an unknown providers planning mode", "unknown", "", "triage_config_mode", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			captureFile := filepath.Join(t.TempDir(), "triage-mode.jsonl")
 			process, err := driver.Start(t.Context(), StartOpts{
 				ProviderConfig: &compozyconfig.ProviderConfig{
 					AuthMode:        compozyconfig.ProviderAuthModeNone,
@@ -3297,9 +3299,10 @@ func TestTriageStartup(t *testing.T) {
 				ProviderName: tc.provider,
 				Command:      helperCommand(t),
 				Cwd:          t.TempDir(),
-				Env: helperEnv(
+				Env: helperEnvWithCapture(
 					tc.scenario,
 					"",
+					captureFile,
 				),
 				PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
 				Permissions:      compozyconfig.PermissionModeApproveAll,
@@ -3313,8 +3316,27 @@ func TestTriageStartup(t *testing.T) {
 			if !tc.allowed && tc.scenario != "triage_config_unconfirmed" && !errors.Is(err, ErrTriageUnsupported) {
 				t.Fatalf("startup error=%v, want triage_unsupported", err)
 			}
+			if tc.scenario == "triage_config_unconfirmed" && !errors.Is(err, errConfigOptionUnconfirmed) {
+				t.Fatalf("startup error=%v, want unconfirmed mode rejection", err)
+			}
 			if tc.allowed && process.permissions.mode != compozyconfig.PermissionModeApproveReads {
 				t.Fatalf("triage permissions = %s, want approve-reads", process.permissions.mode)
+			}
+			if tc.allowed && tc.scenario == "mode_mapping" {
+				request := decodeCapturedSetSessionModeRequest(
+					t, captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode),
+				)
+				if request.SessionID != "sess-new" || request.ModeID != "plan" {
+					t.Fatalf("set_mode = %+v, want sess-new plan", request)
+				}
+			}
+			if tc.allowed && tc.scenario == "triage_config_mode" || tc.scenario == "triage_config_unconfirmed" {
+				request := decodeCapturedSetSessionConfigOptionRequest(
+					t, captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+				)
+				if request.ConfigID != "mode" || request.Value != "plan" {
+					t.Fatalf("set_config_option = %+v, want mode=plan", request)
+				}
 			}
 			if tc.allowed && tc.scenario == "triage_config_mode" {
 				option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, "mode")
