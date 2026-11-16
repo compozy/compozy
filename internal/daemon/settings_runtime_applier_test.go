@@ -323,20 +323,22 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 	})
 
-	// Invariant: the first runtime rollback retains user MCP sidecars absent from the daemon's TOML-only boot seed.
+	// Invariant: the first runtime rollback retains active user sidecars instead of a stale boot snapshot.
 	// Owner: Settings runtime publication; canonical suite: daemon runtime applier.
 	t.Run("Should retain boot sidecars when the first live apply rolls back", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)
+		path := filepath.Join(home.HomeDir, compozyconfig.MCPJSONName)
 		writeMCPDeclarationFile(
 			t,
-			filepath.Join(home.HomeDir, compozyconfig.MCPJSONName),
-			`{"mcpServers":{"docs":{"command":"test-mcp"}}}`,
+			path,
+			`{"mcpServers":{"docs":{"command":"boot-mcp"}}}`,
 		)
 		boot, err := loadConfigFromHome(home, func(string) string { return "" })
 		if err != nil {
 			t.Fatal(err)
 		}
+		writeMCPDeclarationFile(t, path, `{"mcpServers":{"docs":{"command":"test-mcp"}}}`)
 		db := openDaemonTestGlobalDB(t)
 		profiles, err := profilepkg.NewManager(
 			profilepkg.WithStore(db),
@@ -357,7 +359,8 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(boot.MCPServers) != 0 || len(active.MCPServers) != 1 {
+		if len(boot.MCPServers) != 1 || boot.MCPServers[0].Command != "boot-mcp" ||
+			len(active.MCPServers) != 1 || active.MCPServers[0].Command != "test-mcp" {
 			t.Fatal("fixture did not distinguish boot from active Settings projection")
 		}
 		publisher := &recordingToolMCPPublisher{errors: []error{errors.New("forced publication failure"), nil}}
