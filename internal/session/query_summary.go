@@ -29,7 +29,7 @@ func (m *Manager) StatusSummary(ctx context.Context) (store.SessionStatusSummary
 	}
 	stored, err := reader.SessionStatusRows(ctx, store.ReadScope{AllProfiles: true})
 	if err != nil {
-		return store.SessionStatusSummary{}, err
+		return store.SessionStatusSummary{}, fmt.Errorf("session: read status rows: %w", err)
 	}
 	rows := make(sessionInventory, len(stored))
 	for i := range stored {
@@ -37,7 +37,7 @@ func (m *Manager) StatusSummary(ctx context.Context) (store.SessionStatusSummary
 	}
 	population, err := m.statusMetadataEntries(ctx, rows, ids)
 	if err != nil {
-		return store.SessionStatusSummary{}, err
+		return store.SessionStatusSummary{}, fmt.Errorf("session: read status metadata: %w", err)
 	}
 	result := store.SessionStatusSummary{ByStatus: make(map[string]int), ByBadge: make(map[string]int)}
 	for _, info := range append(live, population...) {

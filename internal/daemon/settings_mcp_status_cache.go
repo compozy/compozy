@@ -13,7 +13,7 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
-const settingsMCPStatusMaxAge = 30 * time.Second
+const defaultSettingsMCPStatusMaxAge = 30 * time.Second
 
 type settingsMCPStatusKey struct {
 	target         mcpauth.Target
@@ -56,7 +56,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 				s.mcpStatusCache.entries = make(map[settingsMCPStatusKey]settingsMCPStatusEntry)
 			}
 			maps.DeleteFunc(s.mcpStatusCache.entries, func(_ settingsMCPStatusKey, entry settingsMCPStatusEntry) bool {
-				return now.Before(entry.observedAt) || now.Sub(entry.observedAt) >= settingsMCPStatusMaxAge
+				return now.Before(entry.observedAt) || now.Sub(entry.observedAt) >= s.mcpStatusMaxAgeOrDefault()
 			})
 			if s.mcpStatusCache.entries[key].sequence < sequence {
 				s.mcpStatusCache.entries[key] = settingsMCPStatusEntry{
@@ -132,7 +132,7 @@ func (s *settingsRuntimeSurface) MCPServerCachedRuntimeStatus(
 	if !found {
 		return unknown, nil
 	}
-	if now.Before(entry.observedAt) || now.Sub(entry.observedAt) >= settingsMCPStatusMaxAge {
+	if now.Before(entry.observedAt) || now.Sub(entry.observedAt) >= s.mcpStatusMaxAgeOrDefault() {
 		unknown.Reason = "stale"
 		return unknown, nil
 	}
@@ -156,6 +156,13 @@ func (s *settingsRuntimeSurface) mcpStatusNow() time.Time {
 		return s.now()
 	}
 	return time.Now()
+}
+
+func (s *settingsRuntimeSurface) mcpStatusMaxAgeOrDefault() time.Duration {
+	if s.mcpStatusMaxAge > 0 {
+		return s.mcpStatusMaxAge
+	}
+	return defaultSettingsMCPStatusMaxAge
 }
 
 func (s *settingsRuntimeSurface) mcpStatusKey(

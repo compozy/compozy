@@ -16,6 +16,11 @@ var _ store.SessionFailureSummaryReader = (*SessionRepo)(nil)
 func (g *SessionRepo) SessionStatusRows(
 	ctx context.Context, scope store.ReadScope,
 ) (result []store.SessionInfo, err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("store: read session status rows: %w", err)
+		}
+	}()
 	if err := g.checkReady(ctx, "session status rows"); err != nil {
 		return nil, err
 	}
@@ -55,6 +60,11 @@ func (g *SessionRepo) SessionFailureSummary(
 	ctx context.Context,
 	scope store.ReadScope,
 ) (result store.SessionFailureSummary, err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("store: read session failure summary: %w", err)
+		}
+	}()
 	if err := g.checkReady(ctx, "session failure summary"); err != nil {
 		return result, err
 	}
@@ -80,17 +90,8 @@ func (g *SessionRepo) SessionFailureSummary(
 	if err != nil {
 		return result, fmt.Errorf("store: query failure counts: %w", err)
 	}
-	result.ByKind = make(map[store.FailureKind]int)
-	for rows.Next() {
-		var kind store.FailureKind
-		var count int
-		if scanErr := rows.Scan(&kind, &count); scanErr != nil {
-			return result, errors.Join(scanErr, rows.Close())
-		}
-		result.Total += count
-		result.ByKind[kind] = count
-	}
-	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+	result, err = scanSessionFailureCounts(rows)
+	if err != nil {
 		return result, err
 	}
 	// dynamic-sql: select only the ten failure details within the same scoped snapshot.
@@ -133,4 +134,19 @@ func (g *SessionRepo) SessionFailureSummary(
 		return result, err
 	}
 	return result, tx.Commit()
+}
+
+func scanSessionFailureCounts(rows *sql.Rows) (result store.SessionFailureSummary, err error) {
+	defer func() { err = errors.Join(err, rows.Close()) }()
+	result.ByKind = make(map[store.FailureKind]int)
+	for rows.Next() {
+		var kind store.FailureKind
+		var count int
+		if err := rows.Scan(&kind, &count); err != nil {
+			return result, err
+		}
+		result.Total += count
+		result.ByKind[kind] = count
+	}
+	return result, rows.Err()
 }

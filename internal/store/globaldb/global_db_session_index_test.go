@@ -4514,6 +4514,22 @@ func TestSessionCatalogSummaries(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		const foreignProfile = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'foreign','#8E8EB5','circle','active',?)`,
+			foreignProfile,
+			store.FormatTimestamp(at),
+		); err != nil {
+			t.Fatal(err)
+		}
+		foreign := sessionInfoForWorkspaceStateIndexTest("summary-foreign", workspace, "stopped", at)
+		foreign.ProfileID = foreignProfile
+		foreign.UpdatedAt = at.Add(time.Hour)
+		foreign.Failure = &store.SessionFailure{Kind: store.FailureProtocol, Summary: "foreign profile failure"}
+		if err := db.RegisterSession(ctx, &foreign); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := db.db.ExecContext(
 			ctx,
 			`UPDATE sessions SET archived_at=? WHERE id='summary-13'`,
@@ -4534,7 +4550,7 @@ func TestSessionCatalogSummaries(t *testing.T) {
 			}
 		}
 		rows, err := db.SessionStatusRows(ctx, store.ReadScope{AllProfiles: true})
-		if err != nil || len(rows) != 20 {
+		if err != nil || len(rows) != 21 {
 			t.Fatalf("status rows=%d, %v", len(rows), err)
 		}
 		byID := make(map[string]*store.SessionInfo, len(rows))
@@ -4565,6 +4581,11 @@ func TestSessionCatalogSummaries(t *testing.T) {
 				t.Fatalf("recent[%d]=%+v", i, info)
 			}
 		}
+		allFailures, err := db.SessionFailureSummary(ctx, store.ReadScope{AllProfiles: true})
+		if err != nil || allFailures.Total != 15 || allFailures.ByKind[store.FailureProtocol] != 1 ||
+			len(allFailures.Recent) != 10 || allFailures.Recent[0].ID != foreign.ID {
+			t.Fatalf("all-profile failures=%+v, %v", allFailures, err)
+		}
 		// Corruption in an unrelated rich field cannot force a full session decode for aggregates.
 		if _, err := db.db.ExecContext(
 			ctx,
@@ -4578,10 +4599,28 @@ func TestSessionCatalogSummaries(t *testing.T) {
 		if _, err := db.SessionStatusRows(ctx, store.ReadScope{AllProfiles: true}); err != nil {
 			t.Fatal(err)
 		}
-		for _, scope := range []store.ReadScope{{}, {ProfileID: store.DefaultProfileID, AllProfiles: true}} {
-			if _, err := db.SessionFailureSummary(ctx, scope); err == nil {
-				t.Fatal("accepted invalid scope")
-			}
+		for _, tc := range []struct {
+			name    string
+			scope   store.ReadScope
+			message string
+		}{
+			{"Should reject a missing profile", store.ReadScope{}, "scoped read requires profile id"},
+			{
+				"Should reject a profile on an aggregate read",
+				store.ReadScope{ProfileID: store.DefaultProfileID, AllProfiles: true},
+				"aggregate read forbids profile id",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := db.SessionFailureSummary(ctx, tc.scope)
+				if !errors.Is(err, store.ErrReadScopeInvalid) || !strings.Contains(err.Error(), tc.message) {
+					t.Fatalf("failure scope error = %v, want ErrReadScopeInvalid containing %q", err, tc.message)
+				}
+				_, err = db.SessionStatusRows(ctx, tc.scope)
+				if !errors.Is(err, store.ErrReadScopeInvalid) || !strings.Contains(err.Error(), tc.message) {
+					t.Fatalf("status scope error = %v, want ErrReadScopeInvalid containing %q", err, tc.message)
+				}
+			})
 		}
 	})
 }

@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -556,6 +557,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		surface := &settingsRuntimeSurface{
 			digestKey:         []byte("test installation key"),
 			now:               func() time.Time { return now },
+			mcpStatusMaxAge:   2 * defaultSettingsMCPStatusMaxAge,
 			mcpAuthGeneration: mcpauth.NewMutationGeneration(),
 			mcpHealthRegistry: health,
 			mcpHealthKey: func(context.Context, mcpauth.Target) (mcppkg.RuntimeHealthKey, error) {
@@ -587,7 +589,9 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		passive(settingspkg.MCPServerRuntimeStateRuntimeUnavailable)
 		health.RecordSuccess(health.Begin(health.ResolveKey(runtime)))
 		passive(settingspkg.MCPServerRuntimeStateReady)
-		now = now.Add(settingsMCPStatusMaxAge)
+		now = now.Add(defaultSettingsMCPStatusMaxAge)
+		passive(settingspkg.MCPServerRuntimeStateReady)
+		now = now.Add(defaultSettingsMCPStatusMaxAge)
 		passive(settingspkg.MCPServerRuntimeStateUnknown)
 		if _, err := surface.MCPServerRuntimeStatus(t.Context(), target, definition); err != nil {
 			t.Fatal(err)
@@ -645,7 +649,9 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 
 	t.Run("Should discard an observation superseded while its probe runs", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
 		started, release := make(chan struct{}), make(chan struct{})
+		releaseProbe := sync.OnceFunc(func() { close(release) })
 		var first atomic.Bool
 		handler := mcp.NewStreamableHTTPHandler(
 			func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
@@ -674,10 +680,26 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			URL:       server.URL,
 		}
 		done := make(chan error, 1)
-		go func() { _, err := surface.MCPServerRuntimeStatus(t.Context(), target, definition); done <- err }()
-		<-started
+		joined := make(chan struct{})
+		go func() {
+			defer close(joined)
+			_, err := surface.MCPServerRuntimeStatus(ctx, target, definition)
+			done <- err
+		}()
+		t.Cleanup(func() {
+			cancel()
+			releaseProbe()
+			<-joined
+		})
+		select {
+		case <-started:
+		case err := <-done:
+			t.Fatalf("probe completed before request started: %v", err)
+		case <-ctx.Done():
+			t.Fatalf("probe did not start: %v", ctx.Err())
+		}
 		_, err := surface.mcpAuthGeneration.Advance(target)
-		close(release)
+		releaseProbe()
 		if err != nil {
 			t.Fatal(err)
 		}

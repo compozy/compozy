@@ -162,7 +162,7 @@ func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAg
 	}); ok {
 		summary, err := reader.StatusSummary(ctx)
 		if err != nil {
-			return contract.SessionAggregatePayload{}, err
+			return contract.SessionAggregatePayload{}, fmt.Errorf("api: read session status summary: %w", err)
 		}
 		return contract.SessionAggregatePayload{
 			Active:   summary.Active,
