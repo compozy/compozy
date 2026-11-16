@@ -6,7 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
-	"html"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -123,11 +123,10 @@ func (b PollBatch) DigestItems(threshold int) []DigestItem {
 		budget := source.SummaryBytes
 		for i, item := range p.Result.Items {
 			itemBudget := budget / (len(p.Result.Items) - i)
-			text := source.SanitizeText(
+			text := sourceItemText(
 				item.Title+"\n"+item.Summary+"\n"+item.URL+"\n"+string(item.Attributes),
 				itemBudget,
 			)
-			text = source.SanitizeText(html.EscapeString(text), itemBudget)
 			budget -= len(text)
 			out = append(
 				out,
@@ -196,4 +195,23 @@ const (
 
 func (b PollBatch) HasMore() bool {
 	return slices.ContainsFunc(b.Sources, func(p PolledSource) bool { return p.Err == nil && p.Result.More })
+}
+
+// sourceTextEscaper neutralizes the untrusted_source_item fence. Only &, < and > can open or close a
+// tag, so quotes stay readable and JSON attributes reach the agent intact.
+var sourceTextEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+
+// sourceItemText redacts and escapes item text and bounds it once. The cut applies to the unescaped
+// text, shrunk in proportion to the escaped overflow until the escaped form fits, so an entity is
+// never split and escaping never drops text that already fit.
+func sourceItemText(raw string, budget int) string {
+	redacted := source.SanitizeText(raw, math.MaxInt)
+	limit := budget
+	for {
+		escaped := sourceTextEscaper.Replace(source.SanitizeText(redacted, limit))
+		if len(escaped) <= budget || limit <= 0 {
+			return escaped
+		}
+		limit = min(limit-1, limit*budget/len(escaped))
+	}
 }
