@@ -65,7 +65,9 @@ function Disclosure({
       data-variant={variant}
       className={cn(
         "flex min-w-0 flex-col",
-        framed && "overflow-hidden rounded-lg bg-sunken",
+        // `overflow-hidden` drops a flex item's min height to 0, so a framed panel in a scrolling
+        // flex column would be squashed to nothing; it keeps its own height instead.
+        framed && "shrink-0 overflow-hidden rounded-lg bg-sunken",
         className
       )}
       {...rootProps}
