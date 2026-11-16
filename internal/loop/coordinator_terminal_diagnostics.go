@@ -52,7 +52,7 @@ func firstStuckNode(
 		blocking := make([]string, 0)
 		for _, dependency := range topology.dependencies[nodeID] {
 			dependencyOutput, ok := dependencyOutputForNode(topology, outputMap, nodeID, dependency, output.ItemIndex)
-			if ok && dependencyOutput.Status == generationOutputSucceeded {
+			if ok && generationOutputSatisfiesDependency(dependencyOutput.Status) {
 				continue
 			}
 			state := "missing"

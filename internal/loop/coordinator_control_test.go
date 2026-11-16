@@ -1343,6 +1343,27 @@ func TestCoordinatorRunnerShouldSettleJoinBehindUntakenGateRoute(t *testing.T) {
 			t.Fatalf("Terminal = %#v, want %#v", plan.Terminal, want)
 		}
 	})
+
+	t.Run("Should not blame an accepted partial dependency for a stuck node", func(t *testing.T) {
+		t.Parallel()
+
+		graph := untakenRouteJoinDefinitionForTest(t, true).Graph
+		outputs := []GenerationOutput{
+			{Generation: 1, NodeID: "phase_gate", Status: generationOutputPartial, Attempt: 1},
+			{Generation: 1, NodeID: "stop_phase_workers", Status: generationOutputPending, Attempt: 1},
+		}
+
+		got := noReadyNodesTerminal(graph, newControlTopology(graph), outputs)
+
+		want := &task.CoordinatorTerminal{
+			Status: string(StatusFailed), Cause: string(TransitionCauseContract),
+			ReasonCode: noReadyNodesReasonCode, NodeID: "stop_phase_workers",
+			Message: `node "stop_phase_workers" can never run: dependencies never settled: final_gate (missing)`,
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("Terminal = %#v, want %#v", got, want)
+		}
+	})
 }
 
 func untakenRouteJoinDefinitionForTest(t *testing.T, withCollect bool) dsl.Definition {
