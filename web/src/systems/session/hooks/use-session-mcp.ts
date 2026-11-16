@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { SessionMCPResponse } from "../adapters/session-mcp-api";
-import { sessionMCPOptions } from "../lib/session-mcp-query-options";
+import { SESSION_MCP_STALE_TIME_MS, sessionMCPOptions } from "../lib/session-mcp-query-options";
 
 export interface SessionMCPModel {
   /** The latest answer, kept after a failed reread so the popover can mark it out of date. */
@@ -44,7 +44,11 @@ export function useSessionMCP(
       // Freshness is read from the cache when the popover opens: a render-time `isStale` would
       // not track the stale time passing while nothing else rerendered the control.
       const cached = queryClient.getQueryCache().find({ queryKey: options.queryKey, exact: true });
-      if (!cached || cached.state.status === "error" || cached.isStaleByTime(options.staleTime)) {
+      if (
+        !cached ||
+        cached.state.status === "error" ||
+        cached.isStaleByTime(SESSION_MCP_STALE_TIME_MS)
+      ) {
         void query.refetch();
       }
     },
