@@ -1,17 +1,23 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
+import { setupServer } from "msw/node";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
 import type { SettingsMCPServerEntry } from "@/systems/settings";
 
+import { sessionKeys } from "../../lib/query-keys";
 import {
   sessionMCPAllReadyFixture,
+  sessionMCPFailedFixture,
+  sessionMCPFixture,
   sessionMCPReloadFailedFixture,
   sessionMCPRowFixture,
   sessionMCPSummaryFixture,
+  sessionMCPWaitingFixture,
 } from "../../mocks/session-mcp-fixtures";
 import { primarySessionFixture } from "../../mocks/fixtures";
 
@@ -28,7 +34,11 @@ vi.mock("@/systems/settings", () => ({
   useSettingsMCPServers: vi.fn(),
   useAllowMCPServer: vi.fn(),
   useMCPDefinitionAuthorization: vi.fn(),
-  mcpApprovalTarget: vi.fn(),
+  mcpPanelAnchor: (element: HTMLElement) => ({ element, virtual: element }),
+  mcpAllowPanelLaunch: () => null,
+  MCPAllowPanel: () => null,
+  MCPAnchoredPanel: () => null,
+  MCPIssuePanel: () => null,
   MCPSignInPopover: () => null,
   ProviderLogo: () => null,
 }));
@@ -36,7 +46,6 @@ vi.mock("@/systems/settings", () => ({
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
 
 import {
-  mcpApprovalTarget,
   useAllowMCPServer,
   useMCPDefinitionAuthorization,
   useSettingsMCPServers,
@@ -51,21 +60,26 @@ import { useSessionMCPActions } from "../use-session-mcp-actions";
 // mcp-extension-hot-activation, `_uiux.md` S3).
 // Invariant: the popover reads a session's MCP servers in that session's own lens — a User
 // session (empty workspace ID) included — the closed control reads them only while a change is
-// pending (where a failed reload shows), and its row actions never turn an in-flight Allow into
-// a trip to Settings.
-// Owning layer: session hooks (and `SessionComposerMCP`) over the session MCP adapter and the
-// Settings MCP hooks.
+// pending (where a failed reload shows); Allow binds the row's own project and digest and never
+// turns an in-flight Allow into a trip to Settings; Check again replaces the cached read with the
+// daemon's answer and says plainly when the server still fails.
+// Owning layer: session hooks (and `SessionComposerMCP`) over the session MCP adapter (HTTP mocked
+// with MSW for the check) and the Settings MCP hooks.
 // Canonical suite: this file.
 
-const WAITING_ROW = sessionMCPRowFixture({ name: "notion", state: "waiting_approval" });
+const WAITING_ROW = sessionMCPWaitingFixture.compozy_servers[0]!;
 const WAITING_ENTRY = {
-  name: "notion",
+  name: "sentry",
   owner: "",
-  approval: { definition_digest: "sha256:notion" },
+  approval: { definition_digest: "sha256:sentry" },
 } as unknown as SettingsMCPServerEntry;
 
-function wrapper() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const httpServer = setupServer();
+beforeAll(() => httpServer.listen({ onUnhandledFrame: "error" }));
+afterEach(() => httpServer.resetHandlers());
+afterAll(() => httpServer.close());
+
+function wrapper(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   };
@@ -84,7 +98,6 @@ function stubSettings({ allowPending = false }: { allowPending?: boolean } = {})
   vi.mocked(useMCPDefinitionAuthorization).mockReturnValue({
     authorize: { requestAuthorize: vi.fn() },
   } as unknown as ReturnType<typeof useMCPDefinitionAuthorization>);
-  vi.mocked(mcpApprovalTarget).mockReturnValue({ workspace_id: "ws_project" });
   return { mutate };
 }
 
@@ -221,8 +234,122 @@ describe("useSessionMCPActions", () => {
     );
 
     expect(result.current.allowing).toBe(true);
-    act(() => result.current.act(WAITING_ROW, "allow"));
+    act(() => result.current.allow(WAITING_ROW));
     expect(onUnresolved).not.toHaveBeenCalled();
     expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("Should review a waiting row beside its button and allow it with the row's project and digest", () => {
+    const { mutate } = stubSettings();
+    const onUnresolved = vi.fn();
+    const trigger = document.createElement("button");
+
+    const { result } = renderHook(
+      () =>
+        useSessionMCPActions({
+          workspaceId: "ws_project",
+          sessionId: "sess-project",
+          profile: undefined,
+          enabled: false,
+          onUnresolved,
+        }),
+      { wrapper: wrapper() }
+    );
+
+    act(() => result.current.act(WAITING_ROW, "allow", trigger));
+    expect(result.current.panel).toMatchObject({
+      kind: "allow",
+      target: { name: "sentry", owner: "" },
+      anchor: { element: trigger },
+    });
+    act(() => result.current.allow(WAITING_ROW));
+    expect(mutate).toHaveBeenCalledWith(
+      {
+        name: "sentry",
+        body: { workspace_id: "ws_project", definition_digest: "sha256:sentry" },
+      },
+      expect.anything()
+    );
+    expect(onUnresolved).not.toHaveBeenCalled();
+  });
+
+  it("Should send a waiting row without a project or digest to Settings instead of allowing it", () => {
+    const { mutate } = stubSettings();
+    const onUnresolved = vi.fn();
+    const { result } = renderHook(
+      () =>
+        useSessionMCPActions({
+          workspaceId: "ws_project",
+          sessionId: "sess-project",
+          profile: undefined,
+          enabled: false,
+          onUnresolved,
+        }),
+      { wrapper: wrapper() }
+    );
+
+    act(() => result.current.allow(sessionMCPRowFixture({ name: "x", state: "waiting_approval" })));
+    expect(onUnresolved).toHaveBeenCalledOnce();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("Should check a failed server again, keep the panel open while it still fails, and close it once it works", async () => {
+    stubSettings();
+    const failedRow = sessionMCPFailedFixture.compozy_servers[0]!;
+    const stillFailing = sessionMCPFixture({
+      compozy: [{ ...failedRow, reason: "Connection refused" }],
+    });
+    const working = sessionMCPFixture({
+      compozy: [{ ...failedRow, state: "applies_next_message", reason: "" }],
+    });
+    const answers = [stillFailing, working];
+    const checks: URL[] = [];
+    httpServer.use(
+      http.post(
+        "*/api/workspaces/:workspace/sessions/:session/mcp/servers/:name/check",
+        ({ request }) => {
+          checks.push(new URL(request.url));
+          return HttpResponse.json(answers[checks.length - 1]);
+        }
+      )
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(
+      sessionKeys.mcp("ws_project", "sess-project"),
+      sessionMCPFailedFixture
+    );
+
+    const { result } = renderHook(
+      () =>
+        useSessionMCPActions({
+          workspaceId: "ws_project",
+          sessionId: "sess-project",
+          profile: "work",
+          enabled: false,
+          onUnresolved: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() => result.current.act(failedRow, "check", document.createElement("button")));
+    expect(result.current.panel?.kind).toBe("check");
+    act(() => result.current.check({ name: "pagerduty", owner: "" }));
+    await waitFor(() => expect(result.current.stillFailing).toBe(true));
+    expect(result.current.panel?.kind).toBe("check");
+    expect(queryClient.getQueryData(sessionKeys.mcp("ws_project", "sess-project"))).toEqual(
+      stillFailing
+    );
+    expect(checks[0]?.pathname).toMatch(
+      /\/sessions\/sess-project\/mcp\/servers\/pagerduty\/check$/
+    );
+    expect(checks[0]?.searchParams.get("profile")).toBe("work");
+    expect(checks[0]?.searchParams.has("owner")).toBe(false);
+
+    act(() => result.current.check({ name: "pagerduty", owner: "" }));
+    await waitFor(() => expect(result.current.panel).toBeNull());
+    expect(result.current.stillFailing).toBe(false);
+    expect(queryClient.getQueryData(sessionKeys.mcp("ws_project", "sess-project"))).toEqual(
+      working
+    );
   });
 });

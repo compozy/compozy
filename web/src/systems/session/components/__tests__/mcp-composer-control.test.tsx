@@ -6,16 +6,23 @@ import { UIProvider } from "@compozy/ui";
 
 import {
   sessionMCPAllReadyFixture,
+  sessionMCPFailedFixture,
+  sessionMCPFixture,
+  sessionMCPLimitedFixture,
   sessionMCPNeedsSignInFixture,
+  sessionMCPPendingFixture,
   sessionMCPReloadFailedFixture,
+  sessionMCPRuntimeOffFixture,
   sessionMCPSummaryFixture,
+  sessionMCPWaitingFixture,
 } from "../../mocks/session-mcp-fixtures";
 import { MCPComposerControl } from "../mcp-composer-control";
 
 // Suite: composer MCP control (spec mcp-extension-hot-activation, `_uiux.md` S3).
 // Invariant: the control appears only for a session whose payload carries an MCP summary; its
-// popover lists what the session can use, offers the one repair action a row needs, and never
-// calls a server ready without a status read to say so.
+// popover lists what the session can use in one vocabulary (N tools · Sign in · Review · Not
+// working · Off), offers the one action a row needs with the button its panel opens beside, keeps
+// the coding agent's own servers folded, and never calls a server ready without a status read.
 // Owning layer: session presentational components (props in, callbacks out). Canonical suite: this file.
 function renderControl(props: Partial<Parameters<typeof MCPComposerControl>[0]> = {}) {
   return render(
@@ -57,8 +64,8 @@ describe("MCPComposerControl", () => {
     const rows = screen.getAllByTestId(/^composer-mcp-(notion|linear|github-local|grafana)$/);
     expect(rows[0]).toHaveAttribute("data-testid", "composer-mcp-notion");
     const notion = screen.getByTestId("composer-mcp-notion");
-    expect(notion).toHaveTextContent("Needs sign-in");
     const signIn = within(notion).getByRole("button", { name: "Sign in notion" });
+    expect(screen.getByTestId("composer-mcp-linear")).toHaveTextContent("23 tools");
     await user.click(signIn);
     // The pressed button travels with the action: the sign-in panel opens beside it.
     expect(onAction).toHaveBeenCalledExactlyOnceWith(
@@ -66,7 +73,78 @@ describe("MCPComposerControl", () => {
       "sign_in",
       signIn
     );
-    expect(screen.getByTestId("composer-mcp-context7")).toHaveTextContent("Loaded by Claude Code");
+  });
+
+  it("Should offer Review for a waiting project server and Not working for a failed one", async () => {
+    const user = userEvent.setup();
+    const onAction = vi.fn();
+    const data = sessionMCPFixture({
+      compozy: [
+        ...sessionMCPWaitingFixture.compozy_servers.slice(0, 1),
+        ...sessionMCPFailedFixture.compozy_servers,
+      ],
+    });
+    renderControl({ summary: sessionMCPSummaryFixture(data), data, onAction, defaultOpen: true });
+
+    const review = within(screen.getByTestId("composer-mcp-sentry")).getByRole("button", {
+      name: "Review sentry",
+    });
+    await user.click(review);
+    expect(onAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "sentry" }),
+      "allow",
+      review
+    );
+    const failed = within(screen.getByTestId("composer-mcp-pagerduty")).getByRole("button", {
+      name: "pagerduty is not working",
+    });
+    expect(failed).toHaveTextContent("Not working");
+    await user.click(failed);
+    expect(onAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "pagerduty" }),
+      "check",
+      failed
+    );
+  });
+
+  it("Should fold the coding agent's own servers and the parent's limits behind closed rows", async () => {
+    const user = userEvent.setup();
+    const onManage = vi.fn();
+    renderControl({
+      summary: sessionMCPSummaryFixture(sessionMCPLimitedFixture),
+      data: sessionMCPLimitedFixture,
+      defaultOpen: true,
+      onManage,
+    });
+
+    expect(screen.queryByTestId("composer-mcp-context7")).not.toBeInTheDocument();
+    const runtime = screen.getByTestId("composer-mcp-runtime-toggle");
+    expect(runtime).toHaveTextContent("Claude Code's own servers");
+    expect(runtime).toHaveAttribute("aria-expanded", "false");
+    await user.click(runtime);
+    expect(await screen.findByTestId("composer-mcp-context7")).toBeInTheDocument();
+    expect(
+      screen.getByText("Claude Code loads these by itself. Change them in Claude Code.")
+    ).toBeInTheDocument();
+
+    expect(screen.queryByTestId("composer-mcp-grafana")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Off in this session (2)" }));
+    expect(await screen.findByTestId("composer-mcp-grafana")).toHaveTextContent("Off");
+
+    await user.click(screen.getByRole("button", { name: "Manage MCP servers in Settings" }));
+    expect(onManage).toHaveBeenCalledOnce();
+  });
+
+  it("Should say the coding agent's own servers are turned off for CompozyOS sessions", async () => {
+    const user = userEvent.setup();
+    renderControl({ data: sessionMCPRuntimeOffFixture, defaultOpen: true });
+
+    const runtime = screen.getByTestId("composer-mcp-runtime-toggle");
+    expect(runtime).toHaveTextContent("Off");
+    await user.click(runtime);
+    expect(
+      await screen.findByText("Turned off for CompozyOS sessions. Turn them on in Settings.")
+    ).toBeInTheDocument();
   });
 
   it("Should keep a pending change visible and named while a server also needs the operator", () => {
@@ -98,6 +176,27 @@ describe("MCPComposerControl", () => {
     expect(screen.getByTestId("composer-mcp-pending")).toBeInTheDocument();
   });
 
+  it("Should promise the next message only while a pending change has not failed", () => {
+    const { unmount } = renderControl({
+      summary: sessionMCPSummaryFixture(sessionMCPPendingFixture),
+      data: sessionMCPPendingFixture,
+      defaultOpen: true,
+    });
+    expect(screen.getByText("Updates on your next message")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-mcp-sentry")).toHaveTextContent("Next message");
+    unmount();
+
+    renderControl({
+      summary: sessionMCPSummaryFixture(sessionMCPReloadFailedFixture),
+      data: sessionMCPReloadFailedFixture,
+      defaultOpen: true,
+    });
+    expect(screen.queryByText("Updates on your next message")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Claude Code couldn't start with the new servers. Your message wasn't sent"
+    );
+  });
+
   it("Should clear a failed reload from the closed trigger once the change has applied", () => {
     // A later reload applied: the summary has nothing pending, while the read cached before it
     // still records the failure.
@@ -120,8 +219,8 @@ describe("MCPComposerControl", () => {
 
     await user.click(screen.getByTestId("composer-mcp-button"));
 
-    expect(screen.getByText("Status may be out of date")).toBeInTheDocument();
-    expect(screen.getByTestId("composer-mcp-linear")).toHaveTextContent("Ready");
+    expect(screen.getByText("May be out of date")).toBeInTheDocument();
+    expect(screen.getByTestId("composer-mcp-linear")).toHaveTextContent("23 tools");
   });
 
   it("UT-W09: Should call nothing ready when the first status read fails", async () => {
@@ -132,7 +231,7 @@ describe("MCPComposerControl", () => {
     await user.click(screen.getByTestId("composer-mcp-button"));
 
     expect(screen.getByText("Couldn't load MCP servers.")).toBeInTheDocument();
-    expect(screen.queryByText("Ready")).not.toBeInTheDocument();
+    expect(screen.queryByText(/tools?$/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
   });

@@ -1,4 +1,4 @@
-import { Globe, ShieldCheck, Terminal } from "@compozy/ui/icons";
+import { FileText, Globe, ShieldCheck, Terminal } from "@compozy/ui/icons";
 
 import { Button, PopoverPanel } from "@compozy/ui";
 
@@ -10,11 +10,27 @@ export interface MCPAllowPanelProps {
   server: string;
   reason: MCPApprovalReason;
   launch: MCPAllowPanelLaunch | null;
+  /** The project file that defines it, when known. */
+  source?: string;
   /** Settings allows for the project at once; a chat picks it up on its next message. */
   appliesOn?: "now" | "next-message";
   allowing?: boolean;
   onAllow: () => void;
   onClose: () => void;
+}
+
+function fileName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+}
+
+function allowPanelSubtitle(reason: MCPApprovalReason, source: string | undefined): string {
+  const file = source ? fileName(source) : undefined;
+  if (reason === "changed") {
+    return file
+      ? `Changed in ${file} since you allowed it`
+      : "Changed in a project file since you allowed it";
+  }
+  return file ? `Added by ${file} in this project` : "Added by a file in this project";
 }
 
 /**
@@ -25,6 +41,7 @@ export function MCPAllowPanel({
   server,
   reason,
   launch,
+  source,
   appliesOn = "now",
   allowing = false,
   onAllow,
@@ -36,11 +53,7 @@ export function MCPAllowPanel({
       icon={ShieldCheck}
       tone="warning"
       title={`Allow ${server}?`}
-      subtitle={
-        reason === "changed"
-          ? "Changed in a project file since you allowed it"
-          : "Added by a file in this project"
-      }
+      subtitle={allowPanelSubtitle(reason, source)}
       onClose={onClose}
       footer={
         <>
@@ -69,6 +82,16 @@ export function MCPAllowPanel({
           icon={launch.kind === "command" ? Terminal : Globe}
         >
           <MCPCommandBlock testId="mcp-allow-panel-launch">{launch.value}</MCPCommandBlock>
+        </MCPPanelFact>
+      ) : null}
+      {source ? (
+        <MCPPanelFact label="Defined in" icon={FileText}>
+          <span
+            data-testid="mcp-allow-panel-source"
+            className="font-mono text-mono-id break-all text-muted-foreground"
+          >
+            {source}
+          </span>
         </MCPPanelFact>
       ) : null}
     </PopoverPanel>

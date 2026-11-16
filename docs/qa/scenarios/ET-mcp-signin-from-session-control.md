@@ -46,3 +46,7 @@ src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
 QA impact 2026-11-16 (MCP redesign S2): the sign-in panel opens inside the composer popover,
 beside the row; pressing inside it keeps the popover open, and closing the popover cancels the
 attempt. Connected reads "<N> tools from <server> join this chat on your next message."
+
+QA impact 2026-11-16 (MCP redesign S5): the row reads "Sign in" (button) with a warning dot instead
+of a "Needs sign-in" pill; after a confirmed sign-in it reads "Next message" with an info dot and the
+header says "Updates on your next message". The open row is tinted while its panel is open.

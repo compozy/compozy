@@ -88,3 +88,22 @@ confirm no discovery, and with an unknown owner and confirm 404 without discover
 Backend focused coverage: `TestSessionMCPReadModel`, `TestSessionMCPDetailAndScope`,
 `TestSessionMCPCommand`, and `TestServicePermanentFailureRecovery`. Integrated Web walk remains
 pending until the frontend slices are integrated.
+
+QA impact 2026-11-16 (MCP redesign S5): the popover is redesigned. Header: faint plug icon,
+"MCP servers", "Updates on your next message" (info dot) while a change is pending and the last
+reload did not fail, "May be out of date" after a failed reread, and a gear that opens Settings ›
+MCP servers (replaces the "Manage in Settings" footer). No "CompozyOS" section label: server rows
+sit under the header, rows that need you first. Vocabulary: ready rows show "N tools";
+`applies_next_message` shows an info dot and "Next message"; `needs_sign_in` → "Sign in";
+`waiting_approval` → "Review" (opens the "Allow <server>?" panel beside the row);
+`failed` → "Not working ›" (opens "<server> isn't working" with suggestions, "What the server
+said", "Open in Settings" and "Check again"); a narrowed child session folds its rows under
+"Off in this session (N)", each reading "Off". The runtime section is a closed-by-default row with
+the provider logo, "<runtime>'s own servers" and a count (or "Off"); opened, it lists rows plus
+"<runtime> loads these by itself. Change them in <runtime>." or, with `runtime_mcp` off, "Turned
+off for CompozyOS sessions. Turn them on in Settings." A failed reload shows the warning alert and
+no "Updates on your next message". Compare screenshots with draft
+`web/src/drafts/mcp-composer-redesign/` (states proposed, runtime-open, issue, allow, limited,
+runtime-off, reload-failed, stale, loading). Check again from the composer posts the session check
+route and the row/panel update in place; a server that still fails keeps the panel open with
+"Still not working after the check."

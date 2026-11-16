@@ -1,50 +1,30 @@
-import { Plug } from "@compozy/ui/icons";
+import { Plug, Settings2 } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {
-  Alert,
-  AlertDescription,
   Button,
-  cn,
-  Disclosure,
   InputGroupButton,
-  Pill,
   Popover,
   PopoverContent,
   PopoverTitle,
   PopoverTrigger,
+  StatusDot,
 } from "@compozy/ui";
 
-import { ProviderLogo } from "@/systems/settings/components/provider-logo";
-
-import type {
-  SessionMCPResponse,
-  SessionMCPServerRow,
-  SessionRuntimeMCPRow,
-} from "../adapters/session-mcp-api";
+import type { SessionMCPResponse } from "../adapters/session-mcp-api";
 import {
   sessionMCPControlLabel,
   sessionMCPControlView,
-  sessionMCPHeaderCaption,
+  sessionMCPHeaderNote,
   sessionMCPReloadFailed,
-  sessionMCPRowDetail,
-  sessionMCPRuntimeProvider,
-  sessionMCPStateView,
-  type SessionMCPRowAction,
   type SessionMCPSummary,
 } from "../lib/session-mcp-view";
-import { ComposerPopoverRowsSkeleton } from "./composer-popover-rows-skeleton";
-
-// The row's geometry, shared by the live rows and their placeholders so the two cannot drift.
-const ROW_FRAME = "flex items-center gap-2 rounded-md px-0.5 py-1";
-const ROW_TEXT_FRAME = "flex min-w-0 flex-1 flex-col gap-0.5";
-const TITLE_WIDTHS = ["w-24", "w-32", "w-20"] as const;
-const META_WIDTHS = ["w-16", "w-20", "w-14"] as const;
-
-const ACTION_LABELS: Record<SessionMCPRowAction, string> = {
-  sign_in: "Sign in",
-  allow: "Allow",
-};
+import {
+  MCPComposerLoadError,
+  MCPComposerLoadingRows,
+  MCPComposerRows,
+  type MCPComposerRowActionHandler,
+} from "./mcp-composer-rows";
 
 export interface MCPComposerControlProps {
   /** The session payload's `mcp_summary`; the control is absent without one. */
@@ -55,117 +35,61 @@ export interface MCPComposerControlProps {
   /** The latest read failed; rows from an earlier read stay, marked as possibly out of date. */
   failed?: boolean;
   onRetry?: () => void;
-  /** A row's Sign in / Allow; `trigger` is the button a row panel opens beside. */
-  onAction?: (row: SessionMCPServerRow, action: SessionMCPRowAction, trigger: HTMLElement) => void;
+  /** A row's Sign in / Review / Not working; `trigger` is the button its panel opens beside. */
+  onAction?: MCPComposerRowActionHandler;
   /** The server whose action is in flight. */
   actingName?: string | null;
   /** Actions wait until their target can be resolved. */
   actionsDisabled?: boolean;
+  /** The server whose row panel is open beside it. */
+  activeName?: string | null;
   onManage?: () => void;
   /** The popover opened or closed; the owner reads the session's servers while it is open. */
   onOpenChange?: (open: boolean) => void;
   defaultOpen?: boolean;
-  /** A row panel (sign-in) rendered inside the popover, so pressing it keeps the popover open. */
+  /** The coding agent's own servers start folded; a story can pin them open. */
+  runtimeOpen?: boolean;
+  /** Row panels rendered inside the popover, so pressing them keeps the popover open. */
   rowPanel?: ReactNode;
 }
 
-interface RowProps {
-  name: string;
-  state: string;
-  runtime: string;
-  detail?: string;
-  action?: ReactNode;
-}
-
-function ServerRow({ name, state, runtime, detail, action }: RowProps) {
-  const view = sessionMCPStateView(state, runtime);
-  return (
-    <li className={ROW_FRAME} data-testid={`composer-mcp-${name}`} data-state={state}>
-      <span className={cn(ROW_TEXT_FRAME, view.quiet && "opacity-60")}>
-        <span className="truncate font-mono text-transcript-meta text-fg">{name}</span>
-        {detail ? (
-          <span className="truncate text-transcript-caption text-muted-foreground">{detail}</span>
-        ) : null}
-      </span>
-      {action}
-      <Pill form="plain" size="sm" tone={view.tone}>
-        <Pill.Dot />
-        {view.label}
-      </Pill>
-    </li>
-  );
-}
-
-function CompozyRow({
-  row,
-  runtime,
-  onAction,
-  acting,
+function MCPComposerHeader({
+  note,
+  onManage,
 }: {
-  row: SessionMCPServerRow;
-  runtime: string;
-  onAction?: MCPComposerControlProps["onAction"];
-  acting: boolean;
+  note: ReturnType<typeof sessionMCPHeaderNote>;
+  onManage?: () => void;
 }) {
-  const action = sessionMCPStateView(row.state, runtime).action;
   return (
-    <ServerRow
-      name={row.name}
-      state={row.state}
-      runtime={runtime}
-      detail={sessionMCPRowDetail(row)}
-      action={
-        action && onAction ? (
-          <Button
-            size="xs"
-            type="button"
-            variant="neutral"
-            disabled={acting}
-            aria-label={`${ACTION_LABELS[action]} ${row.name}`}
-            onClick={event => onAction(row, action, event.currentTarget)}
-          >
-            {ACTION_LABELS[action]}
-          </Button>
-        ) : null
-      }
-    />
-  );
-}
-
-function MCPControlSection({ label, children }: { label: ReactNode; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-0.5">
-      <span className="flex items-center gap-1.5 px-0.5 pb-0.5 text-eyebrow text-faint">
-        {label}
-      </span>
-      <ul className="flex flex-col gap-0.5">{children}</ul>
-    </section>
-  );
-}
-
-function LoadError({ onRetry }: { onRetry?: () => void }) {
-  return (
-    <div className="flex items-center justify-between gap-2 px-0.5">
-      <p className="text-transcript-caption text-muted-foreground">Couldn't load MCP servers.</p>
-      {onRetry ? (
-        <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
-          Try again
+    <div className="flex items-center gap-2 border-b border-line-soft py-2 pr-2 pl-3.5">
+      <Plug aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
+      <PopoverTitle className="shrink-0 text-small-body font-medium whitespace-nowrap text-fg-strong">
+        MCP servers
+      </PopoverTitle>
+      {note === "stale" ? (
+        <span className="truncate text-meta text-faint">May be out of date</span>
+      ) : null}
+      {note === "pending" ? (
+        <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
+          <StatusDot tone="info" size="sm" />
+          <span className="truncate">Updates on your next message</span>
+        </span>
+      ) : null}
+      {onManage ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Manage MCP servers in Settings"
+          title="Manage in Settings"
+          className="ml-auto text-muted-foreground"
+          onClick={onManage}
+        >
+          <Settings2 />
         </Button>
       ) : null}
     </div>
   );
-}
-
-function RuntimeRows({
-  rows,
-  runtime,
-}: {
-  rows: readonly SessionRuntimeMCPRow[];
-  runtime: string;
-}) {
-  return rows.map(row => (
-    <ServerRow key={row.name} name={row.name} state={row.state} runtime={runtime} />
-  ));
 }
 
 function MCPComposerBody({
@@ -174,91 +98,33 @@ function MCPComposerBody({
   loading = false,
   failed = false,
   onRetry,
-  onAction,
-  actingName = null,
-  actionsDisabled = false,
+  runtimeOpen,
+  ...rows
 }: Omit<MCPComposerControlProps, "onOpenChange" | "onManage" | "defaultOpen" | "rowPanel"> & {
   summary: SessionMCPSummary;
 }) {
   if (data === null) {
-    // Without an answer there is nothing to call ready: a failed read says so, never a pill.
-    if (failed) return <LoadError onRetry={onRetry} />;
+    // Without an answer there is nothing to call ready: a failed read says so, never a count.
+    if (failed) return <MCPComposerLoadError onRetry={onRetry} />;
     if (!loading) return null;
-    return (
-      <ComposerPopoverRowsSkeleton
-        label="Loading MCP servers"
-        data-testid="composer-mcp-loading"
-        count={Math.max(summary.usable + summary.attention, 1)}
-        rowClassName={ROW_FRAME}
-        textClassName={ROW_TEXT_FRAME}
-        titleWidths={TITLE_WIDTHS}
-        metaWidths={META_WIDTHS}
-      />
-    );
+    return <MCPComposerLoadingRows count={summary.usable + summary.attention} />;
   }
-  const view = sessionMCPControlView(data);
-  const runtime = view.runtimeName;
   return (
-    <div className="flex max-h-96 flex-col gap-3 overflow-y-auto">
-      {view.reloadFailed ? (
-        <Alert variant="warning">
-          <AlertDescription>
-            Couldn't start {runtime} with the new MCP servers. Your message wasn't sent; send it
-            again to retry.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {view.compozy.length > 0 ? (
-        <MCPControlSection label="CompozyOS">
-          {view.compozy.map(row => (
-            <CompozyRow
-              key={`${row.owner}:${row.name}`}
-              row={row}
-              runtime={runtime}
-              onAction={onAction}
-              acting={actionsDisabled || actingName === row.name}
-            />
-          ))}
-        </MCPControlSection>
-      ) : null}
-      {view.unavailable.length > 0 ? (
-        <Disclosure label={`Not available in this session (${view.unavailable.length})`}>
-          <ul className="flex flex-col gap-0.5 pt-1">
-            {view.unavailable.map(row => (
-              <CompozyRow
-                key={`${row.owner}:${row.name}`}
-                row={row}
-                runtime={runtime}
-                acting={false}
-              />
-            ))}
-          </ul>
-        </Disclosure>
-      ) : null}
-      {view.runtimeServers.length > 0 ? (
-        <MCPControlSection
-          label={
-            <>
-              <ProviderLogo
-                className="size-3.5"
-                provider={sessionMCPRuntimeProvider(view.runtimeId)}
-              />
-              {runtime}'s own servers
-            </>
-          }
-        >
-          <RuntimeRows rows={view.runtimeServers} runtime={runtime} />
-        </MCPControlSection>
-      ) : null}
-    </div>
+    <MCPComposerRows
+      {...rows}
+      view={sessionMCPControlView(data)}
+      runtimeMCP={data.runtime_servers.runtime_mcp}
+      runtimeOpen={runtimeOpen}
+    />
   );
 }
 
 /**
- * The composer's MCP control (`mcp-extension-hot-activation` S3). The session payload's summary
- * drives the trigger, and the session MCP read adds a failed reload while a change is pending; the
- * popover lists what this session can use, what needs the operator, and what the coding agent
- * loads on its own. Absent when the session has no servers.
+ * The composer's MCP control. The session payload's summary drives the closed trigger (an
+ * attention dot top-right, a pending change bottom-right); the popover lists the CompozyOS servers
+ * this session can use with the one action each needs, those its parent turned off, and — folded —
+ * the servers the coding agent loads on its own. Row actions open a panel beside the row, never a
+ * modal. Absent when the session has no servers.
  */
 export function MCPComposerControl({
   onOpenChange,
@@ -272,9 +138,11 @@ export function MCPComposerControl({
   const reloadFailed = sessionMCPReloadFailed(summary, data);
   const warn = summary.attention > 0 || reloadFailed;
   const label = sessionMCPControlLabel(summary, { reloadFailed });
-  // Icon-only and neutral like its toolbar neighbours; the name and tooltip carry the counts and
-  // states. Two independent dots repeat them visually: attention top-right, a pending change
-  // bottom-right.
+  const note = sessionMCPHeaderNote({
+    stale: failed && data !== null,
+    pendingReload: data?.pending_reload ?? summary.pending_reload,
+    reloadFailed,
+  });
   return (
     <Popover defaultOpen={defaultOpen} onOpenChange={open => onOpenChange?.(open)}>
       <PopoverTrigger
@@ -305,26 +173,16 @@ export function MCPComposerControl({
           />
         ) : null}
       </PopoverTrigger>
-      <PopoverContent side="top" align="start" className="w-96 max-w-[calc(100vw-2rem)] gap-2">
-        <div className="flex items-baseline gap-2 px-0.5">
-          <PopoverTitle className="text-transcript-meta font-semibold text-fg-strong">
-            MCP servers
-          </PopoverTitle>
-          <span className="ml-auto text-transcript-caption text-faint">
-            {sessionMCPHeaderCaption({
-              stale: failed && data !== null,
-              pendingReload: data?.pending_reload ?? summary.pending_reload,
-            })}
-          </span>
+      <PopoverContent
+        side="top"
+        align="start"
+        className="w-80 max-w-[calc(100vw-2rem)] gap-0 p-0"
+        data-testid="composer-mcp-popover"
+      >
+        <MCPComposerHeader note={note} onManage={onManage} />
+        <div className="flex flex-col gap-1 p-1.5">
+          <MCPComposerBody {...body} summary={summary} />
         </div>
-        <MCPComposerBody {...body} summary={summary} />
-        {onManage ? (
-          <div className="flex justify-end border-t border-line-soft pt-2">
-            <Button size="xs" type="button" variant="ghost" onClick={onManage}>
-              Manage in Settings
-            </Button>
-          </div>
-        ) : null}
         {rowPanel}
       </PopoverContent>
     </Popover>

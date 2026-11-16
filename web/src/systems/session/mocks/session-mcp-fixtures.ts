@@ -24,6 +24,7 @@ export function sessionMCPRowFixture(
     tool_count: tools,
     callable_count: state === "ready" ? tools : 0,
     reason: "",
+    source: { kind: "global-config" },
     ...partial,
   };
 }
@@ -94,6 +95,13 @@ export const sessionMCPWaitingFixture = sessionMCPFixture({
       owner: "",
       state: "waiting_approval",
       reason: "Added by a file in this project",
+      scope: "workspace",
+      workspace_id: "ws_project",
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "@sentry/mcp-server"],
+      source: { kind: "workspace-mcp-sidecar", path: "/Users/dev/project/.mcp.json" },
+      approval: { reason: "new", definition_digest: "sha256:sentry" },
     }),
     ...READY,
   ],

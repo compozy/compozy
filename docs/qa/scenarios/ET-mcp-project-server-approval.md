@@ -83,3 +83,10 @@ panel beside the button, showing what it runs (command and arguments, or the rem
 whether a project file added or changed it; nothing is sent until the panel's Allow. A refused Allow
 (definition changed) still reads "Changed since you allowed it" on the row. The composer control's
 Allow is unchanged in this slice.
+
+QA impact 2026-11-16 (MCP redesign S5): the composer row reads "Review"; it opens the "Allow
+<server>?" panel beside the row with what it runs, "Defined in" (the row's `source.path`), and the
+subtitle "Added by <file> in this project" or "Changed in <file> since you allowed it". "Allow from
+next message" sends the row's own `workspace_id`, `profile` and `approval.definition_digest` (no
+Settings list lookup). A refused Allow (`mcp_approval_definition_changed`) closes the panel, toasts
+"<server> changed since you looked at it…", and rereads the session's servers.

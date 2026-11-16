@@ -1,16 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { sessionKeys } from "../../lib/query-keys";
 import {
+  sessionMCPFailedFixture,
   sessionMCPFixture,
   sessionMCPReloadFailedFixture,
   sessionMCPSummaryFixture,
+  sessionMCPWaitingFixture,
 } from "../../mocks/session-mcp-fixtures";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import type { SessionPayload } from "../../types";
@@ -48,7 +50,7 @@ const meta: Meta<typeof SessionComposerMCP> = {
     docs: {
       description: {
         component:
-          "Issue #1758: the composer's closed MCP control reports the last reload outcome. A failed reload shows the attention dot and names it; once a later reload applies, both clear without opening the popover.",
+          "The composer's MCP control. The closed trigger reports attention and the last reload outcome (issue #1758). Row actions open a panel beside the row, inside the popover: Review shows what a project server runs before Allow, and Not working says why with Check again.",
       },
     },
   },
@@ -95,5 +97,56 @@ export const ClosedReloadRecovered: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("button", { name: "MCP servers: 3 ready" })).toBeInTheDocument();
     await expect(canvas.queryByTestId("composer-mcp-attention")).not.toBeInTheDocument();
+  },
+};
+
+const STILL_FAILING = sessionMCPFixture({
+  compozy: sessionMCPFailedFixture.compozy_servers.map(row =>
+    row.name === "pagerduty" ? { ...row, reason: "Connection refused on start" } : row
+  ),
+});
+
+/** A server is not working: its panel says why, and Check again answers in place. */
+export const NotWorkingCheckAgain: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        sessionMCPHandler(sessionMCPFailedFixture),
+        compozyApiMock.post(
+          "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check",
+          () => HttpResponse.json(STILL_FAILING)
+        ),
+      ],
+    },
+  },
+  args: { session: session(sessionMCPSummaryFixture(sessionMCPFailedFixture)) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByTestId("composer-mcp-button"));
+    await userEvent.click(await screen.findByRole("button", { name: "pagerduty is not working" }));
+    const panel = await screen.findByRole("dialog", { name: "pagerduty isn't working" });
+    await userEvent.click(within(panel).getByTestId("mcp-issue-panel-check"));
+    await expect(await within(panel).findByTestId("mcp-issue-panel-still")).toHaveTextContent(
+      "Still not working after the check."
+    );
+  },
+};
+
+/** A project file added a server: Review shows what it runs and where it is defined. */
+export const ReviewProjectServer: Story = {
+  parameters: { msw: { handlers: [sessionMCPHandler(sessionMCPWaitingFixture)] } },
+  args: { session: session(sessionMCPSummaryFixture(sessionMCPWaitingFixture)) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByTestId("composer-mcp-button"));
+    await userEvent.click(await screen.findByRole("button", { name: "Review sentry" }));
+    const panel = await screen.findByRole("dialog", { name: "Allow sentry?" });
+    await expect(panel).toHaveTextContent("Added by .mcp.json in this project");
+    await expect(within(panel).getByTestId("mcp-allow-panel-launch")).toHaveTextContent(
+      "npx -y @sentry/mcp-server"
+    );
+    await expect(within(panel).getByTestId("mcp-allow-panel-source")).toHaveTextContent(
+      "/Users/dev/project/.mcp.json"
+    );
   },
 };

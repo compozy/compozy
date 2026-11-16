@@ -13,6 +13,8 @@ export interface MCPIssuePanelProps {
   reason?: string | null;
   /** A check of the server is running. */
   checking?: boolean;
+  /** The last check answered and the server still is not working. */
+  stillFailing?: boolean;
   /** Asks CompozyOS to try the server again. */
   onCheck: () => void;
   /** Opens the server in Settings; absent when the panel already lives there. */
@@ -41,6 +43,7 @@ export function MCPIssuePanel({
   summary,
   reason,
   checking = false,
+  stillFailing = false,
   onCheck,
   onOpenSettings,
   onClose,
@@ -76,11 +79,20 @@ export function MCPIssuePanel({
             data-testid="mcp-issue-panel-check"
           >
             {checking ? <Spinner className="size-3.5" /> : <RotateCw data-icon="inline-start" />}
-            Check again
+            {checking ? "Checking…" : "Check again"}
           </Button>
         </>
       }
     >
+      {stillFailing ? (
+        <p
+          role="status"
+          className="text-small-body text-destructive"
+          data-testid="mcp-issue-panel-still"
+        >
+          Still not working after the check.
+        </p>
+      ) : null}
       <ul className="flex flex-col gap-2">
         <Suggestion icon={KeyRound}>Check that its key is set and still valid.</Suggestion>
         <Suggestion icon={Terminal}>Make sure its command runs on this computer.</Suggestion>

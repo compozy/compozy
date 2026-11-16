@@ -33,7 +33,11 @@ import {
 } from "@/systems/settings/mocks/runtime-mcp-fixtures";
 import type { RuntimeMCPSnapshot } from "@/systems/settings/types";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
-import type { SettingsMCPServerEntry, SettingsMCPServerRequest } from "@/systems/settings";
+import {
+  mcpServerRowTestId,
+  type SettingsMCPServerEntry,
+  type SettingsMCPServerRequest,
+} from "@/systems/settings";
 import { MCPSettingsPage } from "../-mcp-settings-page";
 
 let definitions: SettingsMCPServerEntry[] = [];
@@ -543,6 +547,68 @@ describe("MCP Settings page", () => {
           body: { workspace_id: "ws-platform", definition_digest: "sha256:seen" },
         },
       ]);
+    });
+    it("Should say why a server is not working, check it again in place, and close once it works", async () => {
+      const user = userEvent.setup();
+      const checks: URL[] = [];
+      const broken: SettingsMCPServerEntry = {
+        ...definitions[0]!,
+        runtime_status: {
+          state: "runtime_unavailable",
+          probe: "failed",
+          diagnostic: "spawn npx ENOENT",
+        } as SettingsMCPServerEntry["runtime_status"],
+      };
+      definitions = [broken];
+      const answers: SettingsMCPServerEntry[] = [
+        {
+          ...broken,
+          runtime_status: {
+            ...broken.runtime_status!,
+            diagnostic: "spawn npx ENOENT again",
+          },
+        },
+        {
+          ...broken,
+          runtime_status: {
+            ...broken.runtime_status!,
+            state: "ready",
+            probe: "succeeded",
+            tool_count: 4,
+            diagnostic: "",
+          },
+        },
+      ];
+      server.use(
+        http.post("*/api/settings/mcp-servers/:name/check", ({ request }) => {
+          checks.push(new URL(request.url));
+          return HttpResponse.json(answers[checks.length - 1]);
+        })
+      );
+      renderSettings();
+
+      await user.click(await screen.findByRole("button", { name: "github is not working" }));
+      const panel = await screen.findByRole("dialog", { name: "github isn't working" });
+      // Settings is where the panel lives: no "Open in Settings" link back to it.
+      expect(within(panel).queryByRole("button", { name: "Open in Settings" })).toBeNull();
+      await user.click(within(panel).getByRole("button", { name: "What the server said" }));
+      expect(await within(panel).findByText("spawn npx ENOENT")).toBeInTheDocument();
+
+      await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
+      expect(await within(panel).findByTestId("mcp-issue-panel-still")).toHaveTextContent(
+        "Still not working after the check."
+      );
+      expect(checks[0]?.pathname).toMatch(/\/api\/settings\/mcp-servers\/github\/check$/);
+      expect(checks[0]?.searchParams.get("scope")).toBe(broken.scope);
+
+      await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "github isn't working" })).toBeNull()
+      );
+      // The list took the check's answer without a reread: the row reads Ready, no repair offered.
+      expect(screen.getByTestId(`${mcpServerRowTestId(broken)}-status`)).toHaveTextContent("Ready");
+      expect(screen.queryByRole("button", { name: "github is not working" })).toBeNull();
+      expect(checks).toHaveLength(2);
     });
   });
 });

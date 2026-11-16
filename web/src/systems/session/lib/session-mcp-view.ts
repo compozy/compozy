@@ -1,4 +1,4 @@
-import type { PillTone } from "@compozy/ui";
+import type { StatusDotTone } from "@compozy/ui";
 
 import type {
   SessionMCPResponse,
@@ -9,12 +9,20 @@ import type { SessionPayload } from "../types";
 
 export type SessionMCPSummary = NonNullable<SessionPayload["mcp_summary"]>;
 
-/** The one action a CompozyOS row offers in the composer popover. */
-export type SessionMCPRowAction = "sign_in" | "allow";
+/**
+ * The one action a CompozyOS row offers in the composer popover: sign in, review a project server
+ * before allowing it, or see why it is not working and check it again.
+ */
+export type SessionMCPRowAction = "sign_in" | "allow" | "check";
 
+/**
+ * How a row reads. One vocabulary across the composer and Settings: Ready · Sign in · Review ·
+ * Not working · Off. Ready rows show their tool count instead of a word.
+ */
 export interface SessionMCPStateView {
   label: string;
-  tone: PillTone;
+  /** A row that needs the operator leads with a dot of this tone. */
+  attention?: StatusDotTone;
   action?: SessionMCPRowAction;
   /** Rows the session cannot use right now read quieter. */
   quiet?: boolean;
@@ -34,40 +42,45 @@ export function sessionMCPSummary(
   return session.mcp_summary ?? null;
 }
 
-export function sessionMCPStateView(state: string, runtime: string): SessionMCPStateView {
+export function sessionMCPToolCount(count: number): string {
+  return count === 1 ? "1 tool" : `${count} tools`;
+}
+
+export function sessionMCPStateView(state: string): SessionMCPStateView {
   switch (state) {
     case "ready":
-      return { label: "Ready", tone: "success" };
+      return { label: "Ready" };
     case "applies_next_message":
-      return { label: "Applies on your next message", tone: "info" };
+      return { label: "Next message" };
     case "needs_sign_in":
-      return { label: "Needs sign-in", tone: "warning", action: "sign_in" };
+      return { label: "Sign in", attention: "warning", action: "sign_in" };
     case "waiting_approval":
-      return { label: "Waiting for approval", tone: "warning", action: "allow" };
+      return { label: "Review", attention: "warning", action: "allow" };
     case "failed":
-      return { label: "Couldn't connect", tone: "destructive" };
+      return { label: "Not working", attention: "destructive", action: "check" };
     case "not_available":
-      return { label: "Not available here", tone: "neutral", quiet: true };
-    case "loaded_by_runtime":
-      return { label: `Loaded by ${runtime}`, tone: "neutral" };
-    case "off_in_compozy_sessions":
-      return { label: "Off in CompozyOS sessions", tone: "neutral", quiet: true };
-    case "off_in_runtime":
-      return { label: `Off in ${runtime}`, tone: "neutral", quiet: true };
-    case "waiting_in_runtime":
-      return { label: `Waiting for approval in ${runtime}`, tone: "neutral" };
+      return { label: "Off", quiet: true };
     default:
-      return { label: state, tone: "neutral" };
+      return { label: state };
   }
 }
 
-/** The second line of a row: the daemon's reason when it gave one, else the tool count. */
-export function sessionMCPRowDetail(row: SessionMCPServerRow): string | undefined {
-  if (row.reason.trim() !== "") return row.reason;
-  if (row.state === "ready" || row.state === "applies_next_message") {
-    return row.tool_count === 1 ? "1 tool" : `${row.tool_count} tools`;
+/** A runtime row's side word: nothing when it loads, where to approve it, or Off. */
+export function sessionMCPRuntimeStateView(
+  row: SessionRuntimeMCPRow,
+  runtime: string
+): SessionMCPStateView | null {
+  switch (row.state) {
+    case "loaded_by_runtime":
+      return null;
+    case "waiting_in_runtime":
+      return { label: `Approve in ${runtime}`, attention: "warning" };
+    case "off_in_compozy_sessions":
+    case "off_in_runtime":
+      return { label: "Off", quiet: true };
+    default:
+      return { label: row.state };
   }
-  return undefined;
 }
 
 export interface SessionMCPControlView {
@@ -85,7 +98,7 @@ export interface SessionMCPControlView {
 export function sessionMCPControlView(data: SessionMCPResponse): SessionMCPControlView {
   const runtimeName = data.runtime_display_name || data.runtime;
   const needsYou = (row: SessionMCPServerRow) =>
-    sessionMCPStateView(row.state, runtimeName).action !== undefined;
+    sessionMCPStateView(row.state).action !== undefined;
   const available = data.compozy_servers.filter(row => row.state !== "not_available");
   return {
     runtimeId: data.runtime,
@@ -93,7 +106,7 @@ export function sessionMCPControlView(data: SessionMCPResponse): SessionMCPContr
     compozy: [...available.filter(needsYou), ...available.filter(row => !needsYou(row))],
     unavailable: data.compozy_servers.filter(row => row.state === "not_available"),
     runtimeServers: data.runtime_servers.servers,
-    reloadFailed: data.last_reload?.outcome === "failed",
+    reloadFailed: data.pending_reload && data.last_reload?.outcome === "failed",
   };
 }
 
@@ -120,9 +133,16 @@ export function sessionMCPControlLabel(
   return parts.join(", ");
 }
 
-/** The popover header's caption, in order of what the operator most needs to know. */
-export function sessionMCPHeaderCaption(input: { stale: boolean; pendingReload: boolean }): string {
-  if (input.stale) return "Status may be out of date";
-  if (input.pendingReload) return "Applies on your next message";
-  return "What this session can use";
+/** The popover header's note, in order of what the operator most needs to know. */
+export type SessionMCPHeaderNote = "stale" | "pending" | null;
+
+export function sessionMCPHeaderNote(input: {
+  stale: boolean;
+  pendingReload: boolean;
+  reloadFailed: boolean;
+}): SessionMCPHeaderNote {
+  if (input.stale) return "stale";
+  // A failed reload has its own alert below; the caption would promise what just failed.
+  if (input.pendingReload && !input.reloadFailed) return "pending";
+  return null;
 }

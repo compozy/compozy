@@ -7,6 +7,7 @@ import type { SettingsMCPServerEntry, SettingsMCPServerListFilter } from "../typ
 import { useMCPDefinitionAuthorization } from "./use-mcp-definition-authorization";
 import { useMCPEditor } from "./use-mcp-editor";
 import { useMCPRuntimeManagement } from "./use-mcp-runtime-management";
+import { useMCPServerCheck } from "./use-mcp-server-check";
 import { useMCPOverrideEditor } from "./use-mcp-override-editor";
 import { useSettingsMCPServers } from "./use-settings-collections";
 import { useDeleteSettingsMCPServer } from "./use-settings-mutations";
@@ -51,6 +52,7 @@ export function useMCPServerManagement({
       profile: filter.profile,
     },
   });
+  const serverCheck = useMCPServerCheck();
   const servers = collection.data?.mcp_servers ?? [];
   // A create checks names against a list refetched when the editor opens, never a stale cache.
   // `fetchStatus` stays `paused` (not fetching) while offline, so only `idle` proves it settled.
@@ -115,6 +117,7 @@ export function useMCPServerManagement({
   return {
     collection,
     runtime,
+    serverCheck,
     servers,
     filteredServers,
     selected,

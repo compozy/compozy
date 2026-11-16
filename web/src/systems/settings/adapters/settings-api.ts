@@ -50,6 +50,7 @@ export {
   triggerSettingsRestart,
 } from "./settings-operations-api";
 export {
+  checkSettingsMCPServer,
   importRuntimeMCPServer,
   listRuntimeMCPServers,
   putSettingsMCPApproval,

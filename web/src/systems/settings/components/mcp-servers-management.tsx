@@ -2,9 +2,11 @@ import type { MCPServerManagement } from "../hooks/use-settings-mcp-page";
 import { mcpDefinitionKey } from "../lib/mcp-management-target";
 import { mcpApprovalReason, runtimeProviderName } from "../lib/mcp-runtime-view-model";
 import { mcpAllowPanelLaunch } from "../lib/mcp-allow-launch";
+import { summarizeMCPStatus } from "../lib/mcp-status-view-model";
 import { MCPAllowPanel } from "./mcp-panels/mcp-allow-panel";
 import { MCPAnchoredPanel } from "./mcp-panels/mcp-anchored-panel";
 import { MCPCopyPanel } from "./mcp-panels/mcp-copy-panel";
+import { MCPIssuePanel } from "./mcp-panels/mcp-issue-panel";
 import { MCPSignInPopover } from "./mcp-panels/mcp-sign-in-popover";
 import { MCPRuntimeModeSwitch } from "./mcp-runtime-mode-switch";
 import { MCPOverrideEditor } from "./mcp-override-editor";
@@ -62,6 +64,7 @@ function MCPServersManagementState({ management }: MCPServersManagementProps) {
           onSelect: management.select,
           selectedServer: management.selectedKey,
           onAllow: runtime.openAllow,
+          onCheck: management.serverCheck.open,
           allowingServer: runtime.allowingKey,
           approvalNotes: runtime.approvalNotes,
           highlightedServer: runtime.highlightedKey,
@@ -95,9 +98,11 @@ function MCPServersManagementState({ management }: MCPServersManagementProps) {
   );
 }
 
-/** The Allow and Add to CompozyOS panels, each beside the row button that opened it. */
+/** The Allow, Not working and Add to CompozyOS panels, each beside the row button that opened it. */
 function MCPServerRowPanels({ management }: MCPServersManagementProps) {
   const runtime = management.runtime;
+  const serverCheck = management.serverCheck;
+  const inspecting = serverCheck.inspecting;
   const reviewing = runtime.reviewing;
   const copying = runtime.copying;
   return (
@@ -121,6 +126,27 @@ function MCPServerRowPanels({ management }: MCPServersManagementProps) {
               runtime.allow(reviewing.entry);
             }}
             onClose={runtime.closeAllow}
+          />
+        ) : null}
+      </MCPAnchoredPanel>
+      <MCPAnchoredPanel
+        anchor={inspecting?.anchor ?? null}
+        open={inspecting !== null}
+        onClose={serverCheck.close}
+      >
+        {inspecting ? (
+          <MCPIssuePanel
+            server={inspecting.entry.name}
+            summary={summarizeMCPStatus(inspecting.entry).label}
+            reason={
+              inspecting.entry.runtime_status?.diagnostic?.trim() ||
+              inspecting.entry.runtime_status?.reason?.trim() ||
+              null
+            }
+            checking={serverCheck.checking}
+            stillFailing={serverCheck.stillFailing}
+            onCheck={serverCheck.check}
+            onClose={serverCheck.close}
           />
         ) : null}
       </MCPAnchoredPanel>
