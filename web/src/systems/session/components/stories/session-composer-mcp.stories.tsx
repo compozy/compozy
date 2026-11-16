@@ -1,7 +1,6 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import { useState, type ReactNode } from "react";
 import { expect, waitFor, within } from "storybook/test";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
@@ -33,14 +32,14 @@ function sessionMCPHandler(body: typeof sessionMCPReloadFailedFixture) {
   );
 }
 
-/** Seeds the session MCP read the way an earlier open of the popover left it. */
-function CachedRead({ data, children }: { data: typeof RECOVERED; children: ReactNode }) {
-  const queryClient = useQueryClient();
-  useState(() =>
-    queryClient.setQueryData(sessionKeys.mcp(WORKSPACE_ID, primarySessionFixture.id), data)
-  );
-  return children;
+/** A query client holding the session MCP read the way an earlier open of the popover left it. */
+function cachedReadClient(data: typeof RECOVERED) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(sessionKeys.mcp(WORKSPACE_ID, primarySessionFixture.id), data);
+  return client;
 }
+
+const FAILED_READ_CLIENT = cachedReadClient(sessionMCPReloadFailedFixture);
 
 const meta: Meta<typeof SessionComposerMCP> = {
   title: "systems/session/components/SessionComposerMCP",
@@ -84,13 +83,12 @@ export const ClosedReloadFailed: Story = {
 
 /** An earlier read cached the failure; a later reload applied, so the closed trigger clears. */
 export const ClosedReloadRecovered: Story = {
-  parameters: { msw: { handlers: [sessionMCPHandler(RECOVERED)] } },
   args: { session: session(sessionMCPSummaryFixture(RECOVERED)) },
   decorators: [
     Story => (
-      <CachedRead data={sessionMCPReloadFailedFixture}>
+      <QueryClientProvider client={FAILED_READ_CLIENT}>
         <Story />
-      </CachedRead>
+      </QueryClientProvider>
     ),
   ],
   play: async ({ canvasElement }) => {

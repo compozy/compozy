@@ -253,8 +253,9 @@ function MCPComposerBody({
 
 /**
  * The composer's MCP control (`mcp-extension-hot-activation` S3). The session payload's summary
- * drives the trigger at no cost; the popover lists what this session can use, what needs the
- * operator, and what the coding agent loads on its own. Absent when the session has no servers.
+ * drives the trigger, and the session MCP read adds a failed reload while a change is pending; the
+ * popover lists what this session can use, what needs the operator, and what the coding agent
+ * loads on its own. Absent when the session has no servers.
  */
 export function MCPComposerControl({
   onOpenChange,

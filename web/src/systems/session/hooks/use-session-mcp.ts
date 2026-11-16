@@ -9,6 +9,8 @@ export interface SessionMCPModel {
   loading: boolean;
   failed: boolean;
   retry: () => void;
+  /** Rereads an out-of-date or failed answer; opening the popover calls it. */
+  refresh: () => void;
 }
 
 export interface SessionMCPReadGate {
@@ -37,5 +39,8 @@ export function useSessionMCP(
     loading: query.isPending && queryEnabled,
     failed: query.isError,
     retry: () => void query.refetch(),
+    refresh: () => {
+      if (query.isStale || query.isError) void query.refetch();
+    },
   };
 }

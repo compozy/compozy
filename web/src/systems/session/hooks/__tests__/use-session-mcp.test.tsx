@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { UIProvider } from "@compozy/ui";
 
 import type { SettingsMCPServerEntry } from "@/systems/settings";
 
@@ -9,7 +11,9 @@ import {
   sessionMCPAllReadyFixture,
   sessionMCPReloadFailedFixture,
   sessionMCPRowFixture,
+  sessionMCPSummaryFixture,
 } from "../../mocks/session-mcp-fixtures";
+import { primarySessionFixture } from "../../mocks/fixtures";
 
 vi.mock("../../adapters/session-mcp-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/session-mcp-api")>()),
@@ -25,7 +29,11 @@ vi.mock("@/systems/settings", () => ({
   useAllowMCPServer: vi.fn(),
   useMCPDefinitionAuthorization: vi.fn(),
   mcpApprovalTarget: vi.fn(),
+  MCPAuthorizeDialog: () => null,
+  ProviderLogo: () => null,
 }));
+
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
 
 import {
   mcpApprovalTarget,
@@ -35,15 +43,18 @@ import {
 } from "@/systems/settings";
 
 import { fetchSessionMCP } from "../../adapters/session-mcp-api";
+import { SessionComposerMCP } from "../../components/session-composer-mcp";
 import { useSessionMCP } from "../use-session-mcp";
 import { useSessionMCPActions } from "../use-session-mcp-actions";
 
-// Suite: the composer's session MCP data hooks (spec mcp-extension-hot-activation, `_uiux.md` S3).
+// Suite: the composer's session MCP data hooks and the container that wires them (spec
+// mcp-extension-hot-activation, `_uiux.md` S3).
 // Invariant: the popover reads a session's MCP servers in that session's own lens — a User
 // session (empty workspace ID) included — the closed control reads them only while a change is
 // pending (where a failed reload shows), and its row actions never turn an in-flight Allow into
 // a trip to Settings.
-// Owning layer: session hooks over the session MCP adapter and the Settings MCP hooks.
+// Owning layer: session hooks (and `SessionComposerMCP`) over the session MCP adapter and the
+// Settings MCP hooks.
 // Canonical suite: this file.
 
 const WAITING_ROW = sessionMCPRowFixture({ name: "notion", state: "waiting_approval" });
@@ -120,6 +131,36 @@ describe("useSessionMCP", () => {
     );
 
     expect(fetchSessionMCP).not.toHaveBeenCalled();
+  });
+});
+
+describe("SessionComposerMCP", () => {
+  beforeEach(() => {
+    vi.mocked(fetchSessionMCP).mockReset();
+  });
+
+  it("Should name a failed reload on the closed control without opening it", async () => {
+    stubSettings();
+    vi.mocked(fetchSessionMCP).mockResolvedValue(sessionMCPReloadFailedFixture);
+    const Wrapper = wrapper();
+
+    render(
+      <Wrapper>
+        <UIProvider>
+          <SessionComposerMCP
+            session={{
+              ...primarySessionFixture,
+              mcp_summary: sessionMCPSummaryFixture(sessionMCPReloadFailedFixture),
+            }}
+          />
+        </UIProvider>
+      </Wrapper>
+    );
+
+    expect(
+      await screen.findByRole("button", { name: /couldn't start with the new servers/ })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("composer-mcp-attention")).toBeInTheDocument();
   });
 });
 

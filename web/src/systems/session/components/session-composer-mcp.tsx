@@ -54,7 +54,12 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
         actingName={actions.actingName}
         actionsDisabled={actions.resolving || actions.allowing}
         onManage={manage}
-        onOpenChange={setOpen}
+        onOpenChange={next => {
+          setOpen(next);
+          // A pending change keeps the read running while closed, so opening alone would not
+          // reread an answer that has gone out of date.
+          if (next && summary.pending_reload) model.refresh();
+        }}
       />
       <MCPAuthorizeDialog
         authorize={actions.authorization.authorize}
