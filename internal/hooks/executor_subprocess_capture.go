@@ -12,12 +12,20 @@ import (
 	"slices"
 
 	"time"
+
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 func subprocessProcessEnv(env map[string]string) []string {
-	merged := make(map[string]string, len(subprocessEnvAllowlist)+len(env))
-	for _, key := range subprocessEnvAllowlist {
-		if value, ok := os.LookupEnv(key); ok {
+	return subprocessProcessEnvWith(env, os.LookupEnv)
+}
+
+// subprocessProcessEnvWith builds the hook environment from lookup, so tests need no process environment.
+func subprocessProcessEnvWith(env map[string]string, lookup func(string) (string, bool)) []string {
+	inherited := append(slices.Clone(subprocessEnvAllowlist), procutil.CATrustEnvKeys()...)
+	merged := make(map[string]string, len(inherited)+len(env))
+	for _, key := range inherited {
+		if value, ok := lookup(key); ok {
 			merged[key] = value
 		}
 	}

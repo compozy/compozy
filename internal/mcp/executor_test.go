@@ -2200,6 +2200,40 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 	})
 }
 
+func TestMCPStdioServerEnvPassesCATrustBundles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass every set CA trust bundle and let the server definition override it", func(t *testing.T) {
+		t.Parallel()
+
+		daemon := map[string]string{
+			"NODE_EXTRA_CA_CERTS": "/etc/ssl/certs/ca-certificates.crt",
+			"REQUESTS_CA_BUNDLE":  "/etc/ssl/certs/ca-certificates.crt",
+			"SSL_CERT_DIR":        "/etc/ssl/certs",
+			"SSL_CERT_FILE":       "/etc/ssl/daemon-ca.crt",
+			"UNLISTED_SETTING":    "value",
+		}
+		lookup := func(key string) (string, bool) {
+			value, ok := daemon[key]
+			return value, ok
+		}
+		env := mcpServerEnvWith(map[string]string{"SSL_CERT_FILE": "/server/ca.crt"}, lookup)
+		for _, want := range []string{
+			"NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt",
+			"REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
+			"SSL_CERT_DIR=/etc/ssl/certs",
+			"SSL_CERT_FILE=/server/ca.crt",
+		} {
+			if !slices.Contains(env, want) {
+				t.Fatalf("mcpServerEnvWith() = %#v, missing %q", env, want)
+			}
+		}
+		if slices.Contains(env, "UNLISTED_SETTING=value") {
+			t.Fatalf("mcpServerEnvWith() passed a non-allowlisted variable: %#v", env)
+		}
+	})
+}
+
 func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 	t.Run("Should report a PATH-miss launch failure for only the target server", func(t *testing.T) {
 		t.Parallel()

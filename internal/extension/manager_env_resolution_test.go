@@ -129,6 +129,46 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 		}
 	})
 
+	t.Run("Should pass set CA trust bundles and let the manifest override them", func(t *testing.T) {
+		t.Parallel()
+
+		manager := NewManager(nil, WithGetenv(func(key string) string {
+			switch key {
+			case "NODE_EXTRA_CA_CERTS":
+				return "/etc/ssl/certs/ca-certificates.crt"
+			case "SSL_CERT_FILE":
+				return "/etc/ssl/daemon-ca.crt"
+			default:
+				return ""
+			}
+		}))
+		env, cleanups, err := manager.resolveInstanceEnvMap(
+			t.Context(),
+			InstanceKey{Name: "demo"},
+			nil,
+			t.TempDir(),
+			map[string]string{"SSL_CERT_FILE": "/manifest/ca.crt"},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("resolveInstanceEnvMap() error = %v", err)
+		}
+		t.Cleanup(func() { runExtensionRedactionCleanups(cleanups) })
+		for _, want := range []string{
+			"NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt",
+			"SSL_CERT_FILE=/manifest/ca.crt",
+		} {
+			if !slices.Contains(env, want) {
+				t.Fatalf("resolveInstanceEnvMap() = %#v, missing %q", env, want)
+			}
+		}
+		for _, entry := range env {
+			if strings.HasPrefix(entry, "REQUESTS_CA_BUNDLE=") || strings.HasPrefix(entry, "SSL_CERT_DIR=") {
+				t.Fatalf("resolveInstanceEnvMap() passed an unset CA variable as %q", entry)
+			}
+		}
+	})
+
 	t.Run("Should reject a dangling binding and unwind registered redactions", func(t *testing.T) {
 		t.Parallel()
 
