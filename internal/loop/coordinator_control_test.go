@@ -1274,32 +1274,32 @@ func TestCoordinatorRunnerShouldNotEvaluateUnselectedRouteGate(t *testing.T) {
 // Invariant: a gate route that is not taken skips a downstream fan-out path even when that
 // path's body never materializes, so a collect and the join it feeds still settle.
 func TestCoordinatorRunnerShouldSettleJoinBehindUntakenGateRoute(t *testing.T) {
-	t.Run("Should finish done when the untaken route feeds a fan-out collect into a join", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		withCollect bool
+	}{
+		{name: "Should finish done when the untaken route feeds a fan-out collect into a join", withCollect: true},
+		{name: "Should finish done for the same graph without the upstream collect", withCollect: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		terminal, outputs := driveCoordinatorControlGraphForTest(t, untakenRouteJoinDefinitionForTest(t, true))
-		if terminal.Status != string(StatusDone) || terminal.Cause != string(TransitionCauseContract) {
-			t.Fatalf("terminal = %#v, want done/contract", terminal)
-		}
-		for _, key := range []string{"collect_reviews/0", "final_gate/0", "stop_phase_workers_blocked/0"} {
-			if got := outputs[key]; got.Status != generationOutputSucceeded ||
-				!isRouteNotTakenOutputRef(got.OutputRef) {
-				t.Fatalf("%s = %#v, want route-not-taken skip", key, got)
+			terminal, outputs := driveCoordinatorControlGraphForTest(
+				t, untakenRouteJoinDefinitionForTest(t, tc.withCollect))
+			if terminal.Status != string(StatusDone) || terminal.Cause != string(TransitionCauseContract) {
+				t.Fatalf("terminal = %#v, want done/contract", terminal)
 			}
-		}
-		if got := outputs["phase_done/0"]; got.Status != generationOutputSucceeded || got.TaskRunID == "" {
-			t.Fatalf("phase_done = %#v, want executed terminal action", got)
-		}
-	})
-
-	t.Run("Should finish done for the same graph without the upstream collect", func(t *testing.T) {
-		t.Parallel()
-
-		terminal, _ := driveCoordinatorControlGraphForTest(t, untakenRouteJoinDefinitionForTest(t, false))
-		if terminal.Status != string(StatusDone) {
-			t.Fatalf("terminal = %#v, want done", terminal)
-		}
-	})
+			for _, key := range []string{"collect_reviews/0", "final_gate/0", "stop_phase_workers_blocked/0"} {
+				if got := outputs[key]; got.Status != generationOutputSucceeded ||
+					!isRouteNotTakenOutputRef(got.OutputRef) {
+					t.Fatalf("%s = %#v, want route-not-taken skip", key, got)
+				}
+			}
+			if got := outputs["phase_done/0"]; got.Status != generationOutputSucceeded || got.TaskRunID == "" {
+				t.Fatalf("phase_done = %#v, want executed terminal action", got)
+			}
+		})
+	}
 
 	t.Run("Should name the stuck node and its unsettled dependencies when nothing can run", func(t *testing.T) {
 		t.Parallel()
