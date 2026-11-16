@@ -107,8 +107,13 @@ export function sessionMCPControlView(data: SessionMCPResponse): SessionMCPContr
     compozy: [...available.filter(needsYou), ...available.filter(row => !needsYou(row))],
     unavailable: data.compozy_servers.filter(row => row.state === "not_available"),
     runtimeServers: data.runtime_servers.servers,
-    reloadFailed: data.pending_reload && data.last_reload?.outcome === "failed",
+    reloadFailed: sessionMCPReadReloadFailed(data),
   };
+}
+
+/** Whether one MCP read records a failed reload whose change is still pending. */
+export function sessionMCPReadReloadFailed(data: SessionMCPResponse): boolean {
+  return data.pending_reload && data.last_reload?.outcome === "failed";
 }
 
 /**

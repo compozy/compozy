@@ -15,6 +15,7 @@ import {
   InputGroupButton,
   Popover,
   PopoverContent,
+  PopoverPanelContent,
   PopoverTitle,
   PopoverTrigger,
   StatusDot,
@@ -29,7 +30,6 @@ import { ProviderLogo } from "@/systems/settings/components/provider-logo";
 import { sessionMCPRuntimeProvider } from "@/systems/session/lib/session-mcp-view";
 
 import { MCPAllowPanel, MCPIssuePanel } from "../mcp-redesign-shared/mcp-row-panels";
-import { MCP_PANEL_CLASS } from "../mcp-redesign-shared/mcp-panel-class";
 import {
   MCPSignInPanel,
   type MCPSignInPhase,
@@ -78,16 +78,15 @@ function RowPanel({
   return (
     <Popover defaultOpen={open} modal={false}>
       {trigger}
-      <PopoverContent
+      <PopoverPanelContent
         side="right"
         align="start"
         sideOffset={14}
         alignOffset={-6}
         anchor={anchor}
-        className={MCP_PANEL_CLASS}
       >
         {children}
-      </PopoverContent>
+      </PopoverPanelContent>
     </Popover>
   );
 }

@@ -19,18 +19,13 @@ export function isMCPServerNotWorking(entry: SettingsMCPServerEntry): boolean {
   return summarizeMCPStatus(entry).tone === "destructive";
 }
 
-interface UseMCPServerCheckOptions {
-  /** The profile the page lists through (`default` = none); the check reads the same lens. */
-  profile?: string;
-}
-
 /**
  * The Settings "Not working" panel and its Check again. The check answers with the definition's
  * new runtime status (merged into the listed row); a server that works now closes the panel, one
  * that still fails stays open and says so. Pending and result state belong to the server the
  * check was sent for, so a slow answer for one server never reaches another one's panel.
  */
-export function useMCPServerCheck({ profile }: UseMCPServerCheckOptions = {}) {
+export function useMCPServerCheck() {
   const [inspecting, setInspecting] = useState<MCPIssueTarget | null>(null);
   const [stillFailingKey, setStillFailingKey] = useState<string | null>(null);
   const mutation = useCheckMCPServer();
@@ -46,13 +41,12 @@ export function useMCPServerCheck({ profile }: UseMCPServerCheckOptions = {}) {
 
   const check = () => {
     if (!inspecting || checking) return;
-    const derived = deriveMCPAuthFilter(inspecting.entry);
-    if (!derived) {
+    // The row's own lens: a profile row carries its profile, and the daemon refuses one elsewhere.
+    const filter = deriveMCPAuthFilter(inspecting.entry);
+    if (!filter) {
       toast.error(`Couldn't check ${inspecting.entry.name}. Open it to see its definition.`);
       return;
     }
-    const viewProfile = profile && profile !== "default" ? profile : undefined;
-    const filter = derived.profile || !viewProfile ? derived : { ...derived, profile: viewProfile };
     const key = mcpDefinitionKey(inspecting.entry);
     setStillFailingKey(null);
     mutation.mutate(

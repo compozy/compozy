@@ -72,7 +72,9 @@ export async function checkSessionMCPServer(
     }
   );
   if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Couldn't check ${target.name}`, sessionId);
+    // No session ID: the route checks the session before the server, so a 404 here names the
+    // server (removed since the row was read), not the session.
+    throwSessionRequestError(response, error, `Couldn't check ${target.name}`);
   }
   return requireResponseData(data, response, `Couldn't check ${target.name}`);
 }

@@ -629,6 +629,13 @@ describe("pasted MCP sources", () => {
       command: "run",
       args: ["", "it's"],
     });
+    // The saved program receives the parsed arguments unchanged, empty and padded ones included.
+    const pasted = applySourceLine(
+      { ...emptyDraft("stdio"), name: "run" },
+      `run --prefix "" --label " padded "`,
+      null
+    );
+    expect(toRequest(pasted).server.args).toEqual(["--prefix", "", "--label", " padded "]);
   });
 
   it("Should suggest the name agents see from the host or the package", () => {

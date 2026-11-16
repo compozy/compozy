@@ -201,6 +201,24 @@ describe("MCPComposerControl", () => {
     );
   });
 
+  it("Should not promise the next message in the open header while its read records a failed reload", () => {
+    // The session summary refreshed first and has nothing pending, while the cached MCP read the
+    // rows come from still records the pending change and its failed reload.
+    renderControl({
+      summary: {
+        ...sessionMCPSummaryFixture(sessionMCPReloadFailedFixture),
+        pending_reload: false,
+      },
+      data: sessionMCPReloadFailedFixture,
+      defaultOpen: true,
+    });
+
+    expect(screen.queryByText("Updates on your next message")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Claude Code couldn't start with the new servers. Your message wasn't sent"
+    );
+  });
+
   it("Should clear a failed reload from the closed trigger once the change has applied", () => {
     // A later reload applied: the summary has nothing pending, while the read cached before it
     // still records the failure.

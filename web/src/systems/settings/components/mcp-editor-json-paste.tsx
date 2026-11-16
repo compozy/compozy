@@ -27,6 +27,8 @@ export interface MCPEditorJSONPasteProps {
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
   /** Records the pasted server's transport as the picked one, without touching the draft. */
   onAdopt: (transport: MCPTransport) => void;
+  /** Whether the JSON on screen now supplies the server the draft holds. */
+  onSelect: (selected: boolean) => void;
   onDone: () => void;
 }
 
@@ -125,6 +127,7 @@ export function MCPEditorJSONPaste({
   autoName,
   onChange,
   onAdopt,
+  onSelect,
   onDone,
 }: MCPEditorJSONPasteProps) {
   const [text, setText] = useState(initialText);
@@ -169,6 +172,7 @@ export function MCPEditorJSONPaste({
               onChange,
               onAdopt
             );
+            onSelect(filled.current);
           }}
           placeholder={'{\n  "mcpServers": { … }\n}'}
           rows={8}
@@ -195,6 +199,7 @@ export function MCPEditorJSONPaste({
             setChosenIndex(index);
             filled.current = true;
             adoptPastedServer(server, autoName, onChange, onAdopt);
+            onSelect(true);
           }}
           servers={servers}
         />

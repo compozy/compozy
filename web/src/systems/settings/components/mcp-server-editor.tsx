@@ -102,6 +102,9 @@ export function MCPServerEditor({
   const [picked, setPicked] = useState<MCPTransport | null>(() =>
     isCreate && mcpSourceLine(draft).trim() === "" ? null : draft.transport
   );
+  // False while the JSON view is open and its JSON supplies no picked server: Save would submit
+  // whatever the draft held before it opened.
+  const [pasteSettled, setPasteSettled] = useState(true);
   // One identity per secret row, shared by "Key it needs" and the names under More options.
   const secretRowKeys = useLocalRowKeys(draft.secretEnv, "mcp-secret");
   if (!open) return null;
@@ -173,6 +176,7 @@ export function MCPServerEditor({
             isCreate={isCreate}
             onAdopt={setPicked}
             onChange={onChange}
+            onPasteSettled={setPasteSettled}
             onPick={pick}
             onTouch={touch}
             picked={picked}
@@ -229,7 +233,7 @@ export function MCPServerEditor({
           }
           onCancel={onClose}
           onPrimary={onSave}
-          primaryDisabled={!isValid || isSaving}
+          primaryDisabled={!isValid || isSaving || !pasteSettled}
           primaryIcon={isCreate ? Plus : undefined}
           primaryLabel={isSaving ? "Saving..." : isCreate ? "Add server" : "Save changes"}
           primaryTestId="settings-mcp-servers-editor-save"

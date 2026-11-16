@@ -740,7 +740,8 @@ describe("MCP Settings page", () => {
       // Alpha's pending check does not read as beta's.
       expect(within(panel).getByTestId("mcp-issue-panel-check")).toBeEnabled();
       releaseAlpha();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Alpha's answer has been taken into the list cache: its check settled after onSuccess ran.
+      await waitFor(() => expect(clients.at(-1)?.isMutating()).toBe(0));
       expect(within(panel).queryByTestId("mcp-issue-panel-still")).toBeNull();
       await user.click(within(panel).getByRole("button", { name: "What the server said" }));
       expect(within(panel).getByText("beta failed")).toBeInTheDocument();
@@ -749,7 +750,7 @@ describe("MCP Settings page", () => {
       expect(screen.getByTestId(mcpServerRowTestId(alpha))).toBeInTheDocument();
     });
 
-    it("Should check a server through the profile the page is listing", async () => {
+    it("Should check a User server in its own lens while a named profile is listed", async () => {
       const user = userEvent.setup();
       const checks: URL[] = [];
       const broken: SettingsMCPServerEntry = {
@@ -773,8 +774,9 @@ describe("MCP Settings page", () => {
       const panel = await screen.findByRole("dialog", { name: "github isn't working" });
       await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
       await waitFor(() => expect(checks).toHaveLength(1));
+      // The daemon refuses a profile outside profile scope, so the row's own lens goes as-is.
       expect(checks[0]?.searchParams.get("scope")).toBe("user");
-      expect(checks[0]?.searchParams.get("profile")).toBe("work");
+      expect(checks[0]?.searchParams.has("profile")).toBe(false);
     });
   });
 });

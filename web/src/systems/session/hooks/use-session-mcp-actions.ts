@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
+import { useState } from "react";
 
 import { toast } from "@compozy/ui";
 import {
@@ -26,6 +27,7 @@ import {
   sessionMCPServerTarget,
   type SessionMCPRowAction,
 } from "../lib/session-mcp-view";
+import { sessionMCPChecksLogic } from "../stores/session-mcp-checks-store";
 import { invalidateSessionMCPSummary, useCheckSessionMCPServer } from "./use-session-mcp-check";
 
 const DEFINITION_CHANGED = "mcp_approval_definition_changed";
@@ -58,8 +60,6 @@ interface OpenPanel {
 export interface SessionMCPRowPanel extends OpenPanel {
   row: SessionMCPServerRow;
 }
-
-type CheckState = "checking" | "still_failing";
 
 /** One key per server: names repeat across owners. */
 function serverKey(target: SessionMCPServerTarget): string {
@@ -115,31 +115,6 @@ function signingInTarget(authorize: {
   return { name: authorize.server, owner: authorize.filter?.owner ?? "" };
 }
 
-/** Each server's Check again state, plus the checks in flight read live. */
-function useSessionMCPCheckStates() {
-  const [checks, setChecks] = useState<ReadonlyMap<string, CheckState>>(() => new Map());
-  // Checks in flight, read live: a second press in the same tick must not send another.
-  const checksInFlight = useRef(new Set<string>());
-  const setCheck = (target: SessionMCPServerTarget, next: CheckState | null) =>
-    setChecks(current => {
-      const key = serverKey(target);
-      if ((current.get(key) ?? null) === next) return current;
-      const updated = new Map(current);
-      if (next === null) updated.delete(key);
-      else updated.set(key, next);
-      return updated;
-    });
-  const clearStillFailing = (target: SessionMCPServerTarget) =>
-    setChecks(current => {
-      const key = serverKey(target);
-      if (current.get(key) !== "still_failing") return current;
-      const updated = new Map(current);
-      updated.delete(key);
-      return updated;
-    });
-  return { checks, setCheck, clearStillFailing, checksInFlight };
-}
-
 /**
  * Sign in, Review and Not working from the composer's MCP popover. Review and Not working open a
  * panel beside the row; Allow binds the digest the row showed (a definition that changed in
@@ -165,7 +140,8 @@ export function useSessionMCPActions({
   const checkMutation = useCheckSessionMCPServer({ workspaceId, sessionId, profile });
   const [allowingServer, setAllowingServer] = useState<SessionMCPServerTarget | null>(null);
   const [opened, setOpened] = useState<OpenPanel | null>(null);
-  const { checks, setCheck, clearStillFailing, checksInFlight } = useSessionMCPCheckStates();
+  const checkStore = useStore(sessionMCPChecksLogic);
+  const checks = useSelector(checkStore, snapshot => snapshot.context.checks);
 
   const liveRow = opened && data ? sessionMCPCheckedRow(data, opened.target) : undefined;
   // The server left the session's read: its panel closes with it instead of showing a stale row.
@@ -176,7 +152,7 @@ export function useSessionMCPActions({
     setOpened(current =>
       current && sameSessionMCPServer(current.target, target) ? null : current
     );
-    clearStillFailing(target);
+    checkStore.trigger.stillFailingCleared({ key: serverKey(target) });
   };
 
   const closePanel = () => {
@@ -225,26 +201,23 @@ export function useSessionMCPActions({
 
   const check = (target: SessionMCPServerTarget) => {
     const key = serverKey(target);
-    if (checksInFlight.current.has(key)) return;
-    checksInFlight.current.add(key);
-    setCheck(target, "checking");
-    checkMutation
-      .mutateAsync(target)
-      .then(
-        answer => {
-          if (sessionMCPCheckedRow(answer, target)?.state === "failed") {
-            setCheck(target, "still_failing");
-            return;
-          }
-          setCheck(target, null);
-          closePanelFor(target);
-        },
-        (error: Error) => {
-          setCheck(target, null);
-          toast.error(error.message);
+    // Read live: a second press in the same tick must not send another check.
+    if (checkStore.getSnapshot().context.checks[key] === "checking") return;
+    checkStore.trigger.started({ key });
+    checkMutation.mutateAsync(target).then(
+      answer => {
+        if (sessionMCPCheckedRow(answer, target)?.state === "failed") {
+          checkStore.trigger.stillFailing({ key });
+          return;
         }
-      )
-      .finally(() => checksInFlight.current.delete(key));
+        checkStore.trigger.settled({ key });
+        closePanelFor(target);
+      },
+      (error: Error) => {
+        checkStore.trigger.settled({ key });
+        toast.error(error.message);
+      }
+    );
   };
 
   const signIn = (row: SessionMCPServerRow, trigger: HTMLElement) => {
@@ -265,12 +238,12 @@ export function useSessionMCPActions({
     }
     const target = sessionMCPServerTarget(row);
     // A panel opens fresh: an earlier "still not working" does not carry over.
-    if (checks.get(serverKey(target)) === "still_failing") setCheck(target, null);
+    checkStore.trigger.stillFailingCleared({ key: serverKey(target) });
     setOpened({ kind: action, target, anchor: mcpPanelAnchor(trigger) });
   };
 
   const signingIn = signingInTarget(authorization.authorize);
-  const panelCheck = panel ? checks.get(serverKey(panel.target)) : undefined;
+  const panelCheck = panel ? checks[serverKey(panel.target)] : undefined;
 
   return {
     act,

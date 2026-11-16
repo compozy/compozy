@@ -16,6 +16,7 @@ import {
   sessionMCPControlLabel,
   sessionMCPControlView,
   sessionMCPHeaderNote,
+  sessionMCPReadReloadFailed,
   sessionMCPReloadFailed,
   type SessionMCPSummary,
 } from "../lib/session-mcp-view";
@@ -138,10 +139,12 @@ export function MCPComposerControl({
   const reloadFailed = sessionMCPReloadFailed(summary, data);
   const warn = summary.attention > 0 || reloadFailed;
   const label = sessionMCPControlLabel(summary, { reloadFailed });
+  // The open header reads the same MCP snapshot as the rows below it, so its caption never
+  // promises a change that the rows' reload alert says has failed.
   const note = sessionMCPHeaderNote({
     stale: failed && data !== null,
-    pendingReload: data?.pending_reload ?? summary.pending_reload,
-    reloadFailed,
+    pendingReload: data ? data.pending_reload : summary.pending_reload,
+    reloadFailed: data ? sessionMCPReadReloadFailed(data) : reloadFailed,
   });
   return (
     <Popover defaultOpen={defaultOpen} onOpenChange={open => onOpenChange?.(open)}>

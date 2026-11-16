@@ -335,6 +335,37 @@ describe("MCPServerEditor", () => {
     expect(screen.getByLabelText("URL or command")).toBeInTheDocument();
   });
 
+  it("Should hold Save while the open JSON supplies no picked server, keeping the earlier draft", async () => {
+    const user = userEvent.setup();
+    render(
+      <ValidatingEditorHarness draft={{ ...emptyDraft("stdio"), name: "notes", command: "npx" }} />
+    );
+    const save = screen.getByTestId("settings-mcp-servers-editor-save");
+    expect(save).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Paste JSON instead" }));
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Config from the docs"), {
+      target: { value: "{ mcpServers" },
+    });
+    expect(save).toBeDisabled();
+    // Leaving the JSON view keeps the earlier draft, which can save again.
+    await user.click(screen.getByRole("button", { name: "Type a URL or command instead" }));
+    expect(save).toBeEnabled();
+    expect(screen.getByLabelText("Command")).toHaveValue("npx");
+
+    await user.click(screen.getByRole("button", { name: "Paste JSON instead" }));
+    fireEvent.change(screen.getByLabelText("Config from the docs"), {
+      target: {
+        value:
+          '{"mcpServers":{"linear":{"url":"https://mcp.linear.app/mcp"},"fs":{"command":"uvx"}}}',
+      },
+    });
+    expect(save).toBeDisabled();
+    await user.click(screen.getByRole("radio", { name: "fs" }));
+    expect(save).toBeEnabled();
+  });
+
   // Invariant: a key row keeps its own state when an earlier row is removed.
   it("Should keep each key's state on its own row when an earlier key is removed", async () => {
     const user = userEvent.setup();

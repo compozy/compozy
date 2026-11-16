@@ -69,7 +69,10 @@ export function agentMCPPickerRows({
       transport: entry.transport === "http" ? "remote" : "local",
       source: agentMCPSourceLabel(entry),
       status: pickerStatus(entry),
-      checked: isSaved || (overrides[entry.name] ?? staged.has(entry.name)),
+      // Own keys only: a server named like an inherited property (`constructor`) has no toggle.
+      checked:
+        isSaved ||
+        (Object.hasOwn(overrides, entry.name) ? overrides[entry.name]! : staged.has(entry.name)),
       saved: isSaved,
     };
   });

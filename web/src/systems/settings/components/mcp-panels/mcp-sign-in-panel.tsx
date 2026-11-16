@@ -189,10 +189,10 @@ export function MCPSignInPanel({
           {scopes.map(scope => (
             <li
               key={scope}
-              className="flex items-center gap-2.5 border-b border-line-soft px-2.5 py-2 last:border-b-0"
+              className="flex items-start gap-2.5 border-b border-line-soft px-2.5 py-2 last:border-b-0"
             >
-              <Lock aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
-              <span className="min-w-0 flex-1 truncate font-mono text-mono-id text-fg">
+              <Lock aria-hidden="true" className="mt-px size-3.5 shrink-0 text-faint" />
+              <span className="min-w-0 flex-1 font-mono text-mono-id wrap-anywhere text-fg">
                 {scope}
               </span>
             </li>

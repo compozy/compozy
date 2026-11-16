@@ -41,6 +41,11 @@ export interface MCPEditorConnectionSectionProps {
   onPick: (transport: MCPTransport) => void;
   /** Pasted JSON already set the draft's transport; record it as picked. */
   onAdopt: (transport: MCPTransport) => void;
+  /**
+   * While the JSON view is open and its JSON supplies no picked server, a draft filled before it
+   * opened must not be saved; `false` blocks Save, `true` clears the block.
+   */
+  onPasteSettled: (settled: boolean) => void;
   onTouch: (field: MCPRequiredField) => void;
 }
 
@@ -63,6 +68,7 @@ export function MCPEditorConnectionSection({
   onChange,
   onPick,
   onAdopt,
+  onPasteSettled,
   onTouch,
 }: MCPEditorConnectionSectionProps) {
   const line = mcpSourceLine(draft);
@@ -99,7 +105,13 @@ export function MCPEditorConnectionSection({
       onAdopt(only.transport);
       onChange(current => applyParsedServer(current, only, !autoName));
     }
+    onPasteSettled(only !== null);
     setPasting(pasted);
+  };
+  // Leaving the JSON view keeps whatever the draft holds, the earlier server included.
+  const showSource = () => {
+    onPasteSettled(true);
+    setPasting(null);
   };
 
   return (
@@ -112,7 +124,8 @@ export function MCPEditorConnectionSection({
           initialText={pasting}
           onAdopt={onAdopt}
           onChange={onChange}
-          onDone={() => setPasting(null)}
+          onDone={showSource}
+          onSelect={onPasteSettled}
         />
       ) : (
         <MCPEditorSourceField
@@ -122,7 +135,10 @@ export function MCPEditorConnectionSection({
           onBlur={() => onTouch(field)}
           onLine={writeLine}
           onPasteJSON={pasteJSON}
-          onStartPaste={() => setPasting("")}
+          onStartPaste={() => {
+            onPasteSettled(false);
+            setPasting("");
+          }}
           remoteError={errors.remoteFields}
           shown={shown}
           text={text}

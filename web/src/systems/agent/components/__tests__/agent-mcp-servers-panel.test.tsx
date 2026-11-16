@@ -209,6 +209,23 @@ describe("Agent MCP server picker", () => {
     ]);
   });
 
+  it("Should leave a server named like an inherited property unchecked until it is toggled", async () => {
+    const notion = mcpManagementServerFixtures.find(entry => entry.name === "notion")!;
+    server.use(
+      http.get("*/api/settings/mcp-servers", () =>
+        HttpResponse.json({ mcp_servers: [{ ...notion, name: "constructor" }] })
+      )
+    );
+    const onSave = renderAddDialog();
+    const inherited = await screen.findByRole("checkbox", { name: "constructor" });
+    expect(inherited).not.toBeChecked();
+
+    fireEvent.click(inherited);
+    expect(inherited).toBeChecked();
+    fireEvent.click(screen.getByTestId("agent-mcp-picker-save"));
+    expect(onSave).toHaveBeenCalledWith([{ name: "constructor", reference: true }]);
+  });
+
   it("Should free an unchecked staged name for a new server and leave it out of Save", async () => {
     serveConfiguredServers();
     const onSave = renderAddDialog({ additions: [{ name: "linear", reference: true }] });

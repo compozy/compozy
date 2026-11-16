@@ -4,10 +4,9 @@
  */
 import type { ReactNode } from "react";
 
-import { Popover, PopoverContent } from "@compozy/ui";
+import { Popover, PopoverPanelContent } from "@compozy/ui";
 import { runtimeMCPInventoryFixture } from "@/systems/settings/mocks/runtime-mcp-fixtures";
 
-import { MCP_PANEL_CLASS } from "../mcp-redesign-shared/mcp-panel-class";
 import { MCPServersByRuntimePage } from "../mcp-servers-by-runtime/mcp-page";
 import { COMPOZY_SERVERS } from "../mcp-servers-by-runtime/mcp-page-fixtures";
 import { useDomAnchor } from "./hooks/use-dom-anchor";
@@ -18,15 +17,9 @@ function AnchoredPanel({ selector, children }: { selector: string; children: Rea
   if (!anchor) return null;
   return (
     <Popover defaultOpen modal={false}>
-      <PopoverContent
-        side="bottom"
-        align="end"
-        sideOffset={6}
-        anchor={anchor}
-        className={MCP_PANEL_CLASS}
-      >
+      <PopoverPanelContent side="bottom" align="end" sideOffset={6} anchor={anchor}>
         {children}
-      </PopoverContent>
+      </PopoverPanelContent>
     </Popover>
   );
 }
