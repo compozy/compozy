@@ -38,7 +38,7 @@ func (d *Driver) applySessionMode(
 	modeID := preferredSessionMode(modes, permissions, process.toolGateway != nil,
 		process.permissionModeProvider(), process.reviewerMode)
 	if process.executionPolicy == ExecutionPolicyTriage {
-		modeID = triageReadOnlyMode(process.providerName, modes)
+		modeID = triageReadOnlyMode(process.permissionModeProvider(), modes)
 		if modeID == "" {
 			return false, ErrTriageUnsupported
 		}
