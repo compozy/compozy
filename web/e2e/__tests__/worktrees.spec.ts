@@ -5,7 +5,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import type { BrowserRuntime } from "../fixtures/runtime";
-import { sessionWindow } from "../fixtures/os-navigation";
+import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -319,6 +319,14 @@ test("operator adopts a discovered worktree by selecting it", async ({ appPage, 
   await repo.addExternalWorktree("northstar-spike", "spike/sqlite-vacuum");
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
+  // Give each window its own root selection: adoption must update the focused
+  // window as well as the ambient shell default, preserving the other window.
+  await selectWorkspace(appPage, workspace.id);
+  await openAppWindow(appPage, "Dashboard", "dashboard");
+  await selectWorkspace(appPage, workspace.id);
+  await openAppWindow(appPage, "Tasks", "tasks");
+  await selectWorkspace(appPage, workspace.id);
+
   await openWorkspaceNest(appPage, workspace.id);
   const discoveredRow = appPage.getByTestId(/^os-worktree-option-discovered:/).first();
   await expect(discoveredRow).toBeVisible();
@@ -341,6 +349,14 @@ test("operator adopts a discovered worktree by selecting it", async ({ appPage, 
       { timeout: 30_000 }
     )
     .toBe(true);
+
+  const selectedWorktree = appPage.locator('[data-slot="os-menubar-worktree"]');
+  await expect(selectedWorktree).toBeVisible();
+  const adoptedSelection = await selectedWorktree.innerText();
+  await openAppWindow(appPage, "Dashboard", "dashboard");
+  await expect(selectedWorktree).toHaveCount(0);
+  await openAppWindow(appPage, "Tasks", "tasks");
+  await expect(selectedWorktree).toHaveText(adoptedSelection);
 });
 
 test("operator sees adoption refused for the main checkout with the directory untouched", async ({

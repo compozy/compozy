@@ -1,7 +1,7 @@
 import { cn } from "@compozy/ui";
 import { useState } from "react";
 
-import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
+import { useDesktopManagerSurfaces } from "../hooks/use-desktop-manager-surfaces";
 import { useDesktopOverviewDrag } from "../hooks/use-desktop-overview-drag";
 import { useOsShell } from "../hooks/use-os-shell";
 import { tabSessionIds, useTabSessions } from "../hooks/use-os-tab-bar";
@@ -37,7 +37,6 @@ function overviewState(input: {
  * live in the menubar's single status pill (`OsHydrationStatus`).
  */
 export interface DesktopManagerSurfacesProps {
-  model: DesktopManagerSurfacesModel;
   /** Desktops holding a window that needs you (the pager's projection). */
   needsYouDesktopIds: ReadonlySet<string>;
   /** Live `desktop.switch.N` chord labels by position (index 0 = ⌃1); null when unbound. */
@@ -57,7 +56,6 @@ export interface DesktopManagerSurfacesProps {
 }
 
 export function DesktopManagerSurfaces({
-  model,
   needsYouDesktopIds,
   switchShortcuts,
   onCreateDesktop,
@@ -71,6 +69,8 @@ export function DesktopManagerSurfaces({
   onResolveConflict,
   className,
 }: DesktopManagerSurfacesProps) {
+  // Keep command-progress subscriptions here instead of rerendering the shared shell.
+  const model = useDesktopManagerSurfaces();
   // The overview portals into this host, which the shell places over the tab bar and the desk;
   // the menubar and the rail stay in place.
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
