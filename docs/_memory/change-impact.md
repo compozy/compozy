@@ -1,5 +1,42 @@
 # Compozy Change Impact
 
+## MCP connection popovers, panels and dialogs redesign — 2026-11-16
+
+Owner: branch `feat/mcp-redesign` (plan `.compozy/tasks/mcp-ux-redesign/_slices.md`).
+
+- **Native tools.** `compozy__session_mcp_list` rows gain `scope`, `workspace_id`, `profile` and
+  `transport`; the definition preview (`command`, `args`, `url`, `source`, `approval`) is returned
+  only for rows waiting for approval, redacted (URL userinfo/query values, secret args) and omitted for
+  app tokens. All additions are optional fields; existing consumers
+  are unaffected. No new native tool: the on-demand check is a CLI/HTTP/UDS surface.
+- **CLI/HTTP/UDS.** Additive: `POST /api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`,
+  `POST /api/settings/mcp-servers/{name}/check`, `compozy session mcp check <id> <name>` and
+  `compozy mcp check <name>`. Settings list items gain `definition_source`. Both check routes are
+  denied to app tokens. No route, verb or DTO is removed.
+- **Extensibility and hooks.** No hook or extension-definition change; SDK clients regenerate with
+  the new optional fields and check operations.
+- **Config.** No key change.
+- **User state.** No schema or migration change. A failed or cancelled check keeps the last working
+  tool list; a check bypasses the tools/list caches and publishes `session.mcp_changed`.
+- **Workspace isolation.** Checks resolve the server through the same scope/workspace/profile/owner
+  selectors as the Settings and session reads; nothing crosses workspaces.
+- **Web.** Composer MCP popover drops its section header, folds the coding agent's own servers
+  (closed by default), and opens sign-in, allow, not-working (Check again) and copy as nested row
+  panels instead of dialogs (`MCPAuthorizeDialog`, `MCPCopyToCompozyDialog` deleted). New
+  `PopoverPanel` primitive in `packages/ui`. Settings MCP editor, remove and extension set-up
+  dialogs are rewritten in plain words; runtime groups fold under All; the agent MCP select becomes a
+  searchable picker. Paste sign-in needs an explicit "Get a sign-in link" press.
+- **Official skill and docs.** `skills/compozy` MCP references and `packages/site/content/docs/mcp`
+  describe the check verbs and the new row fields; CLI reference regenerated.
+- **QA.** Scenario notes updated: ET-web-agent-mcp-attachments, ET-web-mcp-authorize,
+  ET-web-mcp-authorize-manual, ET-mcp-signin-from-session-control, ET-runtime-mcp-inventory-copy,
+  ET-mcp-project-server-approval, MS-web-mcp-editor-simple-advanced, ET-web-mcp-remote-editor,
+  ET-web-marketplace-mcp-authorize-installed, ET-046, ET-session-mcp-control-states,
+  ET-web-mcp-status-matrix.
+- **Known gaps.** The agent picker cannot remove saved servers (the agents API only adds); the
+  extension "N missing" count needs extension-input data. Allow still addresses the server by name
+  only (no owner on the approval request).
+
 ## Subagent cancel retires the child session — 2026-11-14
 
 Owner: PR #1688, branch `fix/cancel-stops-child`.
