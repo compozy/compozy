@@ -1,390 +1,390 @@
 {
-  "version": 3,
-  "key": "mcp-settings-redesign",
-  "sequence": 5,
-  "review": {
-    "status": "in_review",
-    "updatedAt": null
-  },
-  "events": [],
-  "comments": [
-    {
-      "id": "mcp-settings-redesign-1",
-      "slug": "mcp-settings-redesign",
-      "status": "resolved",
-      "createdAt": "2026-11-16T13:21:03.853Z",
-      "updatedAt": "2026-11-16T13:37:50.324Z",
-      "resolvedAt": "2026-11-16T13:37:49.491Z",
-      "context": {
-        "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
-        "state": "add-empty",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 1859,
-          "height": 1154
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "body > div:nth-of-type(2) > div:nth-of-type(3)",
-        "testId": null,
-        "tag": "div",
-        "text": "Add an MCP server MCP servers give your agents new tools, like reading Linear issues or querying a database. Address or…",
-        "source": "src/drafts/mcp-settings-redesign/server-dialogs.tsx:93:7",
-        "sourceChain": [
-          "src/drafts/mcp-settings-redesign/server-dialogs.tsx:93:7",
-          "src/drafts/mcp-settings-redesign/server-dialogs.tsx:92:5",
-          "src/drafts/mcp-settings-redesign/index.proto.tsx:65:25",
-          "src/drafts/always-on-agents-shared/draft-shell.tsx:151:5",
-          "src/drafts/mcp-settings-redesign/settings-page.tsx:41:5",
-          "src/drafts/mcp-settings-redesign/index.proto.tsx:98:10"
-        ],
-        "rect": {
-          "x": 737.5,
-          "y": 384.125,
-          "width": 384,
-          "height": 385.75
-        },
-        "rectNormalized": {
-          "x": 0.39671866594943517,
-          "y": 0.3328639514731369,
-          "width": 0.20656266810112964,
-          "height": 0.3342720970537262
-        },
-        "offset": null
-      },
-      "thread": [
-        {
-          "id": "a7916fc5-4701-4af7-87a9-64b59c75de81",
-          "at": "2026-11-16T13:21:03.889Z",
-          "editedAt": null,
-          "body": "falta detalhes e melhorias gerais de UI, não tem hierarquia, icones, ta pra melhorar bastante",
-          "author": "reviewer",
-          "attachments": []
-        },
-        {
-          "id": "9d7ec673-b384-4ea9-8f77-3b694f70710b",
-          "at": "2026-11-16T13:37:49.491Z",
-          "editedAt": "2026-11-16T13:37:50.324Z",
-          "body": "Rebuilt Add/Edit on the entity-dialog kit (server-dialogs.tsx): identity-well header, ruled FormSections with icons (How it connects / Name and where to use it / Key it needs), Remote vs Local as icon radio cards, a live preview card of the server being added, scope as radio cards, framed 'More options', and a consequence footer with an icon primary. Empty state now reads 'URL or command'. Verified add-empty/remote/local/json/edit at 1860px dark.",
-          "author": "agent",
-          "attachments": [
-            {
-              "id": "6a7cbcd5-98da-4c5d-b747-638636d61fcc",
-              "name": "mcp-settings-redesign--add-empty.png",
-              "type": "image/png",
-              "size": 364041,
-              "width": 3720,
-              "height": 2300,
-              "uploaderKind": "agent"
-            }
-          ]
-        }
-      ]
+    "version": 3,
+    "key": "mcp-settings-redesign",
+    "sequence": 5,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
     },
-    {
-      "id": "mcp-settings-redesign-2",
-      "slug": "mcp-settings-redesign",
-      "status": "resolved",
-      "createdAt": "2026-11-16T13:21:22.675Z",
-      "updatedAt": "2026-11-16T13:37:51.709Z",
-      "resolvedAt": "2026-11-16T13:37:50.831Z",
-      "context": {
-        "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
-        "state": "add-local",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 1859,
-          "height": 1154
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "body > div:nth-of-type(2) > div:nth-of-type(3)",
-        "testId": null,
-        "tag": "div",
-        "text": "Add an MCP server MCP servers give your agents new tools, like reading Linear issues or querying a database. Address or…",
-        "source": "src/drafts/mcp-settings-redesign/server-dialogs.tsx:93:7",
-        "sourceChain": [
-          "src/drafts/mcp-settings-redesign/server-dialogs.tsx:93:7",
-          "src/drafts/mcp-settings-redesign/server-dialogs.tsx:92:5",
-          "src/drafts/mcp-settings-redesign/index.proto.tsx:69:25",
-          "src/drafts/always-on-agents-shared/draft-shell.tsx:151:5",
-          "src/drafts/mcp-settings-redesign/settings-page.tsx:41:5",
-          "src/drafts/mcp-settings-redesign/index.proto.tsx:98:10"
-        ],
-        "rect": {
-          "x": 737.5,
-          "y": 303.6875,
-          "width": 384,
-          "height": 546.625
-        },
-        "rectNormalized": {
-          "x": 0.39671866594943517,
-          "y": 0.2631607452339688,
-          "width": 0.20656266810112964,
-          "height": 0.47367850953206236
-        },
-        "offset": null
-      },
-      "thread": [
+    "events": [],
+    "comments": [
         {
-          "id": "96e32f6a-0961-415b-80a4-07fb38cbd8bf",
-          "at": "2026-11-16T13:21:22.686Z",
-          "editedAt": null,
-          "body": "ó, tudo jogado e solto de forma básica",
-          "author": "reviewer",
-          "attachments": []
-        },
-        {
-          "id": "9b2db217-ec92-40f1-8882-7a49040d7924",
-          "at": "2026-11-16T13:37:50.830Z",
-          "editedAt": "2026-11-16T13:37:51.709Z",
-          "body": "Same rebuild covers the local-command case: fields are grouped into titled sections, the command gets a preview card (kind icon, name, endpoint, 'Needs 1 key' chips), and the key lives in its own 'Key it needs' section with a SecretField and vault note. Extension setup, Remove and the agent tool picker follow the same kit. Verified in add-local, edit, extension-settings and agent-attach captures.",
-          "author": "agent",
-          "attachments": [
-            {
-              "id": "1c30935d-1f44-4c25-aad2-63d6b78ebdc6",
-              "name": "mcp-settings-redesign--add-local.png",
-              "type": "image/png",
-              "size": 389892,
-              "width": 3720,
-              "height": 2300,
-              "uploaderKind": "agent"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "mcp-settings-redesign-3",
-      "slug": "mcp-settings-redesign",
-      "status": "resolved",
-      "createdAt": "2026-11-16T13:22:06.399Z",
-      "updatedAt": "2026-11-16T13:37:53.084Z",
-      "resolvedAt": "2026-11-16T13:37:52.135Z",
-      "context": {
-        "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
-        "state": "page",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 1859,
-          "height": 1154
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "[data-testid=\"settings-page-mcp-body\"] > div",
-        "testId": "settings-page-mcp-body",
-        "tag": "div",
-        "text": "6 servers 3 need you All projects This project branas-dashboard Remote · Added by you Sign in postgres-local Runs on th…",
-        "source": "src/systems/settings/components/settings-page-frame.tsx:66:9",
-        "sourceChain": [
-          "src/systems/settings/components/settings-page-frame.tsx:66:9",
-          "src/systems/settings/components/settings-page-frame.tsx:65:7",
-          "src/systems/settings/components/settings-page-frame.tsx:104:5",
-          "src/drafts/mcp-settings-redesign/settings-page.tsx:59:11",
-          "src/drafts/mcp-settings-redesign/settings-page.tsx:57:9",
-          "src/drafts/mcp-settings-redesign/settings-page.tsx:56:7",
-          "src/systems/os/components/os-window-surface.tsx:45:5",
-          "src/systems/os/components/os-window-surface.tsx:172:9"
-        ],
-        "rect": {
-          "x": 612,
-          "y": 141,
-          "width": 960,
-          "height": 746.5
-        },
-        "rectNormalized": {
-          "x": 0.32920925228617537,
-          "y": 0.12218370883882149,
-          "width": 0.516406670252824,
-          "height": 0.6468804159445407
-        },
-        "offset": null
-      },
-      "thread": [
-        {
-          "id": "22f3012c-4cae-4eae-b641-c4b532d4e4f9",
-          "at": "2026-11-16T13:22:06.409Z",
-          "editedAt": null,
-          "body": "eu não mandei refazer essa lista aqui, a lista atual está boa, era só os modais e menus",
-          "author": "reviewer",
-          "attachments": []
+            "id": "mcp-settings-redesign-1",
+            "slug": "mcp-settings-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T13:21:03.853Z",
+            "updatedAt": "2026-11-16T13:37:50.324Z",
+            "resolvedAt": "2026-11-16T13:37:49.491Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "add-empty",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1859,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "body > div:nth-of-type(2) > div:nth-of-type(3)",
+                "testId": null,
+                "tag": "div",
+                "text": "Add an MCP server MCP servers give your agents new tools, like reading Linear issues or querying a database. Address or…",
+                "source": "src/drafts/mcp-settings-redesign/server-dialogs.tsx:93:7",
+                "sourceChain": [
+                    "src/drafts/mcp-settings-redesign/server-dialogs.tsx:93:7",
+                    "src/drafts/mcp-settings-redesign/server-dialogs.tsx:92:5",
+                    "src/drafts/mcp-settings-redesign/index.proto.tsx:65:25",
+                    "src/drafts/always-on-agents-shared/draft-shell.tsx:151:5",
+                    "src/drafts/mcp-settings-redesign/settings-page.tsx:41:5",
+                    "src/drafts/mcp-settings-redesign/index.proto.tsx:98:10"
+                ],
+                "rect": {
+                    "x": 737.5,
+                    "y": 384.125,
+                    "width": 384,
+                    "height": 385.75
+                },
+                "rectNormalized": {
+                    "x": 0.39671866594943517,
+                    "y": 0.3328639514731369,
+                    "width": 0.20656266810112964,
+                    "height": 0.3342720970537262
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "a7916fc5-4701-4af7-87a9-64b59c75de81",
+                    "at": "2026-11-16T13:21:03.889Z",
+                    "editedAt": null,
+                    "body": "falta detalhes e melhorias gerais de UI, não tem hierarquia, icones, ta pra melhorar bastante",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "9d7ec673-b384-4ea9-8f77-3b694f70710b",
+                    "at": "2026-11-16T13:37:49.491Z",
+                    "editedAt": "2026-11-16T13:37:50.324Z",
+                    "body": "Rebuilt Add/Edit on the entity-dialog kit (server-dialogs.tsx): identity-well header, ruled FormSections with icons (How it connects / Name and where to use it / Key it needs), Remote vs Local as icon radio cards, a live preview card of the server being added, scope as radio cards, framed 'More options', and a consequence footer with an icon primary. Empty state now reads 'URL or command'. Verified add-empty/remote/local/json/edit at 1860px dark.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "6a7cbcd5-98da-4c5d-b747-638636d61fcc",
+                            "name": "mcp-settings-redesign--add-empty.png",
+                            "type": "image/png",
+                            "size": 364041,
+                            "width": 3720,
+                            "height": 2300,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
         },
         {
-          "id": "b491fad5-bc9d-4163-9590-91bb85ca03b0",
-          "at": "2026-11-16T13:37:52.133Z",
-          "editedAt": "2026-11-16T13:37:53.084Z",
-          "body": "Reverted: the draft no longer redraws the list. Every state now renders the shipped MCPServersByRuntimePage as-is, and only the menus/modals are redesigned on top of it. Sign in, Review and Copy open as panels anchored to the real row buttons; Add/Edit/Remove/Extension/Agent tools are dialogs. The old 'page' state and the details Sheet were removed; 'today' shows the unchanged page. Verified in sign-in, review, copy and today captures.",
-          "author": "agent",
-          "attachments": [
-            {
-              "id": "1de49ca2-5caf-4c0c-a4e5-d1d96917c9af",
-              "name": "mcp-settings-redesign--sign-in.png",
-              "type": "image/png",
-              "size": 467111,
-              "width": 3720,
-              "height": 2300,
-              "uploaderKind": "agent"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "mcp-settings-redesign-4",
-      "slug": "mcp-settings-redesign",
-      "status": "resolved",
-      "createdAt": "2026-11-16T14:04:46.545Z",
-      "updatedAt": "2026-11-16T14:13:49.775Z",
-      "resolvedAt": "2026-11-16T14:13:49.122Z",
-      "context": {
-        "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
-        "state": "sign-in",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 2084,
-          "height": 1154
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "[data-testid=\"settings-page-mcp-body\"] > div > div:nth-of-type(2) > div:nth-of-type(2)",
-        "testId": "settings-page-mcp-body",
-        "tag": "div",
-        "text": "All 20 CompozyOS 5 Claude Code 8 Codex 4 Pi 1 Gemini CLI 2 CompozyOS 5 Every CompozyOS session can use these from its n…",
-        "source": "src/systems/settings/components/mcp-servers-by-runtime-view.tsx:198:5",
-        "sourceChain": [
-          "src/systems/settings/components/mcp-servers-by-runtime-view.tsx:198:5",
-          "src/drafts/mcp-servers-by-runtime/mcp-page.tsx:134:15",
-          "src/drafts/mcp-servers-by-runtime/mcp-page.tsx:106:13",
-          "src/systems/settings/components/settings-page-frame.tsx:66:9",
-          "src/systems/settings/components/settings-page-frame.tsx:65:7",
-          "src/systems/settings/components/settings-page-frame.tsx:104:5",
-          "src/drafts/mcp-servers-by-runtime/mcp-page.tsx:89:11",
-          "src/drafts/mcp-servers-by-runtime/mcp-page.tsx:87:9"
-        ],
-        "rect": {
-          "x": 748.5,
-          "y": 257.5,
-          "width": 912,
-          "height": 1774.875
-        },
-        "rectNormalized": {
-          "x": 0.3591650671785029,
-          "y": 0.2231369150779896,
-          "width": 0.43761996161228406,
-          "height": 1.53801993067591
-        },
-        "offset": null
-      },
-      "thread": [
-        {
-          "id": "4600338e-44d2-45b8-8227-ad4dba262f5f",
-          "at": "2026-11-16T14:04:46.572Z",
-          "editedAt": null,
-          "body": "vamos só tornar cada uma dessas sections dos runtimes collapsible quando tiver selecionado o \"All\"",
-          "author": "reviewer",
-          "attachments": []
+            "id": "mcp-settings-redesign-2",
+            "slug": "mcp-settings-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T13:21:22.675Z",
+            "updatedAt": "2026-11-16T13:37:51.709Z",
+            "resolvedAt": "2026-11-16T13:37:50.831Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "add-local",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1859,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "body > div:nth-of-type(2) > div:nth-of-type(3)",
+                "testId": null,
+                "tag": "div",
+                "text": "Add an MCP server MCP servers give your agents new tools, like reading Linear issues or querying a database. Address or…",
+                "source": "src/drafts/mcp-settings-redesign/server-dialogs.tsx:93:7",
+                "sourceChain": [
+                    "src/drafts/mcp-settings-redesign/server-dialogs.tsx:93:7",
+                    "src/drafts/mcp-settings-redesign/server-dialogs.tsx:92:5",
+                    "src/drafts/mcp-settings-redesign/index.proto.tsx:69:25",
+                    "src/drafts/always-on-agents-shared/draft-shell.tsx:151:5",
+                    "src/drafts/mcp-settings-redesign/settings-page.tsx:41:5",
+                    "src/drafts/mcp-settings-redesign/index.proto.tsx:98:10"
+                ],
+                "rect": {
+                    "x": 737.5,
+                    "y": 303.6875,
+                    "width": 384,
+                    "height": 546.625
+                },
+                "rectNormalized": {
+                    "x": 0.39671866594943517,
+                    "y": 0.2631607452339688,
+                    "width": 0.20656266810112964,
+                    "height": 0.47367850953206236
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "96e32f6a-0961-415b-80a4-07fb38cbd8bf",
+                    "at": "2026-11-16T13:21:22.686Z",
+                    "editedAt": null,
+                    "body": "ó, tudo jogado e solto de forma básica",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "9b2db217-ec92-40f1-8882-7a49040d7924",
+                    "at": "2026-11-16T13:37:50.830Z",
+                    "editedAt": "2026-11-16T13:37:51.709Z",
+                    "body": "Same rebuild covers the local-command case: fields are grouped into titled sections, the command gets a preview card (kind icon, name, endpoint, 'Needs 1 key' chips), and the key lives in its own 'Key it needs' section with a SecretField and vault note. Extension setup, Remove and the agent tool picker follow the same kit. Verified in add-local, edit, extension-settings and agent-attach captures.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "1c30935d-1f44-4c25-aad2-63d6b78ebdc6",
+                            "name": "mcp-settings-redesign--add-local.png",
+                            "type": "image/png",
+                            "size": 389892,
+                            "width": 3720,
+                            "height": 2300,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
         },
         {
-          "id": "02311323-6c15-4146-9cdc-4811eb29050e",
-          "at": "2026-11-16T14:13:49.121Z",
-          "editedAt": "2026-11-16T14:13:49.775Z",
-          "body": "Runtime groups fold under the All filter: the group header (chevron + logo + name + count) toggles the rows, groups start open, and the 'Use in CompozyOS sessions' switch stays outside the toggle. Picking one runtime in the filter shows its group without the fold. CompozyOS stays as is. Changed in the shipped view (mcp-runtime-group.tsx collapsible prop, set by mcp-servers-by-runtime-view.tsx when filter=All) with a new case in -mcp-settings-page.test.tsx. Verified by folding Claude Code in a 2084px dark render.",
-          "author": "agent",
-          "attachments": [
-            {
-              "id": "ff802d13-b073-4620-8026-a9c69c8606e5",
-              "name": "r8-settings-folded.png",
-              "type": "image/png",
-              "size": 437026,
-              "width": 4168,
-              "height": 2308,
-              "uploaderKind": "agent"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "mcp-settings-redesign-5",
-      "slug": "mcp-settings-redesign",
-      "status": "resolved",
-      "createdAt": "2026-11-16T14:07:21.238Z",
-      "updatedAt": "2026-11-16T14:13:50.778Z",
-      "resolvedAt": "2026-11-16T14:13:50.113Z",
-      "context": {
-        "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
-        "state": "add-json",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 2084,
-          "height": 1154
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "body > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(2)",
-        "testId": null,
-        "tag": "div",
-        "text": "How it connects Remote server A URL from a service like Linear or Sentry Local program A command that runs on this comp…",
-        "source": "src/drafts/mcp-settings-redesign/server-dialogs.tsx:237:9",
-        "sourceChain": [
-          "src/drafts/mcp-settings-redesign/server-dialogs.tsx:237:9",
-          "src/drafts/mcp-settings-redesign/server-dialogs.tsx:222:7",
-          "src/drafts/mcp-settings-redesign/server-dialogs.tsx:221:5",
-          "src/drafts/mcp-settings-redesign/index.proto.tsx:86:25",
-          "src/drafts/mcp-settings-redesign/index.proto.tsx:103:10"
-        ],
-        "rect": {
-          "x": 762,
-          "y": 197,
-          "width": 560,
-          "height": 775
+            "id": "mcp-settings-redesign-3",
+            "slug": "mcp-settings-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T13:22:06.399Z",
+            "updatedAt": "2026-11-16T13:37:53.084Z",
+            "resolvedAt": "2026-11-16T13:37:52.135Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "page",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1859,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "[data-testid=\"settings-page-mcp-body\"] > div",
+                "testId": "settings-page-mcp-body",
+                "tag": "div",
+                "text": "6 servers 3 need you All projects This project branas-dashboard Remote · Added by you Sign in postgres-local Runs on th…",
+                "source": "src/systems/settings/components/settings-page-frame.tsx:66:9",
+                "sourceChain": [
+                    "src/systems/settings/components/settings-page-frame.tsx:66:9",
+                    "src/systems/settings/components/settings-page-frame.tsx:65:7",
+                    "src/systems/settings/components/settings-page-frame.tsx:104:5",
+                    "src/drafts/mcp-settings-redesign/settings-page.tsx:59:11",
+                    "src/drafts/mcp-settings-redesign/settings-page.tsx:57:9",
+                    "src/drafts/mcp-settings-redesign/settings-page.tsx:56:7",
+                    "src/systems/os/components/os-window-surface.tsx:45:5",
+                    "src/systems/os/components/os-window-surface.tsx:172:9"
+                ],
+                "rect": {
+                    "x": 612,
+                    "y": 141,
+                    "width": 960,
+                    "height": 746.5
+                },
+                "rectNormalized": {
+                    "x": 0.32920925228617537,
+                    "y": 0.12218370883882149,
+                    "width": 0.516406670252824,
+                    "height": 0.6468804159445407
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "22f3012c-4cae-4eae-b641-c4b532d4e4f9",
+                    "at": "2026-11-16T13:22:06.409Z",
+                    "editedAt": null,
+                    "body": "eu não mandei refazer essa lista aqui, a lista atual está boa, era só os modais e menus",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "b491fad5-bc9d-4163-9590-91bb85ca03b0",
+                    "at": "2026-11-16T13:37:52.133Z",
+                    "editedAt": "2026-11-16T13:37:53.084Z",
+                    "body": "Reverted: the draft no longer redraws the list. Every state now renders the shipped MCPServersByRuntimePage as-is, and only the menus/modals are redesigned on top of it. Sign in, Review and Copy open as panels anchored to the real row buttons; Add/Edit/Remove/Extension/Agent tools are dialogs. The old 'page' state and the details Sheet were removed; 'today' shows the unchanged page. Verified in sign-in, review, copy and today captures.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "1de49ca2-5caf-4c0c-a4e5-d1d96917c9af",
+                            "name": "mcp-settings-redesign--sign-in.png",
+                            "type": "image/png",
+                            "size": 467111,
+                            "width": 3720,
+                            "height": 2300,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
         },
-        "rectNormalized": {
-          "x": 0.3656429942418426,
-          "y": 0.1707105719237435,
-          "width": 0.2687140115163148,
-          "height": 0.67157712305026
-        },
-        "offset": null
-      },
-      "thread": [
         {
-          "id": "5917bc58-39c1-4d59-a914-cdaebedfba7c",
-          "at": "2026-11-16T14:07:21.249Z",
-          "editedAt": null,
-          "body": "aquele texto do remote e local embaixo de cada não precisa, já é auto explicativo e diminuiria bastante o tamanho daquele seletor; a mesma coisa pro \"all projects e only compozy\" e a parte de name e aonde usar tem que vir primeiro, o label \"Name\" encima do input do nome também não precisa, porque já tem ali o \"Name and where to use it\" isso vai deixar mais focado a UI",
-          "author": "reviewer",
-          "attachments": []
+            "id": "mcp-settings-redesign-4",
+            "slug": "mcp-settings-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T14:04:46.545Z",
+            "updatedAt": "2026-11-16T14:13:49.775Z",
+            "resolvedAt": "2026-11-16T14:13:49.122Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "sign-in",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "[data-testid=\"settings-page-mcp-body\"] > div > div:nth-of-type(2) > div:nth-of-type(2)",
+                "testId": "settings-page-mcp-body",
+                "tag": "div",
+                "text": "All 20 CompozyOS 5 Claude Code 8 Codex 4 Pi 1 Gemini CLI 2 CompozyOS 5 Every CompozyOS session can use these from its n…",
+                "source": "src/systems/settings/components/mcp-servers-by-runtime-view.tsx:198:5",
+                "sourceChain": [
+                    "src/systems/settings/components/mcp-servers-by-runtime-view.tsx:198:5",
+                    "src/drafts/mcp-servers-by-runtime/mcp-page.tsx:134:15",
+                    "src/drafts/mcp-servers-by-runtime/mcp-page.tsx:106:13",
+                    "src/systems/settings/components/settings-page-frame.tsx:66:9",
+                    "src/systems/settings/components/settings-page-frame.tsx:65:7",
+                    "src/systems/settings/components/settings-page-frame.tsx:104:5",
+                    "src/drafts/mcp-servers-by-runtime/mcp-page.tsx:89:11",
+                    "src/drafts/mcp-servers-by-runtime/mcp-page.tsx:87:9"
+                ],
+                "rect": {
+                    "x": 748.5,
+                    "y": 257.5,
+                    "width": 912,
+                    "height": 1774.875
+                },
+                "rectNormalized": {
+                    "x": 0.3591650671785029,
+                    "y": 0.2231369150779896,
+                    "width": 0.43761996161228406,
+                    "height": 1.53801993067591
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "4600338e-44d2-45b8-8227-ad4dba262f5f",
+                    "at": "2026-11-16T14:04:46.572Z",
+                    "editedAt": null,
+                    "body": "vamos só tornar cada uma dessas sections dos runtimes collapsible quando tiver selecionado o \"All\"",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "02311323-6c15-4146-9cdc-4811eb29050e",
+                    "at": "2026-11-16T14:13:49.121Z",
+                    "editedAt": "2026-11-16T14:13:49.775Z",
+                    "body": "Runtime groups fold under the All filter: the group header (chevron + logo + name + count) toggles the rows, groups start open, and the 'Use in CompozyOS sessions' switch stays outside the toggle. Picking one runtime in the filter shows its group without the fold. CompozyOS stays as is. Changed in the shipped view (mcp-runtime-group.tsx collapsible prop, set by mcp-servers-by-runtime-view.tsx when filter=All) with a new case in -mcp-settings-page.test.tsx. Verified by folding Claude Code in a 2084px dark render.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "ff802d13-b073-4620-8026-a9c69c8606e5",
+                            "name": "r8-settings-folded.png",
+                            "type": "image/png",
+                            "size": 437026,
+                            "width": 4168,
+                            "height": 2308,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
         },
         {
-          "id": "74f76fd6-b74b-490a-abce-d80317fb8f75",
-          "at": "2026-11-16T14:13:50.112Z",
-          "editedAt": "2026-11-16T14:13:50.778Z",
-          "body": "Add/Edit now opens with 'Name and where to use it' first. The 'Name' label is gone (the input keeps an accessible name and a 'Name, like linear' placeholder), and the Remote/Local and All projects/Only compozy cards show only icon and title, so both selectors are one line tall. Verified add-empty, add-json and add-local at 2084px dark.",
-          "author": "agent",
-          "attachments": [
-            {
-              "id": "0cfdcccd-c3be-4d76-9821-a8a0ef487deb",
-              "name": "r8-add-json.png",
-              "type": "image/png",
-              "size": 388554,
-              "width": 4168,
-              "height": 2308,
-              "uploaderKind": "agent"
-            }
-          ]
+            "id": "mcp-settings-redesign-5",
+            "slug": "mcp-settings-redesign",
+            "status": "resolved",
+            "createdAt": "2026-11-16T14:07:21.238Z",
+            "updatedAt": "2026-11-16T14:13:50.778Z",
+            "resolvedAt": "2026-11-16T14:13:50.113Z",
+            "context": {
+                "commit": "515fc1bad680153b74ecf2a5e6c39c92cd70c55d",
+                "state": "add-json",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "body > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(2)",
+                "testId": null,
+                "tag": "div",
+                "text": "How it connects Remote server A URL from a service like Linear or Sentry Local program A command that runs on this comp…",
+                "source": "src/drafts/mcp-settings-redesign/server-dialogs.tsx:237:9",
+                "sourceChain": [
+                    "src/drafts/mcp-settings-redesign/server-dialogs.tsx:237:9",
+                    "src/drafts/mcp-settings-redesign/server-dialogs.tsx:222:7",
+                    "src/drafts/mcp-settings-redesign/server-dialogs.tsx:221:5",
+                    "src/drafts/mcp-settings-redesign/index.proto.tsx:86:25",
+                    "src/drafts/mcp-settings-redesign/index.proto.tsx:103:10"
+                ],
+                "rect": {
+                    "x": 762,
+                    "y": 197,
+                    "width": 560,
+                    "height": 775
+                },
+                "rectNormalized": {
+                    "x": 0.3656429942418426,
+                    "y": 0.1707105719237435,
+                    "width": 0.2687140115163148,
+                    "height": 0.67157712305026
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "5917bc58-39c1-4d59-a914-cdaebedfba7c",
+                    "at": "2026-11-16T14:07:21.249Z",
+                    "editedAt": null,
+                    "body": "aquele texto do remote e local embaixo de cada não precisa, já é auto explicativo e diminuiria bastante o tamanho daquele seletor; a mesma coisa pro \"all projects e only compozy\" e a parte de name e aonde usar tem que vir primeiro, o label \"Name\" encima do input do nome também não precisa, porque já tem ali o \"Name and where to use it\" isso vai deixar mais focado a UI",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "74f76fd6-b74b-490a-abce-d80317fb8f75",
+                    "at": "2026-11-16T14:13:50.112Z",
+                    "editedAt": "2026-11-16T14:13:50.778Z",
+                    "body": "Add/Edit now opens with 'Name and where to use it' first. The 'Name' label is gone (the input keeps an accessible name and a 'Name, like linear' placeholder), and the Remote/Local and All projects/Only compozy cards show only icon and title, so both selectors are one line tall. Verified add-empty, add-json and add-local at 2084px dark.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "0cfdcccd-c3be-4d76-9821-a8a0ef487deb",
+                            "name": "r8-add-json.png",
+                            "type": "image/png",
+                            "size": 388554,
+                            "width": 4168,
+                            "height": 2308,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }
