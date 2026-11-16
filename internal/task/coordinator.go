@@ -119,11 +119,15 @@ type GenerationSnapshot struct {
 
 // CoordinatorTerminal describes the correlated run status selected at a generation boundary.
 type CoordinatorTerminal struct {
-	Status     string          `json:"status"`
-	Cause      string          `json:"cause,omitempty"`
-	ReasonCode string          `json:"reason_code,omitempty"`
-	GateID     string          `json:"gate_id,omitempty"`
-	Details    json.RawMessage `json:"details,omitempty"`
+	Status     string `json:"status"`
+	Cause      string `json:"cause,omitempty"`
+	ReasonCode string `json:"reason_code,omitempty"`
+	GateID     string `json:"gate_id,omitempty"`
+	// NodeID names the graph node whose state decided the terminal, when one did.
+	NodeID string `json:"node_id,omitempty"`
+	// Message is an operator-safe explanation of the terminal decision.
+	Message string          `json:"message,omitempty"`
+	Details json.RawMessage `json:"details,omitempty"`
 }
 
 // GenerationStateFinalizer writes generation state inside task's coordinator transaction.

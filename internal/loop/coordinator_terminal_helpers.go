@@ -17,14 +17,6 @@ const (
 	noReadyNodesReasonCode   = "no_ready_nodes"
 )
 
-func noReadyNodesTerminal() *task.CoordinatorTerminal {
-	return &task.CoordinatorTerminal{
-		Status:     string(StatusFailed),
-		Cause:      string(TransitionCauseContract),
-		ReasonCode: noReadyNodesReasonCode,
-	}
-}
-
 func (r *CoordinatorRunner) terminalForFailedGeneration(
 	ctx context.Context,
 	run Run,
@@ -84,6 +76,8 @@ func failedOutputTerminal(output GenerationOutput) task.CoordinatorTerminal {
 		Status:     string(status),
 		Cause:      string(cause),
 		ReasonCode: reasonCode,
+		NodeID:     output.NodeID,
+		Message:    failedOutputMessage(output.NodeID, failure),
 	}
 }
 

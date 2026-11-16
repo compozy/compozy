@@ -38,7 +38,7 @@ func applyCoordinatorRunStopsWithExecutor(
 			child,
 			loop.StatusFailed,
 			loop.TransitionCauseContract,
-			now, child.Generation, nil, nil,
+			now, child.Generation, nil, nil, nil,
 		)
 		if err != nil {
 			return nil, err

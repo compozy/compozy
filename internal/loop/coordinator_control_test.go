@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -1269,6 +1270,262 @@ func TestCoordinatorRunnerShouldNotEvaluateUnselectedRouteGate(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: a gate route that is not taken skips a downstream fan-out path even when that
+// path's body never materializes, so a collect and the join it feeds still settle.
+func TestCoordinatorRunnerShouldSettleJoinBehindUntakenGateRoute(t *testing.T) {
+	t.Run("Should finish done when the untaken route feeds a fan-out collect into a join", func(t *testing.T) {
+		t.Parallel()
+
+		terminal, outputs := driveCoordinatorControlGraphForTest(t, untakenRouteJoinDefinitionForTest(t, true))
+		if terminal.Status != string(StatusDone) || terminal.Cause != string(TransitionCauseContract) {
+			t.Fatalf("terminal = %#v, want done/contract", terminal)
+		}
+		for _, key := range []string{"collect_reviews/0", "final_gate/0", "stop_phase_workers_blocked/0"} {
+			if got := outputs[key]; got.Status != generationOutputSucceeded ||
+				!isRouteNotTakenOutputRef(got.OutputRef) {
+				t.Fatalf("%s = %#v, want route-not-taken skip", key, got)
+			}
+		}
+		if got := outputs["phase_done/0"]; got.Status != generationOutputSucceeded || got.TaskRunID == "" {
+			t.Fatalf("phase_done = %#v, want executed terminal action", got)
+		}
+	})
+
+	t.Run("Should finish done for the same graph without the upstream collect", func(t *testing.T) {
+		t.Parallel()
+
+		terminal, _ := driveCoordinatorControlGraphForTest(t, untakenRouteJoinDefinitionForTest(t, false))
+		if terminal.Status != string(StatusDone) {
+			t.Fatalf("terminal = %#v, want done", terminal)
+		}
+	})
+
+	t.Run("Should name the stuck node and its unsettled dependencies when nothing can run", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := compileCoordinatorControlDefinition(t, untakenRouteJoinDefinitionForTest(t, true))
+		loopRun := controlLoopRun("looprun-stuck-join", map[string]any{"phase": 1})
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		stuck := []GenerationOutput{}
+		for _, node := range resolved.Definition.Graph.Nodes {
+			output := GenerationOutput{
+				Generation: 1,
+				NodeID:     string(node.ID),
+				Status:     generationOutputPending,
+				Attempt:    1,
+			}
+			switch node.ID {
+			case "load_tasks", "implement", "collect_impl", "phase_gate":
+				output.Status = generationOutputSucceeded
+			case "review_fanout":
+				output.Status = generationOutputSucceeded
+				output.OutputRef = routeNotTakenOutputRef("phase_gate")
+			case "execute_task", "run_review":
+				continue
+			}
+			stuck = append(stuck, output)
+		}
+		runner := newCoordinatorRunnerForTestWithResolvedDefinition(t, loopRun, coordinatorRun, nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: stuck}}, resolved,
+			WithCoordinatorGateEvaluator(untakenRouteGateEvaluatorForTest()))
+
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		want := &task.CoordinatorTerminal{
+			Status: string(StatusFailed), Cause: string(TransitionCauseContract),
+			ReasonCode: noReadyNodesReasonCode, NodeID: "collect_reviews",
+			Message: `node "collect_reviews" can never run: dependencies never settled: run_review (missing)`,
+		}
+		if !reflect.DeepEqual(plan.Terminal, want) {
+			t.Fatalf("Terminal = %#v, want %#v", plan.Terminal, want)
+		}
+	})
+}
+
+func untakenRouteJoinDefinitionForTest(t *testing.T, withCollect bool) dsl.Definition {
+	t.Helper()
+
+	source := untakenRouteJoinYAMLForTest
+	if !withCollect {
+		source = strings.Replace(source, "    - {id: collect_impl, class: control, kind: collect}\n", "", 1)
+		source = strings.Replace(source,
+			"    - {from: execute_task, to: collect_impl}\n    - {from: collect_impl, to: phase_gate}\n",
+			"    - {from: execute_task, to: phase_gate}\n", 1)
+	}
+	definition, err := dsl.Parse([]byte(source))
+	if err != nil {
+		t.Fatalf("dsl.Parse() error = %v", err)
+	}
+	return definition
+}
+
+// untakenRouteGateEvaluatorForTest approves every gate and follows its authored pass route.
+func untakenRouteGateEvaluatorForTest() gate.GateEvaluator {
+	return gateEvaluatorFunc(func(_ context.Context, runtimeGate gate.Gate, _ gate.GateInput) (gate.Verdict, error) {
+		route := gate.RouteDecision{Placement: gate.PlacementInBody, Action: gate.RouteContinue}
+		if pass, ok := runtimeGate.OnResult["pass"].(map[string]any); ok {
+			route.Target, _ = pass["route"].(string)
+		}
+		return gate.Verdict{
+			Outcome: gate.VerdictOutcomeApproved,
+			Criteria: []gate.CriterionResult{{
+				ID: "check", Type: dsl.CriterionCommand, Outcome: gate.VerdictOutcomeApproved, Passed: true,
+			}},
+			Route: route,
+		}, nil
+	})
+}
+
+// driveCoordinatorControlGraphForTest runs coordinator turns, completing every queued worker,
+// until the plan selects a terminal.
+func driveCoordinatorControlGraphForTest(
+	t *testing.T,
+	definition dsl.Definition,
+) (*task.CoordinatorTerminal, map[string]GenerationOutput) {
+	t.Helper()
+
+	resolved := compileCoordinatorControlDefinition(t, definition)
+	loopRun := controlLoopRun("looprun-untaken-route-join", map[string]any{"phase": 1})
+	outputs := initialGenerationOutputs(resolved.Definition.Graph, newResolvedControlTopology(resolved), 1)
+	runs := map[string]task.Run{}
+	for turn := range 20 {
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		coordinatorRun.ID = "run-coordinator-turn-" + strconv.Itoa(turn)
+		runs[coordinatorRun.ID] = coordinatorRun
+		runner := newCoordinatorRunnerForTestWithResolvedDefinition(t, loopRun, coordinatorRun, runs,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: outputs}}, resolved,
+			WithCoordinatorGateEvaluator(untakenRouteGateEvaluatorForTest()))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("turn %d Run() error = %v", turn, err)
+		}
+		if plan.Terminal != nil {
+			payload, ok := plan.Snapshot.Payload.(GenerationSnapshotPayload)
+			if !ok {
+				t.Fatalf("snapshot payload type = %T", plan.Snapshot.Payload)
+			}
+			return plan.Terminal, outputsByNodeAndItemForTest(payload.Outputs)
+		}
+		if len(plan.NodeRuns) == 0 {
+			t.Fatalf("turn %d planned no work and no terminal: %#v", turn, plan)
+		}
+		outputs = completeQueuedNodeRunsForTest(loopRun, plan, runs)
+	}
+	t.Fatal("coordinator did not reach a terminal within 20 turns")
+	return nil, nil
+}
+
+func completeQueuedNodeRunsForTest(
+	loopRun Run,
+	plan task.CoordinatorCompletionPlan,
+	runs map[string]task.Run,
+) []GenerationOutput {
+	payload := plan.PostReserveSnapshot.Payload.(GenerationSnapshotPayload)
+	queued := make(map[string]string, len(plan.NodeRuns))
+	for _, spec := range plan.NodeRuns {
+		queued[spec.TaskID] = spec.RunID
+		run := task.Run{
+			ID: spec.RunID, TaskID: spec.TaskID, RunKind: task.RunKindWorker,
+			LoopRunID: string(loopRun.ID), Status: task.TaskRunStatusCompleted,
+		}
+		runs[spec.RunID] = run
+	}
+	outputs := append([]GenerationOutput(nil), payload.Outputs...)
+	for index := range outputs {
+		taskID := coordinatorNodeTaskID(loopRun.ID, 1, dsl.NodeID(outputs[index].NodeID), outputs[index].ItemIndex)
+		runID, ok := queued[taskID]
+		if !ok {
+			continue
+		}
+		outputs[index].TaskRunID = runID
+		outputs[index].OutputRef = `{"status":"ok"}`
+		if outputs[index].NodeID == "load_tasks" {
+			outputs[index].OutputRef = `{"tasks":[{"id":"a","phase":1},{"id":"b","phase":2}]}`
+		}
+	}
+	return outputs
+}
+
+// untakenRouteJoinYAMLForTest mirrors the reported shape: a fan-out of agent work joined by a
+// collect, a gate whose fail route opens a review fan-out, and a join fed by both gates.
+const untakenRouteJoinYAMLForTest = `apiVersion: compozy.loop/v1
+kind: Loop
+meta: {name: delivery}
+inputs:
+  phase: {type: number, default: 1}
+contract: {goal: probe, definition_of_done: final node ran, iteration_cap: 20}
+graph:
+  nodes:
+    - id: load_tasks
+      class: action
+      kind: transform
+      params: {map: {tasks: {value: [{id: a, phase: 1}, {id: b, phase: 2}]}}}
+      produces: {tasks: array}
+    - id: implement
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.load_tasks.output.tasks }}"
+      filter: "item.phase == inputs.phase"
+      batch_size: 1
+      max_parallel: 1
+      max_fan_out: 8
+    - {id: execute_task, class: action, kind: run-agent, params: {agent: codex, prompt: work}}
+    - {id: collect_impl, class: control, kind: collect}
+    - id: phase_gate
+      class: control
+      kind: gate
+      criteria: [{id: check, type: command, check: "true", expect: exit_zero}]
+      verdict_policy: fixed_passes
+      on_result: {pass: {route: stop_phase_workers}, fail: {route: review_fanout}}
+    - id: review_fanout
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.load_tasks.output.tasks }}"
+      batch_size: 1
+      max_parallel: 1
+      max_fan_out: 8
+    - {id: run_review, class: action, kind: transform, params: {map: {status: {value: reviewed}}}}
+    - {id: collect_reviews, class: control, kind: collect}
+    - id: final_gate
+      class: control
+      kind: gate
+      criteria: [{id: check, type: command, check: "true", expect: exit_zero}]
+      verdict_policy: fixed_passes
+      on_result: {pass: {route: stop_phase_workers}, fail: {route: stop_phase_workers_blocked}}
+    - id: stop_phase_workers
+      class: control
+      kind: gate
+      criteria: [{id: check, type: command, check: "true", expect: exit_zero}]
+      verdict_policy: fixed_passes
+      on_result: {pass: {route: phase_done}, fail: {route: phase_blocked}}
+    - id: stop_phase_workers_blocked
+      class: control
+      kind: gate
+      criteria: [{id: check, type: command, check: "true", expect: exit_zero}]
+      verdict_policy: fixed_passes
+      on_result: {pass: {route: phase_blocked}, fail: {route: phase_blocked}}
+    - {id: phase_done, class: action, kind: transform, params: {map: {status: {value: completed}}}}
+    - {id: phase_blocked, class: action, kind: transform, params: {map: {status: {value: blocked}}}}
+  edges:
+    - {from: load_tasks, to: implement}
+    - {from: implement, to: execute_task}
+    - {from: execute_task, to: collect_impl}
+    - {from: collect_impl, to: phase_gate}
+    - {from: phase_gate, to: stop_phase_workers}
+    - {from: phase_gate, to: review_fanout}
+    - {from: review_fanout, to: run_review}
+    - {from: run_review, to: collect_reviews}
+    - {from: collect_reviews, to: final_gate}
+    - {from: final_gate, to: stop_phase_workers}
+    - {from: final_gate, to: stop_phase_workers_blocked}
+    - {from: stop_phase_workers, to: phase_done}
+    - {from: stop_phase_workers, to: phase_blocked}
+    - {from: stop_phase_workers_blocked, to: phase_blocked}
+start: [{kind: manual}]
+`
 
 func TestCoordinatorRunnerShouldExecuteSubLoopBody(t *testing.T) {
 	t.Run("Should enqueue nested body nodes before downstream work", func(t *testing.T) {

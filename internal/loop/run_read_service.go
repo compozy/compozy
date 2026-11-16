@@ -263,8 +263,11 @@ func applyRunReadEvidence(source *RosterSource, events []RunEvent) error {
 
 func applyTerminalOutcomeEvidence(source *RosterSource, event RunEvent) error {
 	var payload struct {
-		Status Status          `json:"status"`
-		Cause  TransitionCause `json:"cause"`
+		Status     Status          `json:"status"`
+		Cause      TransitionCause `json:"cause"`
+		ReasonCode string          `json:"reason_code"`
+		NodeID     NodeID          `json:"node_id"`
+		Message    string          `json:"message"`
 	}
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
 		return fmt.Errorf("decode terminal status event payload: %w", err)
@@ -283,7 +286,9 @@ func applyTerminalOutcomeEvidence(source *RosterSource, event RunEvent) error {
 	}
 	source.Outcome = &RunOutcome{
 		Status: payload.Status, Cause: terminalOutcomeCause(payload.Status, payload.Cause),
-		ActorKind: actorKind, ActorRef: actorRef, At: event.At.UTC(),
+		ActorKind: actorKind, ActorRef: actorRef,
+		ReasonCode: payload.ReasonCode, NodeID: payload.NodeID, Message: payload.Message,
+		At: event.At.UTC(),
 	}
 	return nil
 }

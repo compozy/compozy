@@ -211,11 +211,43 @@ func routePathCanBeSkipped(
 			continue
 		}
 		dependencyOutput, ok := dependencyOutputForNode(topology, outputs, nodeID, dependency, itemIndex)
-		if !ok || !outputRefMarksSkippedRoute(dependencyOutput.OutputRef) {
+		if !ok {
+			if skippedFanOutBodyDependency(
+				topology,
+				outputs,
+				nodeID,
+				dependency,
+				itemIndex,
+				outputRefMarksSkippedRoute,
+			) {
+				continue
+			}
+			return false
+		}
+		if !outputRefMarksSkippedRoute(dependencyOutput.OutputRef) {
 			return false
 		}
 	}
 	return true
+}
+
+// skippedFanOutBodyDependency reports whether a missing dependency output belongs to the body
+// of a fan-out that was skipped before materializing: such a body never produces item outputs,
+// so a downstream collect or join must treat it as skipped instead of waiting forever.
+func skippedFanOutBodyDependency(
+	topology controlTopology,
+	outputs map[generationOutputKey]GenerationOutput,
+	nodeID dsl.NodeID,
+	dependency dsl.NodeID,
+	itemIndex int,
+	marksSkipped func(string) bool,
+) bool {
+	fanOutID, inFanOutBody := topology.inFanOutBody(dependency)
+	if !inFanOutBody {
+		return false
+	}
+	fanOutOutput, ok := dependencyOutputForNode(topology, outputs, nodeID, fanOutID, itemIndex)
+	return ok && marksSkipped(fanOutOutput.OutputRef)
 }
 
 func routeNotTakenOutputRef(sourceID dsl.NodeID) string {

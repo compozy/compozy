@@ -16,7 +16,8 @@ const (
 	LoopSourceWorkspace   LoopSource = "workspace"
 )
 
-// LoopCompletionState distinguishes full success from accepted partial completion.
+// LoopCompletionState reports collect coverage of the settled outputs: complete or accepted
+// partial. It does not report success; read status and the briefing outcome for that.
 type LoopCompletionState string
 
 const (

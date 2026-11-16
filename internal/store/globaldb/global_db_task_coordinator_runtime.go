@@ -32,6 +32,7 @@ func updateLoopBoundaryStatusWithExecutor(
 		generation,
 		nil,
 		nil,
+		nil,
 	)
 	return err
 }
@@ -47,7 +48,7 @@ func updateLoopBoundaryStatusWithFailure(
 	failure *taskpkg.CoordinatorFailure,
 ) ([]taskpkg.StatusTransition, error) {
 	return updateLoopBoundaryStatusWithEffects(
-		ctx, exec, current, to, cause, at, generation, failure, nil,
+		ctx, exec, current, to, cause, at, generation, failure, nil, nil,
 	)
 }
 
@@ -60,6 +61,7 @@ func updateLoopBoundaryStatusWithEffects(
 	at time.Time,
 	generation int,
 	failure *taskpkg.CoordinatorFailure,
+	terminal *taskpkg.CoordinatorTerminal,
 	effects []loop.RenderedEffectIntent,
 ) ([]taskpkg.StatusTransition, error) {
 	if current.Status == to {
@@ -68,7 +70,7 @@ func updateLoopBoundaryStatusWithEffects(
 	if err := validateLoopBoundaryTransition(to, cause); err != nil {
 		return nil, err
 	}
-	return transitionLoopBoundaryStatus(ctx, exec, current, to, cause, at, generation, failure, effects)
+	return transitionLoopBoundaryStatus(ctx, exec, current, to, cause, at, generation, failure, terminal, effects)
 }
 
 func validateLoopBoundaryTransition(to loop.Status, cause loop.TransitionCause) error {
@@ -90,6 +92,7 @@ func transitionLoopBoundaryStatus(
 	at time.Time,
 	generation int,
 	failure *taskpkg.CoordinatorFailure,
+	terminal *taskpkg.CoordinatorTerminal,
 	effects []loop.RenderedEffectIntent,
 ) ([]taskpkg.StatusTransition, error) {
 	completionPartial, err := loopBoundaryCompletionPartial(ctx, exec, current.ID, generation, to.Terminal())
@@ -112,7 +115,7 @@ func transitionLoopBoundaryStatus(
 		)
 	}
 	if err := appendLoopRunStatusEventWithFailureAndEffects(
-		ctx, exec, current.ID, current.WorkspaceID, current.Status, to, cause, failure, effects, at,
+		ctx, exec, current.ID, current.WorkspaceID, current.Status, to, cause, failure, terminal, effects, at,
 	); err != nil {
 		return nil, err
 	}

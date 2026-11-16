@@ -409,6 +409,11 @@ exhausted budget up to success.
 - `stalled` — no progress: the no-progress window elapsed, the failure circuit breaker tripped, the
   blocker-ID signature repeated, or a watched source went silent.
 
+When the coordinator decides a terminal, `loop why -o json` reports `outcome.reason_code`,
+`outcome.node_id`, and `outcome.message` (also on the terminal `status_changed` event); for example
+`no_ready_nodes` names the node that can never run and its unsettled dependencies. Quote them
+instead of guessing. `completion_state` reports collect coverage only, never success.
+
 Failure streaks are evaluated per node across generations, so a healthy sibling cannot reset a
 failing node's breaker. An unbounded watch run also stalls after consecutive failed generations;
 healthy waiting ticks remain `watching`.

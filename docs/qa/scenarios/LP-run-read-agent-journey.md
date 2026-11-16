@@ -98,3 +98,14 @@ deadline and complete attempt-history assertions remain. The separate lifecycle 
 its two-second timeout coverage. The real-daemon roster journey passed three race-enabled
 repetitions (50.927s). The final official runtime lane passed all 313 tests, including the complete
 Loop read journey and the unchanged timeout lifecycle scenario. See the dependency-upgrade report.
+
+QA impact 2026-11-15 (coordinator terminal diagnosis): a run the coordinator ends with
+`cause: contract` now explains itself. `loop why -o json` reports `outcome.reason_code`,
+`outcome.node_id`, and `outcome.message`, and the briefing `detail` starts with the message; the
+terminal `status_changed` event in `loop events` carries the same `reason_code`, `node_id`, and
+`message`. Walk: start a Loop whose gate passes and skips a fail route that feeds a fan-out,
+collect, and a join shared with the pass route; the run must finish `done`. A run that
+genuinely cannot progress must report `no_ready_nodes` with the stuck node and its unsettled
+dependencies. `completion_state` reports collect coverage only and stays `complete` for a failed
+run without partial coverage. Backend suites own the deterministic checks; the real-daemon walk
+is pending.

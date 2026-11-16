@@ -6944,6 +6944,9 @@ export type RunOutcome = {
   actor_ref?: string;
   at: string;
   cause: string;
+  message?: string;
+  node_id?: string;
+  reason_code?: string;
   status: string;
 };
 

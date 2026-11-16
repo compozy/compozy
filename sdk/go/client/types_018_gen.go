@@ -4,6 +4,12 @@ package client
 
 import "time"
 
+// Section is a daemon API value.
+type Section struct {
+	Title string `json:"title,omitempty"`
+	Rows  []Row  `json:"rows"`
+}
+
 // Selection is a daemon API value.
 type Selection struct {
 	ID        string `json:"id"`
