@@ -6,6 +6,7 @@ import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
+  holdWindowOpen,
 } from "@/storybook/route-story-meta";
 
 import { marketplaceStoryHandlers, storyCatalog, storySources } from "./marketplace-story-data";
@@ -350,14 +351,7 @@ export const InstalledServerStatus: Story = {
 /** Authorize on the Installed row opens the owner-qualified sign-in beside it. */
 export const InstalledAuthorize: Story = {
   tags: ["play-fn"],
-  // Sign in opens a browser tab by itself; the canvas keeps it from leaving the story.
-  beforeEach: () => {
-    const open = window.open;
-    window.open = () => null;
-    return () => {
-      window.open = open;
-    };
-  },
+  beforeEach: holdWindowOpen,
   parameters: {
     ...appRouteParameters("/marketplace/installed"),
     ...marketplaceStoryHandlers({

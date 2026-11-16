@@ -8,6 +8,7 @@ import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
+  holdWindowOpen,
 } from "@/storybook/route-story-meta";
 import { MCPServerEditor } from "@/systems/settings/components/mcp-server-editor";
 import { emptyDraft } from "@/systems/settings/lib/mcp-editor-model";
@@ -28,14 +29,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
       },
     },
   },
-  // Sign in opens a browser tab by itself; the canvas keeps it from leaving the story.
-  beforeEach: () => {
-    const open = window.open;
-    window.open = () => null;
-    return () => {
-      window.open = open;
-    };
-  },
+  beforeEach: holdWindowOpen,
 };
 
 export default meta;
