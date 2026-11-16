@@ -2058,6 +2058,7 @@ export type DaemonIdentityPayload = {
   http_host: string;
   http_port: number;
   pid: number;
+  readiness?: DaemonReadinessPayload | null;
   started_at: string;
   user_home_dir: string;
   version: string;

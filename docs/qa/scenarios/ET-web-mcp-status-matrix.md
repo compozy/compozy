@@ -72,3 +72,21 @@ and **Restart CompozyOS** action in the MCPs view as in Settings. Targeted verif
 walk remains outstanding.
 
 QA impact 2026-11-14 (MCP hot activation spec): The MCP body now stacks a CompozyOS group (with an approval cell: Waiting for approval · Added by a file in this project / Changed since you allowed it, plus Allow) above one read-only group per runtime, with a runtime filter. A waiting server has no runtime status (never started or probed). Re-walk the matrix with a waiting project server and with runtime groups present (see ET-runtime-mcp-inventory-copy).
+
+QA impact 2026-11-16 (#1772): passive `/api/status` must not initialize a configured MCP server.
+In an isolated synthetic lab, read status cold, run an explicit diagnostic, then read status warm
+and after 30 seconds. Require `unknown/skipped` cold or stale, the observed state while fresh,
+zero additional network calls from passive reads, live consent/auth/dead-state precedence, and
+invalidation after definition, credential or extension lifecycle changes. Settings and doctor
+retain their active probes. Verify exact session state/badge totals and ten most recent failures,
+including archived history, with a large catalog and live overrides.
+
+Targeted retest 2026-11-16 (#1772): the final binary passed an isolated real-daemon walk
+with 3,181 synthetic sessions and a counting HTTP MCP server. Three cold status reads
+preserved all state/badge counts and 637 failures while making zero MCP requests. Doctor
+made two protocol requests; the following passive read reused `ready/succeeded` without
+network traffic. After the 30-second observation window, status returned
+`unknown/skipped/stale`, again without traffic. Canonical daemon, session, globaldb and
+observe suites passed consent, identity invalidation, live overrides, archived failures
+and the ten-recent bound. The isolated lab teardown reported `TEARDOWN_ALL_CLEAN=true`.
+This focused walk does not replace the unrelated OAuth/vendor branches of the matrix.

@@ -13,13 +13,15 @@ import (
 func (h *BaseHandlers) mcpServerStatusPayloads(
 	ctx context.Context,
 	workspaceID string,
+	cached bool,
 ) ([]contract.MCPServerStatusPayload, error) {
 	if h.Settings == nil {
 		return nil, nil
 	}
 	request := settingspkg.CollectionRequest{
-		Collection: settingspkg.CollectionMCPServers,
-		Scope:      settingspkg.ScopeUser,
+		Collection:          settingspkg.CollectionMCPServers,
+		Scope:               settingspkg.ScopeUser,
+		CachedRuntimeStatus: cached,
 	}
 	if workspaceID = strings.TrimSpace(workspaceID); workspaceID != "" {
 		request.Scope = settingspkg.ScopeWorkspace

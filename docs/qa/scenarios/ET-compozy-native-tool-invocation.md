@@ -152,3 +152,14 @@ matching snapshot ID without writing any snapshot or revision.
 Scheduler batches with mixed resolved limits use one shared sent count: a lower target limit
 blocks excess wakes, and a higher target limit cannot exceed the daemon cap. Rate-limited
 requests retain their ordered decision and persisted audit state without dispatching a prompt.
+
+QA impact 2026-11-16 (#1772): with 1 and 16 equivalent hosted peers, exercise the production
+native authority resolver re-entering dynamic listing. Require one expensive provider listing per
+scope/epoch/refresh window, unchanged catalogs, isolated permissions, and live revocation/build
+race fences. Cancellation must remain retryable and a released bind must remain inaccessible.
+
+Verification (#1772): the canonical hosted projection-generation suite and production native
+policy-resolver regression exercise the dynamic authority/listing interaction, 1/16 equivalent
+peers, policy isolation, revocation, invalidation, cancellation and released binds. The focused
+suites passed; the benchmark measured 3/33 provider listings per epoch before and 1/1 after.
+The full end-to-end journey remains owned by CI.

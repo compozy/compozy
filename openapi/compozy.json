@@ -7536,6 +7536,19 @@
           "pid": {
             "type": "integer"
           },
+          "readiness": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DaemonReadinessPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "started_at": {
             "format": "date-time",
             "type": "string"

@@ -7159,6 +7159,30 @@ func (m *subprocessHealthSessionManager) SubprocessHealthSnapshots() []session.S
 func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: bounded identity reports the same lifecycle readiness without invoking diagnostics.
+	// Owner: shared API core; canonical suite: daemon drain/status.
+	t.Run("Should report readiness through bounded identity without aggregation", func(t *testing.T) {
+		t.Parallel()
+		manager := &testutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+			t.Error("identity listed all sessions")
+			return nil, errors.New("unexpected aggregation")
+		}}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		controller := &testDrainController{}
+		fixture.Handlers.DrainController = controller
+		fixture.Engine.GET("/identity", fixture.Handlers.GetRuntimeIdentity)
+		for _, stopping := range []bool{false, true} {
+			controller.draining.Store(stopping)
+			response := performRequest(t, fixture.Engine, http.MethodGet, "/identity", nil)
+			var payload contract.RuntimeIdentityPayload
+			decodeJSON(t, response.Body.Bytes(), &payload)
+			if response.Code != http.StatusOK ||
+				!reflect.DeepEqual(payload.Daemon.Readiness, controller.DaemonReadiness()) {
+				t.Fatalf("identity readiness=%+v", payload.Daemon.Readiness)
+			}
+		}
+	})
+
 	t.Run("Should project drain state through status and doctor", func(t *testing.T) {
 		t.Parallel()
 

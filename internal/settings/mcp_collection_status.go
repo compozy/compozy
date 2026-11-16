@@ -12,7 +12,7 @@ func (s *service) populateMCPServerStatuses(
 	ctx context.Context,
 	item *MCPServerItem,
 	entry mcpSourceEntry,
-	skipRuntimeStatus bool,
+	skipRuntimeStatus, cachedRuntimeStatus bool,
 ) error {
 	ctx = mcpauth.WithConsentScope(
 		ctx,
@@ -46,7 +46,21 @@ func (s *service) populateMCPServerStatuses(
 		item.AuthStatus = &status
 	}
 	if s.mcpRuntime != nil && !skipRuntimeStatus {
-		status, statusErr := s.mcpRuntime.MCPServerRuntimeStatus(ctx, target, entry.Server)
+		var status MCPServerRuntimeStatus
+		var statusErr error
+		if cachedRuntimeStatus {
+			status = MCPServerRuntimeStatus{
+				Configured: true,
+				State:      MCPServerRuntimeStateUnknown,
+				Probe:      MCPServerProbeSkipped,
+				Reason:     "not_observed",
+			}
+			if reader, ok := s.mcpRuntime.(MCPCachedRuntimeProvider); ok {
+				status, statusErr = reader.MCPServerCachedRuntimeStatus(ctx, target, entry.Server)
+			}
+		} else {
+			status, statusErr = s.mcpRuntime.MCPServerRuntimeStatus(ctx, target, entry.Server)
+		}
 		if statusErr != nil {
 			return fmt.Errorf("settings: load MCP runtime status for %q: %w", name, statusErr)
 		}

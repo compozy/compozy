@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -537,6 +538,179 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 }
 
 func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
+	// Invariant: passive MCP status never probes and only reuses fresh observations of the same identity.
+	// Owner: daemon Settings runtime; canonical suite: MCPServerRuntimeStatus.
+	t.Run("Should reuse bounded observations without network and invalidate changed identities", func(t *testing.T) {
+		t.Parallel()
+		var requests atomic.Int64
+		handler := mcp.NewStreamableHTTPHandler(
+			func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
+			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+		)
+		server := httptest.NewServer(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests.Add(1); handler.ServeHTTP(w, r) }),
+		)
+		t.Cleanup(server.Close)
+		now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+		health := mcppkg.NewRuntimeHealthRegistry()
+		runtime := mcppkg.RuntimeHealthKey{InstanceName: "docs", BundleGeneration: "one", ServerName: "docs"}
+		surface := &settingsRuntimeSurface{
+			digestKey:         []byte("test installation key"),
+			now:               func() time.Time { return now },
+			mcpStatusMaxAge:   2 * defaultSettingsMCPStatusMaxAge,
+			mcpAuthGeneration: mcpauth.NewMutationGeneration(),
+			mcpHealthRegistry: health,
+			mcpHealthKey: func(context.Context, mcpauth.Target) (mcppkg.RuntimeHealthKey, error) {
+				return health.ResolveKey(runtime), nil
+			},
+		}
+		target := globalMCPTestTarget("docs")
+		definition := compozyconfig.MCPServer{
+			Name:      "docs",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		}
+		passive := func(want settingspkg.MCPServerRuntimeState) {
+			t.Helper()
+			before := requests.Load()
+			status, err := surface.MCPServerCachedRuntimeStatus(t.Context(), target, definition)
+			if err != nil || status.State != want || requests.Load() != before {
+				t.Fatalf("passive status=%+v, %v, requests=%d -> %d", status, err, before, requests.Load())
+			}
+		}
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		status, err := surface.MCPServerRuntimeStatus(t.Context(), target, definition)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateReady || requests.Load() == 0 {
+			t.Fatalf("explicit status=%+v, %v", status, err)
+		}
+		passive(settingspkg.MCPServerRuntimeStateReady)
+		observation := health.Begin(health.ResolveKey(runtime))
+		health.RecordFailure(observation, errors.New("live discovery failed"))
+		passive(settingspkg.MCPServerRuntimeStateRuntimeUnavailable)
+		health.RecordSuccess(health.Begin(health.ResolveKey(runtime)))
+		passive(settingspkg.MCPServerRuntimeStateReady)
+		now = now.Add(defaultSettingsMCPStatusMaxAge)
+		passive(settingspkg.MCPServerRuntimeStateReady)
+		now = now.Add(defaultSettingsMCPStatusMaxAge)
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		if _, err := surface.MCPServerRuntimeStatus(t.Context(), target, definition); err != nil {
+			t.Fatal(err)
+		}
+		passive(settingspkg.MCPServerRuntimeStateReady)
+		original := definition.URL
+		definition.URL += "/changed"
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		definition.URL = original
+		if _, err := surface.mcpAuthGeneration.Advance(target); err != nil {
+			t.Fatal(err)
+		}
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		if _, err := surface.MCPServerRuntimeStatus(t.Context(), target, definition); err != nil {
+			t.Fatal(err)
+		}
+		runtime.BundleGeneration = "two"
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+		runtime.BundleGeneration = "one"
+		target.Owner = "extension:other"
+		passive(settingspkg.MCPServerRuntimeStateUnknown)
+	})
+
+	t.Run("Should discard skipped approval states after consent is granted", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		surface := &settingsRuntimeSurface{state: state, digestKey: testMCPDigestKey(t, state)}
+		target := mcpauth.Target{
+			Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: req.Server.Name,
+		}
+		waiting, err := surface.MCPServerRuntimeStatus(t.Context(), target, req.Server)
+		if err != nil || waiting.State != mcpWaitingApproval {
+			t.Fatalf("waiting=%+v, %v", waiting, err)
+		}
+		digest, err := state.mcpDefinitionDigest(req.Server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		consent := settingsMCPConsent{state: state}
+		if _, err := consent.ApproveMCP(t.Context(), req, digest, false); err != nil {
+			t.Fatal(err)
+		}
+		status, err := surface.MCPServerCachedRuntimeStatus(t.Context(), target, req.Server)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateUnknown {
+			t.Fatalf("approved passive status=%+v, %v", status, err)
+		}
+		if _, err := consent.ApproveMCP(t.Context(), req, "", true); err != nil {
+			t.Fatal(err)
+		}
+		status, err = surface.MCPServerCachedRuntimeStatus(t.Context(), target, req.Server)
+		if err != nil || status.State != mcpWaitingApproval {
+			t.Fatalf("revoked=%+v, %v", status, err)
+		}
+	})
+
+	t.Run("Should discard an observation superseded while its probe runs", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		started, release := make(chan struct{}), make(chan struct{})
+		releaseProbe := sync.OnceFunc(func() { close(release) })
+		var first atomic.Bool
+		handler := mcp.NewStreamableHTTPHandler(
+			func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
+			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+		)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if first.CompareAndSwap(false, true) {
+				close(started)
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
+			}
+			handler.ServeHTTP(w, r)
+		}))
+		t.Cleanup(server.Close)
+		surface := &settingsRuntimeSurface{
+			digestKey:         []byte("test installation key"),
+			mcpAuthGeneration: mcpauth.NewMutationGeneration(),
+		}
+		target := globalMCPTestTarget("docs")
+		definition := compozyconfig.MCPServer{
+			Name:      "docs",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		}
+		done := make(chan error, 1)
+		joined := make(chan struct{})
+		go func() {
+			defer close(joined)
+			_, err := surface.MCPServerRuntimeStatus(ctx, target, definition)
+			done <- err
+		}()
+		t.Cleanup(func() {
+			cancel()
+			releaseProbe()
+			<-joined
+		})
+		select {
+		case <-started:
+		case err := <-done:
+			t.Fatalf("probe completed before request started: %v", err)
+		case <-ctx.Done():
+			t.Fatalf("probe did not start: %v", ctx.Err())
+		}
+		_, err := surface.mcpAuthGeneration.Advance(target)
+		releaseProbe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		status, err := surface.MCPServerCachedRuntimeStatus(t.Context(), target, definition)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateUnknown {
+			t.Fatalf("superseded status=%+v, %v", status, err)
+		}
+	})
 	t.Run("Should classify permission failures by error identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -1875,6 +2049,10 @@ func TestSettingsMCPApprovalBeforeNetwork(t *testing.T) {
 	}
 	if err := authorizeMCPAuthNetwork(t.Context(), state, cfg); err == nil || requests.Load() != before {
 		t.Fatalf("continued auth escaped revoke: %v", err)
+	}
+	status, err := surface.MCPServerCachedRuntimeStatus(t.Context(), cfg.Target, req.Server)
+	if err != nil || status.State != mcpWaitingApproval || requests.Load() != before {
+		t.Fatalf("revoked passive status=%+v, %v", status, err)
 	}
 	// Invariant: signing out while waiting for consent deletes local credentials without server I/O; owner: Settings auth.
 	fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)

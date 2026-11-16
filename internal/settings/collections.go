@@ -60,7 +60,15 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 		}
 		envelope.Providers = items
 	case CollectionMCPServers:
-		items, buildErr := s.buildMCPServerItems(ctx, scope, workspaceID, profileName, resolved, req.SkipRuntimeStatus)
+		items, buildErr := s.buildMCPServerItems(
+			ctx,
+			scope,
+			workspaceID,
+			profileName,
+			resolved,
+			req.SkipRuntimeStatus,
+			req.CachedRuntimeStatus,
+		)
 		if buildErr != nil {
 			return CollectionEnvelope{}, buildErr
 		}

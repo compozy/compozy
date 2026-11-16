@@ -325,6 +325,16 @@ separate. A configured server is not automatically ready.
 | Runtime | `runtime_status.state`, `reason`, `diagnostic`      | The daemon reports `ready` or a concrete config, auth, permission, or availability state. |
 | Probe   | `runtime_status.probe`, `tool_count`                | A probe was skipped, failed, or succeeded with a reported tool count.                     |
 
+Periodic `GET /api/status` reads do not initialize MCP servers or list their tools. They reuse
+explicit diagnostic observations for up to 30 seconds, within the same definition, credential,
+consent scope and extension lifecycle. A cold or expired observation reports `state: unknown`,
+`probe: skipped` and `reason: not_observed` or `stale`; it never implies readiness or failure.
+Current approval, auth and dead-server state still apply. Settings runtime diagnostics,
+`compozy doctor`, and `compozy__mcp_status` retain bounded active probes.
+
+Use `GET /api/status/identity` for connectivity and daemon readiness. Its optional `daemon.readiness`
+uses the same lifecycle phases as full status without collecting session or MCP diagnostics.
+
 Use the redacted CLI and native-tool surfaces for agent diagnostics:
 
 ```bash

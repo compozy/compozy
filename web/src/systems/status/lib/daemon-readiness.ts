@@ -1,4 +1,4 @@
-import type { DaemonStatusPayload } from "../types";
+import type { RuntimeIdentityPayload } from "../types";
 
 /**
  * The runtime's lifecycle phase and current step. Mirrors `DaemonReadinessPayload`
@@ -31,9 +31,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Reads `daemon.readiness` at the adapter boundary; null when the runtime does not report it. */
-export function daemonReadiness(daemon: DaemonStatusPayload | undefined): DaemonReadiness | null {
-  // The generated status contract gains `readiness` with the next `make codegen`; until then the
-  // field is read through this narrow local shape.
+export function daemonReadiness(
+  daemon: Pick<RuntimeIdentityPayload["daemon"], "readiness"> | undefined
+): DaemonReadiness | null {
   const source: unknown = daemon;
   const readiness = isRecord(source) ? source.readiness : undefined;
   if (!isRecord(readiness) || typeof readiness.phase !== "string" || readiness.phase === "") {
@@ -47,7 +47,9 @@ export function daemonReadiness(daemon: DaemonStatusPayload | undefined): Daemon
  * The recovery the shell shows, or null once the runtime is fully ready. Only the serving phase
  * counts: before it nothing answers, and after it `status` is `running` again.
  */
-export function daemonRecovery(daemon: DaemonStatusPayload | undefined): DaemonRecovery | null {
+export function daemonRecovery(
+  daemon: Pick<RuntimeIdentityPayload["daemon"], "readiness"> | undefined
+): DaemonRecovery | null {
   const readiness = daemonReadiness(daemon);
   if (readiness?.phase !== "serving") return null;
   const named = readiness.step ? RECOVERY_STEP_LABELS[readiness.step] : undefined;

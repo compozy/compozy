@@ -1602,8 +1602,16 @@ payload backs the web home dashboard.
 `compozy status -o json` is the consolidated daemon-wide status surface for daemon health, providers, MCP servers, config apply status, schema migration streams, and log tail summary. To resolve skill diagnostics for one workspace, call `GET /api/status?workspace_id=<id>` or `GET /api/status?workspace=<id|name|path>`; bare `compozy status` does not select a workspace. Inspect `schema_streams` after startup to confirm that the global and telemetry streams report their expected versions, applied migration counts, and digests. An incompatible daemon-global `compozy.db` is refused during boot, before readiness. By contrast, an incompatible per-session `events.db` can be discovered after the daemon is ready when a reader such as `compozy session history <id> -o json` or `GET /api/workspaces/{workspace_id}/sessions/{session_id}/history` opens that session; that operation fails without making the healthy daemon-global store unavailable.
 
 `GET /api/status/identity` is the bounded HTTP/UDS process and listener identity used by the native
-desktop shell for frequent liveness checks. It intentionally omits runtime diagnostics; use
-`compozy status -o json`, `GET /api/status`, or `compozy doctor -o json` for inspection.
+desktop shell and Web connectivity/recovery checks. Its optional `daemon.readiness` preserves
+startup and recovery phases without collecting runtime diagnostics. Use `compozy status -o json`,
+`GET /api/status`, or `compozy doctor -o json` for inspection.
+
+Status reads never actively probe MCP servers. They reuse diagnostic observations for up to
+30 seconds while checking current consent, authentication and runtime identity. Without a fresh
+observation, MCP health is `unknown` with `probe: skipped` and reason `not_observed` or `stale`;
+this does not prove the server is unavailable. Settings MCP diagnostics and Doctor probe and refresh
+this observation. Explicit native MCP diagnostics still probe independently. Authorization changes
+and known runtime failures take precedence over a previous successful probe.
 
 Inspect `.subprocess_health` in `compozy status -o json` and run
 `compozy doctor --only runtime.subprocess_health -o json` for active ACP subprocess verdicts. With the

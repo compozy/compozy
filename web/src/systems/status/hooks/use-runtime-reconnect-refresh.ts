@@ -2,8 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { daemonReadiness, daemonRecoveryFinished } from "../lib/daemon-readiness";
-import { runtimeIdentityOptions, statusOptions } from "../lib/query-options";
-import type { RuntimeIdentityPayload, StatusPayload } from "../types";
+import { runtimeIdentityOptions } from "../lib/query-options";
+import type { RuntimeIdentityPayload } from "../types";
 import { recoveryRefetchInterval } from "./use-daemon-recovery";
 
 const UNREACHABLE_REFETCH_INTERVAL_MS = 2_000;
@@ -15,7 +15,7 @@ function selectProcess(identity: RuntimeIdentityPayload): string {
 }
 
 /** The lifecycle phase the runtime reports, or null for a runtime that reports none. */
-function selectPhase(status: StatusPayload): string | null {
+function selectPhase(status: RuntimeIdentityPayload): string | null {
   return daemonReadiness(status.daemon)?.phase ?? null;
 }
 
@@ -53,7 +53,7 @@ export function useRuntimeReconnectRefresh(): void {
   }, [current, queryClient]);
 
   const status = useQuery({
-    ...statusOptions(),
+    ...runtimeIdentityOptions(),
     select: selectPhase,
     refetchInterval: recoveryRefetchInterval,
   });

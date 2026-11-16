@@ -1112,7 +1112,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	})
 
 	for _, streams := range []int{1, 16} {
-		t.Run(fmt.Sprintf("Should build once per epoch for %d concurrent peers", streams), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Should list providers once per epoch for %d concurrent peers", streams), func(t *testing.T) {
 			t.Parallel()
 			executable := hostedTestExecutable(t, "compozy")
 			native, err := tools.NewNativeProvider(tools.BuiltinSource(), hostedRuntimeNativeTool(
@@ -1121,7 +1121,19 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 				t.Fatal(err)
 			}
 			provider := &hostedCountingProvider{Provider: native}
-			registry, err := tools.NewRegistry(tools.WithProviders(provider))
+			var registry *tools.RuntimeRegistry
+			resolver := hostedPolicyResolver(func(ctx context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
+				inputs := tools.DefaultPolicyInputs()
+				scope.SessionID, scope.AgentName = "", ""
+				views, resolveErr := registry.PolicyProjection(ctx, scope, inputs)
+				for _, view := range views {
+					inputs.Session.Tools = append(inputs.Session.Tools, view.Descriptor.ID)
+				}
+				inputs.Session.Enforced = true
+				return inputs, resolveErr
+			})
+			registry, err = tools.NewRegistry(tools.WithProviders(provider),
+				tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1174,7 +1186,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 					t.Fatalf("cached peer response = %#v, error = %v", cached, err)
 				}
 				if got := provider.calls.Load() - baseline; got != int64(change+1) {
-					t.Fatalf("projection builds = %d, want %d independent of stream count", got, change+1)
+					t.Fatalf("provider listings = %d, want %d independent of stream count", got, change+1)
 				}
 			}
 			current = current.Add(service.StreamRefreshInterval())
@@ -1183,7 +1195,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 				t.Fatalf("refresh = %#v, %v", fresh, err)
 			}
 			if got := provider.calls.Load() - baseline; got != 4 {
-				t.Fatalf("refresh builds = %d, want 4", got)
+				t.Fatalf("refresh listings = %d, want 4", got)
 			}
 			wrongPeer := peers[0]
 			wrongPeer.PID += streams + 1

@@ -20,6 +20,7 @@ import (
 )
 
 type settingsRuntimeSurface struct {
+	mcpStatusCache    settingsMCPStatusCache
 	digestKey         []byte
 	state             *bootState
 	config            compozyconfig.Config
@@ -31,6 +32,7 @@ type settingsRuntimeSurface struct {
 	mcpAuthManager    *mcpauth.Manager
 	mcpAuthGeneration *mcpauth.MutationGeneration
 	mcpStatusTimeout  time.Duration
+	mcpStatusMaxAge   time.Duration
 	mcpHealthRegistry *mcppkg.RuntimeHealthRegistry
 	mcpStdioPool      *mcppkg.StdioSessionPool
 	mcpHealthKey      func(context.Context, mcpauth.Target) (mcppkg.RuntimeHealthKey, error)

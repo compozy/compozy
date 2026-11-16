@@ -244,12 +244,13 @@ type SkillSourcesOverride struct {
 
 // CollectionRequest identifies one collection read.
 type CollectionRequest struct {
-	SkipRuntimeStatus bool
-	Owner             string
-	Collection        CollectionName
-	Scope             ScopeKind
-	WorkspaceID       string
-	ProfileName       string
+	SkipRuntimeStatus   bool
+	CachedRuntimeStatus bool
+	Owner               string
+	Collection          CollectionName
+	Scope               ScopeKind
+	WorkspaceID         string
+	ProfileName         string
 }
 
 // CollectionItemPutRequest identifies one collection upsert.

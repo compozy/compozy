@@ -15,6 +15,10 @@ func (h *BaseHandlers) GetRuntimeIdentity(c *gin.Context) {
 	if httpPort <= 0 {
 		httpPort = h.Config.HTTP.Port
 	}
+	var readiness *contract.DaemonReadinessPayload
+	if reader, ok := h.DrainController.(DaemonReadinessReporter); ok {
+		readiness = reader.DaemonReadiness()
+	}
 	c.JSON(http.StatusOK, contract.RuntimeIdentityPayload{
 		SchemaVersion: contract.StatusSchemaVersion,
 		Daemon: contract.DaemonIdentityPayload{
@@ -24,6 +28,7 @@ func (h *BaseHandlers) GetRuntimeIdentity(c *gin.Context) {
 			HTTPPort:    httpPort,
 			UserHomeDir: h.daemonUserHomeDir(),
 			Version:     strings.TrimSpace(version.Current().Version),
+			Readiness:   readiness,
 		},
 	})
 }

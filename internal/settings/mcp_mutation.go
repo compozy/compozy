@@ -333,7 +333,7 @@ func (s *service) finishMCPServerWrite(
 		_, committed, readErr := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
 		if readErr == nil {
 			if entry, ok := mcpSourceForTarget(name, target.Kind(), committed); ok {
-				readErr = s.populateMCPServerStatuses(ctx, result.MCPServer, entry, true)
+				readErr = s.populateMCPServerStatuses(ctx, result.MCPServer, entry, true, false)
 			}
 		}
 		if readErr != nil {

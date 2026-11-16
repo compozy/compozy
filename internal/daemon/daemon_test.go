@@ -10147,6 +10147,13 @@ func (r *recordingRegistry) ListSessions(context.Context, store.SessionListQuery
 	return nil, nil
 }
 
+func (r *recordingRegistry) SessionFailureSummary(
+	context.Context,
+	store.ReadScope,
+) (store.SessionFailureSummary, error) {
+	return store.SessionFailureSummary{}, nil
+}
+
 func (r *recordingRegistry) SessionInstanceID(_ context.Context, sessionID string) (string, error) {
 	return "", fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
 }

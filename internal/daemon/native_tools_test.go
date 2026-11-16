@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11703,6 +11704,71 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: the production authority resolver reuses shared descriptor listings, never policy answers.
+	// Owner: daemon registry composition; canonical suite: native runtime policy resolver.
+	t.Run("Should share listings through real dynamic authority resolution", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		info := &session.Info{
+			ID:        "root",
+			Type:      session.SessionTypeUser,
+			ProfileID: store.DefaultProfileID,
+			Lineage: &store.SessionLineage{
+				Kind: store.LineageKindRoot,
+				PermissionPolicy: store.SessionPermissionPolicy{
+					ToolsMode:      store.PermissionInherit,
+					MCPServersMode: store.PermissionInherit,
+				},
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(
+			nativeToolPolicyResolverDeps{Config: &cfg, Sessions: &nativeToolPolicySessionStub{info: info}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		native, err := newDaemonNativeProvider(&daemonNativeToolsDeps{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := &nativePolicyCountingProvider{Provider: native}
+		registry, err := toolspkg.NewRegistry(
+			toolspkg.WithProviders(provider),
+			toolspkg.WithPolicyInputResolver(resolver, toolspkg.ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.scopeTools = registry.PolicyProjection
+		scope := toolspkg.Scope{SessionID: info.ID, ProfileID: info.ProfileID}
+		ctx := toolspkg.WithProjectionListings(t.Context(), toolspkg.NewProjectionListings())
+		for range 16 {
+			if _, ok := registry.ProjectionVisibility(ctx, scope); !ok {
+				t.Fatal("visibility is not shareable")
+			}
+			if _, err := registry.SessionProjection(ctx, scope); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := provider.calls.Load(); got != 1 {
+			t.Fatalf("listings=%d, want one through dynamic authority", got)
+		}
+		info.Lineage.PermissionPolicy.ToolsMode = store.PermissionList
+		info.Lineage.PermissionPolicy.Tools = nil
+		inputs, err := resolver.Resolve(ctx, scope)
+		if err != nil || len(inputs.Session.Tools) != 0 || !inputs.Session.Enforced {
+			t.Fatalf("live restricted policy=%+v, %v", inputs.Session, err)
+		}
+		fresh := toolspkg.WithProjectionListings(t.Context(), toolspkg.NewProjectionListings())
+		if _, ok := registry.ProjectionVisibility(fresh, scope); !ok {
+			t.Fatal("fresh visibility is not shareable")
+		}
+		if got := provider.calls.Load(); got != 2 {
+			t.Fatalf("fresh listings=%d, want two", got)
+		}
+	})
 	// Invariant: v0.7.0 non-delegated sessions keep current tools; governed/authored lists stay closed.
 	// Owner: daemon authority and effective policy; canonical suite: native runtime policy resolver.
 	for _, tc := range []struct {
@@ -19515,4 +19581,18 @@ func nativeRootToolLineage() *store.SessionLineage {
 		MCPServersMode: store.PermissionInherit, ToolsMode: store.PermissionInherit,
 		Tools: ids, MaterializedTools: true,
 	}}
+}
+
+// nativePolicyCountingProvider models a dynamic listing behind the real authority resolver.
+type nativePolicyCountingProvider struct {
+	toolspkg.Provider
+	calls atomic.Int64
+}
+
+func (p *nativePolicyCountingProvider) List(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.Descriptor, error) {
+	p.calls.Add(1)
+	return p.Provider.List(ctx, scope)
+}
+func (p *nativePolicyCountingProvider) ProjectionScope(toolspkg.Scope) toolspkg.Scope {
+	return toolspkg.Scope{}
 }

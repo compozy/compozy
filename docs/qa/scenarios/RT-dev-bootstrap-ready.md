@@ -34,3 +34,14 @@ instead of resolving `localhost` to IPv6-only `::1`. After the live config reloa
 an HTTP probe to `http://127.0.0.1:3000/` returned 200 with HTML; the root Turbo
 Web typecheck passed. Host-side editor forwarding and the complete startup
 journey were not re-walked; the historical full-journey verdict is unchanged.
+
+QA impact 2026-11-16 (#1772): the shell reads lifecycle readiness from `/api/status/identity`.
+During `serving`, require the existing recovery notice and faster bounded identity reads; after
+`ready`, require one refresh of cached server state. A new process identity also refreshes cached
+reads. These connectivity/recovery hooks must not request full `/api/status`; older daemons that
+omit readiness show no recovery notice. Full status remains available for explicit health views.
+
+Targeted verification (#1772): API identity/readiness coverage and the 15 canonical Web status-hook
+tests passed, including recovery completion, replacement processes and older-daemon fallback.
+The isolated daemon served the identity route without MCP calls. The full startup journey was
+not re-walked locally; CI owns that broader check.
