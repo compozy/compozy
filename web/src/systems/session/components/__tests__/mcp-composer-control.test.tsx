@@ -344,4 +344,28 @@ describe("SessionComposerMCPPanels", () => {
     await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
     expect(check).toHaveBeenCalledExactlyOnceWith({ name: row.name, owner: "extension:ops" });
   });
+
+  it.each([
+    { transport: "stdio", advised: true },
+    { transport: "http", advised: false },
+  ])(
+    "Should advise checking the local command only for a $transport server that runs here: $advised",
+    ({ transport, advised }) => {
+      const row = { ...sessionMCPFailedFixture.compozy_servers[0]!, transport };
+      renderPanels(
+        panelActions({
+          panel: {
+            kind: "check",
+            target: { name: row.name, owner: row.owner },
+            row,
+            anchor: mcpPanelAnchor(rowButton()),
+          },
+        })
+      );
+
+      const panel = screen.getByRole("dialog", { name: `${row.name} isn't working` });
+      const advice = within(panel).queryByText("Make sure its command runs on this computer.");
+      expect(advice !== null).toBe(advised);
+    }
+  );
 });

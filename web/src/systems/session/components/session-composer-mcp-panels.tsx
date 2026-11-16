@@ -59,6 +59,7 @@ export function SessionComposerMCPPanels({
           <MCPIssuePanel
             server={row.name}
             reason={row.reason}
+            local={row.transport === "stdio"}
             checking={actions.panelChecking}
             stillFailing={actions.panelStillFailing}
             onCheck={() => actions.check(sessionMCPServerTarget(row))}
