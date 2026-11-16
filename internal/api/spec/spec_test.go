@@ -3463,6 +3463,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addSessionTreeParentSchema(baseline) == 0 {
 			t.Fatal("approved tree_parent_session_id addition: no historical session schemas found")
 		}
+		// Loop run outcomes explain a terminal decision with optional reason_code, node_id, and message.
+		if addLoopRunOutcomeDiagnosticSchemas(baseline) == 0 {
+			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
+		}
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
