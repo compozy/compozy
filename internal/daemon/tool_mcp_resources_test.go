@@ -997,6 +997,71 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 		}
 	})
 
+	for _, tc := range []struct {
+		name      string
+		content   string
+		malformed bool
+	}{
+		{name: "Should retire a sidecar removed before provider creation"},
+		{
+			name:    "Should retire a sidecar server renamed before provider creation",
+			content: `{"mcpServers":{"renamed":{"command":"current"}}}`,
+		},
+		{
+			name:      "Should retire a sidecar corrupted before provider creation after recovery",
+			content:   `{"mcpServers":`,
+			malformed: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			home := testHomePaths(t)
+			path := filepath.Join(home.HomeDir, compozyconfig.MCPJSONName)
+			writeMCPDeclarationFile(t, path, `{"mcpServers":{"docs":{"command":"sidecar"}}}`)
+			cfg, err := loadConfigFromHome(home, func(string) string { return "" })
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg.MCPServers = append(cfg.MCPServers, compozyconfig.MCPServer{Name: "injected", Command: "injected"})
+			if tc.content == "" {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				writeMCPDeclarationFile(t, path, tc.content)
+			}
+			provider := daemonConfigMCPDeclarationProvider(&cfg, home, nil, discardLogger(), nil)
+			desired, err := provider(t.Context(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.malformed {
+				if len(desired.heldMCPScopes) != 1 {
+					t.Fatalf("malformed sidecar did not hold user publication: %+v", desired)
+				}
+			} else {
+				want := map[string]string{"injected": "injected"}
+				if tc.content != "" {
+					want["renamed"] = "current"
+				}
+				if len(desired.mcpServers) != len(want) {
+					t.Fatalf("publication = %+v, want %v", desired.mcpServers, want)
+				}
+				for _, server := range desired.mcpServers {
+					if command, ok := want[server.spec.Name]; !ok || server.spec.Command != command {
+						t.Fatalf("unexpected publication = %+v, want %v", server.spec, want)
+					}
+				}
+			}
+			writeMCPDeclarationFile(t, path, `{"mcpServers":{}}`)
+			after, err := provider(t.Context(), nil)
+			if err != nil || len(after.mcpServers) != 1 || after.mcpServers[0].spec.Name != "injected" ||
+				after.mcpServers[0].spec.Command != "injected" {
+				t.Fatalf("publication after sidecar recovery = %+v, %v, want only injected default", after, err)
+			}
+		})
+	}
+
 	// Invariant: external profile file edits and removal republish their declaring layers.
 	// Owner: daemon declaration publication; canonical suite: declaring scopes.
 	// Invariant: an unobservable workspace retains its records without blocking healthy updates.
