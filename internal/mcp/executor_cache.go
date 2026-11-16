@@ -20,9 +20,62 @@ import (
 )
 
 type mcpToolListCache struct {
+	publicationMu    sync.Mutex
+	attempts         map[string]mcpListAttempt
 	mu               sync.Mutex
 	entries          map[string]mcpToolListCacheEntry
 	projectionStates map[string]mcpToolProjectionState
+}
+
+type mcpListAttempt struct {
+	check, list uint64
+	active      int
+}
+
+func (e *CallExecutor) beginToolList(key string, fresh bool) mcpListAttempt {
+	e.toolCache.publicationMu.Lock()
+	defer e.toolCache.publicationMu.Unlock()
+	if e.toolCache.attempts == nil {
+		e.toolCache.attempts = make(map[string]mcpListAttempt)
+	}
+	attempt := e.toolCache.attempts[key]
+	if fresh {
+		attempt.check++
+	}
+	attempt.list++
+	attempt.active++
+	e.toolCache.attempts[key] = attempt
+	return attempt
+}
+
+func (e *CallExecutor) finishToolList(key string) {
+	e.toolCache.publicationMu.Lock()
+	defer e.toolCache.publicationMu.Unlock()
+	current := e.toolCache.attempts[key]
+	current.active--
+	if current.active == 0 {
+		delete(e.toolCache.attempts, key)
+	} else {
+		e.toolCache.attempts[key] = current
+	}
+}
+
+func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh bool,
+	source toolspkg.SourceRef, authorizationHeader string, descriptors []toolspkg.MCPToolDescriptor, ttlMs int,
+) error {
+	e.toolCache.publicationMu.Lock()
+	defer e.toolCache.publicationMu.Unlock()
+	current := e.toolCache.attempts[key]
+	if current.check != attempt.check || (!fresh && current.list != attempt.list) {
+		return nil
+	}
+	if fresh {
+		current.list++
+		e.toolCache.attempts[key] = current
+	}
+	now := time.Now()
+	e.cacheTools(key, descriptors, ttlMs, now)
+	return e.recordToolProjection(source, authorizationHeader, descriptors, ttlMs, now)
 }
 
 type mcpToolListCacheEntry struct {

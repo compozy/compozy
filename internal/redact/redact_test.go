@@ -956,3 +956,38 @@ func BenchmarkDynamicSecretReferences(b *testing.B) {
 		b.Fatal("reference updates changed the secret population")
 	}
 }
+
+func TestArgs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should redact flag values without changing argument boundaries", func(t *testing.T) {
+		t.Parallel()
+		args := []string{
+			"--token",
+			"opaque-credential",
+			"--label",
+			" padded ",
+			"",
+			"--password",
+			"two words",
+			"--token=secret-value",
+			"visible",
+		}
+		want := []string{
+			"--token",
+			Marker,
+			"--label",
+			" padded ",
+			"",
+			"--password",
+			Marker,
+			"--token=" + Marker,
+			"visible",
+		}
+		if got := Args(args); !slices.Equal(got, want) {
+			t.Fatalf("Args = %q, want %q", got, want)
+		}
+		if args[1] != "opaque-credential" {
+			t.Fatal("input mutated")
+		}
+	})
+}

@@ -89,12 +89,17 @@ func (p *MCPProvider) listSourceDescriptors(
 		}
 	}
 
-	generation := p.nextDiscoveryGeneration(source)
+	generation := p.nextDiscoveryGeneration(source, FreshMCPDiscovery(ctx))
 	discovered, err := p.discoverSource(ctx, source, timeout)
 	p.discoveryMu.Lock()
 	defer p.discoveryMu.Unlock()
-	if p.discoveryGenerations[source] != generation {
+	current := p.discoveryGenerations[source]
+	if current.check != generation.check || (!FreshMCPDiscovery(ctx) && current.list != generation.list) {
 		return p.cachedSourceDescriptors(source), true, nil
+	}
+	if FreshMCPDiscovery(ctx) {
+		current.list++
+		p.discoveryGenerations[source] = current
 	}
 	if err != nil {
 		return p.discoveryFailed(ctx, source, key, tracked, reliabilityState, err)
@@ -102,15 +107,20 @@ func (p *MCPProvider) listSourceDescriptors(
 	return p.discoverySucceeded(ctx, source, key, tracked, reliabilityState, discovered)
 }
 
-// nextDiscoveryGeneration starts one discovery of source; a result whose generation is no longer
-// current was overtaken by a newer discovery or check and must not replace it.
-func (p *MCPProvider) nextDiscoveryGeneration(source SourceRef) uint64 {
+type mcpDiscoveryGeneration struct{ check, list uint64 }
+
+func (p *MCPProvider) nextDiscoveryGeneration(source SourceRef, fresh bool) mcpDiscoveryGeneration {
 	p.discoveryMu.Lock()
 	defer p.discoveryMu.Unlock()
 	if p.discoveryGenerations == nil {
-		p.discoveryGenerations = make(map[SourceRef]uint64)
+		p.discoveryGenerations = make(map[SourceRef]mcpDiscoveryGeneration)
 	}
-	p.discoveryGenerations[source]++
+	generation := p.discoveryGenerations[source]
+	if fresh {
+		generation.check++
+	}
+	generation.list++
+	p.discoveryGenerations[source] = generation
 	return p.discoveryGenerations[source]
 }
 
@@ -127,7 +137,6 @@ func (p *MCPProvider) discoveryFailed(
 	// Abort aggregate discovery only when its caller stopped. A timeout or cancellation
 	// from one executor is a source failure and must not hide healthy MCP servers.
 	if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
-		p.discoveryFailures.Store(source, struct{}{})
 		return nil, false, contextError
 	}
 	p.discoveryFailures.Store(source, struct{}{})

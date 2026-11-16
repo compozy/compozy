@@ -42,7 +42,7 @@ func (f MCPSourceListerFunc) ListMCPSources(ctx context.Context) ([]SourceRef, e
 // MCPProvider adapts daemon-owned MCP discovery and calls into registry descriptors.
 type MCPProvider struct {
 	discoveryMu          sync.Mutex
-	discoveryGenerations map[SourceRef]uint64
+	discoveryGenerations map[SourceRef]mcpDiscoveryGeneration
 	discovered           sync.Map // source identity -> last discovered descriptors
 	discoveryFailures    sync.Map // source identity -> failed latest discovery
 

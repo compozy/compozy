@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -202,10 +203,7 @@ func sessionMCPRow(
 
 func setSessionMCPPreview(row *session.MCPServerRow, item *settingspkg.MCPServerItem) {
 	row.Command = diagnosticspkg.Redact(item.Command)
-	row.Args = make([]string, len(item.Args))
-	for i, arg := range item.Args {
-		row.Args[i] = diagnosticspkg.Redact(arg)
-	}
+	row.Args = redact.Args(item.Args)
 	row.Source.Path = diagnosticspkg.Redact(item.DefinitionSource)
 	if endpoint, err := url.Parse(item.URL); err == nil {
 		endpoint.User = nil

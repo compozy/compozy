@@ -1207,7 +1207,7 @@ func TestSessionMCPReadModel(t *testing.T) {
 				ProfileName:      "work",
 				Transport:        "stdio",
 				Command:          "npx",
-				Args:             []string{"-y", "token=super-secret"},
+				Args:             []string{"-y", "token=super-secret", "--token", "opaque-credential"},
 				URL:              "https://alice:password@example.test/mcp?custom=private-value",
 				DefinitionSource: "/project/.compozy/mcp.json",
 				SourceMetadata: settingspkg.SourceMetadata{
@@ -1233,7 +1233,7 @@ func TestSessionMCPReadModel(t *testing.T) {
 			row.Profile != "work" ||
 			row.URL != "https://example.test/mcp?custom=%5Bredacted%5D" || strings.Contains(strings.Join(row.Args, " "), "super-secret") ||
 			row.Command != "npx" ||
-			len(row.Args) != 2 ||
+			len(row.Args) != 4 || row.Args[3] != "[REDACTED]" ||
 			row.Source.Path != "/project/.compozy/mcp.json" ||
 			row.Source.Kind != string(settingspkg.SourceKindWorkspaceMCPSidecar) ||
 			row.Approval == nil ||

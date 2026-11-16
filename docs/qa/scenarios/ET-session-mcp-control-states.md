@@ -78,15 +78,20 @@ After integrating the backend and composer slices, inspect a waiting row's comma
 approval request uses the row's scope, workspace and profile. Preview URL userinfo must be absent,
 all query values masked, and secret-bearing arguments redacted. Ready, failed, sign-in and restricted
 rows omit command/args/URL/source.path; app-token reads omit previews in every state.
+Include arguments `--token opaque-credential` and `--password "two words"`: both values must be
+redacted without changing the other argument boundaries.
 No discovery may occur while waiting or while sign-in is required.
 For an inherited signed-out server, sign-in must target its declaring scope.
 
 Break one admitted server, trigger failure, then restore it and run
 `compozy session mcp check <id> <name> --owner <owner> -o json` (or the row's Check again action).
 Only that owner-qualified server is discovered, including while its breaker is marked dead.
-A failed or canceled check retains last-known-good tools and records failure; a successful check
+A failed check retains last-known-good descriptors and records failure. A caller-canceled check
+retains the last working availability without recording a source failure; a successful check
 must perform tools/list even with a warm cache. Hold an older discovery open, complete a check, then
-release the older discovery: its result must not replace the newer check. Changed summaries publish
+release the older discovery: its result must not replace the newer check or its executor cache.
+Also start the check first, finish an ordinary discovery while it is pending, then finish the check:
+the explicit check must own the final tools and projection. Changed summaries publish
 `session.mcp_changed` so the composer dot updates without a reload.
 Repeat via `compozy mcp check <name> --scope workspace --workspace <ws> -o json`; check a non-default
 profile and verify only that profile's breaker state changes.

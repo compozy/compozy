@@ -446,9 +446,9 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 }
 
 func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) {
-	for _, checkFails := range []bool{false, true} {
+	for _, tc := range []struct{ checkFails, checkFirst bool }{{false, false}, {true, false}, {false, true}} {
 		t.Run(
-			fmt.Sprintf("Should discard older discovery after a newer check fails=%v", checkFails),
+			fmt.Sprintf("Should prioritize checks with failure=%v checkFirst=%v", tc.checkFails, tc.checkFirst),
 			func(t *testing.T) {
 				t.Parallel()
 				source := SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs"}
@@ -456,7 +456,8 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 					fakeMCPExecutor: newFakeMCPExecutor(nil),
 					started:         make(chan struct{}),
 					release:         make(chan struct{}),
-					checkFails:      checkFails,
+					checkFails:      tc.checkFails,
+					blockFresh:      tc.checkFirst,
 				}
 				provider, err := NewMCPProvider(
 					MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
@@ -466,21 +467,57 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 				if err != nil {
 					t.Fatal(err)
 				}
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
 				done := make(chan error, 1)
-				go func() { _, err := provider.List(t.Context(), Scope{}); done <- err }()
-				<-executor.started
-				if err := provider.CheckMCPServer(t.Context(), Scope{}, "docs"); err != nil {
+				joined := make(chan struct{})
+				release := sync.OnceFunc(func() { close(executor.release) })
+				t.Cleanup(func() {
+					release()
+					cancel()
+					select {
+					case <-joined:
+					case <-time.After(5 * time.Second):
+						t.Error("listing did not exit")
+					}
+				})
+				go func() {
+					defer close(joined)
+					if tc.checkFirst {
+						done <- provider.CheckMCPServer(ctx, Scope{}, "docs")
+						return
+					}
+					_, err := provider.List(ctx, Scope{})
+					done <- err
+				}()
+				select {
+				case <-executor.started:
+				case err := <-done:
+					t.Fatalf("listing exited before discovery: %v", err)
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+				if tc.checkFirst {
+					if _, err := provider.List(ctx, Scope{}); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := provider.CheckMCPServer(ctx, Scope{}, "docs"); err != nil {
 					t.Fatal(err)
 				}
-				close(executor.release)
-				if err := <-done; err != nil {
-					t.Fatal(err)
+				release()
+				select {
+				case err := <-done:
+					if err != nil {
+						t.Fatal(err)
+					}
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
 				}
 				descriptors, err := provider.List(WithCachedMCPProjection(t.Context()), Scope{})
 				if err != nil {
 					t.Fatal(err)
 				}
-				if checkFails {
+				if tc.checkFails {
 					if len(descriptors) != 0 {
 						t.Fatalf("stale tools after failed check: %+v", descriptors)
 					}
@@ -512,10 +549,18 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
+		defer cancel()
+		executor.cancelDiscovery = cancel
 		executor.setListError(context.Canceled)
-		if err := provider.CheckMCPServer(ctx, Scope{}, "docs"); err == nil {
-			t.Fatal("canceled check succeeded")
+		if err := provider.CheckMCPServer(ctx, Scope{}, "docs"); !errors.Is(err, ErrToolCanceled) {
+			t.Fatalf("check error = %v, want ErrToolCanceled", err)
+		}
+		handle, found, err := provider.Resolve(WithCachedMCPProjection(t.Context()), Scope{}, "mcp__docs__lookup")
+		if err != nil || !found {
+			t.Fatalf("resolve after cancellation: found=%v err=%v", found, err)
+		}
+		if availability := handle.Availability(t.Context(), Scope{}); !availability.Executable {
+			t.Fatalf("cancellation hid working tool: %+v", availability)
 		}
 		descriptors, err := provider.List(WithCachedMCPProjection(t.Context()), Scope{})
 		if err != nil || len(descriptors) != 1 {
@@ -1277,6 +1322,7 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 }
 
 type fakeMCPExecutor struct {
+	cancelDiscovery   context.CancelFunc
 	failAfter         int
 	mu                sync.Mutex
 	tools             []MCPToolDescriptor
@@ -1311,6 +1357,9 @@ func (f *fakeMCPExecutor) ListTools(_ context.Context, source SourceRef) ([]MCPT
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if f.cancelDiscovery != nil {
+		f.cancelDiscovery()
+	}
 	f.listedSources = append(f.listedSources, source)
 	if f.failAfter > 0 && len(f.listedSources) > f.failAfter {
 		return nil, ErrToolUnavailable
@@ -1947,6 +1996,7 @@ func TestMCPProviderAdvertisedDiscoveryRetention(t *testing.T) {
 }
 
 type overlappingMCPExecutor struct {
+	blockFresh bool
 	checkFails bool
 	*fakeMCPExecutor
 	started chan struct{}
@@ -1954,17 +2004,20 @@ type overlappingMCPExecutor struct {
 }
 
 func (e *overlappingMCPExecutor) ListTools(ctx context.Context, _ SourceRef) ([]MCPToolDescriptor, error) {
-	name := "fresh"
-	if FreshMCPDiscovery(ctx) && e.checkFails {
-		return nil, ErrToolUnavailable
-	}
-	if !FreshMCPDiscovery(ctx) {
+	fresh := FreshMCPDiscovery(ctx)
+	if fresh == e.blockFresh {
 		close(e.started)
 		select {
 		case <-e.release:
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+	}
+	if fresh && e.checkFails {
+		return nil, ErrToolUnavailable
+	}
+	name := "fresh"
+	if !fresh {
 		name = "old"
 	}
 	return []MCPToolDescriptor{{RawName: name, InputSchema: json.RawMessage(`{"type":"object"}`)}}, nil

@@ -33,7 +33,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 		}
 		if item.Name != "one" || item.Command != "echo" || item.DefinitionSource != source ||
 			item.RuntimeStatus == nil ||
-			len(runtime.targets) != 1 {
+			!slices.Equal(runtime.calls, []string{"one"}) {
 			t.Fatalf("item = %+v, targets = %+v", item, runtime.targets)
 		}
 		if _, ok := runtime.targets["one"]; !ok {
@@ -1155,6 +1155,8 @@ func confirmedMCPAuthRuntimeStatus(target mcpauth.Target) mcpauth.Status {
 }
 
 type fakeMCPRuntimeProvider struct {
+	mu       sync.Mutex
+	calls    []string
 	statuses map[string]MCPServerRuntimeStatus
 	targets  map[string]mcpauth.Target
 }
@@ -1249,6 +1251,9 @@ func (f *fakeMCPRuntimeProvider) MCPServerRuntimeStatus(
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (MCPServerRuntimeStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, strings.TrimSpace(server.Name))
 	if f.targets != nil {
 		f.targets[strings.TrimSpace(server.Name)] = target
 	}

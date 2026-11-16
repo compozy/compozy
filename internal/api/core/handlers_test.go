@@ -8122,8 +8122,12 @@ func TestSessionMCPDetailAndScope(t *testing.T) {
 				"/workspaces/ws-mcp/sessions/sess-mcp/mcp/servers/docs/check",
 				nil,
 			)
-			if response.Code != tc.status || !strings.Contains(response.Body.String(), "error") {
-				t.Fatalf("response=%d %s", response.Code, response.Body.String())
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != tc.status || payload.Error != tc.err.Error() {
+				t.Fatalf("response=%d %s, want %d %q", response.Code, response.Body.String(), tc.status, tc.err.Error())
 			}
 		})
 	}

@@ -13,6 +13,25 @@ func String(value string) string {
 	return processRedactor().RedactString(value)
 }
 
+// Args redacts argument values while preserving sensitive flag context and argument boundaries.
+func Args(args []string) []string {
+	if args == nil {
+		return nil
+	}
+	result := make([]string, len(args))
+	sensitive := false
+	for i, arg := range args {
+		if sensitive {
+			result[i] = Marker
+		} else {
+			result[i] = String(arg)
+		}
+		flag, isFlag := strings.CutPrefix(arg, "--")
+		sensitive = !sensitive && isFlag && !strings.ContainsAny(flag, "= \t\r\n") && IsSensitiveKey(flag)
+	}
+	return result
+}
+
 func exactRedactString(value string) string {
 	if value == "" {
 		return ""
