@@ -22,7 +22,7 @@ func DeclaredMCPServers(
 		if err := ApplyConfigOverlayFile(home.ConfigFile, &cfg); err != nil {
 			return nil, err
 		}
-		if err := applyConfigMCPSidecarFile(globalMCPJSONFile(home), &cfg); err != nil {
+		if err := ApplyConfigMCPSidecarFile(globalMCPJSONFile(home), &cfg); err != nil {
 			return nil, err
 		}
 		return cfg.MCPServers, nil
@@ -61,13 +61,13 @@ func applyMCPDeclarationParents(home HomePaths, root, profile string, cfg *Confi
 	if err := applyProfileConfigOverlayFile(profileConfigFile(home, profile), cfg, RoleFieldSourceProfile); err != nil {
 		return err
 	}
-	if err := applyConfigMCPSidecarFile(profileMCPJSONFile(home, profile), cfg); err != nil {
+	if err := ApplyConfigMCPSidecarFile(profileMCPJSONFile(home, profile), cfg); err != nil {
 		return err
 	}
 	if err := applyWorkspaceConfigOverlayFile(workspaceConfigFile(root), cfg); err != nil {
 		return err
 	}
-	return applyConfigMCPSidecarFile(workspaceMCPJSONFile(root), cfg)
+	return ApplyConfigMCPSidecarFile(workspaceMCPJSONFile(root), cfg)
 }
 
 func applyMCPDeclarationLayer(home HomePaths, root string, scope WriteScope, profile string, cfg *Config) error {
@@ -75,7 +75,7 @@ func applyMCPDeclarationLayer(home HomePaths, root string, scope WriteScope, pro
 		if err := applyWorkspaceConfigOverlayFile(workspaceConfigFile(root), cfg); err != nil {
 			return err
 		}
-		return applyConfigMCPSidecarFile(workspaceMCPJSONFile(root), cfg)
+		return ApplyConfigMCPSidecarFile(workspaceMCPJSONFile(root), cfg)
 	}
 	configPath := profileConfigFile(home, profile)
 	mcpPath := profileMCPJSONFile(home, profile)
@@ -88,5 +88,5 @@ func applyMCPDeclarationLayer(home HomePaths, root string, scope WriteScope, pro
 	if err := applyProfileConfigOverlayFile(configPath, cfg, source); err != nil {
 		return err
 	}
-	return applyConfigMCPSidecarFile(mcpPath, cfg)
+	return ApplyConfigMCPSidecarFile(mcpPath, cfg)
 }

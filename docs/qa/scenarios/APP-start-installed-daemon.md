@@ -60,3 +60,19 @@ needs a compatibility-contract decision; this repair neither clamps counts nor
 changes that bound.
 
 2026-11-12 boot window redesign (#1549): starting an installed runtime stays in the centered layout, with the symbol, "Starting CompozyOS", a sweeping point line and the brand `horizon` Atmosphere behind it in dark theme only. A retry shows `attempt N of 5` next to the clock. Walk addition: the window shows no step list or version pill when nothing is installed or upgraded. Status reset to untested.
+
+2026-11-16 trusted sidecar startup regression (#1766): in an isolated Compozy home,
+declare `jam` only in `mcp.json` and set `[tools.policy] trusted_sources = ["mcp:jam"]`
+in `config.toml`. Start the installed runtime through the app or `compozy daemon start`
+and require readiness without moving the server to TOML. Repeat with a TOML-only server
+and with matching TOML/JSON names (the JSON definition wins). A source absent from both
+files must still fail with `tools.policy.trusted_sources[0] references unknown MCP source`;
+a malformed sidecar must report `daemon: load global MCP JSON`. Daemon boot reads the
+global home layer only; profile and workspace overlays remain resolved at their existing
+owners. `TestBootConfigTrustedMCPSources` owns automated boot-config coverage with real
+temporary files. CI owns execution; no local daemon or desktop walk is claimed.
+After a sidecar-only boot without `config.toml`, remove or rename a sidecar server and
+require its publication to retire on refresh; separately injected servers must remain.
+Tool listing and search must continue without the retired source, and unqualified lookup
+must allow a same-name extension when no manual declaration remains. The existing
+declaring-scope publication and MCP resolver suites own these regressions.

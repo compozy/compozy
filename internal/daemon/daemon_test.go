@@ -5868,6 +5868,116 @@ func TestLoadConfigFromHomeValidationError(t *testing.T) {
 	}
 }
 
+func TestBootConfigTrustedMCPSources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		toml        string
+		sidecar     string
+		wantNames   []string
+		wantURL     string
+		wantCommand string
+		wantError   string
+	}{
+		{
+			name:      "Should boot with a trusted HTTP server declared only in the global sidecar",
+			sidecar:   `{"mcpServers":{"jam":{"transport":"http","url":"https://mcp.example.com/mcp"}}}`,
+			wantNames: []string{"jam"},
+			wantURL:   "https://mcp.example.com/mcp",
+		},
+		{
+			name:        "Should boot with a trusted stdio server in the snake case sidecar collection",
+			sidecar:     `{"mcp_servers":{"jam":{"command":"sidecar-server"}}}`,
+			wantNames:   []string{"jam"},
+			wantCommand: "sidecar-server",
+		},
+		{
+			name:        "Should boot with a trusted TOML server when the sidecar is absent",
+			toml:        "[[mcp_servers]]\nname = \"jam\"\ncommand = \"toml-server\"\n",
+			wantNames:   []string{"jam"},
+			wantCommand: "toml-server",
+		},
+		{
+			name:      "Should preserve distinct TOML servers when loading a trusted sidecar server",
+			toml:      "[[mcp_servers]]\nname = \"local\"\ncommand = \"local-server\"\n",
+			sidecar:   `{"mcpServers":{"jam":{"transport":"http","url":"https://mcp.example.com/mcp"}}}`,
+			wantNames: []string{"local", "jam"},
+			wantURL:   "https://mcp.example.com/mcp",
+		},
+		{
+			name:      "Should replace the full TOML definition with the matching sidecar definition",
+			toml:      "[[mcp_servers]]\nname = \"jam\"\ncommand = \"toml-server\"\n",
+			sidecar:   `{"mcpServers":{"jam":{"transport":"http","url":"https://mcp.example.com/mcp"}}}`,
+			wantNames: []string{"jam"},
+			wantURL:   "https://mcp.example.com/mcp",
+		},
+		{
+			name:      "Should refuse a trusted source absent from both files",
+			wantError: `daemon: validate config: tools.policy.trusted_sources[0] references unknown MCP source "jam"`,
+		},
+		{
+			name:      "Should refuse an unknown trusted source even when another sidecar server exists",
+			sidecar:   `{"mcpServers":{"other":{"command":"other-server"}}}`,
+			wantError: `daemon: validate config: tools.policy.trusted_sources[0] references unknown MCP source "jam"`,
+		},
+		{
+			name:      "Should refuse a malformed sidecar before accepting trusted sources",
+			sidecar:   "{broken",
+			wantError: "daemon: load global MCP JSON:",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := testHomePaths(t)
+			content := "[tools.policy]\ntrusted_sources = [\"mcp:jam\"]\n" + tt.toml
+			if err := os.WriteFile(homePaths.ConfigFile, []byte(content), 0o600); err != nil {
+				t.Fatalf("WriteFile(config) error = %v", err)
+			}
+			if tt.sidecar != "" {
+				path := filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)
+				if err := os.WriteFile(path, []byte(tt.sidecar), 0o600); err != nil {
+					t.Fatalf("WriteFile(sidecar) error = %v", err)
+				}
+			}
+			d, err := New(WithHomePaths(homePaths), WithLogger(discardLogger()))
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			d.getenv = func(string) string { return "" }
+			state := &bootState{}
+			err = d.bootConfig(state, &bootCleanup{})
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("bootConfig() error = %v, want %q", err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("bootConfig() error = %v", err)
+			}
+			names := make([]string, 0, len(state.cfg.MCPServers))
+			for _, server := range state.cfg.MCPServers {
+				names = append(names, server.Name)
+				if server.Name == "jam" && (server.URL != tt.wantURL || server.Command != tt.wantCommand) {
+					t.Fatalf(
+						"jam URL/command = %q/%q, want %q/%q",
+						server.URL,
+						server.Command,
+						tt.wantURL,
+						tt.wantCommand,
+					)
+				}
+			}
+			if !slices.Equal(names, tt.wantNames) {
+				t.Fatalf("MCP server names = %v, want %v", names, tt.wantNames)
+			}
+		})
+	}
+}
+
 func TestLoadConfigFromHomeAppliesOTelEnvironmentBeforeFile(t *testing.T) {
 	t.Parallel()
 

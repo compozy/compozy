@@ -26,6 +26,10 @@ func daemonConfigMCPDeclarationProvider(
 	var baseline []compozyconfig.MCPServer
 	if _, err := os.Stat(homePaths.ConfigFile); errors.Is(err, os.ErrNotExist) && cfg != nil {
 		for _, server := range cfg.MCPServers {
+			// File-backed declarations must retire with their source instead of becoming injected defaults.
+			if strings.TrimSpace(server.DefinitionSource) != "" {
+				continue
+			}
 			baseline = append(baseline, cloneDaemonMCPServer(server))
 		}
 	}

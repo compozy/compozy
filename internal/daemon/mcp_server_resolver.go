@@ -286,6 +286,9 @@ func daemonMCPSources(ctx context.Context, state *bootState) ([]toolspkg.SourceR
 		sources = append(sources, source)
 	}
 	for _, server := range state.cfg.MCPServers {
+		if state.toolMCPResources != nil && strings.TrimSpace(server.DefinitionSource) != "" {
+			continue
+		}
 		add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeUser)})
 	}
 	providerNames := make([]string, 0, len(state.cfg.Providers))

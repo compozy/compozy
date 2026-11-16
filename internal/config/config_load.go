@@ -168,7 +168,7 @@ func loadWithHome(
 	if err := ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global config: %w", err)
 	}
-	if err := applyConfigMCPSidecarFile(globalMCPJSONFile(homePaths), &cfg); err != nil {
+	if err := ApplyConfigMCPSidecarFile(globalMCPJSONFile(homePaths), &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}
 	profileName = strings.TrimSpace(profileName)
@@ -183,7 +183,7 @@ func loadWithHome(
 		); err != nil {
 			return Config{}, fmt.Errorf("load profile config: %w", err)
 		}
-		if err := applyConfigMCPSidecarFile(profileMCPJSONFile(homePaths, profileName), &cfg); err != nil {
+		if err := ApplyConfigMCPSidecarFile(profileMCPJSONFile(homePaths, profileName), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load profile MCP JSON: %w", err)
 		}
 	}
@@ -191,7 +191,7 @@ func loadWithHome(
 		if err := applyWorkspaceConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace config: %w", err)
 		}
-		if err := applyConfigMCPSidecarFile(workspaceMCPJSONFile(workspaceRoot), &cfg); err != nil {
+		if err := ApplyConfigMCPSidecarFile(workspaceMCPJSONFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace MCP JSON: %w", err)
 		}
 		if profileName != "" {
@@ -202,7 +202,7 @@ func loadWithHome(
 			); err != nil {
 				return Config{}, fmt.Errorf("load workspace profile config: %w", err)
 			}
-			if err := applyConfigMCPSidecarFile(
+			if err := ApplyConfigMCPSidecarFile(
 				workspaceProfileMCPJSONFile(workspaceRoot, profileName),
 				&cfg,
 			); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -70,6 +71,12 @@ func loadConfigFromHome(
 	compozyconfig.ApplyOTelEnvironment(&cfg, getenv)
 	if err := compozyconfig.ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return compozyconfig.Config{}, fmt.Errorf("daemon: load global config: %w", err)
+	}
+	if err := compozyconfig.ApplyConfigMCPSidecarFile(
+		filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName),
+		&cfg,
+	); err != nil {
+		return compozyconfig.Config{}, fmt.Errorf("daemon: load global MCP JSON: %w", err)
 	}
 	compozyconfig.ApplyMarketplaceCatalogEnvironment(&cfg, getenv)
 

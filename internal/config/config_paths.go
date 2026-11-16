@@ -14,7 +14,8 @@ func resolveWorkspaceRoot(root string) (string, error) {
 	return resolveAbsoluteDir(root)
 }
 
-func applyConfigMCPSidecarFile(path string, cfg *Config) error {
+// ApplyConfigMCPSidecarFile overlays optional MCP JSON declarations using full-definition replacement.
+func ApplyConfigMCPSidecarFile(path string, cfg *Config) error {
 	if cfg == nil {
 		return errors.New("config is required")
 	}
