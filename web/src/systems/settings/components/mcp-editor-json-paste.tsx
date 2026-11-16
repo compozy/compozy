@@ -14,6 +14,7 @@ import { FileText, Globe, Terminal } from "@compozy/ui/icons";
 import type { MCPDraft, MCPTransport } from "../lib/mcp-editor-model";
 import {
   applyParsedServer,
+  clearPastedServer,
   parseMCPServersJSON,
   type MCPJSONParseResult,
   type ParsedMCPServer,
@@ -40,19 +41,25 @@ function adoptPastedServer(
   onChange(current => applyParsedServer(current, server, !autoName));
 }
 
-/** Parse pasted JSON and fill the draft when it holds exactly one server. */
+/**
+ * Parse pasted JSON and fill the draft when it holds exactly one server. Otherwise a server an
+ * earlier paste filled in is taken back out, so the form never shows a pick the JSON no longer
+ * holds. Returns whether the draft now holds a pasted server.
+ */
 function adoptPastedJSON(
   text: string,
   autoName: boolean,
+  filled: boolean,
   onChange: MCPEditorJSONPasteProps["onChange"],
   onAdopt: MCPEditorJSONPasteProps["onAdopt"]
-): MCPJSONParseResult | null {
-  if (!text.trim()) return null;
-  const result = parseMCPServersJSON(text);
-  if (result.ok && result.servers.length === 1) {
+): boolean {
+  const result: MCPJSONParseResult | null = text.trim() ? parseMCPServersJSON(text) : null;
+  if (result?.ok && result.servers.length === 1) {
     adoptPastedServer(result.servers[0]!, autoName, onChange, onAdopt);
+    return true;
   }
-  return result;
+  if (filled) onChange(current => clearPastedServer(current, !autoName));
+  return false;
 }
 
 function feedback(result: MCPJSONParseResult | null, chosen: ParsedMCPServer | null): string {
@@ -80,6 +87,11 @@ export function MCPEditorJSONPaste({
   const result = text.trim() ? parseMCPServersJSON(text) : null;
   const servers = result?.ok ? result.servers : [];
   const [chosenIndex, setChosenIndex] = useState<number | null>(null);
+  // Whether the draft holds a server from this JSON (the opening paste was applied already).
+  const [filled, setFilled] = useState(() => {
+    const opening = initialText.trim() ? parseMCPServersJSON(initialText) : null;
+    return Boolean(opening?.ok && opening.servers.length === 1);
+  });
   const chosen = servers.length === 1 ? servers[0]! : (servers[chosenIndex ?? -1] ?? null);
   const error =
     result && !result.ok
@@ -113,7 +125,7 @@ export function MCPEditorJSONPaste({
             const next = event.target.value;
             setText(next);
             setChosenIndex(null);
-            adoptPastedJSON(next, autoName, onChange, onAdopt);
+            setFilled(adoptPastedJSON(next, autoName, filled, onChange, onAdopt));
           }}
           placeholder={'{\n  "mcpServers": { … }\n}'}
           rows={8}
@@ -143,6 +155,7 @@ export function MCPEditorJSONPaste({
             const server = servers[index];
             if (!server) return;
             setChosenIndex(index);
+            setFilled(true);
             adoptPastedServer(server, autoName, onChange, onAdopt);
           }}
           options={servers.map((server, index) => ({

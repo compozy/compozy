@@ -57,8 +57,9 @@ interface CheckParams {
 }
 
 /**
- * Check again for one definition. The daemon answers with the item and its new runtime status,
- * which replaces that definition in every cached list so the row reads the answer at once.
+ * Check again for one definition. The daemon answers with the item and its new runtime status;
+ * every cached list keeps its own row (identity, scope, owner and source as that lens shows it)
+ * and takes only the new status, so the row reads the answer at once. The lists then reread.
  */
 export function useCheckMCPServer() {
   const queryClient = useQueryClient();
@@ -68,14 +69,19 @@ export function useCheckMCPServer() {
       const key = mcpDefinitionKey(entry);
       queryClient.setQueriesData<SettingsMCPServerCollection>(
         { queryKey: settingsKeys.mcpLists() },
-        list =>
-          list && {
+        list => {
+          if (!list?.mcp_servers.some(server => mcpDefinitionKey(server) === key)) return list;
+          return {
             ...list,
             mcp_servers: list.mcp_servers.map(server =>
-              mcpDefinitionKey(server) === key ? item : server
+              mcpDefinitionKey(server) === key
+                ? { ...server, runtime_status: item.runtime_status }
+                : server
             ),
-          }
+          };
+        }
       );
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.mcpLists() });
     },
   });
 }

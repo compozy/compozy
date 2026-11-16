@@ -33,7 +33,7 @@ import {
   vi,
 } from "vitest";
 import type { ReactNode } from "react";
-import { TopbarSlotProvider, useTopbarSlotValue } from "@compozy/ui";
+import { TopbarSlotProvider, UIProvider, useTopbarSlotValue } from "@compozy/ui";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers, statusFixture } from "@/systems/status/mocks";
@@ -273,9 +273,11 @@ function setup(node?: ReactNode, path = "/marketplace") {
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   const view = render(
-    <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <UIProvider reducedMotion="never" skipAnimations>
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </UIProvider>
   );
   return { router, client, ...view };
 }
@@ -2471,22 +2473,26 @@ describe("Category browse and row actions", () => {
         await client.invalidateQueries();
       });
       expect(await screen.findByTestId(`marketplace-ready-${entry.entry_id}`)).toBeVisible();
-      expect(screen.getByRole("dialog", { name: "Sign in to github" })).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("dialog", { name: "Sign in to github" })).toBeVisible()
+      );
       expect(screen.queryByRole("dialog", { name: "Connected to github" })).not.toBeInTheDocument();
       catalog = { ...catalog, items: [], total: 0 };
       await act(async () => {
         await client.invalidateQueries();
       });
       expect(screen.queryByTestId(`marketplace-card-${entry.entry_id}`)).not.toBeInTheDocument();
-      expect(screen.getByRole("dialog", { name: "Sign in to github" })).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("dialog", { name: "Sign in to github" })).toBeVisible()
+      );
       expect(screen.queryByRole("dialog", { name: "Connected to github" })).not.toBeInTheDocument();
       signedIn = true;
       await act(async () => {
         await client.invalidateQueries();
       });
-      expect(
-        await screen.findByRole("dialog", { name: "Connected to github" })
-      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("dialog", { name: "Connected to github" })).toBeVisible()
+      );
       await userEvent.click(screen.getByTestId("mcp-sign-in-done"));
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     }

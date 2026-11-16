@@ -25,7 +25,7 @@ export type MCPJSONParseResult =
 
 const URL_PATTERN = /^https?:\/\//i;
 const SECRET_KEY_PATTERN =
-  /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|CREDENTIAL|_PAT$|^PAT_|AUTH)/i;
+  /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|CREDENTIAL|_PAT$|^PAT_|(?:^|_)AUTH(?:ORIZATION)?$)/i;
 const PLACEHOLDER_PATTERN = /^(<.*>|\$\{.*\}|your[-_ ].*|.*[-_ ]here|x{3,}|\.\.\.|…)$/i;
 
 type JSONObject = Record<string, unknown>;
@@ -67,13 +67,12 @@ function toParsedServer(name: string, raw: JSONObject): ParsedMCPServer {
           typeof arg === "string" || typeof arg === "number" ? [String(arg)] : []
         )
       : [];
-    // A command written as one line ("npx -y pkg") splits like the source field does.
-    const line = parseCommandLine(raw.command);
+    // The command is one program path, kept literal: a path may hold spaces.
     return {
       name,
       transport: "stdio",
-      command: line.command,
-      args: [...line.args, ...args],
+      command: raw.command,
+      args,
       env: stringRecord(raw.env),
       url: "",
       ignored,
@@ -104,11 +103,74 @@ function serverMap(root: JSONObject): JSONObject | null {
   return null;
 }
 
+/**
+ * JSONC to JSON: drops `//` and block comments and trailing commas outside strings, as editor
+ * configs and READMEs often carry them. Everything else, strings included, stays as typed.
+ */
+export function stripJSONC(text: string): string {
+  return dropTrailingCommas(dropComments(text));
+}
+
+/** Walk `text` and copy it, letting `visit` replace spans, tracking string literals and their escapes. */
+function scanOutsideStrings(
+  text: string,
+  visit: (index: number) => { emit: string; skip: number } | null
+): string {
+  let out = "";
+  let inString = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]!;
+    if (inString) {
+      out += char;
+      if (char === "\\" && index + 1 < text.length) {
+        out += text[index + 1];
+        index += 1;
+      } else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      out += char;
+      continue;
+    }
+    const step = visit(index);
+    if (step) {
+      out += step.emit;
+      index += step.skip - 1;
+    } else out += char;
+  }
+  return out;
+}
+
+function dropComments(text: string): string {
+  return scanOutsideStrings(text, index => {
+    if (text[index] !== "/") return null;
+    if (text[index + 1] === "/") {
+      const end = text.indexOf("\n", index);
+      return { emit: "", skip: (end === -1 ? text.length : end) - index };
+    }
+    if (text[index + 1] === "*") {
+      const end = text.indexOf("*/", index + 2);
+      return { emit: " ", skip: (end === -1 ? text.length : end + 2) - index };
+    }
+    return null;
+  });
+}
+
+function dropTrailingCommas(text: string): string {
+  return scanOutsideStrings(text, index => {
+    if (text[index] !== ",") return null;
+    let next = index + 1;
+    while (next < text.length && /\s/.test(text[next]!)) next += 1;
+    return text[next] === "}" || text[next] === "]" ? { emit: "", skip: 1 } : null;
+  });
+}
+
 /** Read every server out of pasted MCP JSON; a lone server object yields one unnamed server. */
 export function parseMCPServersJSON(text: string): MCPJSONParseResult {
   let root: unknown;
   try {
-    root = JSON.parse(text);
+    root = JSON.parse(stripJSONC(text));
   } catch {
     return { ok: false, reason: "invalid-json" };
   }
@@ -257,7 +319,9 @@ function splitEnv(env: Record<string, string>): {
   const plain: MCPEnvPair[] = [];
   const secretEnv: MCPSecretEnvEntry[] = [];
   for (const [key, value] of Object.entries(env)) {
-    if (SECRET_KEY_PATTERN.test(key) || isPlaceholder(value)) {
+    // An empty value alone is a blank setting; only a secret-looking name or a placeholder
+    // ("<your token>") asks for a key.
+    if (SECRET_KEY_PATTERN.test(key) || (value.trim() !== "" && isPlaceholder(value))) {
       secretEnv.push({
         key,
         binding: {
@@ -290,6 +354,22 @@ export function applyParsedServer(
   }
   const { env, secretEnv } = splitEnv(server.env);
   return { ...base, name, command: server.command, args: server.args, env, secretEnv, url: "" };
+}
+
+/**
+ * Undo a server filled from an earlier paste: its launch fields go, and its name too unless the
+ * person typed that name. Used when a new paste no longer names exactly one server.
+ */
+export function clearPastedServer(draft: MCPDraft, keepName: boolean): MCPDraft {
+  return {
+    ...draft,
+    name: keepName ? draft.name : "",
+    command: "",
+    args: [],
+    env: [],
+    secretEnv: [],
+    url: "",
+  };
 }
 
 /**

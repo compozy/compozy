@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Bot, Globe, Plus, Search, Terminal } from "@compozy/ui/icons";
 
 import {
@@ -135,6 +135,7 @@ function PickerList({
 > & {
   hasError: boolean;
 }) {
+  const listId = useId();
   if (loading) return <PlainNote>Loading your servers…</PlainNote>;
   if (rows.length === 0)
     return hasError ? null : (
@@ -149,7 +150,7 @@ function PickerList({
       className="flex flex-col overflow-hidden rounded-lg bg-sunken shadow-hairline-inset"
       data-testid="agent-mcp-picker-list"
     >
-      {visibleRows.map(row => (
+      {visibleRows.map((row, index) => (
         <li key={row.name} className="border-b border-line-soft last:border-b-0">
           <label
             className={cn(
@@ -159,10 +160,17 @@ function PickerList({
           >
             <Checkbox
               aria-label={row.name}
+              aria-describedby={row.saved ? `${listId}-${index}-saved` : undefined}
               checked={row.checked}
               disabled={row.saved}
               onCheckedChange={checked => onToggleServer(row.name, checked)}
             />
+            {row.saved ? (
+              // A saved server can't be unchecked here; say why to a screen reader too.
+              <span className="sr-only" id={`${listId}-${index}-saved`}>
+                Already added
+              </span>
+            ) : null}
             <KindIcon
               aria-hidden="true"
               icon={row.transport === "remote" ? Globe : Terminal}

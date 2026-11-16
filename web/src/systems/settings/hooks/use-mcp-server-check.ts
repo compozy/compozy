@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { toast } from "@compozy/ui";
 
+import { mcpDefinitionKey } from "../lib/mcp-management-target";
 import { mcpPanelAnchor, type MCPPanelAnchor } from "../lib/mcp-panel-anchor";
 import { deriveMCPAuthFilter, summarizeMCPStatus } from "../lib/mcp-status-view-model";
 import type { SettingsMCPServerEntry } from "../types";
@@ -18,39 +19,52 @@ export function isMCPServerNotWorking(entry: SettingsMCPServerEntry): boolean {
   return summarizeMCPStatus(entry).tone === "destructive";
 }
 
+interface UseMCPServerCheckOptions {
+  /** The profile the page lists through (`default` = none); the check reads the same lens. */
+  profile?: string;
+}
+
 /**
  * The Settings "Not working" panel and its Check again. The check answers with the definition's
- * new runtime status (the list cache takes it in place); a server that works now closes the
- * panel, one that still fails stays open and says so.
+ * new runtime status (merged into the listed row); a server that works now closes the panel, one
+ * that still fails stays open and says so. Pending and result state belong to the server the
+ * check was sent for, so a slow answer for one server never reaches another one's panel.
  */
-export function useMCPServerCheck() {
+export function useMCPServerCheck({ profile }: UseMCPServerCheckOptions = {}) {
   const [inspecting, setInspecting] = useState<MCPIssueTarget | null>(null);
-  const [stillFailing, setStillFailing] = useState(false);
+  const [stillFailingKey, setStillFailingKey] = useState<string | null>(null);
   const mutation = useCheckMCPServer();
+  const inspectingKey = inspecting ? mcpDefinitionKey(inspecting.entry) : null;
+  const pendingKey =
+    mutation.isPending && mutation.variables ? mcpDefinitionKey(mutation.variables.entry) : null;
+  const checking = pendingKey !== null && pendingKey === inspectingKey;
 
   const close = () => {
     setInspecting(null);
-    setStillFailing(false);
+    setStillFailingKey(null);
   };
 
   const check = () => {
-    if (!inspecting || mutation.isPending) return;
-    const filter = deriveMCPAuthFilter(inspecting.entry);
-    if (!filter) {
+    if (!inspecting || checking) return;
+    const derived = deriveMCPAuthFilter(inspecting.entry);
+    if (!derived) {
       toast.error(`Couldn't check ${inspecting.entry.name}. Open it to see its definition.`);
       return;
     }
-    setStillFailing(false);
+    const viewProfile = profile && profile !== "default" ? profile : undefined;
+    const filter = derived.profile || !viewProfile ? derived : { ...derived, profile: viewProfile };
+    const key = mcpDefinitionKey(inspecting.entry);
+    setStillFailingKey(null);
     mutation.mutate(
       { entry: inspecting.entry, filter },
       {
         onSuccess: item => {
-          if (!isMCPServerNotWorking(item)) {
-            close();
-            return;
-          }
-          setInspecting(current => (current ? { ...current, entry: item } : current));
-          setStillFailing(true);
+          setInspecting(current => {
+            if (!current || mcpDefinitionKey(current.entry) !== key) return current;
+            if (!isMCPServerNotWorking(item)) return null;
+            return { ...current, entry: { ...current.entry, runtime_status: item.runtime_status } };
+          });
+          setStillFailingKey(isMCPServerNotWorking(item) ? key : null);
         },
         onError: error => toast.error(error.message),
       }
@@ -60,13 +74,13 @@ export function useMCPServerCheck() {
   return {
     inspecting,
     open: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => {
-      setStillFailing(false);
+      setStillFailingKey(null);
       setInspecting({ entry, anchor: mcpPanelAnchor(trigger) });
     },
     close,
     check,
-    checking: mutation.isPending,
-    stillFailing,
+    checking,
+    stillFailing: stillFailingKey !== null && stillFailingKey === inspectingKey,
   };
 }
 

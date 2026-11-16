@@ -43,11 +43,10 @@ export function useAgentMCPAddDialog({
   );
   const vault = useQuery(vaultSecretsListOptions({ namespace: "mcp" }));
   const saved = new Set((agent.mcp_servers ?? []).map(server => server.name));
-  const used = new Set([
-    ...saved,
-    ...additions.map(server => server.name),
-    ...Object.keys(overrides).filter(name => overrides[name]),
-  ]);
+  const pickedAdditions = () => nextAgentMCPAdditions(additions, overrides, saved);
+  // Taken names are what Save would keep: saved servers plus the picks still checked. A staged
+  // name the person unchecked is free again.
+  const used = new Set([...saved, ...pickedAdditions().map(server => server.name)]);
   const rows = agentMCPPickerRows({
     entries: servers.data?.mcp_servers ?? [],
     agent,
@@ -56,7 +55,6 @@ export function useAgentMCPAddDialog({
   });
   const visibleRows = filterAgentMCPPickerRows(rows, query);
   const checkedCount = rows.filter(row => row.checked).length;
-  const pickedAdditions = () => nextAgentMCPAdditions(additions, overrides, saved);
   const validation = validateDraft(draft);
   const nameConflict = used.has(draft.name.trim());
   const errors = nameConflict

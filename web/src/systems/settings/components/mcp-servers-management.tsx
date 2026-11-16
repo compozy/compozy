@@ -138,6 +138,7 @@ function MCPServerRowPanels({ management }: MCPServersManagementProps) {
         {inspecting ? (
           <MCPIssuePanel
             server={inspecting.entry.name}
+            local={inspecting.entry.transport === "stdio"}
             summary={summarizeMCPStatus(inspecting.entry).label}
             reason={
               inspecting.entry.runtime_status?.diagnostic?.trim() ||

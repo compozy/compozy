@@ -157,6 +157,23 @@ describe("MCPServerEditor", () => {
     expect(screen.getByTestId("settings-mcp-servers-editor-command-input")).toBeInTheDocument();
   });
 
+  it("Should name where a server is used in words under More options, not the scope value", async () => {
+    const user = userEvent.setup();
+    render(
+      <EditorHarness
+        scope="workspace"
+        scopeChoice={{ value: "workspace", projectName: "compozy" }}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "More options" }));
+    expect(screen.getByTestId("settings-mcp-servers-editor-scope-fact")).toHaveTextContent(
+      "Only compozy"
+    );
+    expect(screen.getByText("Used in")).toBeInTheDocument();
+    expect(screen.queryByText("workspace")).toBeNull();
+  });
+
   it("Should offer OAuth only for a remote transport", async () => {
     const user = userEvent.setup();
     render(<EditorHarness initialTier="advanced" />);
@@ -278,6 +295,31 @@ describe("MCPServerEditor", () => {
     );
   });
 
+  it("Should take back a pasted server once new JSON no longer names exactly one", async () => {
+    const user = userEvent.setup();
+    render(<EditorHarness draft={emptyDraft("stdio")} />);
+
+    await user.click(screen.getByRole("button", { name: "Paste JSON instead" }));
+    const input = screen.getByLabelText("Config from the docs");
+    fireEvent.change(input, {
+      target: { value: '{"mcpServers":{"github":{"command":"npx","args":["gh"]}}}' },
+    });
+    expect(readDraft()).toMatchObject({ name: "github", command: "npx", args: ["gh"] });
+
+    // A second blob with two servers: nothing is picked yet, so nothing from the first stays.
+    fireEvent.change(input, {
+      target: {
+        value:
+          '{"mcpServers":{"linear":{"url":"https://mcp.linear.app/mcp"},"fs":{"command":"uvx"}}}',
+      },
+    });
+    expect(screen.getByTestId("settings-mcp-servers-editor-json-feedback")).toHaveTextContent(
+      "Found 2 servers. Pick the one to add."
+    );
+    expect(readDraft()).toMatchObject({ name: "", command: "", args: [], url: "" });
+    expect(screen.getByRole("radio", { name: "linear" })).toHaveAttribute("aria-checked", "false");
+  });
+
   it("Should explain JSON that can't be read and leave the draft alone", async () => {
     const user = userEvent.setup();
     render(<EditorHarness draft={emptyDraft("stdio")} />);
@@ -291,6 +333,38 @@ describe("MCPServerEditor", () => {
 
     await user.click(screen.getByRole("button", { name: "Type a URL or command instead" }));
     expect(screen.getByLabelText("URL or command")).toBeInTheDocument();
+  });
+
+  // Invariant: a key row keeps its own state when an earlier row is removed.
+  it("Should keep each key's state on its own row when an earlier key is removed", async () => {
+    const user = userEvent.setup();
+    const unset = (key: string) => ({
+      key,
+      binding: { mode: "typed" as const, existing: false, typedValue: "", vaultRef: "" },
+    });
+    render(
+      <ValidatingEditorHarness
+        draft={{
+          ...emptyDraft("stdio"),
+          name: "github",
+          command: "bunx",
+          secretEnv: [unset("FIRST_TOKEN"), unset("SECOND_TOKEN")],
+        }}
+      />
+    );
+    const message = "Enter a value or select a Vault reference";
+
+    // Leaving the first key's value speaks up for that key alone.
+    await user.click(screen.getByLabelText("FIRST_TOKEN"));
+    await user.tab();
+    expect(screen.getAllByText(message)).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "More options" }));
+    await user.click(screen.getByTestId("settings-mcp-servers-editor-secret-remove-0"));
+
+    // The second key moved up a row but was never left: it stays quiet.
+    expect(screen.getByLabelText("SECOND_TOKEN")).toBeInTheDocument();
+    expect(screen.queryByText(message)).toBeNull();
   });
 
   it("Should replace the launch configuration when the transport switches", async () => {

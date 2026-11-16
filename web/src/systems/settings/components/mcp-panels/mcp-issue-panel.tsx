@@ -11,6 +11,11 @@ export interface MCPIssuePanelProps {
   summary?: string;
   /** What the server itself said, verbatim. */
   reason?: string | null;
+  /**
+   * Whether the server is a command on this computer (stdio); a remote server gets no advice
+   * about its command. Defaults to `true` for callers that do not know the transport.
+   */
+  local?: boolean;
   /** A check of the server is running. */
   checking?: boolean;
   /** The last check answered and the server still is not working. */
@@ -42,6 +47,7 @@ export function MCPIssuePanel({
   server,
   summary,
   reason,
+  local = true,
   checking = false,
   stillFailing = false,
   onCheck,
@@ -95,7 +101,9 @@ export function MCPIssuePanel({
       ) : null}
       <ul className="flex flex-col gap-2">
         <Suggestion icon={KeyRound}>Check that its key is set and still valid.</Suggestion>
-        <Suggestion icon={Terminal}>Make sure its command runs on this computer.</Suggestion>
+        {local ? (
+          <Suggestion icon={Terminal}>Make sure its command runs on this computer.</Suggestion>
+        ) : null}
       </ul>
       {reason ? (
         <Disclosure label="What the server said">

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import type { SettingsMCPServerEntry } from "../../types";
 import {
   applyParsedServer,
+  clearPastedServer,
   applySourceLine,
   formatCommandLine,
   parseCommandLine,
@@ -691,7 +692,7 @@ describe("pasted MCP sources", () => {
   it("Should accept the VS Code servers map, a bare map, and a lone server", () => {
     const vscode = parseMCPServersJSON('{"servers":{"docs":{"url":"https://docs.test/mcp"}}}');
     expect(vscode.ok && vscode.servers.map(server => server.name)).toEqual(["docs"]);
-    const bare = parseMCPServersJSON('{"fs":{"command":"npx mcp-fs /tmp"}}');
+    const bare = parseMCPServersJSON('{"fs":{"command":"npx","args":["mcp-fs","/tmp"]}}');
     expect(bare.ok && bare.servers[0]).toMatchObject({
       name: "fs",
       command: "npx",
@@ -699,6 +700,31 @@ describe("pasted MCP sources", () => {
     });
     const lone = parseMCPServersJSON('{"command":"uvx","args":["mcp-server-time"]}');
     expect(lone.ok && lone.servers[0]).toMatchObject({ name: "", command: "uvx" });
+  });
+
+  it("Should keep the JSON command literal, even a path with spaces", () => {
+    const result = parseMCPServersJSON(
+      '{"mcpServers":{"tools":{"command":"/Applications/My Tools/mcp server","args":["--stdio"]}}}'
+    );
+    expect(result.ok && result.servers[0]).toMatchObject({
+      command: "/Applications/My Tools/mcp server",
+      args: ["--stdio"],
+    });
+  });
+
+  it("Should read JSONC with comments and trailing commas, leaving strings as typed", () => {
+    const result = parseMCPServersJSON(`{
+      // from the README
+      "mcpServers": {
+        /* remote */
+        "docs": { "url": "https://docs.test/mcp//v1", },
+        "fs": { "command": "npx", "args": ["a, }", "/*b*/",], },
+      },
+    }`);
+    expect(result.ok && result.servers).toMatchObject([
+      { name: "docs", url: "https://docs.test/mcp//v1" },
+      { name: "fs", command: "npx", args: ["a, }", "/*b*/"] },
+    ]);
   });
 
   it("Should reject text that isn't JSON or holds no server", () => {
@@ -741,6 +767,45 @@ describe("pasted MCP sources", () => {
     expect(validateDraft(draft).errors.secretEnv).toEqual({
       0: "Enter a value or select a Vault reference",
     });
+  });
+
+  it("Should treat only AUTH-named keys as auth secrets and never require a blank setting", () => {
+    const result = parseMCPServersJSON(
+      JSON.stringify({
+        mcpServers: {
+          tool: {
+            command: "npx",
+            env: {
+              AUTH: "a",
+              SERVICE_AUTH: "b",
+              AUTHORIZATION: "c",
+              AUTHOR: "me",
+              OAUTH_CALLBACK_PORT: "3000",
+              DEBUG: "",
+            },
+          },
+        },
+      })
+    );
+    if (!result.ok) throw new Error("expected a server");
+    const draft = applyParsedServer(emptyDraft("stdio"), result.servers[0]!, false);
+    expect(draft.secretEnv.map(entry => entry.key)).toEqual([
+      "AUTH",
+      "SERVICE_AUTH",
+      "AUTHORIZATION",
+    ]);
+    expect(draft.env).toEqual([
+      { key: "AUTHOR", value: "me" },
+      { key: "OAUTH_CALLBACK_PORT", value: "3000" },
+      { key: "DEBUG", value: "" },
+    ]);
+    expect(validateDraft(draft).errors.secretEnv ?? {}).toEqual({});
+  });
+
+  it("Should take a pasted server back out of the draft, keeping a typed name", () => {
+    const filled = { ...emptyDraft("stdio"), name: "mine", command: "npx", args: ["x"] };
+    expect(clearPastedServer(filled, true)).toMatchObject({ name: "mine", command: "", args: [] });
+    expect(clearPastedServer(filled, false).name).toBe("");
   });
 
   it("Should keep a typed name and drop the other transport's fields", () => {

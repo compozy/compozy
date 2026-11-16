@@ -1,5 +1,5 @@
 import { AlertCircle, ChevronRight } from "@compozy/ui/icons";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { Button, cn, Collapsible, CollapsibleContent, CollapsibleTrigger, Pill } from "@compozy/ui";
 
@@ -56,12 +56,16 @@ export function MCPRuntimeGroup({
   const hidden = snapshot.servers.length - visible.length;
   const notes = snapshot.notes ?? [];
   const testId = `settings-mcp-runtime-group-${snapshot.runtime}`;
+  // The group heading names the fold trigger, so the name is written once.
+  const headingId = useId();
   const identity = (
     <>
       <ProviderLogo provider={snapshot.runtime} />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex items-center gap-2">
-          <span className="text-small-body font-medium text-fg">{snapshot.display_name}</span>
+          <span className="text-small-body font-medium text-fg" id={headingId}>
+            {snapshot.display_name}
+          </span>
           {unreadable ? null : <Pill mono>{snapshot.servers.length}</Pill>}
         </span>
         <span className="truncate text-eyebrow text-subtle" data-testid={`${testId}-phrase`}>
@@ -136,7 +140,7 @@ export function MCPRuntimeGroup({
         className={cn("flex min-h-12 items-center gap-3 pr-4", open && "border-b border-line")}
       >
         <CollapsibleTrigger
-          aria-label={`${snapshot.display_name} MCP servers`}
+          aria-labelledby={headingId}
           className="flex min-w-0 flex-1 items-center gap-3 self-stretch py-2.5 pl-3 text-left outline-none hover:bg-surface-2/40 focus-visible:bg-surface-2"
           data-testid={`${testId}-fold`}
         >

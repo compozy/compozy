@@ -18,14 +18,16 @@ import {
   FieldLabel,
   FormSection,
   Input,
+  MetadataList,
+  MetadataListRow,
 } from "@compozy/ui";
 
 import type { MCPOverrideDraft, MCPOverrideErrors } from "../lib/mcp-override-model";
-import { mcpManagementScopeLabel } from "../lib/mcp-management-target";
 import type { SettingsMCPServerEntry } from "../types";
 
 import { MCPOverridePairsEditor } from "./mcp-override-pairs-editor";
-import { mcpOwnerExtensionName } from "./mcp-server-labels";
+import { formatCommandLine } from "../lib/mcp-editor-paste";
+import { mcpAddedByWords, mcpEntryScopeWords, mcpOwnerExtensionName } from "./mcp-server-labels";
 
 export interface MCPOverrideEditorProps {
   open: boolean;
@@ -232,37 +234,41 @@ function MCPOverrideFields({
   );
 }
 
+const CODE_VALUE = { className: "truncate font-mono" };
+
 /** The package declaration, read-only: where it runs, how agents call it, which version. */
 function MCPTechnicalDetails({ entry }: { entry: SettingsMCPServerEntry }) {
   const address =
     entry.transport === "stdio"
-      ? [entry.command, ...(entry.args ?? [])].filter(Boolean).join(" ")
+      ? formatCommandLine(entry.command ?? "", entry.args ?? [])
       : (entry.url ?? "");
   const version =
     entry.catalog_entry && entry.catalog_version
       ? `${entry.catalog_entry}@${entry.catalog_version}`
       : entry.catalog_version;
-  const rows: Array<[string, string]> = [
-    [entry.transport === "stdio" ? "Command" : "Address", address || "—"],
-    ["Agents call it", `mcp__${entry.runtime_name?.trim() || entry.name}__*`],
-    ["Added by", entry.owner ?? ""],
-    ["Scope", mcpManagementScopeLabel(entry) ?? entry.scope],
-    ["Sign-in", entry.auth ? "OAuth, from the extension" : "None"],
-    ...(version ? ([["Version", version]] as Array<[string, string]>) : []),
-  ];
   return (
     <Disclosure className="mt-6" label="Technical details" variant="framed">
-      <dl
-        className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 p-4 text-meta"
-        data-testid="settings-mcp-override-editor-identity"
-      >
-        {rows.map(([label, value]) => (
-          <div className="contents" key={label}>
-            <dt className="text-faint">{label}</dt>
-            <dd className="truncate font-mono text-muted-foreground">{value}</dd>
-          </div>
-        ))}
-      </dl>
+      <MetadataList className="p-4" data-testid="settings-mcp-override-editor-identity">
+        <MetadataListRow
+          label={entry.transport === "stdio" ? "Command" : "Address"}
+          valueProps={CODE_VALUE}
+        >
+          {address || "—"}
+        </MetadataListRow>
+        <MetadataListRow label="Agents call it" valueProps={CODE_VALUE}>
+          {`mcp__${entry.runtime_name?.trim() || entry.name}__*`}
+        </MetadataListRow>
+        <MetadataListRow label="Added by">{mcpAddedByWords(entry.owner)}</MetadataListRow>
+        <MetadataListRow label="Used in">{mcpEntryScopeWords(entry)}</MetadataListRow>
+        <MetadataListRow label="Sign-in">
+          {entry.auth ? "OAuth, from the extension" : "None"}
+        </MetadataListRow>
+        {version ? (
+          <MetadataListRow label="Version" valueProps={CODE_VALUE}>
+            {version}
+          </MetadataListRow>
+        ) : null}
+      </MetadataList>
     </Disclosure>
   );
 }

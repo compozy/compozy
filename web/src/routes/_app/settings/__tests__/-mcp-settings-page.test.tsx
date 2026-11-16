@@ -16,6 +16,7 @@ import { HttpResponse, delay, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { ProfilePin } from "@/systems/profiles";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers } from "@/systems/status/mocks";
@@ -68,17 +69,19 @@ afterEach(() => {
   server.resetHandlers();
   resetSettingsRestartStore();
 });
-function renderSettings() {
+function renderSettings({ profile }: { profile?: string } = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   clients.push(client);
   const root = createRootRoute({
     component: () => (
-      <TopbarSlotProvider>
-        <Topbar title="Settings" />
-        <MCPSettingsPage />
-      </TopbarSlotProvider>
+      <ProfilePin profile={profile}>
+        <TopbarSlotProvider>
+          <Topbar title="Settings" />
+          <MCPSettingsPage />
+        </TopbarSlotProvider>
+      </ProfilePin>
     ),
   });
   const router = createRouter({
@@ -151,7 +154,10 @@ describe("MCP Settings page", () => {
     const dialog = await screen.findByRole("dialog", { name: "Set up github" });
     // The package declaration is read-only and folded under Technical details.
     await user.click(within(dialog).getByRole("button", { name: "Technical details" }));
-    expect(within(dialog).getByText("extension:github")).toBeVisible();
+    const details = within(dialog).getByTestId("settings-mcp-override-editor-identity");
+    expect(within(details).getByText("The github extension")).toBeVisible();
+    expect(within(details).getByText("All projects")).toBeVisible();
+    expect(within(details).queryByText("extension:github")).toBeNull();
     expect(
       within(dialog).queryByRole("textbox", { name: /Command|Auth|Server name/ })
     ).not.toBeInTheDocument();
@@ -255,6 +261,57 @@ describe("MCP Settings page", () => {
     await waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]!.searchParams.get("scope")).toBe("user");
     expect(saved[0]!.searchParams.get("workspace_id")).toBeNull();
+  });
+
+  // Invariant: a create in another scope checks names against a list read after the pick.
+  it("Should reread the picked scope's list and hold Save until it arrives", async () => {
+    const user = userEvent.setup();
+    const listed: string[] = [];
+    let holdUser = false;
+    let releaseUser: () => void = () => {};
+    server.use(
+      http.get("*/api/settings/mcp-servers", async ({ request }) => {
+        const scope = new URL(request.url).searchParams.get("scope") ?? "";
+        listed.push(scope);
+        if (scope === "user" && holdUser) {
+          await new Promise<void>(resolve => {
+            releaseUser = resolve;
+          });
+        }
+        return HttpResponse.json({
+          collection: "mcp-servers",
+          available_scopes: ["user", "workspace"],
+          scope,
+          mcp_servers: scope === "user" ? definitions : [],
+        });
+      })
+    );
+    await openSettings();
+    await user.click(screen.getByTestId("settings-page-mcp-scope-workspace"));
+    await user.click(await screen.findByTestId("settings-page-mcp-create"));
+    const editor = await screen.findByRole("dialog", { name: "Add an MCP server" });
+    await user.type(within(editor).getByLabelText("Name"), "github");
+    await user.type(within(editor).getByLabelText("URL or command"), "npx server");
+    const userReads = listed.filter(scope => scope === "user").length;
+
+    // The cached Personal list is not trusted: picking it reads it again, and Save waits.
+    holdUser = true;
+    await user.click(within(editor).getByRole("radio", { name: "All projects" }));
+    await waitFor(() =>
+      expect(listed.filter(scope => scope === "user").length).toBe(userReads + 1)
+    );
+    expect(within(editor).getByRole("button", { name: "Add server" })).toBeDisabled();
+    expect(within(editor).getByTestId("settings-mcp-servers-editor-hint")).toHaveTextContent(
+      "Checking which names are already taken"
+    );
+
+    releaseUser();
+    expect(
+      await within(editor).findByText('An MCP server named "github" already exists.')
+    ).toBeVisible();
+    await user.clear(within(editor).getByLabelText("Name"));
+    await user.type(within(editor).getByLabelText("Name"), "fresh");
+    expect(within(editor).getByRole("button", { name: "Add server" })).toBeEnabled();
   });
 
   // Invariant: removing a definition another source also defines says which copy takes over.
@@ -367,6 +424,9 @@ describe("MCP Settings page", () => {
       await openSettings();
       const group = await screen.findByTestId("settings-mcp-runtime-group-codex");
       const fold = within(group).getByTestId("settings-mcp-runtime-group-codex-fold");
+      // The fold is named by the group's heading, not a second label of its own.
+      expect(fold).toHaveAccessibleName(codexRuntimeMCPFixture.display_name);
+      expect(fold).not.toHaveAttribute("aria-label");
       expect(fold).toHaveAttribute("aria-expanded", "true");
       expect(within(group).getByTestId("settings-mcp-runtime-row-codex-github")).toBeVisible();
 
@@ -501,6 +561,7 @@ describe("MCP Settings page", () => {
           ...definitions[0]!,
           scope: "workspace",
           workspace_id: "ws-platform",
+          args: ["-y", "@modelcontextprotocol/server-github", "--root", "/work/my repo"],
           callable_in_sessions: false,
           approval: { required: true, state: "waiting", definition_digest: "sha256:seen" },
           definition_source: "/work/platform/.mcp.json",
@@ -534,7 +595,7 @@ describe("MCP Settings page", () => {
       await user.click(allow);
       const review = await screen.findByRole("dialog", { name: "Allow github?" });
       expect(within(review).getByTestId("mcp-allow-panel-launch")).toHaveTextContent(
-        "npx -y @modelcontextprotocol/server-github"
+        "npx -y @modelcontextprotocol/server-github --root '/work/my repo'"
       );
       expect(review).toHaveTextContent("Added by .mcp.json in this project");
       expect(within(review).getByTestId("mcp-allow-panel-source")).toHaveTextContent(
@@ -587,13 +648,20 @@ describe("MCP Settings page", () => {
       server.use(
         http.post("*/api/settings/mcp-servers/:name/check", ({ request }) => {
           checks.push(new URL(request.url));
-          return HttpResponse.json(answers[checks.length - 1]);
+          const answer = answers[checks.length - 1]!;
+          // The daemon's list carries the probed status from now on.
+          definitions = [answer];
+          return HttpResponse.json(answer);
         })
       );
       renderSettings();
 
       await user.click(await screen.findByRole("button", { name: "github is not working" }));
       const panel = await screen.findByRole("dialog", { name: "github isn't working" });
+      // The fixture is a local command, so the panel suggests checking that command.
+      expect(
+        within(panel).getByText("Make sure its command runs on this computer.")
+      ).toBeInTheDocument();
       // Settings is where the panel lives: no "Open in Settings" link back to it.
       expect(within(panel).queryByRole("button", { name: "Open in Settings" })).toBeNull();
       await user.click(within(panel).getByRole("button", { name: "What the server said" }));
@@ -610,10 +678,103 @@ describe("MCP Settings page", () => {
       await waitFor(() =>
         expect(screen.queryByRole("dialog", { name: "github isn't working" })).toBeNull()
       );
-      // The list took the check's answer without a reread: the row reads Ready, no repair offered.
+      // The list took the check's answer: the row reads Ready, no repair offered.
       expect(screen.getByTestId(`${mcpServerRowTestId(broken)}-status`)).toHaveTextContent("Ready");
       expect(screen.queryByRole("button", { name: "github is not working" })).toBeNull();
       expect(checks).toHaveLength(2);
+    });
+
+    it("Should keep a slow check's answer on its own server and keep the row's lens", async () => {
+      const user = userEvent.setup();
+      const failing = (name: string): SettingsMCPServerEntry => ({
+        ...definitions[0]!,
+        name,
+        runtime_status: {
+          state: "runtime_unavailable",
+          probe: "failed",
+          diagnostic: `${name} failed`,
+        } as SettingsMCPServerEntry["runtime_status"],
+      });
+      const alpha = failing("alpha");
+      const beta: SettingsMCPServerEntry = {
+        ...failing("beta"),
+        transport: "http",
+        command: undefined,
+        args: undefined,
+        url: "https://beta.example/mcp",
+      };
+      definitions = [alpha, beta];
+      const checks: URL[] = [];
+      let releaseAlpha: () => void = () => {};
+      const alphaGate = new Promise<void>(resolve => {
+        releaseAlpha = resolve;
+      });
+      server.use(
+        http.post("*/api/settings/mcp-servers/:name/check", async ({ request, params }) => {
+          checks.push(new URL(request.url));
+          if (params.name === "alpha") await alphaGate;
+          // The answer names another scope: the listed row keeps its own lens fields.
+          return HttpResponse.json({
+            ...(params.name === "alpha" ? alpha : beta),
+            scope: "workspace",
+            workspace_id: "ws-other",
+            runtime_status: {
+              state: "runtime_unavailable",
+              probe: "failed",
+              diagnostic: `${String(params.name)} still failed`,
+            },
+          });
+        })
+      );
+      renderSettings();
+
+      await user.click(await screen.findByRole("button", { name: "alpha is not working" }));
+      let panel = await screen.findByRole("dialog", { name: "alpha isn't working" });
+      await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
+      await waitFor(() => expect(checks).toHaveLength(1));
+
+      await user.click(screen.getByRole("button", { name: "beta is not working" }));
+      panel = await screen.findByRole("dialog", { name: "beta isn't working" });
+      // A remote server gets no advice about a command on this computer.
+      expect(within(panel).queryByText("Make sure its command runs on this computer.")).toBeNull();
+      // Alpha's pending check does not read as beta's.
+      expect(within(panel).getByTestId("mcp-issue-panel-check")).toBeEnabled();
+      releaseAlpha();
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(within(panel).queryByTestId("mcp-issue-panel-still")).toBeNull();
+      await user.click(within(panel).getByRole("button", { name: "What the server said" }));
+      expect(within(panel).getByText("beta failed")).toBeInTheDocument();
+      expect(within(panel).queryByText("alpha still failed")).toBeNull();
+      // The row keeps its own identity rather than taking the answer's scope.
+      expect(screen.getByTestId(mcpServerRowTestId(alpha))).toBeInTheDocument();
+    });
+
+    it("Should check a server through the profile the page is listing", async () => {
+      const user = userEvent.setup();
+      const checks: URL[] = [];
+      const broken: SettingsMCPServerEntry = {
+        ...definitions[0]!,
+        runtime_status: {
+          state: "runtime_unavailable",
+          probe: "failed",
+          diagnostic: "spawn npx ENOENT",
+        } as SettingsMCPServerEntry["runtime_status"],
+      };
+      definitions = [broken];
+      server.use(
+        http.post("*/api/settings/mcp-servers/:name/check", ({ request }) => {
+          checks.push(new URL(request.url));
+          return HttpResponse.json(broken);
+        })
+      );
+      renderSettings({ profile: "work" });
+
+      await user.click(await screen.findByRole("button", { name: "github is not working" }));
+      const panel = await screen.findByRole("dialog", { name: "github isn't working" });
+      await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
+      await waitFor(() => expect(checks).toHaveLength(1));
+      expect(checks[0]?.searchParams.get("scope")).toBe("user");
+      expect(checks[0]?.searchParams.get("profile")).toBe("work");
     });
   });
 });

@@ -3,6 +3,9 @@ import { Plus, Trash2 } from "@compozy/ui/icons";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 
+/** Row identities for the draft's secret keys, shared by every view of those rows. */
+export type MCPSecretRowKeys = ReturnType<typeof useLocalRowKeys>;
+
 import type {
   MCPDraft,
   MCPDraftErrors,
@@ -16,6 +19,8 @@ import { MCPFieldLabel } from "./mcp-editor-fields";
 export interface MCPEditorProcessSectionProps {
   draft: MCPDraft;
   errors: MCPDraftErrors;
+  /** Owned by the editor: "Key it needs" shows the same rows. */
+  secretRowKeys: MCPSecretRowKeys;
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
 }
 
@@ -26,7 +31,12 @@ export interface MCPEditorProcessSectionProps {
  * Only stdio carries these — `toRequest` omits command, args, env, and secret_env entirely on a
  * remote definition — so the caller renders this only while the local transport is selected.
  */
-export function MCPEditorProcessSection({ draft, errors, onChange }: MCPEditorProcessSectionProps) {
+export function MCPEditorProcessSection({
+  draft,
+  errors,
+  secretRowKeys,
+  onChange,
+}: MCPEditorProcessSectionProps) {
   return (
     <div className="flex flex-col gap-5" data-testid="settings-mcp-editor-stdio">
       <ArgsEditor
@@ -39,6 +49,7 @@ export function MCPEditorProcessSection({ draft, errors, onChange }: MCPEditorPr
         onChange={env => onChange(current => ({ ...current, env }))}
       />
       <SecretKeyNames
+        rowKeys={secretRowKeys}
         secretEnv={draft.secretEnv}
         errors={errors.secretEnv}
         onChange={secretEnv => onChange(current => ({ ...current, secretEnv }))}
@@ -185,15 +196,16 @@ function EnvEditor({
 }
 
 function SecretKeyNames({
+  rowKeys,
   secretEnv,
   errors,
   onChange,
 }: {
+  rowKeys: MCPSecretRowKeys;
   secretEnv: MCPSecretEnvEntry[];
   errors?: Record<number, string>;
   onChange: (next: MCPSecretEnvEntry[]) => void;
 }) {
-  const rowKeys = useLocalRowKeys(secretEnv, "mcp-secret");
   return (
     <div>
       <MCPFieldLabel hint="values stay hidden">Keys it needs</MCPFieldLabel>

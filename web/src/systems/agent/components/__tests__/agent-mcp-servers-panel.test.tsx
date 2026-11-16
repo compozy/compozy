@@ -189,6 +189,9 @@ describe("Agent MCP server picker", () => {
     const sentry = await screen.findByRole("checkbox", { name: "sentry" });
     expect(sentry).toBeChecked();
     expect(sentry).toHaveAttribute("aria-disabled", "true");
+    // A screen reader hears why the saved server can't be unchecked.
+    expect(sentry).toHaveAccessibleDescription("Already added");
+    expect(screen.getByRole("checkbox", { name: "linear" })).not.toHaveAccessibleDescription();
     expect(screen.getByRole("checkbox", { name: "linear" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "notion" })).not.toBeChecked();
     expect(screen.getByTestId("agent-mcp-picker-save")).toHaveTextContent("Save · 2 servers");
@@ -203,6 +206,27 @@ describe("Agent MCP server picker", () => {
       { name: "local-docs", command: "docs-server" },
       { name: "notion", reference: true },
       { name: "grafana", reference: true },
+    ]);
+  });
+
+  it("Should free an unchecked staged name for a new server and leave it out of Save", async () => {
+    serveConfiguredServers();
+    const onSave = renderAddDialog({ additions: [{ name: "linear", reference: true }] });
+    fireEvent.click(await screen.findByRole("checkbox", { name: "linear" }));
+    expect(screen.getByTestId("agent-mcp-picker-save")).toHaveTextContent(/^Save$/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a new server" }));
+    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-transport-stdio"));
+    fireEvent.change(screen.getByTestId("settings-mcp-servers-editor-name-input"), {
+      target: { value: "linear" },
+    });
+    fireEvent.change(screen.getByTestId("settings-mcp-servers-editor-command-input"), {
+      target: { value: "linear-server" },
+    });
+    expect(screen.queryByText("This agent already has this server.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add server" }));
+    expect(onSave).toHaveBeenCalledWith([
+      expect.objectContaining({ name: "linear", command: "linear-server" }),
     ]);
   });
 

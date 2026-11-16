@@ -1,4 +1,4 @@
-import { Disclosure } from "@compozy/ui";
+import { Disclosure, MetadataList, MetadataListRow } from "@compozy/ui";
 
 import type { MCPDraft, MCPDraftErrors } from "../lib/mcp-editor-model";
 import type {
@@ -9,7 +9,8 @@ import type {
 
 import { MCPTargetField } from "./mcp-editor-fields";
 import { MCPEditorOAuthSection } from "./mcp-editor-oauth-section";
-import { MCPEditorProcessSection } from "./mcp-editor-stdio-section";
+import { MCPEditorProcessSection, type MCPSecretRowKeys } from "./mcp-editor-stdio-section";
+import { mcpScopeWords } from "./mcp-server-labels";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
 export interface MCPEditorMoreOptionsProps {
@@ -17,10 +18,13 @@ export interface MCPEditorMoreOptionsProps {
   errors: MCPDraftErrors;
   entry: SettingsMCPServerEntry | null;
   scope: SettingsLayeredScope;
+  /** The project an "Only <project>" scope names. */
+  projectName?: string;
   target: SettingsMCPServerTarget;
   availableTargets: SettingsMCPServerTarget[];
   statusLabel?: string;
   defaultOpen: boolean;
+  secretRowKeys: MCPSecretRowKeys;
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
   onTargetChange: (target: SettingsMCPServerTarget) => void;
 }
@@ -35,10 +39,12 @@ export function MCPEditorMoreOptions({
   errors,
   entry,
   scope,
+  projectName,
   target,
   availableTargets,
   statusLabel,
   defaultOpen,
+  secretRowKeys,
   onChange,
   onTargetChange,
 }: MCPEditorMoreOptionsProps) {
@@ -61,7 +67,12 @@ export function MCPEditorMoreOptions({
             onChange={onChange}
           />
         ) : (
-          <MCPEditorProcessSection draft={draft} errors={errors} onChange={onChange} />
+          <MCPEditorProcessSection
+            draft={draft}
+            errors={errors}
+            onChange={onChange}
+            secretRowKeys={secretRowKeys}
+          />
         )}
         {availableTargets.length > 1 ? (
           <MCPTargetField
@@ -70,38 +81,31 @@ export function MCPEditorMoreOptions({
             target={target}
           />
         ) : null}
-        <dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 text-meta">
-          <dt className="text-faint">Scope</dt>
-          <dd
-            className="truncate font-mono text-muted-foreground"
-            data-testid="settings-mcp-servers-editor-scope-fact"
+        <MetadataList>
+          <MetadataListRow
+            label="Used in"
+            valueProps={{ "data-testid": "settings-mcp-servers-editor-scope-fact" }}
           >
-            {scope}
-          </dd>
+            {mcpScopeWords(scope, { projectName, profile: entry?.profile })}
+          </MetadataListRow>
           {statusLabel ? (
-            <>
-              <dt className="text-faint">Status</dt>
-              <dd
-                className="truncate font-mono text-muted-foreground"
-                data-testid="settings-mcp-servers-editor-status"
-              >
-                {statusLabel}
-              </dd>
-            </>
+            <MetadataListRow
+              label="Status"
+              valueProps={{ "data-testid": "settings-mcp-servers-editor-status" }}
+            >
+              {statusLabel}
+            </MetadataListRow>
           ) : null}
           {entry ? (
-            <>
-              <dt className="text-faint">Comes from</dt>
-              <dd className="min-w-0">
-                <SettingsSourceBadge
-                  data-testid="settings-mcp-servers-editor-source"
-                  shadowed={entry.source_metadata.shadowed_sources ?? []}
-                  source={entry.source_metadata.effective_source}
-                />
-              </dd>
-            </>
+            <MetadataListRow label="Comes from">
+              <SettingsSourceBadge
+                data-testid="settings-mcp-servers-editor-source"
+                shadowed={entry.source_metadata.shadowed_sources ?? []}
+                source={entry.source_metadata.effective_source}
+              />
+            </MetadataListRow>
           ) : null}
-        </dl>
+        </MetadataList>
       </div>
     </Disclosure>
   );

@@ -463,6 +463,10 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   await settingsUI.mcpServers.deleteConfirm.click();
   const removed = await removedResponse;
   expect(removed.ok()).toBe(true);
+  // The delete names the scope it removes from, never the page's default.
+  const removedURL = new URL(removed.url());
+  expect(removedURL.searchParams.get("scope")).toBe("workspace");
+  expect(removedURL.searchParams.get("workspace_id")).toBe(workspace.id);
   const removal = await removed.json();
   expect(removal).toMatchObject({ applied: true, next_action: "none" });
   expect(removal.restart_required ?? false).toBe(false);

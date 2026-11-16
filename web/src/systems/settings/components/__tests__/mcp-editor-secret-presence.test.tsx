@@ -98,6 +98,7 @@ describe("MCP editor stdio secret binding errors", () => {
         }}
         errors={{ secretEnv: { 0: "Enter a value or select a Vault reference" } }}
         onChange={() => undefined}
+        secretRowKeys={{ keys: ["secret-0"], append: () => undefined, remove: () => undefined }}
       />
     );
 

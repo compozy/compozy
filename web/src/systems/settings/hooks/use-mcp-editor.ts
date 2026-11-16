@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import { mcpEditorLogic, type MCPEditorState } from "../stores/mcp-editor-store";
 import { deriveMCPManagementFilter } from "../lib/mcp-management-target";
+import { settingsKeys } from "../lib/query-keys";
 import {
   emptyDraft,
   toDraft,
@@ -17,6 +18,7 @@ import type { MCPServerEditorProps } from "../components/mcp-server-editor";
 import type { MCPScopeChoice } from "../components/mcp-editor-fields";
 import type {
   SettingsMCPServerEntry,
+  SettingsMCPServerListFilter,
   SettingsLayeredScope,
   SettingsMCPServerTarget,
 } from "../types";
@@ -85,15 +87,12 @@ function useMCPEditor({
   });
 
   // A new server whose chosen scope differs from the page's list is checked against that
-  // scope's own list, or a same-name server there would be overwritten by the PUT.
+  // scope's own list, or a same-name server there would be overwritten by the PUT. Picking the
+  // scope drops that list's cache, so only a list read after the pick counts, never a cached one.
+  const queryClient = useQueryClient();
   const otherScope = editor.mode === "create" && editor.scope !== createScope ? editor.scope : null;
   const otherServers = useSettingsMCPServers(
-    otherScope === "workspace"
-      ? {
-          scope: "workspace",
-          workspace_id: editor.mode === "closed" ? undefined : editor.workspaceId,
-        }
-      : { scope: "user" },
+    otherScopeFilter(otherScope, editor.mode === "closed" ? undefined : editor.workspaceId),
     { enabled: enabled && otherScope !== null }
   );
   const nameCheck = otherScope
@@ -161,11 +160,23 @@ function useMCPEditor({
   };
 
   const { errors, isValid } = mcpEditorValidation(editor, nameCheck.servers, nameCheck.ready);
-  const scopeChoice = mcpScopeChoice(editor, createScope, project, scope =>
-    editorLogic.trigger.scopeChanged(
-      scope === "workspace" && project ? { scope, workspaceId: project.id } : { scope: "user" }
-    )
-  );
+  const scopeChoice = mcpScopeChoice(editor, createScope, project, scope => {
+    const next =
+      scope === "workspace" && project
+        ? { scope, workspaceId: project.id }
+        : { scope: "user" as const };
+    if (next.scope !== createScope) {
+      void queryClient.resetQueries({
+        queryKey: settingsKeys.mcpList(otherScopeFilter(next.scope, next.workspaceId)),
+        exact: true,
+      });
+    }
+    editorLogic.trigger.scopeChanged(next);
+  });
+  const savePending =
+    editor.mode === "create" && !nameCheck.ready && !nameCheck.error
+      ? "Checking which names are already taken…"
+      : undefined;
 
   const saveEditor = () => {
     if (editor.mode === "closed" || !isValid) return;
@@ -218,6 +229,7 @@ function useMCPEditor({
           onTargetChange: setEditorTarget,
           open: true,
           saveError: errorMessage(putMutation.error),
+          savePending,
           serversError: editor.mode === "create" ? nameCheck.error : null,
           scopeChoice,
           scope: editor.scope,
@@ -230,6 +242,16 @@ function useMCPEditor({
 }
 
 export { useMCPEditor };
+
+/** The list a create in another scope checks names against. */
+function otherScopeFilter(
+  scope: SettingsLayeredScope | null,
+  workspaceId: string | undefined
+): SettingsMCPServerListFilter {
+  return scope === "workspace"
+    ? { scope: "workspace", workspace_id: workspaceId }
+    : { scope: "user" };
+}
 export type { UseMCPEditorOptions };
 
 function mcpEditorValidation(

@@ -1,4 +1,6 @@
 import { useState } from "react";
+
+import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 import { Plug, Plus, Trash2 } from "@compozy/ui/icons";
 
 import {
@@ -40,6 +42,8 @@ export interface MCPServerEditorProps {
   isValid: boolean;
   isSaving: boolean;
   saveError: string | null;
+  /** Why Save waits (the name check's list is still loading); shown beside the disabled Save. */
+  savePending?: string;
   /** Create only: the server list the name check needs could not load; retry keeps the draft. */
   serversError?: { message: string; retry: () => void } | null;
   warnings?: string[];
@@ -76,6 +80,7 @@ export function MCPServerEditor({
   isValid,
   isSaving,
   saveError,
+  savePending,
   serversError,
   warnings,
   vaultInventory,
@@ -97,6 +102,8 @@ export function MCPServerEditor({
   const [picked, setPicked] = useState<MCPTransport | null>(() =>
     isCreate && mcpSourceLine(draft).trim() === "" ? null : draft.transport
   );
+  // One identity per secret row, shared by "Key it needs" and the names under More options.
+  const secretRowKeys = useLocalRowKeys(draft.secretEnv, "mcp-secret");
   if (!open) return null;
 
   const touch = (field: MCPRequiredField) => {
@@ -171,6 +178,7 @@ export function MCPServerEditor({
             picked={picked}
           />
           <MCPEditorKeysSection
+            rowKeys={secretRowKeys}
             draft={draft}
             errors={errors}
             onChange={onChange}
@@ -185,7 +193,9 @@ export function MCPServerEditor({
             errors={errors}
             onChange={onChange}
             onTargetChange={onTargetChange}
+            projectName={scopeChoice?.projectName}
             scope={scope}
+            secretRowKeys={secretRowKeys}
             statusLabel={statusLabel}
             target={target}
           />
@@ -195,7 +205,11 @@ export function MCPServerEditor({
         <EntityDialogFooter
           cancelDisabled={isSaving}
           cancelTestId="settings-mcp-servers-editor-cancel"
-          hint={isCreate || !onRemove ? "Agents get its tools on their next message." : undefined}
+          hint={
+            savePending ??
+            (isCreate || !onRemove ? "Agents get its tools on their next message." : undefined)
+          }
+          hintTestId="settings-mcp-servers-editor-hint"
           isSaving={isSaving}
           leading={
             !isCreate && onRemove ? (

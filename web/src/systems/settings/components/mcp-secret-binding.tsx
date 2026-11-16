@@ -9,6 +9,7 @@ import {
   type MCPDraftErrors,
   type MCPSecretEnvEntry,
 } from "../lib/mcp-editor-model";
+import type { MCPSecretRowKeys } from "./mcp-editor-stdio-section";
 
 export type MCPVaultInventory =
   | { status: "loading" }
@@ -102,18 +103,21 @@ export function MCPEditorKeysSection({
   draft,
   errors,
   vaultInventory,
+  rowKeys,
   onChange,
 }: {
   draft: MCPDraft;
   errors: MCPDraftErrors;
   vaultInventory: MCPVaultInventory;
+  /** The editor's identities for `draft.secretEnv`, so a removed row never shifts another's. */
+  rowKeys: MCPSecretRowKeys;
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
 }) {
   const named = draft.secretEnv.flatMap((entry, index) =>
-    entry.key.trim() ? [{ entry, index }] : []
+    entry.key.trim() ? [{ entry, index, rowKey: rowKeys.keys[index] ?? String(index) }] : []
   );
   // A missing value speaks up once its field was left; the count above says it from the start.
-  const [left, setLeft] = useState<ReadonlySet<number>>(() => new Set());
+  const [left, setLeft] = useState<ReadonlySet<string>>(() => new Set());
   if (draft.transport !== "stdio" || named.length === 0) return null;
   const missing = named.filter(({ entry }) => isSecretEnvUnset(entry)).length;
   return (
@@ -124,13 +128,13 @@ export function MCPEditorKeysSection({
       rightLabel={missing > 0 ? `${missing} required` : undefined}
       title={named.length === 1 ? "Key it needs" : "Keys it needs"}
     >
-      {named.map(({ entry, index }) => (
+      {named.map(({ entry, index, rowKey }) => (
         <MCPSecretKeyField
           entry={entry}
-          error={left.has(index) ? errors.secretEnv?.[index] : undefined}
+          error={left.has(rowKey) ? errors.secretEnv?.[index] : undefined}
           index={index}
-          onBlur={() => setLeft(current => new Set(current).add(index))}
-          key={index}
+          onBlur={() => setLeft(current => new Set(current).add(rowKey))}
+          key={rowKey}
           onChange={next =>
             onChange(current => ({
               ...current,

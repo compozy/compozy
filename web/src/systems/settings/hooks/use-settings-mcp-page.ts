@@ -52,7 +52,7 @@ export function useMCPServerManagement({
       profile: filter.profile,
     },
   });
-  const serverCheck = useMCPServerCheck();
+  const serverCheck = useMCPServerCheck({ profile });
   const servers = collection.data?.mcp_servers ?? [];
   // A create checks names against a list refetched when the editor opens, never a stale cache.
   // `fetchStatus` stays `paused` (not fetching) while offline, so only `idle` proves it settled.
