@@ -77,11 +77,14 @@ type RunLoopResponse struct {
 
 // RunOutcome is a daemon API value.
 type RunOutcome struct {
-	Status    Status    `json:"status"`
-	Cause     string    `json:"cause"`
-	ActorKind string    `json:"actor_kind,omitempty"`
-	ActorRef  string    `json:"actor_ref,omitempty"`
-	At        time.Time `json:"at"`
+	Status     Status    `json:"status"`
+	Cause      string    `json:"cause"`
+	ActorKind  string    `json:"actor_kind,omitempty"`
+	ActorRef   string    `json:"actor_ref,omitempty"`
+	ReasonCode string    `json:"reason_code,omitempty"`
+	NodeID     NodeID    `json:"node_id,omitempty"`
+	Message    string    `json:"message,omitempty"`
+	At         time.Time `json:"at"`
 }
 
 // RunPayload is a daemon API value.
