@@ -5,6 +5,7 @@ import (
 
 	"path/filepath"
 
+	"slices"
 	"strings"
 	"testing"
 
@@ -360,6 +361,123 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 			t.Fatalf("loaded second CurrentValue = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should reannounce per-model config options after a selection", func(t *testing.T) {
+		t.Parallel()
+
+		models := []acpmock.SessionConfigOptionValueFixture{
+			{Value: "qa-argon", Label: "QA Argon"},
+			{Value: "qa-hydrogen", Label: "QA Hydrogen"},
+		}
+		levels := func(values ...string) []acpmock.SessionConfigOptionValueFixture {
+			result := make([]acpmock.SessionConfigOptionValueFixture, 0, len(values))
+			for _, value := range values {
+				result = append(result, acpmock.SessionConfigOptionValueFixture{Value: value})
+			}
+			return result
+		}
+		optionSet := func(
+			currentModel string,
+			thoughts []acpmock.SessionConfigOptionValueFixture,
+		) []acpmock.SessionConfigOptionFixture {
+			modelValues := make([]acpmock.SessionConfigOptionValueFixture, len(models))
+			copy(modelValues, models)
+			return []acpmock.SessionConfigOptionFixture{
+				{
+					ID: "model", Name: "Model", Category: "model", Current: currentModel,
+					Values: modelValues,
+				},
+				{
+					ID: "thought_level", Name: "Thinking", Category: "thought_level", Current: "medium",
+					Values: thoughts,
+				},
+			}
+		}
+		argonLevels := levels("low", "medium", "high")
+		hydrogenLevels := levels("low", "medium", "high", "xhigh")
+		models[0].WhenSelected = optionSet("qa-argon", argonLevels)
+		models[1].WhenSelected = optionSet("qa-hydrogen", hydrogenLevels)
+		base := optionSet("qa-argon", argonLevels)
+
+		agent := &mockAgent{
+			agent:            acpmock.AgentFixture{Name: "per-model-options"},
+			configTemplate:   sessionConfigOptionsFromFixture(base),
+			configReannounce: sessionConfigReannouncements(base),
+			diagnosticsPath:  filepath.Join(t.TempDir(), "config-options.jsonl"),
+			sessions:         map[string]*sessionState{},
+		}
+		session, err := agent.NewSession(t.Context(), acpsdk.NewSessionRequest{})
+		if err != nil {
+			t.Fatalf("NewSession() error = %v", err)
+		}
+		if got := thoughtLevelValues(session.ConfigOptions); !slices.Equal(
+			got,
+			[]string{"low", "medium", "high"},
+		) {
+			t.Fatalf("initial thought_level values = %#v, want the three-level model", got)
+		}
+
+		selectValue := func(configID string, value string) acpsdk.SetSessionConfigOptionResponse {
+			t.Helper()
+			response, selectErr := agent.SetSessionConfigOption(
+				t.Context(),
+				acpsdk.SetSessionConfigOptionRequest{
+					ValueId: &acpsdk.SetSessionConfigOptionValueId{
+						SessionId: session.SessionId,
+						ConfigId:  acpsdk.SessionConfigId(configID),
+						Value:     acpsdk.SessionConfigValueId(value),
+					},
+				},
+			)
+			if selectErr != nil {
+				t.Fatalf("SetSessionConfigOption(%s=%s) error = %v", configID, value, selectErr)
+			}
+			return response
+		}
+
+		hydrogen := selectValue("model", "qa-hydrogen")
+		if got, want := hydrogen.ConfigOptions[0].Select.CurrentValue,
+			acpsdk.SessionConfigValueId("qa-hydrogen"); got != want {
+			t.Fatalf("reannounced model = %q, want %q", got, want)
+		}
+		if got := thoughtLevelValues(hydrogen.ConfigOptions); !slices.Equal(
+			got,
+			[]string{"low", "medium", "high", "xhigh"},
+		) {
+			t.Fatalf("Hydrogen thought_level values = %#v, want the four-level model", got)
+		}
+		effort := selectValue("thought_level", "xhigh")
+		if got, want := effort.ConfigOptions[1].Select.CurrentValue,
+			acpsdk.SessionConfigValueId("xhigh"); got != want {
+			t.Fatalf("thought_level current = %q, want %q", got, want)
+		}
+
+		argon := selectValue("model", "qa-argon")
+		if got := thoughtLevelValues(argon.ConfigOptions); !slices.Equal(
+			got,
+			[]string{"low", "medium", "high"},
+		) {
+			t.Fatalf("Argon thought_level values = %#v, want the three-level model", got)
+		}
+		if slices.Contains(thoughtLevelValues(argon.ConfigOptions), "xhigh") {
+			t.Fatalf("Argon thought_level values = %#v, want no xhigh", thoughtLevelValues(argon.ConfigOptions))
+		}
+	})
+}
+
+func thoughtLevelValues(options []acpsdk.SessionConfigOption) []string {
+	for _, option := range options {
+		if option.Select == nil || string(option.Select.Id) != "thought_level" ||
+			option.Select.Options.Ungrouped == nil {
+			continue
+		}
+		values := make([]string, 0, len(*option.Select.Options.Ungrouped))
+		for _, value := range *option.Select.Options.Ungrouped {
+			values = append(values, string(value.Value))
+		}
+		return values
+	}
+	return nil
 }
 
 func TestMockAgentLoadSessionValidation(t *testing.T) {

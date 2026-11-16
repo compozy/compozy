@@ -190,6 +190,12 @@ func (o SessionConfigOptionFixture) Validate(path string) error {
 		if trimmed == current {
 			currentFound = true
 		}
+		for nestedIdx, nested := range value.WhenSelected {
+			nestedPath := fmt.Sprintf("%s.values[%d].when_selected[%d]", path, idx, nestedIdx)
+			if err := nested.Validate(nestedPath); err != nil {
+				return err
+			}
+		}
 	}
 	if !currentFound {
 		return fmt.Errorf("acpmock: %s.current %q must be listed in values", path, current)

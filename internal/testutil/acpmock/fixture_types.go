@@ -71,6 +71,10 @@ type SessionConfigOptionValueFixture struct {
 	// RejectSet makes session/set_config_option to this advertised value fail, which
 	// scripts a start that ACP accepted (session/new returned) and then failed.
 	RejectSet bool `json:"reject_set,omitzero"`
+	// WhenSelected replaces the session's whole config option set after this value is
+	// accepted. It scripts providers that reannounce their controls per selection:
+	// selecting one model returns that model's own thought levels.
+	WhenSelected []SessionConfigOptionFixture `json:"when_selected,omitempty"`
 }
 
 // RejectsConfigValue reports whether the fixture scripts a set_config_option failure.

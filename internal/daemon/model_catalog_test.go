@@ -1101,7 +1101,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
-	t.Run("Should publish exact Agy models with context isolation", func(t *testing.T) {
+	t.Run("Should publish native Agy models inside the effective command context", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -1111,52 +1111,58 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveProvider(agy) error = %v", err)
 		}
-		if strings.TrimSpace(provider.Command) == "" ||
-			!strings.Contains(provider.Command, "agy_acp_server") {
-			t.Fatalf("agy discovery command = %q, want the effective server command", provider.Command)
-		}
 		if provider.EffectiveHomePolicy() != compozyconfig.ProviderHomePolicyOperator {
 			t.Fatalf("agy home policy = %q, want operator", provider.EffectiveHomePolicy())
 		}
-		// Mirrors the live agy 1.4.0 advertisement: bare model IDs plus a
-		// thinking_level selector; effort is not encoded in the model IDs.
-		modelOption := acp.SessionConfigOption{
-			ID:   "model",
-			Kind: acp.SessionConfigOptionKindSelect,
-			Values: []acp.SessionConfigOptionValue{
-				{Value: "gemini-4-argon", Label: "Gemini 4 Argon"},
-				{Value: "gemini-3.8-flash", Label: "Gemini 3.8 Flash"},
-			},
+		// Antigravity CLI 1.5.9 shape: the `model` config option advertises seven
+		// logical IDs while a separate legacy list repeats 18 effort-suffixed
+		// transport aliases. Selecting each model re-announces its own thought
+		// levels, so Argon's three must not cap Hydrogen's four.
+		logicalModels := []struct {
+			id      string
+			efforts []string
+			current string
+		}{
+			{id: "gemini-4-argon", efforts: []string{"low", "medium", "high"}, current: "medium"},
+			{id: "gemini-4-hydrogen", efforts: []string{"low", "medium", "high", "xhigh"}, current: "medium"},
+			{id: "gemini-pro-orchestrator-g1-pro", efforts: []string{"low", "medium", "high"}, current: "medium"},
+			{id: "gemini-3.8-flash", efforts: []string{"low", "medium", "high"}, current: "high"},
+			{id: "claude-opus-5-5", efforts: []string{"low", "medium", "high"}, current: "medium"},
+			{id: "claude-sonnet-5-5", efforts: []string{"low", "high"}, current: "high"},
+			{id: "gpt-oss-120b-medium", efforts: []string{"low", "medium", "high"}, current: "medium"},
 		}
-		reasoningOption := acp.SessionConfigOption{
-			ID: "thinking_level", Category: "thought_level", Kind: acp.SessionConfigOptionKindSelect,
-			CurrentValueID: "high",
-			Values: []acp.SessionConfigOptionValue{
-				{Value: "low", Label: "Low"},
-				{Value: "medium", Label: "Medium"},
-				{Value: "high", Label: "High"},
-			},
+		modelValues := make([]acp.SessionConfigOptionValue, 0, len(logicalModels))
+		for _, model := range logicalModels {
+			modelValues = append(modelValues, acp.SessionConfigOptionValue{Value: model.id, Label: model.id})
+		}
+		modelOption := acp.SessionConfigOption{
+			ID: "model", Category: "model", Kind: acp.SessionConfigOptionKindSelect,
+			CurrentValueID: logicalModels[0].id, Values: modelValues,
+		}
+		thoughtLevel := func(current string, efforts []string) acp.SessionConfigOption {
+			values := make([]acp.SessionConfigOptionValue, 0, len(efforts))
+			for _, effort := range efforts {
+				values = append(values, acp.SessionConfigOptionValue{Value: effort, Label: effort})
+			}
+			return acp.SessionConfigOption{
+				ID: "thought_level", Category: "thought_level",
+				Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: current, Values: values,
+			}
 		}
 		probe := &recordingAgyACPProbe{
-			options: []acp.SessionConfigOption{modelOption, reasoningOption},
-			models:  make(map[string][]acp.SessionConfigOption),
+			options: []acp.SessionConfigOption{
+				modelOption,
+				thoughtLevel(logicalModels[0].current, logicalModels[0].efforts),
+			},
+			models: make(map[string][]acp.SessionConfigOption, len(logicalModels)),
 		}
-		// Flash advertises its own narrower selector so the catalog must derive
-		// efforts per selected model rather than reuse one global option.
-		flashReasoningOption := reasoningOption
-		flashReasoningOption.CurrentValueID = "low"
-		flashReasoningOption.Values = []acp.SessionConfigOptionValue{
-			{Value: "low", Label: "Low"},
-			{Value: "high", Label: "High"},
-		}
-		modelReasoning := map[string]acp.SessionConfigOption{
-			"gemini-4-argon":   reasoningOption,
-			"gemini-3.8-flash": flashReasoningOption,
-		}
-		for _, value := range modelOption.Values {
+		for _, model := range logicalModels {
 			selectedModel := modelOption
-			selectedModel.CurrentValueID = value.Value
-			probe.models[value.Value] = []acp.SessionConfigOption{selectedModel, modelReasoning[value.Value]}
+			selectedModel.CurrentValueID = model.id
+			probe.models[model.id] = []acp.SessionConfigOption{
+				selectedModel,
+				thoughtLevel(model.current, model.efforts),
+			}
 		}
 		workingDir := t.TempDir()
 		liveSource, err := modelcatalog.NewLiveProviderSource(
@@ -1217,8 +1223,8 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatalf("Refresh(agy live) error = %v", err)
 		}
 		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("agy"))
-		if !ok || status.RefreshState != modelcatalog.RefreshStateSucceeded || status.RowCount != 2 {
-			t.Fatalf("agy live status = %#v, want 2 succeeded rows", status)
+		if !ok || status.RefreshState != modelcatalog.RefreshStateSucceeded || status.RowCount != 7 {
+			t.Fatalf("agy live status = %#v, want 7 succeeded logical rows", status)
 		}
 		// The discovery seam carries only command/cwd/env/timeout: inspection
 		// sends no prompt, authenticate, tool, or MCP message through this path.
@@ -1241,18 +1247,27 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(agy) error = %v", err)
 		}
-		if got, want := catalogModelIDs(models, "agy"), []string{
-			"gemini-3.8-flash",
-			"gemini-4-argon",
-		}; !slices.Equal(got, want) {
-			t.Fatalf("agy models = %#v, want exact advertised %#v", got, want)
+		wantIDs := make([]string, 0, len(logicalModels))
+		for _, model := range logicalModels {
+			wantIDs = append(wantIDs, model.id)
 		}
-		wantReasoning := map[string]struct {
+		slices.Sort(wantIDs)
+		if got := catalogModelIDs(models, "agy"); !slices.Equal(got, wantIDs) {
+			t.Fatalf("agy models = %#v, want the logical advertised %#v", got, wantIDs)
+		}
+		wantReasoning := make(map[string]struct {
 			efforts []modelcatalog.ReasoningEffort
 			def     modelcatalog.ReasoningEffort
-		}{
-			"gemini-4-argon":   {efforts: []modelcatalog.ReasoningEffort{"low", "medium", "high"}, def: "high"},
-			"gemini-3.8-flash": {efforts: []modelcatalog.ReasoningEffort{"low", "high"}, def: "low"},
+		}, len(logicalModels))
+		for _, model := range logicalModels {
+			efforts := make([]modelcatalog.ReasoningEffort, 0, len(model.efforts))
+			for _, effort := range model.efforts {
+				efforts = append(efforts, modelcatalog.ReasoningEffort(effort))
+			}
+			wantReasoning[model.id] = struct {
+				efforts []modelcatalog.ReasoningEffort
+				def     modelcatalog.ReasoningEffort
+			}{efforts: efforts, def: modelcatalog.ReasoningEffort(model.current)}
 		}
 		for _, model := range models {
 			want := wantReasoning[model.ModelID]
@@ -1267,6 +1282,122 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 					want.def,
 				)
 			}
+		}
+		hydrogen := models[0]
+		for _, model := range models {
+			if model.ModelID == "gemini-4-hydrogen" {
+				hydrogen = model
+			}
+		}
+		if !slices.Equal(
+			hydrogen.ReasoningEfforts,
+			[]modelcatalog.ReasoningEffort{"low", "medium", "high", "xhigh"},
+		) || slices.Contains(hydrogen.ReasoningEfforts, "max") {
+			t.Fatalf("Hydrogen efforts = %#v, want its advertised four levels without max", hydrogen.ReasoningEfforts)
+		}
+
+		// Upgrade boundary: the previous standalone invocation keeps its own
+		// command/home context. Refreshing it must not republish those three rows
+		// as a fresh CLI observation, and the new context must not inherit them.
+		oldProvider := provider
+		oldProvider.Command = "/opt/legacy/agy_acp_server.par --uid="
+		oldProbe := &recordingAgyACPProbe{options: []acp.SessionConfigOption{{
+			ID:   "model",
+			Kind: acp.SessionConfigOptionKindSelect,
+			Values: []acp.SessionConfigOptionValue{
+				{Value: "gemini-4-argon-medium"},
+				{Value: "gemini-4-argon-high"},
+				{Value: "gemini-3.8-flash-medium"},
+			},
+		}}}
+		oldSource, err := modelcatalog.NewLiveProviderSource(
+			"agy",
+			oldProvider,
+			&modelcatalog.LiveProviderSourcesConfig{
+				HomePaths: homePaths,
+				BaseEnv:   []string{"PATH=/bin", "HOME=/tmp/agy-operator"},
+				ACPProbe:  oldProbe, WorkingDir: workingDir, DefaultTimeout: 5 * time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource(legacy agy) error = %v", err)
+		}
+		oldFingerprint, err := oldSource.CatalogExecutionFingerprint()
+		if err != nil {
+			t.Fatalf("CatalogExecutionFingerprint(legacy agy) error = %v", err)
+		}
+		newFingerprint, err := liveSource.CatalogExecutionFingerprint()
+		if err != nil {
+			t.Fatalf("CatalogExecutionFingerprint(native agy) error = %v", err)
+		}
+		if oldFingerprint == newFingerprint {
+			t.Fatal("legacy and native agy commands share an execution fingerprint")
+		}
+		oldService, err := modelcatalog.NewService(
+			db,
+			[]modelcatalog.Source{configSource, oldSource},
+			modelcatalog.MergeOptions{ReasoningApply: reasoningApply},
+		)
+		if err != nil {
+			t.Fatalf("NewService(legacy agy) error = %v", err)
+		}
+		oldStatuses, err := oldService.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID:       "agy",
+			ExecutionContext: executionContext,
+			Force:            true,
+		})
+		if err != nil {
+			t.Fatalf("Refresh(legacy agy) error = %v", err)
+		}
+		oldStatus, ok := findSourceStatus(oldStatuses, modelcatalog.SourceKindProviderLiveID("agy"))
+		if !ok || oldStatus.RefreshState != modelcatalog.RefreshStateSucceeded || oldStatus.RowCount != 3 {
+			t.Fatalf("legacy agy status = %#v, want its own 3 succeeded rows", oldStatus)
+		}
+		isolatedNative, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "agy",
+			View:               modelcatalog.CatalogViewAll,
+			ExecutionContext:   executionContext,
+			IncludeStale:       true,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(native agy) error = %v", err)
+		}
+		// The native context may only ever expose its own logical rows: the
+		// previous server's three suffixed aliases must not surface here, fresh
+		// or stale, after the command identity changed.
+		legacyIDs := []string{
+			"gemini-4-argon-medium",
+			"gemini-4-argon-high",
+			"gemini-3.8-flash-medium",
+		}
+		for _, modelID := range catalogModelIDs(isolatedNative, "agy") {
+			if slices.Contains(legacyIDs, modelID) {
+				t.Fatalf("native agy context published legacy row %q after the route change", modelID)
+			}
+			if !slices.Contains(wantIDs, modelID) {
+				t.Fatalf("native agy context published unknown row %q", modelID)
+			}
+		}
+		retainedLegacy, err := oldService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "agy",
+			View:               modelcatalog.CatalogViewAll,
+			ExecutionContext:   executionContext,
+			IncludeStale:       true,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(legacy agy) error = %v", err)
+		}
+		if got, want := catalogModelIDs(retainedLegacy, "agy"), []string{
+			"gemini-3.8-flash-medium",
+			"gemini-4-argon-high",
+			"gemini-4-argon-medium",
+		}; !slices.Equal(got, want) {
+			t.Fatalf("legacy agy models = %#v, want its own %#v", got, want)
+		}
+		if _, err := service.Refresh(ctx, refresh); err != nil {
+			t.Fatalf("Refresh(native agy restore) error = %v", err)
 		}
 
 		cfg.Providers["agy"] = compozyconfig.ProviderConfig{Models: compozyconfig.ProviderModelsConfig{
@@ -1316,8 +1447,8 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(agy stale) error = %v", err)
 		}
-		if got := catalogModelIDs(staleModels, "agy"); len(got) != 2 {
-			t.Fatalf("stale agy models = %#v, want same-context prior rows", got)
+		if got := catalogModelIDs(staleModels, "agy"); !slices.Equal(got, wantIDs) {
+			t.Fatalf("stale agy models = %#v, want the same-context prior %#v", got, wantIDs)
 		}
 		for _, model := range staleModels {
 			if model.ProviderID != "agy" || !model.Stale {
@@ -1388,6 +1519,11 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		if got := probe.callCount(); got != callsBeforeDisable {
 			t.Fatalf("agy probe calls = %d, want %d with no peer call while disabled", got, callsBeforeDisable)
+		}
+		// Native launch contract: discovery runs the installed CLI with its sole
+		// `acp` argument and no standalone server fallback.
+		if got := strings.TrimSpace(provider.Command); got != "agy acp" {
+			t.Fatalf("agy discovery command = %q, want the native CLI ACP entry", got)
 		}
 	})
 

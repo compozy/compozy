@@ -524,6 +524,11 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			),
 			want: "delay_ms exceeds duration capacity",
 		},
+		{
+			name: "Should reject invalid per-model reannouncement",
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","config_options":[{"id":"model","name":"Model","current":"argon","values":[{"value":"argon"},{"value":"hydrogen","when_selected":[{"id":"thought_level","name":"Thinking","current":"xhigh","values":[{"value":"low"}]}]}]}],"turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+			want: "when_selected[0].current",
+		},
 	}
 
 	for _, tc := range cases {
@@ -535,6 +540,38 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseFixtureAcceptsPerModelConfigOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept per-model config option reannouncements", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, err := ParseFixture([]byte(`{"version":2,"agents":[{"name":"alpha","provider":"agy",
+"config_options":[{"id":"model","name":"Model","category":"model","current":"argon","values":[
+{"value":"argon"},{"value":"hydrogen","when_selected":[
+{"id":"model","name":"Model","category":"model","current":"hydrogen","values":[{"value":"argon"},{"value":"hydrogen"}]},
+{"id":"thought_level","name":"Thinking","category":"thought_level","current":"medium","values":[
+{"value":"low"},{"value":"medium"},{"value":"high"},{"value":"xhigh"}]}]}]}],
+"turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`))
+		if err != nil {
+			t.Fatalf("ParseFixture(per-model options) error = %v", err)
+		}
+		agent, err := fixture.Agent("alpha")
+		if err != nil {
+			t.Fatalf("fixture.Agent(alpha) error = %v", err)
+		}
+		hydrogen := agent.ConfigOptions[0].Values[1]
+		if len(hydrogen.WhenSelected) != 2 {
+			t.Fatalf("hydrogen when_selected = %#v, want model and thought_level", hydrogen.WhenSelected)
+		}
+		thoughtLevel := hydrogen.WhenSelected[1]
+		if thoughtLevel.ID != "thought_level" || thoughtLevel.Category != "thought_level" ||
+			len(thoughtLevel.Values) != 4 {
+			t.Fatalf("thought_level reannouncement = %#v, want four model-specific levels", thoughtLevel)
+		}
+	})
 }
 
 func TestParseFixtureAcceptsScriptedUsage(t *testing.T) {

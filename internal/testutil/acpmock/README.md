@@ -73,3 +73,47 @@ A `fail_prompt` driver control may set `when_path_missing` to a path relative to
 directory. The step then fails the prompt only while that path is absent and otherwise lets the turn
 continue. `testdata/provider_error_fixture.json` agent `signin-agent` uses `.provider-credential` this
 way to stand in for a provider sign-in that a lab removes and restores (`RT-provider-auth-recovery`).
+
+## Per-model session config options
+
+`config_options` advertises the options returned by `session/new`. A value may also set
+`when_selected`, which replaces the session's whole option set once
+`session/set_config_option` accepts that value. Use it when the provider reannounces its
+controls per model, such as a thought-level selector whose values depend on the selected
+model; without it every model keeps one shared value list.
+
+```json
+"config_options": [
+  {
+    "id": "model", "name": "Model", "category": "model", "current": "gemini-4-argon",
+    "values": [
+      { "value": "gemini-4-argon",
+        "when_selected": [
+          { "id": "model", "name": "Model", "category": "model", "current": "gemini-4-argon",
+            "values": [{ "value": "gemini-4-argon" }, { "value": "gemini-4-hydrogen" }] },
+          { "id": "thought_level", "name": "Thinking", "category": "thought_level",
+            "current": "medium",
+            "values": [{ "value": "low" }, { "value": "medium" }, { "value": "high" }] }
+        ] },
+      { "value": "gemini-4-hydrogen",
+        "when_selected": [
+          { "id": "model", "name": "Model", "category": "model", "current": "gemini-4-hydrogen",
+            "values": [{ "value": "gemini-4-argon" }, { "value": "gemini-4-hydrogen" }] },
+          { "id": "thought_level", "name": "Thinking", "category": "thought_level",
+            "current": "medium",
+            "values": [{ "value": "low" }, { "value": "medium" }, { "value": "high" },
+                       { "value": "xhigh" }] }
+        ] }
+    ]
+  }
+]
+```
+
+- The accepted `session/set_config_option` response returns the replacement set, and later
+  selections use it. Declare the model option again in the replacement when model switches
+  must stay possible.
+- Nested `when_selected` entries are honored, so switching back can restore the first
+  model's values.
+- Validation rejects a replacement whose `current` is not listed in its `values`, reporting
+  `...config_options[i].values[j].when_selected[k]`.
+- Sessions stay isolated: another session keeps the advertised template.

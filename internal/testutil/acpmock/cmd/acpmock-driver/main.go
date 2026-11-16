@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"sync"
@@ -38,13 +39,14 @@ type sessionState struct {
 }
 
 type mockAgent struct {
-	conn            agentConnection
-	agent           acpmock.AgentFixture
-	configTemplate  []acpsdk.SessionConfigOption
-	diagnosticsPath string
-	provider        string
-	lifecycleCtx    context.Context
-	cancelLifecycle context.CancelFunc
+	conn             agentConnection
+	agent            acpmock.AgentFixture
+	configTemplate   []acpsdk.SessionConfigOption
+	configReannounce map[string][]acpsdk.SessionConfigOption
+	diagnosticsPath  string
+	provider         string
+	lifecycleCtx     context.Context
+	cancelLifecycle  context.CancelFunc
 
 	mu          sync.Mutex
 	sessions    map[string]*sessionState
@@ -89,13 +91,14 @@ func main() {
 	lifecycleCtx, cancelLifecycle := context.WithCancel(context.Background())
 
 	agent := &mockAgent{
-		agent:           agentFixture,
-		configTemplate:  sessionConfigOptionsFromFixture(agentFixture.ConfigOptions),
-		diagnosticsPath: strings.TrimSpace(args.DiagnosticsPath),
-		provider:        strings.TrimSpace(args.Provider),
-		lifecycleCtx:    lifecycleCtx,
-		cancelLifecycle: cancelLifecycle,
-		sessions:        make(map[string]*sessionState),
+		agent:            agentFixture,
+		configTemplate:   sessionConfigOptionsFromFixture(agentFixture.ConfigOptions),
+		configReannounce: sessionConfigReannouncements(agentFixture.ConfigOptions),
+		diagnosticsPath:  strings.TrimSpace(args.DiagnosticsPath),
+		provider:         strings.TrimSpace(args.Provider),
+		lifecycleCtx:     lifecycleCtx,
+		cancelLifecycle:  cancelLifecycle,
+		sessions:         make(map[string]*sessionState),
 	}
 	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, os.Stdin)
 	agent.SetAgentConnection(conn)
@@ -344,6 +347,33 @@ func sessionConfigOptionsFromFixture(
 	return result
 }
 
+// sessionConfigReannouncements indexes each value's replacement option set, including
+// the nested sets a reannounced selection can itself trigger.
+func sessionConfigReannouncements(
+	options []acpmock.SessionConfigOptionFixture,
+) map[string][]acpsdk.SessionConfigOption {
+	reannouncements := make(map[string][]acpsdk.SessionConfigOption)
+	for _, option := range options {
+		for _, value := range option.Values {
+			if len(value.WhenSelected) == 0 {
+				continue
+			}
+			reannouncements[configReannouncementKey(option.ID, value.Value)] = sessionConfigOptionsFromFixture(
+				value.WhenSelected,
+			)
+			maps.Copy(reannouncements, sessionConfigReannouncements(value.WhenSelected))
+		}
+	}
+	if len(reannouncements) == 0 {
+		return nil
+	}
+	return reannouncements
+}
+
+func configReannouncementKey(configID string, value string) string {
+	return strings.TrimSpace(configID) + "\x00" + strings.TrimSpace(value)
+}
+
 func (a *mockAgent) setConfigOptionValue(sessionID string, configID string, value string) error {
 	trimmedSessionID := strings.TrimSpace(sessionID)
 	trimmedConfigID := strings.TrimSpace(configID)
@@ -378,6 +408,10 @@ func (a *mockAgent) setConfigOptionValue(sessionID string, configID string, valu
 		for _, candidate := range *option.Options.Ungrouped {
 			if string(candidate.Value) == trimmedValue {
 				option.CurrentValue = acpsdk.SessionConfigValueId(trimmedValue)
+				reannounced := a.configReannounce[configReannouncementKey(trimmedConfigID, trimmedValue)]
+				if len(reannounced) > 0 {
+					session.ConfigOptions = cloneSessionConfigOptions(reannounced)
+				}
 				return nil
 			}
 		}
