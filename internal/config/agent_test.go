@@ -2445,7 +2445,7 @@ func TestAgentMCPSidecarAdditions(t *testing.T) {
 			t.Fatal(err)
 		}
 		cfg := DefaultWithHome(paths)
-		if err := applyConfigMCPSidecarFile(
+		if err := ApplyConfigMCPSidecarFile(
 			filepath.Join(paths.HomeDir, MCPJSONName),
 			&cfg,
 		); err == nil ||
