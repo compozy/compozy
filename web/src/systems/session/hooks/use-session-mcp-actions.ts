@@ -227,6 +227,8 @@ export function useSessionMCPActions({
     const entry = definitions.data?.mcp_servers.find(item => sameDefinition(item, row));
     const filter = entry ? deriveMCPAuthFilter(entry) : null;
     if (!entry || !filter) {
+      // Settings takes over from here, so a sign-in still running for another row ends with it.
+      authorization.authorize.cancel();
       onUnresolved();
       return;
     }

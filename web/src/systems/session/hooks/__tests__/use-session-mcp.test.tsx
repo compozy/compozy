@@ -100,10 +100,11 @@ function stubSettings({ allowPending = false }: { allowPending?: boolean } = {})
     isPending: allowPending,
     mutate,
   } as unknown as ReturnType<typeof useAllowMCPServer>);
+  const authorize = { phase: "idle", requestAuthorize: vi.fn(), cancel: vi.fn() };
   vi.mocked(useMCPDefinitionAuthorization).mockReturnValue({
-    authorize: { requestAuthorize: vi.fn() },
+    authorize,
   } as unknown as ReturnType<typeof useMCPDefinitionAuthorization>);
-  return { mutate };
+  return { mutate, authorize };
 }
 
 const PROJECT = { workspaceId: "ws_project", sessionId: "sess-project" };
@@ -331,6 +332,29 @@ describe("useSessionMCPActions", () => {
     act(() => result.current.allow(sessionMCPRowFixture({ name: "x", state: "waiting_approval" })));
     expect(onUnresolved).toHaveBeenCalledOnce();
     expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("Should end a running sign-in when another row's Sign in has no definition and goes to Settings", () => {
+    const { authorize } = stubSettings();
+    const onUnresolved = vi.fn();
+    const { result } = renderHook(
+      () =>
+        useSessionMCPActions({
+          workspaceId: "ws_project",
+          sessionId: "sess-project",
+          profile: undefined,
+          data: sessionMCPWaitingFixture,
+          enabled: true,
+          onUnresolved,
+        }),
+      { wrapper: wrapper() }
+    );
+
+    const unresolved = sessionMCPRowFixture({ name: "linear", state: "needs_sign_in" });
+    act(() => result.current.act(unresolved, "sign_in", document.createElement("button")));
+    expect(authorize.cancel).toHaveBeenCalledOnce();
+    expect(onUnresolved).toHaveBeenCalledOnce();
+    expect(authorize.requestAuthorize).not.toHaveBeenCalled();
   });
 
   it("Should check a failed server again, keep the panel open while it still fails, and close it once it works", async () => {
