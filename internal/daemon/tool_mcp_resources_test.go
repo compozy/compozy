@@ -972,6 +972,31 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 		}
 	})
 
+	t.Run("Should retain injected defaults while retiring an initial sidecar declaration", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		path := filepath.Join(home.HomeDir, compozyconfig.MCPJSONName)
+		writeMCPDeclarationFile(t, path, `{"mcpServers":{"docs":{"command":"sidecar"}}}`)
+		cfg, err := loadConfigFromHome(home, func(string) string { return "" })
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.MCPServers = append(cfg.MCPServers, compozyconfig.MCPServer{Name: "injected", Command: "injected"})
+		provider := daemonConfigMCPDeclarationProvider(&cfg, home, nil, discardLogger(), nil)
+		before, err := provider(t.Context(), nil)
+		if err != nil || len(before.mcpServers) != 2 {
+			t.Fatalf("initial publication = %+v, %v", before, err)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		after, err := provider(t.Context(), nil)
+		if err != nil || len(after.mcpServers) != 1 || after.mcpServers[0].spec.Name != "injected" ||
+			after.mcpServers[0].spec.Command != "injected" {
+			t.Fatalf("publication after sidecar removal = %+v, %v, want only injected default", after, err)
+		}
+	})
+
 	// Invariant: external profile file edits and removal republish their declaring layers.
 	// Owner: daemon declaration publication; canonical suite: declaring scopes.
 	// Invariant: an unobservable workspace retains its records without blocking healthy updates.

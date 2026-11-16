@@ -71,3 +71,6 @@ a malformed sidecar must report `daemon: load global MCP JSON`. Daemon boot read
 global home layer only; profile and workspace overlays remain resolved at their existing
 owners. `TestBootConfigTrustedMCPSources` owns automated boot-config coverage with real
 temporary files. CI owns execution; no local daemon or desktop walk is claimed.
+After a sidecar-only boot without `config.toml`, remove or rename a sidecar server and
+require its publication to retire on refresh; separately injected servers must remain.
+The existing declaring-scope MCP publication suite owns this regression.

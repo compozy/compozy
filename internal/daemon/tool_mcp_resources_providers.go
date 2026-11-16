@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 
 	"fmt"
 	"log/slog"
@@ -25,7 +26,16 @@ func daemonConfigMCPDeclarationProvider(
 ) toolMCPConfigDeclarationProvider {
 	var baseline []compozyconfig.MCPServer
 	if _, err := os.Stat(homePaths.ConfigFile); errors.Is(err, os.ErrNotExist) && cfg != nil {
+		sidecar, sidecarErr := compozyconfig.LoadMCPServersJSONFile(
+			filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName),
+		)
 		for _, server := range cfg.MCPServers {
+			// File-backed declarations must retire with their source instead of becoming injected defaults.
+			if sidecarErr == nil && slices.ContainsFunc(sidecar, func(declared compozyconfig.MCPServer) bool {
+				return strings.TrimSpace(declared.Name) == strings.TrimSpace(server.Name)
+			}) {
+				continue
+			}
 			baseline = append(baseline, cloneDaemonMCPServer(server))
 		}
 	}
