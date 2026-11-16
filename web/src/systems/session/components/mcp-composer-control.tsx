@@ -15,7 +15,7 @@ import {
   PopoverTrigger,
 } from "@compozy/ui";
 
-import { ProviderLogo } from "@/systems/settings";
+import { ProviderLogo } from "@/systems/settings/components/provider-logo";
 
 import type {
   SessionMCPResponse,

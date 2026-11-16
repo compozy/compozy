@@ -289,6 +289,41 @@ describe("MCP Settings page", () => {
       expect(within(group).queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument();
     });
 
+    it("Should fold a runtime group under All and drop the fold once that runtime is picked", async () => {
+      const user = userEvent.setup();
+      serveRuntimes([claudeRuntimeMCPFixture, codexRuntimeMCPFixture]);
+      await openSettings();
+      const group = await screen.findByTestId("settings-mcp-runtime-group-codex");
+      const fold = within(group).getByTestId("settings-mcp-runtime-group-codex-fold");
+      expect(fold).toHaveAttribute("aria-expanded", "true");
+      expect(within(group).getByTestId("settings-mcp-runtime-row-codex-github")).toBeVisible();
+
+      await user.click(fold);
+
+      expect(fold).toHaveAttribute("aria-expanded", "false");
+      expect(
+        within(group).queryByTestId("settings-mcp-runtime-row-codex-github")
+      ).not.toBeInTheDocument();
+      // The other runtime keeps its own fold state.
+      expect(
+        within(screen.getByTestId("settings-mcp-runtime-group-claude")).getByTestId(
+          "settings-mcp-runtime-group-claude-fold"
+        )
+      ).toHaveAttribute("aria-expanded", "true");
+
+      await user.click(
+        within(screen.getByTestId("settings-mcp-runtime-filter")).getByTestId(
+          "settings-mcp-runtime-filter-codex"
+        )
+      );
+
+      const picked = screen.getByTestId("settings-mcp-runtime-group-codex");
+      expect(
+        within(picked).queryByTestId("settings-mcp-runtime-group-codex-fold")
+      ).not.toBeInTheDocument();
+      expect(within(picked).getByTestId("settings-mcp-runtime-row-codex-github")).toBeVisible();
+    });
+
     it("UT-W06: Should keep the Copy dialog open with an inline name error on a 409", async () => {
       const user = userEvent.setup();
       const requests: Array<{ url: URL; body: unknown }> = [];

@@ -205,6 +205,7 @@ function MCPServersByRuntimeGroups({
       {runtimes.state === "error" ? <MCPRuntimesReadError runtimes={runtimes} /> : null}
       {groups.map(snapshot => (
         <MCPRuntimeGroup
+          collapsible={filter === MCP_FILTER_ALL}
           defaultExpanded={props.expandedGroups}
           key={snapshot.runtime}
           onCopy={props.onCopy}
