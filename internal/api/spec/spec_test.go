@@ -6991,6 +6991,11 @@ func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) 
 					properties[name] = serverProperties[name]
 				}
 				node["required"] = append([]any{"approval", "callable_in_sessions"}, node["required"].([]any)...)
+				// MCP redesign: the optional project file a server came from, for the Allow panel.
+				if serverProperties["definition_source"] == nil {
+					t.Fatal("missing approved MCP field definition_source")
+				}
+				properties["definition_source"] = serverProperties["definition_source"]
 			}
 		}
 	}
