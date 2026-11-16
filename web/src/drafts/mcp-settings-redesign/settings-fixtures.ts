@@ -78,7 +78,13 @@ export const SERVERS: ServerModel[] = [
     status: "ready",
     scope: "personal",
     secrets: ["GITHUB_TOKEN"],
-    tools: tools("", ["Create pull request", "Search code", "Get file", "List issues", "Merge pull request"]),
+    tools: tools("", [
+      "Create pull request",
+      "Search code",
+      "Get file",
+      "List issues",
+      "Merge pull request",
+    ]),
   },
   {
     name: "sentry",

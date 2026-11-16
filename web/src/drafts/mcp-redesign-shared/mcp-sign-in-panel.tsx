@@ -18,9 +18,7 @@ import type { ReactNode } from "react";
 
 import { Button, CopyIconButton, cn, Disclosure, Spinner, Textarea } from "@compozy/ui";
 
-import { MCP_PANEL_CLASS, MCPPanel } from "./mcp-panel";
-
-export { MCP_PANEL_CLASS };
+import { MCPPanel } from "./mcp-panel";
 
 export type MCPSignInPhase =
   | "starting"
@@ -201,12 +199,17 @@ function Connected({
       {toolPreview.length > 0 ? (
         <ul className="flex flex-wrap gap-1">
           {toolPreview.map(tool => (
-            <li key={tool} className="rounded-sm bg-surface-2 px-1.5 py-0.5 text-meta text-muted-foreground">
+            <li
+              key={tool}
+              className="rounded-sm bg-surface-2 px-1.5 py-0.5 text-meta text-muted-foreground"
+            >
               {tool}
             </li>
           ))}
           {toolCount && toolCount > toolPreview.length ? (
-            <li className="px-1 py-0.5 text-meta text-faint">+{toolCount - toolPreview.length} more</li>
+            <li className="px-1 py-0.5 text-meta text-faint">
+              +{toolCount - toolPreview.length} more
+            </li>
           ) : null}
         </ul>
       ) : null}
@@ -248,7 +251,8 @@ export function MCPSignInPanel({
   pasted,
   onClose,
 }: MCPSignInPanelProps) {
-  const flow = phase === "starting" || phase === "waiting" || phase === "paste" || phase === "finishing";
+  const flow =
+    phase === "starting" || phase === "waiting" || phase === "paste" || phase === "finishing";
   if (phase === "connected") {
     return (
       <MCPPanel
@@ -264,7 +268,12 @@ export function MCPSignInPanel({
           </Button>
         }
       >
-        <Connected server={server} toolCount={toolCount} toolPreview={toolPreview} appliesOn={appliesOn} />
+        <Connected
+          server={server}
+          toolCount={toolCount}
+          toolPreview={toolPreview}
+          appliesOn={appliesOn}
+        />
       </MCPPanel>
     );
   }
@@ -289,9 +298,7 @@ export function MCPSignInPanel({
           </>
         }
       >
-        <p className="text-small-body text-fg">
-          {error ?? "Something went wrong in the browser."}
-        </p>
+        <p className="text-small-body text-fg">{error ?? "Something went wrong in the browser."}</p>
         <p className="text-meta text-muted-foreground">
           Nothing changed: {server} keeps its previous sign-in.
         </p>
@@ -331,7 +338,11 @@ export function MCPSignInPanel({
       onClose={onClose}
       aside={
         flow && phase !== "starting" ? (
-          <PasteFallback open={phase !== "waiting"} value={pasted} finishing={phase === "finishing"} />
+          <PasteFallback
+            open={phase !== "waiting"}
+            value={pasted}
+            finishing={phase === "finishing"}
+          />
         ) : undefined
       }
       footer={

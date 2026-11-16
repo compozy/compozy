@@ -54,9 +54,15 @@ function propsFor(state: string): ComposerStageProps {
     case "runtime-open":
       return { data: signInFixture, runtimeOpen: true };
     case "sign-in-waiting":
-      return { data: signInFixture, nested: { kind: "sign-in", server: SIGN_IN, phase: "waiting" } };
+      return {
+        data: signInFixture,
+        nested: { kind: "sign-in", server: SIGN_IN, phase: "waiting" },
+      };
     case "sign-in-starting":
-      return { data: signInFixture, nested: { kind: "sign-in", server: SIGN_IN, phase: "starting" } };
+      return {
+        data: signInFixture,
+        nested: { kind: "sign-in", server: SIGN_IN, phase: "starting" },
+      };
     case "sign-in-paste":
       return { data: signInFixture, nested: { kind: "sign-in", server: SIGN_IN, phase: "paste" } };
     case "sign-in-finishing":

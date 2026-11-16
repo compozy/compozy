@@ -17,9 +17,6 @@ const WELL_TONE: Record<MCPPanelTone, string | undefined> = {
   success: "bg-success-tint text-success",
 };
 
-/** Width every row panel uses, so they read as one family. */
-export const MCP_PANEL_CLASS = "w-80 gap-0 p-0";
-
 export interface MCPPanelProps {
   icon: ComponentType<{ className?: string }>;
   /** A brand mark that replaces the glyph well (e.g. a provider logo). */

@@ -29,15 +29,21 @@ import { ProviderLogo } from "@/systems/settings/components/provider-logo";
 import { sessionMCPRuntimeProvider } from "@/systems/session/lib/session-mcp-view";
 
 import { MCPAllowPanel, MCPIssuePanel } from "../mcp-redesign-shared/mcp-row-panels";
+import { MCP_PANEL_CLASS } from "../mcp-redesign-shared/mcp-panel-class";
 import {
-  MCP_PANEL_CLASS,
   MCPSignInPanel,
   type MCPSignInPhase,
   type MCPSignInScope,
 } from "../mcp-redesign-shared/mcp-sign-in-panel";
 
 export type ComposerNested =
-  | { kind: "sign-in"; server: string; phase: MCPSignInPhase; error?: string; scopes?: MCPSignInScope[] }
+  | {
+      kind: "sign-in";
+      server: string;
+      phase: MCPSignInPhase;
+      error?: string;
+      scopes?: MCPSignInScope[];
+    }
   | { kind: "allow"; server: string }
   | { kind: "issue"; server: string };
 
@@ -107,7 +113,14 @@ function CompozyRow({ row, nested }: { row: SessionMCPServerRow; nested?: Compos
         open={pinned?.kind === "sign-in"}
         trigger={
           <PopoverTrigger
-            render={<Button type="button" size="xs" variant="neutral" aria-label={`Sign in to ${row.name}`} />}
+            render={
+              <Button
+                type="button"
+                size="xs"
+                variant="neutral"
+                aria-label={`Sign in to ${row.name}`}
+              />
+            }
           >
             Sign in
           </PopoverTrigger>
@@ -190,13 +203,7 @@ function runtimeSide(row: SessionRuntimeMCPRow, runtime: string): ReactNode {
   }
 }
 
-function RuntimeSection({
-  data,
-  open,
-}: {
-  data: SessionMCPResponse;
-  open: boolean;
-}) {
+function RuntimeSection({ data, open }: { data: SessionMCPResponse; open: boolean }) {
   const runtime = data.runtime_display_name;
   const rows = data.runtime_servers.servers;
   const off = data.runtime_servers.runtime_mcp === "off";
@@ -221,10 +228,7 @@ function RuntimeSection({
     >
       <ul className="flex flex-col">
         {rows.map(row => (
-          <li
-            key={row.name}
-            className={cn(ROW, row.state.startsWith("off") && "opacity-60")}
-          >
+          <li key={row.name} className={cn(ROW, row.state.startsWith("off") && "opacity-60")}>
             <span className={NAME}>{row.name}</span>
             {runtimeSide(row, runtime)}
           </li>
@@ -239,7 +243,11 @@ function RuntimeSection({
   );
 }
 
-function Body({ data, nested, runtimeOpen }: Required<Pick<ComposerMCPPopoverProps, "runtimeOpen">> & {
+function Body({
+  data,
+  nested,
+  runtimeOpen,
+}: Required<Pick<ComposerMCPPopoverProps, "runtimeOpen">> & {
   data: SessionMCPResponse;
   nested?: ComposerNested;
 }) {
@@ -254,8 +262,8 @@ function Body({ data, nested, runtimeOpen }: Required<Pick<ComposerMCPPopoverPro
       {reloadFailed ? (
         <Alert variant="warning" className="mx-0.5">
           <AlertDescription>
-            {data.runtime_display_name} couldn't start with the new servers. Send your message
-            again to retry.
+            {data.runtime_display_name} couldn't start with the new servers. Send your message again
+            to retry.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -270,7 +278,9 @@ function Body({ data, nested, runtimeOpen }: Required<Pick<ComposerMCPPopoverPro
           className="px-2"
           contentProps={{ className: "pt-0.5" }}
         >
-          <p className="pb-1 text-meta text-faint">The session that started this one limits them.</p>
+          <p className="pb-1 text-meta text-faint">
+            The session that started this one limits them.
+          </p>
           <ul className="-mx-2 flex flex-col">
             {unavailable.map(row => (
               <CompozyRow key={row.name} row={row} />

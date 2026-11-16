@@ -44,7 +44,9 @@ export function MCPAllowPanel({
       icon={ShieldCheck}
       tone="warning"
       title={`Allow ${server}?`}
-      subtitle={changed ? `Changed in ${file} since you allowed it` : `Added by ${file} in this project`}
+      subtitle={
+        changed ? `Changed in ${file} since you allowed it` : `Added by ${file} in this project`
+      }
       footer={
         <>
           <Button type="button" size="sm" variant="ghost" className="ml-auto">
@@ -73,7 +75,13 @@ export interface MCPIssuePanelProps {
   inSettings?: boolean;
 }
 
-function Suggestion({ icon: Icon, children }: { icon: ComponentType<{ className?: string }>; children: ReactNode }) {
+function Suggestion({
+  icon: Icon,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  children: ReactNode;
+}) {
   return (
     <li className="flex items-start gap-2.5 text-small-body text-fg">
       <Icon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-faint" />
@@ -93,7 +101,12 @@ export function MCPIssuePanel({ server, reason, inSettings = false }: MCPIssuePa
       footer={
         <>
           {inSettings ? null : (
-            <Button type="button" size="sm" variant="ghost" className="-ml-1.5 text-muted-foreground">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="-ml-1.5 text-muted-foreground"
+            >
               <Settings2 data-icon="inline-start" />
               Open in Settings
             </Button>
@@ -139,7 +152,10 @@ function ScopeOption({
         selected ? "bg-surface-2 shadow-hairline-inset" : "hover:bg-surface-2/60"
       )}
     >
-      <Icon aria-hidden="true" className={cn("size-4 shrink-0", selected ? "text-fg" : "text-faint")} />
+      <Icon
+        aria-hidden="true"
+        className={cn("size-4 shrink-0", selected ? "text-fg" : "text-faint")}
+      />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-small-body text-fg">{title}</span>
         <span className="text-meta text-faint">{caption}</span>
@@ -163,7 +179,13 @@ export interface MCPCopyPanelProps {
   remote?: boolean;
 }
 
-export function MCPCopyPanel({ server, agent, mark, secrets = [], remote = true }: MCPCopyPanelProps) {
+export function MCPCopyPanel({
+  server,
+  agent,
+  mark,
+  secrets = [],
+  remote = true,
+}: MCPCopyPanelProps) {
   return (
     <MCPPanel
       testId="mcp-copy-panel"

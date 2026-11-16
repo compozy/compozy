@@ -48,7 +48,13 @@ const SOURCE: Record<Exclude<AddServerCase, "empty">, string> = {
   edit: "npx -y @modelcontextprotocol/server-github",
 };
 
-function Chip({ icon: Icon, children }: { icon: ComponentType<{ className?: string }>; children: ReactNode }) {
+function Chip({
+  icon: Icon,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  children: ReactNode;
+}) {
   return (
     <span className="inline-flex items-center gap-1 rounded-sm bg-surface-2 px-1.5 py-0.5 text-meta text-muted-foreground">
       <Icon aria-hidden="true" className="size-3 text-faint" />
@@ -128,9 +134,7 @@ function ConnectionSection({ kind }: { kind: AddServerCase }) {
             variant="mono"
             rows={kind === "json" ? 8 : 1}
             defaultValue={filled ? SOURCE[kind] : ""}
-            placeholder={
-              kind === "empty" ? "https://… or npx …" : remote ? "https://…" : "npx …"
-            }
+            placeholder={kind === "empty" ? "https://… or npx …" : remote ? "https://…" : "npx …"}
             className="min-h-0 resize-none"
           />
           {kind === "json" ? (
@@ -169,7 +173,9 @@ function NameSection({ kind }: { kind: AddServerCase }) {
             disabled={edit}
           />
           <FieldDescription>
-            {edit ? "Agents know the server by this name, so it can't change." : "Agents see this name next to its tools."}
+            {edit
+              ? "Agents know the server by this name, so it can't change."
+              : "Agents see this name next to its tools."}
           </FieldDescription>
         </Field>
         <RadioCardGroup
@@ -335,7 +341,9 @@ export function ExtensionServerDialog() {
           <Disclosure variant="framed" label="Technical details" className="mt-6">
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 p-4 text-meta">
               <dt className="text-faint">Address</dt>
-              <dd className="truncate font-mono text-muted-foreground">https://mcp.linear.app/mcp</dd>
+              <dd className="truncate font-mono text-muted-foreground">
+                https://mcp.linear.app/mcp
+              </dd>
               <dt className="text-faint">Agents call it</dt>
               <dd className="truncate font-mono text-muted-foreground">mcp__linear__*</dd>
               <dt className="text-faint">Version</dt>
