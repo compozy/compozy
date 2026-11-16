@@ -73,4 +73,6 @@ owners. `TestBootConfigTrustedMCPSources` owns automated boot-config coverage wi
 temporary files. CI owns execution; no local daemon or desktop walk is claimed.
 After a sidecar-only boot without `config.toml`, remove or rename a sidecar server and
 require its publication to retire on refresh; separately injected servers must remain.
-The existing declaring-scope MCP publication suite owns this regression.
+Tool listing and search must continue without the retired source, and unqualified lookup
+must allow a same-name extension when no manual declaration remains. The existing
+declaring-scope publication and MCP resolver suites own these regressions.

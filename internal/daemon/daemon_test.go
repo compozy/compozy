@@ -5962,7 +5962,13 @@ func TestBootConfigTrustedMCPSources(t *testing.T) {
 			for _, server := range state.cfg.MCPServers {
 				names = append(names, server.Name)
 				if server.Name == "jam" && (server.URL != tt.wantURL || server.Command != tt.wantCommand) {
-					t.Fatalf("jam URL/command = %q/%q, want %q/%q", server.URL, server.Command, tt.wantURL, tt.wantCommand)
+					t.Fatalf(
+						"jam URL/command = %q/%q, want %q/%q",
+						server.URL,
+						server.Command,
+						tt.wantURL,
+						tt.wantCommand,
+					)
 				}
 			}
 			if !slices.Equal(names, tt.wantNames) {

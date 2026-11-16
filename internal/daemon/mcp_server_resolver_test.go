@@ -31,6 +31,67 @@ import (
 func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T) {
 	t.Parallel()
 
+	for _, tc := range []struct {
+		name      string
+		published bool
+		renamed   bool
+	}{
+		{name: "Should retain file declarations as sources without a publisher"},
+		{name: "Should omit retired file declarations from published sources", published: true},
+		{name: "Should enumerate renamed publications without stale boot sources", published: true, renamed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			injected := compozyconfig.MCPServer{Name: "injected", Command: "injected"}
+			state := &bootState{
+				cfg: compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{
+					{
+						Name:             "docs",
+						Command:          "old",
+						DefinitionSource: filepath.Join(t.TempDir(), compozyconfig.MCPJSONName),
+					},
+					injected,
+				}},
+				mcpServerCatalog: newResourceCatalog(cloneDaemonMCPServer),
+			}
+			want := []string{"docs", "injected"}
+			if tc.published {
+				state.toolMCPResources = toolMCPPublisherFunc(func(context.Context) error { return nil })
+				want = []string{"injected"}
+				records := []resources.Record[compozyconfig.MCPServer]{
+					{
+						ID:    "injected",
+						Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+						Spec:  injected,
+					},
+				}
+				if tc.renamed {
+					want = append(want, "renamed")
+					records = append(records, resources.Record[compozyconfig.MCPServer]{
+						ID: "renamed", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+						Spec: compozyconfig.MCPServer{Name: "renamed", Command: "current"},
+					})
+				}
+				state.mcpServerCatalog.Replace(1, records)
+			}
+			sources, err := daemonMCPSources(t.Context(), state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, source := range sources {
+				got = append(got, source.RawServerName)
+				if _, err := resolveDaemonMCPServer(t.Context(), state, source, ""); err != nil {
+					t.Fatalf("enumerated source %q cannot resolve: %v", source.RawServerName, err)
+				}
+			}
+			slices.Sort(got)
+			if !slices.Equal(got, want) {
+				t.Fatalf("sources = %v, want %v", got, want)
+			}
+		})
+	}
+
 	// Invariant: deleting a published declaration cannot resurrect its stale boot snapshot.
 	// Owner: daemon MCP identity resolver; canonical suite: resource identity.
 	t.Run("Should reject a removed published server despite stale boot config", func(t *testing.T) {
@@ -780,6 +841,20 @@ func TestMCPSourceResourceFindsExtensionServersByName(t *testing.T) {
 		target, err := lookup(t, state)
 		if err != nil || target.Owner != mcpDefinitionOwnerManual {
 			t.Fatalf("lookup = %#v, %v", target, err)
+		}
+	})
+	t.Run("Should resolve an extension after a same-name file declaration retires", func(t *testing.T) {
+		t.Parallel()
+		state := &bootState{
+			mcpServerCatalog: catalogOf(extensionRecord("ext", "linear")),
+			toolMCPResources: toolMCPPublisherFunc(func(context.Context) error { return nil }),
+		}
+		stale := server
+		stale.DefinitionSource = filepath.Join(t.TempDir(), compozyconfig.MCPJSONName)
+		state.cfg.MCPServers = []compozyconfig.MCPServer{stale}
+		target, err := lookup(t, state)
+		if err != nil || target.Owner != "extension:linear" {
+			t.Fatalf("lookup after file declaration retirement = %#v, %v", target, err)
 		}
 	})
 	t.Run("Should require an owner when two extensions declare the name", func(t *testing.T) {
