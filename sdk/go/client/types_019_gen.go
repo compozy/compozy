@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// SessionConversationRewindRequest is a daemon API value.
+type SessionConversationRewindRequest struct {
+	MessageID           string `json:"message_id"`
+	IdempotencyKey      string `json:"idempotency_key"`
+	ExpectedEpoch       *int64 `json:"expected_epoch"`
+	ExpectedGeneration  *int64 `json:"expected_generation"`
+	ExpectedMaxSequence *int64 `json:"expected_max_sequence"`
+}
+
+// SessionConversationRewindResponse is a daemon API value.
+type SessionConversationRewindResponse struct {
+	Session SessionPayload                   `json:"session"`
+	Rewind  SessionConversationRewindPayload `json:"rewind"`
+}
+
 // SessionDerivationPayload is a daemon API value.
 type SessionDerivationPayload struct {
 	Kind            LineageKind `json:"kind"`
@@ -420,25 +435,4 @@ type SessionLineagePayload struct {
 	NotifyCreator    bool                         `json:"notify_creator"`
 	SpawnBudget      SpawnBudgetPayload           `json:"spawn_budget"`
 	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
-}
-
-// SessionLinkedWorkItem is a daemon API value.
-type SessionLinkedWorkItem struct {
-	Repository         string                           `json:"repository"`
-	Branch             string                           `json:"branch"`
-	PRNumber           int                              `json:"pr_number,omitempty"`
-	WorktreeID         string                           `json:"worktree_id,omitempty"`
-	WorktreeName       string                           `json:"worktree_name,omitempty"`
-	WorktreeRemoved    bool                             `json:"worktree_removed"`
-	Provenance         string                           `json:"provenance"`
-	RunsHere           bool                             `json:"runs_here"`
-	SourceSessionID    string                           `json:"source_session_id,omitempty"`
-	SourceSessionTitle string                           `json:"source_session_title,omitempty"`
-	PullRequest        *SessionPullRequestPayload       `json:"pull_request"`
-	PullRequestLookup  *SessionPullRequestLookupPayload `json:"pull_request_lookup"`
-}
-
-// SessionLinkedWorkResponse is a daemon API value.
-type SessionLinkedWorkResponse struct {
-	Items []SessionLinkedWorkItem `json:"items"`
 }

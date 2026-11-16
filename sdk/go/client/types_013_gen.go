@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// MarketplaceSourcePayload is a daemon API value.
+type MarketplaceSourcePayload struct {
+	Name         string           `json:"name"`
+	Kind         string           `json:"kind"`
+	Source       string           `json:"source"`
+	Enabled      bool             `json:"enabled"`
+	State        string           `json:"state"`
+	Plugins      int              `json:"plugins"`
+	Installable  int              `json:"installable"`
+	LastReadAt   *time.Time       `json:"last_read_at,omitempty"`
+	ErrorClass   string           `json:"error_class,omitempty"`
+	Error        string           `json:"error,omitempty"`
+	DocumentPath string           `json:"document_path,omitempty"`
+	Owner        string           `json:"owner,omitempty"`
+	Stability    string           `json:"stability"`
+	Diagnostics  []DiagnosticItem `json:"diagnostics"`
+}
+
 // MarketplaceSourcePreviewPayload is a daemon API value.
 type MarketplaceSourcePreviewPayload struct {
 	Name         string           `json:"name"`
@@ -428,16 +446,4 @@ type OutlineEntry struct {
 	Preview      string    `json:"preview"`
 	ReplyPreview string    `json:"reply_preview"`
 	At           time.Time `json:"at"`
-}
-
-// OutlineResult is a daemon API value.
-type OutlineResult struct {
-	Entries []OutlineEntry `json:"entries"`
-}
-
-// OverviewAgentSharePayload is a daemon API value.
-type OverviewAgentSharePayload struct {
-	AgentName string  `json:"agent_name"`
-	Tokens    int64   `json:"tokens"`
-	Fraction  float64 `json:"fraction"`
 }

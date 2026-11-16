@@ -9,6 +9,94 @@ import (
 	"strings"
 )
 
+// GetProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
+func (c *Client) GetProviderUsage(ctx context.Context, params GetProviderUsageParams) (*ProviderUsageEnvelope, error) {
+	path := "/api/provider-usage/providers/{provider_id}"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderUsageEnvelope
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetResourceParams carries the path, query, and header parameters.
+type GetResourceParams struct {
+	Kind string `url:"kind"`
+	ID   string `url:"id"`
+}
+
+// GetResource Read one desired-state resource on the local operator control plane
+func (c *Client) GetResource(ctx context.Context, params GetResourceParams) (*ResourceResponse, error) {
+	path := "/api/resources/{kind}/{id}"
+	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out ResourceResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetRoleParams carries the path, query, and header parameters.
+type GetRoleParams struct {
+	Role      string  `url:"role"`
+	Workspace *string `url:"workspace"`
+}
+
+// GetRole Get effective background role configuration
+func (c *Client) GetRole(ctx context.Context, params GetRoleParams) (*RoleStatusResponse, error) {
+	path := "/api/roles/{role}"
+	path = strings.ReplaceAll(path, "{role}", url.PathEscape(params.Role))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RoleStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetRuntimeIdentity Get the bounded runtime identity
+func (c *Client) GetRuntimeIdentity(ctx context.Context) (*RuntimeIdentityPayload, error) {
+	path := "/api/status/identity"
+	var out RuntimeIdentityPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetScheduler Get scheduler pause state and queue pressure
+func (c *Client) GetScheduler(ctx context.Context) (*SchedulerStatusResponse, error) {
+	path := "/api/scheduler"
+	var out SchedulerStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSchedulerBacklogParams carries the path, query, and header parameters.
+type GetSchedulerBacklogParams struct {
+	Limit         *int    `url:"limit"`
+	Scope         *string `url:"scope"`
+	Workspace     *string `url:"workspace"`
+	IncludePaused *bool   `url:"include_paused"`
+}
+
 // GetSchedulerBacklog List queued scheduler backlog rows
 func (c *Client) GetSchedulerBacklog(ctx context.Context, params GetSchedulerBacklogParams) (*SchedulerBacklogResponse, error) {
 	path := "/api/scheduler/backlog"
@@ -356,77 +444,4 @@ type GetSessionHistoryParams struct {
 	Archive       *string `url:"archive"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// GetSessionHistory List grouped session turn history
-func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistoryParams) (*SessionHistoryResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/history"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.TurnID != nil {
-		query.Set("turn_id", *params.TurnID)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionHistoryCleanupParams carries the path, query, and header parameters.
-type GetSessionHistoryCleanupParams struct {
-	Profile *string `url:"profile"`
-}
-
-// GetSessionHistoryCleanup Get the selected profile's running or most recent archived-history cleanup
-func (c *Client) GetSessionHistoryCleanup(ctx context.Context, params GetSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
-	path := "/api/sessions/history-cleanup"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryCleanupRunResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionMCPParams carries the path, query, and header parameters.
-type GetSessionMCPParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

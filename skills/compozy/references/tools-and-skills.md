@@ -320,6 +320,18 @@ the sign-in flow above; `waiting_approval` → allow it; `not_available` → the
 excludes it (start a session without that restriction); `applies_next_message` → send the next
 message.
 
+Use `compozy session mcp check <id> <name> [--owner extension:<name>]` to retry one server.
+The session POST route is `/api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`;
+`owner` defaults to `manual`. It returns refreshed session MCP availability, performs discovery
+only for that effective server, and never restarts the agent. Waiting or restricted servers stay
+unprobed. A recovered server that needs activation reports `applies_next_message`.
+Settings can retry one item through `POST /api/settings/mcp-servers/{name}/check` with the same
+`scope`, `workspace_id`, `profile`, and `owner` selectors as authentication. It returns the item
+with `runtime_status`. These check routes deny app tokens and preserve consent requirements.
+Session rows expose `scope`, optional `workspace_id`/`profile`, `transport`, optional
+`command`/`args`/`url`, `source{kind,path}`, and waiting `approval{reason,definition_digest}`.
+Settings items expose the declaration file as `definition_source` when available.
+
 ### Runtime MCP Inventory
 
 Each runtime CLI (Claude Code, Codex, Gemini CLI, OpenCode, Kimi CLI, Qwen Code, GitHub Copilot CLI,

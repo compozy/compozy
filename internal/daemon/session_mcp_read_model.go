@@ -30,24 +30,7 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 	if err != nil {
 		return session.MCP{}, err
 	}
-	profile := daemonDefaultProfileName
-	if r.state.profiles != nil {
-		profile, err = r.state.profiles.ProfileName(ctx, info.ProfileID)
-		if err != nil {
-			return session.MCP{}, err
-		}
-	}
-	request := settingspkg.CollectionRequest{
-		Collection: settingspkg.CollectionMCPServers, Scope: settingspkg.ScopeUser,
-		WorkspaceID: info.WorkspaceID, SkipRuntimeStatus: true,
-	}
-	if info.WorkspaceID != "" {
-		request.Scope = settingspkg.ScopeWorkspace
-	}
-	if profile != "" && profile != daemonDefaultProfileName {
-		request.Scope, request.ProfileName = settingspkg.ScopeProfile, profile
-	}
-	collection, err := r.state.deps.Settings.ListCollection(ctx, request)
+	collection, err := r.sessionMCPCollection(ctx, info)
 	if err != nil {
 		return session.MCP{}, err
 	}
@@ -164,7 +147,25 @@ func sessionMCPRow(
 	callable, diagnostics []toolspkg.ToolView,
 	runtime session.MCPRuntimeSnapshot,
 ) session.MCPServerRow {
-	row := session.MCPServerRow{Name: item.Name, Owner: item.Owner, State: "ready"}
+	source := item.SourceMetadata.EffectiveSource
+	row := session.MCPServerRow{
+		Name: item.Name, Owner: item.Owner, State: "ready",
+		Scope: string(source.Scope), WorkspaceID: source.WorkspaceID, Profile: source.ProfileName,
+		Transport: strings.TrimSpace(string(item.Transport)), Command: strings.TrimSpace(item.Command),
+		Args: slices.Clone(item.Args), URL: strings.TrimSpace(item.URL),
+		Source: session.MCPServerSource{Kind: string(source.Kind), Path: item.DefinitionSource},
+	}
+	if row.Scope == "" {
+		row.Scope, row.WorkspaceID, row.Profile = string(item.Scope), item.WorkspaceID, item.ProfileName
+	}
+	if item.Approval.State == mcpApprovalWaiting {
+		row.Approval = &session.MCPServerApproval{
+			Reason:           item.Approval.Reason,
+			DefinitionDigest: item.Approval.DefinitionDigest,
+		}
+		// Consent belongs to the listing profile even when the definition is inherited.
+		row.Scope, row.WorkspaceID, row.Profile = string(item.Scope), item.WorkspaceID, item.ProfileName
+	}
 	name := item.RuntimeName
 	if name == "" {
 		name = item.Name
@@ -250,4 +251,29 @@ func bindSessionMCPReader(
 	if manager, ok := state.sessions.(interface{ SetMCPReader(session.MCPReader) }); ok {
 		manager.SetMCPReader(reader)
 	}
+}
+
+func (r *sessionMCPReadModel) sessionMCPCollection(
+	ctx context.Context,
+	info *session.Info,
+) (settingspkg.CollectionEnvelope, error) {
+	var err error
+	profile := daemonDefaultProfileName
+	if r.state.profiles != nil {
+		profile, err = r.state.profiles.ProfileName(ctx, info.ProfileID)
+		if err != nil {
+			return settingspkg.CollectionEnvelope{}, err
+		}
+	}
+	request := settingspkg.CollectionRequest{
+		Collection: settingspkg.CollectionMCPServers, Scope: settingspkg.ScopeUser,
+		WorkspaceID: info.WorkspaceID, SkipRuntimeStatus: true,
+	}
+	if info.WorkspaceID != "" {
+		request.Scope = settingspkg.ScopeWorkspace
+	}
+	if profile != "" && profile != daemonDefaultProfileName {
+		request.Scope, request.ProfileName = settingspkg.ScopeProfile, profile
+	}
+	return r.state.deps.Settings.ListCollection(ctx, request)
 }

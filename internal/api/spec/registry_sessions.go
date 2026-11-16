@@ -20,6 +20,7 @@ func registrySessionOperations() []OperationSpec {
 		moveSessionToProfileOperationSpec(),
 		getSessionCommandsOperationSpec(),
 		getSessionMCPOperationSpec(),
+		checkSessionMCPOperationSpec(),
 		searchSessionFilesOperationSpec(),
 		compactSessionOperationSpec(),
 		deleteSessionOperationSpec(),

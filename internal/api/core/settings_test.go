@@ -40,6 +40,7 @@ import (
 )
 
 type stubSettingsService struct {
+	CheckMCPServerFn     func(context.Context, settingspkg.MCPAuthTargetRequest) (settingspkg.MCPServerItem, error)
 	SetMCPApprovalFn     func(context.Context, settingspkg.MCPAuthTargetRequest, string, bool) (store.MCPApproval, error)
 	GetSectionFn         func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
 	UpdateSectionFn      func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
@@ -588,6 +589,51 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 
 func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 	t.Parallel()
+	t.Run("Should return one checked item using the exact auth target selectors", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		svc := &stubSettingsService{
+			CheckMCPServerFn: func(_ context.Context, req settingspkg.MCPAuthTargetRequest) (settingspkg.MCPServerItem, error) {
+				calls++
+				if req.Name != "docs" || req.Owner != "extension:docs" || req.Scope != settingspkg.ScopeProfile ||
+					req.ProfileName != "work" ||
+					req.WorkspaceID != "ws-one" {
+					t.Fatalf("target = %+v", req)
+				}
+				return settingspkg.MCPServerItem{
+					Name:             "docs",
+					Owner:            req.Owner,
+					DefinitionSource: "/project/mcp.json",
+					RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{
+						State:     settingspkg.MCPServerRuntimeStateReady,
+						ToolCount: 2,
+					},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "http", svc, nil)
+		fixture.Engine.POST("/api/settings/mcp-servers/:name/check", fixture.Handlers.CheckSettingsMCPServer)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/api/settings/mcp-servers/docs/check?scope=profile&workspace_id=ws-one&profile=work&owner=extension:docs",
+			nil,
+		)
+		var item contract.SettingsMCPServerItemPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &item); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || item.DefinitionSource != "/project/mcp.json" ||
+			item.RuntimeStatus == nil ||
+			item.RuntimeStatus.ToolCount != 2 {
+			t.Fatalf("response = %d %+v", response.Code, item)
+		}
+		response = performRequest(t, fixture.Engine, http.MethodPost, "/api/settings/mcp-servers/docs/check", nil)
+		if response.Code != http.StatusBadRequest || calls != 1 || !strings.Contains(response.Body.String(), "scope") {
+			t.Fatalf("missing scope = %d %s, calls=%d", response.Code, response.Body.String(), calls)
+		}
+	})
 
 	t.Run("Should keep OAuth secrets out of handler responses", func(t *testing.T) {
 		t.Parallel()
@@ -5061,4 +5107,11 @@ func TestSettingsMCPApprovalHandlers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (s *stubSettingsService) CheckMCPServer(
+	ctx context.Context,
+	req settingspkg.MCPAuthTargetRequest,
+) (settingspkg.MCPServerItem, error) {
+	return s.CheckMCPServerFn(ctx, req)
 }

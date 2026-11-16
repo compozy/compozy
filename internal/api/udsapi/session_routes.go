@@ -29,7 +29,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.GET("/:session_id/monitors", handlers.ListSessionMonitors)
 		workspaceSessions.POST("/:session_id/monitors/:monitor_id/cancel", handlers.CancelSessionMonitor)
 		workspaceSessions.GET("/:session_id", handlers.GetSession)
-		workspaceSessions.GET("/:session_id/mcp", handlers.GetSessionMCP)
+		registerSessionMCPRoutes(workspaceSessions, handlers)
 		workspaceSessions.PATCH("/:session_id", handlers.RenameSession)
 		registerSessionParentRoutes(workspaceSessions, handlers)
 		workspaceSessions.GET("/:session_id/goal", handlers.GetSessionGoal)
@@ -169,4 +169,9 @@ func registerSessionHistoryCleanupRoutes(sessions gin.IRouter, handlers *Handler
 	sessions.GET("/history-cleanup", handlers.GetSessionHistoryCleanup)
 	sessions.POST("/history-cleanup", handlers.PlanSessionHistoryCleanup)
 	sessions.POST("/history-cleanup/stop", handlers.StopSessionHistoryCleanup)
+}
+
+func registerSessionMCPRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.GET("/:session_id/mcp", handlers.GetSessionMCP)
+	sessions.POST("/:session_id/mcp/servers/:name/check", handlers.CheckSessionMCP)
 }

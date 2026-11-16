@@ -446,6 +446,70 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 }
 
 func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) {
+	t.Run("Should retry only the selected profile and retain sibling cached tools", func(t *testing.T) {
+		t.Parallel()
+		source := SourceRef{
+			Kind:          SourceMCP,
+			Owner:         "docs",
+			RawServerName: "docs",
+			Scope:         mcpSourceScopeWorkspace,
+			WorkspaceID:   "ws-retry",
+		}
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
+		reliability := deadentity.New(newMCPReliabilityStore(), deadentity.WithPermanentFailureThreshold(1))
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+			executor,
+			executor,
+			WithMCPDeadEntityService(reliability),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		selected := Scope{WorkspaceID: source.WorkspaceID, ProfileID: "profile-a"}
+		sibling := Scope{WorkspaceID: source.WorkspaceID, ProfileID: "profile-b"}
+		for _, scope := range []Scope{selected, sibling} {
+			if tools, err := provider.List(t.Context(), scope); err != nil || len(tools) != 1 {
+				t.Fatalf("initial tools = %+v, %v", tools, err)
+			}
+		}
+		key, tracked := mcpDeadEntityKey(source, selected.ProfileID)
+		if !tracked {
+			t.Fatal("source is not tracked")
+		}
+		if err := reliability.RecordFailure(t.Context(), key, deadentity.FailurePermanent, "offline"); err != nil {
+			t.Fatal(err)
+		}
+		executor.setListError(ErrToolUnavailable)
+		if err := provider.CheckMCPServer(t.Context(), selected, "docs"); err != nil {
+			t.Fatal(err)
+		}
+		if tools, err := provider.List(WithCachedMCPProjection(t.Context()), selected); err != nil || len(tools) != 0 {
+			t.Fatalf("failed selected tools = %+v, %v", tools, err)
+		}
+		if tools, err := provider.List(WithCachedMCPProjection(t.Context()), sibling); err != nil || len(tools) != 1 {
+			t.Fatalf("sibling tools = %+v, %v", tools, err)
+		}
+		executor.setListError(nil)
+		if err := provider.CheckMCPServer(t.Context(), selected, "docs"); err != nil {
+			t.Fatal(err)
+		}
+		if tools, err := provider.List(WithCachedMCPProjection(t.Context()), selected); err != nil || len(tools) != 1 {
+			t.Fatalf("recovered tools = %+v, %v", tools, err)
+		}
+		status, err := reliability.Status(t.Context(), key)
+		if err != nil || status.Dead {
+			t.Fatalf("recovery status = %+v, %v", status, err)
+		}
+		executor.mu.Lock()
+		defer executor.mu.Unlock()
+		if len(executor.listedSources) != 4 {
+			t.Fatalf("discoveries = %+v", executor.listedSources)
+		}
+	})
+
 	// Invariant: a settled breaker decision shares healthy discovery within the peer refresh window.
 	// Owner and canonical suite: MCP reliability/registry projection.
 	t.Run("Should share healthy discovery while another source waits for breaker recovery", func(t *testing.T) {

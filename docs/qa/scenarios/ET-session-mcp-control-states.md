@@ -70,3 +70,21 @@ Steps:
 Pass: every listed state renders with its text label (never color alone).
 
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
+
+## MCP redesign check coverage
+
+After integrating the backend and composer slices, inspect a waiting row's command/args or URL,
+`source.kind` and `source.path`, and `approval.reason`/`approval.definition_digest`. Confirm the
+approval request uses the row's scope, workspace and profile. No discovery may occur while waiting.
+For an inherited signed-out server, sign-in must target its declaring scope.
+
+Break one admitted server, trigger failure, then restore it and run
+`compozy session mcp check <id> <name> --owner <owner> -o json` (or the row's Check again action).
+Only that owner-qualified server is discovered, including while its breaker is marked dead.
+The response refreshes its tools; pending activation stays `applies_next_message` until the next
+message. The agent runtime is not restarted by Check again. Repeat with a restricted server and
+confirm no discovery, and with an unknown owner and confirm 404 without discovery.
+
+Backend focused coverage: `TestSessionMCPReadModel`, `TestSessionMCPDetailAndScope`,
+`TestSessionMCPCommand`, and `TestServicePermanentFailureRecovery`. Integrated Web walk remains
+pending until the frontend slices are integrated.

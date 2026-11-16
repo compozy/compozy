@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// ProviderErrorDiagnostic is a daemon API value.
+type ProviderErrorDiagnostic struct {
+	Code            string                `json:"code"`
+	Provider        string                `json:"provider"`
+	NextAction      ProviderFailureAction `json:"next_action"`
+	Guidance        string                `json:"guidance"`
+	OccurrenceCount uint64                `json:"occurrence_count"`
+	FirstSeenAt     time.Time             `json:"first_seen_at"`
+	LastSeenAt      time.Time             `json:"last_seen_at"`
+}
+
+// ProviderFailureAction is a daemon API value.
+type ProviderFailureAction string
+
 // ProviderListResponse is a daemon API value.
 type ProviderListResponse struct {
 	Providers []ProviderSummaryPayload `json:"providers"`
@@ -428,20 +442,4 @@ type RemoveWorktreesRequest struct {
 type RemoveWorktreesResponse struct {
 	DryRun  bool                    `json:"dry_run"`
 	Results []WorktreeRemovalResult `json:"results"`
-}
-
-// RenameProfilePlan is a daemon API value.
-type RenameProfilePlan struct {
-	Revision          string             `json:"revision"`
-	MachineFolders    []string           `json:"machine_folders"`
-	RepoCandidates    []ProfileFolderRef `json:"repo_candidates"`
-	DormantPlacements []ProfilePlacement `json:"dormant_placements"`
-	VaultRefRewrites  int                `json:"vault_ref_rewrites"`
-}
-
-// RenameProfileRequest is a daemon API value.
-type RenameProfileRequest struct {
-	NewName      string   `json:"new_name"`
-	Repos        []string `json:"repos,omitempty"`
-	PlanRevision string   `json:"plan_revision"`
 }

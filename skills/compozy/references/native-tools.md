@@ -939,7 +939,8 @@ MCP diagnostics are `compozy__mcp_status` and `compozy__mcp_auth_status`. A
 workspace-scoped server with five consecutive confirmed permanent failures reports `state: "dead"`
 from `compozy__mcp_status`; its nested runtime reason is `backend_dead`. During the same daemon lifetime,
 resolve its last-known tools through `compozy__tool_info`, which retains their unavailable descriptors
-and diagnostic instead of hiding them. Do not retry a dead tool blindly or invent a revive call: CompozyOS
+and diagnostic instead of hiding them. Do not retry a dead tool blindly: use the explicit session/settings check documented in
+`references/tools-and-skills.md` after repairing its cause. Otherwise CompozyOS
 admits at most one automatic recovery probe after the 60-second window and clears the mark when that
 probe succeeds. Browser/OAuth login, raw auth material, and any required credential repair remain
 management-surface operations.

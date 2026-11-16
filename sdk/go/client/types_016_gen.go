@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// RenameProfilePlan is a daemon API value.
+type RenameProfilePlan struct {
+	Revision          string             `json:"revision"`
+	MachineFolders    []string           `json:"machine_folders"`
+	RepoCandidates    []ProfileFolderRef `json:"repo_candidates"`
+	DormantPlacements []ProfilePlacement `json:"dormant_placements"`
+	VaultRefRewrites  int                `json:"vault_ref_rewrites"`
+}
+
+// RenameProfileRequest is a daemon API value.
+type RenameProfileRequest struct {
+	NewName      string   `json:"new_name"`
+	Repos        []string `json:"repos,omitempty"`
+	PlanRevision string   `json:"plan_revision"`
+}
+
 // RenameProfileResponse is a daemon API value.
 type RenameProfileResponse struct {
 	Renamed           bool                       `json:"renamed"`
@@ -428,19 +444,4 @@ type RouteIntent = json.RawMessage
 type RouteSpec struct {
 	When string `json:"when"`
 	To   NodeID `json:"to"`
-}
-
-// Row is a daemon API value.
-type Row struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	Subtitle    string            `json:"subtitle,omitempty"`
-	Icon        string            `json:"icon,omitempty"`
-	Badge       *ViewBadge        `json:"badge,omitempty"`
-	Keywords    []string          `json:"keywords,omitempty"`
-	Accessories []string          `json:"accessories,omitempty"`
-	Detail      *DetailBody       `json:"detail,omitempty"`
-	Actions     []RowAction       `json:"actions,omitempty"`
-	Requires    map[string]string `json:"requires,omitempty"`
-	Fallback    string            `json:"fallback,omitempty"`
 }

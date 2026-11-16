@@ -9,6 +9,69 @@ import (
 	"strings"
 )
 
+// GetSettingsMCPServerParams carries the path, query, and header parameters.
+type GetSettingsMCPServerParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+}
+
+// GetSettingsMCPServer Get one owner-qualified MCP server
+func (c *Client) GetSettingsMCPServer(ctx context.Context, params GetSettingsMCPServerParams) (*SettingsMCPServerResponse, error) {
+	path := "/api/settings/mcp-servers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsMCPServerResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsMarketplace Read global marketplace catalog settings
+func (c *Client) GetSettingsMarketplace(ctx context.Context) (*SettingsMarketplaceResponse, error) {
+	path := "/api/settings/marketplace"
+	var out SettingsMarketplaceResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsObservability Read the observability settings section
+func (c *Client) GetSettingsObservability(ctx context.Context) (*SettingsObservabilityResponse, error) {
+	path := "/api/settings/observability"
+	var out SettingsObservabilityResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsPersonaParams carries the path, query, and header parameters.
+type GetSettingsPersonaParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // GetSettingsPersona Read profile-layerable persona defaults
 func (c *Client) GetSettingsPersona(ctx context.Context, params GetSettingsPersonaParams) (*SettingsPersonaResponse, error) {
 	path := "/api/settings/persona"
@@ -350,100 +413,6 @@ type GetTaskDashboardParams struct {
 	OwnerKind     *string   `url:"owner_kind"`
 	OwnerRef      *string   `url:"owner_ref"`
 	OriginKind    *string   `url:"origin_kind"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
-}
-
-// GetTaskDashboard Get the observer-backed task dashboard
-func (c *Client) GetTaskDashboard(ctx context.Context, params GetTaskDashboardParams) (*TaskDashboardResponse, error) {
-	path := "/api/observe/tasks/dashboard"
-	query := url.Values{}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Worktree != nil {
-		query.Set("worktree", *params.Worktree)
-	}
-	if params.OwnerKind != nil {
-		query.Set("owner_kind", *params.OwnerKind)
-	}
-	if params.OwnerRef != nil {
-		query.Set("owner_ref", *params.OwnerRef)
-	}
-	if params.OriginKind != nil {
-		query.Set("origin_kind", *params.OriginKind)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskDashboardResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskExecutionProfileParams carries the path, query, and header parameters.
-type GetTaskExecutionProfileParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetTaskExecutionProfile Get one task execution profile
-func (c *Client) GetTaskExecutionProfile(ctx context.Context, params GetTaskExecutionProfileParams) (*TaskExecutionProfileResponse, error) {
-	path := "/api/tasks/{id}/execution-profile"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskExecutionProfileResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskInboxParams carries the path, query, and header parameters.
-type GetTaskInboxParams struct {
-	Scope         *string   `url:"scope"`
-	Workspace     *string   `url:"workspace"`
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Worktree      *string   `url:"worktree"`
-	OwnerKind     *string   `url:"owner_kind"`
-	OwnerRef      *string   `url:"owner_ref"`
-	Lane          *string   `url:"lane"`
-	Status        *string   `url:"status"`
-	Priority      *string   `url:"priority"`
-	Unread        *bool     `url:"unread"`
-	Query         *string   `url:"query"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
 	Profile       *string   `url:"profile"`
 	AllProfiles   *bool     `url:"all_profiles"`
 }

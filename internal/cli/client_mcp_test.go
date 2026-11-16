@@ -466,6 +466,58 @@ func TestMCPImportCommand(t *testing.T) {
 // Invariant: session inventory supports machine formats and stable user-facing state labels; owner: CLI commands.
 func TestSessionMCPCommand(t *testing.T) {
 	t.Parallel()
+	t.Run("Should post a scoped check with the explicit owner", func(t *testing.T) {
+		t.Parallel()
+		checked := false
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.URL.Path == "/api/profiles" {
+					return newHTTPResponse(http.StatusOK, `[{"name":"default","state":"active"}]`), nil
+				}
+				if req.URL.Path == "/api/profiles/selection" {
+					return newHTTPResponse(http.StatusOK, `[]`), nil
+				}
+				if strings.HasSuffix(req.URL.Path, "/check") {
+					if req.Method != http.MethodPost ||
+						req.URL.Path != "/api/workspaces/ws-one/sessions/sess-one/mcp/servers/docs/check" ||
+						req.URL.Query().Get("owner") != "extension:docs" {
+						t.Fatalf("request = %s %s", req.Method, req.URL)
+					}
+					checked = true
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session_id":"sess-one","compozy_servers":[{"name":"docs","state":"applies_next_message"}]}`,
+					), nil
+				}
+				return newHTTPResponse(http.StatusOK, `{"session":{"id":"sess-one","workspace_id":"ws-one"}}`), nil
+			})},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		deps.getenv = func(key string) string {
+			if key == "COMPOZY_WORKSPACE" {
+				return "@user"
+			}
+			return ""
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"mcp",
+			"check",
+			"sess-one",
+			"docs",
+			"--owner",
+			"extension:docs",
+			"-o",
+			"json",
+		)
+		if err != nil || !checked || !strings.Contains(stdout, "applies_next_message") || !json.Valid([]byte(stdout)) {
+			t.Fatalf("output=%s checked=%v err=%v", stdout, checked, err)
+		}
+	})
+
 	for _, format := range []string{"json", "jsonl", "toon", "text"} {
 		t.Run("Should render session MCP inventory in "+format, func(t *testing.T) {
 			t.Parallel()

@@ -3763,6 +3763,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/mcp-servers/{name}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry one scoped MCP server runtime probe */
+    post: operations["checkSettingsMCPServer"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/observability": {
     parameters: {
       query?: never;
@@ -6857,6 +6874,23 @@ export interface paths {
     get: operations["getSessionMCP"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry discovery for one session MCP server without restarting the runtime */
+    post: operations["checkSessionMCP"];
     delete?: never;
     options?: never;
     head?: never;
@@ -13517,13 +13551,30 @@ export interface components {
       outcome: string;
       reason: string;
     };
+    MCPServerApproval: {
+      definition_digest: string;
+      reason?: string;
+    };
     MCPServerRow: {
+      approval?: components["schemas"]["MCPServerApproval"] | null;
+      args?: string[];
       callable_count: number;
+      command?: string;
       name: string;
       owner: string;
+      profile?: string;
       reason: string;
+      scope?: string;
+      source: components["schemas"]["MCPServerSource"];
       state: string;
       tool_count: number;
+      transport?: string;
+      url?: string;
+      workspace_id?: string;
+    };
+    MCPServerSource: {
+      kind: string;
+      path?: string;
     };
     MCPServerStatusPayload: {
       auth_status?: string;
@@ -17661,6 +17712,7 @@ export interface components {
       catalog_entry?: string;
       catalog_version?: string;
       command?: string;
+      definition_source?: string;
       env_keys?: string[];
       headers_configured?: boolean;
       name: string;
@@ -42423,6 +42475,92 @@ export interface operations {
       };
     };
   };
+  checkSettingsMCPServer: {
+    parameters: {
+      query: {
+        /** @description Exact MCP settings scope */
+        scope: "user" | "profile" | "workspace";
+        /** @description Required when scope is workspace */
+        workspace_id?: string;
+        /** @description Required when scope is profile */
+        profile?: string;
+        /** @description Definition owner: manual or extension:<name>; omitted owner selects manual */
+        owner?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsMCPServerItemPayload"];
+        };
+      };
+      /** @description Invalid MCP OAuth request or session */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP OAuth runtime is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   getSettingsObservability: {
     parameters: {
       query?: never;
@@ -58424,6 +58562,92 @@ export interface operations {
         };
       };
       /** @description Session MCP read model unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  checkSessionMCP: {
+    parameters: {
+      query?: {
+        /** @description Definition owner; omitted owner selects manual */
+        owner?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionMCP"];
+        };
+      };
+      /** @description Invalid MCP OAuth request or session */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP server waiting for approval or definition changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description MCP OAuth runtime is unavailable */
       503: {
         headers: {
           [name: string]: unknown;

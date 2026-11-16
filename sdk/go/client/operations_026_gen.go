@@ -10,6 +10,39 @@ import (
 	"strings"
 )
 
+// ListWorkspaceSessionsParams carries the path, query, and header parameters.
+type ListWorkspaceSessionsParams struct {
+	WorkspaceID               string    `url:"workspace_id"`
+	WorkspaceIds              *[]string `url:"workspace_ids"`
+	IncludeHealth             *bool     `url:"include_health"`
+	SkipTotal                 *bool     `url:"skip_total"`
+	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
+	ExcludeFinishedAutomation *bool     `url:"exclude_finished_automation"`
+	ExcludeAutomation         *bool     `url:"exclude_automation"`
+	State                     *string   `url:"state"`
+	Type                      *string   `url:"type"`
+	Agent                     *string   `url:"agent"`
+	Subagents                 *string   `url:"subagents"`
+	Children                  *string   `url:"children"`
+	Parent                    *string   `url:"parent"`
+	Root                      *string   `url:"root"`
+	ExcludeRoot               *string   `url:"exclude_root"`
+	Worktree                  *string   `url:"worktree"`
+	Q                         *string   `url:"q"`
+	SearchFields              *string   `url:"search_fields"`
+	Resumable                 *bool     `url:"resumable"`
+	Attention                 *bool     `url:"attention"`
+	BoardColumn               *[]string `url:"board_column"`
+	Badge                     *string   `url:"badge"`
+	Archive                   *string   `url:"archive"`
+	Later                     *string   `url:"later"`
+	Sort                      *string   `url:"sort"`
+	Cursor                    *string   `url:"cursor"`
+	Limit                     *int      `url:"limit"`
+	Profile                   *string   `url:"profile"`
+	AllProfiles               *bool     `url:"all_profiles"`
+}
+
 // ListWorkspaceSessions List sessions
 func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspaceSessionsParams) (*SessionCatalogResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions"
@@ -413,35 +446,4 @@ func (c *Client) MoveSessionToLater(ctx context.Context, params MoveSessionToLat
 		return nil, err
 	}
 	return &out, nil
-}
-
-// MoveSessionToProfileParams carries the path, query, and header parameters.
-type MoveSessionToProfileParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// MoveSessionToProfile Copy a stopped user session into another profile and archive the original
-func (c *Client) MoveSessionToProfile(ctx context.Context, params MoveSessionToProfileParams, body MoveSessionToProfileRequest) (*MoveSessionToProfileResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MoveSessionToProfileResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveWorkspaceParams carries the path, query, and header parameters.
-type MoveWorkspaceParams struct {
-	Profile *string `url:"profile"`
 }

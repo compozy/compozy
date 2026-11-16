@@ -106,7 +106,8 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 			var out strings.Builder
 			if len(result.CompozyServers) > 0 {
 				fmt.Fprintf(&out, "COMPOZYOS · %d servers\n", len(result.CompozyServers))
-				for _, s := range result.CompozyServers {
+				for i := range result.CompozyServers {
+					s := &result.CompozyServers[i]
 					fmt.Fprintf(&out, "  %-24s %-10s %-8s\n", s.Name, s.Scope, s.Transport)
 				}
 			}
@@ -143,7 +144,8 @@ func mcpListBundle(result contract.MCPListResponse) outputBundle {
 		},
 		toon: func() (string, error) {
 			rows := [][]string{}
-			for _, s := range result.CompozyServers {
+			for i := range result.CompozyServers {
+				s := &result.CompozyServers[i]
 				rows = append(rows, []string{"compozy", s.Name, string(s.Scope), s.Transport, "", ""})
 			}
 			for _, group := range result.Runtimes {

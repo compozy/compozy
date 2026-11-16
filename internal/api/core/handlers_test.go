@@ -8049,6 +8049,48 @@ func (s *agentMCPApprovalSettings) RecordWorkspaceMCPWrite(
 // Invariant: MCP summary decorates detail only and scoped reads authorize before reading inventory. Owner: session HTTP core; canonical handler suite (UT-083).
 func TestSessionMCPDetailAndScope(t *testing.T) {
 	t.Parallel()
+	t.Run("Should scope a check before forwarding its exact server owner", func(t *testing.T) {
+		t.Parallel()
+		info := testutil.NewSessionInfo("sess-mcp")
+		info.WorkspaceID, info.ProfileID = "ws-mcp", store.DefaultProfileID
+		base := &testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+		}
+		fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		checker := &sessionMCPHandlerStub{
+			SessionManager: fixture.Handlers.Sessions,
+			result:         session.MCP{SessionID: info.ID},
+		}
+		fixture.Handlers.Sessions = checker
+		fixture.Engine.POST(
+			"/workspaces/:workspace_id/sessions/:session_id/mcp/servers/:name/check",
+			fixture.Handlers.CheckSessionMCP,
+		)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-mcp/sessions/sess-mcp/mcp/servers/docs/check?owner=extension:docs",
+			nil,
+		)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "sess-mcp") ||
+			checker.checkName != "docs" ||
+			checker.checkOwner != "extension:docs" {
+			t.Fatalf("check = %d %s, %+v", response.Code, response.Body.String(), checker)
+		}
+		response = performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/foreign/sessions/sess-mcp/mcp/servers/docs/check",
+			nil,
+		)
+		if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), "error") ||
+			checker.checks != 1 {
+			t.Fatalf("foreign check = %d %s, calls=%d", response.Code, response.Body.String(), checker.checks)
+		}
+	})
+
 	t.Run("Should return the session without a summary when the MCP read model fails", func(t *testing.T) {
 		t.Parallel()
 		info := testutil.NewSessionInfo("sess-mcp")
@@ -8134,6 +8176,8 @@ func TestSessionMCPDetailAndScope(t *testing.T) {
 }
 
 type sessionMCPHandlerStub struct {
+	checks                int
+	checkName, checkOwner string
 	core.SessionManager
 	result session.MCP
 	err    error
@@ -8144,5 +8188,11 @@ var _ session.MCPReader = (*sessionMCPHandlerStub)(nil)
 
 func (s *sessionMCPHandlerStub) ListSessionMCP(context.Context, string) (session.MCP, error) {
 	s.reads++
+	return s.result, s.err
+}
+
+func (s *sessionMCPHandlerStub) CheckSessionMCP(_ context.Context, _ string, name, owner string) (session.MCP, error) {
+	s.checks++
+	s.checkName, s.checkOwner = name, owner
 	return s.result, s.err
 }

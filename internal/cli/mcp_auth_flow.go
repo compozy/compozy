@@ -253,7 +253,8 @@ func mcpAuthStatuses(
 ) []SettingsMCPAuthStatusRecord {
 	statuses := make([]SettingsMCPAuthStatusRecord, 0, len(servers))
 	owner := strings.TrimSpace(opts.owner)
-	for _, server := range servers {
+	for i := range servers {
+		server := &servers[i]
 		if owner != "" && vault.NormalizeMCPOwner(server.Owner) != owner {
 			continue
 		}

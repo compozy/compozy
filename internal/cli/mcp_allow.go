@@ -91,7 +91,8 @@ func resolveMCPApprovalDigest(
 		return listErr
 	}
 	matches := 0
-	for _, server := range collection.MCPServers {
+	for i := range collection.MCPServers {
+		server := &collection.MCPServers[i]
 		if server.Name != name || server.Owner != "" && server.Owner != "manual" {
 			continue
 		}

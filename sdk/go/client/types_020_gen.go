@@ -4,6 +4,27 @@ package client
 
 import "time"
 
+// SessionLinkedWorkItem is a daemon API value.
+type SessionLinkedWorkItem struct {
+	Repository         string                           `json:"repository"`
+	Branch             string                           `json:"branch"`
+	PRNumber           int                              `json:"pr_number,omitempty"`
+	WorktreeID         string                           `json:"worktree_id,omitempty"`
+	WorktreeName       string                           `json:"worktree_name,omitempty"`
+	WorktreeRemoved    bool                             `json:"worktree_removed"`
+	Provenance         string                           `json:"provenance"`
+	RunsHere           bool                             `json:"runs_here"`
+	SourceSessionID    string                           `json:"source_session_id,omitempty"`
+	SourceSessionTitle string                           `json:"source_session_title,omitempty"`
+	PullRequest        *SessionPullRequestPayload       `json:"pull_request"`
+	PullRequestLookup  *SessionPullRequestLookupPayload `json:"pull_request_lookup"`
+}
+
+// SessionLinkedWorkResponse is a daemon API value.
+type SessionLinkedWorkResponse struct {
+	Items []SessionLinkedWorkItem `json:"items"`
+}
+
 // SessionLinkedWorkSummary is a daemon API value.
 type SessionLinkedWorkSummary struct {
 	PullRequests int                    `json:"pull_requests"`
@@ -410,30 +431,4 @@ type SessionSpec struct {
 	Handle   string `json:"handle,omitempty"`
 	Isolated bool   `json:"isolated,omitzero"`
 	Mode     string `json:"mode,omitempty"`
-}
-
-// SessionStatusResponse is a daemon API value.
-type SessionStatusResponse struct {
-	Diagnostics         []DiagnosticItem                 `json:"diagnostics,omitempty"`
-	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
-	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
-	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
-	Verified            *bool                            `json:"verified,omitempty"`
-	Escalated           *bool                            `json:"escalated,omitempty"`
-	Attention           string                           `json:"attention,omitempty"`
-	SessionID           string                           `json:"session_id"`
-	WorkspaceID         string                           `json:"workspace_id"`
-	AgentName           string                           `json:"agent_name"`
-	State               SessionHealthState               `json:"state"`
-	Badge               Badge                            `json:"badge"`
-	Health              SessionHealthStatus              `json:"health"`
-	ActivePrompt        bool                             `json:"active_prompt"`
-	Attachable          bool                             `json:"attachable"`
-	EligibleForWake     bool                             `json:"eligible_for_wake"`
-	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
-	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
-	PendingInteractions []PendingInteractionPayload      `json:"pending_interactions"`
-	Lineage             *SessionLineagePayload           `json:"lineage,omitempty"`
-	Derivation          *SessionDerivationPayload        `json:"derivation,omitempty"`
-	UpdatedAt           time.Time                        `json:"updated_at"`
 }

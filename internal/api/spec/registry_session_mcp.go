@@ -20,3 +20,22 @@ func getSessionMCPOperationSpec() OperationSpec {
 		},
 	}
 }
+
+func checkSessionMCPOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check",
+		AppAccess:   AppAccessDenied,
+		OperationID: "checkSessionMCP",
+		Summary:     "Retry discovery for one session MCP server without restarting the runtime",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+			pathParam("name", "Configured MCP server name"),
+			queryParam("owner", "Definition owner; omitted owner selects manual", false),
+		},
+		Responses: settingsMCPAuthResponses(contract.SessionMCPResponse{}),
+	}
+}

@@ -485,6 +485,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"listWindowManagerLayoutProfiles",
 			"listWorktrees",
 			"logoutSettingsMCPAuth",
+			"checkSessionMCP",
+			"checkSettingsMCPServer",
 			"mintGatewayPairing",
 			"mintGatewayStreamTicket",
 			"mintTerminalAttachTicket",

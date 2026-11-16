@@ -9,6 +9,79 @@ import (
 	"strings"
 )
 
+// GetSessionHistory List grouped session turn history
+func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistoryParams) (*SessionHistoryResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/history"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.TurnID != nil {
+		query.Set("turn_id", *params.TurnID)
+	}
+	if params.Archive != nil {
+		query.Set("archive", *params.Archive)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionHistoryResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionHistoryCleanupParams carries the path, query, and header parameters.
+type GetSessionHistoryCleanupParams struct {
+	Profile *string `url:"profile"`
+}
+
+// GetSessionHistoryCleanup Get the selected profile's running or most recent archived-history cleanup
+func (c *Client) GetSessionHistoryCleanup(ctx context.Context, params GetSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
+	path := "/api/sessions/history-cleanup"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionHistoryCleanupRunResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionMCPParams carries the path, query, and header parameters.
+type GetSessionMCPParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetSessionMCP Read session MCP availability without discovery
 func (c *Client) GetSessionMCP(ctx context.Context, params GetSessionMCPParams) (*MCP, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp"
@@ -369,67 +442,4 @@ func (c *Client) GetSettingsMCPAuthStatus(ctx context.Context, params GetSetting
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSettingsMCPServerParams carries the path, query, and header parameters.
-type GetSettingsMCPServerParams struct {
-	Name        string  `url:"name"`
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-}
-
-// GetSettingsMCPServer Get one owner-qualified MCP server
-func (c *Client) GetSettingsMCPServer(ctx context.Context, params GetSettingsMCPServerParams) (*SettingsMCPServerResponse, error) {
-	path := "/api/settings/mcp-servers/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPServerResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsMarketplace Read global marketplace catalog settings
-func (c *Client) GetSettingsMarketplace(ctx context.Context) (*SettingsMarketplaceResponse, error) {
-	path := "/api/settings/marketplace"
-	var out SettingsMarketplaceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsObservability Read the observability settings section
-func (c *Client) GetSettingsObservability(ctx context.Context) (*SettingsObservabilityResponse, error) {
-	path := "/api/settings/observability"
-	var out SettingsObservabilityResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsPersonaParams carries the path, query, and header parameters.
-type GetSettingsPersonaParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

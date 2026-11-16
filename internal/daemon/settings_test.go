@@ -711,6 +711,61 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			t.Fatalf("superseded status=%+v, %v", status, err)
 		}
 	})
+	t.Run("Should retry a dead server through real MCP discovery and clear its durable failure", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		server := httptest.NewServer(
+			mcp.NewStreamableHTTPHandler(
+				func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
+				&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+			),
+		)
+		t.Cleanup(server.Close)
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 7, 15, 18, 30, 0, 0, time.UTC)
+		if err := db.InsertWorkspace(
+			ctx,
+			workspacepkg.Workspace{ID: "ws-retry", Name: "retry", RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now},
+		); err != nil {
+			t.Fatal(err)
+		}
+		auth, err := newSettingsMCPAuthManagerWithConfig(db, db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey:      []byte("test installation key"),
+			mcpAuthStore:   db,
+			mcpAuthManager: auth,
+			deadEntities:   deadentity.New(db, deadentity.WithPermanentFailureThreshold(1)),
+		}
+		target := mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "ws-retry", ServerName: "docs"}
+		key, tracked := settingsMCPDeadEntityKey(target, "docs")
+		if !tracked {
+			t.Fatal("untracked server")
+		}
+		if err := surface.deadEntities.RecordFailure(ctx, key, deadentity.FailurePermanent, "offline"); err != nil {
+			t.Fatal(err)
+		}
+		definition := compozyconfig.MCPServer{
+			Name:      "docs",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		}
+		suppressed, err := surface.MCPServerRuntimeStatus(ctx, target, definition)
+		if err != nil || suppressed.State != settingspkg.MCPServerRuntimeStateDead {
+			t.Fatalf("suppressed = %+v, %v", suppressed, err)
+		}
+		status, err := surface.CheckMCPServerRuntime(ctx, target, definition)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateReady || status.ToolCount != 1 {
+			t.Fatalf("retry = %+v, %v", status, err)
+		}
+		marks, err := db.ListDeadEntities(ctx, store.ReadScope{AllProfiles: true}, "ws-retry")
+		if err != nil || len(marks) != 0 {
+			t.Fatalf("marks = %+v, %v", marks, err)
+		}
+	})
+
 	t.Run("Should classify permission failures by error identity", func(t *testing.T) {
 		t.Parallel()
 

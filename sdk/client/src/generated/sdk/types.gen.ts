@@ -5210,13 +5210,32 @@ export type MCPReloadRecord = {
   reason: string;
 };
 
+export type MCPServerApproval = {
+  definition_digest: string;
+  reason?: string;
+};
+
 export type MCPServerRow = {
+  approval?: MCPServerApproval | null;
+  args?: Array<string>;
   callable_count: number;
+  command?: string;
   name: string;
   owner: string;
+  profile?: string;
   reason: string;
+  scope?: string;
+  source: MCPServerSource;
   state: string;
   tool_count: number;
+  transport?: string;
+  url?: string;
+  workspace_id?: string;
+};
+
+export type MCPServerSource = {
+  kind: string;
+  path?: string;
 };
 
 export type MCPServerStatusPayload = {
@@ -9278,6 +9297,7 @@ export type SettingsMCPServerItemPayload = {
   catalog_entry?: string;
   catalog_version?: string;
   command?: string;
+  definition_source?: string;
   env_keys?: Array<string>;
   headers_configured?: boolean;
   name: string;
@@ -28746,6 +28766,75 @@ export type GetSettingsMCPAuthStatusResponses = {
 export type GetSettingsMCPAuthStatusResponse =
   GetSettingsMCPAuthStatusResponses[keyof GetSettingsMCPAuthStatusResponses];
 
+export type CheckSettingsMCPServerData = {
+  body?: never;
+  path: {
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query: {
+    /**
+     * Exact MCP settings scope
+     */
+    scope: "user" | "profile" | "workspace";
+    /**
+     * Required when scope is workspace
+     */
+    workspace_id?: string;
+    /**
+     * Required when scope is profile
+     */
+    profile?: string;
+    /**
+     * Definition owner: manual or extension:<name>; omitted owner selects manual
+     */
+    owner?: string;
+  };
+  url: "/api/settings/mcp-servers/{name}/check";
+};
+
+export type CheckSettingsMCPServerErrors = {
+  /**
+   * Invalid MCP OAuth request or session
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * MCP OAuth runtime is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CheckSettingsMCPServerError =
+  CheckSettingsMCPServerErrors[keyof CheckSettingsMCPServerErrors];
+
+export type CheckSettingsMCPServerResponses = {
+  /**
+   * OK
+   */
+  200: SettingsMCPServerItemPayload;
+};
+
+export type CheckSettingsMCPServerResponse =
+  CheckSettingsMCPServerResponses[keyof CheckSettingsMCPServerResponses];
+
 export type GetSettingsObservabilityData = {
   body?: never;
   path?: never;
@@ -41177,6 +41266,73 @@ export type GetSessionMCPResponses = {
 };
 
 export type GetSessionMCPResponse = GetSessionMCPResponses[keyof GetSessionMCPResponses];
+
+export type CheckSessionMCPData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+    /**
+     * Configured MCP server name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Definition owner; omitted owner selects manual
+     */
+    owner?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check";
+};
+
+export type CheckSessionMCPErrors = {
+  /**
+   * Invalid MCP OAuth request or session
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * MCP server or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * MCP server waiting for approval or definition changed
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * MCP OAuth runtime is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CheckSessionMCPError = CheckSessionMCPErrors[keyof CheckSessionMCPErrors];
+
+export type CheckSessionMCPResponses = {
+  /**
+   * OK
+   */
+  200: SessionMCP;
+};
+
+export type CheckSessionMCPResponse = CheckSessionMCPResponses[keyof CheckSessionMCPResponses];
 
 export type ListSessionMonitorsData = {
   body?: never;

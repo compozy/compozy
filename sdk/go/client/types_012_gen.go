@@ -226,14 +226,35 @@ type MCPReloadRecord struct {
 	Reason  string    `json:"reason"`
 }
 
+// MCPServerApproval is a daemon API value.
+type MCPServerApproval struct {
+	Reason           string `json:"reason,omitempty"`
+	DefinitionDigest string `json:"definition_digest"`
+}
+
 // MCPServerRow is a daemon API value.
 type MCPServerRow struct {
-	Name          string `json:"name"`
-	Owner         string `json:"owner"`
-	State         string `json:"state"`
-	ToolCount     int    `json:"tool_count"`
-	CallableCount int    `json:"callable_count"`
-	Reason        string `json:"reason"`
+	Scope         string             `json:"scope,omitempty"`
+	WorkspaceID   string             `json:"workspace_id,omitempty"`
+	Profile       string             `json:"profile,omitempty"`
+	Transport     string             `json:"transport,omitempty"`
+	Command       string             `json:"command,omitempty"`
+	Args          []string           `json:"args,omitempty"`
+	URL           string             `json:"url,omitempty"`
+	Source        MCPServerSource    `json:"source"`
+	Approval      *MCPServerApproval `json:"approval,omitempty"`
+	Name          string             `json:"name"`
+	Owner         string             `json:"owner"`
+	State         string             `json:"state"`
+	ToolCount     int                `json:"tool_count"`
+	CallableCount int                `json:"callable_count"`
+	Reason        string             `json:"reason"`
+}
+
+// MCPServerSource is a daemon API value.
+type MCPServerSource struct {
+	Kind string `json:"kind"`
+	Path string `json:"path,omitempty"`
 }
 
 // MCPServerStatusPayload is a daemon API value.
@@ -423,22 +444,4 @@ type MarketplaceServerPayload struct {
 	Auth        *MCPAuthSummary `json:"auth,omitzero"`
 	Profile     string          `json:"profile,omitempty"`
 	WorkspaceID string          `json:"workspace_id,omitempty"`
-}
-
-// MarketplaceSourcePayload is a daemon API value.
-type MarketplaceSourcePayload struct {
-	Name         string           `json:"name"`
-	Kind         string           `json:"kind"`
-	Source       string           `json:"source"`
-	Enabled      bool             `json:"enabled"`
-	State        string           `json:"state"`
-	Plugins      int              `json:"plugins"`
-	Installable  int              `json:"installable"`
-	LastReadAt   *time.Time       `json:"last_read_at,omitempty"`
-	ErrorClass   string           `json:"error_class,omitempty"`
-	Error        string           `json:"error,omitempty"`
-	DocumentPath string           `json:"document_path,omitempty"`
-	Owner        string           `json:"owner,omitempty"`
-	Stability    string           `json:"stability"`
-	Diagnostics  []DiagnosticItem `json:"diagnostics"`
 }
