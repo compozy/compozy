@@ -1,4 +1,5 @@
 import { useSelector, useStore } from "@xstate/store-react";
+import { useRef, useState } from "react";
 
 import {
   createMCPAuthorizeLogic,
@@ -8,6 +9,8 @@ import {
   type MCPAuthorizeState,
 } from "../stores/mcp-authorize-store";
 import { mcpScopeEscalationScopes, normalizeMCPAuthScopes } from "../lib/mcp-authorize-model";
+import { mcpPanelAnchor, type MCPPanelAnchor } from "../lib/mcp-panel-anchor";
+import { openMCPSignInWindow, type MCPSignInWindow } from "../lib/mcp-sign-in-window";
 import type { SettingsMCPAuthFilter, SettingsMCPServerEntry } from "../types";
 import { useBeginMCPAuth, useExchangeMCPAuth } from "./use-settings-mutations";
 
@@ -34,6 +37,17 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
   const exchangeMutation = useExchangeMCPAuth();
   const store = useStore(mcpAuthorizeLogic);
   const state = useSelector(store, snapshot => snapshot.context);
+  const [anchor, setAnchor] = useState<MCPPanelAnchor | null>(null);
+  // The browser tab reserved by the click that starts a sign-in; the begin's answer navigates it.
+  const signInWindow = useRef<MCPSignInWindow | null>(null);
+  const reserveSignInWindow = () => {
+    signInWindow.current?.close();
+    signInWindow.current = openMCPSignInWindow();
+  };
+  const releaseSignInWindow = () => {
+    signInWindow.current?.close();
+    signInWindow.current = null;
+  };
   const onConfirmed = (server: string) => {
     if (state.phase !== "idle") options.onConfirmed?.(server, state.filter);
   };
@@ -42,7 +56,12 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
     const scopes = normalizeMCPAuthScopes(scopeApproval?.approvedScopes ?? []);
     const explicitScopeApproval =
       scopeApproval?.approveScopeEscalation === true && scopes.length > 0;
-    return beginMutation.mutateAsync({
+    // A manual sign-in happens on another computer: nothing opens here.
+    const reserved = input.mode === "manual" ? null : signInWindow.current;
+    const settle = () => {
+      if (signInWindow.current === reserved) signInWindow.current = null;
+    };
+    const request = beginMutation.mutateAsync({
       name: input.server,
       filter: input.filter,
       body: {
@@ -52,11 +71,35 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
           : {}),
       },
     });
+    if (!reserved) return request;
+    return request.then(
+      response => {
+        if (signInWindow.current === reserved) reserved.navigate(response.authorization_url);
+        settle();
+        return response;
+      },
+      (error: unknown) => {
+        reserved.close();
+        settle();
+        throw error;
+      }
+    );
   };
   const exchangeExecution: MCPAuthorizeExchange = input =>
     exchangeMutation.mutateAsync({ name: input.server, filter: input.filter, body: input.body });
 
-  const requestAuthorize = (filter: SettingsMCPAuthFilter, server: SettingsMCPServerEntry) => {
+  /**
+   * Starts a sign-in from a click. `trigger` is the control the panel opens beside; the browser
+   * opens on its own unless the server first asks for more access.
+   */
+  const requestAuthorize = (
+    filter: SettingsMCPAuthFilter,
+    server: SettingsMCPServerEntry,
+    trigger?: HTMLElement | null
+  ) => {
+    // The live phase, not this render's: a second press in the same tick must not open a tab.
+    if (store.getSnapshot().context.phase !== "idle") return;
+    setAnchor(trigger ? mcpPanelAnchor(trigger) : null);
     const prior: MCPAuthorizePriorStatus = {
       status: server.auth_status?.status ?? "needs_login",
       tokenPresent: Boolean(server.auth_status?.token_present),
@@ -72,6 +115,7 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
       });
       return;
     }
+    reserveSignInWindow();
     store.trigger.authorizeRequested({
       begin: beginExecution,
       dismissOnConfirmation: options.dismissOnConfirmation ?? false,
@@ -95,10 +139,24 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
     prior: activeState?.prior ?? null,
     mode: activeState?.mode ?? null,
     approvedScopes: activeState?.scopeApproval?.approvedScopes ?? [],
+    /** Where the sign-in panel opens; null when the request named no control. */
+    anchor: activeState ? anchor : null,
     requestAuthorize,
-    confirmScopeEscalation: () => store.trigger.scopeEscalationConfirmed({ begin: beginExecution }),
-    retryBegin: () => store.trigger.beginRetried({ begin: beginExecution }),
-    enterManual: () => store.trigger.manualAuthorizationRequested({ begin: beginExecution }),
+    confirmScopeEscalation: () => {
+      if (store.getSnapshot().context.phase !== "reviewing_scopes") return;
+      reserveSignInWindow();
+      store.trigger.scopeEscalationConfirmed({ begin: beginExecution });
+    },
+    retryBegin: () => {
+      const current = store.getSnapshot().context;
+      if (current.phase !== "failed") return;
+      if (current.mode !== "manual") reserveSignInWindow();
+      store.trigger.beginRetried({ begin: beginExecution });
+    },
+    enterManual: () => {
+      releaseSignInWindow();
+      store.trigger.manualAuthorizationRequested({ begin: beginExecution });
+    },
     submitManual: (value: string) => {
       if (state.phase === "failed" && state.stage === "completion") {
         store.trigger.manualCompletionRetried({ exchange: exchangeExecution, onConfirmed, value });
@@ -108,7 +166,10 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
     },
     acknowledgeStatus: (status: string, tokenPresent: boolean) =>
       store.trigger.statusObserved({ onConfirmed, status, tokenPresent }),
-    cancel: () => store.trigger.authorizationCancelled(),
+    cancel: () => {
+      releaseSignInWindow();
+      store.trigger.authorizationCancelled();
+    },
   };
 }
 

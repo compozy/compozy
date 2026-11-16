@@ -82,6 +82,8 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // jsdom has no browser tabs; a sign-in press reserves one through window.open.
+  vi.spyOn(window, "open").mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -363,5 +365,99 @@ describe("definition authorization polling", () => {
     );
     expect(result.current.server?.owner).toBe("extension:kit");
     unmount();
+  });
+});
+
+// Invariant: Sign in opens the browser by itself — the press reserves a tab (popup-blocker safe)
+// that the begin's answer navigates; a failed begin gives the tab back; a paste sign-in opens
+// nothing; where no tab can be reserved (the desktop app) the address opens directly.
+// Owner: settings sign-in hook; canonical suite: use-mcp-authorize.test.tsx.
+describe("sign-in browser tab", () => {
+  function fakeTab() {
+    return { closed: false, opener: {}, close: vi.fn(), location: { replace: vi.fn() } };
+  }
+
+  it("Should navigate the tab reserved by the press once begin answers", async () => {
+    vi.mocked(beginSettingsMCPAuth).mockResolvedValue(beginResponse);
+    const tab = fakeTab();
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
+
+    act(() => result.current.requestAuthorize(filter, serverEntry));
+    expect(open).toHaveBeenCalledExactlyOnceWith("", "_blank");
+
+    await waitFor(() => expect(result.current.phase).toBe("waiting"));
+    expect(tab.location.replace).toHaveBeenCalledWith(beginResponse.authorization_url);
+    expect(tab.opener).toBeNull();
+    expect(open).toHaveBeenCalledOnce();
+  });
+
+  it("Should give the reserved tab back when begin fails or the sign-in is cancelled", async () => {
+    vi.mocked(beginSettingsMCPAuth).mockRejectedValueOnce(new Error("provider unreachable"));
+    const failed = fakeTab();
+    const cancelled = fakeTab();
+    vi.spyOn(window, "open")
+      .mockReturnValueOnce(failed as unknown as Window)
+      .mockReturnValueOnce(cancelled as unknown as Window);
+    vi.mocked(beginSettingsMCPAuth).mockReturnValueOnce(new Promise(() => {}));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
+
+    act(() => result.current.requestAuthorize(filter, serverEntry));
+    await waitFor(() => expect(result.current.phase).toBe("failed"));
+    expect(failed.close).toHaveBeenCalledOnce();
+    expect(failed.location.replace).not.toHaveBeenCalled();
+
+    act(() => result.current.retryBegin());
+    act(() => result.current.cancel());
+    expect(cancelled.close).toHaveBeenCalledOnce();
+    expect(result.current.phase).toBe("idle");
+  });
+
+  it("Should open nothing for a sign-in finished by pasting the address", async () => {
+    vi.mocked(beginSettingsMCPAuth).mockResolvedValue(beginResponse);
+    const tab = fakeTab();
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
+    act(() => result.current.requestAuthorize(filter, serverEntry));
+    await waitFor(() => expect(result.current.phase).toBe("waiting"));
+    open.mockClear();
+
+    act(() => result.current.enterManual());
+    await waitFor(() => expect(result.current.phase).toBe("manual"));
+
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("Should open the address directly where no tab can be reserved", async () => {
+    vi.mocked(beginSettingsMCPAuth).mockResolvedValue(beginResponse);
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
+
+    act(() => result.current.requestAuthorize(filter, serverEntry));
+    await waitFor(() => expect(result.current.phase).toBe("waiting"));
+
+    expect(open).toHaveBeenLastCalledWith(
+      beginResponse.authorization_url,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  });
+
+  it("Should anchor the panel to the control that started the sign-in", () => {
+    vi.mocked(beginSettingsMCPAuth).mockReturnValue(new Promise(() => {}));
+    vi.spyOn(window, "open").mockReturnValue(null);
+    const button = document.createElement("button");
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
+
+    act(() => result.current.requestAuthorize(filter, serverEntry, button));
+
+    expect(result.current.anchor?.element).toBe(button);
+    act(() => result.current.cancel());
+    expect(result.current.anchor).toBeNull();
   });
 });

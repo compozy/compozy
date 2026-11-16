@@ -4,8 +4,8 @@ area: ET
 title: Sign in to an OAuth MCP server from the session MCP control and use it on the next message
 persona: Théo
 journey: J-mcp-authorize-repair
-expected: An OAuth echo server added while a Codex session is open reads Needs sign-in in the composer MCP control; Sign in opens the existing authorize dialog; after authenticated && token_present the next message calls echo through one reload.
-entry_points: session composer MCP control → Sign in; MCPAuthorizeDialog; compozy mcp auth login <name>; compozy session mcp <id>
+expected: An OAuth echo server added while a Codex session is open reads Needs sign-in in the composer MCP control; Sign in opens the sign-in panel beside the row (browser opens by itself); after authenticated && token_present the next message calls echo through one reload.
+entry_points: session composer MCP control → Sign in; MCPSignInPopover beside the row; compozy mcp auth login <name>; compozy session mcp <id>
 qa_status: untested
 bug_ids:
 fix_status:
@@ -32,7 +32,7 @@ Steps:
 2. Add the OAuth echo server in Settings (Personal, HTTP, no headers).
 3. Composer MCP control: the row reads "Needs sign-in" with a Sign in button; the trigger is tinted
    (attention). `compozy session mcp <id>` shows reason "Sign in to echo in CompozyOS". Screenshot.
-4. Click Sign in in the control. Complete the authorization. The dialog confirms only on
+4. Click Sign in in the control. Complete the authorization. The panel confirms only on
    `authenticated && token_present`.
 5. Send "call echo with E2E-003". The transcript shows one "MCP servers updated · echo added"
    line (Codex reloads its native session) and the call succeeds.
@@ -42,3 +42,7 @@ Steps:
 Pass: steps 3–6 in one session, no restart.
 
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
+
+QA impact 2026-11-16 (MCP redesign S2): the sign-in panel opens inside the composer popover,
+beside the row; pressing inside it keeps the popover open, and closing the popover cancels the
+attempt. Connected reads "<N> tools from <server> join this chat on your next message."

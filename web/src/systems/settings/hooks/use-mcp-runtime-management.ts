@@ -6,6 +6,7 @@ import { useOpenFileInEditor } from "@/systems/os";
 
 import { SettingsApiError } from "../adapters/settings-api";
 import { mcpDefinitionKey } from "../lib/mcp-management-target";
+import { mcpPanelAnchor, type MCPPanelAnchor } from "../lib/mcp-panel-anchor";
 import {
   MCP_FILTER_ALL,
   mcpApprovalReason,
@@ -35,6 +36,14 @@ interface UseMCPRuntimeManagementOptions {
 export interface MCPCopyTarget {
   snapshot: RuntimeMCPSnapshot;
   server: RuntimeMCPServer;
+  /** The Copy button the panel opens beside. */
+  anchor: MCPPanelAnchor;
+}
+
+/** A waiting project server under review in the Allow panel. */
+export interface MCPAllowTarget {
+  entry: SettingsMCPServerEntry;
+  anchor: MCPPanelAnchor;
 }
 
 function failureOf(error: unknown): MCPCopyFailure {
@@ -58,6 +67,7 @@ export function useMCPRuntimeManagement({ enabled, filter }: UseMCPRuntimeManage
   const [runtimeFilter, setRuntimeFilter] = useState<string>(MCP_FILTER_ALL);
   const [approvalNotes, setApprovalNotes] = useState<Record<string, MCPApprovalNote>>({});
   const [copying, setCopying] = useState<MCPCopyTarget | null>(null);
+  const [reviewing, setReviewing] = useState<MCPAllowTarget | null>(null);
   const [copyFailure, setCopyFailure] = useState<MCPCopyFailure | null>(null);
   const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
   const [allowingKey, setAllowingKey] = useState<string | null>(null);
@@ -104,10 +114,15 @@ export function useMCPRuntimeManagement({ enabled, filter }: UseMCPRuntimeManage
     );
   };
 
-  const openCopy = (snapshot: RuntimeMCPSnapshot, server: RuntimeMCPServer) => {
+  const openCopy = (
+    snapshot: RuntimeMCPSnapshot,
+    server: RuntimeMCPServer,
+    trigger: HTMLElement
+  ) => {
+    if (importMutation.isPending) return;
     importMutation.reset();
     setCopyFailure(null);
-    setCopying({ snapshot, server });
+    setCopying({ snapshot, server, anchor: mcpPanelAnchor(trigger) });
   };
 
   const closeCopy = () => {
@@ -145,6 +160,11 @@ export function useMCPRuntimeManagement({ enabled, filter }: UseMCPRuntimeManage
     runtimeFilter,
     setRuntimeFilter,
     allow,
+    /** Opens the Allow panel for a waiting row beside its Allow button. */
+    openAllow: (entry: SettingsMCPServerEntry, trigger: HTMLElement) =>
+      setReviewing({ entry, anchor: mcpPanelAnchor(trigger) }),
+    closeAllow: () => setReviewing(null),
+    reviewing,
     allowingKey: allowingKey ?? undefined,
     approvalNotes,
     copying,

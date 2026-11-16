@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -24,9 +24,17 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Settings › MCP servers: the canonical management page. Manual and extension-provided definitions coexist under their owner with the composed status matrix, the authorize/repair flow, the manual editor and the extension override editor.",
+          "Settings › MCP servers: the canonical management page. Manual and extension-provided definitions coexist under their owner with the composed status matrix, the sign-in panel beside the row, the manual editor and the extension override editor.",
       },
     },
+  },
+  // Sign in opens a browser tab by itself; the canvas keeps it from leaving the story.
+  beforeEach: () => {
+    const open = window.open;
+    window.open = () => null;
+    return () => {
+      window.open = open;
+    };
   },
 };
 
@@ -73,8 +81,16 @@ async function clickExtensionGithubAuthorize(canvasElement: HTMLElement) {
 
 async function openAuthorizeWaiting(canvasElement: HTMLElement) {
   const page = await clickExtensionGithubAuthorize(canvasElement);
-  await page.findByTestId("settings-page-mcp-authorize-url");
+  await page.findByTestId("mcp-sign-in-copy-link");
   return page;
+}
+
+async function finishByPaste(page: ReturnType<typeof within>, address: string) {
+  await userEvent.click(page.getByTestId("mcp-sign-in-paste-toggle"));
+  const input = await page.findByTestId("mcp-sign-in-paste-input");
+  await waitFor(() => expect(input).toBeEnabled());
+  await userEvent.type(input, address);
+  await userEvent.click(page.getByTestId("mcp-sign-in-paste-submit"));
 }
 
 /** matrix-desktop / matrix-mobile: manual `github` and `extension:github` (runs as github.github) side by side. */
@@ -111,7 +127,7 @@ export const SelectedExtensionRow: Story = {
   },
 };
 
-/** authorize-waiting-desktop / authorize-mobile: the extension's own token, not the manual one. */
+/** authorize-waiting-desktop / authorize-mobile: the extension's own token, not the manual one, in the panel beside the row. */
 export const AuthorizeWaiting: Story = {
   args: {},
   tags: ["play-fn"],
@@ -119,7 +135,7 @@ export const AuthorizeWaiting: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
-    await expect(page.getByTestId("settings-page-mcp-authorize-waiting")).toBeInTheDocument();
+    await expect(page.getByTestId("mcp-sign-in-panel")).toHaveAttribute("data-phase", "waiting");
   },
 };
 
@@ -131,8 +147,9 @@ export const AuthorizeManual: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
-    await page.findByTestId("settings-page-mcp-authorize-manual");
+    await userEvent.click(page.getByTestId("mcp-sign-in-paste-toggle"));
+    const input = await page.findByTestId("mcp-sign-in-paste-input");
+    await waitFor(() => expect(input).toBeEnabled());
   },
 };
 
@@ -165,13 +182,8 @@ export const AuthFailure: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
-    await userEvent.type(
-      await page.findByTestId("settings-page-mcp-authorize-manual-input"),
-      "http://127.0.0.1:2123/api/mcp/oauth/callback?code=rejected&state=x"
-    );
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-exchange"));
-    await page.findByTestId("settings-page-mcp-authorize-failure");
+    await finishByPaste(page, "http://127.0.0.1:2123/api/mcp/oauth/callback?code=rejected&state=x");
+    await page.findByText("Sign-in didn't finish");
   },
 };
 
@@ -196,8 +208,8 @@ export const AuthBeginFailure: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await clickExtensionGithubAuthorize(canvasElement);
-    await page.findByText("Sign-in couldn't start");
-    await page.findByTestId("settings-page-mcp-authorize-retry");
+    await page.findByText("Sign-in didn't finish");
+    await page.findByTestId("mcp-sign-in-retry");
   },
 };
 
@@ -209,13 +221,8 @@ export const Authenticated: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const page = await openAuthorizeWaiting(canvasElement);
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
-    await userEvent.type(
-      await page.findByTestId("settings-page-mcp-authorize-manual-input"),
-      "http://127.0.0.1:2123/api/mcp/oauth/callback?code=valid&state=x"
-    );
-    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-exchange"));
-    await page.findByTestId("settings-page-mcp-authorize-confirmed");
+    await finishByPaste(page, "http://127.0.0.1:2123/api/mcp/oauth/callback?code=valid&state=x");
+    await page.findByText("Connected to github");
   },
 };
 

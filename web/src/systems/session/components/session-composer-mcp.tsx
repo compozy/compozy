@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { MCPAuthorizeDialog } from "@/systems/settings";
+import { MCPSignInPopover } from "@/systems/settings";
 
 import { useSessionMCP } from "../hooks/use-session-mcp";
 import { useSessionMCPActions } from "../hooks/use-session-mcp-actions";
@@ -54,17 +54,23 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
         actingName={actions.actingName}
         actionsDisabled={actions.resolving || actions.allowing}
         onManage={manage}
+        rowPanel={
+          <MCPSignInPopover
+            authorize={actions.authorization.authorize}
+            server={actions.authorization.server}
+            appliesOn="next-message"
+            side="right"
+            align="start"
+          />
+        }
         onOpenChange={next => {
           setOpen(next);
+          // The sign-in panel lives inside the popover: closing the popover ends the attempt.
+          if (!next) actions.authorization.authorize.cancel();
           // A pending change keeps the read running while closed, so opening alone would not
           // reread an answer that has gone out of date.
           if (next && summary.pending_reload) model.refresh();
         }}
-      />
-      <MCPAuthorizeDialog
-        authorize={actions.authorization.authorize}
-        scope={actions.authorization.scope}
-        server={actions.authorization.server}
       />
     </>
   );

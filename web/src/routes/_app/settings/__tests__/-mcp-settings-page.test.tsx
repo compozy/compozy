@@ -324,7 +324,7 @@ describe("MCP Settings page", () => {
       expect(within(picked).getByTestId("settings-mcp-runtime-row-codex-github")).toBeVisible();
     });
 
-    it("UT-W06: Should keep the Copy dialog open with an inline name error on a 409", async () => {
+    it("UT-W06: Should keep the Add to CompozyOS panel open with an inline name error on a 409", async () => {
       const user = userEvent.setup();
       const requests: Array<{ url: URL; body: unknown }> = [];
       serveRuntimes([claudeRuntimeMCPFixture]);
@@ -347,8 +347,9 @@ describe("MCP Settings page", () => {
       await user.click(
         await screen.findByRole("button", { name: "Copy exa from Claude Code to CompozyOS" })
       );
-      const dialog = await screen.findByTestId("settings-mcp-copy-dialog");
-      await user.click(within(dialog).getByTestId("settings-mcp-copy-submit"));
+      const dialog = await screen.findByRole("dialog", { name: "Add exa to CompozyOS" });
+      expect(within(dialog).getByRole("radio", { name: /All projects/ })).toBeChecked();
+      await user.click(within(dialog).getByTestId("mcp-copy-panel-submit"));
 
       await waitFor(() =>
         expect(within(dialog).getByRole("textbox", { name: "Name in CompozyOS" })).toHaveAttribute(
@@ -357,7 +358,8 @@ describe("MCP Settings page", () => {
         )
       );
       expect(dialog).toHaveTextContent("A CompozyOS server named exa already exists in Personal");
-      expect(screen.getByTestId("settings-mcp-copy-dialog")).toBeVisible();
+      // Still open (jsdom never runs the popover entrance, so it never reads as visible).
+      expect(screen.getByRole("dialog", { name: "Add exa to CompozyOS" })).toBeInTheDocument();
       expect(requests).toHaveLength(1);
       expect(requests[0]!.url.pathname).toBe("/api/settings/runtime-mcp-servers/claude/exa/import");
       expect(requests[0]!.body).toEqual({ scope: "user" });
@@ -391,10 +393,15 @@ describe("MCP Settings page", () => {
       await user.click(
         await screen.findByRole("button", { name: "Copy exa from Claude Code to CompozyOS" })
       );
-      const dialog = await screen.findByTestId("settings-mcp-copy-dialog");
-      await user.click(within(dialog).getByTestId("settings-mcp-copy-submit"));
+      const dialog = await screen.findByRole("dialog", { name: "Add exa to CompozyOS" });
+      await user.click(within(dialog).getByTestId("mcp-copy-panel-submit"));
 
       await waitFor(() => expect(bodies).toHaveLength(1));
+      // A source gone from its file warns inside the panel and blocks another try.
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+        "exa is no longer in .mcp.json"
+      );
+      expect(within(dialog).getByTestId("mcp-copy-panel-submit")).toBeDisabled();
       expect(bodies[0]).toEqual({ scope: "user", workspace_id: project });
     });
 
@@ -414,7 +421,7 @@ describe("MCP Settings page", () => {
       ).toBeChecked();
     });
 
-    it("Should allow a waiting project server with its digest and say so when the file changed", async () => {
+    it("Should review what a waiting project server runs, allow it with its digest, and say so when the file changed", async () => {
       const user = userEvent.setup();
       const approvals: Array<{ name: string; body: unknown }> = [];
       definitions = [
@@ -452,8 +459,15 @@ describe("MCP Settings page", () => {
       expect(screen.getByText("Added by a file in this project")).toBeVisible();
 
       await user.click(allow);
+      const review = await screen.findByRole("dialog", { name: "Allow github?" });
+      expect(within(review).getByTestId("mcp-allow-panel-launch")).toHaveTextContent(
+        "npx -y @modelcontextprotocol/server-github"
+      );
+      expect(approvals).toEqual([]);
+      await user.click(within(review).getByTestId("mcp-allow-panel-allow"));
 
       expect(await screen.findByText("Changed since you allowed it")).toBeVisible();
+      expect(screen.queryByRole("dialog", { name: "Allow github?" })).not.toBeInTheDocument();
       expect(screen.getByRole("alert")).toHaveTextContent("github changed since you looked at it");
       expect(approvals).toEqual([
         {

@@ -525,18 +525,18 @@ test.describe("Marketplace plugin catalog by category", () => {
         await expect(setUp).toBeVisible();
         await expect(win.getByTestId("marketplace-ready-linear")).toHaveCount(0);
         await expect(setUp).toBeEnabled();
-        await setUp.click();
+        // Set up opens the sign-in panel beside it and the browser by itself.
         const popupPromise = appPage.context().waitForEvent("page");
-        await appPage.getByTestId("settings-page-mcp-authorize-open-url").click();
+        await setUp.click();
         popup = await popupPromise;
         await expect.poll(() => authServer.requests, { timeout: 10_000 }).toContain("POST /token");
         expect(authServer.requests).toContain("GET /.well-known/oauth-protected-resource/mcp");
-        await expect(appPage.getByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible({
-          timeout: 15_000,
-        });
+        await expect(
+          appPage.locator('[data-testid="mcp-sign-in-panel"][data-phase="connected"]')
+        ).toBeVisible({ timeout: 15_000 });
         await expect(win.getByTestId("marketplace-ready-linear")).toBeVisible({ timeout: 15_000 });
         await browserArtifacts.captureScreenshot("marketplace-catalog-sign-in-confirmed", appPage);
-        await appPage.getByTestId("settings-page-mcp-authorize-done").click();
+        await appPage.getByTestId("mcp-sign-in-done").click();
         await expect(win.getByTestId("marketplace-ready-linear")).toBeVisible({ timeout: 15_000 });
       });
     } finally {
@@ -604,12 +604,26 @@ test.describe("MCP Settings authorization", () => {
         `settings-page-mcp-servers-row-${SERVER_NAME}`
       );
       await expect(serverRow).toBeVisible();
+      // Signing in on another computer: no browser here, so record what the panel would open.
+      await appPage.evaluate(() => {
+        const opened: string[] = [];
+        Object.assign(window, { __signInOpened: opened });
+        window.open = (url?: string | URL) => {
+          if (url) opened.push(String(url));
+          return null;
+        };
+      });
       await serverRow.getByRole("button", { name: `Sign in ${SERVER_NAME}`, exact: true }).click();
-      const urlBlock = appPage.getByTestId("settings-page-mcp-authorize-url");
-      await expect(urlBlock).toBeVisible();
-      await appPage.getByTestId("settings-page-mcp-authorize-manual-trigger").click();
-      await expect(appPage.getByTestId("settings-page-mcp-authorize-manual-input")).toBeVisible();
-      const manualLiveUrl = (await urlBlock.locator("code").innerText()).trim();
+      const panel = appPage.getByTestId("mcp-sign-in-panel");
+      await expect(panel).toHaveAttribute("data-phase", "waiting");
+      await appPage.getByTestId("mcp-sign-in-paste-toggle").click();
+      const pasteInput = appPage.getByTestId("mcp-sign-in-paste-input");
+      await expect(pasteInput).toBeEnabled();
+      await appPage.getByTestId("mcp-sign-in-open-again").click();
+      const manualLiveUrl = await appPage.evaluate(() => {
+        const opened = (window as unknown as { __signInOpened: string[] }).__signInOpened;
+        return opened.at(-1) ?? "";
+      });
       const manualAuthorizationURL = new URL(manualLiveUrl);
       const manualState = manualAuthorizationURL.searchParams.get("state");
       const manualRedirectURI = manualAuthorizationURL.searchParams.get("redirect_uri");
@@ -618,15 +632,11 @@ test.describe("MCP Settings authorization", () => {
       const callbackURL = new URL(manualRedirectURI ?? "");
       callbackURL.searchParams.set("code", "auth-code");
       callbackURL.searchParams.set("state", manualState ?? "");
-      await appPage
-        .getByTestId("settings-page-mcp-authorize-manual-input")
-        .fill(callbackURL.toString());
-      await appPage.getByTestId("settings-page-mcp-authorize-exchange").click();
+      await pasteInput.fill(callbackURL.toString());
+      await appPage.getByTestId("mcp-sign-in-paste-submit").click();
 
-      await expect(appPage.getByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible({
-        timeout: 15_000,
-      });
-      await appPage.getByTestId("settings-page-mcp-authorize-done").click();
+      await expect(panel).toHaveAttribute("data-phase", "connected", { timeout: 15_000 });
+      await appPage.getByTestId("mcp-sign-in-done").click();
 
       // The row carries one summary status; the per-signal breakdown lives in the selection strip.
       await serverRow.getByTestId(`settings-page-mcp-servers-row-${SERVER_NAME}-name`).click();
@@ -692,17 +702,16 @@ test.describe("MCP Settings authorization", () => {
         `settings-page-mcp-servers-row-${SERVER_NAME}`
       );
       await expect(serverRow).toBeVisible();
-      await serverRow.getByRole("button", { name: `Sign in ${SERVER_NAME}`, exact: true }).click();
-
+      // Sign in opens the browser by itself; the panel beside the row tracks it.
       const popupPromise = appPage.context().waitForEvent("page");
-      await appPage.getByTestId("settings-page-mcp-authorize-open-url").click();
+      await serverRow.getByRole("button", { name: `Sign in ${SERVER_NAME}`, exact: true }).click();
       popup = await popupPromise;
 
       await expect.poll(() => authServer.requests, { timeout: 10_000 }).toContain("GET /authorize");
       await expect.poll(() => authServer.requests, { timeout: 10_000 }).toContain("POST /token");
-      await expect(appPage.getByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible({
-        timeout: 15_000,
-      });
+      await expect(
+        appPage.locator('[data-testid="mcp-sign-in-panel"][data-phase="connected"]')
+      ).toBeVisible({ timeout: 15_000 });
     } finally {
       if (popup && !popup.isClosed()) await popup.close();
       if (seeded) await cleanupBrowserSettingsFixtures(runtime, seeded);

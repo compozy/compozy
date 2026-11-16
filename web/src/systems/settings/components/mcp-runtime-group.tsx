@@ -18,7 +18,7 @@ import { ProviderLogo } from "./provider-logo";
 
 export interface MCPRuntimeGroupProps {
   snapshot: RuntimeMCPSnapshot;
-  onCopy: (snapshot: RuntimeMCPSnapshot, server: RuntimeMCPServer) => void;
+  onCopy: (snapshot: RuntimeMCPSnapshot, server: RuntimeMCPServer, trigger: HTMLElement) => void;
   onShowFile?: (path: string) => void;
   /**
    * Renders the "Use in CompozyOS sessions" switch. Called only when the runtime can turn its
@@ -91,7 +91,7 @@ export function MCPRuntimeGroup({
             <MCPRuntimeServerRow
               key={runtimeServerKey(server)}
               muted={muted}
-              onCopy={next => onCopy(snapshot, next)}
+              onCopy={(next, trigger) => onCopy(snapshot, next, trigger)}
               onShowFile={onShowFile}
               runtimeName={snapshot.display_name}
               server={server}
@@ -133,10 +133,7 @@ export function MCPRuntimeGroup({
   return (
     <Collapsible open={open} onOpenChange={setOpen} render={<section {...sectionProps} />}>
       <header
-        className={cn(
-          "flex min-h-12 items-center gap-3 pr-4",
-          open && "border-b border-line"
-        )}
+        className={cn("flex min-h-12 items-center gap-3 pr-4", open && "border-b border-line")}
       >
         <CollapsibleTrigger
           aria-label={`${snapshot.display_name} MCP servers`}

@@ -5,7 +5,7 @@ title: A project-file MCP server waits for digest-bound approval and is never st
 persona: Dora
 journey: J-offer-runnable-capabilities
 expected: A committed `.compozy/mcp.json` server reads Waiting for approval in Settings and in the session MCP control; it is never started, probed or contacted before approval; Allow binds the current definition digest and the next message calls it; editing the file returns it to waiting (Changed since you allowed it); revoke withdraws it on the next call; approvals do not leak to another workspace.
-entry_points: web Settings → MCP servers (Project) → Allow; session composer MCP control → Allow; compozy mcp allow <server> --workspace <ws> [--digest|--revoke]; compozy__mcp_allow; PUT|DELETE /api/settings/mcp-servers/{name}/approval
+entry_points: web Settings → MCP servers (Project) → Allow → review panel → Allow; session composer MCP control → Allow; compozy mcp allow <server> --workspace <ws> [--digest|--revoke]; compozy__mcp_allow; PUT|DELETE /api/settings/mcp-servers/{name}/approval
 qa_status: untested
 bug_ids:
 fix_status:
@@ -77,3 +77,9 @@ without starting. A later workspace-profile `enabled` cannot undo a workspace re
 that a project trust list retains only inherited entries, that `[]` removes them all, and that an
 omitted list inherits them; project files cannot add trusted sources.
 No local walk runs in release mode; main CI owns config and MCP consent integration evidence.
+
+QA impact 2026-11-16 (MCP redesign S2): in Settings, Allow opens the "Allow <server>?" review
+panel beside the button, showing what it runs (command and arguments, or the remote address) and
+whether a project file added or changed it; nothing is sent until the panel's Allow. A refused Allow
+(definition changed) still reads "Changed since you allowed it" on the row. The composer control's
+Allow is unchanged in this slice.

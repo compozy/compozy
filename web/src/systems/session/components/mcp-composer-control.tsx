@@ -55,7 +55,8 @@ export interface MCPComposerControlProps {
   /** The latest read failed; rows from an earlier read stay, marked as possibly out of date. */
   failed?: boolean;
   onRetry?: () => void;
-  onAction?: (row: SessionMCPServerRow, action: SessionMCPRowAction) => void;
+  /** A row's Sign in / Allow; `trigger` is the button a row panel opens beside. */
+  onAction?: (row: SessionMCPServerRow, action: SessionMCPRowAction, trigger: HTMLElement) => void;
   /** The server whose action is in flight. */
   actingName?: string | null;
   /** Actions wait until their target can be resolved. */
@@ -64,6 +65,8 @@ export interface MCPComposerControlProps {
   /** The popover opened or closed; the owner reads the session's servers while it is open. */
   onOpenChange?: (open: boolean) => void;
   defaultOpen?: boolean;
+  /** A row panel (sign-in) rendered inside the popover, so pressing it keeps the popover open. */
+  rowPanel?: ReactNode;
 }
 
 interface RowProps {
@@ -119,7 +122,7 @@ function CompozyRow({
             variant="neutral"
             disabled={acting}
             aria-label={`${ACTION_LABELS[action]} ${row.name}`}
-            onClick={() => onAction(row, action)}
+            onClick={event => onAction(row, action, event.currentTarget)}
           >
             {ACTION_LABELS[action]}
           </Button>
@@ -174,7 +177,7 @@ function MCPComposerBody({
   onAction,
   actingName = null,
   actionsDisabled = false,
-}: Omit<MCPComposerControlProps, "onOpenChange" | "onManage" | "defaultOpen"> & {
+}: Omit<MCPComposerControlProps, "onOpenChange" | "onManage" | "defaultOpen" | "rowPanel"> & {
   summary: SessionMCPSummary;
 }) {
   if (data === null) {
@@ -261,6 +264,7 @@ export function MCPComposerControl({
   onOpenChange,
   onManage,
   defaultOpen,
+  rowPanel,
   ...body
 }: MCPComposerControlProps) {
   const { summary, data, failed = false } = body;
@@ -321,6 +325,7 @@ export function MCPComposerControl({
             </Button>
           </div>
         ) : null}
+        {rowPanel}
       </PopoverContent>
     </Popover>
   );

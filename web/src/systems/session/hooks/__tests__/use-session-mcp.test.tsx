@@ -29,7 +29,7 @@ vi.mock("@/systems/settings", () => ({
   useAllowMCPServer: vi.fn(),
   useMCPDefinitionAuthorization: vi.fn(),
   mcpApprovalTarget: vi.fn(),
-  MCPAuthorizeDialog: () => null,
+  MCPSignInPopover: () => null,
   ProviderLogo: () => null,
 }));
 

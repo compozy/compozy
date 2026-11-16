@@ -160,11 +160,11 @@ function MarketplaceSetUpAction({
   // Read in the background, never awaited: Set up is usable from the inventory right away, and a
   // press before the live server answers opens the detail's setup instead of waiting on it.
   const live = useMarketplaceExtensionMCPServer(target, target !== undefined);
-  const setUp = () => {
+  const setUp = (trigger: HTMLElement) => {
     const server = live.server;
     const filter = server ? deriveMCPAuthFilter(server) : null;
     if (target && server && filter) {
-      requestAuthorize(filter, server);
+      requestAuthorize(filter, server, trigger);
       return;
     }
     void navigate({
@@ -173,12 +173,13 @@ function MarketplaceSetUpAction({
       to: "/marketplace/$entryId",
     });
   };
-  // The sign-in dialog belongs to the page's action dialogs, which outlive this row.
+  // The sign-in panel belongs to the page's action dialogs, which outlive this row; it keeps
+  // this button's place when a confirmed sign-in turns the row Ready.
   return (
     <Button
       aria-label={`Set up ${entry.name}`}
       data-testid={`marketplace-setup-${entry.entry_id}`}
-      onClick={setUp}
+      onClick={event => setUp(event.currentTarget)}
       size="sm"
       type="button"
       variant="secondary"

@@ -5,7 +5,7 @@ title: Settings lists every runtime's own MCP servers read-only and copies one i
 persona: Dora
 journey:
 expected: With Claude/Codex/Pi fixture configs (and fixtures for all 10 runtimes) in the lab home, Settings → MCP servers shows read-only groups per runtime with the runtime filter; Copy to CompozyOS on Claude `advos` adds a CompozyOS row, stores values in Vault, leaves the runtime file byte-identical, and refuses plugin/SSE/cwd rows with their reasons. The inventory never runs a runtime, connects to a server or reads a keychain.
-entry_points: web Settings → MCP servers and Marketplace → MCPs (runtime filter, Copy to CompozyOS dialog, Show file); compozy mcp list; compozy mcp import <runtime>/<server>; GET /api/settings/runtime-mcp-servers; POST /api/settings/runtime-mcp-servers/{runtime}/{name}/import
+entry_points: web Settings → MCP servers and Marketplace → MCPs (runtime filter, Add to CompozyOS panel beside Copy to CompozyOS, Show file); compozy mcp list; compozy mcp import <runtime>/<server>; GET /api/settings/runtime-mcp-servers; POST /api/settings/runtime-mcp-servers/{runtime}/{name}/import
 qa_status: untested
 bug_ids:
 fix_status:
@@ -57,3 +57,9 @@ new inventory and import source must retain the listed digest. Confirm an edited
 still requires a fresh list. The daemon must fail initialization if its installation digest
 key is unreadable, rather than substituting a process key. This repair's live re-walk remains
 unverified under the operator's CI-only directive.
+
+QA impact 2026-11-16 (MCP redesign S2): Copy to CompozyOS opens the "Add <server> to CompozyOS"
+panel beside the button instead of a dialog: Use it in All projects (Personal) · This profile (named
+profile lens) · Only this project (needs a project in view), the vault note for its keys, and Add to
+CompozyOS. A taken name (409) keeps the panel open and shows "Name in CompozyOS" with the error; a
+source gone from its file warns inside the panel and blocks another try.

@@ -46,7 +46,7 @@ export interface MCPServersByRuntimeViewProps {
   onClearQuery: () => void;
   filter: string;
   onFilterChange: (filter: string) => void;
-  onCopy: (snapshot: RuntimeMCPSnapshot, server: RuntimeMCPServer) => void;
+  onCopy: (snapshot: RuntimeMCPSnapshot, server: RuntimeMCPServer, trigger: HTMLElement) => void;
   onShowFile?: (path: string) => void;
   renderModeSwitch?: (snapshot: RuntimeMCPSnapshot) => ReactNode;
   /** Start every runtime group unfolded. */

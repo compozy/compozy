@@ -233,7 +233,17 @@ export {
 } from "./lib/restart-presentation";
 // Components
 export {
-  MCPAuthorizeDialog,
+  MCPAllowPanel,
+  type MCPAllowPanelProps,
+  MCPAnchoredPanel,
+  type MCPAnchoredPanelProps,
+  MCPIssuePanel,
+  type MCPIssuePanelProps,
+  MCPSignInPanel,
+  type MCPSignInPanelProps,
+  type MCPSignInPhase,
+  MCPSignInPopover,
+  type MCPSignInPopoverProps,
   AttentionSystemStateChip,
   attentionSystemStateNote,
   MCPSelectionStrip,
@@ -463,6 +473,8 @@ export type {
 } from "./lib/mcp-override-model";
 
 export { useMCPDefinitionAuthorization } from "./hooks/use-mcp-definition-authorization";
+export { mcpPanelAnchor, type MCPPanelAnchor } from "./lib/mcp-panel-anchor";
+export { mcpAllowPanelLaunch, type MCPAllowPanelLaunch } from "./lib/mcp-allow-launch";
 
 export {
   getSettingsMarketplace,

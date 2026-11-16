@@ -58,10 +58,13 @@ describe("MCPComposerControl", () => {
     expect(rows[0]).toHaveAttribute("data-testid", "composer-mcp-notion");
     const notion = screen.getByTestId("composer-mcp-notion");
     expect(notion).toHaveTextContent("Needs sign-in");
-    await user.click(within(notion).getByRole("button", { name: "Sign in notion" }));
+    const signIn = within(notion).getByRole("button", { name: "Sign in notion" });
+    await user.click(signIn);
+    // The pressed button travels with the action: the sign-in panel opens beside it.
     expect(onAction).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ name: "notion", state: "needs_sign_in" }),
-      "sign_in"
+      "sign_in",
+      signIn
     );
     expect(screen.getByTestId("composer-mcp-context7")).toHaveTextContent("Loaded by Claude Code");
   });

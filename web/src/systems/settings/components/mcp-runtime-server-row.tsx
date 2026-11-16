@@ -11,7 +11,8 @@ export interface MCPRuntimeServerRowProps {
   runtimeName: string;
   /** The runtime's servers are off in CompozyOS sessions: the row reads muted. */
   muted: boolean;
-  onCopy: (server: RuntimeMCPServer) => void;
+  /** Opens the Add to CompozyOS panel beside `trigger`. */
+  onCopy: (server: RuntimeMCPServer, trigger: HTMLElement) => void;
   /** Opens the file the row was read from; absent where no editor can open it. */
   onShowFile?: (path: string) => void;
 }
@@ -93,7 +94,7 @@ export function MCPRuntimeServerRow({
           <Button
             aria-label={`Copy ${server.name} from ${runtimeName} to CompozyOS`}
             data-testid={`${testId}-copy`}
-            onClick={() => onCopy(server)}
+            onClick={event => onCopy(server, event.currentTarget)}
             size="sm"
             type="button"
             variant="secondary"

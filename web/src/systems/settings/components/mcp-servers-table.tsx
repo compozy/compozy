@@ -44,9 +44,10 @@ export interface MCPServersTableProps {
   selectedServer?: string;
   onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
-  /** Allows a project-file server waiting for approval; rows without it show no Allow. */
-  onAllow?: (entry: SettingsMCPServerEntry) => void;
+  /** Sign in / Reauthorize; `trigger` is the button the sign-in panel opens beside. */
+  onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  /** Reviews a project-file server waiting for approval; rows without it show no Allow. */
+  onAllow?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   /** Definition key of the row whose Allow is in flight. */
   allowingServer?: string;
   /** Per definition key: why the row waits and the last refused Allow. */
@@ -167,8 +168,8 @@ function MCPServerRow({
   highlighted: boolean;
   onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
-  onAllow?: (entry: SettingsMCPServerEntry) => void;
+  onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  onAllow?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   allowing: boolean;
   approvalNote?: MCPApprovalNote;
 }) {
@@ -296,8 +297,8 @@ function MCPServerRowActions({
   accessibleName: string;
   rowTestId: string;
   onEdit: (entry: SettingsMCPServerEntry) => void;
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
-  onAllow?: (entry: SettingsMCPServerEntry) => void;
+  onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  onAllow?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
 }) {
   return (
     <div className="flex items-center justify-end gap-1.5">
@@ -308,7 +309,7 @@ function MCPServerRowActions({
           size="sm"
           aria-label={`Allow ${accessibleName}`}
           disabled={allowing}
-          onClick={() => onAllow?.(server)}
+          onClick={event => onAllow?.(server, event.currentTarget)}
           data-testid={`${rowTestId}-allow`}
         >
           Allow
@@ -319,7 +320,7 @@ function MCPServerRowActions({
           variant="neutral"
           size="sm"
           aria-label={`${status.authorizeLabel} ${accessibleName}`}
-          onClick={() => onAuthorize(server)}
+          onClick={event => onAuthorize(server, event.currentTarget)}
           data-testid={`${rowTestId}-authorize`}
         >
           {status.authorizeLabel}

@@ -2,8 +2,16 @@ export { SettingsEditorDialog } from "./settings-editor-dialog";
 export { AttentionSystemStateChip } from "./attention-system-state-chip";
 export { attentionSystemStateNote } from "./attention-system-state-note";
 export type { EditorMode } from "./settings-editor-dialog";
-export { MCPAuthorizeDialog } from "./mcp-authorize-dialog";
-export type { MCPAuthorizeDialogProps } from "./mcp-authorize-dialog";
+export { MCPAllowPanel, type MCPAllowPanelProps } from "./mcp-panels/mcp-allow-panel";
+export { MCPAnchoredPanel, type MCPAnchoredPanelProps } from "./mcp-panels/mcp-anchored-panel";
+export { MCPCopyPanel, type MCPCopyPanelProps } from "./mcp-panels/mcp-copy-panel";
+export { MCPIssuePanel, type MCPIssuePanelProps } from "./mcp-panels/mcp-issue-panel";
+export {
+  MCPSignInPanel,
+  type MCPSignInPanelProps,
+  type MCPSignInPhase,
+} from "./mcp-panels/mcp-sign-in-panel";
+export { MCPSignInPopover, type MCPSignInPopoverProps } from "./mcp-panels/mcp-sign-in-popover";
 export { MCPSelectionStrip } from "./mcp-selection-strip";
 export type { MCPSelectionStripProps } from "./mcp-selection-strip";
 export { MCPServerDeleteDialog } from "./mcp-server-delete-dialog";
@@ -15,8 +23,6 @@ export { MCPServersTable, MCPServersTableSkeleton } from "./mcp-servers-table";
 export type { MCPServersTableProps } from "./mcp-servers-table";
 export { MCPServersManagementBody, MCPServersManagementDialogs } from "./mcp-servers-management";
 export { MCPApprovalCell } from "./mcp-approval-cell";
-export { MCPCopyToCompozyDialog } from "./mcp-copy-to-compozy-dialog";
-export type { MCPCopyToCompozyDialogProps } from "./mcp-copy-to-compozy-dialog";
 export { MCPRuntimeFilter } from "./mcp-runtime-filter";
 export { MCPRuntimeGroup } from "./mcp-runtime-group";
 export type { MCPRuntimeGroupProps } from "./mcp-runtime-group";

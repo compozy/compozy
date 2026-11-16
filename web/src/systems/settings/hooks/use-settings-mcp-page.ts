@@ -87,9 +87,9 @@ export function useMCPServerManagement({
     if (entry.owner?.startsWith("extension:")) override.openEdit(entry);
     else editor.openEdit(entry);
   };
-  const authorize = (entry: SettingsMCPServerEntry) => {
+  const authorize = (entry: SettingsMCPServerEntry, trigger: HTMLElement) => {
     const target = deriveMCPManagementFilter(entry);
-    if (target) authorization.authorize.requestAuthorize(target, entry);
+    if (target) authorization.authorize.requestAuthorize(target, entry, trigger);
   };
   const requestRemove = (entry: SettingsMCPServerEntry) => {
     if (removal.isPending || entry.owner?.startsWith("extension:")) return;

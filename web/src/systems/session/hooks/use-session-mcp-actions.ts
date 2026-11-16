@@ -64,7 +64,7 @@ export function useSessionMCPActions({
 }: SessionMCPActionsInput) {
   const queryClient = useQueryClient();
   const definitions = useSettingsMCPServers(settingsFilter(workspaceId, profile), { enabled });
-  // The sign-in dialog outlives the popover, so its own definition poll is not tied to it.
+  // The sign-in outlives a closed popover, so its own definition poll is not tied to it.
   const authorization = useMCPDefinitionAuthorization();
   const allowMutation = useAllowMCPServer();
   const [actingName, setActingName] = useState<string | null>(null);
@@ -103,7 +103,7 @@ export function useSessionMCPActions({
     );
   };
 
-  const act = (row: SessionMCPServerRow, action: SessionMCPRowAction) => {
+  const act = (row: SessionMCPServerRow, action: SessionMCPRowAction, trigger?: HTMLElement) => {
     if (definitions.isPending) return;
     const entry = definitions.data?.mcp_servers.find(item => sameDefinition(item, row));
     if (!entry) {
@@ -119,7 +119,7 @@ export function useSessionMCPActions({
       onUnresolved();
       return;
     }
-    authorization.authorize.requestAuthorize(filter, entry);
+    authorization.authorize.requestAuthorize(filter, entry, trigger);
   };
 
   return {
