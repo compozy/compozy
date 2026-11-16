@@ -47,6 +47,8 @@ export interface MCPComposerControlProps {
   onManage?: () => void;
   /** The popover opened or closed; the owner reads the session's servers while it is open. */
   onOpenChange?: (open: boolean) => void;
+  /** Controlled open state, so the owner can close the popover when it leaves for Settings. */
+  open?: boolean;
   defaultOpen?: boolean;
   /** The coding agent's own servers start folded; a story can pin them open. */
   runtimeOpen?: boolean;
@@ -101,7 +103,10 @@ function MCPComposerBody({
   onRetry,
   runtimeOpen,
   ...rows
-}: Omit<MCPComposerControlProps, "onOpenChange" | "onManage" | "defaultOpen" | "rowPanel"> & {
+}: Omit<
+  MCPComposerControlProps,
+  "onOpenChange" | "onManage" | "open" | "defaultOpen" | "rowPanel"
+> & {
   summary: SessionMCPSummary;
 }) {
   if (data === null) {
@@ -130,6 +135,7 @@ function MCPComposerBody({
 export function MCPComposerControl({
   onOpenChange,
   onManage,
+  open,
   defaultOpen,
   rowPanel,
   ...body
@@ -147,7 +153,7 @@ export function MCPComposerControl({
     reloadFailed: data ? sessionMCPReadReloadFailed(data) : reloadFailed,
   });
   return (
-    <Popover defaultOpen={defaultOpen} onOpenChange={open => onOpenChange?.(open)}>
+    <Popover open={open} defaultOpen={defaultOpen} onOpenChange={next => onOpenChange?.(next)}>
       <PopoverTrigger
         render={
           <InputGroupButton

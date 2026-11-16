@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -19,8 +20,22 @@ import {
   sessionMCPWaitingFixture,
 } from "../../mocks/session-mcp-fixtures";
 import type { SessionMCPActions } from "../../hooks/use-session-mcp-actions";
+import type { SessionPayload } from "../../types";
 import { MCPComposerControl } from "../mcp-composer-control";
+import { SessionComposerMCP } from "../session-composer-mcp";
 import { SessionComposerMCPPanels } from "../session-composer-mcp-panels";
+
+const boundary = vi.hoisted(() => ({ navigate: vi.fn() }));
+
+vi.mock("@tanstack/react-router", async importOriginal => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => boundary.navigate,
+}));
+
+vi.mock("../../adapters/session-mcp-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/session-mcp-api")>()),
+  fetchSessionMCP: vi.fn(async () => sessionMCPAllReadyFixture),
+}));
 
 // Suite: composer MCP control (spec mcp-extension-hot-activation, `_uiux.md` S3).
 // Invariant: the control appears only for a session whose payload carries an MCP summary; its
@@ -386,4 +401,37 @@ describe("SessionComposerMCPPanels", () => {
       expect(advice !== null).toBe(advised);
     }
   );
+});
+
+// Suite: the composer's MCP control as the session composer mounts it (`SessionComposerMCP`), with
+// the router and the session MCP read stubbed at their boundaries.
+// Invariant: leaving for Settings closes the popover, so it never stays on screen detached from a
+// composer that Settings has replaced.
+describe("SessionComposerMCP", () => {
+  it("Should close the popover when Manage in Settings opens Settings", async () => {
+    const user = userEvent.setup();
+    const session = {
+      id: "sess-1",
+      agent_name: "coder",
+      workspace_id: "ws_alpha",
+      state: "active",
+      mcp_summary: sessionMCPSummaryFixture(sessionMCPAllReadyFixture),
+    } as SessionPayload;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <UIProvider>
+          <SessionComposerMCP session={session} />
+        </UIProvider>
+      </QueryClientProvider>
+    );
+
+    await user.click(screen.getByTestId("composer-mcp-button"));
+    expect(await screen.findByTestId("composer-mcp-popover")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Manage MCP servers in Settings" }));
+
+    expect(boundary.navigate).toHaveBeenCalledExactlyOnceWith({ to: "/settings/mcp" });
+    await waitFor(() =>
+      expect(screen.queryByTestId("composer-mcp-popover")).not.toBeInTheDocument()
+    );
+  });
 });

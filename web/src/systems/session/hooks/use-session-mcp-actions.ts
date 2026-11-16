@@ -172,11 +172,13 @@ export function useSessionMCPActions({
     // One Allow at a time: a second click while one is in flight is ignored, not "unresolved".
     if (allowMutation.isPending) return;
     const body = approvalBody(row);
+    const target = sessionMCPServerTarget(row);
     if (!body) {
+      // Settings takes over from here, so the Review panel this Allow came from closes with it.
+      closePanelFor(target);
       onUnresolved();
       return;
     }
-    const target = sessionMCPServerTarget(row);
     setAllowingServer(target);
     allowMutation.mutate(
       { name: row.name, body },

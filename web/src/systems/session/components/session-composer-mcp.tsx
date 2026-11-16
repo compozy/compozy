@@ -28,7 +28,12 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
     open: open && summary !== null,
     pendingReload: summary?.pending_reload === true,
   });
-  const manage = () => void navigate({ to: MCP_SETTINGS_PATH });
+  // Settings takes the composer's place on screen, so the popover closes before it opens instead
+  // of floating detached from a composer that is no longer shown.
+  const openSettings = () => {
+    setOpen(false);
+    void navigate({ to: MCP_SETTINGS_PATH });
+  };
   // Sign in resolves its Settings definition; Review and Not working act on the row itself.
   const hasSignIn =
     model.data?.compozy_servers.some(row => sessionMCPStateView(row.state).action === "sign_in") ??
@@ -39,9 +44,24 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
     profile: session.profile_name,
     data: model.data,
     enabled: open && hasSignIn,
-    onUnresolved: manage,
+    onUnresolved: openSettings,
   });
   if (summary === null) return null;
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    // Row panels live inside the popover: closing it ends a sign-in and closes the panel.
+    if (!next) {
+      actions.authorization.authorize.cancel();
+      actions.closePanel();
+    }
+    // A pending change keeps the read running while closed, so opening alone would not
+    // reread an answer that has gone out of date.
+    if (next && summary.pending_reload) model.refresh();
+  };
+  const manage = () => {
+    changeOpen(false);
+    openSettings();
+  };
   return (
     <MCPComposerControl
       summary={summary}
@@ -55,17 +75,8 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
       activeServer={actions.activeServer}
       onManage={manage}
       rowPanel={<SessionComposerMCPPanels actions={actions} onOpenSettings={manage} />}
-      onOpenChange={next => {
-        setOpen(next);
-        // Row panels live inside the popover: closing it ends a sign-in and closes the panel.
-        if (!next) {
-          actions.authorization.authorize.cancel();
-          actions.closePanel();
-        }
-        // A pending change keeps the read running while closed, so opening alone would not
-        // reread an answer that has gone out of date.
-        if (next && summary.pending_reload) model.refresh();
-      }}
+      open={open}
+      onOpenChange={changeOpen}
     />
   );
 }
