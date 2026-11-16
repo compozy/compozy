@@ -120,4 +120,6 @@ no "Updates on your next message". Compare screenshots with draft
 `web/src/drafts/mcp-composer-redesign/` (states proposed, runtime-open, issue, allow, limited,
 runtime-off, reload-failed, stale, loading). Check again from the composer posts the session check
 route and the row/panel update in place; a server that still fails keeps the panel open with
-"Still not working after the check."
+"Still not working after the check." Every way into Settings (the gear, a panel's "Open in
+Settings", an Allow or Sign in that cannot resolve its definition) closes the popover first: after
+Settings opens, no MCP popover remains on screen, detached at the top-left corner or anywhere else.
