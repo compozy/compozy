@@ -61,10 +61,16 @@ func TestFilteredDaemonEnvRemovesCredentialShapedVariables(t *testing.T) {
 		}
 		isolated := IsolatedDaemonEnv(env)
 		filtered := FilteredDaemonEnv(env)
-		for _, key := range CATrustEnvKeys() {
+		// Independent of CATrustEnvKeys, so dropping a key from the shared list fails here.
+		for _, want := range []string{
+			"NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt",
+			"REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
+			"SSL_CERT_DIR=/etc/ssl/certs",
+			"SSL_CERT_FILE=/etc/ssl/corp-ca.crt",
+		} {
 			for _, got := range [][]string{isolated, filtered} {
-				if !slices.ContainsFunc(got, func(entry string) bool { return strings.HasPrefix(entry, key+"=") }) {
-					t.Fatalf("environment missing %s in %#v", key, got)
+				if !containsEnvEntry(got, want) {
+					t.Fatalf("environment missing %q in %#v", want, got)
 				}
 			}
 		}
