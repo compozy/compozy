@@ -97,6 +97,18 @@ export function sessionMCPControlView(data: SessionMCPResponse): SessionMCPContr
   };
 }
 
+/**
+ * Whether the closed trigger reports a failed reload. A failed reload keeps its change pending until
+ * a reload applies, so a summary without a pending change has recovered, whatever an earlier read
+ * cached; with one, the session MCP read (made while a change is pending) carries the outcome.
+ */
+export function sessionMCPReloadFailed(
+  summary: SessionMCPSummary,
+  data: SessionMCPResponse | null
+): boolean {
+  return summary.pending_reload && data?.last_reload?.outcome === "failed";
+}
+
 export function sessionMCPControlLabel(
   summary: SessionMCPSummary,
   options: { reloadFailed?: boolean } = {}
