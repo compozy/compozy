@@ -274,3 +274,42 @@ command = "/opt/agy/bin/agy acp --process-per-session"
 		}
 	})
 }
+
+// Invariant: only the native Antigravity CLI ACP launch is recognizable from the
+// authored command; standalone servers, wrappers, and non-ACP agy invocations stay
+// outside the native-policy boundary, while path, case, env, and Windows shim
+// variants of the native launch are still recognized. Owner: config launch policy.
+func TestNativeAgyACPCommand(t *testing.T) {
+	t.Parallel()
+
+	native := []string{
+		"agy acp",
+		"agy ACP",
+		"AGY acp",
+		"/usr/local/share/antigravity/bin/agy acp",
+		"AGY_HOME=/tmp agy acp",
+		"agy acp --process-per-session",
+		"C:/tools/agy.exe acp",
+		"agy.cmd acp",
+	}
+	for _, command := range native {
+		if !IsNativeAgyACPCommand(command) {
+			t.Fatalf("IsNativeAgyACPCommand(%q) = false, want the native CLI launch", command)
+		}
+	}
+	for _, command := range []string{
+		"",
+		"agy",
+		"agy --acp",
+		"agy_acp_server.par",
+		"/opt/agy/bin/agy_acp_server.par --uid=1",
+		"agy-wrapper acp",
+		"npx agy acp",
+		"env AGY_HOME=/tmp agy acp",
+		"bash -c 'agy acp'",
+	} {
+		if IsNativeAgyACPCommand(command) {
+			t.Fatalf("IsNativeAgyACPCommand(%q) = true, want a non-native launch", command)
+		}
+	}
+}

@@ -229,6 +229,46 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 			t.Fatalf("statusForSessionError(negotiation) = %d, want %d", got, http.StatusUnprocessableEntity)
 		}
 	})
+	t.Run("Should publish safe guidance for a refused retained runtime option", func(t *testing.T) {
+		t.Parallel()
+
+		err := fmt.Errorf(
+			"session: start resume agent process: %w: config option rejected",
+			acp.ErrSessionConfigOptionRejected,
+		)
+		if got := statusForSessionError(fmt.Errorf("wrapped: %w", err)); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForSessionError(config refusal) = %d, want %d",
+				got, http.StatusUnprocessableEntity)
+		}
+		payload := ErrorPayloadForStatus(http.StatusUnprocessableEntity, err, true)
+		if payload.Error != runtimeReselectionGuidance {
+			t.Fatalf("ErrorPayloadForStatus(config refusal) = %#v, want bounded guidance", payload)
+		}
+	})
+	t.Run("Should keep a classified failure over a joined config refusal", func(t *testing.T) {
+		t.Parallel()
+
+		err := errors.Join(acp.ErrSessionConfigOptionRejected, session.ErrPendingPermissionConflict)
+		if got := statusForSessionError(err); got != http.StatusConflict {
+			t.Fatalf("statusForSessionError(joined) = %d, want %d", got, http.StatusConflict)
+		}
+	})
+	t.Run("Should publish safe guidance for an unenforceable native policy", func(t *testing.T) {
+		t.Parallel()
+
+		err := fmt.Errorf("session: start /private/native-command: %w", acp.ErrNativeAgyToolPolicyUnsupported)
+		status := statusForSessionError(err)
+		if status != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForSessionError(native policy) = %d, want %d", status, http.StatusUnprocessableEntity)
+		}
+		if payload := ErrorPayloadForStatus(status, err, true); payload.Error != nativeAgyPolicyGuidance {
+			t.Fatalf("ErrorPayloadForStatus(native policy) = %#v, want bounded policy guidance", payload)
+		}
+		joined := errors.Join(err, session.ErrPendingPermissionConflict)
+		if got := statusForSessionError(joined); got != http.StatusConflict {
+			t.Fatalf("statusForSessionError(joined native policy) = %d, want %d", got, http.StatusConflict)
+		}
+	})
 	if got := statusForSessionError(session.ErrInvalidRuntimeOverride); got != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(invalid runtime override) = %d, want %d", got, http.StatusBadRequest)
 	}

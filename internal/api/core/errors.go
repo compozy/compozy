@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -31,6 +32,12 @@ import (
 const (
 	errorsInternalServerErrorValue = "internal server error"
 	errorsUnknownErrorValue        = "unknown error"
+	// Public repairs never echo the internal error chain or provider command.
+	runtimeReselectionGuidance = "The current route rejected this session's runtime options. " +
+		"Reselect this session's runtime to confirm its provider, model, reasoning effort, and ACP options, " +
+		"then retry."
+	nativeAgyPolicyGuidance = "Antigravity CLI cannot enforce the selected host permission policy. " +
+		"Ask the operator to choose a runtime that enforces the intended policy; permissions were not widened."
 )
 
 type normalizedErrorStatus struct {
@@ -134,6 +141,12 @@ func errorPayloadForNormalizedStatus(
 ) contract.ErrorPayload {
 	message := http.StatusText(status)
 	switch {
+	case status == http.StatusUnprocessableEntity &&
+		errors.Is(err, acp.ErrNativeAgyToolPolicyUnsupported):
+		message = nativeAgyPolicyGuidance
+	case status == http.StatusUnprocessableEntity &&
+		errors.Is(err, acp.ErrSessionConfigOptionRejected):
+		message = runtimeReselectionGuidance
 	case status >= http.StatusInternalServerError && WorktreeErrorCode(err) != "":
 		message = WorktreeErrorCode(err)
 	case maskInternalErrors && status >= http.StatusInternalServerError:

@@ -3282,6 +3282,59 @@ func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
 	}
 }
 
+func TestPromptSessionHandlerSurfacesRuntimeReselectionGuidance(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "Should explain runtime option reselection",
+			err:  acp.ErrSessionConfigOptionRejected,
+			want: "Reselect this session's runtime",
+		},
+		{
+			name: "Should explain unsupported native host permissions",
+			err:  acp.ErrNativeAgyToolPolicyUnsupported,
+			want: "Antigravity CLI cannot enforce",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			refusal := fmt.Errorf("session: start /private/native-command: %w", tc.err)
+			manager := &stubSessionManager{
+				SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+					return session.SendPromptResult{}, refusal
+				},
+			}
+			handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+			handlers.MaskInternalErrors = true
+			recorder := performRequest(
+				t,
+				newTestRouter(t, handlers),
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+				[]byte(`{"message":"continue","message_id":"msg-continue","idempotency_key":"idem-continue"}`),
+			)
+			if recorder.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, want %d; body=%s",
+					recorder.Code, http.StatusUnprocessableEntity, recorder.Body.String())
+			}
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if !strings.Contains(payload.Error, tc.want) ||
+				strings.Contains(payload.Error, "acp:") ||
+				strings.Contains(payload.Error, "/private/") ||
+				strings.Contains(payload.Error, "session: start") {
+				t.Fatalf("error payload = %#v, want bounded runtime guidance", payload)
+			}
+		})
+	}
+}
+
 func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 	t.Run("Should return a direct authenticated Goal error body", func(t *testing.T) {
 		t.Parallel()

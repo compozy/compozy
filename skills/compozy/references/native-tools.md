@@ -779,7 +779,7 @@ Model-list and curation results may include a `cost` object with independent `in
 
 Provider authentication is a management surface. Write `providers.<id>.auth_login_command` only through `config.toml`, `compozy config set`, or `compozy__config_set`; it is write-only and redacted from config show, list, get, diff, and set reads. Provider status, doctor, API/UDS, Settings, and Web expose for it only `{configured, source, executable, presence, recommended_action}`, where `executable` is the basename. `compozy provider auth login <provider>` executes the configured login command internally and never returns the raw command.
 
-Providers with `auth_acp_method` and no native login command (the `agy` built-in uses `oauth-personal`) log in through the exact advertised protocol method instead: login verifies readiness with a promptless session, remote probes never send `authenticate`, and read surfaces report `source: auth_acp_method` with basename and presence only. Never accept a key, token, or secret for these providers; a missing server is `install_cli`, not a credential prompt.
+Providers with `auth_acp_method` and no native login command (the `agy` built-in uses `oauth-personal`) log in through the exact advertised protocol method instead: login verifies readiness with a promptless session, remote probes never send `authenticate`, and read surfaces report `source: auth_acp_method` with basename and presence only. Never accept a key, token, or secret for these providers; a missing `agy` CLI executable is `install_cli`, not a credential prompt, and a standalone-server login is `needs_login`, never reused by copying credentials.
 
 ## Profile Tools
 

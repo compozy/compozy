@@ -85,3 +85,12 @@ catalog or favorites, reopen, and exercise browse, search, exact-ID entry, keybo
 Escape focus restoration against the latest data. The existing runtime-selector component suite
 owns focused coverage; the new check includes catalog updates while closed. This note does not
 claim a fresh live-provider/browser walk; integrated runtime evidence belongs to the audit QA tail.
+
+QA impact 2026-11-16 (Antigravity native CLI): the `agy` runtime now launches `agy acp`, whose live
+catalog advertises logical model IDs with a per-model `thought_level` option. Selecting Hydrogen
+exposes four stops and the highest is `xhigh` (aria-valuemax 3); Argon exposes three and must not
+inherit `xhigh`; `max` is unsupported and absent. The advertised `thought_level` descriptor drives
+the existing reasoning slider and is not duplicated in Advanced. Automated coverage:
+`to-runtime-selector-options` (native logical rows, four versus three levels, exact option values)
+and the `runtime-selector` renderer (End → `xhigh` on Hydrogen, cleared/`high` on Argon). The
+browser fixture update is CI-owned and was not executed for this change; no new control or artboard.

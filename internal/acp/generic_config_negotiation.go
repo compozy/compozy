@@ -2,11 +2,16 @@ package acp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+// ErrSessionConfigOptionRejected reports that the provider's advertised session config options
+// refused a selection, so a caller can offer reselection guidance instead of guessing.
+var ErrSessionConfigOptionRejected = errors.New("acp: session config option rejected")
 
 func (d *Driver) applyStartupConfigSelections(
 	ctx context.Context,
@@ -45,10 +50,11 @@ func (d *Driver) applySessionConfigSelections(
 				selection.ValueID != "" && selection.ValueID == process.unadvertisedStartupMode {
 				continue
 			}
-			return fmt.Errorf("acp: config option %q is not uniquely advertised", selection.ID)
+			return fmt.Errorf("%w: config option %q is not uniquely advertised",
+				ErrSessionConfigOptionRejected, selection.ID)
 		}
 		if err := validateSessionConfigOptionSelection(selection, option); err != nil {
-			return err
+			return fmt.Errorf("%w: %w", ErrSessionConfigOptionRejected, err)
 		}
 		if selection.matches(option) {
 			continue

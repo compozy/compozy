@@ -4,9 +4,9 @@ area: RT
 title: Google Antigravity login, prompts, and file tools
 persona: Ada
 journey: J-15
-expected: With only the official agy_acp_server on PATH and no [providers.agy] block, explicit local login updates the daemon's sign-in verdict, and the first prompt persists under agy with the server-default model. Logged-out or missing-server states give actionable guidance and never trigger automatic login. File tools complete individually during the turn, and edits in Ask before changes wait for operator approval.
+expected: With the official Antigravity CLI on PATH (command agy, argument acp) and no [providers.agy] block, explicit local login reuses the CLI's shared sign-in and updates the daemon's sign-in verdict, a remote probe reports readiness, and the first prompt persists under agy with an advertised logical model and its own thought_level effort (Hydrogen xhigh on the verified fixture). A standalone-only installation is missing_cli with no fallback, logged-out or missing-CLI states give actionable guidance, and nothing triggers automatic login. Under approve-all, provider-native file tools complete individually during the turn; gateway-routed edits in Ask before changes wait for operator approval (native narrow policies refuse pre-launch).
 entry_points: compozy provider auth login agy; compozy provider list; compozy provider auth status agy --remote; compozy session new --agent agy-example
-qa_status: pass
+qa_status: blocked-verify
 bug_ids: "#1881"
 fix_status: fixed
 retest_status: pending
@@ -20,19 +20,20 @@ story: As an operator with a Google Antigravity account I sign in once explicitl
 
 ## Explicit login to first prompt
 
-1. Install Antigravity's official ACP server for the OS (`agy_acp_server.par` on Linux/macOS, `agy_acp_server.exe` on Windows) on PATH. Do not install or substitute the interactive `agy` CLI. Confirm no `[providers.agy]` block exists.
-2. Run `compozy provider inspect agy -o json`: `source` is `auth_acp_method`, `presence` is `present`, and the executable is the server basename only.
-3. With the provider logged out, run `compozy provider auth status agy --remote -o json`: `state` is `needs_login`. No browser or terminal prompt appears. Run `compozy provider models list agy --refresh --all -o json` and confirm that the failed live source names `agy` in its login hint.
-4. Run `compozy provider auth login agy --timeout 5m -o json`: exit 0, `state` is `authenticated`. Repeat the login: no second consent request appears.
-5. Run `compozy provider list -o json` directly after login. Antigravity's `auth_status.state` is `authenticated`. Once its live catalog refresh completes, verify the composer picker shows the advertised models as selectable and Settings shows the provider as ready. This step uses ordinary reads without a remote status probe or a forced model refresh.
-6. Create a session with an `agy-example` agent (`provider: agy`, no model) and send one prompt. Session reads identify provider `agy` and the exact accepted model; the server-default model is used, never a fabricated default.
-7. Remove or rename the server binary and repeat the status check from step 3. `state` is `missing_cli` with an `install_cli` recommendation naming only the basename.
+1. Install Antigravity CLI using Google's installation instructions and confirm `agy acp --help` succeeds. Do not install or substitute the standalone `agy_acp_server` archive. Confirm no `[providers.agy]` block exists.
+2. Run `compozy provider inspect agy -o json`: `source` is `auth_acp_method`, `presence` is `present`, and the executable basename is `agy` only.
+3. With the provider logged out, run `compozy provider auth status agy --remote -o json` (and `compozy provider auth status agy -o json`): `state` is `needs_login`. No browser or terminal prompt appears. Run `compozy provider models list agy --refresh --all -o json` and confirm that the failed live source names `agy` in its login hint.
+4. Run `compozy provider auth login agy --timeout 5m -o json`: exit 0, `state` is `authenticated`. Repeat the login: no second consent request appears. For headless/SSH setup, Google's `agy acp --login` is the operator alternative; it is never a background probe.
+5. Run `compozy provider list -o json` directly after login (`auth_status.state` is `authenticated`; once live catalog refresh completes, the composer picker shows the advertised models and Settings shows the provider as ready) and verify `compozy provider auth status agy --remote -o json` reports `state: authenticated`.
+6. Create a session with an `agy-example` agent (`provider: agy`, no model) and send one prompt. Session reads identify provider `agy` and the exact accepted logical model; the provider-default model is used, never a fabricated default.
+7. Remove or rename the `agy` executable and repeat step 3: `state` is `missing_cli` with an `install_cli` recommendation naming only `agy`. Leaving only a standalone `.par` on PATH keeps `missing_cli`; it is never launched as a fallback.
+8. Keep the standalone server's login but remove the CLI sign-in: `state` is `needs_login`, both token stores remain untouched, and only explicit CLI login repairs it.
 
 ## File tool lifecycle and edit approval
 
-1. In a throwaway workspace with the official server signed in, prepare two text files with different contents. Start an `agy` session in Full access (`approve-all`, ACP mode `yolo`). Ask it to read and edit both files and create a third using file tools. Ask it to run `printf QA_TERMINAL` with its terminal tool after the file operations.
+1. In a throwaway workspace with Antigravity signed in, prepare two text files with different contents. Start an `agy` session in Full access (`approve-all`, ACP mode `yolo`). Ask it to read and edit both files and create a third using file tools. Ask it to run `printf QA_TERMINAL` with its terminal tool after the file operations.
 2. Capture `compozy session prompt <id> <message> -o jsonl` and read back `compozy session events <id> -o json`. Match each provider-native file `tool_call` to its own successful `tool_result` by tool call ID. Results should arrive during the turn, before subsequent tool activity or the final reply, without a turn-end batch or `client_*` file calls. Confirm the edits and creation on disk. Verify the terminal call returns `QA_TERMINAL` with its own result.
-3. Start a new `agy` session in Ask before changes (`approve-reads`). Ask it to edit one existing file. Confirm a pending edit permission request appears in session events and the file remains unchanged while the request is pending. Approve once with `compozy session approve <id> --request-id <request-id> --decision allow-once`. Confirm the matching edit completes and the file changes only after approval.
+3. Note on Ask before changes (`approve-reads`): built-in native `agy acp` rejects `approve-reads` pre-launch (`native_tool_policy_unsupported`); an explicitly gateway-routed agent with ACP client FS enabled preserves pending edit approval (`compozy session approve <id> --request-id <request-id> --decision allow-once`).
 
 ## Repair without restart
 
@@ -54,14 +55,78 @@ pins the successful-resolution path. This is not a new live-provider walkthrough
 
 ## Model discovery and exact selection
 
-1. Run `compozy provider models list agy --refresh --all -o json`: the result contains exactly the IDs the effective server/account advertises (verified 1.4.0 shape: the 2 bare IDs `gemini-4-argon`, `gemini-3.8-flash` plus a `thinking_level` option; the superseded 1.3.0 suffixed IDs such as `gemini-3.8-flash-high` are no longer advertised and prompt as `model_unavailable`), published under `provider_live:agy` with `reasoning_apply: acp_option`, the advertised `reasoning_efforts`, and their `default_reasoning_effort`. Unobserved pricing, context, and speed stay unknown. No Gemini CLI/API model is substituted.
+1. Run `compozy provider models list agy --refresh --all -o json`: the result contains exactly the logical IDs the effective CLI/account advertises (verified 1.5.9 shape: 7 logical IDs including `gemini-4-argon` and `gemini-4-hydrogen`, with per-model `thought_level` options; the legacy `availableModels` list also carries 18 effort-suffixed transport aliases that must not become duplicate rows), published under `provider_live:agy` with `reasoning_apply: acp_option`, the advertised `reasoning_efforts`, and their `default_reasoning_effort`. Argon offers `low`/`medium`/`high`; selecting Hydrogen re-announces four levels including `xhigh`; `max` is rejected as unsupported. Unobserved pricing, context, and speed stay unknown. No Gemini CLI/API model is substituted.
 2. Run the same list with the provider logged out: the source reports `auth_required`, keeps only that context's prior rows as stale, and never opens a browser. A different workspace, profile, or home cannot reuse those rows.
 3. Run `compozy provider models list agy` with `models.discovery.enabled = false`: no peer call is made and no synthetic rows are published.
 4. Prompt with one currently advertised exact ID and confirm the persisted runtime/event model matches exactly; prompt with an unavailable ID and confirm `model_unavailable` instead of a silent default.
-5. In the session model picker, select an Agy model and choose Low on the reasoning slider. Submit a prompt; its runtime snapshot and effective runtime both retain `reasoning_effort: low`, and the acknowledged ACP `thinking_level` reads `low`. Choosing another supported level keeps the same exact model ID. An explicit `providers.agy.models.reasoning.apply = "none"` still disables adjustable effort.
-6. With hosted MCP connected, switch Flash → Argon → Flash through subsequent prompts and invoke a read-only native tool after each switch. All three calls succeed under the same logical and ACP session IDs; a replaced proxy must not fail with `hosted_mcp_nonce_invalid`. A concurrent bind or a reconnect outside the configured post-release window remains rejected.
+5. In the session model picker, select an Agy model and choose Low on the reasoning slider. Submit a prompt; its runtime snapshot and effective runtime both retain `reasoning_effort: low`, and the acknowledged ACP `thought_level` reads `low`. Choosing another supported level keeps the same exact model ID. Requesting Hydrogen `max` fails as `reasoning_effort_unsupported` before any prompt runs. An explicit `providers.agy.models.reasoning.apply = "none"` still disables adjustable effort.
+6. With hosted MCP connected, switch Hydrogen → Argon → Hydrogen through subsequent prompts and invoke a read-only native tool after each switch. All three calls succeed under the same logical and ACP session IDs; a replaced proxy must not fail with `hosted_mcp_nonce_invalid`. A concurrent bind or a reconnect outside the configured post-release window remains rejected.
 
 The exact-ID, stale/context-isolation, disabled-discovery, and unavailable-ID checks above passed against the real 1.4.0 server in the consented 2026-10-17 run (see the 1.4.0 consented note); the `acp_option` projection and steps 5–6 were verified separately on 2026-10-19 as described below. The 1.4.0 shape is 2 bare IDs plus `thinking_level`. Unit source coverage (`internal/modelcatalog/live_sources_test.go`) and daemon context coverage (`internal/daemon/model_catalog_test.go`) continue to pin the exact-ID, stale/context-isolation, disabled-discovery, and no-forbidden-message boundaries with the external ACP peer faked.
+
+## Narrow-policy enforcement — 2026-11-16 (live rewalk failed; repaired only by a final rejection rewalk)
+
+The first live narrow-policy rewalk of the native CLI **failed**. With `effective_permissions:
+approve-reads`, session `sess-f7e19ce5a1b6858e` acknowledged `mode=plan`,
+`model=gemini-4-hydrogen`, and `thought_level=xhigh`, then the provider's own `write_file` created
+`agy-denied-plan-7431.txt` without a host `session/request_permission`. Evidence in the 2026-11-16
+lab: `native-readonly-verdict.json`, `native-readonly-response.json`, and
+`native-readonly-bound.json`. The CLI does not route that write through the host, so an advertised
+`plan` mode is not an enforcement boundary, and the earlier read-only-mode claim was wrong.
+
+Replacement contract (final rewalk still outstanding):
+
+1. Start a native `agy acp` session at `deny-all`, `approve-reads`, `approve-edits`, or `auto`:
+   startup refuses before any prompt, no prompt text is sent, no tool call runs, and the session and
+   transcript stay intact.
+2. `approve-all` still starts and negotiates the advertised `auto` mode. The picker/auth browser
+   journey uses that policy and is not a permission-enforcement test.
+3. An authored standalone or custom command keeps its route and its own approval behavior.
+4. The refusal is never a silent widening, and an agent is never advised to raise its own policy;
+   the operator chooses a trusted runtime and policy for constrained work.
+
+This section stays a failure record. It is repaired only once a recorded rejection rewalk shows the
+refused start with no created target; peer or unit coverage with an absent target belongs to that
+final change and does not replace the live walk.
+
+## Native CLI re-baseline — 2026-11-16 (contract updated; walk unexecuted)
+
+The built-in now launches the official Antigravity CLI as `agy acp`, so the 1.4.0 standalone-server
+receipts above are historical evidence for a superseded runtime, not native-CLI acceptance. The
+active steps above were re-based to CLI 1.5.9 (`analysis/01-evidence.md`): shared CLI login,
+`oauth-personal`, logical model IDs with per-model `thought_level` (Hydrogen `xhigh`, unsupported
+`max`), and `missing_cli` for a standalone-only installation. On upgrade, a session whose executable
+route changed continues from its retained transcript through the existing replay path; that is not
+native-history import, and neither Google token store is copied or deleted. An explicit command or
+provider-private option override keeps its bytes and fails validation rather than being converted.
+
+No clean consent, paid prompt, upgraded-session replay, or browser walk was executed for this
+re-baseline. `qa_status` is `blocked-verify` until the owning lab runs the steps above; the
+provider-backed integration peer fakes only the external CLI and is never account evidence.
+
+## Preserved ambiguous mode on upgrade — 2026-11-16 (Q2; walk unexecuted)
+
+Released first-prompt and `CreateOpts` records can lack a selected runtime while the effective ACP
+mode lives in both runtime meta and the immutable creation profile, so an automatic mode and an
+explicit one are indistinguishable. The operator chose to preserve that ambiguous mode rather than
+drop it:
+
+1. From a released-build session that holds the old injected `mode=yolo` effective option and no
+   selected-runtime intent, upgrade only the runtime.
+2. Prompt the same logical session. If the native CLI does not offer that mode, the start fails with
+   the existing unsupported-option repair guidance; the transcript, creation profile, and logical
+   session stay unchanged, and no prompt runs with a remapped or dropped mode.
+3. Confirm current intent through the existing runtime-set surface without a raw mode:
+   `compozy session runtime set <id> --provider agy --model <advertised> --reasoning-effort <offered>`.
+   Prompt again: the same logical session replays on a fresh native ACP session ID. That replay is not
+   provider-private history import.
+4. `compozy session runtime clear <id>` returns to the effective/agent default; it is not the step-3
+   confirmation.
+5. A session whose accepted route still matches an authored standalone command resumes on that route
+   instead of replaying.
+
+Owning cases: IT-002 and E2E-002. This walk was not executed here; no E2E pass is claimed, and no
+unknown-provenance mode is reported as automatically removed.
 
 ## Browser management and selection (E2E-003, deterministic peer)
 
@@ -81,6 +146,16 @@ Capture:
 The Settings half of E2E-003 (method round-trip, unverified state, keyboard,
 narrow viewport) is in `MS-web-provider-auth-gate.md`. This receipt is
 reusable by Task 05 unless later changes invalidate it.
+
+Follow-up 2026-11-16 (peer fixture extended; E2E stays CI-owned and unexecuted here): the
+AGY browser overlay now points at the fixture agent `browser-agy-native-agent`, whose `model`
+option reannounces per-model `thought_level` sets through the acpmock declarative
+`when_selected` contract. The same journey selects `gemini-4-hydrogen` with
+`low`/`medium`/`high`/`xhigh` (keyboard End → `Extra high`, then submits and reads an
+effective runtime of `xhigh`), switches to `gemini-4-argon` with three levels and no
+`xhigh`/`max` or duplicate raw `thought_level` control, then returns to Hydrogen. The
+2026-10-16 receipt above remains historical for the `qa-browser-model-alt` fixture and is
+superseded for the native model leg; it was not re-run and is not claimed as new evidence.
 
 ## Task 05 live-probe note (2026-10-16, blocked at the time; superseded by the 1.4.0 consented run)
 
@@ -184,7 +259,7 @@ Same implementation build + real 1.4.0 server in a consented isolated lab
 
 ## Peer-backed integration evidence
 
-`TestAgyACPBuiltInEntry` (`internal/daemon/agy_acp_entry_integration_test.go`, `integration` lane) walks built-in discovery, real `acp.Authenticate`, real `acp.ProbeAuthentication`, and a real manager Create/Prompt against a raw-JSON-RPC peer through a `agy_acp_server.par` PATH shim. The peer replaces only Google's external server: it records exactly one `oauth-personal` authenticate, no prompt during login or probe, and a persisted prompt reply. It is not Google-account evidence; the live walk above has since passed against the real server in the consented 1.4.0 run.
+`TestAgyACPBuiltInEntry` (`internal/daemon/agy_acp_entry_integration_test.go`, `integration` lane) walks built-in discovery, real `acp.Authenticate`, real `acp.ProbeAuthentication`, and a real manager Create/Prompt against a raw-JSON-RPC peer through an `agy` PATH shim whose recorded argv must be `acp`; no standalone `.par` is present. The peer replaces only Google's external runtime: it records exactly one `oauth-personal` authenticate, no prompt during login or probe, and a persisted prompt reply after the model/effort acknowledgement. It is not Google-account evidence. The 2026-10-17 live walk above passed against the real standalone server and is historical for this native re-baseline, not inherited CLI acceptance.
 
 Provider probe recovery: remove the daemon launch directory after startup, then list providers
 and probe native and ACP authentication. The endpoints remain available and probes run from the
@@ -203,7 +278,7 @@ Unix, including CLI missing-command guidance, provider inventory, and Settings.
 The live catalog exposed both bare model IDs and their `thinking_level` values, but reported
 `reasoning_apply: none` and omitted `reasoning_efforts`, preventing the session slider from selecting
 them. The built-in now enables `acp_option`; explicit `none` overrides remain authoritative.
-`TestDaemonModelCatalogWiring/Should publish exact Agy models with context isolation` reproduced the
+`TestDaemonModelCatalogWiring/Should publish native Agy models inside the effective command context` reproduced the
 failure before the fix and passes with model-specific Low/Medium/High, the live High default, and
 the opt-out preserved. The complete configuration/model-catalog packages and daemon catalog wiring
 suite pass with `-race`. The daemon-served browser case passes after selecting Low and checking the

@@ -2352,6 +2352,25 @@ extension SDKs are unchanged. Official skill `references/runtime-operations.md`,
 
 ## Google Antigravity ACP provider — 2026-10-18
 
+Native CLI replacement (2026-11-16), owner: `agy-native-acp`, branch `feat/agy-native-acp`.
+The single replacement audit and SD-013 delete inventory are
+`.compozy/tasks/agy-native-acp/analysis/change-impact.md` in the workspace root.
+It supersedes the standalone executable choice below, not the historical evidence or native-auth
+contract. The built-in now uses `agy acp`, negotiates advertised modes instead of injecting `yolo`,
+and preserves authored overrides. Route changes rebuild options only from genuine retained runtime
+intent; unknown-provenance options stay verbatim and incompatible values require public reselection
+guidance. Runtime-clear is not confirmation. The existing transcript replay avoids loading a foreign
+native session ID; unverified AGY routes also replay safely. Live native default and plan both bypassed
+host write approval, so advertised mode names cannot establish constrained-policy safety; the native
+execution boundary must refuse policies it cannot enforce, without silently granting approve-all.
+Authored standalone/custom routes and promptless inspection retain their separate behavior.
+No user data, public keys, routes, DTOs, tool IDs, hooks,
+extension contracts, or schema change. Command/home-scoped discovery, readiness, host authority,
+and default MCP transport remain unchanged; inventory recognizes `agy`. Existing Web fixtures,
+site documentation, official skill references, QA scenarios, and
+`.release-notes/agy-native-acp.md` co-ship the native CLI and upgrade guidance. Verification and
+external acceptance limits are recorded in `docs/qa/reports/2026-11-16-agy-native-acp.md`.
+
 Owner: PR #773. The additive `agy` built-in launches the supplied `agy_acp_server`, uses
 protocol-owned native login, and discovers exact model/configuration options through ACP. Provider
 configuration and Settings gain the optional `auth_acp_method` field; source DTOs and generated

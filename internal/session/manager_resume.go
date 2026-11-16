@@ -242,6 +242,12 @@ func (m *Manager) startResumedSession(
 	if err == nil {
 		return session, nil
 	}
+	if errors.Is(err, acp.ErrSessionConfigOptionRejected) && resumeUsesRetainedOptions(spec) {
+		err = fmt.Errorf(
+			"%w: reselect this session's runtime to confirm its ACP options for the current route",
+			err,
+		)
+	}
 	return m.recoverFailedResumeStart(ctx, target, meta, err)
 }
 

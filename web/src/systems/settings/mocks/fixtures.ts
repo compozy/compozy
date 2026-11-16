@@ -716,7 +716,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     command_available: true,
     settings: {
       enabled: true,
-      command: "agy_acp_server.par --uid=",
+      command: "agy acp",
       display_name: "Google Antigravity",
       harness: "acp",
       auth_mode: "native_cli",
@@ -734,7 +734,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
         "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
       login: {
         configured: true,
-        executable: "agy_acp_server.par",
+        executable: "agy",
         presence: "present",
         recommended_action: "inspect",
         source: "auth_acp_method",

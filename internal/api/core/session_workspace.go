@@ -204,6 +204,11 @@ func statusForSessionError(err error) int {
 	if status, ok := statusForSessionAvailabilityError(err); ok {
 		return status
 	}
+	// Runtime refusals are actionable; classified failures above keep their own status.
+	if errors.Is(err, acp.ErrSessionConfigOptionRejected) ||
+		errors.Is(err, acp.ErrNativeAgyToolPolicyUnsupported) {
+		return http.StatusUnprocessableEntity
+	}
 	return http.StatusInternalServerError
 }
 

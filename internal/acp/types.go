@@ -192,6 +192,40 @@ func ValidateACPModePermissions(
 	return nil
 }
 
+// ErrNativeAgyToolPolicyUnsupported identifies a host policy the native CLI cannot enforce.
+var ErrNativeAgyToolPolicyUnsupported = errors.New("acp: native Antigravity tool policy unsupported")
+
+// validateNativeAgyToolPolicy refuses host policies the native Antigravity CLI
+// cannot enforce: it executes its own tools without host permission requests, so
+// it can neither ask for nor honor an approval or denial. Approve-all keeps the
+// runtime usable, and promptless inspection or authentication stays allowed.
+func validateNativeAgyToolPolicy(opts StartOpts) error {
+	if opts.Inspection {
+		return nil
+	}
+	permissions := opts.Permissions
+	if permissions == "" {
+		permissions = compozyconfig.PermissionModeApproveReads
+	}
+	if permissions == compozyconfig.PermissionModeApproveAll {
+		return nil
+	}
+	command := strings.TrimSpace(opts.Command)
+	if command == "" && opts.ProviderConfig != nil {
+		command = strings.TrimSpace(opts.ProviderConfig.Command)
+	}
+	if !compozyconfig.IsNativeAgyACPCommand(command) {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: the native Antigravity CLI executes its own tools without host permission requests, "+
+			"so %q permissions cannot be enforced before a tool runs; "+
+			"an operator must select approve-all or a host-mediated Antigravity ACP command",
+		ErrNativeAgyToolPolicyUnsupported,
+		permissions,
+	)
+}
+
 func (o StartOpts) validateBase() error {
 	switch {
 	case strings.TrimSpace(o.AgentName) == "":
@@ -231,7 +265,7 @@ func (o StartOpts) validateBase() error {
 	}
 	switch o.SystemPromptDelivery {
 	case "", SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative:
-		return nil
+		return validateNativeAgyToolPolicy(o)
 	default:
 		return fmt.Errorf("acp: invalid system prompt delivery %q", o.SystemPromptDelivery)
 	}

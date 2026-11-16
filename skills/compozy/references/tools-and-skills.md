@@ -419,7 +419,10 @@ it, `also_in_compozy`, `copyable`/`copy_blocked_reason`, and env/header key name
 The reader parses files only. It never runs the runtime, connects to servers or reads keychains, so
 runtime sign-in state is `unknown` outside a session. An unparseable or oversized file marks only
 that runtime `read_state: "unreadable"`. Session status reads the runtime's files from the session's
-own provider home and working directory.
+own provider home and working directory. Antigravity's inventory source is
+`.gemini/config/mcp_config.json`; its optional HTTP MCP transport requires Google's
+`--process-per-session` runtime option, and CompozyOS keeps the default stdio transport for hosted
+native tools.
 
 CompozyOS never edits runtime files. To manage a runtime server in CompozyOS, copy it:
 `compozy mcp import <runtime>/<server> [--scope user|profile|workspace] [--workspace <ws>] [--name <n>]`,

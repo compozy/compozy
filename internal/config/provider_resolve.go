@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnosticcontract"
@@ -378,13 +379,23 @@ func applyApproveAllProviderMode(resolved *ResolvedAgent, providerName string, p
 	resolved.SetACPOptions(options)
 }
 
-// RequiresAdvertisedACPMode reports runtimes whose authored ACP mode must be
-// offered by the provider itself. Provider resolution derives no approve-all mode
-// for the native agy runtime, so an unadvertised selection fails instead of being
-// skipped like a derived Codex, Claude, or Copilot default or a custom runtime
-// override.
+// RequiresAdvertisedACPMode keeps authored AGY modes from being skipped as derived defaults.
 func RequiresAdvertisedACPMode(provider string) bool {
 	return strings.EqualFold(strings.TrimSpace(provider), providerAgyKey)
+}
+
+// IsNativeAgyACPCommand identifies the native CLI without conflating authored standalone or wrapper routes.
+func IsNativeAgyACPCommand(command string) bool {
+	parsed, err := ParseLaunchCommand(strings.TrimSpace(command))
+	if err != nil {
+		return false
+	}
+	name := strings.ToLower(filepath.Base(strings.ReplaceAll(parsed.Executable, `\`, "/")))
+	for _, suffix := range []string{".exe", ".cmd", ".bat"} {
+		name = strings.TrimSuffix(name, suffix)
+	}
+	return name == providerAgyKey && len(parsed.Args) > 0 &&
+		strings.EqualFold(strings.TrimSpace(parsed.Args[0]), "acp")
 }
 
 // ResolveSessionAgent resolves a parsed agent definition for one session.

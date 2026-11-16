@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"os"
 	"path/filepath"
 
 	"slices"
@@ -461,6 +462,102 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		}
 		if slices.Contains(thoughtLevelValues(argon.ConfigOptions), "xhigh") {
 			t.Fatalf("Argon thought_level values = %#v, want no xhigh", thoughtLevelValues(argon.ConfigOptions))
+		}
+	})
+
+	// The AGY browser journey runs under the AGY agent's approve-all policy, so startup
+	// selects the advertised unrestricted `auto` mode before the model; each model
+	// replacement set must keep it instead of resetting to the advertised default.
+	t.Run("Should keep the AGY auto mode through the browser fixture model sets", func(t *testing.T) {
+		t.Parallel()
+
+		raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "browser_session_lifecycle_fixture.json"))
+		if err != nil {
+			t.Fatalf("read browser fixture: %v", err)
+		}
+		fixture, err := acpmock.ParseFixture(raw)
+		if err != nil {
+			t.Fatalf("ParseFixture() error = %v", err)
+		}
+		var agy *acpmock.AgentFixture
+		for idx := range fixture.Agents {
+			if fixture.Agents[idx].Name == "browser-agy-native-agent" {
+				agy = &fixture.Agents[idx]
+			}
+		}
+		if agy == nil {
+			t.Fatal("fixture has no browser-agy-native-agent")
+		}
+		if agy.Permissions != "approve-all" {
+			t.Fatalf("browser-agy-native-agent permissions = %q, want approve-all", agy.Permissions)
+		}
+
+		agent := &mockAgent{
+			agent:            *agy,
+			configTemplate:   sessionConfigOptionsFromFixture(agy.ConfigOptions),
+			configReannounce: sessionConfigReannouncements(agy.ConfigOptions),
+			diagnosticsPath:  filepath.Join(t.TempDir(), "config-options.jsonl"),
+			sessions:         map[string]*sessionState{},
+		}
+		session, err := agent.NewSession(t.Context(), acpsdk.NewSessionRequest{})
+		if err != nil {
+			t.Fatalf("NewSession() error = %v", err)
+		}
+
+		current := func(options []acpsdk.SessionConfigOption, configID string) string {
+			for _, option := range options {
+				if option.Select != nil && string(option.Select.Id) == configID {
+					return string(option.Select.CurrentValue)
+				}
+			}
+			return ""
+		}
+		selectValue := func(configID string, value string) acpsdk.SetSessionConfigOptionResponse {
+			t.Helper()
+			response, selectErr := agent.SetSessionConfigOption(
+				t.Context(),
+				acpsdk.SetSessionConfigOptionRequest{
+					ValueId: &acpsdk.SetSessionConfigOptionValueId{
+						SessionId: session.SessionId,
+						ConfigId:  acpsdk.SessionConfigId(configID),
+						Value:     acpsdk.SessionConfigValueId(value),
+					},
+				},
+			)
+			if selectErr != nil {
+				t.Fatalf("SetSessionConfigOption(%s=%s) error = %v", configID, value, selectErr)
+			}
+			return response
+		}
+
+		if got := current(session.ConfigOptions, "mode"); got != "default" {
+			t.Fatalf("advertised mode current = %q, want default", got)
+		}
+		auto := selectValue("mode", "auto")
+		if got := current(auto.ConfigOptions, "mode"); got != "auto" {
+			t.Fatalf("mode current after selection = %q, want auto", got)
+		}
+
+		hydrogen := selectValue("model", "gemini-4-hydrogen")
+		if got := current(hydrogen.ConfigOptions, "mode"); got != "auto" {
+			t.Fatalf("Hydrogen mode current = %q, want auto preserved", got)
+		}
+		if got := thoughtLevelValues(hydrogen.ConfigOptions); !slices.Equal(
+			got,
+			[]string{"low", "medium", "high", "xhigh"},
+		) {
+			t.Fatalf("Hydrogen thought_level values = %#v, want four levels", got)
+		}
+
+		argon := selectValue("model", "gemini-4-argon")
+		if got := current(argon.ConfigOptions, "mode"); got != "auto" {
+			t.Fatalf("Argon mode current = %q, want auto preserved", got)
+		}
+		if got := thoughtLevelValues(argon.ConfigOptions); !slices.Equal(
+			got,
+			[]string{"low", "medium", "high"},
+		) {
+			t.Fatalf("Argon thought_level values = %#v, want three levels", got)
 		}
 	})
 }

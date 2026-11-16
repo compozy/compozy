@@ -91,7 +91,7 @@ const nativeACPProvider: SettingsProviderEntry = {
   command_available: true,
   settings: {
     enabled: true,
-    command: "agy_acp_server.par --uid=",
+    command: "agy acp",
     display_name: "Google Antigravity",
     models: { default: "", curated: [] },
     harness: "acp",
@@ -111,7 +111,7 @@ const nativeACPProvider: SettingsProviderEntry = {
       "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
     login: {
       configured: true,
-      executable: "agy_acp_server.par",
+      executable: "agy",
       presence: "present",
       recommended_action: "inspect",
       source: "auth_acp_method",
@@ -582,7 +582,7 @@ describe("ProviderDetailDialog", () => {
     const descriptor = screen.getByTestId("settings-providers-editor-auth-login-descriptor");
     expect(
       within(descriptor).getByTestId("settings-providers-editor-auth-login-descriptor-executable")
-    ).toHaveTextContent("agy_acp_server.par");
+    ).toHaveTextContent("agy");
     expect(within(descriptor).queryByText("write-only config")).not.toBeInTheDocument();
 
     await user.clear(method);

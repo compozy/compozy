@@ -606,7 +606,8 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 				defer stopProcess(t, driver, proc)
 			}
 			if tc.wantError != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				if err == nil || !errors.Is(err, ErrSessionConfigOptionRejected) ||
+					!strings.Contains(err.Error(), tc.wantError) {
 					t.Fatalf("Start() error = %v, want %q", err, tc.wantError)
 				}
 				return
@@ -643,7 +644,8 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 				err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
 					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: "full-access"}},
 				})
-				if err == nil || !strings.Contains(err.Error(), "not uniquely advertised") {
+				if err == nil || !errors.Is(err, ErrSessionConfigOptionRejected) ||
+					!strings.Contains(err.Error(), "not uniquely advertised") {
 					t.Fatalf("new live mode error = %v, want missing mode rejection", err)
 				}
 				if runtime.Model != "" {
@@ -676,11 +678,13 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 	}
 }
 
-// Invariant: the native agy runtime negotiates only the modes it advertises
-// (default, accept-edits, auto, plan): approve-all selects auto, approve-edits
-// accepts edits, read-only policies select plan, and no policy or custom
-// provider receives a hardcoded yolo/auto selection. Owner: ACP startup
-// negotiation with the native mode fixture (UT-002).
+// Invariant: an Antigravity ACP command that is not the native CLI keeps its
+// advertised-mode negotiation (approve-all selects auto, approve-edits accepts
+// edits, read-only policies select plan, and no policy or custom provider
+// receives a hardcoded yolo/auto selection). The native `agy acp` command is
+// covered by TestStartNativeAgyRefusesUnenforceablePolicies, which refuses every
+// policy except approve-all before launch. Owner: ACP startup negotiation with
+// the native mode fixture (UT-002).
 func TestStartAgyNativeModeNegotiation(t *testing.T) {
 	t.Parallel()
 
@@ -3688,6 +3692,131 @@ func TestPermissionLevelModeSelection(t *testing.T) {
 				if got != tc.want {
 					t.Fatalf("gateway=%v mode=%q, want %q", gateway, got, tc.want)
 				}
+			}
+		})
+	}
+}
+
+// Invariant: the native Antigravity CLI executes its own tools without host
+// permission requests, so any policy that must approve or deny a tool is
+// unenforceable and the start fails before a process exists. Advertised modes,
+// including plan, and the tool gateway cannot change that. Owner: ACP startup
+// policy boundary for US-003.
+func TestStartNativeAgyRefusesUnenforceablePolicies(t *testing.T) {
+	t.Parallel()
+	gateway := toolExecutionGatewayFunc(
+		func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+			return req, nil
+		},
+	)
+
+	for _, tc := range []struct {
+		name        string
+		provider    string
+		permissions compozyconfig.PermissionMode
+		gateway     bool
+		options     []SessionConfigOptionSelection
+	}{
+		{name: "Should refuse deny-all", permissions: compozyconfig.PermissionModeDenyAll},
+		{name: "Should refuse deny-all with a tool gateway", permissions: compozyconfig.PermissionModeDenyAll, gateway: true},
+		{name: "Should refuse approve-reads", permissions: compozyconfig.PermissionModeApproveReads},
+		{name: "Should refuse approve-reads with a tool gateway", permissions: compozyconfig.PermissionModeApproveReads, gateway: true},
+		{
+			name:        "Should refuse approve-reads with an explicit plan option",
+			permissions: compozyconfig.PermissionModeApproveReads,
+			options:     []SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+		},
+		{name: "Should refuse approve-edits", permissions: compozyconfig.PermissionModeApproveEdits},
+		{name: "Should refuse approve-edits with a tool gateway", permissions: compozyconfig.PermissionModeApproveEdits, gateway: true},
+		{name: "Should refuse auto", permissions: compozyconfig.PermissionModeAuto},
+		{name: "Should refuse auto with a tool gateway", permissions: compozyconfig.PermissionModeAuto, gateway: true},
+		{
+			name: "Should refuse the native CLI under a custom provider label", provider: "custom",
+			permissions: compozyconfig.PermissionModeApproveReads,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			captureFile := filepath.Join(t.TempDir(), "native-policy.jsonl")
+			var gatewayOpt ToolExecutionGateway
+			if tc.gateway {
+				gatewayOpt = gateway
+			}
+			provider := tc.provider
+			if provider == "" {
+				provider = "agy"
+			}
+			proc, err := driver.Start(t.Context(), StartOpts{
+				AgentName:    "helper",
+				ProviderName: provider,
+				Command:      "agy acp",
+				Cwd:          t.TempDir(),
+				Env:          helperEnvWithCapture("agy_native_modes", "", captureFile),
+				Permissions:  tc.permissions,
+				ACPOptions:   tc.options,
+				ToolGateway:  gatewayOpt,
+			})
+			if proc != nil {
+				t.Fatalf("Start() process = %+v, want no process for an unenforceable policy", proc)
+			}
+			if !errors.Is(err, ErrNativeAgyToolPolicyUnsupported) ||
+				!strings.Contains(err.Error(), "cannot be enforced") {
+				t.Fatalf("Start() error = %v, want the native Antigravity policy refusal", err)
+			}
+			if _, statErr := os.Stat(captureFile); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("capture file exists (%v), want no prompt or tool call emitted", statErr)
+			}
+		})
+	}
+}
+
+// Invariant: approve-all keeps the native CLI usable, promptless inspection and
+// authentication stay allowed, and an authored standalone or custom Antigravity
+// ACP command keeps its previous policy behavior. Owner: ACP startup policy
+// boundary for US-003.
+func TestNativeAgyPolicyGateAllowsSupportedStarts(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		command     string
+		permissions compozyconfig.PermissionMode
+		inspection  bool
+	}{
+		{
+			name: "Should allow approve-all for the native CLI", command: "agy acp",
+			permissions: compozyconfig.PermissionModeApproveAll,
+		},
+		{
+			name: "Should allow promptless inspection for the native CLI", command: "agy acp",
+			permissions: compozyconfig.PermissionModeApproveReads, inspection: true,
+		},
+		{
+			name: "Should keep a standalone Antigravity ACP server command", command: "agy_acp_server.par",
+			permissions: compozyconfig.PermissionModeApproveReads,
+		},
+		{
+			name: "Should keep a custom Antigravity wrapper command", command: "/opt/agy-wrapper acp",
+			permissions: compozyconfig.PermissionModeDenyAll,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := StartOpts{
+				AgentName:   "helper",
+				Command:     tc.command,
+				Cwd:         t.TempDir(),
+				Permissions: tc.permissions,
+				Inspection:  tc.inspection,
+			}
+			if _, err := normalizeStartOpts(opts); err != nil {
+				t.Fatalf("normalizeStartOpts() error = %v, want an allowed start", err)
+			}
+			if err := opts.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v, want an allowed start", err)
 			}
 		})
 	}

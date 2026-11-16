@@ -4,7 +4,7 @@ area: RT
 title: Full access runs the ACP provider in its unrestricted mode
 persona: Ada
 journey: J-15
-expected: With effective approve-all permissions alone, new Codex sessions select agent-full-access, new Claude Code sessions select bypassPermissions, agy selects yolo, and Copilot selects allow_all=on; under auto, Codex keeps its reviewer mode. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes during start and later runtime changes while explicit unrestricted session selections are refused; providers without a mapping keep their own approve-all negotiation. A config that still carries the retired permissions.provider_full_access key starts normally: the key is ignored, removed from writable config files after a backup, and permissions.mode remains the canonical control.
+expected: With effective approve-all permissions alone, new Codex sessions select agent-full-access, new Claude Code sessions select bypassPermissions, agy negotiates its advertised unrestricted mode (auto on the verified CLI, never an injected yolo), and Copilot selects allow_all=on; under auto, Codex keeps its reviewer mode. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes during start and later runtime changes while explicit unrestricted session selections are refused; providers without a mapping keep their own approve-all negotiation. A config that still carries the retired permissions.provider_full_access key starts normally: the key is ignored, removed from writable config files after a backup, and permissions.mode remains the canonical control.
 entry_points: config.toml permissions; compozy agent info; compozy session prompt; Loop run-agent
 qa_status: untested
 bug_ids:
@@ -46,12 +46,15 @@ and PostgreSQL fixture on the provider-neutral build. Narrower agent and session
 of an explicit unrestricted override, and unsupported-provider failure were verified through the
 CLI. See the dated run report and its isolated lab receipts.
 
-## agy prefers yolo under approve-all
+## agy negotiates its advertised mode under approve-all
 
-With effective `approve-all`, a new `agy` session
-prefers mode `yolo`; an explicit narrower agent mode wins, and narrower session permissions reject
-`yolo`. `agy` is never added to generic automatic mode candidates. Unit ownership is UT-004
-(config negotiation cases); the live `agy` walk is unexecuted and the historical Codex/Claude branches remain previously verified;
+With effective `approve-all`, a new `agy` session selects a mode the CLI actually advertises: the
+verified 1.5.9 runtime lists `default`, `accept-edits`, `auto`, and `plan`, so approve-all negotiates
+`auto` and no `yolo` selection or permission-bypass launch argument is injected. An explicit narrower
+agent mode wins, and narrower session permissions keep a compatible advertised mode with host
+approval decisions. `agy` is never added to generic automatic mode candidates. Unit ownership is
+UT-004 (config negotiation cases); the live `agy` walk is unexecuted and the historical
+Codex/Claude branches remain previously verified;
 this scenario is untested for the retired-key upgrade behavior.
 
 ## Providers without a unique mode option
