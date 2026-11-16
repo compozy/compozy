@@ -35,14 +35,15 @@ func (s *HostedService) sharedStreamProjection(
 			return HostedProjectionResponse{}, true, err
 		}
 		epoch := s.currentProjectionEpoch()
-		class, known := registry.ProjectionVisibility(ctx, record.scope())
+		listingCtx, builtAt := s.withProjectionListings(ctx, epoch)
+		class, known := registry.ProjectionVisibility(listingCtx, record.scope())
 		if !known {
 			return HostedProjectionResponse{}, false, nil
 		}
 		key := hostedSharedFlightKey{hostedVisibilityKey{registry, class}, epoch}
 		cached, flight, leader := s.sharedProjections.begin(key, s.now(), s.StreamRefreshInterval())
 		if cached != nil {
-			if !s.sharedProjectionMatches(ctx, record, key) {
+			if !s.sharedProjectionMatches(listingCtx, record, key) {
 				continue
 			}
 			return s.checkedSharedProjection(ctx, record, *cached)
@@ -55,19 +56,18 @@ func (s *HostedService) sharedStreamProjection(
 			if err != nil {
 				return HostedProjectionResponse{}, true, err
 			}
-			if retry || !s.sharedProjectionMatches(ctx, record, key) {
+			if retry || !s.sharedProjectionMatches(listingCtx, record, key) {
 				continue
 			}
 			return s.checkedSharedProjection(ctx, record, response)
 		}
-		listingCtx, builtAt := s.withProjectionListings(ctx, key.epoch)
 		response, err := buildHostedProjection(listingCtx, registry, record)
 		if err == nil {
 			err = ctx.Err()
 		}
 		stable := false
 		if err == nil {
-			stable = s.sharedProjectionMatches(ctx, record, key)
+			stable = s.sharedProjectionMatches(listingCtx, record, key)
 		}
 		s.mu.Lock()
 		owned := s.ownsBindRecord(record)

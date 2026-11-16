@@ -139,7 +139,21 @@ func BenchmarkHostedStreamProjectionFanout(b *testing.B) {
 					b.Fatal(err)
 				}
 				provider := &hostedCountingProvider{Provider: native}
-				registry, err := tools.NewRegistry(tools.WithProviders(provider))
+				var registry *tools.RuntimeRegistry
+				resolver := hostedPolicyResolver(
+					func(ctx context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
+						inputs := tools.DefaultPolicyInputs()
+						scope.SessionID, scope.AgentName = "", ""
+						views, resolveErr := registry.PolicyProjection(ctx, scope, inputs)
+						for i := range views {
+							inputs.Session.Tools = append(inputs.Session.Tools, views[i].Descriptor.ID)
+						}
+						inputs.Session.Enforced = true
+						return inputs, resolveErr
+					},
+				)
+				registry, err = tools.NewRegistry(tools.WithProviders(provider),
+					tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}))
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -176,7 +190,7 @@ func BenchmarkHostedStreamProjectionFanout(b *testing.B) {
 						}
 					}
 				}
-				b.ReportMetric(float64(provider.calls.Load())/float64(b.N), "builds/epoch")
+				b.ReportMetric(float64(provider.calls.Load())/float64(b.N), "listings/epoch")
 			})
 		}
 	}

@@ -5931,3 +5931,71 @@ func TestManagerListForWorkspaceResolvesAuthorityInReadMode(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: status counts preserve the metadata population and authoritative live badges.
+// Owner: session Manager; canonical suite: query_test.go.
+func TestManagerStatusSummary(t *testing.T) {
+	t.Run("Should preserve the metadata population and live badges", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 12, 2)
+		manager.sessions["sess-read-001"] = &Session{
+			ID:                     "sess-read-001",
+			WorkspaceID:            "ws-read-01",
+			State:                  StateActive,
+			PendingPermissionCount: 1,
+		}
+		manager.sessions["unpublished"] = &Session{ID: "unpublished", State: StateStarting}
+		if err := os.Remove(
+			store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, "sess-read-000")),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, "sess-read-002")),
+			[]byte("{"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		// Metadata owns persisted state; catalog scope must still prove its ownership.
+		manager.pending = map[string]sessionReservation{"sess-read-006": {workspaceID: "ws-read-00"}}
+		for _, id := range []string{"sess-read-003", "sess-read-004", "sess-read-005", "sess-read-006"} {
+			path := store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, id))
+			meta, err := store.ReadSessionMeta(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch id {
+			case "sess-read-003":
+				meta.WorkspaceID = "ws-read-00" // mismatches catalog owner
+			case "sess-read-004":
+				meta.ProfileID = "another-profile"
+			case "sess-read-006":
+				meta.WorkspaceID = "ws-read-01" // pending metadata does not require owner binding
+			case "sess-read-005":
+				meta.State = "active"
+				meta.Failure = &store.SessionFailure{Kind: store.FailureProviderAuth}
+			}
+			if err := store.WriteSessionMeta(path, &meta); err != nil {
+				t.Fatal(err)
+			}
+		}
+		infos, err := manager.ListAll(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := store.SessionStatusSummary{ByStatus: map[string]int{}, ByBadge: map[string]int{}}
+		for _, info := range infos {
+			want.Total++
+			want.ByStatus[string(info.State)]++
+			want.ByBadge[string(BadgeForInfo(info))]++
+			if info.State == StateActive {
+				want.Active++
+			}
+		}
+		got, err := manager.StatusSummary(t.Context())
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatalf("StatusSummary=%+v, %v; want %+v", got, err, want)
+		}
+	})
+}

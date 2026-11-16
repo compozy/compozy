@@ -20,7 +20,7 @@ import (
 
 const defaultSettingsMCPStatusTimeout = compozyconfig.DefaultMCPStatusProbeTimeout
 
-func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
+func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 	ctx context.Context,
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,

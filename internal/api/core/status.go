@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -57,7 +58,7 @@ func (h *BaseHandlers) statusPayload(
 	ctx context.Context,
 	workspaceID string,
 ) (contract.StatusPayload, error) {
-	return h.statusPayloadWithAggregate(ctx, workspaceID, h.sessionAggregate)
+	return h.statusPayloadWithAggregate(ctx, workspaceID, h.sessionAggregate, false)
 }
 
 // Doctor can share its session snapshot without sharing probe error handling.
@@ -65,6 +66,7 @@ func (h *BaseHandlers) statusPayloadWithAggregate(
 	ctx context.Context,
 	workspaceID string,
 	aggregate func(context.Context) (contract.SessionAggregatePayload, error),
+	probeMCP bool,
 ) (contract.StatusPayload, error) {
 	if err := h.validateStatusDependencies(ctx); err != nil {
 		return contract.StatusPayload{}, err
@@ -94,7 +96,7 @@ func (h *BaseHandlers) statusPayloadWithAggregate(
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect provider status: %w", err)
 	}
-	mcpServers, err := h.mcpServerStatusPayloads(ctx, workspaceID)
+	mcpServers, err := h.mcpServerStatusPayloads(ctx, workspaceID, !probeMCP)
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect MCP server status: %w", err)
 	}
@@ -155,6 +157,20 @@ func (h *BaseHandlers) runtimeGatewayStatusPayload(ctx context.Context) (*contra
 }
 
 func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAggregatePayload, error) {
+	if reader, ok := h.Sessions.(interface {
+		StatusSummary(context.Context) (store.SessionStatusSummary, error)
+	}); ok {
+		summary, err := reader.StatusSummary(ctx)
+		if err != nil {
+			return contract.SessionAggregatePayload{}, err
+		}
+		return contract.SessionAggregatePayload{
+			Active:   summary.Active,
+			Total:    summary.Total,
+			ByStatus: summary.ByStatus,
+			ByBadge:  summary.ByBadge,
+		}, nil
+	}
 	infos, err := h.Sessions.ListAll(ctx)
 	if err != nil {
 		return contract.SessionAggregatePayload{}, fmt.Errorf("api: list sessions for status: %w", err)

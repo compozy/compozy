@@ -10275,6 +10275,7 @@ export interface components {
       http_host: string;
       http_port: number;
       pid: number;
+      readiness?: components["schemas"]["DaemonReadinessPayload"] | null;
       /** Format: date-time */
       started_at: string;
       user_home_dir: string;

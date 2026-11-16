@@ -28,6 +28,7 @@ type MCPAuthStatus = mcpauth.Status
 type MCPServerRuntimeState string
 
 const (
+	MCPServerRuntimeStateUnknown MCPServerRuntimeState = "unknown"
 	// MCPServerRuntimeStateReady reports a server that initialized and listed tools.
 	MCPServerRuntimeStateReady MCPServerRuntimeState = "ready"
 	// MCPServerRuntimeStateConfigError reports a malformed server definition.

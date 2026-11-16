@@ -403,12 +403,13 @@ type CursorPagePayload struct {
 
 // DaemonIdentityPayload is a daemon API value.
 type DaemonIdentityPayload struct {
-	PID         int       `json:"pid"`
-	StartedAt   time.Time `json:"started_at"`
-	HTTPHost    string    `json:"http_host"`
-	HTTPPort    int       `json:"http_port"`
-	UserHomeDir string    `json:"user_home_dir"`
-	Version     string    `json:"version"`
+	PID         int                     `json:"pid"`
+	StartedAt   time.Time               `json:"started_at"`
+	HTTPHost    string                  `json:"http_host"`
+	HTTPPort    int                     `json:"http_port"`
+	UserHomeDir string                  `json:"user_home_dir"`
+	Version     string                  `json:"version"`
+	Readiness   *DaemonReadinessPayload `json:"readiness,omitzero"`
 }
 
 // DaemonReadinessPayload is a daemon API value.

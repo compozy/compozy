@@ -1424,24 +1424,31 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 
 		h := newHarness(t)
 		ctx := testutil.Context(t)
-		if err := h.registry.RegisterSession(ctx, new(store.SessionInfo{
-			ID:            "sess-failure-only",
-			ProfileID:     store.DefaultProfileID,
-			Name:          "Failure Only",
-			AgentName:     "coder",
-			Provider:      "codex",
-			RuntimeStatus: store.SessionRuntimeUnbound,
-			WorkspaceID:   h.workspaceID,
-			State:         string(session.StateStopped),
-			StopReason:    store.StopError,
-			Failure: &store.SessionFailure{
-				Kind:    store.FailureProtocol,
-				Summary: "bad frame",
-			},
-			CreatedAt: h.now,
-			UpdatedAt: h.now,
-		})); err != nil {
-			t.Fatalf("RegisterSession(failure) error = %v", err)
+		for i := range 12 {
+			id := fmt.Sprintf("sess-failure-%02d", i)
+			if err := h.registry.RegisterSession(ctx, new(store.SessionInfo{
+				ID:            id,
+				ProfileID:     store.DefaultProfileID,
+				Name:          "Failure Only",
+				AgentName:     "coder",
+				Provider:      "codex",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				WorkspaceID:   h.workspaceID,
+				State:         string(session.StateStopped),
+				StopReason:    store.StopError,
+				Failure: &store.SessionFailure{
+					Kind:    store.FailureProtocol,
+					Summary: "bad frame",
+				},
+				CreatedAt: h.now,
+				UpdatedAt: h.now,
+			})); err != nil {
+				t.Fatalf("RegisterSession(failure) error = %v", err)
+			}
+
+			if _, err := h.registry.SetSessionArchived(ctx, h.workspaceID, id, true); err != nil {
+				t.Fatal(err)
+			}
 		}
 
 		health, err := h.observer.Health(ctx)
@@ -1453,6 +1460,15 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 		}
 		if got, want := health.Status, observeHealthStatusDegraded; got != want {
 			t.Fatalf("Health().Status = %q, want %q", got, want)
+		}
+		if health.Failures.Total != 12 || health.Failures.ByKind[store.FailureProtocol] != 12 ||
+			len(health.Failures.Recent) != 10 {
+			t.Fatalf("archived failures=%+v", health.Failures)
+		}
+		for i := 1; i < len(health.Failures.Recent); i++ {
+			if health.Failures.Recent[i].UpdatedAt.After(health.Failures.Recent[i-1].UpdatedAt) {
+				t.Fatalf("recent failures are not newest first: %+v", health.Failures.Recent)
+			}
 		}
 	})
 }

@@ -21,7 +21,7 @@ func (s *service) buildMCPServerItems(
 	workspaceID string,
 	profileName string,
 	resolved *workspacepkg.ResolvedWorkspace,
-	skipRuntimeStatus bool,
+	skipRuntimeStatus, cachedRuntimeStatus bool,
 ) ([]MCPServerItem, error) {
 	root := ""
 	if resolved != nil {
@@ -63,7 +63,7 @@ func (s *service) buildMCPServerItems(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.populateMCPCollectionStatuses(ctx, items, skipRuntimeStatus); err != nil {
+	if err := s.populateMCPCollectionStatuses(ctx, items, skipRuntimeStatus, cachedRuntimeStatus); err != nil {
 		return nil, err
 	}
 	markInheritedMCPAuthStatuses(items, MCPAuthTargetRequest{

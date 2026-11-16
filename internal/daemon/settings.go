@@ -20,6 +20,7 @@ import (
 )
 
 type settingsRuntimeSurface struct {
+	mcpStatusCache    settingsMCPStatusCache
 	digestKey         []byte
 	state             *bootState
 	config            compozyconfig.Config

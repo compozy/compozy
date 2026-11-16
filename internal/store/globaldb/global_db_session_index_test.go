@@ -4486,3 +4486,102 @@ func BenchmarkSessionWorkFamily(b *testing.B) {
 		}
 	}
 }
+
+// Invariant: status summaries preserve scoped counts and archive semantics without rich hydration.
+// Owner: session catalog; canonical suite: global_db_session_index_test.go.
+func TestSessionCatalogSummaries(t *testing.T) {
+	t.Run("Should preserve exact scoped status and bounded failure details", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "summary", filepath.Join(t.TempDir(), "workspace"))
+		at := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+		for i := range 20 {
+			state := "stopped"
+			if i >= 14 {
+				state = "active"
+			}
+			info := sessionInfoForWorkspaceStateIndexTest(fmt.Sprintf("summary-%02d", i), workspace, state, at)
+			info.UpdatedAt = at.Add(time.Duration(i) * time.Minute)
+			if i < 14 {
+				kind := store.FailureProcess
+				if i < 3 {
+					kind = store.FailureCanceled
+				}
+				info.Failure = &store.SessionFailure{Kind: kind, Summary: "bounded failure detail"}
+			}
+			if err := db.RegisterSession(ctx, &info); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET archived_at=? WHERE id='summary-13'`,
+			formatTimestamp(at),
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, sql := range []string{
+			"UPDATE sessions SET pending_permission_count=1 WHERE id='summary-14'",
+			"UPDATE sessions SET pending_clarify_count=1 WHERE id='summary-15'",
+			`UPDATE sessions SET activity_json='{"turn_id":"active-turn"}' WHERE id='summary-16'`,
+			"UPDATE sessions SET ended_early_turn_id='early' WHERE id='summary-17'",
+			"UPDATE sessions SET stall_state='" + store.SessionStallStateDetected + "' WHERE id='summary-18'",
+			"UPDATE sessions SET last_settled_revision=1 WHERE id='summary-19'",
+		} {
+			if _, err := db.db.ExecContext(ctx, sql); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rows, err := db.SessionStatusRows(ctx, store.ReadScope{AllProfiles: true})
+		if err != nil || len(rows) != 20 {
+			t.Fatalf("status rows=%d, %v", len(rows), err)
+		}
+		byID := make(map[string]*store.SessionInfo, len(rows))
+		for i := range rows {
+			byID[rows[i].ID] = &rows[i]
+		}
+		if byID["summary-14"].Attention.PendingPermissionCount != 1 ||
+			byID["summary-15"].Attention.PendingClarifyCount != 1 ||
+			byID["summary-17"].Attention.EndedEarlyTurnID != "early" ||
+			byID["summary-19"].Attention.LastSettledRevision != 1 {
+			t.Fatalf("narrow attention rows=%+v", rows)
+		}
+		scoped, err := db.SessionStatusRows(ctx, store.ReadScope{ProfileID: store.DefaultProfileID})
+		if err != nil || len(scoped) != 20 {
+			t.Fatalf("scoped rows=%d, %v", len(scoped), err)
+		}
+		failures, err := db.SessionFailureSummary(ctx, store.ReadScope{ProfileID: store.DefaultProfileID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if failures.Total != 14 || failures.ByKind[store.FailureProcess] != 11 ||
+			failures.ByKind[store.FailureCanceled] != 3 ||
+			len(failures.Recent) != 10 {
+			t.Fatalf("failure summary=%+v", failures)
+		}
+		for i, info := range failures.Recent {
+			if info.ID != fmt.Sprintf("summary-%02d", 13-i) || info.Failure.Summary != "bounded failure detail" {
+				t.Fatalf("recent[%d]=%+v", i, info)
+			}
+		}
+		// Corruption in an unrelated rich field cannot force a full session decode for aggregates.
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET acp_options_json='{}' WHERE id='summary-00'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SessionFailureSummary(ctx, store.ReadScope{AllProfiles: true}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SessionStatusRows(ctx, store.ReadScope{AllProfiles: true}); err != nil {
+			t.Fatal(err)
+		}
+		for _, scope := range []store.ReadScope{{}, {ProfileID: store.DefaultProfileID, AllProfiles: true}} {
+			if _, err := db.SessionFailureSummary(ctx, scope); err == nil {
+				t.Fatal("accepted invalid scope")
+			}
+		}
+	})
+}

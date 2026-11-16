@@ -151,6 +151,15 @@ type MCPRuntimeProvider interface {
 	) (MCPServerRuntimeStatus, error)
 }
 
+// MCPCachedRuntimeProvider returns a bounded observation without contacting a server.
+type MCPCachedRuntimeProvider interface {
+	MCPServerCachedRuntimeStatus(
+		context.Context,
+		mcpauth.Target,
+		compozyconfig.MCPServer,
+	) (MCPServerRuntimeStatus, error)
+}
+
 // ConfigRuntimeApplier reconciles a validated config snapshot with daemon-owned runtime state.
 type ConfigRuntimeApplier interface {
 	// ApplyActiveConfig installs a fully projected next-active snapshot, not the persisted desired config.
