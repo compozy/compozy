@@ -26,11 +26,6 @@ func agyProbeTestConfig(t *testing.T) compozyconfig.Config {
 	t.Helper()
 
 	cfg := providerAuthTestConfig(t)
-	cfg.Providers["agy"] = compozyconfig.ProviderConfig{
-		Command:       "agy_acp_server.par --uid=",
-		AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
-		AuthACPMethod: "oauth-personal",
-	}
 	cfg.Providers["plain"] = compozyconfig.ProviderConfig{
 		Command:  "plain-provider acp",
 		AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
@@ -178,8 +173,8 @@ func TestProviderAGYACPProbe(t *testing.T) {
 		if !invalidated {
 			t.Fatal("successful ACP probe did not invalidate cached startup failures")
 		}
-		if !strings.HasPrefix(strings.TrimSpace(seen.Command), "agy_acp_server.par") {
-			t.Fatalf("probe Command = %q, want effective builtin server command", seen.Command)
+		if got, want := strings.TrimSpace(seen.Command), "agy acp"; got != want {
+			t.Fatalf("probe Command = %q, want %q", got, want)
 		}
 		if !seenHasEnv(seen.Env, "COMPOZY_PROVIDER=agy") {
 			t.Fatalf("probe Env = %#v, want daemon provider scope", seen.Env)
@@ -326,11 +321,7 @@ func TestProviderAGYACPProbe(t *testing.T) {
 		if got, want := payload.AuthStatus.Login.Source, contract.ProviderLoginSourceAuthACPMethod; got != want {
 			t.Fatalf("Login.Source = %q, want %q", got, want)
 		}
-		executable := "agy_acp_server.par"
-		if runtime.GOOS == "windows" {
-			executable = "agy_acp_server.exe"
-		}
-		if got, want := payload.AuthStatus.Login.Executable, executable; got != want {
+		if got, want := payload.AuthStatus.Login.Executable, "agy"; got != want {
 			t.Fatalf("Login.Executable = %q, want %q", got, want)
 		}
 	})

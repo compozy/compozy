@@ -13,8 +13,11 @@ func (d *Driver) applyStartupConfigSelections(
 	process *AgentProcess,
 	selections []SessionConfigOptionSelection,
 ) error {
+	// Only a derived approve-all mode may be skipped when the provider offers no
+	// mode control; an authored mode the runtime does not advertise stays a failure.
 	if _, ok := findConfigOptionByID(process.CapsSnapshot().ConfigOptions, sessionConfigModeKey); !ok &&
-		process.permissions.mode == compozyconfig.PermissionModeApproveAll {
+		process.permissions.mode == compozyconfig.PermissionModeApproveAll &&
+		!compozyconfig.RequiresAdvertisedACPMode(process.permissionModeProvider()) {
 		for _, selection := range selections {
 			if selection.ID == sessionConfigModeKey &&
 				compozyconfig.IsUnrestrictedACPMode(process.permissionModeProvider(), selection.ValueID) {

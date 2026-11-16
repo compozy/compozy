@@ -332,6 +332,30 @@ func TestRuntimeInventorySafety(t *testing.T) {
 			t.Fatalf("runtime command executed: %v", err)
 		}
 	})
+	t.Run("Should recognize the native Antigravity CLI installation", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: agy on PATH marks Antigravity installed; a standalone
+		// server archive alone is not the supported runtime. Owner: runtime
+		// inventory descriptors (UT-004).
+		c := fixtureContext(t)
+		putFixture(t, c, "agy/mcp_config.json", filepath.Join(c.Home, ".gemini", "config", "mcp_config.json"))
+		standalone := filepath.Join(c.Home, ".local", "bin", "agy_acp_server.par")
+		putFile(t, standalone, "#!/bin/sh\n")
+		if err := os.Chmod(standalone, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if groupFor(t, c, "agy").Installed {
+			t.Fatal("standalone server marked Antigravity installed, want missing CLI")
+		}
+		cli := filepath.Join(c.Home, ".local", "bin", "agy")
+		putFile(t, cli, "#!/bin/sh\n")
+		if err := os.Chmod(cli, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if !groupFor(t, c, "agy").Installed {
+			t.Fatal("agy on PATH not marked installed")
+		}
+	})
 	t.Run("Should isolate parse failures to one runtime UT-056", func(t *testing.T) {
 		t.Parallel()
 		c := fixtureContext(t)

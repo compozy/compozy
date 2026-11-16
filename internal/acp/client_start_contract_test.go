@@ -584,7 +584,7 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 	}{
 		{name: "Should start Claude without a mode option", scenario: "config_options", provider: "claude", value: "bypassPermissions"},
 		{name: "Should start Codex without a mode option", scenario: "config_options", provider: "codex", value: "agent-full-access"},
-		{name: "Should start agy without a mode option", scenario: "config_options", provider: "agy", value: "yolo"},
+		{name: "Should keep a custom runtime without a mode control", scenario: "config_options", provider: "custom", value: "bypassPermissions"},
 		{name: "Should start without selecting an ambiguous mode option", scenario: "full_access_mode_duplicate", value: "bypassPermissions"},
 		{name: "Should select a uniquely advertised unrestricted mode", scenario: "full_access_mode_available", value: "bypassPermissions", wantSelection: true},
 		{name: "Should reject an unavailable value on a unique mode option", scenario: "full_access_mode_unavailable", value: "bypassPermissions", wantError: "does not allow value"},
@@ -670,6 +670,168 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 						"max",
 						"ultra",
 					)
+				}
+			}
+		})
+	}
+}
+
+// Invariant: the native agy runtime negotiates only the modes it advertises
+// (default, accept-edits, auto, plan): approve-all selects auto, approve-edits
+// accepts edits, read-only policies select plan, and no policy or custom
+// provider receives a hardcoded yolo/auto selection. Owner: ACP startup
+// negotiation with the native mode fixture (UT-002).
+func TestStartAgyNativeModeNegotiation(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		provider       string
+		scenario       string
+		permissions    compozyconfig.PermissionMode
+		options        []SessionConfigOptionSelection
+		wantMode       string
+		wantConfigMode string
+		wantErr        string
+	}{
+		{
+			name:        "Should negotiate auto for approve-all",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			wantMode:    "auto",
+		},
+		{
+			name:        "Should negotiate accept-edits for approve-edits",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveEdits,
+			wantMode:    "accept-edits",
+		},
+		{
+			name:        "Should negotiate plan for approve-reads",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveReads,
+			wantMode:    "plan",
+		},
+		{
+			name:        "Should negotiate plan for deny-all",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeDenyAll,
+			wantMode:    "plan",
+		},
+		{
+			name:        "Should reject an explicit wider auto under approve-reads",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveReads,
+			options:     []SessionConfigOptionSelection{{ID: "mode", ValueID: "auto"}},
+			wantErr:     "requires approve-all",
+		},
+		{
+			name:        "Should reject an explicit mode agy does not advertise",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			options:     []SessionConfigOptionSelection{{ID: "mode", ValueID: "acceptEdits"}},
+			wantErr:     `config option "mode" is not uniquely advertised`,
+		},
+		{
+			name:        "Should reject an authored yolo the native CLI does not offer",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			options:     []SessionConfigOptionSelection{{ID: "mode", ValueID: "yolo"}},
+			wantErr:     `config option "mode" is not uniquely advertised`,
+		},
+		{
+			name:           "Should apply an explicit narrower mode over the approve-all default",
+			provider:       "agy",
+			scenario:       "agy_advertised_mode_control",
+			permissions:    compozyconfig.PermissionModeApproveAll,
+			options:        []SessionConfigOptionSelection{{ID: "mode", ValueID: "accept-edits"}},
+			wantConfigMode: "accept-edits",
+		},
+		{
+			name:           "Should apply an explicit yolo when the override advertises it",
+			provider:       "agy",
+			scenario:       "agy_advertised_mode_control",
+			permissions:    compozyconfig.PermissionModeApproveAll,
+			options:        []SessionConfigOptionSelection{{ID: "mode", ValueID: "yolo"}},
+			wantConfigMode: "yolo",
+		},
+		{
+			name:        "Should not hardcode auto for a provider offering different modes",
+			provider:    "custom-modes",
+			scenario:    "custom_native_modes",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			wantMode:    "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			captureFile := filepath.Join(t.TempDir(), "agy-native-modes.jsonl")
+			proc, err := driver.Start(t.Context(), StartOpts{
+				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
+				AgentName:      "helper",
+				ProviderName:   tc.provider,
+				Command:        helperCommand(t),
+				Cwd:            t.TempDir(),
+				Env:            helperEnvWithCapture(tc.scenario, "", captureFile),
+				Permissions:    tc.permissions,
+				ACPOptions:     tc.options,
+			})
+			if proc != nil {
+				defer stopProcess(t, driver, proc)
+			}
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("Start() error = %v, want %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			sent := captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetMode)
+			if sent != (tc.wantMode != "") {
+				t.Fatalf("session/set_mode sent = %v, want %v", sent, tc.wantMode != "")
+			}
+			if tc.wantMode != "" {
+				request := decodeCapturedSetSessionModeRequest(
+					t,
+					captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode),
+				)
+				if request.ModeID != tc.wantMode {
+					t.Fatalf("set-mode mode id = %q, want %q", request.ModeID, tc.wantMode)
+				}
+				if got := proc.CapsSnapshot().SupportedModes; !slices.Equal(
+					got,
+					[]string{"default", "accept-edits", "auto", "plan"},
+				) {
+					t.Fatalf("supported modes = %#v, want the native advertised set", got)
+				}
+			}
+			if tc.wantConfigMode != "" {
+				requests := captureRequestParamsForMethod(
+					t,
+					captureFile,
+					acpsdk.AgentMethodSessionSetConfigOption,
+				)
+				if len(requests) == 0 {
+					t.Fatal("no set_config_option request for the authored mode")
+				}
+				last := decodeCapturedSetSessionConfigOptionRequest(t, requests[len(requests)-1])
+				if last.ConfigID != "mode" || last.Value != tc.wantConfigMode {
+					t.Fatalf("set_config_option = %+v, want mode=%s", last, tc.wantConfigMode)
+				}
+				option, ok := findSelectConfigOption(proc.CapsSnapshot().ConfigOptions, "mode")
+				if !ok || option.CurrentValueID != tc.wantConfigMode {
+					t.Fatalf("mode control = %+v, want current %q", option, tc.wantConfigMode)
 				}
 			}
 		})

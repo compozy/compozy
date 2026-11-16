@@ -399,7 +399,7 @@ func sessionModeCandidates(permissions compozyconfig.PermissionMode) []string {
 			"acceptEdits",
 		}
 	case compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto:
-		return []string{"acceptEdits", "workspace-write", "accept_edits", "auto_edit"}
+		return []string{"acceptEdits", "accept-edits", "workspace-write", "accept_edits", "auto_edit"}
 	case compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeDenyAll:
 		return []string{
 			"read-only",

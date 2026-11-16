@@ -658,6 +658,25 @@ func (a *helperACPAgent) NewSession(
 			ConfigOptions: options,
 		}, nil
 	}
+	if a.scenario == "agy_native_modes" {
+		return acpsdk.NewSessionResponse{
+			SessionId: "sess-new",
+			Modes:     helperModeStateWithCurrent("default", "default", "accept-edits", "auto", "plan"),
+		}, nil
+	}
+	if a.scenario == "custom_native_modes" {
+		return acpsdk.NewSessionResponse{
+			SessionId: "sess-new",
+			Modes:     helperModeStateWithCurrent("default", "default", "plan"),
+		}, nil
+	}
+	if a.scenario == "agy_advertised_mode_control" {
+		options := []acpsdk.SessionConfigOption{
+			helperSelectConfigOption("mode", "Mode", "default", "default", "accept-edits", "auto", "plan", "yolo"),
+		}
+		a.setHelperConfigOptions(options)
+		return acpsdk.NewSessionResponse{SessionId: "sess-new", ConfigOptions: options}, nil
+	}
 	if a.scenario == "mode_mapping" || a.scenario == "stall_mode" {
 		return acpsdk.NewSessionResponse{
 			SessionId: "sess-new",
