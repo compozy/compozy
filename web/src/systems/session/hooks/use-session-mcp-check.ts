@@ -26,19 +26,23 @@ export function invalidateSessionMCPSummary(
 }
 
 /**
- * Sessions whose overlapping checks answered while another was still running: those answers were
- * not written, and the last check to finish rereads the session's MCP state instead.
+ * Checks still running per session, counted synchronously when each starts and settles, and
+ * whether any of them overlapped: overlapping answers are not written, and the last check to
+ * settle rereads the session's MCP state instead.
  */
-const overlappedChecks = new WeakMap<QueryClient, Set<string>>();
-
-function markOverlapped(queryClient: QueryClient, key: string) {
-  const marked = overlappedChecks.get(queryClient) ?? new Set<string>();
-  marked.add(key);
-  overlappedChecks.set(queryClient, marked);
+interface SessionChecks {
+  running: number;
+  overlapped: boolean;
 }
 
-function takeOverlapped(queryClient: QueryClient, key: string): boolean {
-  return overlappedChecks.get(queryClient)?.delete(key) ?? false;
+const sessionChecks = new WeakMap<QueryClient, Map<string, SessionChecks>>();
+
+function checksFor(queryClient: QueryClient, key: string): SessionChecks {
+  const sessions = sessionChecks.get(queryClient) ?? new Map<string, SessionChecks>();
+  sessionChecks.set(queryClient, sessions);
+  const checks = sessions.get(key) ?? { running: 0, overlapped: false };
+  sessions.set(key, checks);
+  return checks;
 }
 
 /**
@@ -60,25 +64,28 @@ export function useCheckSessionMCPServer({
   const queryKey = sessionKeys.mcp(workspaceId, sessionId);
   const mutationKey = [...queryKey, "check"];
   const overlapKey = hashKey(queryKey);
-  // This check is still pending while its own callbacks run, so it counts itself.
-  const othersRunning = () => queryClient.isMutating({ mutationKey, exact: true }) > 1;
   return useMutation({
     mutationKey,
     mutationFn: (target: SessionMCPServerTarget) =>
       checkSessionMCPServer(workspaceId, sessionId, profile, target),
+    onMutate: () => {
+      const checks = checksFor(queryClient, overlapKey);
+      checks.running += 1;
+      if (checks.running > 1) checks.overlapped = true;
+    },
     onSuccess: async data => {
-      if (othersRunning() || overlappedChecks.get(queryClient)?.has(overlapKey)) return;
+      const checks = checksFor(queryClient, overlapKey);
+      if (checks.running > 1 || checks.overlapped) return;
       await queryClient.cancelQueries({ queryKey, exact: true });
       queryClient.setQueryData(queryKey, data);
     },
     onSettled: () => {
-      if (othersRunning()) {
-        markOverlapped(queryClient, overlapKey);
-        return;
-      }
-      if (takeOverlapped(queryClient, overlapKey)) {
-        void queryClient.invalidateQueries({ queryKey, exact: true });
-      }
+      const checks = checksFor(queryClient, overlapKey);
+      checks.running -= 1;
+      if (checks.running > 0) return;
+      const overlapped = checks.overlapped;
+      sessionChecks.get(queryClient)?.delete(overlapKey);
+      if (overlapped) void queryClient.invalidateQueries({ queryKey, exact: true });
       void invalidateSessionMCPSummary(queryClient, workspaceId, sessionId);
     },
   });

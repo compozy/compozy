@@ -970,6 +970,8 @@ func TestArgs(t *testing.T) {
 			"--password",
 			"two words",
 			"--token=secret-value",
+			"--token=first second",
+			"--password=first,second",
 			"visible",
 		}
 		want := []string{
@@ -981,6 +983,8 @@ func TestArgs(t *testing.T) {
 			"--password",
 			Marker,
 			"--token=" + Marker,
+			"--token=" + Marker,
+			"--password=" + Marker,
 			"visible",
 		}
 		if got := Args(args); !slices.Equal(got, want) {

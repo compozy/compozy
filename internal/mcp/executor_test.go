@@ -1626,6 +1626,49 @@ func TestMCPToolListCache(t *testing.T) {
 		)
 	}
 
+	t.Run("Should drop the cached list when a fresh check answers without a TTL", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		sdkServer := newFakeSDKServer(nil)
+		sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method != mcpToolsListMethod {
+					return next(ctx, method, request)
+				}
+				// The first listing is cacheable; every later answer is fresh and uncacheable.
+				if calls.Add(1) == 1 {
+					return &mcpsdk.ListToolsResult{
+						Tools: []*mcpsdk.Tool{{Name: "old", InputSchema: map[string]any{"type": "object"}}},
+						TTLMs: 60_000,
+					}, nil
+				}
+				return &mcpsdk.ListToolsResult{
+					Tools: []*mcpsdk.Tool{{Name: "fresh", InputSchema: map[string]any{"type": "object"}}},
+				}, nil
+			}
+		})
+		server := newTestMCPHTTPServer(sdkServer)
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name:      "fixture",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		})
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+		ctx := t.Context()
+
+		if _, err := executor.ListTools(ctx, source); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := executor.ListTools(toolspkg.WithFreshMCPDiscovery(ctx), source); err != nil {
+			t.Fatal(err)
+		}
+		listed, err := executor.ListTools(ctx, source)
+		if err != nil || len(listed) != 1 || listed[0].RawName != "fresh" {
+			t.Fatalf("listed=%+v err=%v, want the fresh check's tools", listed, err)
+		}
+	})
+
 	t.Run("Should isolate cached descriptor schemas from caller mutation", func(t *testing.T) {
 		t.Parallel()
 

@@ -103,6 +103,10 @@ func (e *CallExecutor) cachedTools(key string, now time.Time) ([]toolspkg.MCPToo
 
 func (e *CallExecutor) cacheTools(key string, descriptors []toolspkg.MCPToolDescriptor, ttlMs int, now time.Time) {
 	if ttlMs <= 0 {
+		// An uncacheable answer still supersedes what an earlier listing cached for this key.
+		e.toolCache.mu.Lock()
+		delete(e.toolCache.entries, key)
+		e.toolCache.mu.Unlock()
 		return
 	}
 	e.toolCache.mu.Lock()

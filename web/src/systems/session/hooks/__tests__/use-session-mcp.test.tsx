@@ -431,50 +431,56 @@ describe("useSessionMCPActions", () => {
     expect(result.current.panelStillFailing).toBe(false);
   });
 
-  it("Should reread the session's MCP state after overlapping checks instead of keeping an older check's snapshot", async () => {
-    stubSettings();
-    const pagerduty = sessionMCPRowFixture({ name: "pagerduty", state: "failed" });
-    const datadog = sessionMCPRowFixture({ name: "datadog", state: "failed" });
-    const bothFailing = sessionMCPFixture({ compozy: [pagerduty, datadog] });
-    // Pagerduty's check started first and its snapshot predates datadog's fix.
-    const pagerdutyAnswer = sessionMCPFixture({
-      compozy: [{ ...pagerduty, state: "applies_next_message" }, datadog],
-    });
-    const datadogAnswer = sessionMCPFixture({
-      compozy: [pagerduty, { ...datadog, state: "applies_next_message" }],
-    });
-    const answers = new Map<string, () => void>();
-    httpServer.use(
-      http.post(
-        "*/api/workspaces/:workspace/sessions/:session/mcp/servers/:name/check",
-        ({ params }) =>
-          new Promise<Response>(resolve => {
-            const name = String(params.name);
-            answers.set(name, () =>
-              resolve(HttpResponse.json(name === "pagerduty" ? pagerdutyAnswer : datadogAnswer))
-            );
-          })
-      )
-    );
-    const queryClient = cachedClient(bothFailing);
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
-    const mcpKey = sessionKeys.mcp("ws_project", "sess-project");
-    const { result } = renderHook(() => useActionsOverCache({}), {
-      wrapper: wrapper(queryClient),
-    });
+  it.each([
+    { answers: "one after the other", together: false },
+    { answers: "in the same tick", together: true },
+  ])(
+    "Should reread the session's MCP state after overlapping checks answer $answers instead of keeping an older snapshot",
+    async ({ together }) => {
+      stubSettings();
+      const pagerduty = sessionMCPRowFixture({ name: "pagerduty", state: "failed" });
+      const datadog = sessionMCPRowFixture({ name: "datadog", state: "failed" });
+      const bothFailing = sessionMCPFixture({ compozy: [pagerduty, datadog] });
+      // Pagerduty's check started first and its snapshot predates datadog's fix.
+      const pagerdutyAnswer = sessionMCPFixture({
+        compozy: [{ ...pagerduty, state: "applies_next_message" }, datadog],
+      });
+      const datadogAnswer = sessionMCPFixture({
+        compozy: [pagerduty, { ...datadog, state: "applies_next_message" }],
+      });
+      const answers = new Map<string, () => void>();
+      httpServer.use(
+        http.post(
+          "*/api/workspaces/:workspace/sessions/:session/mcp/servers/:name/check",
+          ({ params }) =>
+            new Promise<Response>(resolve => {
+              const name = String(params.name);
+              answers.set(name, () =>
+                resolve(HttpResponse.json(name === "pagerduty" ? pagerdutyAnswer : datadogAnswer))
+              );
+            })
+        )
+      );
+      const queryClient = cachedClient(bothFailing);
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      const mcpKey = sessionKeys.mcp("ws_project", "sess-project");
+      const { result } = renderHook(() => useActionsOverCache({}), {
+        wrapper: wrapper(queryClient),
+      });
 
-    act(() => result.current.check({ name: "pagerduty", owner: "" }));
-    act(() => result.current.check({ name: "datadog", owner: "" }));
-    await waitFor(() => expect(answers.size).toBe(2));
-    act(() => answers.get("datadog")?.());
-    await waitFor(() => expect(queryClient.isMutating()).toBe(1));
-    act(() => answers.get("pagerduty")?.());
-    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+      act(() => result.current.check({ name: "pagerduty", owner: "" }));
+      act(() => result.current.check({ name: "datadog", owner: "" }));
+      await waitFor(() => expect(answers.size).toBe(2));
+      act(() => answers.get("datadog")?.());
+      if (!together) await waitFor(() => expect(queryClient.isMutating()).toBe(1));
+      act(() => answers.get("pagerduty")?.());
+      await waitFor(() => expect(queryClient.isMutating()).toBe(0));
 
-    // Neither snapshot replaced the read; the last check to finish asked for a fresh one.
-    expect(queryClient.getQueryData(mcpKey)).toEqual(bothFailing);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: mcpKey, exact: true });
-  });
+      // Neither snapshot replaced the read; the last check to finish asked for a fresh one.
+      expect(queryClient.getQueryData(mcpKey)).toEqual(bothFailing);
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: mcpKey, exact: true });
+    }
+  );
 
   it("Should close a panel whose server left the session's read", async () => {
     stubSettings();
