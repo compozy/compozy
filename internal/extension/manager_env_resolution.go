@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/vault"
@@ -68,6 +69,15 @@ func (m *Manager) resolveInstanceEnvMap(
 		}
 		valuesMap[key] = m.getenv(key)
 		order = append(order, key)
+	}
+	// CA trust paths pass only when set: an empty SSL_CERT_FILE would make OpenSSL clients trust nothing.
+	for _, key := range procutil.CATrustEnvKeys() {
+		if value := m.getenv(key); value != "" {
+			if _, exists := valuesMap[key]; !exists {
+				order = append(order, key)
+			}
+			valuesMap[key] = value
+		}
 	}
 
 	keys := slices.Sorted(maps.Keys(resolvedMap))

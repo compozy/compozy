@@ -130,26 +130,39 @@ operational allowlist. CompozyOS then applies these changes:
 Hook subprocesses do not inherit the full daemon environment. They inherit an allowlist and then
 apply explicit hook `env` values from config, `AGENT.md`, or `SKILL.md`.
 
-| Variable      | Type      | Default          | Valid values            | Description                               |
-| ------------- | --------- | ---------------- | ----------------------- | ----------------------------------------- |
-| `COMSPEC`     | string    | inherited if set | Any string.             | Windows command processor environment.    |
-| `HOME`        | path      | inherited if set | Path.                   | User home.                                |
-| `LANG`        | string    | inherited if set | Locale string.          | Locale.                                   |
-| `LC_ALL`      | string    | inherited if set | Locale string.          | Locale override.                          |
-| `LC_CTYPE`    | string    | inherited if set | Locale string.          | Character classification locale.          |
-| `LOGNAME`     | string    | inherited if set | User name.              | Login name.                               |
-| `PATH`        | path list | inherited if set | Path list.              | Executable lookup path for hook commands. |
-| `PATHEXT`     | string    | inherited if set | Windows extension list. | Windows executable extension lookup.      |
-| `SHELL`       | path      | inherited if set | Shell path.             | User shell.                               |
-| `SYSTEMROOT`  | path      | inherited if set | Windows system root.    | Windows system root.                      |
-| `TEMP`        | path      | inherited if set | Path.                   | Temporary directory.                      |
-| `TERM`        | string    | inherited if set | Terminal type.          | Terminal metadata.                        |
-| `TMP`         | path      | inherited if set | Path.                   | Temporary directory.                      |
-| `TMPDIR`      | path      | inherited if set | Path.                   | Temporary directory.                      |
-| `USER`        | string    | inherited if set | User name.              | User account.                             |
-| `USERPROFILE` | path      | inherited if set | Windows profile path.   | Windows user profile.                     |
+| Variable              | Type      | Default          | Valid values                  | Description                                 |
+| --------------------- | --------- | ---------------- | ----------------------------- | ------------------------------------------- |
+| `COMSPEC`             | string    | inherited if set | Any string.                   | Windows command processor environment.      |
+| `HOME`                | path      | inherited if set | Path.                         | User home.                                  |
+| `LANG`                | string    | inherited if set | Locale string.                | Locale.                                     |
+| `LC_ALL`              | string    | inherited if set | Locale string.                | Locale override.                            |
+| `LC_CTYPE`            | string    | inherited if set | Locale string.                | Character classification locale.            |
+| `LOGNAME`             | string    | inherited if set | User name.                    | Login name.                                 |
+| `NODE_EXTRA_CA_CERTS` | path      | inherited if set | Path to a PEM bundle.         | Extra CA certificates for Node.js children. |
+| `PATH`                | path list | inherited if set | Path list.                    | Executable lookup path for hook commands.   |
+| `PATHEXT`             | string    | inherited if set | Windows extension list.       | Windows executable extension lookup.        |
+| `REQUESTS_CA_BUNDLE`  | path      | inherited if set | Path to a PEM bundle.         | CA bundle for Python `requests` children.   |
+| `SHELL`               | path      | inherited if set | Shell path.                   | User shell.                                 |
+| `SSL_CERT_DIR`        | path      | inherited if set | Directory of CA certificates. | OpenSSL CA directory.                       |
+| `SSL_CERT_FILE`       | path      | inherited if set | Path to a PEM bundle.         | OpenSSL CA bundle.                          |
+| `SYSTEMROOT`          | path      | inherited if set | Windows system root.          | Windows system root.                        |
+| `TEMP`                | path      | inherited if set | Path.                         | Temporary directory.                        |
+| `TERM`                | string    | inherited if set | Terminal type.                | Terminal metadata.                          |
+| `TMP`                 | path      | inherited if set | Path.                         | Temporary directory.                        |
+| `TMPDIR`              | path      | inherited if set | Path.                         | Temporary directory.                        |
+| `USER`                | string    | inherited if set | User name.                    | User account.                               |
+| `USERPROFILE`         | path      | inherited if set | Windows profile path.         | Windows user profile.                       |
 
 Explicit hook `env` values override inherited values with the same key.
+
+### CA trust on networks with TLS inspection
+
+On networks that re-sign TLS traffic (Netskope, Zscaler, corporate proxies), child processes must trust
+the corporate CA. Hooks, extension subprocesses, MCP stdio servers and isolated provider launches
+inherit `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, `SSL_CERT_DIR` and `SSL_CERT_FILE` from the daemon
+environment when they are set. These hold CA bundle paths, not secrets. Extensions receive them only
+when non-empty. An extension, MCP server or hook definition that sets the same key overrides the
+inherited value.
 
 ## Not Supported As Environment Overrides
 

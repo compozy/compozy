@@ -3,12 +3,22 @@ package procutil
 import (
 	"os"
 	"path"
+	"slices"
 	"strings"
 )
 
 // InternalHandoffEnvPrefix marks variables that carry one-shot handoff state between a
 // CompozyOS process and the specific process it launches. They must never reach ordinary children.
 const InternalHandoffEnvPrefix = "COMPOZY_INTERNAL_"
+
+// caTrustEnvKeys name the CA bundles that let children trust a TLS-inspecting network (Netskope,
+// Zscaler, corporate proxies). They hold public file paths, never sensitive values.
+var caTrustEnvKeys = []string{"NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "SSL_CERT_DIR", "SSL_CERT_FILE"}
+
+// CATrustEnvKeys returns the CA trust variables every allowlisted child environment passes through.
+func CATrustEnvKeys() []string {
+	return slices.Clone(caTrustEnvKeys)
+}
 
 // FilteredDaemonEnv returns process environment entries safe to pass to child processes.
 // It drops credential-shaped variables and internal handoff variables.
@@ -183,6 +193,8 @@ func safeDaemonEnvName(name string) bool {
 		"PROVIDER_CODEX_HOME":
 		return true
 	default:
-		return strings.HasPrefix(name, "LC_") || strings.HasPrefix(name, "XDG_")
+		return strings.HasPrefix(name, "LC_") ||
+			strings.HasPrefix(name, "XDG_") ||
+			slices.Contains(caTrustEnvKeys, name)
 	}
 }

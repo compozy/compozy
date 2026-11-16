@@ -50,6 +50,35 @@ func TestFilteredDaemonEnvRemovesCredentialShapedVariables(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep CA trust bundles in filtered and isolated environments", func(t *testing.T) {
+		env := []string{
+			"PATH=/usr/bin",
+			"NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt",
+			"REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
+			"SSL_CERT_DIR=/etc/ssl/certs",
+			"SSL_CERT_FILE=/etc/ssl/corp-ca.crt",
+			"UNLISTED_SETTING=value",
+		}
+		isolated := IsolatedDaemonEnv(env)
+		filtered := FilteredDaemonEnv(env)
+		// Independent of CATrustEnvKeys, so dropping a key from the shared list fails here.
+		for _, want := range []string{
+			"NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt",
+			"REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
+			"SSL_CERT_DIR=/etc/ssl/certs",
+			"SSL_CERT_FILE=/etc/ssl/corp-ca.crt",
+		} {
+			for _, got := range [][]string{isolated, filtered} {
+				if !containsEnvEntry(got, want) {
+					t.Fatalf("environment missing %q in %#v", want, got)
+				}
+			}
+		}
+		if containsEnvEntry(isolated, "UNLISTED_SETTING=value") {
+			t.Fatalf("IsolatedDaemonEnv() kept a non-allowlisted variable: %#v", isolated)
+		}
+	})
+
 	t.Run("Should drop credential shaped operational prefix variables", func(t *testing.T) {
 		env := []string{
 			"PATH=/usr/bin",

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -371,4 +372,37 @@ func TestSubprocessExecutorExecuteFiltersEnvironment(t *testing.T) {
 	if got := string(output); got != "|present|custom-value" {
 		t.Fatalf("output = %q, want %q", got, "|present|custom-value")
 	}
+}
+
+func TestSubprocessProcessEnvPassesCATrustBundles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass set CA trust bundles and let hook env override them", func(t *testing.T) {
+		t.Parallel()
+
+		daemon := map[string]string{
+			"PATH":                "/usr/bin",
+			"NODE_EXTRA_CA_CERTS": "/etc/ssl/certs/ca-certificates.crt",
+			"SSL_CERT_FILE":       "/etc/ssl/daemon-ca.crt",
+			"UNLISTED_SETTING":    "value",
+		}
+		lookup := func(key string) (string, bool) {
+			value, ok := daemon[key]
+			return value, ok
+		}
+		env := subprocessProcessEnvWith(map[string]string{"SSL_CERT_FILE": "/hook/ca.crt"}, lookup)
+		for _, want := range []string{
+			"NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt",
+			"SSL_CERT_FILE=/hook/ca.crt",
+		} {
+			if !slices.Contains(env, want) {
+				t.Fatalf("subprocessProcessEnvWith() = %#v, missing %q", env, want)
+			}
+		}
+		for _, entry := range env {
+			if strings.HasPrefix(entry, "REQUESTS_CA_BUNDLE=") || entry == "UNLISTED_SETTING=value" {
+				t.Fatalf("subprocessProcessEnvWith() passed %q", entry)
+			}
+		}
+	})
 }
