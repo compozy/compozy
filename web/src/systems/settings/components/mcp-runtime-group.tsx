@@ -34,6 +34,74 @@ export interface MCPRuntimeGroupProps {
   collapsible?: boolean;
 }
 
+function RuntimeGroupIdentity({
+  snapshot,
+  headingId,
+  testId,
+}: {
+  snapshot: RuntimeMCPSnapshot;
+  headingId: string;
+  testId: string;
+}) {
+  return (
+    <>
+      <ProviderLogo provider={snapshot.runtime} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="flex items-center gap-2">
+          <span className="text-small-body font-medium text-fg" id={headingId}>
+            {snapshot.display_name}
+          </span>
+          {isRuntimeUnreadable(snapshot) ? null : <Pill mono>{snapshot.servers.length}</Pill>}
+        </span>
+        <span className="truncate text-eyebrow text-subtle" data-testid={`${testId}-phrase`}>
+          {runtimeHeaderPhrase(snapshot)}
+          {snapshot.config_files.length > 0 ? ` · ${snapshot.config_files.join(", ")}` : ""}
+        </span>
+      </div>
+    </>
+  );
+}
+
+function RuntimeGroupUnreadable({ snapshot }: { snapshot: RuntimeMCPSnapshot }) {
+  return (
+    <div className="flex items-start gap-2.5 px-4 py-3.5 text-small-body" role="alert">
+      <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
+      <div className="flex min-w-0 flex-col">
+        <span className="text-fg">Couldn't read {unreadableFileLabel(snapshot)}</span>
+        <span className="text-eyebrow text-subtle">
+          {snapshot.read_error ? `${snapshot.read_error}. ` : ""}
+          {snapshot.display_name} may not load these servers either. Fix the file and this list
+          updates.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function RuntimeGroupFooter({
+  hidden,
+  notes,
+  total,
+  onShowAll,
+}: {
+  hidden: number;
+  notes: string[];
+  total: number;
+  onShowAll: () => void;
+}) {
+  if (hidden <= 0 && notes.length === 0) return null;
+  return (
+    <footer className="flex items-center justify-between gap-3 border-t border-line-soft px-4 py-2">
+      <span className="text-eyebrow text-subtle">{notes.join(" ")}</span>
+      {hidden > 0 ? (
+        <Button onClick={onShowAll} size="sm" type="button" variant="quiet">
+          Show all {total}
+        </Button>
+      ) : null}
+    </footer>
+  );
+}
+
 /**
  * One read-only group per runtime: logo, name, count and status phrase in the header, then the
  * runtime's own servers. More than eight rows fold behind "Show all N" in the footer, beside the
@@ -59,36 +127,12 @@ export function MCPRuntimeGroup({
   // The group heading names the fold trigger, so the name is written once.
   const headingId = useId();
   const identity = (
-    <>
-      <ProviderLogo provider={snapshot.runtime} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="flex items-center gap-2">
-          <span className="text-small-body font-medium text-fg" id={headingId}>
-            {snapshot.display_name}
-          </span>
-          {unreadable ? null : <Pill mono>{snapshot.servers.length}</Pill>}
-        </span>
-        <span className="truncate text-eyebrow text-subtle" data-testid={`${testId}-phrase`}>
-          {runtimeHeaderPhrase(snapshot)}
-          {snapshot.config_files.length > 0 ? ` · ${snapshot.config_files.join(", ")}` : ""}
-        </span>
-      </div>
-    </>
+    <RuntimeGroupIdentity headingId={headingId} snapshot={snapshot} testId={testId} />
   );
   const body = (
     <>
       {unreadable ? (
-        <div className="flex items-start gap-2.5 px-4 py-3.5 text-small-body" role="alert">
-          <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
-          <div className="flex min-w-0 flex-col">
-            <span className="text-fg">Couldn't read {unreadableFileLabel(snapshot)}</span>
-            <span className="text-eyebrow text-subtle">
-              {snapshot.read_error ? `${snapshot.read_error}. ` : ""}
-              {snapshot.display_name} may not load these servers either. Fix the file and this list
-              updates.
-            </span>
-          </div>
-        </div>
+        <RuntimeGroupUnreadable snapshot={snapshot} />
       ) : (
         <div>
           {visible.map(server => (
@@ -103,16 +147,12 @@ export function MCPRuntimeGroup({
           ))}
         </div>
       )}
-      {hidden > 0 || notes.length > 0 ? (
-        <footer className="flex items-center justify-between gap-3 border-t border-line-soft px-4 py-2">
-          <span className="text-eyebrow text-subtle">{notes.join(" ")}</span>
-          {hidden > 0 ? (
-            <Button onClick={() => setExpanded(true)} size="sm" type="button" variant="quiet">
-              Show all {snapshot.servers.length}
-            </Button>
-          ) : null}
-        </footer>
-      ) : null}
+      <RuntimeGroupFooter
+        hidden={hidden}
+        notes={notes}
+        onShowAll={() => setExpanded(true)}
+        total={snapshot.servers.length}
+      />
     </>
   );
   const modeSwitch =

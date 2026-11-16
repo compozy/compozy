@@ -91,30 +91,20 @@ export function MCPEditorConnectionSection({
     });
   };
 
+  // Pasted JSON opens the JSON view; a single server fills the draft right away.
+  const pasteJSON = (pasted: string) => {
+    const parsed = parseMCPServersJSON(pasted);
+    const only = parsed.ok && parsed.servers.length === 1 ? parsed.servers[0] : null;
+    if (only) {
+      onAdopt(only.transport);
+      onChange(current => applyParsedServer(current, only, !autoName));
+    }
+    setPasting(pasted);
+  };
+
   return (
     <FormSection data-testid="settings-mcp-editor-connection" icon={Plug} title="How it connects">
-      <RadioCardGroup
-        aria-label="How it connects"
-        className="grid-cols-2"
-        data-testid="settings-mcp-servers-editor-transport"
-        iconWellSize="lg"
-        onValueChange={value => onPick(value)}
-        options={[
-          {
-            value: "http",
-            icon: Globe,
-            title: "Remote server",
-            "data-testid": "settings-mcp-servers-editor-transport-remote",
-          },
-          {
-            value: "stdio",
-            icon: Terminal,
-            title: "Local program",
-            "data-testid": "settings-mcp-servers-editor-transport-stdio",
-          },
-        ]}
-        value={shown}
-      />
+      <MCPTransportPicker onPick={onPick} shown={shown} />
 
       {pasting !== null ? (
         <MCPEditorJSONPaste
@@ -125,68 +115,141 @@ export function MCPEditorConnectionSection({
           onDone={() => setPasting(null)}
         />
       ) : (
-        <Field data-invalid={error ? "true" : undefined}>
-          <div className="flex items-center justify-between gap-2">
-            <FieldLabel htmlFor="mcp-editor-source">
-              {shown === null ? "URL or command" : shown === "http" ? "Server URL" : "Command"}
-            </FieldLabel>
-            {isCreate ? (
-              <Button
-                className="h-auto px-0"
-                data-testid="settings-mcp-servers-editor-paste-json"
-                onClick={() => setPasting("")}
-                size="xs"
-                type="button"
-                variant="link"
-              >
-                <ClipboardPaste data-icon="inline-start" />
-                Paste JSON instead
-              </Button>
-            ) : null}
-          </div>
-          <Input
-            aria-invalid={error ? true : undefined}
-            className="font-mono"
-            data-testid={
-              isRemote
-                ? "settings-mcp-servers-editor-url-input"
-                : "settings-mcp-servers-editor-command-input"
-            }
-            id="mcp-editor-source"
-            onBlur={() => onTouch(field)}
-            onChange={event => writeLine(event.target.value)}
-            onPaste={event => {
-              const pasted = event.clipboardData.getData("text").trim();
-              if (isCreate && pasted.startsWith("{")) {
-                event.preventDefault();
-                const parsed = parseMCPServersJSON(pasted);
-                const only = parsed.ok && parsed.servers.length === 1 ? parsed.servers[0] : null;
-                if (only) {
-                  onAdopt(only.transport);
-                  onChange(current => applyParsedServer(current, only, !autoName));
-                }
-                setPasting(pasted);
-              }
-            }}
-            placeholder={
-              shown === null ? "https://… or npx …" : shown === "http" ? "https://…" : "npx …"
-            }
-            value={text}
-          />
-          {error ? <FieldError>{error}</FieldError> : null}
-          {errors.remoteFields ? (
-            <FieldError data-testid="settings-mcp-editor-remote-error">
-              {errors.remoteFields}
-            </FieldError>
-          ) : null}
-          {shown === null ? (
-            <FieldDescription>Copy it from the server's docs or README.</FieldDescription>
-          ) : null}
-        </Field>
+        <MCPEditorSourceField
+          error={error}
+          isCreate={isCreate}
+          isRemote={isRemote}
+          onBlur={() => onTouch(field)}
+          onLine={writeLine}
+          onPasteJSON={pasteJSON}
+          onStartPaste={() => setPasting("")}
+          remoteError={errors.remoteFields}
+          shown={shown}
+          text={text}
+        />
       )}
 
       {hasSource(draft) ? <MCPServerPreview draft={draft} /> : null}
     </FormSection>
+  );
+}
+
+function MCPTransportPicker({
+  shown,
+  onPick,
+}: {
+  shown: MCPTransport | null;
+  onPick: (transport: MCPTransport) => void;
+}) {
+  return (
+    <RadioCardGroup
+      aria-label="How it connects"
+      className="grid-cols-2"
+      data-testid="settings-mcp-servers-editor-transport"
+      iconWellSize="lg"
+      onValueChange={value => onPick(value)}
+      options={[
+        {
+          value: "http",
+          icon: Globe,
+          title: "Remote server",
+          "data-testid": "settings-mcp-servers-editor-transport-remote",
+        },
+        {
+          value: "stdio",
+          icon: Terminal,
+          title: "Local program",
+          "data-testid": "settings-mcp-servers-editor-transport-stdio",
+        },
+      ]}
+      value={shown}
+    />
+  );
+}
+
+function sourceLabel(shown: MCPTransport | null): string {
+  if (shown === null) return "URL or command";
+  return shown === "http" ? "Server URL" : "Command";
+}
+
+function sourcePlaceholder(shown: MCPTransport | null): string {
+  if (shown === null) return "https://… or npx …";
+  return shown === "http" ? "https://…" : "npx …";
+}
+
+interface MCPEditorSourceFieldProps {
+  shown: MCPTransport | null;
+  isRemote: boolean;
+  isCreate: boolean;
+  text: string;
+  error: string | undefined;
+  remoteError: string | undefined;
+  onLine: (next: string) => void;
+  onBlur: () => void;
+  onStartPaste: () => void;
+  onPasteJSON: (pasted: string) => void;
+}
+
+/** The one-line source field: a URL or a command, with "Paste JSON instead" while creating. */
+function MCPEditorSourceField({
+  shown,
+  isRemote,
+  isCreate,
+  text,
+  error,
+  remoteError,
+  onLine,
+  onBlur,
+  onStartPaste,
+  onPasteJSON,
+}: MCPEditorSourceFieldProps) {
+  return (
+    <Field data-invalid={error ? "true" : undefined}>
+      <div className="flex items-center justify-between gap-2">
+        <FieldLabel htmlFor="mcp-editor-source">{sourceLabel(shown)}</FieldLabel>
+        {isCreate ? (
+          <Button
+            className="h-auto px-0"
+            data-testid="settings-mcp-servers-editor-paste-json"
+            onClick={onStartPaste}
+            size="xs"
+            type="button"
+            variant="link"
+          >
+            <ClipboardPaste data-icon="inline-start" />
+            Paste JSON instead
+          </Button>
+        ) : null}
+      </div>
+      <Input
+        aria-invalid={error ? true : undefined}
+        className="font-mono"
+        data-testid={
+          isRemote
+            ? "settings-mcp-servers-editor-url-input"
+            : "settings-mcp-servers-editor-command-input"
+        }
+        id="mcp-editor-source"
+        onBlur={onBlur}
+        onChange={event => onLine(event.target.value)}
+        onPaste={event => {
+          const pasted = event.clipboardData.getData("text").trim();
+          if (isCreate && pasted.startsWith("{")) {
+            event.preventDefault();
+            onPasteJSON(pasted);
+          }
+        }}
+        placeholder={sourcePlaceholder(shown)}
+        value={text}
+      />
+      {error ? <FieldError>{error}</FieldError> : null}
+      {remoteError ? (
+        <FieldError data-testid="settings-mcp-editor-remote-error">{remoteError}</FieldError>
+      ) : null}
+      {shown === null ? (
+        <FieldDescription>Copy it from the server's docs or README.</FieldDescription>
+      ) : null}
+    </Field>
   );
 }
 

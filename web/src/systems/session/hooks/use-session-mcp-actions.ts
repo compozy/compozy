@@ -99,6 +99,47 @@ function approvalBody(row: SessionMCPServerRow) {
   };
 }
 
+function allowErrorMessage(row: SessionMCPServerRow, error: Error): string {
+  return error instanceof SettingsApiError && error.code === DEFINITION_CHANGED
+    ? `${row.name} changed since you looked at it. Check the new definition and allow it again.`
+    : error.message;
+}
+
+/** The server a running sign-in belongs to; `null` while none runs. */
+function signingInTarget(authorize: {
+  phase: string;
+  server?: string | null;
+  filter?: { owner?: string } | null;
+}): SessionMCPServerTarget | null {
+  if (authorize.phase === "idle" || !authorize.server) return null;
+  return { name: authorize.server, owner: authorize.filter?.owner ?? "" };
+}
+
+/** Each server's Check again state, plus the checks in flight read live. */
+function useSessionMCPCheckStates() {
+  const [checks, setChecks] = useState<ReadonlyMap<string, CheckState>>(() => new Map());
+  // Checks in flight, read live: a second press in the same tick must not send another.
+  const checksInFlight = useRef(new Set<string>());
+  const setCheck = (target: SessionMCPServerTarget, next: CheckState | null) =>
+    setChecks(current => {
+      const key = serverKey(target);
+      if ((current.get(key) ?? null) === next) return current;
+      const updated = new Map(current);
+      if (next === null) updated.delete(key);
+      else updated.set(key, next);
+      return updated;
+    });
+  const clearStillFailing = (target: SessionMCPServerTarget) =>
+    setChecks(current => {
+      const key = serverKey(target);
+      if (current.get(key) !== "still_failing") return current;
+      const updated = new Map(current);
+      updated.delete(key);
+      return updated;
+    });
+  return { checks, setCheck, clearStillFailing, checksInFlight };
+}
+
 /**
  * Sign in, Review and Not working from the composer's MCP popover. Review and Not working open a
  * panel beside the row; Allow binds the digest the row showed (a definition that changed in
@@ -124,36 +165,18 @@ export function useSessionMCPActions({
   const checkMutation = useCheckSessionMCPServer({ workspaceId, sessionId, profile });
   const [allowingServer, setAllowingServer] = useState<SessionMCPServerTarget | null>(null);
   const [opened, setOpened] = useState<OpenPanel | null>(null);
-  const [checks, setChecks] = useState<ReadonlyMap<string, CheckState>>(() => new Map());
-  // Checks in flight, read live: a second press in the same tick must not send another.
-  const checksInFlight = useRef(new Set<string>());
+  const { checks, setCheck, clearStillFailing, checksInFlight } = useSessionMCPCheckStates();
 
   const liveRow = opened && data ? sessionMCPCheckedRow(data, opened.target) : undefined;
   // The server left the session's read: its panel closes with it instead of showing a stale row.
   if (opened && data && !liveRow) setOpened(null);
   const panel: SessionMCPRowPanel | null = opened && liveRow ? { ...opened, row: liveRow } : null;
 
-  const setCheck = (target: SessionMCPServerTarget, next: CheckState | null) =>
-    setChecks(current => {
-      const key = serverKey(target);
-      if ((current.get(key) ?? null) === next) return current;
-      const updated = new Map(current);
-      if (next === null) updated.delete(key);
-      else updated.set(key, next);
-      return updated;
-    });
-
   const closePanelFor = (target: SessionMCPServerTarget) => {
     setOpened(current =>
       current && sameSessionMCPServer(current.target, target) ? null : current
     );
-    setChecks(current => {
-      const key = serverKey(target);
-      if (current.get(key) !== "still_failing") return current;
-      const updated = new Map(current);
-      updated.delete(key);
-      return updated;
-    });
+    clearStillFailing(target);
   };
 
   const closePanel = () => {
@@ -188,11 +211,7 @@ export function useSessionMCPActions({
         },
         onError: error => {
           closePanelFor(target);
-          toast.error(
-            error instanceof SettingsApiError && error.code === DEFINITION_CHANGED
-              ? `${row.name} changed since you looked at it. Check the new definition and allow it again.`
-              : error.message
-          );
+          toast.error(allowErrorMessage(row, error));
         },
         onSettled: () => {
           setAllowingServer(current =>
@@ -250,11 +269,7 @@ export function useSessionMCPActions({
     setOpened({ kind: action, target, anchor: mcpPanelAnchor(trigger) });
   };
 
-  const authorize = authorization.authorize;
-  const signingIn: SessionMCPServerTarget | null =
-    authorize.phase !== "idle" && authorize.server
-      ? { name: authorize.server, owner: authorize.filter?.owner ?? "" }
-      : null;
+  const signingIn = signingInTarget(authorization.authorize);
   const panelCheck = panel ? checks.get(serverKey(panel.target)) : undefined;
 
   return {

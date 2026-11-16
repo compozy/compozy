@@ -36,13 +36,7 @@ export function useMCPServerManagement({
   const [ownQuery, setOwnQuery] = useState("");
   const query = search?.query ?? ownQuery;
   const setQuery = search?.setQuery ?? setOwnQuery;
-  const [removing, setRemoving] = useState<SettingsMCPServerEntry | null>(null);
-  const filter: SettingsMCPServerListFilter =
-    profile !== "default"
-      ? { scope: "profile", profile, ...(workspaceId ? { workspace_id: workspaceId } : {}) }
-      : workspaceId
-        ? { scope: "workspace", workspace_id: workspaceId }
-        : { scope: "user" };
+  const filter = mcpListFilter(profile, workspaceId);
   const collection = useSettingsMCPServers(filter, { enabled });
   const runtime = useMCPRuntimeManagement({
     enabled,
@@ -66,10 +60,7 @@ export function useMCPServerManagement({
     profileName: profile,
     serversReady,
     project: mcpEditorProject(workspaceId, workspace.workspaces ?? [], workspace.runtimeWorkspace),
-    serversError:
-      collection.isError && !collection.isFetching
-        ? { message: collection.error.message, retry: () => void collection.refetch() }
-        : null,
+    serversError: collectionError(collection),
   });
   const openCreate = () => {
     void collection.refetch();
@@ -78,14 +69,8 @@ export function useMCPServerManagement({
 
   const override = useMCPOverrideEditor();
   const authorization = useMCPDefinitionAuthorization({ enabled });
-  const removal = useDeleteSettingsMCPServer();
   const selected = servers.find(server => mcpDefinitionKey(server) === selectedKey) ?? null;
-  const normalized = query.trim().toLowerCase();
-  const filteredServers = servers.filter(server =>
-    [server.name, server.owner, server.runtime_name].some(value =>
-      value?.toLowerCase().includes(normalized)
-    )
-  );
+  const filteredServers = filterMCPServers(servers, query);
   const edit = (entry: SettingsMCPServerEntry) => {
     if (entry.owner?.startsWith("extension:")) override.openEdit(entry);
     else editor.openEdit(entry);
@@ -94,26 +79,7 @@ export function useMCPServerManagement({
     const target = deriveMCPManagementFilter(entry);
     if (target) authorization.authorize.requestAuthorize(target, entry, trigger);
   };
-  const requestRemove = (entry: SettingsMCPServerEntry) => {
-    if (removal.isPending || entry.owner?.startsWith("extension:")) return;
-    removal.reset();
-    setRemoving(entry);
-  };
-  const remove = () => {
-    if (!removing || removal.isPending) return;
-    const target = deriveMCPManagementFilter(removing);
-    if (!target || target.owner?.startsWith("extension:")) return;
-    const identity = mcpDefinitionKey(removing);
-    removal.mutate(
-      { name: removing.name, filter: target },
-      {
-        onSuccess: () =>
-          setRemoving(current =>
-            current && mcpDefinitionKey(current) === identity ? null : current
-          ),
-      }
-    );
-  };
+  const removal = useMCPServerRemoval();
   return {
     collection,
     runtime,
@@ -136,6 +102,65 @@ export function useMCPServerManagement({
     openCreate,
     editorProps: editor.editorProps,
     overrideProps: override.editorProps,
+    ...removal,
+  };
+}
+
+/** The list the page shows: the named profile's, else the picked project's, else the user's. */
+function mcpListFilter(profile: string, workspaceId: string | null): SettingsMCPServerListFilter {
+  if (profile !== "default") {
+    return { scope: "profile", profile, ...(workspaceId ? { workspace_id: workspaceId } : {}) };
+  }
+  return workspaceId ? { scope: "workspace", workspace_id: workspaceId } : { scope: "user" };
+}
+
+function collectionError(collection: {
+  isError: boolean;
+  isFetching: boolean;
+  error: Error | null;
+  refetch: () => Promise<unknown>;
+}): { message: string; retry: () => void } | null {
+  if (!collection.isError || collection.isFetching || !collection.error) return null;
+  return { message: collection.error.message, retry: () => void collection.refetch() };
+}
+
+function filterMCPServers(
+  servers: readonly SettingsMCPServerEntry[],
+  query: string
+): SettingsMCPServerEntry[] {
+  const normalized = query.trim().toLowerCase();
+  return servers.filter(server =>
+    [server.name, server.owner, server.runtime_name].some(value =>
+      value?.toLowerCase().includes(normalized)
+    )
+  );
+}
+
+/** Remove confirmation for a user-owned server; extension servers are never removable here. */
+function useMCPServerRemoval() {
+  const removal = useDeleteSettingsMCPServer();
+  const [removing, setRemoving] = useState<SettingsMCPServerEntry | null>(null);
+  const requestRemove = (entry: SettingsMCPServerEntry) => {
+    if (removal.isPending || entry.owner?.startsWith("extension:")) return;
+    removal.reset();
+    setRemoving(entry);
+  };
+  const remove = () => {
+    if (!removing || removal.isPending) return;
+    const target = deriveMCPManagementFilter(removing);
+    if (!target || target.owner?.startsWith("extension:")) return;
+    const identity = mcpDefinitionKey(removing);
+    removal.mutate(
+      { name: removing.name, filter: target },
+      {
+        onSuccess: () =>
+          setRemoving(current =>
+            current && mcpDefinitionKey(current) === identity ? null : current
+          ),
+      }
+    );
+  };
+  return {
     removing,
     requestRemove,
     remove,

@@ -86,6 +86,37 @@ function Preview({ remote, name, endpoint }: { remote: boolean; name: string; en
   );
 }
 
+function transportValue(kind: AddServerCase): "remote" | "local" | null {
+  if (kind === "empty") return null;
+  return kind === "remote" ? "remote" : "local";
+}
+
+function sourceLabel(kind: AddServerCase): string {
+  if (kind === "json") return "Config from the docs";
+  if (kind === "empty") return "URL or command";
+  return kind === "remote" ? "Server URL" : "Command";
+}
+
+function sourcePlaceholder(kind: AddServerCase): string {
+  if (kind === "empty") return "https://… or npx …";
+  return kind === "remote" ? "https://…" : "npx …";
+}
+
+function SourceHint({ kind }: { kind: AddServerCase }) {
+  if (kind === "json") {
+    return (
+      <FieldDescription className="flex items-center gap-1.5">
+        <FileText aria-hidden="true" className="size-3.5" />
+        Found 1 server in the JSON and filled in the rest.
+      </FieldDescription>
+    );
+  }
+  if (kind === "empty") {
+    return <FieldDescription>Copy it from the server's docs or README.</FieldDescription>;
+  }
+  return null;
+}
+
 function ConnectionSection({ kind }: { kind: AddServerCase }) {
   const remote = kind === "remote";
   const filled = kind !== "empty";
@@ -96,7 +127,7 @@ function ConnectionSection({ kind }: { kind: AddServerCase }) {
           aria-label="How it connects"
           className="grid-cols-2"
           iconWellSize="lg"
-          value={kind === "empty" ? null : remote ? "remote" : "local"}
+          value={transportValue(kind)}
           onValueChange={() => undefined}
           options={[
             {
@@ -113,15 +144,7 @@ function ConnectionSection({ kind }: { kind: AddServerCase }) {
         />
         <Field>
           <div className="flex items-center justify-between gap-2">
-            <FieldLabel htmlFor="mcp-source">
-              {kind === "json"
-                ? "Config from the docs"
-                : kind === "empty"
-                  ? "URL or command"
-                  : remote
-                    ? "Server URL"
-                    : "Command"}
-            </FieldLabel>
+            <FieldLabel htmlFor="mcp-source">{sourceLabel(kind)}</FieldLabel>
             {kind === "json" ? null : (
               <Button type="button" size="xs" variant="link" className="h-auto px-0">
                 <ClipboardPaste data-icon="inline-start" />
@@ -134,17 +157,10 @@ function ConnectionSection({ kind }: { kind: AddServerCase }) {
             variant="mono"
             rows={kind === "json" ? 8 : 1}
             defaultValue={filled ? SOURCE[kind] : ""}
-            placeholder={kind === "empty" ? "https://… or npx …" : remote ? "https://…" : "npx …"}
+            placeholder={sourcePlaceholder(kind)}
             className="min-h-0 resize-none"
           />
-          {kind === "json" ? (
-            <FieldDescription className="flex items-center gap-1.5">
-              <FileText aria-hidden="true" className="size-3.5" />
-              Found 1 server in the JSON and filled in the rest.
-            </FieldDescription>
-          ) : kind === "empty" ? (
-            <FieldDescription>Copy it from the server's docs or README.</FieldDescription>
-          ) : null}
+          <SourceHint kind={kind} />
         </Field>
         {filled ? (
           <Preview

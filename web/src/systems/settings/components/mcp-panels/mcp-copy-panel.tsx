@@ -58,6 +58,130 @@ function copyRequest(
   };
 }
 
+function CopyPanelFooter({
+  submitting,
+  blocked,
+  onCancel,
+  onSubmit,
+}: {
+  submitting: boolean;
+  blocked: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="ml-auto"
+        disabled={submitting}
+        onClick={onCancel}
+      >
+        Cancel
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        disabled={blocked}
+        onClick={onSubmit}
+        data-testid="mcp-copy-panel-submit"
+      >
+        {submitting ? <Spinner className="size-3.5" /> : null}
+        {submitting ? "Adding…" : "Add to CompozyOS"}
+      </Button>
+    </>
+  );
+}
+
+function CopyScopePicker({
+  scope,
+  profile,
+  workspaceId,
+  submitting,
+  onChange,
+}: {
+  scope: CopyScope;
+  profile: string | null;
+  workspaceId: string | null;
+  submitting: boolean;
+  onChange: (scope: CopyScope) => void;
+}) {
+  return (
+    <RadioCardGroup<CopyScope>
+      aria-label="Use it in"
+      className="flex flex-col gap-1"
+      disabled={submitting}
+      value={scope}
+      onValueChange={onChange}
+      options={[
+        { value: "user", icon: Globe, title: "All projects", description: "Any session" },
+        ...(profile
+          ? [
+              {
+                value: "profile" as const,
+                icon: UserRound,
+                title: "This profile",
+                description: `Sessions in ${profile}`,
+              },
+            ]
+          : []),
+        {
+          value: "workspace",
+          icon: FolderOpen,
+          title: "Only this project",
+          description: workspaceId ? "Sessions in this project" : "Pick a project first",
+          disabled: !workspaceId,
+        },
+      ]}
+    />
+  );
+}
+
+function CopyNameField({
+  name,
+  submitting,
+  takenMessage,
+  onChange,
+}: {
+  name: string;
+  submitting: boolean;
+  /** The daemon's "name taken" message; set while the name must change. */
+  takenMessage: string | undefined;
+  onChange: (name: string) => void;
+}) {
+  const taken = takenMessage !== undefined;
+  return (
+    <Field data-invalid={taken ? "true" : undefined}>
+      <FieldLabel htmlFor="mcp-copy-panel-name">Name in CompozyOS</FieldLabel>
+      <Input
+        aria-invalid={taken || undefined}
+        className="font-mono"
+        disabled={submitting}
+        id="mcp-copy-panel-name"
+        onChange={event => onChange(event.target.value)}
+        value={name}
+      />
+      {taken ? <FieldError>{takenMessage}. Pick another name.</FieldError> : null}
+    </Field>
+  );
+}
+
+function CopyKeysNote({ keys }: { keys: string[] }) {
+  if (keys.length === 0) return null;
+  return (
+    <p className="flex items-start gap-2 rounded-md bg-sunken px-2.5 py-2 text-meta text-muted-foreground shadow-hairline-inset">
+      <KeyRound aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-faint" />
+      <span>
+        {keys.length === 1 ? "Its key " : "Its keys "}
+        <span className="font-mono text-fg">{keys.join(", ")}</span>{" "}
+        {keys.length === 1 ? "moves" : "move"} into your vault. Nobody sees the value.
+      </span>
+    </p>
+  );
+}
+
 /**
  * Add a coding agent's server to CompozyOS: where every session can use it, and its keys moving
  * into the vault. The agent's own file is never touched. A taken name keeps the panel open with
@@ -98,28 +222,12 @@ export function MCPCopyPanel({
       subtitle={`From ${runtimeName} · ${remote ? "Remote" : "Runs on this computer"}`}
       onClose={close}
       footer={
-        <>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="ml-auto"
-            disabled={submitting}
-            onClick={close}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={blocked}
-            onClick={() => onSubmit(copyRequest(scope, trimmed, server, profile, workspaceId))}
-            data-testid="mcp-copy-panel-submit"
-          >
-            {submitting ? <Spinner className="size-3.5" /> : null}
-            {submitting ? "Adding…" : "Add to CompozyOS"}
-          </Button>
-        </>
+        <CopyPanelFooter
+          blocked={blocked}
+          onCancel={close}
+          onSubmit={() => onSubmit(copyRequest(scope, trimmed, server, profile, workspaceId))}
+          submitting={submitting}
+        />
       }
     >
       {failure && !nameTaken ? (
@@ -132,57 +240,22 @@ export function MCPCopyPanel({
         copy.
         {canTurnOff ? " You can turn its servers off for CompozyOS sessions." : ""}
       </p>
-      <RadioCardGroup<CopyScope>
-        aria-label="Use it in"
-        className="flex flex-col gap-1"
-        disabled={submitting}
-        value={scope}
-        onValueChange={setScope}
-        options={[
-          { value: "user", icon: Globe, title: "All projects", description: "Any session" },
-          ...(profile
-            ? [
-                {
-                  value: "profile" as const,
-                  icon: UserRound,
-                  title: "This profile",
-                  description: `Sessions in ${profile}`,
-                },
-              ]
-            : []),
-          {
-            value: "workspace",
-            icon: FolderOpen,
-            title: "Only this project",
-            description: workspaceId ? "Sessions in this project" : "Pick a project first",
-            disabled: !workspaceId,
-          },
-        ]}
+      <CopyScopePicker
+        onChange={setScope}
+        profile={profile}
+        scope={scope}
+        submitting={submitting}
+        workspaceId={workspaceId}
       />
       {showName ? (
-        <Field data-invalid={nameTaken ? "true" : undefined}>
-          <FieldLabel htmlFor="mcp-copy-panel-name">Name in CompozyOS</FieldLabel>
-          <Input
-            aria-invalid={nameTaken || undefined}
-            className="font-mono"
-            disabled={submitting}
-            id="mcp-copy-panel-name"
-            onChange={event => setName(event.target.value)}
-            value={name}
-          />
-          {nameTaken ? <FieldError>{failure?.message}. Pick another name.</FieldError> : null}
-        </Field>
+        <CopyNameField
+          name={name}
+          onChange={setName}
+          submitting={submitting}
+          takenMessage={nameTaken ? failure?.message : undefined}
+        />
       ) : null}
-      {keys.length > 0 ? (
-        <p className="flex items-start gap-2 rounded-md bg-sunken px-2.5 py-2 text-meta text-muted-foreground shadow-hairline-inset">
-          <KeyRound aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-faint" />
-          <span>
-            {keys.length === 1 ? "Its key " : "Its keys "}
-            <span className="font-mono text-fg">{keys.join(", ")}</span>{" "}
-            {keys.length === 1 ? "moves" : "move"} into your vault. Nobody sees the value.
-          </span>
-        </p>
-      ) : null}
+      <CopyKeysNote keys={keys} />
     </PopoverPanel>
   );
 }

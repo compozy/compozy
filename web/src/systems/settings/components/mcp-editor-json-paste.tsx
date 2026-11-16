@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   Button,
@@ -72,6 +72,50 @@ function feedback(result: MCPJSONParseResult | null, chosen: ParsedMCPServer | n
   return `Found ${count} servers and filled in ${chosen.name}.${ignored}`;
 }
 
+function parseError(result: MCPJSONParseResult | null): string | null {
+  if (!result || result.ok) return null;
+  return result.reason === "invalid-json"
+    ? "This isn't valid JSON yet."
+    : "No MCP servers in this JSON.";
+}
+
+interface MCPEditorJSONServerPickerProps {
+  servers: ParsedMCPServer[];
+  chosenIndex: number | null;
+  onPick: (index: number, server: ParsedMCPServer) => void;
+}
+
+function MCPEditorJSONServerPicker({
+  servers,
+  chosenIndex,
+  onPick,
+}: MCPEditorJSONServerPickerProps) {
+  return (
+    <RadioCardGroup
+      aria-label="Server to add"
+      className="grid-cols-2"
+      data-testid="settings-mcp-servers-editor-json-servers"
+      onValueChange={value => {
+        const index = Number(value);
+        const server = servers[index];
+        if (server) onPick(index, server);
+      }}
+      options={servers.map((server, index) => ({
+        value: String(index),
+        icon: server.transport === "http" ? Globe : Terminal,
+        title: server.name || `Server ${index + 1}`,
+        titleClassName: "min-w-0 flex-1 truncate font-mono",
+      }))}
+      value={chosenIndex === null ? null : String(chosenIndex)}
+    />
+  );
+}
+
+function openingPasteFilled(initialText: string): boolean {
+  const opening = initialText.trim() ? parseMCPServersJSON(initialText) : null;
+  return Boolean(opening?.ok && opening.servers.length === 1);
+}
+
 /**
  * "Config from the docs": accepts the `mcpServers` JSON people copy from a server's README. One
  * server fills the form at once; several let the person pick which one this dialog adds.
@@ -87,18 +131,11 @@ export function MCPEditorJSONPaste({
   const result = text.trim() ? parseMCPServersJSON(text) : null;
   const servers = result?.ok ? result.servers : [];
   const [chosenIndex, setChosenIndex] = useState<number | null>(null);
-  // Whether the draft holds a server from this JSON (the opening paste was applied already).
-  const [filled, setFilled] = useState(() => {
-    const opening = initialText.trim() ? parseMCPServersJSON(initialText) : null;
-    return Boolean(opening?.ok && opening.servers.length === 1);
-  });
+  // Whether the draft holds a server from this JSON; `null` until an edit, when the opening paste
+  // (applied already) decides. Read only by handlers, so it lives in a ref rather than render state.
+  const filled = useRef<boolean | null>(null);
   const chosen = servers.length === 1 ? servers[0]! : (servers[chosenIndex ?? -1] ?? null);
-  const error =
-    result && !result.ok
-      ? result.reason === "invalid-json"
-        ? "This isn't valid JSON yet."
-        : "No MCP servers in this JSON."
-      : null;
+  const error = parseError(result);
 
   return (
     <div className="flex flex-col gap-4" data-testid="settings-mcp-servers-editor-json">
@@ -125,7 +162,13 @@ export function MCPEditorJSONPaste({
             const next = event.target.value;
             setText(next);
             setChosenIndex(null);
-            setFilled(adoptPastedJSON(next, autoName, filled, onChange, onAdopt));
+            filled.current = adoptPastedJSON(
+              next,
+              autoName,
+              filled.current ?? openingPasteFilled(initialText),
+              onChange,
+              onAdopt
+            );
           }}
           placeholder={'{\n  "mcpServers": { … }\n}'}
           rows={8}
@@ -146,25 +189,14 @@ export function MCPEditorJSONPaste({
         )}
       </Field>
       {servers.length > 1 ? (
-        <RadioCardGroup
-          aria-label="Server to add"
-          className="grid-cols-2"
-          data-testid="settings-mcp-servers-editor-json-servers"
-          onValueChange={value => {
-            const index = Number(value);
-            const server = servers[index];
-            if (!server) return;
+        <MCPEditorJSONServerPicker
+          chosenIndex={chosenIndex}
+          onPick={(index, server) => {
             setChosenIndex(index);
-            setFilled(true);
+            filled.current = true;
             adoptPastedServer(server, autoName, onChange, onAdopt);
           }}
-          options={servers.map((server, index) => ({
-            value: String(index),
-            icon: server.transport === "http" ? Globe : Terminal,
-            title: server.name || `Server ${index + 1}`,
-            titleClassName: "min-w-0 flex-1 truncate font-mono",
-          }))}
-          value={chosenIndex === null ? null : String(chosenIndex)}
+          servers={servers}
         />
       ) : null}
     </div>

@@ -92,97 +92,148 @@ function RowPanel({
   );
 }
 
+type RowAnchor = RefObject<HTMLLIElement | null>;
+
+function SignInSide({
+  row,
+  anchor,
+  pinned,
+}: {
+  row: SessionMCPServerRow;
+  anchor: RowAnchor;
+  pinned?: ComposerNested;
+}) {
+  const signIn = pinned?.kind === "sign-in" ? pinned : undefined;
+  return (
+    <RowPanel
+      anchor={anchor}
+      open={signIn !== undefined}
+      trigger={
+        <PopoverTrigger
+          render={
+            <Button
+              type="button"
+              size="xs"
+              variant="neutral"
+              aria-label={`Sign in to ${row.name}`}
+            />
+          }
+        >
+          Sign in
+        </PopoverTrigger>
+      }
+    >
+      <MCPSignInPanel
+        server={row.name}
+        phase={signIn ? signIn.phase : "waiting"}
+        error={signIn?.error}
+        scopes={signIn?.scopes}
+        toolCount={18}
+        toolPreview={["Revenue report", "Orders", "Campaigns", "CRM deals"]}
+      />
+    </RowPanel>
+  );
+}
+
+function ReviewSide({
+  row,
+  anchor,
+  pinned,
+}: {
+  row: SessionMCPServerRow;
+  anchor: RowAnchor;
+  pinned?: ComposerNested;
+}) {
+  return (
+    <RowPanel
+      anchor={anchor}
+      open={pinned?.kind === "allow"}
+      trigger={
+        <PopoverTrigger render={<Button type="button" size="xs" variant="neutral" />}>
+          Review
+        </PopoverTrigger>
+      }
+    >
+      <MCPAllowPanel server={row.name} />
+    </RowPanel>
+  );
+}
+
+function IssueSide({
+  row,
+  anchor,
+  pinned,
+}: {
+  row: SessionMCPServerRow;
+  anchor: RowAnchor;
+  pinned?: ComposerNested;
+}) {
+  return (
+    <RowPanel
+      anchor={anchor}
+      open={pinned?.kind === "issue"}
+      trigger={
+        <PopoverTrigger
+          render={
+            <Button type="button" size="xs" variant="quiet" className="text-muted-foreground" />
+          }
+        >
+          Not working
+          <ChevronRight data-icon="inline-end" />
+        </PopoverTrigger>
+      }
+    >
+      <MCPIssuePanel server={row.name} reason={row.reason} />
+    </RowPanel>
+  );
+}
+
+function compozySide(
+  row: SessionMCPServerRow,
+  anchor: RowAnchor,
+  pinned?: ComposerNested
+): ReactNode {
+  switch (row.state) {
+    case "ready":
+      return <span className={SIDE_TEXT}>{row.tool_count} tools</span>;
+    case "applies_next_message":
+      return (
+        <span className="flex shrink-0 items-center gap-1.5 text-meta text-muted-foreground">
+          <StatusDot tone="info" size="sm" />
+          Next message
+        </span>
+      );
+    case "needs_sign_in":
+      return <SignInSide anchor={anchor} pinned={pinned} row={row} />;
+    case "waiting_approval":
+      return <ReviewSide anchor={anchor} pinned={pinned} row={row} />;
+    case "failed":
+      return <IssueSide anchor={anchor} pinned={pinned} row={row} />;
+    case "not_available":
+      return <span className={SIDE_TEXT}>Off here</span>;
+    default:
+      return null;
+  }
+}
+
 function CompozyRow({ row, nested }: { row: SessionMCPServerRow; nested?: ComposerNested }) {
   const ref = useRef<HTMLLIElement>(null);
   const pinned = nested?.server === row.name ? nested : undefined;
-  const active = pinned !== undefined;
-  let side: ReactNode = null;
-  if (row.state === "ready") {
-    side = <span className={SIDE_TEXT}>{row.tool_count} tools</span>;
-  } else if (row.state === "applies_next_message") {
-    side = (
-      <span className="flex shrink-0 items-center gap-1.5 text-meta text-muted-foreground">
-        <StatusDot tone="info" size="sm" />
-        Next message
-      </span>
-    );
-  } else if (row.state === "needs_sign_in") {
-    side = (
-      <RowPanel
-        anchor={ref}
-        open={pinned?.kind === "sign-in"}
-        trigger={
-          <PopoverTrigger
-            render={
-              <Button
-                type="button"
-                size="xs"
-                variant="neutral"
-                aria-label={`Sign in to ${row.name}`}
-              />
-            }
-          >
-            Sign in
-          </PopoverTrigger>
-        }
-      >
-        <MCPSignInPanel
-          server={row.name}
-          phase={pinned?.kind === "sign-in" ? pinned.phase : "waiting"}
-          error={pinned?.kind === "sign-in" ? pinned.error : undefined}
-          scopes={pinned?.kind === "sign-in" ? pinned.scopes : undefined}
-          toolCount={18}
-          toolPreview={["Revenue report", "Orders", "Campaigns", "CRM deals"]}
-        />
-      </RowPanel>
-    );
-  } else if (row.state === "waiting_approval") {
-    side = (
-      <RowPanel
-        anchor={ref}
-        open={pinned?.kind === "allow"}
-        trigger={
-          <PopoverTrigger render={<Button type="button" size="xs" variant="neutral" />}>
-            Review
-          </PopoverTrigger>
-        }
-      >
-        <MCPAllowPanel server={row.name} />
-      </RowPanel>
-    );
-  } else if (row.state === "failed") {
-    side = (
-      <RowPanel
-        anchor={ref}
-        open={pinned?.kind === "issue"}
-        trigger={
-          <PopoverTrigger
-            render={
-              <Button type="button" size="xs" variant="quiet" className="text-muted-foreground" />
-            }
-          >
-            Not working
-            <ChevronRight data-icon="inline-end" />
-          </PopoverTrigger>
-        }
-      >
-        <MCPIssuePanel server={row.name} reason={row.reason} />
-      </RowPanel>
-    );
-  } else if (row.state === "not_available") {
-    side = <span className={SIDE_TEXT}>Off here</span>;
-  }
   return (
     <li
       ref={ref}
-      className={cn(ROW, active && "bg-surface-2", row.state === "not_available" && "opacity-60")}
+      className={cn(
+        ROW,
+        pinned !== undefined && "bg-surface-2",
+        row.state === "not_available" && "opacity-60"
+      )}
       data-state={row.state}
     >
       {ATTENTION.has(row.state) ? (
         <StatusDot tone={row.state === "failed" ? "destructive" : "warning"} size="sm" />
       ) : null}
       <span className={NAME}>{row.name}</span>
-      {side}
+      {compozySide(row, ref, pinned)}
     </li>
   );
 }

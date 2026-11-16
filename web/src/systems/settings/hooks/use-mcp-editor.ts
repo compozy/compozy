@@ -86,28 +86,15 @@ function useMCPEditor({
     enabled: editorOpen,
   });
 
-  // A new server whose chosen scope differs from the page's list is checked against that
-  // scope's own list, or a same-name server there would be overwritten by the PUT. Picking the
-  // scope drops that list's cache, so only a list read after the pick counts, never a cached one.
   const queryClient = useQueryClient();
-  const otherScope = editor.mode === "create" && editor.scope !== createScope ? editor.scope : null;
-  const otherServers = useSettingsMCPServers(
-    otherScopeFilter(otherScope, editor.mode === "closed" ? undefined : editor.workspaceId),
-    { enabled: enabled && otherScope !== null }
-  );
-  const nameCheck = otherScope
-    ? {
-        servers: otherServers.data?.mcp_servers ?? [],
-        ready:
-          otherServers.data !== undefined &&
-          otherServers.fetchStatus === "idle" &&
-          !otherServers.isError,
-        error:
-          otherServers.isError && !otherServers.isFetching
-            ? { message: otherServers.error.message, retry: () => void otherServers.refetch() }
-            : null,
-      }
-    : { servers, ready: serversReady, error: serversError };
+  const nameCheck = useMCPEditorNameCheck({
+    enabled,
+    editor,
+    createScope,
+    servers,
+    serversReady,
+    serversError,
+  });
 
   const openCreate = () => {
     if (!enabled || !resolveMCPEditorWriteFilter(createScope, "auto", workspaceId, profileName))
@@ -173,10 +160,7 @@ function useMCPEditor({
     }
     editorLogic.trigger.scopeChanged(next);
   });
-  const savePending =
-    editor.mode === "create" && !nameCheck.ready && !nameCheck.error
-      ? "Checking which names are already taken…"
-      : undefined;
+  const savePending = mcpSavePending(editor, nameCheck);
 
   const saveEditor = () => {
     if (editor.mode === "closed" || !isValid) return;
@@ -200,43 +184,21 @@ function useMCPEditor({
     });
   };
 
-  const vaultRefs = (vaultQuery.data ?? []).map(secret => secret.ref);
-  const vaultInventory = vaultQuery.isLoading
-    ? ({ status: "loading" } as const)
-    : vaultQuery.error
-      ? ({
-          status: "error",
-          message: errorMessage(vaultQuery.error) ?? "Vault inventory could not be loaded",
-          retry: () => void vaultQuery.refetch(),
-        } as const)
-      : ({ status: "ready", refs: vaultRefs } as const);
-
-  const editorProps: MCPServerEditorProps | null =
-    editor.mode === "closed"
-      ? null
-      : {
-          availableTargets:
-            editor.mode === "edit" ? [editor.target] : ["auto", "config", "sidecar"],
-          draft: editor.draft,
-          entry: editor.mode === "edit" ? editor.entry : null,
-          errors,
-          isSaving: editorFlow.pendingSaveAttempt !== null,
-          isValid,
-          mode: editor.mode,
-          onChange: updateDraft,
-          onClose: closeEditor,
-          onSave: saveEditor,
-          onTargetChange: setEditorTarget,
-          open: true,
-          saveError: errorMessage(putMutation.error),
-          savePending,
-          serversError: editor.mode === "create" ? nameCheck.error : null,
-          scopeChoice,
-          scope: editor.scope,
-          target: editor.target,
-          vaultInventory,
-          warnings: putMutation.data?.warnings,
-        };
+  const editorProps = mcpEditorProps(editor, {
+    errors,
+    isSaving: editorFlow.pendingSaveAttempt !== null,
+    isValid,
+    onChange: updateDraft,
+    onClose: closeEditor,
+    onSave: saveEditor,
+    onTargetChange: setEditorTarget,
+    saveError: errorMessage(putMutation.error),
+    savePending,
+    serversError: nameCheck.error,
+    scopeChoice,
+    vaultInventory: mcpVaultInventory(vaultQuery),
+    warnings: putMutation.data?.warnings,
+  });
 
   return { editorProps, openCreate, openEdit };
 }
@@ -253,6 +215,112 @@ function otherScopeFilter(
     : { scope: "user" };
 }
 export type { UseMCPEditorOptions };
+
+interface MCPNameCheck {
+  servers: readonly SettingsMCPServerEntry[];
+  ready: boolean;
+  error: { message: string; retry: () => void } | null;
+}
+
+/**
+ * The list a new server's name is checked against. A new server whose chosen scope differs from
+ * the page's list is checked against that scope's own list, or a same-name server there would be
+ * overwritten by the PUT. Picking the scope drops that list's cache, so only a list read after
+ * the pick counts, never a cached one.
+ */
+function useMCPEditorNameCheck({
+  enabled,
+  editor,
+  createScope,
+  servers,
+  serversReady,
+  serversError,
+}: {
+  enabled: boolean;
+  editor: MCPEditorState;
+  createScope: SettingsLayeredScope;
+  servers: readonly SettingsMCPServerEntry[];
+  serversReady: boolean;
+  serversError: MCPNameCheck["error"];
+}): MCPNameCheck {
+  const otherScope = editor.mode === "create" && editor.scope !== createScope ? editor.scope : null;
+  const otherServers = useSettingsMCPServers(
+    otherScopeFilter(otherScope, editor.mode === "closed" ? undefined : editor.workspaceId),
+    { enabled: enabled && otherScope !== null }
+  );
+  if (!otherScope) return { servers, ready: serversReady, error: serversError };
+  return {
+    servers: otherServers.data?.mcp_servers ?? [],
+    ready:
+      otherServers.data !== undefined &&
+      otherServers.fetchStatus === "idle" &&
+      !otherServers.isError,
+    error:
+      otherServers.isError && !otherServers.isFetching
+        ? { message: otherServers.error.message, retry: () => void otherServers.refetch() }
+        : null,
+  };
+}
+
+function mcpSavePending(editor: MCPEditorState, nameCheck: MCPNameCheck): string | undefined {
+  return editor.mode === "create" && !nameCheck.ready && !nameCheck.error
+    ? "Checking which names are already taken…"
+    : undefined;
+}
+
+function mcpVaultInventory(vaultQuery: {
+  data: readonly { ref: string }[] | undefined;
+  isLoading: boolean;
+  error: unknown;
+  refetch: () => Promise<unknown>;
+}): MCPServerEditorProps["vaultInventory"] {
+  if (vaultQuery.isLoading) return { status: "loading" };
+  if (vaultQuery.error) {
+    return {
+      status: "error",
+      message: errorMessage(vaultQuery.error) ?? "Vault inventory could not be loaded",
+      retry: () => void vaultQuery.refetch(),
+    };
+  }
+  return { status: "ready", refs: (vaultQuery.data ?? []).map(secret => secret.ref) };
+}
+
+type MCPEditorHandlers = Pick<
+  MCPServerEditorProps,
+  | "errors"
+  | "isSaving"
+  | "isValid"
+  | "onChange"
+  | "onClose"
+  | "onSave"
+  | "onTargetChange"
+  | "saveError"
+  | "savePending"
+  | "serversError"
+  | "scopeChoice"
+  | "vaultInventory"
+  | "warnings"
+>;
+
+/** The open editor's props; `null` while it is closed. */
+function mcpEditorProps(
+  editor: MCPEditorState,
+  state: MCPEditorHandlers
+): MCPServerEditorProps | null {
+  if (editor.mode === "closed") return null;
+  const edit = editor.mode === "edit";
+  return {
+    ...state,
+    availableTargets: edit ? [editor.target] : ["auto", "config", "sidecar"],
+    draft: editor.draft,
+    entry: edit ? editor.entry : null,
+    mode: editor.mode,
+    open: true,
+    serversError: edit ? null : state.serversError,
+    scope: editor.scope,
+    target: editor.target,
+  };
+}
 
 function mcpEditorValidation(
   editor: MCPEditorState,
