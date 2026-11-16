@@ -95,6 +95,22 @@ describe("MCPComposerControl", () => {
     expect(screen.getByTestId("composer-mcp-pending")).toBeInTheDocument();
   });
 
+  it("Should clear a failed reload from the closed trigger once the change has applied", () => {
+    // A later reload applied: the summary has nothing pending, while the read cached before it
+    // still records the failure.
+    renderControl({
+      summary: {
+        ...sessionMCPSummaryFixture(sessionMCPReloadFailedFixture),
+        pending_reload: false,
+      },
+      data: sessionMCPReloadFailedFixture,
+    });
+
+    expect(screen.getByRole("button", { name: "MCP servers: 3 ready" })).toBeInTheDocument();
+    expect(screen.queryByTestId("composer-mcp-attention")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("composer-mcp-pending")).not.toBeInTheDocument();
+  });
+
   it("UT-W09: Should keep the last rows as out of date when a reread fails", async () => {
     const user = userEvent.setup();
     renderControl({ data: sessionMCPAllReadyFixture, failed: true });

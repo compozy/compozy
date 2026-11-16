@@ -11,15 +11,26 @@ export interface SessionMCPModel {
   retry: () => void;
 }
 
-/** The composer's session MCP read, made only while `enabled` (the popover is open). */
+export interface SessionMCPReadGate {
+  /** The popover is open: it lists the session's servers. */
+  open: boolean;
+  /** The session payload's summary has a change waiting for the next message. */
+  pendingReload: boolean;
+}
+
+/**
+ * The composer's session MCP read. It runs while the popover is open, and while the closed trigger
+ * has a pending change: a failed reload keeps its change pending, so that is the only closed state
+ * whose reload outcome the trigger must show. The stream's MCP events reread it while it runs.
+ */
 export function useSessionMCP(
   workspaceId: string,
   sessionId: string,
   profile: string | undefined,
-  enabled: boolean
+  gate: SessionMCPReadGate
 ): SessionMCPModel {
   const options = sessionMCPOptions(workspaceId, sessionId, profile);
-  const queryEnabled = options.enabled === true && enabled;
+  const queryEnabled = options.enabled === true && (gate.open || gate.pendingReload);
   const query = useQuery({ ...options, enabled: queryEnabled });
   return {
     data: query.data ?? null,

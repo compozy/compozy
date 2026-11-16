@@ -16,21 +16,19 @@ export interface SessionComposerMCPProps {
 }
 
 /**
- * Feeds the composer's MCP control. The session's `mcp_summary` drives the trigger at no cost;
- * the session MCP route is read only while the popover is open, and the stream's
- * `session.mcp_changed` / `session.mcp_reloaded` events reread both.
+ * Feeds the composer's MCP control. The session's `mcp_summary` drives the trigger; the session MCP
+ * route is read while the popover is open or a change is pending (where a failed reload shows), and
+ * the stream's `session.mcp_changed` / `session.mcp_reloaded` events reread both.
  */
 export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const summary = sessionMCPSummary(session);
   const workspaceId = session.workspace_id ?? "";
-  const model = useSessionMCP(
-    workspaceId,
-    session.id,
-    session.profile_name,
-    open && summary !== null
-  );
+  const model = useSessionMCP(workspaceId, session.id, session.profile_name, {
+    open: open && summary !== null,
+    pendingReload: summary?.pending_reload === true,
+  });
   const manage = () => void navigate({ to: MCP_SETTINGS_PATH });
   const hasActions =
     model.data?.compozy_servers.some(

@@ -26,6 +26,7 @@ import {
   sessionMCPControlLabel,
   sessionMCPControlView,
   sessionMCPHeaderCaption,
+  sessionMCPReloadFailed,
   sessionMCPRowDetail,
   sessionMCPRuntimeProvider,
   sessionMCPStateView,
@@ -263,7 +264,7 @@ export function MCPComposerControl({
 }: MCPComposerControlProps) {
   const { summary, data, failed = false } = body;
   if (summary === null) return null;
-  const reloadFailed = data?.last_reload?.outcome === "failed";
+  const reloadFailed = sessionMCPReloadFailed(summary, data);
   const warn = summary.attention > 0 || reloadFailed;
   const label = sessionMCPControlLabel(summary, { reloadFailed });
   // Icon-only and neutral like its toolbar neighbours; the name and tooltip carry the counts and

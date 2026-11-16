@@ -5,7 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SettingsMCPServerEntry } from "@/systems/settings";
 
-import { sessionMCPAllReadyFixture, sessionMCPRowFixture } from "../../mocks/session-mcp-fixtures";
+import {
+  sessionMCPAllReadyFixture,
+  sessionMCPReloadFailedFixture,
+  sessionMCPRowFixture,
+} from "../../mocks/session-mcp-fixtures";
 
 vi.mock("../../adapters/session-mcp-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/session-mcp-api")>()),
@@ -36,7 +40,8 @@ import { useSessionMCPActions } from "../use-session-mcp-actions";
 
 // Suite: the composer's session MCP data hooks (spec mcp-extension-hot-activation, `_uiux.md` S3).
 // Invariant: the popover reads a session's MCP servers in that session's own lens — a User
-// session (empty workspace ID) included — and its row actions never turn an in-flight Allow into
+// session (empty workspace ID) included — the closed control reads them only while a change is
+// pending (where a failed reload shows), and its row actions never turn an in-flight Allow into
 // a trip to Settings.
 // Owning layer: session hooks over the session MCP adapter and the Settings MCP hooks.
 // Canonical suite: this file.
@@ -80,12 +85,41 @@ describe("useSessionMCP", () => {
   it("Should read a User session's MCP servers when the popover opens", async () => {
     vi.mocked(fetchSessionMCP).mockResolvedValue(sessionMCPAllReadyFixture);
 
-    const { result } = renderHook(() => useSessionMCP("", "sess-user", undefined, true), {
-      wrapper: wrapper(),
-    });
+    const { result } = renderHook(
+      () => useSessionMCP("", "sess-user", undefined, { open: true, pendingReload: false }),
+      { wrapper: wrapper() }
+    );
 
     await waitFor(() => expect(result.current.data).toEqual(sessionMCPAllReadyFixture));
     expect(fetchSessionMCP).toHaveBeenCalledWith("", "sess-user", undefined, expect.anything());
+  });
+
+  it("Should read a failed reload for the closed control while a change is pending", async () => {
+    vi.mocked(fetchSessionMCP).mockResolvedValue(sessionMCPReloadFailedFixture);
+
+    const { result } = renderHook(
+      () =>
+        useSessionMCP("ws_project", "sess-project", undefined, {
+          open: false,
+          pendingReload: true,
+        }),
+      { wrapper: wrapper() }
+    );
+
+    await waitFor(() => expect(result.current.data?.last_reload?.outcome).toBe("failed"));
+  });
+
+  it("Should not read the servers while the control is closed with nothing pending", () => {
+    renderHook(
+      () =>
+        useSessionMCP("ws_project", "sess-project", undefined, {
+          open: false,
+          pendingReload: false,
+        }),
+      { wrapper: wrapper() }
+    );
+
+    expect(fetchSessionMCP).not.toHaveBeenCalled();
   });
 });
 

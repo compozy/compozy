@@ -56,6 +56,10 @@ Steps:
    without reopening (driven by `session.mcp_changed`). Send a message to apply the change; after its
    terminal output, immediately send another. Both messages complete normally, the reload outcome
    remains in the durable session log, and the second message is not refused as already in progress.
+   Make one reload fail (for example add a server whose launch breaks the runtime) without ever
+   opening the popover: the closed trigger shows the top dot and its name and tooltip end with
+   "couldn't start with the new servers". Fix the server and send again; once the reload applies, the
+   closed trigger drops the dot and that phrase without opening the popover.
 3. Spawn a child narrowed to `compozy` only; its control lists echo/sentry under "Not available in
    this session" with "Limited by the parent session", collapsed by default.
 4. Runtime section: "Loaded by Claude Code" rows and "Manage in Settings"; with runtime_mcp off,
