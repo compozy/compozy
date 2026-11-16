@@ -1,16 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import { expect, fireEvent, userEvent, within } from "storybook/test";
 
 import type { EntityMode } from "@compozy/ui";
 
-import { emptyDraft, type MCPDraft } from "../../lib/mcp-editor-model";
+import { emptyDraft, validateDraft, type MCPDraft } from "../../lib/mcp-editor-model";
 import { MCPServerEditor } from "../mcp-server-editor";
 
 const localDraft: MCPDraft = {
   ...emptyDraft("stdio"),
   name: "github",
-  command: "bunx @modelcontextprotocol/server-github",
-  args: ["--read-only"],
+  command: "npx",
+  args: ["-y", "@modelcontextprotocol/server-github"],
   env: [{ key: "GITHUB_API_URL", value: "https://api.github.com" }],
+  secretEnv: [
+    {
+      key: "GITHUB_TOKEN",
+      binding: { mode: "typed", existing: false, typedValue: "", vaultRef: "" },
+    },
+  ],
 };
 
 const remoteDraft: MCPDraft = {
@@ -24,6 +32,7 @@ const configuredSecretDraft: MCPDraft = {
   secretEnv: [
     {
       key: "GITHUB_TOKEN",
+      originalKey: "GITHUB_TOKEN",
       binding: { mode: "preserve", existing: true, typedValue: "", vaultRef: "" },
     },
   ],
@@ -37,7 +46,7 @@ const meta: Meta<typeof MCPServerEditor> = {
     docs: {
       description: {
         component:
-          "MCP server editor. Simple carries the connection (local process or remote endpoint); Advanced carries the process environment for stdio or explains daemon-owned OAuth discovery for a remote endpoint. Secrets are write-only and untouched bindings are preserved on save.",
+          "Add or edit an MCP server: name and where to use it, how it connects (one URL-or-command field, or pasted mcpServers JSON, with a preview), the keys it needs, and a framed More options fold for arguments, settings, key names, OAuth and where it's saved. Secrets are write-only and untouched bindings are kept on save.",
       },
     },
   },
@@ -46,79 +55,120 @@ const meta: Meta<typeof MCPServerEditor> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function harness(
-  overrides: Partial<Parameters<typeof MCPServerEditor>[0]> & {
-    draft?: MCPDraft;
-    tier?: EntityMode;
-  } = {}
-) {
-  const { draft = localDraft, tier = "simple", ...rest } = overrides;
+type HarnessProps = Partial<Parameters<typeof MCPServerEditor>[0]> & {
+  draft?: MCPDraft;
+  tier?: EntityMode;
+};
+
+/** Stateful host: typing, picking and pasting change the draft as the owning hook does. */
+function Harness({ draft: initial = localDraft, tier = "simple", ...rest }: HarnessProps) {
+  const [draft, setDraft] = useState(initial);
+  const validation = validateDraft(draft);
   return (
     <MCPServerEditor
-      availableTargets={["config"]}
+      availableTargets={["auto", "config", "sidecar"]}
       draft={draft}
       entry={null}
-      errors={{}}
+      errors={validation.errors}
       initialTier={tier}
       isSaving={false}
-      isValid
+      isValid={validation.valid}
       mode="create"
-      onChange={() => undefined}
+      onChange={updater => setDraft(updater)}
       onClose={() => undefined}
       onSave={() => undefined}
       onTargetChange={() => undefined}
       open
       saveError={null}
-      scope="workspace"
-      target="config"
-      vaultInventory={{ status: "ready", refs: ["vault:mcp/ws/ws-alpha/shared/GITHUB_TOKEN"] }}
+      scope="user"
+      scopeChoice={{ value: "user", projectName: "compozy", onChange: () => undefined }}
+      target="auto"
+      vaultInventory={{ status: "ready", refs: ["vault:mcp/user/shared/GITHUB_TOKEN"] }}
       {...rest}
     />
   );
 }
 
-/** Simple tier while adding a local process server. */
-export const CreateSimpleLocal: Story = {
+/** Nothing chosen yet: one field takes a URL or a command. */
+export const AddEmpty: Story = {
   args: {},
-  render: () => harness(),
+  render: () => <Harness draft={emptyDraft("stdio")} />,
 };
 
-/** Simple tier for a remote HTTP endpoint. */
-export const CreateSimpleRemote: Story = {
+/** A remote URL: the preview says sign-in, if any, comes after adding. */
+export const AddRemote: Story = {
   args: {},
-  render: () => harness({ draft: remoteDraft }),
+  render: () => <Harness draft={remoteDraft} />,
 };
 
-/** Advanced on a local server: args, env, and secret bindings. */
-export const AdvancedLocal: Story = {
+/** A local command that needs a key: the key gets its own section. */
+export const AddLocalNeedsKey: Story = {
   args: {},
-  render: () => harness({ tier: "advanced" }),
+  render: () => <Harness />,
 };
 
-/** Advanced on a remote server: daemon-owned OAuth discovery replaces the process block. */
-export const EditAdvancedRemote: Story = {
+/** Pasting the mcpServers JSON from a README fills in the form. */
+export const AddFromJSON: Story = {
   args: {},
-  render: () => harness({ draft: remoteDraft, mode: "edit", tier: "advanced" }),
+  tags: ["play-fn"],
+  render: () => <Harness draft={emptyDraft("stdio")} />,
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByRole("button", { name: "Paste JSON instead" }));
+    fireEvent.change(body.getByLabelText("Config from the docs"), {
+      target: {
+        value: JSON.stringify(
+          {
+            mcpServers: {
+              github: {
+                command: "npx",
+                args: ["-y", "@modelcontextprotocol/server-github"],
+                env: { GITHUB_TOKEN: "" },
+              },
+            },
+          },
+          null,
+          2
+        ),
+      },
+    });
+    await expect(
+      body.getByText("Found 1 server in the JSON and filled in the rest.")
+    ).toBeVisible();
+  },
 };
 
-/** Editing locks the name and scope as readable identity. */
-export const EditIdentityLocked: Story = {
+/** More options open on a local program: arguments, settings, key names, where it's saved. */
+export const MoreOptionsLocal: Story = {
   args: {},
-  render: () => harness({ mode: "edit" }),
+  render: () => <Harness tier="advanced" />,
 };
 
-/** A configured secret offers preservation without disclosing the value. */
-export const SecretPreserved: Story = {
+/** More options on a remote server: the OAuth choice replaces the process fields. */
+export const MoreOptionsRemote: Story = {
   args: {},
-  render: () => harness({ draft: configuredSecretDraft, mode: "edit", tier: "advanced" }),
+  render: () => <Harness draft={remoteDraft} tier="advanced" />,
 };
 
-/** A Vault-bound secret shows only the reference. */
-export const SecretVaultRef: Story = {
+/** Editing locks the name and the scope; Remove sits on the footer's leading edge. */
+export const Edit: Story = {
   args: {},
-  render: () =>
-    harness({
-      draft: {
+  render: () => (
+    <Harness
+      draft={configuredSecretDraft}
+      mode="edit"
+      onRemove={() => undefined}
+      scopeChoice={{ value: "user", projectName: "compozy", disabled: true }}
+    />
+  ),
+};
+
+/** A Vault-bound key shows only the reference it binds. */
+export const KeyFromVault: Story = {
+  args: {},
+  render: () => (
+    <Harness
+      draft={{
         ...localDraft,
         secretEnv: [
           {
@@ -127,18 +177,17 @@ export const SecretVaultRef: Story = {
               mode: "ref",
               existing: false,
               typedValue: "",
-              vaultRef: "vault:mcp/ws/ws-alpha/shared/GITHUB_TOKEN",
+              vaultRef: "vault:mcp/user/shared/GITHUB_TOKEN",
             },
           },
         ],
-      },
-      tier: "advanced",
-    }),
+      }}
+    />
+  ),
 };
 
 /** A rejected save keeps the draft in place. */
 export const SaveError: Story = {
   args: {},
-  render: () =>
-    harness({ isValid: false, saveError: "The settings write rejected the MCP definition." }),
+  render: () => <Harness saveError="The settings write rejected the MCP definition." />,
 };

@@ -2,7 +2,7 @@
 // runtime groups, approval and copy act on the daemon's runtime inventory and approval digests.
 // Owner: the MCP Settings page; no existing route suite exercises this composition.
 // Canonical suite: this file. HTTP is mocked; routing, query state, controllers and editors run normally.
-import { TopbarSlotProvider } from "@compozy/ui";
+import { Topbar, TopbarSlotProvider } from "@compozy/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -72,6 +72,7 @@ function renderSettings() {
   const root = createRootRoute({
     component: () => (
       <TopbarSlotProvider>
+        <Topbar title="Settings" />
         <MCPSettingsPage />
       </TopbarSlotProvider>
     ),
@@ -143,16 +144,18 @@ describe("MCP Settings page", () => {
     );
     expect(screen.queryByTestId("settings-page-mcp-selection-delete")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Edit github from github" }));
-    const dialog = await screen.findByRole("dialog", { name: "Edit configuration · github" });
+    const dialog = await screen.findByRole("dialog", { name: "Set up github" });
+    // The package declaration is read-only and folded under Technical details.
+    await user.click(within(dialog).getByRole("button", { name: "Technical details" }));
     expect(within(dialog).getByText("extension:github")).toBeVisible();
     expect(
       within(dialog).queryByRole("textbox", { name: /Command|Auth|Server name/ })
     ).not.toBeInTheDocument();
     await user.type(
-      within(dialog).getByRole("textbox", { name: /Endpoint/ }),
+      within(dialog).getByRole("textbox", { name: "Address" }),
       "https://override.example/mcp"
     );
-    await user.click(within(dialog).getByRole("button", { name: "Save override" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(writes).toHaveLength(1);
     expect(writes[0]!.url.pathname).toBe("/api/settings/mcp-servers/github");
@@ -168,7 +171,7 @@ describe("MCP Settings page", () => {
     });
     expect(definitions[0]).toEqual(manual);
     await user.click(screen.getByRole("button", { name: "Edit github from github" }));
-    await user.click(await screen.findByRole("button", { name: "Reset override" }));
+    await user.click(await screen.findByRole("button", { name: "Reset to extension defaults" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(resets).toHaveLength(1);
     expect(resets[0]!.searchParams.get("owner")).toBe("extension:github");
@@ -192,7 +195,8 @@ describe("MCP Settings page", () => {
     await user.click(screen.getByTestId("settings-page-mcp-scope-workspace"));
     await user.click(screen.getByRole("button", { name: "Select github" }));
     await user.click(screen.getByTestId("settings-page-mcp-selection-delete"));
-    await user.click(await screen.findByRole("button", { name: "Delete definition" }));
+    const confirm = await screen.findByRole("dialog", { name: "Remove github?" });
+    await user.click(within(confirm).getByRole("button", { name: "Remove server" }));
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Select github" })).not.toBeInTheDocument()
     );
@@ -202,6 +206,70 @@ describe("MCP Settings page", () => {
     expect(removed[0]!.searchParams.get("target")).toBe("sidecar");
     expect(removed[0]!.searchParams.get("workspace_id")).toBeNull();
     expect(screen.getByRole("button", { name: "Select github from github" })).toBeVisible();
+  });
+
+  // Invariant: a new server whose scope differs from the listed one checks its name against that
+  // scope's own list and saves to that scope, so it never overwrites a same-name server there.
+  it("Should check and save a new server in the scope picked in the editor", async () => {
+    const user = userEvent.setup();
+    const listed: string[] = [];
+    const saved: URL[] = [];
+    server.use(
+      http.get("*/api/settings/mcp-servers", ({ request }) => {
+        listed.push(new URL(request.url).searchParams.get("scope") ?? "");
+        return HttpResponse.json({
+          collection: "mcp-servers",
+          available_scopes: ["user", "workspace"],
+          scope: "user",
+          mcp_servers: definitions,
+        });
+      }),
+      http.put("*/api/settings/mcp-servers/:name", ({ request }) => {
+        saved.push(new URL(request.url));
+        return HttpResponse.json({ ...settingsAppliedMutationFixture, section: "mcp-servers" });
+      })
+    );
+    await openSettings();
+    await user.click(screen.getByTestId("settings-page-mcp-scope-workspace"));
+    await user.click(await screen.findByTestId("settings-page-mcp-create"));
+    const editor = await screen.findByRole("dialog", { name: "Add an MCP server" });
+    expect(
+      within(editor).getByTestId("settings-mcp-servers-editor-scope-workspace")
+    ).toHaveAttribute("aria-checked", "true");
+
+    await user.click(within(editor).getByRole("radio", { name: "All projects" }));
+    await user.type(within(editor).getByLabelText("Name"), "github");
+    await user.type(within(editor).getByLabelText("URL or command"), "npx server");
+    expect(
+      await within(editor).findByText('An MCP server named "github" already exists.')
+    ).toBeVisible();
+    expect(listed).toContain("user");
+
+    await user.clear(within(editor).getByLabelText("Name"));
+    await user.type(within(editor).getByLabelText("Name"), "fresh");
+    await user.click(within(editor).getByRole("button", { name: "Add server" }));
+    await waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]!.searchParams.get("scope")).toBe("user");
+    expect(saved[0]!.searchParams.get("workspace_id")).toBeNull();
+  });
+
+  // Invariant: removing a definition another source also defines says which copy takes over.
+  it("Should name the copy that takes over when a removed server is shadowed", async () => {
+    const user = userEvent.setup();
+    definitions[0] = {
+      ...definitions[0]!,
+      source_metadata: {
+        ...definitions[0]!.source_metadata,
+        shadowed_sources: [{ kind: "workspace-config", scope: "workspace" }],
+      },
+    };
+    await openSettings();
+    await user.click(screen.getByRole("button", { name: "Select github" }));
+    await user.click(screen.getByTestId("settings-page-mcp-selection-delete"));
+    const confirm = await screen.findByRole("dialog", { name: "Remove github?" });
+    expect(within(confirm).getByTestId("settings-mcp-servers-delete-shadowed")).toHaveTextContent(
+      "That one takes over after you remove this one."
+    );
   });
 
   describe("servers by runtime", () => {

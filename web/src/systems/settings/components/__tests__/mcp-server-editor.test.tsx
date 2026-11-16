@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -138,37 +138,159 @@ describe("MCPServerEditor", () => {
   it("Should present one named dialog with a single primary action", () => {
     render(<MCPServerEditor {...makeProps()} />);
 
-    expect(screen.getByRole("dialog", { name: "Add MCP server" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Add an MCP server" })).toBeInTheDocument();
     expect(screen.getByTestId("settings-mcp-servers-editor-save")).toHaveTextContent("Add server");
     expect(screen.getByTestId("settings-mcp-servers-editor-cancel")).toBeInTheDocument();
   });
 
-  it("Should keep the connection in Simple and the process environment in Advanced", async () => {
+  it("Should keep the source visible and fold the process environment under More options", async () => {
     const user = userEvent.setup();
     render(<EditorHarness />);
 
-    expect(screen.getByTestId("settings-mcp-servers-editor-command-input")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-mcp-servers-editor-command-input")).toHaveValue("bunx");
     expect(screen.queryByTestId("settings-mcp-editor-stdio")).toBeNull();
 
-    await user.click(screen.getByTestId("settings-mcp-servers-editor-mode-advanced"));
+    await user.click(screen.getByRole("button", { name: "More options" }));
 
     expect(screen.getByTestId("settings-mcp-editor-stdio")).toBeInTheDocument();
-    // Advanced never hides the required connection fields.
+    // More options never hides the required connection fields.
     expect(screen.getByTestId("settings-mcp-servers-editor-command-input")).toBeInTheDocument();
   });
 
-  it("Should explain daemon-owned authorization only for a remote transport", async () => {
+  it("Should offer OAuth only for a remote transport", async () => {
     const user = userEvent.setup();
-    render(<EditorHarness />);
+    render(<EditorHarness initialTier="advanced" />);
 
-    await user.click(screen.getByTestId("settings-mcp-servers-editor-mode-advanced"));
     expect(screen.queryByTestId("settings-mcp-editor-oauth")).toBeNull();
 
     await user.click(screen.getByTestId("settings-mcp-servers-editor-transport-remote"));
 
     expect(screen.getByTestId("settings-mcp-editor-oauth")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "About authorization" })).toBeInTheDocument();
     expect(screen.queryByTestId("settings-mcp-editor-stdio")).toBeNull();
+  });
+
+  // Invariant: until a transport is picked, the one source field decides from what is typed —
+  // a URL is a remote server, a line is a command split into command + args — and the name
+  // follows the source until the person types one.
+  it("Should detect the transport from the source line and suggest a name", async () => {
+    const user = userEvent.setup();
+    render(<EditorHarness draft={emptyDraft("stdio")} />);
+
+    expect(screen.getByRole("radio", { name: "Remote server" })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+    expect(screen.getByLabelText("URL or command")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("URL or command"), "npx -y @acme/mcp-server-notes");
+    expect(readDraft()).toMatchObject({
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "@acme/mcp-server-notes"],
+      name: "notes",
+    });
+    expect(screen.getByLabelText("Command")).toHaveValue("npx -y @acme/mcp-server-notes");
+    expect(screen.getByTestId("settings-mcp-servers-editor-preview")).toHaveTextContent("notes");
+
+    await user.clear(screen.getByLabelText("Command"));
+    await user.type(screen.getByLabelText("URL or command"), "https://mcp.linear.app/mcp");
+    expect(readDraft()).toMatchObject({
+      transport: "http",
+      url: "https://mcp.linear.app/mcp",
+      command: "",
+      name: "linear",
+    });
+    expect(screen.getByRole("radio", { name: "Remote server" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+
+    await user.clear(screen.getByTestId("settings-mcp-servers-editor-name-input"));
+    await user.type(screen.getByTestId("settings-mcp-servers-editor-name-input"), "mine");
+    await user.type(screen.getByLabelText("Server URL"), "/v2");
+    expect(readDraft().name).toBe("mine");
+  });
+
+  it("Should fill the form from pasted mcpServers JSON with one server", async () => {
+    const user = userEvent.setup();
+    render(<EditorHarness draft={emptyDraft("stdio")} />);
+
+    await user.click(screen.getByRole("button", { name: "Paste JSON instead" }));
+    fireEvent.change(screen.getByLabelText("Config from the docs"), {
+      target: {
+        value: JSON.stringify({
+          mcpServers: {
+            github: {
+              command: "npx",
+              args: ["-y", "@modelcontextprotocol/server-github"],
+              env: { GITHUB_TOKEN: "" },
+            },
+          },
+        }),
+      },
+    });
+
+    expect(screen.getByTestId("settings-mcp-servers-editor-json-feedback")).toHaveTextContent(
+      "Found 1 server in the JSON and filled in the rest."
+    );
+    expect(readDraft()).toMatchObject({
+      name: "github",
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-github"],
+    });
+    const keys = screen.getByTestId("settings-mcp-editor-keys");
+    expect(within(keys).getByText("1 required")).toBeInTheDocument();
+    expect(within(keys).getByLabelText("GITHUB_TOKEN")).toHaveAttribute("type", "password");
+
+    await user.type(within(keys).getByLabelText("GITHUB_TOKEN"), "ghp_x");
+    expect(toRequest(readDraft()).secret_values).toEqual({ secret_env: { GITHUB_TOKEN: "ghp_x" } });
+  });
+
+  it("Should let the person pick one server when the JSON holds several", async () => {
+    const user = userEvent.setup();
+    render(<EditorHarness draft={emptyDraft("stdio")} />);
+
+    await user.click(screen.getByRole("button", { name: "Paste JSON instead" }));
+    fireEvent.change(screen.getByLabelText("Config from the docs"), {
+      target: {
+        value: JSON.stringify({
+          mcpServers: {
+            github: { command: "npx", args: ["gh"] },
+            linear: { url: "https://mcp.linear.app/mcp" },
+          },
+        }),
+      },
+    });
+    expect(screen.getByTestId("settings-mcp-servers-editor-json-feedback")).toHaveTextContent(
+      "Found 2 servers. Pick the one to add."
+    );
+    expect(readDraft().command).toBe("");
+
+    await user.click(screen.getByRole("radio", { name: "linear" }));
+    expect(readDraft()).toMatchObject({
+      name: "linear",
+      transport: "http",
+      url: "https://mcp.linear.app/mcp",
+    });
+    expect(screen.getByTestId("settings-mcp-servers-editor-json-feedback")).toHaveTextContent(
+      "Found 2 servers and filled in linear."
+    );
+  });
+
+  it("Should explain JSON that can't be read and leave the draft alone", async () => {
+    const user = userEvent.setup();
+    render(<EditorHarness draft={emptyDraft("stdio")} />);
+
+    await user.click(screen.getByRole("button", { name: "Paste JSON instead" }));
+    fireEvent.change(screen.getByLabelText("Config from the docs"), {
+      target: { value: "{ mcpServers" },
+    });
+    expect(screen.getByText("This isn't valid JSON yet.")).toBeInTheDocument();
+    expect(readDraft()).toEqual(emptyDraft("stdio"));
+
+    await user.click(screen.getByRole("button", { name: "Type a URL or command instead" }));
+    expect(screen.getByLabelText("URL or command")).toBeInTheDocument();
   });
 
   it("Should replace the launch configuration when the transport switches", async () => {
@@ -247,26 +369,42 @@ describe("MCPServerEditor", () => {
     expect(url).toHaveValue("https://x/mcp");
   });
 
-  it("Should lock name and scope on edit as readable identity, never as inputs", () => {
+  it("Should lock the name on edit and keep the scope a read-only fact", () => {
     render(
       <MCPServerEditor
-        {...makeProps({ mode: "edit", draft: { ...emptyDraft("stdio"), name: "github" } })}
+        {...makeProps({
+          mode: "edit",
+          draft: { ...emptyDraft("stdio"), name: "github", command: "bunx" },
+          scopeChoice: { value: "user", projectName: "compozy", disabled: true },
+        })}
       />
     );
 
-    const rows = document.body.querySelector('[data-slot="immutable-identity-rows"]');
-    expect(rows).not.toBeNull();
-    expect(rows).toHaveTextContent("github");
-    expect(rows).toHaveTextContent("workspace");
-    expect((rows as HTMLElement).querySelectorAll("input")).toHaveLength(0);
-    expect(screen.queryByTestId("settings-mcp-servers-editor-name-input")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Edit github" })).toBeInTheDocument();
+    expect(screen.getByTestId("settings-mcp-servers-editor-name-input")).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "All projects" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Only compozy" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Paste JSON instead" })).toBeNull();
+  });
+
+  it("Should let a new server pick all projects or only the open project", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <MCPServerEditor
+        {...makeProps({ scopeChoice: { value: "user", projectName: "compozy", onChange } })}
+      />
+    );
+
+    await user.click(screen.getByRole("radio", { name: "Only compozy" }));
+    expect(onChange).toHaveBeenCalledWith("workspace");
   });
 
   it("Should keep the name editable while creating", () => {
     render(<MCPServerEditor {...makeProps()} />);
 
-    expect(screen.getByTestId("settings-mcp-servers-editor-name-input")).toBeInTheDocument();
-    expect(document.body.querySelector('[data-slot="immutable-identity-rows"]')).toBeNull();
+    expect(screen.getByTestId("settings-mcp-servers-editor-name-input")).toBeEnabled();
+    expect(screen.queryByTestId("settings-mcp-servers-editor-scope")).toBeNull();
   });
 
   it("Should gate the primary on validity and retain the draft on a save error", () => {

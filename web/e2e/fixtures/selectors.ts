@@ -367,6 +367,7 @@ export const settingsMCPServersTestIds = {
   editorNameInput: "settings-mcp-servers-editor-name-input",
   editorCommandInput: "settings-mcp-servers-editor-command-input",
   editorTargetInput: "settings-mcp-servers-editor-target-input",
+  editorMoreOptions: "settings-mcp-servers-editor-mode-advanced",
   editorSave: "settings-mcp-servers-editor-save",
   editorRemove: "settings-mcp-servers-editor-remove",
   deleteDialog: "settings-mcp-servers-delete",
@@ -482,6 +483,7 @@ interface SettingsMCPServersSelectors {
   editRow(name: string): Locator;
   editor: Locator;
   editorCommandInput: Locator;
+  editorMoreOptions: Locator;
   editorNameInput: Locator;
   editorRemove: Locator;
   editorSave: Locator;
@@ -1101,6 +1103,7 @@ export function settingsOperatorSelectors(
       editorNameInput: page.getByTestId(settingsMCPServersTestIds.editorNameInput),
       editorCommandInput: page.getByTestId(settingsMCPServersTestIds.editorCommandInput),
       editorTargetInput: page.getByTestId(settingsMCPServersTestIds.editorTargetInput),
+      editorMoreOptions: page.getByTestId(settingsMCPServersTestIds.editorMoreOptions),
       editorSave: page.getByTestId(settingsMCPServersTestIds.editorSave),
       editorRemove: page.getByTestId(settingsMCPServersTestIds.editorRemove),
       deleteDialog: page.getByTestId(settingsMCPServersTestIds.deleteDialog),

@@ -44,3 +44,5 @@ http, and sse creation plus exact-scope editing after the legacy `/mcp` route ha
 QA impact 2026-07-28: editor dismissal is rejected while a save attempt is pending, including
 across rerenders, so a rejected mutation keeps its error visible. Status remains untested; no QA
 replay ran.
+
+QA impact 2026-11-16 (MCP UX redesign S3): the editor's source is one field ("URL or command", then "Server URL" or "Command"); arguments, settings, key names, OAuth and the save target moved under More options, and secret values under "Key it needs" (SecretField with Vault binding). Pasted mcpServers JSON fills the form. Retest transport switching from the source line and from the cards, and presence-only secrets on edit. Not walked; status unchanged.

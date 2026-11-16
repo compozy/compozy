@@ -49,6 +49,7 @@ export const mcpEditorLogic = createStoreLogic<
     };
     saveSucceeded: { attempt: number; name: string; result: SettingsMutationResult };
     targetChanged: { target: SettingsMCPServerTarget };
+    scopeChanged: { scope: SettingsLayeredScope; workspaceId?: string };
   }
 >({
   context: (): MCPEditorFlow => ({
@@ -99,6 +100,14 @@ export const mcpEditorLogic = createStoreLogic<
       context.editor.mode === "closed"
         ? undefined
         : { ...context, editor: { ...context.editor, target: event.target } },
+    // Only a new server picks where it lives; an existing one keeps its definition's scope.
+    scopeChanged: (context, event: { scope: SettingsLayeredScope; workspaceId?: string }) =>
+      context.editor.mode !== "create" || context.pendingSaveAttempt !== null
+        ? undefined
+        : {
+            ...context,
+            editor: { ...context.editor, scope: event.scope, workspaceId: event.workspaceId },
+          },
   },
 });
 

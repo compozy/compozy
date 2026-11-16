@@ -1,165 +1,145 @@
-import {
-  Button,
-  cn,
-  Eyebrow,
-  Input,
-  NativeSelect,
-  NativeSelectOption,
-  Pill,
-  RadioCard,
-  Skeleton,
-  SkeletonRegion,
-} from "@compozy/ui";
+import { useState } from "react";
 
-import type { MCPSecretBinding } from "../lib/mcp-editor-model";
+import { Button, FormSection, SecretField } from "@compozy/ui";
+import { KeyRound } from "@compozy/ui/icons";
+
+import {
+  isSecretEnvUnset,
+  type MCPDraft,
+  type MCPDraftErrors,
+  type MCPSecretEnvEntry,
+} from "../lib/mcp-editor-model";
 
 export type MCPVaultInventory =
   | { status: "loading" }
   | { status: "error"; message: string; retry: () => void }
   | { status: "ready"; refs: string[] };
 
-export interface MCPSecretBindingControlProps {
-  binding: MCPSecretBinding;
+export interface MCPSecretKeyFieldProps {
+  entry: MCPSecretEnvEntry;
+  index: number;
+  error?: string;
+  onBlur?: () => void;
   /** Explicit, query-backed `vault:mcp/**` inventory state. */
   vaultInventory: MCPVaultInventory;
-  idPrefix: string;
-  valueLabel?: string;
-  onChange: (binding: MCPSecretBinding) => void;
+  onChange: (entry: MCPSecretEnvEntry) => void;
 }
 
 /**
- * Presence-safe secret editor: preserve a configured binding without revealing
- * it, write a replacement value, or select a separate Vault inventory entry.
+ * One write-only key on `SecretField`: a configured binding shows presence and is kept unless
+ * replaced, a new value is typed once, or an existing Vault ref is bound instead. The bound
+ * identifier and value are never read back.
  */
-export function MCPSecretBindingControl({
-  binding,
+export function MCPSecretKeyField({
+  entry,
+  index,
+  error,
+  onBlur,
   vaultInventory,
-  idPrefix,
-  valueLabel = "New secret value",
   onChange,
-}: MCPSecretBindingControlProps) {
+}: MCPSecretKeyFieldProps) {
+  const binding = entry.binding;
   const refs = vaultInventory.status === "ready" ? vaultInventory.refs : [];
-  const vaultAvailable = refs.length > 0;
+  // Presence belongs to the original key; a renamed key needs a new value.
+  const present =
+    binding.existing &&
+    (entry.originalKey === undefined || entry.key.trim() === entry.originalKey.trim());
+  const update = (patch: Partial<MCPSecretEnvEntry["binding"]>) =>
+    onChange({ ...entry, binding: { ...binding, ...patch } });
 
   return (
-    <div>
-      <div
-        className={cn("grid gap-1.5", binding.existing ? "grid-cols-3" : "grid-cols-2")}
-        role="radiogroup"
-        aria-label="Secret binding source"
-      >
-        {binding.existing ? (
-          <RadioCard
-            selected={binding.mode === "preserve"}
-            title="Keep configured"
-            description="Retain the current binding"
-            badge={
-              <Pill size="xs" tone="success">
-                Configured
-              </Pill>
-            }
-            onSelect={() => onChange({ ...binding, mode: "preserve" })}
-            data-testid={`${idPrefix}-mode-preserve`}
-          />
-        ) : null}
-        <RadioCard
-          selected={binding.mode === "typed"}
-          title="Write a new value"
-          description="Creates its canonical Vault ref"
-          onSelect={() => onChange({ ...binding, mode: "typed" })}
-          data-testid={`${idPrefix}-mode-typed`}
-        />
-        <RadioCard
-          selected={binding.mode === "ref"}
-          title="Use Vault"
-          description={vaultAvailable ? "Select an existing credential" : "Inventory unavailable"}
-          disabled={!vaultAvailable}
-          className="disabled:cursor-not-allowed disabled:opacity-50"
-          onSelect={() =>
-            onChange({
-              ...binding,
-              mode: "ref",
-              vaultRef: binding.vaultRef || refs[0],
-            })
-          }
-          data-testid={`${idPrefix}-mode-ref`}
-        />
-      </div>
-
-      {binding.mode === "preserve" ? (
-        <p className="mt-2 text-caption text-muted-foreground">
-          CompozyOS keeps the configured binding without returning or displaying its identifier.
-        </p>
-      ) : binding.mode === "typed" ? (
-        <div className="mt-2">
-          <label
-            className="mb-1.5 flex items-center gap-2 text-form-label font-medium text-fg"
-            htmlFor={`${idPrefix}-typed`}
-          >
-            {valueLabel}
-            <Eyebrow className="ml-auto text-muted-foreground">write-only</Eyebrow>
-          </label>
-          <Input
-            id={`${idPrefix}-typed`}
-            type="password"
-            autoComplete="new-password"
-            className="font-mono"
-            value={binding.typedValue}
-            placeholder="Enter replacement value"
-            onChange={event => onChange({ ...binding, typedValue: event.target.value })}
-            data-testid={`${idPrefix}-typed-input`}
-          />
-          <p className="mt-1.5 text-caption text-muted-foreground">
-            CompozyOS stores this value on save. The value and resulting binding are never returned.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-2">
-          <label
-            className="mb-1.5 flex items-center gap-2 text-form-label font-medium text-fg"
-            htmlFor={`${idPrefix}-ref`}
-          >
-            Existing Vault ref
-          </label>
-          {vaultInventory.status === "loading" ? (
-            <SkeletonRegion data-testid={`${idPrefix}-ref-loading`} label="Loading Vault inventory">
-              <Skeleton className="h-input w-full rounded-md" />
-            </SkeletonRegion>
-          ) : vaultInventory.status === "error" ? (
-            <div
-              className="flex items-center justify-between gap-3"
-              data-testid={`${idPrefix}-ref-error`}
-            >
-              <p className="text-caption text-destructive">{vaultInventory.message}</p>
-              <Button type="button" variant="ghost" size="xs" onClick={vaultInventory.retry}>
+    <SecretField
+      binding={{
+        sources: refs.map(ref => ({ ref, present: true })),
+        selectedRef: binding.vaultRef,
+        onSelectRef: vaultRef => update({ mode: "ref", vaultRef }),
+        loading: vaultInventory.status === "loading",
+        error:
+          vaultInventory.status === "error" ? (
+            <span className="flex items-center gap-2">
+              {vaultInventory.message}
+              <Button onClick={vaultInventory.retry} size="xs" type="button" variant="ghost">
                 Retry
               </Button>
-            </div>
-          ) : refs.length > 0 ? (
-            <NativeSelect
-              id={`${idPrefix}-ref`}
-              className="font-mono"
-              value={binding.vaultRef}
-              onChange={event => onChange({ ...binding, vaultRef: event.target.value })}
-              data-testid={`${idPrefix}-ref-select`}
-            >
-              {refs.map(ref => (
-                <NativeSelectOption key={ref} value={ref}>
-                  {ref}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          ) : (
-            <p className="text-caption text-muted-foreground" data-testid={`${idPrefix}-ref-empty`}>
-              No existing Vault refs in the mcp namespace for this scope.
-            </p>
-          )}
-          <p className="mt-1.5 text-caption text-muted-foreground">
-            This path selects an existing credential only. Choose Write a new value to create a new
-            canonical binding.
-          </p>
-        </div>
-      )}
-    </div>
+            </span>
+          ) : undefined,
+        emptyLabel: "No keys saved in your vault for MCP servers yet.",
+        namespaceLabel: "vault:mcp",
+      }}
+      editing={binding.mode !== "preserve"}
+      error={error}
+      id={`mcp-key-${index}`}
+      label={<span className="font-mono">{entry.key.trim()}</span>}
+      onBlur={onBlur}
+      mode={binding.mode === "ref" ? "source" : "value"}
+      onEditingChange={editing =>
+        update(editing ? { mode: "typed", typedValue: "" } : { mode: "preserve", typedValue: "" })
+      }
+      onModeChange={mode =>
+        update(
+          mode === "source"
+            ? { mode: "ref", vaultRef: binding.vaultRef || refs[0] || "" }
+            : { mode: "typed" }
+        )
+      }
+      onValueChange={typedValue => update({ mode: "typed", typedValue })}
+      placeholder="Paste the key"
+      present={present}
+      presenceLabel="Saved in your vault"
+      required
+      sourceModeLabel="Use Vault"
+      testIdPrefix={`settings-mcp-servers-editor-secret-value-${index}`}
+      value={binding.typedValue}
+    />
+  );
+}
+
+/**
+ * "Key it needs": every named secret of a local program, shown outside More options because the
+ * server can't start without them. Names are managed under More options.
+ */
+export function MCPEditorKeysSection({
+  draft,
+  errors,
+  vaultInventory,
+  onChange,
+}: {
+  draft: MCPDraft;
+  errors: MCPDraftErrors;
+  vaultInventory: MCPVaultInventory;
+  onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
+}) {
+  const named = draft.secretEnv.flatMap((entry, index) =>
+    entry.key.trim() ? [{ entry, index }] : []
+  );
+  // A missing value speaks up once its field was left; the count above says it from the start.
+  const [left, setLeft] = useState<ReadonlySet<number>>(() => new Set());
+  if (draft.transport !== "stdio" || named.length === 0) return null;
+  const missing = named.filter(({ entry }) => isSecretEnvUnset(entry)).length;
+  return (
+    <FormSection
+      data-testid="settings-mcp-editor-keys"
+      description="Saved in your vault. Nobody sees it again, not even agents."
+      icon={KeyRound}
+      rightLabel={missing > 0 ? `${missing} required` : undefined}
+      title={named.length === 1 ? "Key it needs" : "Keys it needs"}
+    >
+      {named.map(({ entry, index }) => (
+        <MCPSecretKeyField
+          entry={entry}
+          error={left.has(index) ? errors.secretEnv?.[index] : undefined}
+          index={index}
+          onBlur={() => setLeft(current => new Set(current).add(index))}
+          key={index}
+          onChange={next =>
+            onChange(current => ({
+              ...current,
+              secretEnv: current.secretEnv.map((candidate, i) => (i === index ? next : candidate)),
+            }))
+          }
+          vaultInventory={vaultInventory}
+        />
+      ))}
+    </FormSection>
   );
 }

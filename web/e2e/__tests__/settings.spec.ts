@@ -451,7 +451,9 @@ test("operator can manage MCP servers across global and workspace scopes with vi
     .click();
   await expect(settingsUI.mcpServers.editor).toBeVisible();
   await settingsUI.mcpServers.editorRemove.click();
-  await expect(settingsUI.mcpServers.deleteDialog).toContainText(workspace.id);
+  await expect(settingsUI.mcpServers.deleteDialog).toContainText(
+    `Remove ${browserSettingsOperatorFlowScenario.mcpServers.workspace.name}?`
+  );
   const removedResponse = appPage.waitForResponse(
     response =>
       response.request().method() === "DELETE" &&
@@ -830,6 +832,8 @@ async function createMCPServerViaUI(
   await expect(settingsUI.mcpServers.editor).toBeVisible();
   await settingsUI.mcpServers.editorNameInput.fill(input.name);
   await settingsUI.mcpServers.editorCommandInput.fill(input.command);
+  // Where it's saved lives under the editor's More options fold.
+  await settingsUI.mcpServers.editorMoreOptions.click();
   await settingsUI.mcpServers.editorTargetInput.selectOption(input.target);
   const savedResponse = settingsUI.mcpServers.editorSave
     .page()

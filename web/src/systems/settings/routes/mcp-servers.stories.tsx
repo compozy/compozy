@@ -113,6 +113,24 @@ export const SelectedManualRow: Story = {
   },
 };
 
+/** remove-desktop: Delete on a manual row asks "Remove <name>?" with its consequence. */
+export const RemoveServer: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: ownerParams(),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByTestId(`${MANUAL_GITHUB_ROW}-name`));
+    await userEvent.click(await canvas.findByTestId("settings-page-mcp-selection-delete"));
+    await page.findByTestId("settings-mcp-servers-delete");
+    await expect(page.getByTestId("settings-mcp-servers-delete-confirm")).toHaveTextContent(
+      "Remove server"
+    );
+  },
+};
+
 /** An extension-provided row selected: no Delete — the server leaves with its extension. */
 export const SelectedExtensionRow: Story = {
   args: {},
@@ -226,7 +244,10 @@ export const Authenticated: Story = {
   },
 };
 
-/** editor-stdio-desktop: Add MCP server opens the manual editor. */
+/**
+ * editor-stdio-desktop: Add MCP server opens the editor with one URL-or-command field; More
+ * options holds the local program's arguments, settings and key names.
+ */
 export const EditorStdio: Story = {
   args: {},
   tags: ["play-fn"],
@@ -236,6 +257,8 @@ export const EditorStdio: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(await canvas.findByTestId("settings-page-mcp-create"));
+    await page.findByLabelText("URL or command");
+    await userEvent.click(page.getByTestId("settings-mcp-servers-editor-mode-advanced"));
     await page.findByTestId("settings-mcp-editor-stdio");
   },
 };
@@ -288,13 +311,14 @@ export const EditorHttp: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(await canvas.findByTestId("settings-page-mcp-servers-row-linear-edit"));
-    await page.findByTestId("settings-mcp-editor-remote");
+    await expect(await page.findByLabelText("Server URL")).toBeVisible();
   },
 };
 
 /**
- * override-editor-desktop: Edit on an extension-provided row opens the override editor — package
- * fields read-only, headers and endpoint editable, Reset override offered because one is stored.
+ * override-editor-desktop: Edit on an extension-provided row opens "Set up <server>" — headers and
+ * address editable, package details read-only under Technical details, and Reset to extension
+ * defaults offered because an override is stored.
  */
 export const OverrideEditor: Story = {
   args: {},

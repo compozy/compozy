@@ -63,6 +63,7 @@ export function useMCPServerManagement({
     workspaceId,
     profileName: profile,
     serversReady,
+    project: mcpEditorProject(workspaceId, workspace.workspaces ?? [], workspace.runtimeWorkspace),
     serversError:
       collection.isError && !collection.isFetching
         ? { message: collection.error.message, retry: () => void collection.refetch() }
@@ -140,6 +141,19 @@ export function useMCPServerManagement({
       if (!removal.isPending) setRemoving(null);
     },
   };
+}
+
+/** The page's project, else the open one: what "Only <project>" names in the editor. */
+function mcpEditorProject(
+  workspaceId: string | null,
+  workspaces: readonly { id: string; name: string }[],
+  open: { id: string; name: string } | undefined
+) {
+  if (workspaceId) {
+    const listed = workspaces.find(candidate => candidate.id === workspaceId);
+    return { id: workspaceId, name: listed?.name ?? workspaceId };
+  }
+  return open ? { id: open.id, name: open.name } : null;
 }
 
 export type MCPServerManagement = ReturnType<typeof useMCPServerManagement>;

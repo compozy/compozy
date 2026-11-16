@@ -234,6 +234,11 @@ function resolveSecretEnvBinding(entry: MCPSecretEnvEntry): SecretResolution {
   return resolved;
 }
 
+/** Whether a named secret key would save without a value, Vault ref, or kept binding. */
+export function isSecretEnvUnset(entry: MCPSecretEnvEntry): boolean {
+  return entry.key.trim() !== "" && resolveSecretEnvBinding(entry).kind === "none";
+}
+
 function collectEnv(pairs: MCPEnvPair[]): {
   values: Record<string, string>;
   preserved: string[];

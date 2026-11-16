@@ -11,8 +11,10 @@ import {
   type MCPDraft,
 } from "../lib/mcp-editor-model";
 import { SettingsApiError } from "../adapters/settings-api";
+import { useSettingsMCPServers } from "./use-settings-collections";
 import { usePutSettingsMCPServer } from "./use-settings-mutations";
 import type { MCPServerEditorProps } from "../components/mcp-server-editor";
+import type { MCPScopeChoice } from "../components/mcp-editor-fields";
 import type {
   SettingsMCPServerEntry,
   SettingsLayeredScope,
@@ -33,6 +35,11 @@ interface UseMCPEditorOptions {
   serversReady?: boolean;
   /** Why `servers` is not ready, with a retry the editor offers in place. */
   serversError?: { message: string; retry: () => void } | null;
+  /**
+   * The project a new server can be limited to ("Only <project>"): the page's project, or the
+   * open project while the page lists user-scope servers ("All projects").
+   */
+  project?: { id: string; name: string } | null;
 }
 
 function errorMessage(error: unknown): string | null {
@@ -63,6 +70,7 @@ function useMCPEditor({
   profileName,
   serversReady = true,
   serversError = null,
+  project = null,
 }: UseMCPEditorOptions) {
   const putMutation = usePutSettingsMCPServer();
   const resetPutMutation = putMutation.reset;
@@ -75,6 +83,32 @@ function useMCPEditor({
     ...vaultSecretsListOptions({ namespace: "mcp" }),
     enabled: editorOpen,
   });
+
+  // A new server whose chosen scope differs from the page's list is checked against that
+  // scope's own list, or a same-name server there would be overwritten by the PUT.
+  const otherScope = editor.mode === "create" && editor.scope !== createScope ? editor.scope : null;
+  const otherServers = useSettingsMCPServers(
+    otherScope === "workspace"
+      ? {
+          scope: "workspace",
+          workspace_id: editor.mode === "closed" ? undefined : editor.workspaceId,
+        }
+      : { scope: "user" },
+    { enabled: enabled && otherScope !== null }
+  );
+  const nameCheck = otherScope
+    ? {
+        servers: otherServers.data?.mcp_servers ?? [],
+        ready:
+          otherServers.data !== undefined &&
+          otherServers.fetchStatus === "idle" &&
+          !otherServers.isError,
+        error:
+          otherServers.isError && !otherServers.isFetching
+            ? { message: otherServers.error.message, retry: () => void otherServers.refetch() }
+            : null,
+      }
+    : { servers, ready: serversReady, error: serversError };
 
   const openCreate = () => {
     if (!enabled || !resolveMCPEditorWriteFilter(createScope, "auto", workspaceId, profileName))
@@ -126,7 +160,12 @@ function useMCPEditor({
     editorLogic.trigger.targetChanged({ target });
   };
 
-  const { errors, isValid } = mcpEditorValidation(editor, servers, serversReady);
+  const { errors, isValid } = mcpEditorValidation(editor, nameCheck.servers, nameCheck.ready);
+  const scopeChoice = mcpScopeChoice(editor, createScope, project, scope =>
+    editorLogic.trigger.scopeChanged(
+      scope === "workspace" && project ? { scope, workspaceId: project.id } : { scope: "user" }
+    )
+  );
 
   const saveEditor = () => {
     if (editor.mode === "closed" || !isValid) return;
@@ -179,7 +218,8 @@ function useMCPEditor({
           onTargetChange: setEditorTarget,
           open: true,
           saveError: errorMessage(putMutation.error),
-          serversError: editor.mode === "create" ? serversError : null,
+          serversError: editor.mode === "create" ? nameCheck.error : null,
+          scopeChoice,
           scope: editor.scope,
           target: editor.target,
           vaultInventory,
@@ -225,4 +265,29 @@ function mcpEditorValidation(
     !nameConflict &&
     (editor.mode !== "create" || serversReady);
   return { errors, isValid };
+}
+
+/**
+ * "All projects" or "Only <project>": a choice while creating from the user or project list with
+ * a project known, and a read-only fact on an existing user or project server. Profile and agent
+ * servers show neither.
+ */
+function mcpScopeChoice(
+  editor: MCPEditorState,
+  createScope: SettingsLayeredScope,
+  project: { id: string; name: string } | null,
+  onChange: (scope: "user" | "workspace") => void
+): MCPScopeChoice | undefined {
+  if (editor.mode === "closed") return undefined;
+  if (editor.mode === "create") {
+    if (createScope === "profile" || !project) return undefined;
+    return {
+      value: editor.scope === "workspace" ? "workspace" : "user",
+      projectName: project.name,
+      onChange,
+    };
+  }
+  if (editor.scope !== "user" && editor.scope !== "workspace") return undefined;
+  const projectName = project && editor.workspaceId === project.id ? project.name : "this project";
+  return { value: editor.scope, projectName, disabled: true };
 }
