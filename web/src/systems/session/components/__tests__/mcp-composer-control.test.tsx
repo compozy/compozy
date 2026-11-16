@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
+import { mcpPanelAnchor } from "@/systems/settings";
+
 import {
   sessionMCPAllReadyFixture,
   sessionMCPFailedFixture,
@@ -16,7 +18,9 @@ import {
   sessionMCPSummaryFixture,
   sessionMCPWaitingFixture,
 } from "../../mocks/session-mcp-fixtures";
+import type { SessionMCPActions } from "../../hooks/use-session-mcp-actions";
 import { MCPComposerControl } from "../mcp-composer-control";
+import { SessionComposerMCPPanels } from "../session-composer-mcp-panels";
 
 // Suite: composer MCP control (spec mcp-extension-hot-activation, `_uiux.md` S3).
 // Invariant: the control appears only for a session whose payload carries an MCP summary; its
@@ -234,5 +238,110 @@ describe("MCPComposerControl", () => {
     expect(screen.queryByText(/tools?$/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+});
+
+// Suite: the composer's row panels (`SessionComposerMCPPanels`), fed a stubbed actions hook.
+// Invariant: each row state opens its own panel beside its row — sign-in for a server that needs
+// it, the allow review for a waiting project server, and why it is not working with Check again
+// — and Check again acts on that server's full identity.
+function panelActions(overrides: Partial<SessionMCPActions> = {}): SessionMCPActions {
+  return {
+    panel: null,
+    panelAllowing: false,
+    panelChecking: false,
+    panelStillFailing: false,
+    allow: vi.fn(),
+    check: vi.fn(),
+    closePanel: vi.fn(),
+    authorization: {
+      authorize: { phase: "idle", anchor: null, cancel: vi.fn() },
+      server: null,
+    },
+    ...overrides,
+  } as unknown as SessionMCPActions;
+}
+
+function rowButton(): HTMLElement {
+  const row = document.createElement("li");
+  const button = document.createElement("button");
+  row.append(button);
+  document.body.append(row);
+  return button;
+}
+
+function renderPanels(actions: SessionMCPActions) {
+  return render(
+    <UIProvider>
+      <SessionComposerMCPPanels actions={actions} onOpenSettings={vi.fn()} />
+    </UIProvider>
+  );
+}
+
+describe("SessionComposerMCPPanels", () => {
+  it("Should open the sign-in panel beside a row that needs sign-in", () => {
+    const row = sessionMCPNeedsSignInFixture.compozy_servers[0]!;
+    renderPanels(
+      panelActions({
+        authorization: {
+          authorize: {
+            phase: "waiting",
+            server: row.name,
+            begin: { authorization_url: "https://auth.notion.so/authorize" },
+            anchor: mcpPanelAnchor(rowButton()),
+            mode: "automatic",
+            approvedScopes: [],
+            error: null,
+            cancel: vi.fn(),
+          },
+          server: null,
+        },
+      } as unknown as Partial<SessionMCPActions>)
+    );
+
+    const panel = screen.getByRole("dialog", { name: `Sign in to ${row.name}` });
+    expect(within(panel).getByTestId("mcp-sign-in-panel")).toHaveAttribute("data-phase", "waiting");
+  });
+
+  it("Should review a waiting project server with what it runs before Allow", () => {
+    const row = sessionMCPWaitingFixture.compozy_servers[0]!;
+    renderPanels(
+      panelActions({
+        panel: {
+          kind: "allow",
+          target: { name: row.name, owner: row.owner },
+          row,
+          anchor: mcpPanelAnchor(rowButton()),
+        },
+      })
+    );
+
+    const panel = screen.getByRole("dialog", { name: `Allow ${row.name}?` });
+    expect(within(panel).getByTestId("mcp-allow-panel-launch")).toHaveTextContent(
+      "npx -y @sentry/mcp-server"
+    );
+  });
+
+  it("Should say a failing server still fails and check it again by name and owner", async () => {
+    const user = userEvent.setup();
+    const row = { ...sessionMCPFailedFixture.compozy_servers[0]!, owner: "extension:ops" };
+    const check = vi.fn();
+    renderPanels(
+      panelActions({
+        panel: {
+          kind: "check",
+          target: { name: row.name, owner: row.owner },
+          row,
+          anchor: mcpPanelAnchor(rowButton()),
+        },
+        panelStillFailing: true,
+        check,
+      })
+    );
+
+    const panel = screen.getByRole("dialog", { name: `${row.name} isn't working` });
+    expect(within(panel).getByTestId("mcp-issue-panel-still")).toBeInTheDocument();
+    await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
+    expect(check).toHaveBeenCalledExactlyOnceWith({ name: row.name, owner: "extension:ops" });
   });
 });

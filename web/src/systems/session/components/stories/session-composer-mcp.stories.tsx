@@ -108,6 +108,7 @@ const STILL_FAILING = sessionMCPFixture({
 
 /** A server is not working: its panel says why, and Check again answers in place. */
 export const NotWorkingCheckAgain: Story = {
+  tags: ["play-fn"],
   parameters: {
     msw: {
       handlers: [
@@ -134,6 +135,7 @@ export const NotWorkingCheckAgain: Story = {
 
 /** A project file added a server: Review shows what it runs and where it is defined. */
 export const ReviewProjectServer: Story = {
+  tags: ["play-fn"],
   parameters: { msw: { handlers: [sessionMCPHandler(sessionMCPWaitingFixture)] } },
   args: { session: session(sessionMCPSummaryFixture(sessionMCPWaitingFixture)) },
   play: async ({ canvasElement }) => {

@@ -5,7 +5,7 @@ import type * as React from "react";
 import { X } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
-import { PopoverContent, PopoverTitle } from "../popover";
+import { PopoverContent, PopoverDescription, PopoverTitle } from "../popover";
 import { KindIcon, type KindIconProps } from "./kind-icon";
 
 export type PopoverPanelTone = "neutral" | "warning" | "destructive" | "success";
@@ -33,16 +33,30 @@ function PopoverPanelContent({ className, ...props }: PopoverPanelContentProps) 
   );
 }
 
-export interface PopoverPanelProps extends Omit<React.ComponentProps<"div">, "title"> {
-  /** Glyph in the header well. */
-  icon: NonNullable<KindIconProps["icon"]>;
-  /** A mark that replaces the glyph well (e.g. a brand logo plate). */
-  mark?: React.ReactNode;
+type PopoverPanelGlyph = NonNullable<KindIconProps["icon"]>;
+
+/**
+ * The header identity: a glyph in a toned well, or a mark that replaces the well (e.g. a brand
+ * logo plate composed through `KindIcon`).
+ */
+type PopoverPanelIdentity =
+  | {
+      /** Glyph in the header well. */
+      icon: PopoverPanelGlyph;
+      mark?: undefined;
+    }
+  | {
+      icon?: undefined;
+      /** A mark that replaces the glyph well. */
+      mark: React.ReactNode;
+    };
+
+interface PopoverPanelBaseProps extends Omit<React.ComponentProps<"div">, "title"> {
   /** Tints the well: the panel's state at a glance. */
   tone?: PopoverPanelTone;
   /** The popup's accessible name. */
   title: React.ReactNode;
-  /** One quiet line under the title. */
+  /** One quiet line under the title; it describes the popup. */
   subtitle?: React.ReactNode;
   /** Renders the header close button. */
   onClose?: () => void;
@@ -52,6 +66,8 @@ export interface PopoverPanelProps extends Omit<React.ComponentProps<"div">, "ti
   /** Ruled action row. */
   footer?: React.ReactNode;
 }
+
+export type PopoverPanelProps = PopoverPanelBaseProps & PopoverPanelIdentity;
 
 /**
  * A decision panel inside a popover: an identity well, a title with one quiet subtitle, a hairline,
@@ -92,7 +108,11 @@ function PopoverPanel({
           <PopoverTitle className="truncate text-small-body font-semibold text-fg-strong">
             {title}
           </PopoverTitle>
-          {subtitle ? <p className="truncate text-meta text-faint">{subtitle}</p> : null}
+          {subtitle ? (
+            <PopoverDescription className="truncate text-meta text-faint">
+              {subtitle}
+            </PopoverDescription>
+          ) : null}
         </div>
         {onClose ? (
           <Button

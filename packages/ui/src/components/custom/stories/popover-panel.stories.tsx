@@ -5,9 +5,11 @@ import { CircleCheck, KeyRound, ShieldCheck } from "../../../icons";
 import { Button } from "../../button";
 import { Popover, PopoverTrigger } from "../../popover";
 import { Disclosure } from "../disclosure";
+import { KindIcon } from "../kind-icon";
 import { PopoverPanel, PopoverPanelContent, type PopoverPanelTone } from "../popover-panel";
 
-const meta: Meta<typeof PopoverPanel> = {
+// Render-only stories: the identity union (glyph or mark) has no single args shape.
+const meta: Meta = {
   title: "components/custom/PopoverPanel",
   component: PopoverPanel,
   parameters: {
@@ -22,25 +24,28 @@ const meta: Meta<typeof PopoverPanel> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj;
 
 function Example({
   tone,
   icon,
+  mark,
   title,
   aside,
 }: {
   tone: PopoverPanelTone;
-  icon: typeof KeyRound;
+  icon?: typeof KeyRound;
+  mark?: React.ReactNode;
   title: string;
   aside?: boolean;
 }) {
+  const identity = icon ? { icon } : { mark };
   return (
     <Popover defaultOpen modal={false}>
       <PopoverTrigger render={<Button variant="secondary" size="sm" />}>Open panel</PopoverTrigger>
       <PopoverPanelContent side="bottom" align="end">
         <PopoverPanel
-          icon={icon}
+          {...identity}
           tone={tone}
           title={title}
           subtitle="example.com"
@@ -87,4 +92,14 @@ export const Success: Story = {
     await expect(panel).toBeVisible();
     await userEvent.click(within(panel).getByRole("button", { name: "Continue" }));
   },
+};
+
+export const WithMark: Story = {
+  render: () => (
+    <Example
+      tone="neutral"
+      mark={<KindIcon aria-hidden="true" tone="well" kind="claude" size="sm" />}
+      title="Add example to CompozyOS"
+    />
+  ),
 };

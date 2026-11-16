@@ -11,7 +11,7 @@ import {
   StatusDot,
 } from "@compozy/ui";
 
-import type { SessionMCPResponse } from "../adapters/session-mcp-api";
+import type { SessionMCPResponse, SessionMCPServerTarget } from "../adapters/session-mcp-api";
 import {
   sessionMCPControlLabel,
   sessionMCPControlView,
@@ -37,12 +37,12 @@ export interface MCPComposerControlProps {
   onRetry?: () => void;
   /** A row's Sign in / Review / Not working; `trigger` is the button its panel opens beside. */
   onAction?: MCPComposerRowActionHandler;
-  /** The server whose action is in flight. */
-  actingName?: string | null;
+  /** The server (name and owner) whose action is in flight. */
+  actingServer?: SessionMCPServerTarget | null;
   /** Actions wait until their target can be resolved. */
   actionsDisabled?: boolean;
-  /** The server whose row panel is open beside it. */
-  activeName?: string | null;
+  /** The server (name and owner) whose row panel is open beside it. */
+  activeServer?: SessionMCPServerTarget | null;
   onManage?: () => void;
   /** The popover opened or closed; the owner reads the session's servers while it is open. */
   onOpenChange?: (open: boolean) => void;

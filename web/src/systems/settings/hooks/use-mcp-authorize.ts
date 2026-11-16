@@ -1,5 +1,5 @@
 import { useSelector, useStore } from "@xstate/store-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   createMCPAuthorizeLogic,
@@ -48,6 +48,14 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
     signInWindow.current?.close();
     signInWindow.current = null;
   };
+  // A host that unmounts mid-sign-in gives back a tab nobody will navigate and drops its reference.
+  useEffect(
+    () => () => {
+      signInWindow.current?.close();
+      signInWindow.current = null;
+    },
+    []
+  );
   const onConfirmed = (server: string) => {
     if (state.phase !== "idle") options.onConfirmed?.(server, state.filter);
   };
@@ -95,11 +103,11 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
   const requestAuthorize = (
     filter: SettingsMCPAuthFilter,
     server: SettingsMCPServerEntry,
-    trigger?: HTMLElement | null
+    trigger: HTMLElement
   ) => {
     // The live phase, not this render's: a second press in the same tick must not open a tab.
     if (store.getSnapshot().context.phase !== "idle") return;
-    setAnchor(trigger ? mcpPanelAnchor(trigger) : null);
+    setAnchor(mcpPanelAnchor(trigger));
     const prior: MCPAuthorizePriorStatus = {
       status: server.auth_status?.status ?? "needs_login",
       tokenPresent: Boolean(server.auth_status?.token_present),
@@ -139,7 +147,7 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
     prior: activeState?.prior ?? null,
     mode: activeState?.mode ?? null,
     approvedScopes: activeState?.scopeApproval?.approvedScopes ?? [],
-    /** Where the sign-in panel opens; null when the request named no control. */
+    /** Where the sign-in panel opens: beside the control that started it. */
     anchor: activeState ? anchor : null,
     requestAuthorize,
     confirmScopeEscalation: () => {

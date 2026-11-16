@@ -1,9 +1,12 @@
 // Invariant: the sign-in panel offers only the actions the current attempt can take — copy the
 // live sign-in link, retry or finish by pasting after a failure, confirm extra access before
-// anything starts — and closing it cancels the attempt.
+// anything starts — and closing it cancels the attempt. It closes only on Escape, its own buttons,
+// or a press outside both it and the row that opened it; focus leaving it (the browser opening)
+// keeps the attempt, and focus returns to the popover list when the row is gone.
 // Owner: settings MCP sign-in panel (replaces the authorize dialog suite); the hook and store
 // suites own the transitions behind these callbacks.
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UseMCPAuthorizeReturn } from "../../hooks/use-mcp-authorize";
@@ -85,16 +88,24 @@ describe("MCPSignInPopover waiting", () => {
     open.mockRestore();
   });
 
-  it("Should ask for a paste sign-in only when the fold opens, then finish with the address", () => {
+  it("Should only reveal the paste fold when it opens, and switch to a paste sign-in from its button", () => {
     const enterManual = vi.fn();
     const submitManual = vi.fn();
     renderPanel({ enterManual, submitManual });
-    expect(screen.queryByTestId("mcp-sign-in-paste-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("mcp-sign-in-manual-start")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("mcp-sign-in-paste-toggle"));
+    expect(enterManual).not.toHaveBeenCalled();
+    expect(screen.getByTestId("mcp-sign-in-steps")).toHaveAttribute("data-variant", "automatic");
+    fireEvent.click(screen.getByTestId("mcp-sign-in-manual-start"));
     expect(enterManual).toHaveBeenCalledOnce();
     cleanupAndRender({ phase: "manual", mode: "manual", enterManual, submitManual });
 
+    expect(screen.getByTestId("mcp-sign-in-steps")).toHaveAttribute("data-variant", "manual");
+    expect(screen.getByText("Sign in on the other computer")).toHaveAttribute(
+      "aria-current",
+      "step"
+    );
     const input = screen.getByTestId("mcp-sign-in-paste-input");
     expect(screen.getByTestId("mcp-sign-in-paste-submit")).toBeDisabled();
     fireEvent.change(input, { target: { value: "not a url" } });
@@ -119,6 +130,65 @@ function cleanupAndRender(overrides: Partial<UseMCPAuthorizeReturn>) {
   renderPanel(overrides);
 }
 
+describe("MCPSignInPopover dismissal", () => {
+  function rowInList() {
+    const list = document.createElement("div");
+    list.dataset.slot = "popover-content";
+    list.tabIndex = -1;
+    const row = document.createElement("li");
+    const button = document.createElement("button");
+    button.textContent = "Sign in notion";
+    row.append(button, document.createElement("span"));
+    list.append(row);
+    document.body.append(list);
+    return { list, row, button };
+  }
+
+  it("Should keep the sign-in when focus leaves the panel", async () => {
+    const cancel = vi.fn();
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    renderPanel({ cancel });
+    screen.getByTestId("mcp-sign-in-copy-link").focus();
+
+    outside.focus();
+
+    await waitFor(() => expect(document.activeElement).toBe(outside));
+    expect(cancel).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Sign in to linear" })).toBeInTheDocument();
+  });
+
+  it("Should cancel on Escape and on a press outside, but not on a press in its own row", async () => {
+    const user = userEvent.setup();
+    const cancel = vi.fn();
+    const { row } = rowInList();
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    renderPanel({ cancel, anchor: mcpPanelAnchor(row.querySelector("button")!) });
+
+    // Base UI reports a press outside after the click settles; a press in the row would make the
+    // count below two.
+    await user.click(row.querySelector("span")!);
+    await user.click(outside);
+    await waitFor(() => expect(cancel).toHaveBeenCalledOnce());
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
+  });
+
+  it("Should return focus to the popover list when the row that opened it is gone", async () => {
+    const { list, row, button } = rowInList();
+    const anchor = mcpPanelAnchor(button);
+    const authorize = makeAuthorize({ anchor });
+    const { rerender } = render(<MCPSignInPopover authorize={authorize} server={null} />);
+    row.remove();
+
+    rerender(<MCPSignInPopover authorize={{ ...authorize, phase: "idle" }} server={null} />);
+
+    await waitFor(() => expect(document.activeElement).toBe(list));
+  });
+});
+
 describe("MCPSignInPopover failure recovery", () => {
   it("Should retry when start fails, and never accept a pasted address it can't exchange", () => {
     const retryBegin = vi.fn();
@@ -135,7 +205,9 @@ describe("MCPSignInPopover failure recovery", () => {
     expect(within(panel).getByRole("alert")).toHaveTextContent("provider unreachable");
     expect(panel).toHaveTextContent("Nothing changed: linear keeps its previous sign-in.");
     fireEvent.click(screen.getByTestId("mcp-sign-in-paste-toggle"));
-    expect(screen.getByTestId("mcp-sign-in-paste-input")).toBeDisabled();
+    expect(screen.queryByTestId("mcp-sign-in-paste-input")).not.toBeInTheDocument();
+    expect(enterManual).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("mcp-sign-in-manual-start"));
     expect(enterManual).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByTestId("mcp-sign-in-retry"));

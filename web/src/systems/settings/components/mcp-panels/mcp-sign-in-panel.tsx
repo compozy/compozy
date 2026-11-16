@@ -202,6 +202,7 @@ export function MCPSignInPanel({
     );
   }
   const starting = phase === "starting";
+  const stage = starting ? "starting" : phase === "finishing" ? "finishing" : "waiting";
   return (
     <PopoverPanel
       data-testid="mcp-sign-in-panel"
@@ -230,7 +231,11 @@ export function MCPSignInPanel({
         </>
       }
     >
-      <MCPSignInSteps starting={starting} onOpenAgain={url ? onOpenAgain : undefined} />
+      <MCPSignInSteps
+        stage={stage}
+        variant={manual ? "manual" : "automatic"}
+        onOpenAgain={url ? onOpenAgain : undefined}
+      />
     </PopoverPanel>
   );
 }

@@ -14,8 +14,13 @@ import {
 
 import { ProviderLogo } from "@/systems/settings/components/provider-logo";
 
-import type { SessionMCPServerRow, SessionRuntimeMCPRow } from "../adapters/session-mcp-api";
+import type {
+  SessionMCPServerRow,
+  SessionMCPServerTarget,
+  SessionRuntimeMCPRow,
+} from "../adapters/session-mcp-api";
 import {
+  sameSessionMCPServer,
   sessionMCPRuntimeProvider,
   sessionMCPRuntimeStateView,
   sessionMCPStateView,
@@ -40,12 +45,12 @@ export type MCPComposerRowActionHandler = (
 export interface MCPComposerRowsProps {
   view: SessionMCPControlView;
   onAction?: MCPComposerRowActionHandler;
-  /** The server whose action is in flight. */
-  actingName?: string | null;
+  /** The server (name and owner) whose action is in flight. */
+  actingServer?: SessionMCPServerTarget | null;
   /** Actions wait until their target can be resolved. */
   actionsDisabled?: boolean;
-  /** The server whose row panel is open beside it. */
-  activeName?: string | null;
+  /** The server (name and owner) whose row panel is open beside it. */
+  activeServer?: SessionMCPServerTarget | null;
   /** The coding agent's own servers start folded. */
   runtimeOpen?: boolean;
 }
@@ -211,9 +216,9 @@ export function MCPComposerRows({
   view,
   runtimeMCP,
   onAction,
-  actingName = null,
+  actingServer = null,
   actionsDisabled = false,
-  activeName = null,
+  activeServer = null,
   runtimeOpen = false,
 }: MCPComposerRowsProps & { runtimeMCP: string }) {
   const runtime = view.runtimeName;
@@ -234,8 +239,11 @@ export function MCPComposerRows({
               key={`${row.owner}:${row.name}`}
               row={row}
               onAction={onAction}
-              acting={actionsDisabled || actingName === row.name}
-              active={activeName === row.name}
+              acting={
+                actionsDisabled ||
+                (actingServer !== null && sameSessionMCPServer(actingServer, row))
+              }
+              active={activeServer !== null && sameSessionMCPServer(activeServer, row)}
             />
           ))}
         </ul>

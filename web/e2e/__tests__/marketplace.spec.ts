@@ -617,6 +617,7 @@ test.describe("MCP Settings authorization", () => {
       const panel = appPage.getByTestId("mcp-sign-in-panel");
       await expect(panel).toHaveAttribute("data-phase", "waiting");
       await appPage.getByTestId("mcp-sign-in-paste-toggle").click();
+      await appPage.getByTestId("mcp-sign-in-manual-start").click();
       const pasteInput = appPage.getByTestId("mcp-sign-in-paste-input");
       await expect(pasteInput).toBeEnabled();
       await appPage.getByTestId("mcp-sign-in-open-again").click();

@@ -23,6 +23,8 @@ import { useMCPAuthorize } from "@/systems/settings/hooks/use-mcp-authorize";
 import type { SettingsMCPServerEntry } from "@/systems/settings/types";
 
 const filter = { scope: "workspace" as const, workspace_id: "ws-alpha" };
+// The control a sign-in press starts from; the panel opens beside it.
+const trigger = document.createElement("button");
 const prior = { status: "needs_login", tokenPresent: false };
 const serverEntry = {
   name: "linear",
@@ -97,8 +99,8 @@ describe("useMCPAuthorize", () => {
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
     act(() => {
-      result.current.requestAuthorize(filter, serverEntry);
-      result.current.requestAuthorize(filter, serverEntry);
+      result.current.requestAuthorize(filter, serverEntry, trigger);
+      result.current.requestAuthorize(filter, serverEntry, trigger);
     });
 
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
@@ -114,15 +116,19 @@ describe("useMCPAuthorize", () => {
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
     act(() => {
-      result.current.requestAuthorize(filter, {
-        ...serverEntry,
-        auth: { ...serverEntry.auth!, scopes: ["read", " write ", "", "write"] },
-        auth_status: {
-          ...serverEntry.auth_status!,
-          status: "authenticated",
-          token_present: true,
+      result.current.requestAuthorize(
+        filter,
+        {
+          ...serverEntry,
+          auth: { ...serverEntry.auth!, scopes: ["read", " write ", "", "write"] },
+          auth_status: {
+            ...serverEntry.auth_status!,
+            status: "authenticated",
+            token_present: true,
+          },
         },
-      });
+        trigger
+      );
     });
     expect(result.current.phase).toBe("reviewing_scopes");
     expect(result.current.approvedScopes).toEqual(["write"]);
@@ -144,7 +150,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
 
     await waitFor(() => expect(result.current.phase).toBe("failed"));
     expect(result.current.error).toBe("provider unreachable");
@@ -169,12 +175,12 @@ describe("useMCPAuthorize", () => {
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
     act(() => {
-      result.current.requestAuthorize(filter, serverEntry);
+      result.current.requestAuthorize(filter, serverEntry, trigger);
     });
     await waitFor(() => expect(result.current.phase).toBe("beginning"));
     act(() => result.current.cancel());
     act(() => {
-      result.current.requestAuthorize(filter, serverEntry);
+      result.current.requestAuthorize(filter, serverEntry, trigger);
     });
     await waitFor(() => expect(result.current.phase).toBe("beginning"));
 
@@ -196,7 +202,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
@@ -224,7 +230,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result, unmount } = renderHook(() => useMCPAuthorize({ onConfirmed }), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
@@ -247,7 +253,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
@@ -269,7 +275,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
@@ -288,7 +294,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
 
     // A tools/list-style success without a token must not flip the UI.
@@ -310,7 +316,7 @@ describe("useMCPAuthorize", () => {
       { initialProps: { onConfirmed: firstConfirmed }, wrapper }
     );
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
 
     rerender({ onConfirmed: latestConfirmed });
@@ -327,7 +333,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.cancel());
 
@@ -355,7 +361,7 @@ describe("definition authorization polling", () => {
     const { wrapper } = createWrapper();
     const { result, unmount } = renderHook(() => useMCPDefinitionAuthorization(), { wrapper });
     expect(getSettingsMCPServer).not.toHaveBeenCalled();
-    act(() => result.current.authorize.requestAuthorize(ownedFilter, owned));
+    act(() => result.current.authorize.requestAuthorize(ownedFilter, owned, trigger));
     await waitFor(() => expect(result.current.authorize.phase).toBe("confirmed"));
     expect(beginSettingsMCPAuth).toHaveBeenCalledWith("linear", ownedFilter, { mode: "automatic" });
     expect(getSettingsMCPServer).toHaveBeenCalledWith(
@@ -384,7 +390,7 @@ describe("sign-in browser tab", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     expect(open).toHaveBeenCalledExactlyOnceWith("", "_blank");
 
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
@@ -404,7 +410,7 @@ describe("sign-in browser tab", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("failed"));
     expect(failed.close).toHaveBeenCalledOnce();
     expect(failed.location.replace).not.toHaveBeenCalled();
@@ -421,7 +427,7 @@ describe("sign-in browser tab", () => {
     const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     open.mockClear();
 
@@ -437,7 +443,7 @@ describe("sign-in browser tab", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.requestAuthorize(filter, serverEntry));
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
 
     expect(open).toHaveBeenLastCalledWith(
@@ -459,5 +465,18 @@ describe("sign-in browser tab", () => {
     expect(result.current.anchor?.element).toBe(button);
     act(() => result.current.cancel());
     expect(result.current.anchor).toBeNull();
+  });
+
+  it("Should give the reserved tab back when the host unmounts mid-sign-in", () => {
+    vi.mocked(beginSettingsMCPAuth).mockReturnValue(new Promise(() => {}));
+    const tab = fakeTab();
+    vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    const { wrapper } = createWrapper();
+    const { result, unmount } = renderHook(() => useMCPAuthorize(), { wrapper });
+    act(() => result.current.requestAuthorize(filter, serverEntry, trigger));
+
+    unmount();
+
+    expect(tab.close).toHaveBeenCalledOnce();
   });
 });

@@ -6,11 +6,6 @@ export { MCPAllowPanel, type MCPAllowPanelProps } from "./mcp-panels/mcp-allow-p
 export { MCPAnchoredPanel, type MCPAnchoredPanelProps } from "./mcp-panels/mcp-anchored-panel";
 export { MCPCopyPanel, type MCPCopyPanelProps } from "./mcp-panels/mcp-copy-panel";
 export { MCPIssuePanel, type MCPIssuePanelProps } from "./mcp-panels/mcp-issue-panel";
-export {
-  MCPSignInPanel,
-  type MCPSignInPanelProps,
-  type MCPSignInPhase,
-} from "./mcp-panels/mcp-sign-in-panel";
 export { MCPSignInPopover, type MCPSignInPopoverProps } from "./mcp-panels/mcp-sign-in-popover";
 export { MCPSelectionStrip } from "./mcp-selection-strip";
 export type { MCPSelectionStripProps } from "./mcp-selection-strip";

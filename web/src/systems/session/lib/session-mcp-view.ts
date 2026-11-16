@@ -3,6 +3,7 @@ import type { StatusDotTone } from "@compozy/ui";
 import type {
   SessionMCPResponse,
   SessionMCPServerRow,
+  SessionMCPServerTarget,
   SessionRuntimeMCPRow,
 } from "../adapters/session-mcp-api";
 import type { SessionPayload } from "../types";
@@ -145,4 +146,21 @@ export function sessionMCPHeaderNote(input: {
   // A failed reload has its own alert below; the caption would promise what just failed.
   if (input.pendingReload && !input.reloadFailed) return "pending";
   return null;
+}
+
+/** A server's full identity: names repeat across owners. */
+export function sessionMCPServerTarget(row: SessionMCPServerTarget): SessionMCPServerTarget {
+  return { name: row.name, owner: row.owner };
+}
+
+export function sameSessionMCPServer(
+  left: SessionMCPServerTarget,
+  right: SessionMCPServerTarget
+): boolean {
+  return left.name === right.name && left.owner === right.owner;
+}
+
+/** The row a check answered for, found by its full identity (names repeat across owners). */
+export function sessionMCPCheckedRow(data: SessionMCPResponse, target: SessionMCPServerTarget) {
+  return data.compozy_servers.find(row => sameSessionMCPServer(row, target));
 }

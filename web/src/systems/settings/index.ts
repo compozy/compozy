@@ -236,7 +236,6 @@ export {
   MCPAllowPanel,
   MCPAnchoredPanel,
   MCPIssuePanel,
-  MCPSignInPanel,
   MCPSignInPopover,
   AttentionSystemStateChip,
   attentionSystemStateNote,

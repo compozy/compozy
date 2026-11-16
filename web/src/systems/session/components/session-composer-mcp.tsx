@@ -37,6 +37,7 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
     workspaceId,
     sessionId: session.id,
     profile: session.profile_name,
+    data: model.data,
     enabled: open && hasSignIn,
     onUnresolved: manage,
   });
@@ -49,18 +50,11 @@ export function SessionComposerMCP({ session }: SessionComposerMCPProps) {
       failed={model.failed}
       onRetry={model.retry}
       onAction={actions.act}
-      actingName={actions.actingName}
+      actingServer={actions.actingServer}
       actionsDisabled={actions.resolving || actions.allowing}
-      activeName={
-        actions.panel?.target.name ??
-        (actions.authorization.authorize.phase === "idle"
-          ? null
-          : actions.authorization.authorize.server)
-      }
+      activeServer={actions.activeServer}
       onManage={manage}
-      rowPanel={
-        <SessionComposerMCPPanels data={model.data} actions={actions} onOpenSettings={manage} />
-      }
+      rowPanel={<SessionComposerMCPPanels actions={actions} onOpenSettings={manage} />}
       onOpenChange={next => {
         setOpen(next);
         // Row panels live inside the popover: closing it ends a sign-in and closes the panel.

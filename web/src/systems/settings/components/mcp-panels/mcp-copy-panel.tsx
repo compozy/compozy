@@ -9,6 +9,7 @@ import {
   FieldError,
   FieldLabel,
   Input,
+  KindIcon,
   PopoverPanel,
   RadioCardGroup,
   Spinner,
@@ -23,7 +24,7 @@ export interface MCPCopyPanelProps {
   server: RuntimeMCPServer;
   /** The coding agent's display name ("Claude Code"). */
   runtimeName: string;
-  /** The coding agent's mark, shown in the header well. */
+  /** The coding agent's mark, set on the header's identity well. */
   mark?: ReactNode;
   /** The coding agent can turn its own servers off for CompozyOS sessions. */
   canTurnOff: boolean;
@@ -90,14 +91,9 @@ export function MCPCopyPanel({
   return (
     <PopoverPanel
       data-testid="mcp-copy-panel"
-      icon={Plus}
-      mark={
-        mark ? (
-          <span className="flex size-6.5 shrink-0 items-center justify-center rounded-icon-well bg-well">
-            {mark}
-          </span>
-        ) : undefined
-      }
+      {...(mark
+        ? { mark: <KindIcon aria-hidden="true" tone="well" size="sm" glyph={mark} /> }
+        : { icon: Plus })}
       title={`Add ${server.name} to CompozyOS`}
       subtitle={`From ${runtimeName} · ${remote ? "Remote" : "Runs on this computer"}`}
       onClose={close}
