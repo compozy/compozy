@@ -3,7 +3,6 @@ package daemon
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -13,6 +12,8 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
 )
+
+const mcpNeedsSignIn = "needs_sign_in"
 
 var _ session.MCPChecker = (*sessionMCPReadModel)(nil)
 
@@ -29,14 +30,14 @@ func (r *sessionMCPReadModel) CheckSessionMCP(ctx context.Context, id, name, own
 		return session.MCP{}, fmt.Errorf("%w: MCP server %q", settingspkg.ErrNotFound, name)
 	}
 	row := current.CompozyServers[index]
-	if row.State == mcpWaitingApproval || row.State == "not_available" {
+	if row.State == mcpWaitingApproval || row.State == "not_available" || row.State == mcpNeedsSignIn {
 		return current, nil
 	}
 	checker, ok := r.state.mcpToolProvider.(interface {
 		CheckMCPServer(context.Context, toolspkg.Scope, string) error
 	})
 	if !ok {
-		return session.MCP{}, errors.New("daemon: MCP check unavailable")
+		return session.MCP{}, fmt.Errorf("%w: MCP check unavailable", settingspkg.ErrUnavailable)
 	}
 	info, err := r.state.sessions.Status(ctx, id)
 	if err != nil {
@@ -58,6 +59,9 @@ func (r *sessionMCPReadModel) CheckSessionMCP(ctx context.Context, id, name, own
 			AgentName:   info.AgentName,
 		}
 		if err := checker.CheckMCPServer(ctx, scope, cmp.Or(item.RuntimeName, item.Name)); err != nil {
+			return session.MCP{}, err
+		}
+		if err := r.refresh(ctx); err != nil {
 			return session.MCP{}, err
 		}
 		return r.ListSessionMCP(ctx, id)

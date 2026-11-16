@@ -1234,6 +1234,11 @@ func TestMCPRequestSecretLifecycle(t *testing.T) {
 			t.Fatalf("tools/list calls = %d, want %d after provider projection", got, want)
 		}
 
+		fresh, err := executor.ListTools(toolspkg.WithFreshMCPDiscovery(t.Context()), source)
+		if err != nil || len(fresh) != 1 || listCalls.Load() != 2 {
+			t.Fatalf("fresh probe: %v, %v, calls=%d", fresh, err, listCalls.Load())
+		}
+
 		result, err := executor.CallTool(t.Context(), source, toolspkg.MCPToolCallRequest{
 			ToolID:      descriptors[0].ID,
 			RawToolName: descriptors[0].RawName,

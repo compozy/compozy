@@ -23,7 +23,7 @@ func (s settingsMCPConsent) profileID(ctx context.Context, name string) (string,
 	if name == "" || name == daemonDefaultProfileName {
 		return store.DefaultProfileID, nil
 	}
-	if s.state.profiles == nil {
+	if s.state == nil || s.state.profiles == nil {
 		return "", errors.New("daemon: MCP profile catalog is unavailable")
 	}
 	return s.state.profiles.AvailableProfileID(ctx, name)

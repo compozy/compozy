@@ -35,11 +35,8 @@ func newSessionMCPCheckCommand(deps commandDeps) *cobra.Command {
 		Short: "Check one session MCP server again",
 		Example: "  compozy session mcp check sess_1234 linear\n" +
 			"  compozy session mcp check sess_1234 linear --owner extension:linear -o json",
-		Args: cobra.ExactArgs(2),
+		Args: exactTwoNonBlankArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if strings.TrimSpace(args[0]) == "" || strings.TrimSpace(args[1]) == "" {
-				return errors.New("session id and MCP server name are required")
-			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err

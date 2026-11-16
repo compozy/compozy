@@ -446,6 +446,83 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 }
 
 func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) {
+	for _, checkFails := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should discard older discovery after a newer check fails=%v", checkFails),
+			func(t *testing.T) {
+				t.Parallel()
+				source := SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs"}
+				executor := &overlappingMCPExecutor{
+					fakeMCPExecutor: newFakeMCPExecutor(nil),
+					started:         make(chan struct{}),
+					release:         make(chan struct{}),
+					checkFails:      checkFails,
+				}
+				provider, err := NewMCPProvider(
+					MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+					executor,
+					executor,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				done := make(chan error, 1)
+				go func() { _, err := provider.List(t.Context(), Scope{}); done <- err }()
+				<-executor.started
+				if err := provider.CheckMCPServer(t.Context(), Scope{}, "docs"); err != nil {
+					t.Fatal(err)
+				}
+				close(executor.release)
+				if err := <-done; err != nil {
+					t.Fatal(err)
+				}
+				descriptors, err := provider.List(WithCachedMCPProjection(t.Context()), Scope{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if checkFails {
+					if len(descriptors) != 0 {
+						t.Fatalf("stale tools after failed check: %+v", descriptors)
+					}
+					if _, failed := provider.discoveryFailures.Load(source); !failed {
+						t.Fatal("older success erased check failure")
+					}
+				} else if len(descriptors) != 1 || descriptors[0].ID != "mcp__docs__fresh" {
+					t.Fatalf("descriptors=%+v", descriptors)
+				}
+			},
+		)
+	}
+
+	t.Run("Should preserve tools after a canceled check", func(t *testing.T) {
+		t.Parallel()
+		source := SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs"}
+		executor := newFakeMCPExecutor(
+			[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		)
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) { return []SourceRef{source}, nil }),
+			executor,
+			executor,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.List(t.Context(), Scope{}); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		executor.setListError(context.Canceled)
+		if err := provider.CheckMCPServer(ctx, Scope{}, "docs"); err == nil {
+			t.Fatal("canceled check succeeded")
+		}
+		descriptors, err := provider.List(WithCachedMCPProjection(t.Context()), Scope{})
+		if err != nil || len(descriptors) != 1 {
+			t.Fatalf("descriptors=%+v err=%v", descriptors, err)
+		}
+	})
+
 	t.Run("Should retry only the selected profile and retain sibling cached tools", func(t *testing.T) {
 		t.Parallel()
 		source := SourceRef{
@@ -486,7 +563,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 		if err := provider.CheckMCPServer(t.Context(), selected, "docs"); err != nil {
 			t.Fatal(err)
 		}
-		if tools, err := provider.List(WithCachedMCPProjection(t.Context()), selected); err != nil || len(tools) != 0 {
+		if tools, err := provider.List(WithCachedMCPProjection(t.Context()), selected); err != nil || len(tools) != 1 {
 			t.Fatalf("failed selected tools = %+v, %v", tools, err)
 		}
 		if tools, err := provider.List(WithCachedMCPProjection(t.Context()), sibling); err != nil || len(tools) != 1 {
@@ -1867,4 +1944,28 @@ func TestMCPProviderAdvertisedDiscoveryRetention(t *testing.T) {
 			t.Fatal("removed source remained advertised")
 		}
 	})
+}
+
+type overlappingMCPExecutor struct {
+	checkFails bool
+	*fakeMCPExecutor
+	started chan struct{}
+	release chan struct{}
+}
+
+func (e *overlappingMCPExecutor) ListTools(ctx context.Context, _ SourceRef) ([]MCPToolDescriptor, error) {
+	name := "fresh"
+	if FreshMCPDiscovery(ctx) && e.checkFails {
+		return nil, ErrToolUnavailable
+	}
+	if !FreshMCPDiscovery(ctx) {
+		close(e.started)
+		select {
+		case <-e.release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		name = "old"
+	}
+	return []MCPToolDescriptor{{RawName: name, InputSchema: json.RawMessage(`{"type":"object"}`)}}, nil
 }

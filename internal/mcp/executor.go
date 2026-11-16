@@ -85,7 +85,12 @@ func (e *CallExecutor) ListToolsWithProtocol(
 		return nil, "", err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, &resolved)
-	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(ctx, &resolved, authorizationHeader); ok {
+	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(
+		ctx,
+		&resolved,
+		authorizationHeader,
+	); ok &&
+		!toolspkg.FreshMCPDiscovery(ctx) {
 		servedFromCache = true
 		return cached, cachedProtocol, nil
 	}
@@ -121,7 +126,7 @@ func (e *CallExecutor) listToolsFromClient(
 	if err != nil {
 		return nil, nil, err
 	}
-	if descriptors, ok := e.cachedTools(cacheKey, time.Now()); ok {
+	if descriptors, ok := e.cachedTools(cacheKey, time.Now()); ok && !toolspkg.FreshMCPDiscovery(ctx) {
 		return descriptors, nil, nil
 	}
 	tools, ttlMs, err := listMCPTools(ctx, client.session)

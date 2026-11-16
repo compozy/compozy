@@ -82,7 +82,7 @@ type GetSessionMCPParams struct {
 	AllProfiles *bool   `url:"all_profiles"`
 }
 
-// GetSessionMCP Read session MCP availability without discovery
+// GetSessionMCP Read session MCP availability without discovery; redacted definition previews appear only for waiting approval and never for app tokens
 func (c *Client) GetSessionMCP(ctx context.Context, params GetSessionMCPParams) (*MCP, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))

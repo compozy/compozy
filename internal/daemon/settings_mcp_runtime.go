@@ -32,7 +32,10 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 		status.Reason = mcpWaitingApproval
 		return status, nil
 	}
-	key, tracked := settingsMCPDeadEntityKey(target, server.EffectiveRuntimeName())
+	key, tracked, err := s.settingsMCPDeadEntityKey(ctx, target, server.EffectiveRuntimeName())
+	if err != nil {
+		return settingspkg.MCPServerRuntimeStatus{}, err
+	}
 	if suppressed, err := s.suppressedMCPRuntimeStatus(ctx, key, tracked); err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, err
 	} else if suppressed != nil {
@@ -218,18 +221,29 @@ func deadMCPRuntimeStatus(reason string) settingspkg.MCPServerRuntimeStatus {
 	}
 }
 
-func settingsMCPDeadEntityKey(target mcpauth.Target, serverName string) (store.DeadEntityKey, bool) {
+func (s *settingsRuntimeSurface) settingsMCPDeadEntityKey(
+	ctx context.Context, target mcpauth.Target, serverName string,
+) (store.DeadEntityKey, bool, error) {
 	normalizedTarget := target.Normalize()
 	if normalizedTarget.Scope != mcpauth.ScopeWorkspace {
-		return store.DeadEntityKey{}, false
+		return store.DeadEntityKey{}, false, nil
+	}
+	lens := mcpauth.ConsentScopeFromContext(ctx)
+	profileID := lens.ProfileID
+	if profileID == "" {
+		var err error
+		profileID, err = (settingsMCPConsent{state: s.state}).profileID(ctx, lens.ProfileName)
+		if err != nil {
+			return store.DeadEntityKey{}, false, err
+		}
 	}
 	key := store.DeadEntityKey{
-		ProfileID:   store.DefaultProfileID,
+		ProfileID:   profileID,
 		WorkspaceID: normalizedTarget.WorkspaceID,
 		Kind:        store.DeadEntityKindMCPSidecar,
 		EntityID:    serverName,
 	}.Normalize()
-	return key, key.Validate() == nil
+	return key, key.Validate() == nil, nil
 }
 
 func runtimeStateFromMCPAuthStatus(

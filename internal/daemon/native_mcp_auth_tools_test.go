@@ -1207,7 +1207,8 @@ func TestSessionMCPReadModel(t *testing.T) {
 				ProfileName:      "work",
 				Transport:        "stdio",
 				Command:          "npx",
-				Args:             []string{"-y", "example"},
+				Args:             []string{"-y", "token=super-secret"},
+				URL:              "https://alice:password@example.test/mcp?custom=private-value",
 				DefinitionSource: "/project/.compozy/mcp.json",
 				SourceMetadata: settingspkg.SourceMetadata{
 					EffectiveSource: settingspkg.SourceRef{
@@ -1230,6 +1231,7 @@ func TestSessionMCPReadModel(t *testing.T) {
 		row := result.CompozyServers[0]
 		if row.State != "waiting_approval" || row.Scope != "profile" || row.WorkspaceID != "ws-auth" ||
 			row.Profile != "work" ||
+			row.URL != "https://example.test/mcp?custom=%5Bredacted%5D" || strings.Contains(strings.Join(row.Args, " "), "super-secret") ||
 			row.Command != "npx" ||
 			len(row.Args) != 2 ||
 			row.Source.Path != "/project/.compozy/mcp.json" ||
@@ -1241,6 +1243,42 @@ func TestSessionMCPReadModel(t *testing.T) {
 		}
 		if executor.discoveries != before {
 			t.Fatal("waiting definition was discovered")
+		}
+	})
+	t.Run("Should omit definition previews outside pending approval", func(t *testing.T) {
+		t.Parallel()
+		model, _, _, settings := newSessionMCPReadFixture(t)
+		for i := range settings.servers {
+			settings.servers[i].Command = "private-command"
+			settings.servers[i].Args = []string{"private-arg"}
+			settings.servers[i].URL = "https://secret.test"
+			settings.servers[i].DefinitionSource = "/private/path"
+		}
+		result, err := model.ListSessionMCP(t.Context(), "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range result.CompozyServers {
+			if row.State != "waiting_approval" &&
+				(row.Command != "" || len(row.Args) != 0 || row.URL != "" || row.Source.Path != "") {
+				t.Fatalf("leaked preview: %+v", row)
+			}
+		}
+	})
+	t.Run("Should return sign-in state without probing", func(t *testing.T) {
+		t.Parallel()
+		model, _, executor, settings := newSessionMCPReadFixture(t)
+		settings.servers[0].AuthStatus = &mcpauth.Status{Status: mcpauth.StatusNeedsLogin}
+		before := executor.discoveries
+		result, err := model.CheckSessionMCP(t.Context(), "sess-1", settings.servers[0].Name, settings.servers[0].Owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if executor.discoveries != before {
+			t.Fatal("sign-in row was probed")
+		}
+		if result.CompozyServers[0].State != "needs_sign_in" {
+			t.Fatalf("result: %+v", result)
 		}
 	})
 	t.Run("Should check only the requested owner and preserve next-message activation", func(t *testing.T) {
@@ -1275,6 +1313,9 @@ func TestSessionMCPReadModel(t *testing.T) {
 			if row.Owner == "extension:linear" {
 				checked = row
 			}
+		}
+		if len(manager.changes) != 2 || manager.changes[1] != result.MCPSummary {
+			t.Fatalf("summary events = %+v", manager.changes)
 		}
 		if checked.State != "applies_next_message" || checked.CallableCount != 1 {
 			t.Fatalf("checked row = %+v", checked)

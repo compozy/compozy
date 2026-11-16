@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,7 +29,7 @@ func (h *BaseHandlers) CheckSessionMCP(c *gin.Context) {
 		strings.TrimSpace(c.Query("owner")),
 	)
 	if err != nil {
-		status := StatusForSessionError(err)
+		status := statusForMCPCheckError(err, StatusForSessionError)
 		if errors.Is(err, settingspkg.ErrNotFound) {
 			status = http.StatusNotFound
 		}
@@ -50,13 +51,27 @@ func (h *BaseHandlers) CheckSettingsMCPServer(c *gin.Context) {
 	}
 	target, err := parseSettingsMCPAuthTarget(c)
 	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
+		h.respondError(c, statusForMCPCheckError(err, StatusForSettingsError), err)
 		return
 	}
 	result, err := checker.CheckMCPServer(c.Request.Context(), target)
 	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
+		h.respondError(c, statusForMCPCheckError(err, StatusForSettingsError), err)
 		return
 	}
 	c.JSON(http.StatusOK, settingsMCPServerItemPayloads([]settingspkg.MCPServerItem{result})[0])
+}
+
+func statusForMCPCheckError(err error, fallback func(error) int) int {
+	reason, _ := toolspkg.ReasonOf(err)
+	switch {
+	case reason == toolspkg.ReasonSourceDisabled:
+		return http.StatusBadRequest
+	case errors.Is(err, context.Canceled), errors.Is(err, toolspkg.ErrToolCanceled):
+		return 499
+	case errors.Is(err, settingspkg.ErrUnavailable), errors.Is(err, toolspkg.ErrToolUnavailable):
+		return http.StatusServiceUnavailable
+	default:
+		return fallback(err)
+	}
 }

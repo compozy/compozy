@@ -79994,7 +79994,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "MCP check result"
           },
           "400": {
             "content": {
@@ -80004,7 +80004,7 @@
                 }
               }
             },
-            "description": "Invalid MCP OAuth request or session"
+            "description": "Invalid MCP check request or disabled source"
           },
           "403": {
             "content": {
@@ -80026,7 +80026,7 @@
             },
             "description": "MCP server or workspace not found"
           },
-          "409": {
+          "499": {
             "content": {
               "application/json": {
                 "schema": {
@@ -80034,7 +80034,7 @@
                 }
               }
             },
-            "description": "MCP server waiting for approval or definition changed"
+            "description": "MCP check canceled by client"
           },
           "500": {
             "content": {
@@ -80054,7 +80054,7 @@
                 }
               }
             },
-            "description": "MCP OAuth runtime is unavailable"
+            "description": "MCP check runtime unavailable"
           }
         },
         "summary": "Retry one scoped MCP server runtime probe",
@@ -104075,7 +104075,7 @@
             "description": "Session MCP read model unavailable"
           }
         },
-        "summary": "Read session MCP availability without discovery",
+        "summary": "Read session MCP availability without discovery; redacted definition previews appear only for waiting approval and never for app tokens",
         "tags": [
           "sessions"
         ],
@@ -104143,7 +104143,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "MCP check result"
           },
           "400": {
             "content": {
@@ -104153,7 +104153,7 @@
                 }
               }
             },
-            "description": "Invalid MCP OAuth request or session"
+            "description": "Invalid MCP check request or disabled source"
           },
           "403": {
             "content": {
@@ -104175,7 +104175,7 @@
             },
             "description": "MCP server or workspace not found"
           },
-          "409": {
+          "499": {
             "content": {
               "application/json": {
                 "schema": {
@@ -104183,7 +104183,7 @@
                 }
               }
             },
-            "description": "MCP server waiting for approval or definition changed"
+            "description": "MCP check canceled by client"
           },
           "500": {
             "content": {
@@ -104203,7 +104203,7 @@
                 }
               }
             },
-            "description": "MCP OAuth runtime is unavailable"
+            "description": "MCP check runtime unavailable"
           }
         },
         "summary": "Retry discovery for one session MCP server without restarting the runtime",

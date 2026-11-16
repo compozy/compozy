@@ -9374,7 +9374,7 @@ export class sessions extends HeyApiClient {
   }
 
   /**
-   * Read session MCP availability without discovery
+   * Read session MCP availability without discovery; redacted definition previews appear only for waiting approval and never for app tokens
    */
   public getSessionMCP<ThrowOnError extends boolean = true>(
     options: Options<GetSessionMCPData, ThrowOnError>

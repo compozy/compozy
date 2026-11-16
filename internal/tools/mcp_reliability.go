@@ -89,11 +89,25 @@ func (p *MCPProvider) listSourceDescriptors(
 		}
 	}
 
+	p.discoveryMu.Lock()
+	if p.discoveryGenerations == nil {
+		p.discoveryGenerations = make(map[SourceRef]uint64)
+	}
+	p.discoveryGenerations[source]++
+	generation := p.discoveryGenerations[source]
+	p.discoveryMu.Unlock()
+
 	discovered, err := p.discoverSource(ctx, source, timeout)
+	p.discoveryMu.Lock()
+	defer p.discoveryMu.Unlock()
+	if p.discoveryGenerations[source] != generation {
+		return p.cachedSourceDescriptors(source), true, nil
+	}
 	if err != nil {
 		// Abort aggregate discovery only when its caller stopped. A timeout or cancellation
 		// from one executor is a source failure and must not hide healthy MCP servers.
 		if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
+			p.discoveryFailures.Store(source, struct{}{})
 			return nil, false, contextError
 		}
 		p.discoveryFailures.Store(source, struct{}{})

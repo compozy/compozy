@@ -28797,7 +28797,7 @@ export type CheckSettingsMCPServerData = {
 
 export type CheckSettingsMCPServerErrors = {
   /**
-   * Invalid MCP OAuth request or session
+   * Invalid MCP check request or disabled source
    */
   400: ErrorPayload;
   /**
@@ -28809,15 +28809,15 @@ export type CheckSettingsMCPServerErrors = {
    */
   404: ErrorPayload;
   /**
-   * MCP server waiting for approval or definition changed
+   * MCP check canceled by client
    */
-  409: ErrorPayload;
+  499: ErrorPayload;
   /**
    * Internal server error
    */
   500: ErrorPayload;
   /**
-   * MCP OAuth runtime is unavailable
+   * MCP check runtime unavailable
    */
   503: ErrorPayload;
 };
@@ -28827,7 +28827,7 @@ export type CheckSettingsMCPServerError =
 
 export type CheckSettingsMCPServerResponses = {
   /**
-   * OK
+   * MCP check result
    */
   200: SettingsMCPServerItemPayload;
 };
@@ -41298,7 +41298,7 @@ export type CheckSessionMCPData = {
 
 export type CheckSessionMCPErrors = {
   /**
-   * Invalid MCP OAuth request or session
+   * Invalid MCP check request or disabled source
    */
   400: ErrorPayload;
   /**
@@ -41310,15 +41310,15 @@ export type CheckSessionMCPErrors = {
    */
   404: ErrorPayload;
   /**
-   * MCP server waiting for approval or definition changed
+   * MCP check canceled by client
    */
-  409: ErrorPayload;
+  499: ErrorPayload;
   /**
    * Internal server error
    */
   500: ErrorPayload;
   /**
-   * MCP OAuth runtime is unavailable
+   * MCP check runtime unavailable
    */
   503: ErrorPayload;
 };
@@ -41327,7 +41327,7 @@ export type CheckSessionMCPError = CheckSessionMCPErrors[keyof CheckSessionMCPEr
 
 export type CheckSessionMCPResponses = {
   /**
-   * OK
+   * MCP check result
    */
   200: SessionMCP;
 };

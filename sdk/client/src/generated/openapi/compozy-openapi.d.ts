@@ -6870,7 +6870,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Read session MCP availability without discovery */
+    /** Read session MCP availability without discovery; redacted definition previews appear only for waiting approval and never for app tokens */
     get: operations["getSessionMCP"];
     put?: never;
     post?: never;
@@ -42496,7 +42496,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
+      /** @description MCP check result */
       200: {
         headers: {
           [name: string]: unknown;
@@ -42505,7 +42505,7 @@ export interface operations {
           "application/json": components["schemas"]["SettingsMCPServerItemPayload"];
         };
       };
-      /** @description Invalid MCP OAuth request or session */
+      /** @description Invalid MCP check request or disabled source */
       400: {
         headers: {
           [name: string]: unknown;
@@ -42532,8 +42532,8 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description MCP server waiting for approval or definition changed */
-      409: {
+      /** @description MCP check canceled by client */
+      499: {
         headers: {
           [name: string]: unknown;
         };
@@ -42550,7 +42550,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description MCP OAuth runtime is unavailable */
+      /** @description MCP check runtime unavailable */
       503: {
         headers: {
           [name: string]: unknown;
@@ -58593,7 +58593,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
+      /** @description MCP check result */
       200: {
         headers: {
           [name: string]: unknown;
@@ -58602,7 +58602,7 @@ export interface operations {
           "application/json": components["schemas"]["SessionMCP"];
         };
       };
-      /** @description Invalid MCP OAuth request or session */
+      /** @description Invalid MCP check request or disabled source */
       400: {
         headers: {
           [name: string]: unknown;
@@ -58629,8 +58629,8 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description MCP server waiting for approval or definition changed */
-      409: {
+      /** @description MCP check canceled by client */
+      499: {
         headers: {
           [name: string]: unknown;
         };
@@ -58647,7 +58647,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description MCP OAuth runtime is unavailable */
+      /** @description MCP check runtime unavailable */
       503: {
         headers: {
           [name: string]: unknown;

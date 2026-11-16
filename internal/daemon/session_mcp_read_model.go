@@ -4,10 +4,12 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
 
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -95,7 +97,7 @@ func composeSessionMCP(
 		switch row.State {
 		case "ready", "applies_next_message":
 			result.Usable++
-		case mcpWaitingApproval, "needs_sign_in", hookAgentEventsFailedKey:
+		case mcpWaitingApproval, mcpNeedsSignIn, hookAgentEventsFailedKey:
 			result.Attention++
 		}
 	}
@@ -151,9 +153,8 @@ func sessionMCPRow(
 	row := session.MCPServerRow{
 		Name: item.Name, Owner: item.Owner, State: "ready",
 		Scope: string(source.Scope), WorkspaceID: source.WorkspaceID, Profile: source.ProfileName,
-		Transport: strings.TrimSpace(string(item.Transport)), Command: strings.TrimSpace(item.Command),
-		Args: slices.Clone(item.Args), URL: strings.TrimSpace(item.URL),
-		Source: session.MCPServerSource{Kind: string(source.Kind), Path: item.DefinitionSource},
+		Transport: strings.TrimSpace(string(item.Transport)),
+		Source:    session.MCPServerSource{Kind: string(source.Kind)},
 	}
 	if row.Scope == "" {
 		row.Scope, row.WorkspaceID, row.Profile = string(item.Scope), item.WorkspaceID, item.ProfileName
@@ -185,17 +186,37 @@ func sessionMCPRow(
 	switch {
 	case item.Approval.State == mcpApprovalWaiting:
 		row.State, row.Reason = mcpWaitingApproval, "Project server waiting for approval"
+		setSessionMCPPreview(&row, item)
 	case !slices.Contains(allowed, item.Name):
 		row.State, row.Reason = "not_available", "Limited by the parent session"
 	case item.AuthStatus != nil && item.AuthStatus.Status != "" &&
 		item.AuthStatus.Status != "authenticated" && item.AuthStatus.Status != "unconfigured":
-		row.State, row.Reason = "needs_sign_in", "Sign in to "+item.Name+" in CompozyOS"
+		row.State, row.Reason = mcpNeedsSignIn, "Sign in to "+item.Name+" in CompozyOS"
 	case row.CallableCount == 0:
 		row.State, row.Reason = hookAgentEventsFailedKey, "No callable tools available"
 	case runtime.Pending && (runtime.PendingServers[name] || runtime.BoundServers[name] != row.CallableCount):
 		row.State = "applies_next_message"
 	}
 	return row
+}
+
+func setSessionMCPPreview(row *session.MCPServerRow, item *settingspkg.MCPServerItem) {
+	row.Command = diagnosticspkg.Redact(item.Command)
+	row.Args = make([]string, len(item.Args))
+	for i, arg := range item.Args {
+		row.Args[i] = diagnosticspkg.Redact(arg)
+	}
+	row.Source.Path = diagnosticspkg.Redact(item.DefinitionSource)
+	if endpoint, err := url.Parse(item.URL); err == nil {
+		endpoint.User = nil
+		query := endpoint.Query()
+		for key := range query {
+			query.Set(key, "[redacted]")
+		}
+		endpoint.RawQuery = query.Encode()
+		endpoint.Fragment = ""
+		row.URL = diagnosticspkg.Redact(endpoint.String())
+	}
 }
 
 // refresh debounces summary notifications at the declaration watcher's existing cadence.

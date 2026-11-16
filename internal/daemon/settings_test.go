@@ -711,6 +711,26 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			t.Fatalf("superseded status=%+v, %v", status, err)
 		}
 	})
+	t.Run("Should isolate workspace failures by the resolved profile", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		profile, err := state.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{state: state}
+		target := mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: req.WorkspaceID, ServerName: "docs"}
+		ctx := mcpauth.WithConsentScope(t.Context(), mcpauth.ConsentScope{ProfileName: "work"})
+		key, tracked, err := surface.settingsMCPDeadEntityKey(ctx, target, "docs")
+		if err != nil || !tracked || key.ProfileID != profile.ID || key.WorkspaceID != req.WorkspaceID {
+			t.Fatalf("key=%+v tracked=%v err=%v", key, tracked, err)
+		}
+		defaultKey, tracked, err := surface.settingsMCPDeadEntityKey(t.Context(), target, "docs")
+		if err != nil || !tracked || defaultKey.ProfileID != store.DefaultProfileID || defaultKey == key {
+			t.Fatalf("default key=%+v tracked=%v err=%v", defaultKey, tracked, err)
+		}
+	})
+
 	t.Run("Should retry a dead server through real MCP discovery and clear its durable failure", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -740,7 +760,10 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			deadEntities:   deadentity.New(db, deadentity.WithPermanentFailureThreshold(1)),
 		}
 		target := mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "ws-retry", ServerName: "docs"}
-		key, tracked := settingsMCPDeadEntityKey(target, "docs")
+		key, tracked, err := surface.settingsMCPDeadEntityKey(ctx, target, "docs")
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !tracked {
 			t.Fatal("untracked server")
 		}

@@ -56,6 +56,9 @@ func (p *MCPProvider) mcpSourceAvailabilityGeneration(
 	if p.reliability != nil && p.reliability.dead(ctx, source, profileID) {
 		return string(ReasonBackendDead), true
 	}
+	if _, failed := p.discoveryFailures.Load(source); failed {
+		return string(ReasonBackendUnhealthy), true
+	}
 	if isNilInterface(p.auth) {
 		return "available", true
 	}

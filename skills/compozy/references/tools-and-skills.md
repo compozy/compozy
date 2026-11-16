@@ -323,13 +323,18 @@ message.
 Use `compozy session mcp check <id> <name> [--owner extension:<name>]` to retry one server.
 The session POST route is `/api/workspaces/{ws}/sessions/{id}/mcp/servers/{name}/check`;
 `owner` defaults to `manual`. It returns refreshed session MCP availability, performs discovery
-only for that effective server, and never restarts the agent. Waiting or restricted servers stay
+only for that effective server, and never restarts the agent. Waiting, restricted, or needs-sign-in servers stay
 unprobed. A recovered server that needs activation reports `applies_next_message`.
-Settings can retry one item through `POST /api/settings/mcp-servers/{name}/check` with the same
+Settings can retry one item with `compozy mcp check <name>` or
+`POST /api/settings/mcp-servers/{name}/check` with the same
 `scope`, `workspace_id`, `profile`, and `owner` selectors as authentication. It returns the item
 with `runtime_status`. These check routes deny app tokens and preserve consent requirements.
-Session rows expose `scope`, optional `workspace_id`/`profile`, `transport`, optional
-`command`/`args`/`url`, `source{kind,path}`, and waiting `approval{reason,definition_digest}`.
+Session rows expose `scope`, optional `workspace_id`/`profile`, `transport`, and `source.kind`.
+Only `waiting_approval` rows expose the definition preview (`command`/`args`/`url`, `source.path`)
+and `approval{reason,definition_digest}`. Preview text is redacted; URLs omit userinfo and mask
+all query values. App-token reads omit the preview entirely. Checks bypass tools/list caches,
+retain last-known-good tools on failure, and publish changed session summaries without a reload.
+Unavailable checks return 503, disabled sources 400, and client-canceled checks 499.
 Settings items expose the declaration file as `definition_source` when available.
 
 ### Runtime MCP Inventory

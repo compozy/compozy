@@ -17,17 +17,24 @@ func (p *MCPProvider) CheckMCPServer(ctx context.Context, scope Scope, name stri
 		if mcpSourceServerName(source) != name {
 			continue
 		}
-		p.forgetDiscovered(func(candidate SourceRef) bool { return candidate == source })
 		if key, tracked := mcpDeadEntityKey(source, scope.ProfileID); tracked && p.reliability != nil {
-			p.reliability.mu.Lock()
-			delete(p.reliability.states, key)
-			p.reliability.mu.Unlock()
-			p.reliability.service.ForgetEntity(key)
 			ctx = deadentity.WithProbeRetry(ctx, key)
 		}
-		ctx = context.WithValue(ctx, cachedMCPProjectionKey{}, false)
+		ctx = WithFreshMCPDiscovery(context.WithValue(ctx, cachedMCPProjectionKey{}, false))
 		_, _, err := p.listSourceDescriptors(ctx, source, scope.ProfileID, p.discoveryBudget)
 		return err
 	}
 	return NewValidationError("name", ReasonSourceDisabled, "MCP server is not available in this scope")
+}
+
+type freshMCPDiscoveryKey struct{}
+
+// WithFreshMCPDiscovery bypasses executor tool-list caches for an explicit probe.
+func WithFreshMCPDiscovery(ctx context.Context) context.Context {
+	return context.WithValue(ctx, freshMCPDiscoveryKey{}, true)
+}
+
+func FreshMCPDiscovery(ctx context.Context) bool {
+	fresh, ok := ctx.Value(freshMCPDiscoveryKey{}).(bool)
+	return ok && fresh
 }

@@ -33,6 +33,7 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -45,6 +46,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/telemetry"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -8049,6 +8051,83 @@ func (s *agentMCPApprovalSettings) RecordWorkspaceMCPWrite(
 // Invariant: MCP summary decorates detail only and scoped reads authorize before reading inventory. Owner: session HTTP core; canonical handler suite (UT-083).
 func TestSessionMCPDetailAndScope(t *testing.T) {
 	t.Parallel()
+	t.Run("Should omit waiting previews from app-token reads without mutating operator rows", func(t *testing.T) {
+		t.Parallel()
+		info := testutil.NewSessionInfo("sess-mcp")
+		info.WorkspaceID, info.ProfileID = "ws-mcp", store.DefaultProfileID
+		base := &testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+		}
+		fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		reader := &sessionMCPHandlerStub{
+			SessionManager: fixture.Handlers.Sessions,
+			result: session.MCP{
+				SessionID: info.ID,
+				CompozyServers: []session.MCPServerRow{
+					{
+						Name:    "docs",
+						State:   "waiting_approval",
+						Command: "private-command",
+						Args:    []string{"private-arg"},
+						URL:     "https://private.test",
+						Source:  session.MCPServerSource{Kind: "workspace", Path: "/private/path"},
+					},
+				},
+			},
+		}
+		fixture.Handlers.Sessions = reader
+		fixture.Engine.GET("/workspaces/:workspace_id/sessions/:session_id/mcp", fixture.Handlers.GetSessionMCP)
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp/mcp", http.NoBody,
+		)
+		request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, request)
+		if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "private") ||
+			!strings.Contains(response.Body.String(), "waiting_approval") {
+			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+		if reader.result.CompozyServers[0].Command != "private-command" {
+			t.Fatal("operator row was mutated")
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{"Should map unavailable checks to service unavailable", toolspkg.ErrToolUnavailable, 503},
+		{"Should map unavailable settings checks to service unavailable", settingspkg.ErrUnavailable, 503},
+		{"Should reject a disabled check source", toolspkg.NewValidationError("name", toolspkg.ReasonSourceDisabled, "source disabled"), 400},
+		{"Should map client cancellation", context.Canceled, 499},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			info := testutil.NewSessionInfo("sess-mcp")
+			info.WorkspaceID, info.ProfileID = "ws-mcp", store.DefaultProfileID
+			base := &testutil.StubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+			}
+			fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture.Handlers.Sessions = &sessionMCPHandlerStub{SessionManager: fixture.Handlers.Sessions, err: tc.err}
+			fixture.Engine.POST(
+				"/workspaces/:workspace_id/sessions/:session_id/mcp/servers/:name/check",
+				fixture.Handlers.CheckSessionMCP,
+			)
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/workspaces/ws-mcp/sessions/sess-mcp/mcp/servers/docs/check",
+				nil,
+			)
+			if response.Code != tc.status || !strings.Contains(response.Body.String(), "error") {
+				t.Fatalf("response=%d %s", response.Code, response.Body.String())
+			}
+		})
+	}
+
 	t.Run("Should scope a check before forwarding its exact server owner", func(t *testing.T) {
 		t.Parallel()
 		info := testutil.NewSessionInfo("sess-mcp")

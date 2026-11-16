@@ -2,7 +2,9 @@ package session
 
 import (
 	"context"
-	"errors"
+	"fmt"
+
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type MCPChecker interface {
@@ -14,7 +16,7 @@ var _ MCPChecker = (*Manager)(nil)
 func (m *Manager) CheckSessionMCP(ctx context.Context, id, name, owner string) (MCP, error) {
 	checker, ok := m.mcpReader.(MCPChecker)
 	if !ok {
-		return MCP{}, errors.New("session: MCP check unavailable")
+		return MCP{}, fmt.Errorf("%w: session MCP check unavailable", toolspkg.ErrToolUnavailable)
 	}
 	return checker.CheckSessionMCP(ctx, id, name, owner)
 }
