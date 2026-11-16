@@ -27,6 +27,16 @@ returned `NOTHING_TO_REPORT`; Claude also refused a requested scratch-file write
 See `../reports/2026-11-01-always-on-b4-remediation.md` for unavailable providers,
 scope limits, and exact evidence. This does not mark the Web journey walked.
 
+Provider-overlay regression (#1770): repeat a check-in with a second-account provider
+declaring `runtime_provider = "claude"`, then with an OpenCode overlay. Both must
+negotiate `plan` and accept safe mode updates while reads remain allowed and writes
+remain blocked. A Codex overlay accepts `read-only`, never `plan`. An overlay with
+no runtime mapping or an unsupported runtime that advertises only `plan` still fails
+with `triage_unsupported`; a later unsafe mode update fences subsequent prompts.
+Automation owners: `internal/acp` suites `TestTriageStartup` (subprocess negotiation)
+and `TestTriagePolicy` (mode guard and tool permissions). CI owns verification for
+this change; no local tests or live provider walk were run under the dispatch restriction.
+
 QA impact 2026-11-01 (always-on F1): built against the `_dx.md` contract with typed adapters and mocks,
 before those routes merged. Focused suites own the states. Not walked.
 

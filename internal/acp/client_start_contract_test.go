@@ -3267,25 +3267,36 @@ func TestStartFinalizesRuntimeGuidance(t *testing.T) {
 }
 
 func TestTriageStartup(t *testing.T) {
+	// Invariant: triage negotiates a verified read-only mode for the effective runtime provider.
+	// Owner: ACP startup negotiation; canonical suite: TestTriageStartup.
 	for _, tc := range []struct {
-		name, provider, scenario string
-		allowed                  bool
+		name, provider, runtimeProvider, scenario string
+		allowed                                   bool
 	}{
-		{"Should select the verified Claude planning mode", "claude", "mode_mapping", true},
-		{"Should confirm a config-only planning mode", "opencode", "triage_config_mode", true},
-		{"Should reject an unverified Kimi planning mode", "kimi-cli", "triage_config_mode", false},
-		{"Should reject an unconfirmed planning mode", "opencode", "triage_config_unconfirmed", false},
-		{"Should reject an unknown providers planning mode", "unknown", "triage_config_mode", false},
+		{"Should select the verified Claude planning mode", "claude", "", "mode_mapping", true},
+		{"Should select the Claude overlay planning mode", "claude-secondary", "claude", "mode_mapping", true},
+		{"Should confirm the Claude overlay config-only planning mode", "claude-secondary", "claude", "triage_config_mode", true},
+		{"Should confirm a config-only planning mode", "opencode", "", "triage_config_mode", true},
+		{"Should confirm the OpenCode overlay planning mode", "opencode-secondary", "opencode", "triage_config_mode", true},
+		{"Should reject an unverified Kimi planning mode", "kimi-cli", "", "triage_config_mode", false},
+		{"Should reject an unsupported overlay runtime", "claude-secondary", "kimi-cli", "triage_config_mode", false},
+		{"Should reject a Claude name backed by an unsupported runtime", "claude", "kimi-cli", "triage_config_mode", false},
+		{"Should reject an overlay without a runtime provider", "claude-secondary", "", "triage_config_mode", false},
+		{"Should reject an unconfirmed planning mode", "opencode", "", "triage_config_unconfirmed", false},
+		{"Should reject an unknown providers planning mode", "unknown", "", "triage_config_mode", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
 			process, err := driver.Start(t.Context(), StartOpts{
-				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
-				AgentName:      "helper",
-				ProviderName:   tc.provider,
-				Command:        helperCommand(t),
-				Cwd:            t.TempDir(),
+				ProviderConfig: &compozyconfig.ProviderConfig{
+					AuthMode:        compozyconfig.ProviderAuthModeNone,
+					RuntimeProvider: tc.runtimeProvider,
+				},
+				AgentName:    "helper",
+				ProviderName: tc.provider,
+				Command:      helperCommand(t),
+				Cwd:          t.TempDir(),
 				Env: helperEnv(
 					tc.scenario,
 					"",
@@ -3298,6 +3309,12 @@ func TestTriageStartup(t *testing.T) {
 			}
 			if (err == nil) != tc.allowed {
 				t.Fatalf("triage startup: %v", err)
+			}
+			if !tc.allowed && tc.scenario != "triage_config_unconfirmed" && !errors.Is(err, ErrTriageUnsupported) {
+				t.Fatalf("startup error=%v, want triage_unsupported", err)
+			}
+			if tc.allowed && process.permissions.mode != compozyconfig.PermissionModeApproveReads {
+				t.Fatalf("triage permissions = %s, want approve-reads", process.permissions.mode)
 			}
 			if tc.allowed && tc.scenario == "triage_config_mode" {
 				option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, "mode")

@@ -360,6 +360,52 @@ func TestPermissionWaitResolution(t *testing.T) {
 }
 
 func TestTriagePolicy(t *testing.T) {
+	// Invariant: mode updates use the effective runtime and unsafe updates fence later prompts.
+	// Owner: ACP session mode guard; canonical suite: TestTriagePolicy.
+	for _, tc := range []struct {
+		name, runtimeProvider, mode string
+		allowed                     bool
+	}{
+		{"Should accept Claude overlay planning updates", "claude", "plan", true},
+		{"Should accept OpenCode overlay planning updates", "opencode", "plan", true},
+		{"Should accept Codex overlay read only updates", "codex", "read-only", true},
+		{"Should reject Codex overlay planning updates", "codex", "plan", false},
+		{"Should reject planning updates without a runtime provider", "", "plan", false},
+		{"Should reject unsupported runtime planning updates", "kimi-cli", "plan", false},
+		{"Should reject Claude overlay write mode updates", "claude", "bypassPermissions", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			provider := compozyconfig.ProviderConfig{RuntimeProvider: tc.runtimeProvider}
+			p := &AgentProcess{
+				SessionID:        "provider",
+				providerName:     "secondary",
+				modeProviderName: provider.RuntimeProviderName("secondary"),
+				executionPolicy:  ExecutionPolicyTriage,
+			}
+			err := p.handleSessionUpdate(mustMarshalJSON(map[string]any{
+				"sessionId": "provider", "update": map[string]any{
+					"sessionUpdate": "current_mode_update", "currentModeId": tc.mode,
+				},
+			}))
+			if tc.allowed {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if !errors.Is(err, ErrTriageUnsupported) {
+				t.Fatalf("mode update error=%v, want triage_unsupported", err)
+			}
+			active, err := p.beginPrompt("later", 16)
+			if tc.allowed {
+				if err != nil || active == nil {
+					t.Fatalf("later prompt=%v error=%v", active, err)
+				}
+				drainObservedPrompt(p, active)
+			} else if !errors.Is(err, ErrTriageUnsupported) || active != nil {
+				t.Fatalf("later prompt=%v error=%v", active, err)
+			}
+		})
+	}
 	// Invariant: a read-only policy violation fences future prompts even while idle.
 	// Owner: ACP prompt admission; canonical suite: TestTriagePolicy.
 	t.Run("Should reject a later prompt after an idle mode violation", func(t *testing.T) {
