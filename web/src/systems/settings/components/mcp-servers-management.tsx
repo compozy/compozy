@@ -120,6 +120,7 @@ function MCPServerRowPanels({ management }: MCPServersManagementProps) {
               mcpApprovalReason(reviewing.entry)
             }
             launch={mcpAllowPanelLaunch(reviewing.entry)}
+            source={reviewing.entry.definition_source}
             allowing={runtime.allowingKey !== undefined}
             onAllow={() => {
               runtime.closeAllow();

@@ -503,6 +503,7 @@ describe("MCP Settings page", () => {
           workspace_id: "ws-platform",
           callable_in_sessions: false,
           approval: { required: true, state: "waiting", definition_digest: "sha256:seen" },
+          definition_source: "/work/platform/.mcp.json",
           source_metadata: {
             available_targets: ["workspace-config"],
             effective_source: {
@@ -534,6 +535,10 @@ describe("MCP Settings page", () => {
       const review = await screen.findByRole("dialog", { name: "Allow github?" });
       expect(within(review).getByTestId("mcp-allow-panel-launch")).toHaveTextContent(
         "npx -y @modelcontextprotocol/server-github"
+      );
+      expect(review).toHaveTextContent("Added by .mcp.json in this project");
+      expect(within(review).getByTestId("mcp-allow-panel-source")).toHaveTextContent(
+        "/work/platform/.mcp.json"
       );
       expect(approvals).toEqual([]);
       await user.click(within(review).getByTestId("mcp-allow-panel-allow"));
