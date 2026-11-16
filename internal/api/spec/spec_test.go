@@ -6086,7 +6086,7 @@ func addAlwaysOnAdditiveSchemas(value any) {
 	}
 }
 
-// addDaemonReadinessSchema accepts the additive optional daemon readiness phase on the status read.
+// addDaemonReadinessSchema accepts the additive optional readiness phase on status and identity reads.
 // The baseline predates components, so the current schema is dereferenced before it is copied in.
 func addDaemonReadinessSchema(t *testing.T, baseline, current map[string]any) {
 	t.Helper()
@@ -6117,10 +6117,10 @@ func addDaemonReadinessSchema(t *testing.T, baseline, current map[string]any) {
 			return value
 		}
 	}
-	daemonProperties := func(document map[string]any, resolve bool) map[string]any {
+	daemonProperties := func(document map[string]any, path string, resolve bool) map[string]any {
 		var node any = document
 		for _, key := range []string{
-			"paths", "/api/status", "get", "responses", "200", "content", "application/json", "schema",
+			"paths", path, "get", "responses", "200", "content", "application/json", "schema",
 			"properties", "daemon", "properties",
 		} {
 			object, ok := node.(map[string]any)
@@ -6140,11 +6140,14 @@ func addDaemonReadinessSchema(t *testing.T, baseline, current map[string]any) {
 		}
 		return properties
 	}
-	readiness, ok := daemonProperties(current, true)["readiness"]
+	readiness, ok := daemonProperties(current, "/api/status", true)["readiness"]
 	if !ok {
 		t.Fatal("status daemon schema is missing the readiness property")
 	}
-	daemonProperties(baseline, false)["readiness"] = deref(readiness, 0)
+	for _, path := range []string{"/api/status", "/api/status/identity"} {
+		// Keep the historical required sets: identity readiness is optional and matches full status.
+		daemonProperties(baseline, path, false)["readiness"] = deref(readiness, 0)
+	}
 }
 
 // addSessionCatalogExcludeRootParameter admits the additive exclude_root query
