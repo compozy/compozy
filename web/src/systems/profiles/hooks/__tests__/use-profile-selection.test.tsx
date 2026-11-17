@@ -6,7 +6,7 @@
 // whatever the shell shows (issue #1183). A switch moves the remembered choice the aggregate acts as
 // at once, so X → Y → All never acts as X while the persist and reread are in flight (issue #1194).
 // Leaving All profiles keeps it for a reload after a failure only when the daemon refused the write
-// (issue #1436).
+// (issue #1436). Once a view is entered, a reread that leaves the choice unchanged wakes no caller (#1736).
 // Owning layer: useActiveProfileView / useSwitchProfile / useProfileReadScope.
 // Boundary IN: the real profile view and active workspace stores.
 // Boundary OUT: profile HTTP adapters (mocked I/O).
@@ -109,6 +109,48 @@ describe("global profile selection", () => {
     expect(result.current.aggregate).toBe(true);
     expect(result.current.scopeLabel).toBeNull();
     await waitFor(() => expect(result.current.destinationOwner?.name).toBe("marketing"));
+  });
+
+  it("Should not wake the caller for a reread that leaves the entered choice unchanged [#1736]", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useActiveProfileView();
+      },
+      { wrapper }
+    );
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" })
+    );
+    await waitFor(() =>
+      expect(queryClient.getQueryState(["profiles", "selection", "global"])?.fetchStatus).toBe(
+        "idle"
+      )
+    );
+    const settled = renders;
+    let answer: (selection: { scope: "global"; profile: string }) => void = () => undefined;
+    vi.mocked(fetchProfileSelection).mockImplementationOnce(
+      () => new Promise(resolve => (answer = resolve))
+    );
+
+    let reread: Promise<void> = Promise.resolve();
+    act(() => {
+      reread = queryClient.refetchQueries({ queryKey: ["profiles", "selection", "global"] });
+    });
+    await act(() => new Promise(resolve => setTimeout(resolve, 20)));
+    expect(queryClient.getQueryState(["profiles", "selection", "global"])?.fetchStatus).toBe(
+      "fetching"
+    );
+    await act(async () => {
+      answer({ scope: "global", profile: "marketing" });
+      await reread;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+
+    expect(renders).toBe(settled);
+    expect(result.current).toEqual({ kind: "profile", profile: "marketing" });
   });
 
   it("Should read a pinned window in its own profile under All profiles [#1183]", async () => {

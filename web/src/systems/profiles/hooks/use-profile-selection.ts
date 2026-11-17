@@ -51,7 +51,13 @@ export function useRememberedProfileName(enabled = true): string | undefined {
  * exist in a terminal. Switching workspaces never moves it (issue #792).
  */
 export function useActiveProfileView(enabled = true): ProfileView {
-  const remembered = useRememberedProfile(enabled);
+  // The reread only matters until the store holds a view: entering never replaces one. Past that,
+  // only its answer wakes the caller, so a reread that changes nothing re-renders no shell (#1736).
+  const remembered = useQuery({
+    ...profileSelectionOptions(enabled),
+    notifyOnChangeProps: () =>
+      profileViewStore.getSnapshot().context.view === null ? ["data", "isFetching"] : ["data"],
+  });
   const local = useSelector(profileViewStore, state => state.context.view);
   const rememberedProfile = remembered.data?.profile;
   const remembering = remembered.isFetching;
