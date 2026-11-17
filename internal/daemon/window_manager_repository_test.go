@@ -88,7 +88,7 @@ func TestWindowManagerRepository(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(loaded.Windows) != 5 {
+		if len(loaded.Windows) != 4 {
 			t.Fatalf("persisted windows=%d", len(loaded.Windows))
 		}
 	})

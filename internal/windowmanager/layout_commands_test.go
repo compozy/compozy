@@ -49,7 +49,6 @@ func threeTabs(t *testing.T) testEnvironment {
 	for _, id := range []WindowID{"a", "b", "c"} {
 		openTestWindow(t, e.manager, "workspace-a", nil, id, "desktop-default")
 	}
-	executeTestCommand(t, e.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "win-newtab-desktop-default"})
 	return e
 }
 

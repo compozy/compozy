@@ -847,6 +847,9 @@ edge_band = false
 			return result
 		}
 
+		// A first window replaces each empty desktop's New Tab; the policy places the second.
+		open(fixture.workspace.ID, "seed-a")
+		open(workspaceB.ID, "seed-b")
 		workspaceAResult := open(fixture.workspace.ID, "window-a")
 		if got := workspaceAResult.Snapshot.Desktops[0].Tabs[0].Root.Kind; got != windowmanager.NodeKindSplit {
 			t.Fatalf("workspace A placement = %q, want workspace-configured tiled", got)
@@ -1129,16 +1132,19 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 						t.Fatal(err)
 					}
 					bound, exists := snapshot.Windows["bound"]
-					if len(snapshot.History.Undo) != 0 ||
-						snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
+					if len(snapshot.History.Undo) != 0 {
 						t.Fatalf("retirement state %s/%s: %#v", profile, partition, snapshot)
 					}
 					if retirement == "session" {
-						if exists || len(snapshot.Windows) != 1 {
+						placeholder := ""
+						for _, window := range snapshot.Windows {
+							placeholder = window.App
+						}
+						if exists || len(snapshot.Windows) != 1 || placeholder != "new-tab" {
 							t.Fatalf("deleted session remains in %s/%s: %#v", profile, partition, snapshot)
 						}
 					} else if !exists || bound.InstanceKey != nil || bound.Route.Pathname != "/sessions" ||
-						len(bound.Route.Search) != 0 || len(snapshot.Windows) != 2 {
+						len(bound.Route.Search) != 0 || len(snapshot.Windows) != 1 {
 						t.Fatalf("unretired %s/%s: %#v", profile, partition, snapshot)
 					}
 				}
@@ -1551,7 +1557,7 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(snapshot.Windows) != 3 {
+			if len(snapshot.Windows) != 2 {
 				t.Fatalf("persisted windows: %+v", snapshot.Windows)
 			}
 			for _, window := range snapshot.Windows {

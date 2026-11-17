@@ -23,6 +23,7 @@ type reduction struct {
 
 func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
 	beforeMembers := tabMemberCounts(s)
+	emptyBefore := emptyDesktopPlaceholders(s)
 	var changed bool
 	var err error
 	switch c := command.(type) {
@@ -46,6 +47,9 @@ func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
 		changed, err = r.replace(s, c)
 	default:
 		changed, err = r.reduceLifecycle(s, command)
+		if err == nil && changed {
+			r.dropSupersededPlaceholders(s, emptyBefore)
+		}
 	}
 	if err != nil {
 		return reduction{}, err

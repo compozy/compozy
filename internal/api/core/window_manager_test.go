@@ -478,7 +478,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 			if !result.Applied || result.Snapshot.Version != windowmanager.SnapshotVersion {
 				t.Fatalf("%s result = %+v", command.id, result)
 			}
-			if command.id == "window.stack.group" && len(result.Snapshot.Desktops[0].Tabs) != 3 {
+			if command.id == "window.stack.group" && len(result.Snapshot.Desktops[0].Tabs) != 2 {
 				t.Fatalf("group result = %+v, want one floating stack", result.Snapshot.Desktops[0])
 			}
 			revision = uint64(result.Snapshot.Revision)
@@ -494,7 +494,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		)
 		requireWindowManagerStatus(t, response, http.StatusOK)
 		decodeWindowManagerTestBody(t, response, &snapshot)
-		if snapshot.ClosedEntryCount != 0 || len(snapshot.Windows) != 3 {
+		if snapshot.ClosedEntryCount != 0 || len(snapshot.Windows) != 2 {
 			t.Fatalf("final v3 snapshot = %+v", snapshot)
 		}
 	})

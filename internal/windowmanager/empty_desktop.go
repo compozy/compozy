@@ -38,6 +38,48 @@ func (r *reducer) ensureDesktopTabs(s *Snapshot) error {
 	return nil
 }
 
+// emptyDesktopPlaceholders names, per desktop that holds only New Tab placeholders, those
+// placeholder windows.
+func emptyDesktopPlaceholders(s *Snapshot) map[DesktopID][]WindowID {
+	empty := make(map[DesktopID][]WindowID)
+	for _, d := range s.Desktops {
+		if !desktopEmpty(s, d) {
+			continue
+		}
+		ids := []WindowID{}
+		for _, tab := range d.Tabs {
+			ids = append(ids, nodeWindowIDs(tab.Root)...)
+		}
+		empty[d.ID] = ids
+	}
+	return empty
+}
+
+// dropSupersededPlaceholders removes the New Tab placeholders of a desktop that was empty before
+// this command and now holds real content, whether the content landed as a tab or split beside
+// one: a placeholder only stands in for an empty desktop, so the first real window replaces it
+// (#1799). A New Tab this command opened itself is not a stand-in and stays.
+func (r *reducer) dropSupersededPlaceholders(s *Snapshot, emptyBefore map[DesktopID][]WindowID) {
+	for i := range s.Desktops {
+		d := &s.Desktops[i]
+		placeholders, wasEmpty := emptyBefore[d.ID]
+		if !wasEmpty || desktopEmpty(s, *d) {
+			continue
+		}
+		for _, id := range placeholders {
+			w, ok := s.Windows[id]
+			if !ok || w.App != newTabApp || w.DesktopID != d.ID {
+				continue
+			}
+			removeWindow(s, id)
+			delete(s.Windows, id)
+			r.changes.window(id)
+			r.changes.tab(w.TabID)
+			r.changes.desktop(d.ID)
+		}
+	}
+}
+
 // DefaultSnapshot is the stable empty-workspace topology before the first commit.
 func DefaultSnapshot(id WorkspaceID) Snapshot {
 	windowID := WindowID("win-newtab-desktop-default")

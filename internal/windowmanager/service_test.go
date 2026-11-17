@@ -105,7 +105,7 @@ func TestCommandTransaction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Preview(open) error = %v", err)
 		}
-		if len(preview.Snapshot.Windows) != 2 {
+		if len(preview.Snapshot.Windows) != 1 {
 			t.Fatalf("Preview(open) windows = %+v", preview.Snapshot.Windows)
 		}
 		for windowID, window := range preview.Snapshot.Windows {

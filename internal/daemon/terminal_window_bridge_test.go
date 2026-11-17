@@ -194,7 +194,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(after.Windows) != testCase.remaining+1 {
+			if len(after.Windows) != max(testCase.remaining, 1) {
 				t.Fatalf("stale windows: %+v", after.Windows)
 			}
 			if testCase.remaining != 0 {
