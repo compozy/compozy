@@ -202,6 +202,10 @@ export async function withExtensionProcess<T>(
     const entry = join(directory, "index.mjs");
     await writeFile(entry, source);
     const child = spawn(process.execPath, [entry], { stdio: ["pipe", "pipe", "pipe"] });
+    let stdinError: Error | undefined;
+    child.stdin.on("error", error => {
+      stdinError ??= error;
+    });
     const stdoutInterface = readline.createInterface({ input: child.stdout });
     const stdout = new BufferedMessageReader(stdoutInterface);
     const stderr = readline.createInterface({ input: child.stderr });
@@ -213,7 +217,15 @@ export async function withExtensionProcess<T>(
         send: message => {
           child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);
         },
-        read: label => stdout.next({ child, label, stderrLines }),
+        read: label => {
+          const diagnostics = { child, label, stderrLines };
+          if (stdinError) {
+            return Promise.reject(
+              new Error(`stdin write failed ${formatDiagnostics(diagnostics)}: ${stdinError.message}`)
+            );
+          }
+          return stdout.next(diagnostics);
+        },
         waitForStderr: (label, pattern) =>
           waitForStderrLine(stderr, { child, label, stderrLines }, pattern),
       });
