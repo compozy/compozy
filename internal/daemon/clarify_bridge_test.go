@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
@@ -47,7 +48,7 @@ func TestClarifyBridgeLifecycle(t *testing.T) {
 				}, nil
 			},
 		}
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		scope.Operator = true
 		result, err := bridge.Answer(
@@ -68,11 +69,11 @@ func TestClarifyBridgeLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve a bounded choice and release the blocked caller", func(t *testing.T) {
+	t.Run("Should resolve a choice and release the blocked caller", func(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{
 			Question: " Which path? ",
@@ -111,11 +112,78 @@ func TestClarifyBridgeLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should record a custom answer on a choice question as custom text, not as a choice", func(t *testing.T) {
+		t.Parallel()
+
+		publisher := newClarifyPublisherStub()
+		bridge := newTestClarifyBridge(t, publisher)
+		scope := testClarifyScope()
+		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{
+			Question: "Which path?",
+			Choices:  []string{"Fast", "Safe"},
+		})
+		publisher.await(t)
+		pending := awaitPendingClarification(t, bridge, scope)
+		answer, err := bridge.Answer(
+			testutil.Context(t),
+			scope,
+			pending[0].RequestID,
+			toolspkg.ClarifyAnswerRequest{Text: "  Hybrid path  "},
+		)
+		if err != nil {
+			t.Fatalf("Answer(custom) error = %v", err)
+		}
+		if answer.Choice != nil || answer.Text != "Hybrid path" || answer.Source != toolspkg.ClarifyAnswerSourceCustom {
+			t.Fatalf("Answer(custom) = %#v, want trimmed custom text with source custom", answer.ClarifyAnswer)
+		}
+		if answer.ResolvedAnswer != "Hybrid path" || answer.Outcome != store.PendingInteractionOutcomeAnswered {
+			t.Fatalf("Answer(custom) = %#v, want the custom text as the resolved answer", answer)
+		}
+		got := awaitClarifyResult(t, result)
+		if got.err != nil || got.answer.Source != toolspkg.ClarifyAnswerSourceCustom || got.answer.Choice != nil {
+			t.Fatalf("Ask() result = %#v, want the custom answer", got)
+		}
+		resolved := publisher.await(t)
+		if resolved.Status != toolspkg.ClarifyStatusResolved || resolved.Answer == nil ||
+			resolved.Answer.Source != toolspkg.ClarifyAnswerSourceCustom {
+			t.Fatalf("resolved event = %#v, want a resolved event recording the custom source", resolved)
+		}
+	})
+
+	t.Run("Should reject custom text that repeats a choice label and combined choice with text", func(t *testing.T) {
+		t.Parallel()
+
+		publisher := newClarifyPublisherStub()
+		bridge := newTestClarifyBridge(t, publisher)
+		scope := testClarifyScope()
+		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{
+			Question: "Which path?",
+			Choices:  []string{"Fast", "Safe"},
+		})
+		publisher.await(t)
+		pending := awaitPendingClarification(t, bridge, scope)
+		choice := 0
+		for _, request := range []toolspkg.ClarifyAnswerRequest{
+			{Text: "Safe"},
+			{ChoiceIndex: &choice, Text: "Other"},
+		} {
+			if _, err := bridge.Answer(testutil.Context(t), scope, pending[0].RequestID, request); !errors.Is(
+				err,
+				toolspkg.ErrClarifyInvalid,
+			) {
+				t.Fatalf("Answer(%#v) error = %v, want %v", request, err, toolspkg.ErrClarifyInvalid)
+			}
+		}
+		assertClarifyBlocked(t, result)
+		bridge.CancelSession(scope.SessionID)
+		awaitClarifyResult(t, result)
+	})
+
 	t.Run("Should reject a second unresolved question without replacing the first", func(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		first := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "First?"})
 		publisher.await(t)
@@ -133,7 +201,7 @@ func TestClarifyBridgeLifecycle(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.await(t)
@@ -151,7 +219,7 @@ func TestClarifyBridgeLifecycle(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		ctx, cancel := context.WithCancel(testutil.Context(t))
 		result := make(chan clarifyResult, 1)
 		go func() {
@@ -178,7 +246,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 
 		publisher := newClarifyPublisherStub()
 		publisher.failNext(toolspkg.ClarifyStatusPending, errors.New("write pending"))
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		_, err := bridge.Ask(testutil.Context(t), scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		if err == nil || !strings.Contains(err.Error(), "write pending") {
@@ -197,7 +265,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		t.Parallel()
 
 		publisher := newBlockingClarifyPublisher()
-		bridge := newTestClarifyBridge(t, 5*time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.awaitPendingPublish(t)
@@ -237,7 +305,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		t.Parallel()
 
 		publisher := newBlockingClarifyPublisher()
-		bridge := newTestClarifyBridge(t, 5*time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.awaitPendingPublish(t)
@@ -274,7 +342,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Name?"})
 		publisher.await(t)
@@ -308,7 +376,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.await(t)
@@ -338,7 +406,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.await(t)
@@ -358,7 +426,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		t.Parallel()
 
 		publisher := &cancelBlockingClarifyPublisher{delegate: newClarifyPublisherStub()}
-		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.delegate.await(t)
@@ -380,12 +448,10 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 
 func newTestClarifyBridge(
 	t *testing.T,
-	timeout time.Duration,
 	publisher clarifyEventPublisher,
 ) *clarifyBridge {
 	t.Helper()
 	bridge, err := newClarifyBridge(
-		timeout,
 		publisher,
 		&clarifySummaryStub{},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -420,13 +486,11 @@ func (c *stubClarifyClock) Advance(delta time.Duration) {
 
 func newTestClarifyBridgeWithClock(
 	t *testing.T,
-	timeout time.Duration,
 	publisher clarifyEventPublisher,
 	now func() time.Time,
 ) *clarifyBridge {
 	t.Helper()
 	bridge, err := newClarifyBridge(
-		timeout,
 		publisher,
 		&clarifySummaryStub{},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -451,37 +515,47 @@ func assertClarifyBlocked(t *testing.T, result <-chan clarifyResult) {
 func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should block past the stub-clock 60s and 5m marks with a zero deadline", func(t *testing.T) {
+	t.Run("Should keep an unanswered wait pending across a day of fake time", func(t *testing.T) {
 		t.Parallel()
 
-		clock := newStubClarifyClock(time.Now().UTC())
-		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridgeWithClock(t, 0, publisher, clock.Now)
-		scope := testClarifyScope()
-		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Which env first?"})
-		publisher.await(t)
-		clock.Advance(61 * time.Second)
-		assertClarifyBlocked(t, result)
-		clock.Advance(5 * time.Minute)
-		assertClarifyBlocked(t, result)
-		pending := awaitPendingClarification(t, bridge, scope)
-		if !pending[0].Deadline.IsZero() {
-			t.Fatalf("Pending().Deadline = %s, want zero for unbounded", pending[0].Deadline)
-		}
-		if pending[0].AskedAt.IsZero() || pending[0].RequestID == "" {
-			t.Fatalf("Pending() = %#v, want identity and ask timestamps", pending[0])
-		}
-		if _, err := bridge.Answer(
-			testutil.Context(t),
-			scope,
-			pending[0].RequestID,
-			toolspkg.ClarifyAnswerRequest{Text: "staging"},
-		); err != nil {
-			t.Fatalf("Answer() error = %v", err)
-		}
-		if got := awaitClarifyResult(t, result); got.err != nil || got.answer.Text != "staging" {
-			t.Fatalf("Ask() result = %#v, want staging", got)
-		}
+		synctest.Test(t, func(t *testing.T) {
+			publisher := newClarifyPublisherStub()
+			bridge := newTestClarifyBridge(t, publisher)
+			scope := testClarifyScope()
+			result := askClarificationOutlivingFakeTime(
+				t,
+				bridge,
+				scope,
+				toolspkg.ClarifyQuestion{Question: "Which env first?"},
+			)
+			publisher.await(t)
+			// Every goroutine is blocked, so the bubble advances fake time straight through the day.
+			time.Sleep(24 * time.Hour)
+			assertClarifyBlocked(t, result)
+			pending := awaitPendingClarification(t, bridge, scope)
+			if !pending[0].Deadline.IsZero() {
+				t.Fatalf("Pending().Deadline = %s, want zero for unbounded", pending[0].Deadline)
+			}
+			if pending[0].AskedAt.IsZero() || pending[0].RequestID == "" {
+				t.Fatalf("Pending() = %#v, want identity and ask timestamps", pending[0])
+			}
+			if statuses := publisher.statuses(); !equalClarifyStatuses(statuses, []toolspkg.ClarifyStatus{
+				toolspkg.ClarifyStatusPending,
+			}) {
+				t.Fatalf("published statuses = %v, want only pending", statuses)
+			}
+			if _, err := bridge.Answer(
+				testutil.Context(t),
+				scope,
+				pending[0].RequestID,
+				toolspkg.ClarifyAnswerRequest{Text: "staging"},
+			); err != nil {
+				t.Fatalf("Answer() error = %v", err)
+			}
+			if got := awaitClarifyResult(t, result); got.err != nil || got.answer.Text != "staging" {
+				t.Fatalf("Ask() result = %#v, want staging", got)
+			}
+		})
 	})
 
 	t.Run("Should resolve a late answer with the answer and never the fallback sentinel", func(t *testing.T) {
@@ -489,7 +563,7 @@ func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 
 		clock := newStubClarifyClock(time.Now().UTC())
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridgeWithClock(t, 0, publisher, clock.Now)
+		bridge := newTestClarifyBridgeWithClock(t, publisher, clock.Now)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{
 			Question: "Which env first?",
@@ -526,7 +600,7 @@ func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, 0, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.await(t)
@@ -544,31 +618,11 @@ func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep a zero deadline for the live wait after a policy change", func(t *testing.T) {
+	t.Run("Should reject a second ask while the unbounded wait stays pending", func(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, 0, publisher)
-		scope := testClarifyScope()
-		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
-		publisher.await(t)
-		bridge.timeout = 5 * time.Minute
-		pending := awaitPendingClarification(t, bridge, scope)
-		if !pending[0].Deadline.IsZero() {
-			t.Fatalf("Pending().Deadline = %s, want pinned zero after policy change", pending[0].Deadline)
-		}
-		assertClarifyBlocked(t, result)
-		bridge.CancelSession(scope.SessionID)
-		if got := awaitClarifyResult(t, result); !errors.Is(got.err, toolspkg.ErrClarifyCanceled) {
-			t.Fatalf("Ask() error = %v, want %v", got.err, toolspkg.ErrClarifyCanceled)
-		}
-	})
-
-	t.Run("Should reject a second ask while the unbounded wait keeps its deadline", func(t *testing.T) {
-		t.Parallel()
-
-		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, 0, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		first := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "First?"})
 		publisher.await(t)
@@ -589,61 +643,16 @@ func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 			t.Fatalf("Ask(first) error = %v, want %v", got.err, toolspkg.ErrClarifyCanceled)
 		}
 	})
-
-	t.Run("Should treat a negative policy as unbounded with a zero deadline", func(t *testing.T) {
-		t.Parallel()
-
-		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, -time.Minute, publisher)
-		scope := testClarifyScope()
-		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
-		publisher.await(t)
-		pending := awaitPendingClarification(t, bridge, scope)
-		if !pending[0].Deadline.IsZero() {
-			t.Fatalf("Pending().Deadline = %s, want zero for a negative policy", pending[0].Deadline)
-		}
-		assertClarifyBlocked(t, result)
-		bridge.CancelSession(scope.SessionID)
-		if got := awaitClarifyResult(t, result); !errors.Is(got.err, toolspkg.ErrClarifyCanceled) {
-			t.Fatalf("Ask() error = %v, want %v", got.err, toolspkg.ErrClarifyCanceled)
-		}
-	})
-
-	t.Run("Should expire a finite wait with the exact fallback sentinel and timed_out", func(t *testing.T) {
-		t.Parallel()
-
-		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, 25*time.Millisecond, publisher)
-		scope := testClarifyScope()
-		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
-		pendingEvent := publisher.await(t)
-		if pendingEvent.Request.Deadline.IsZero() {
-			t.Fatalf("pending event deadline is zero, want a real finite deadline")
-		}
-		got := awaitClarifyResult(t, result)
-		if got.err != nil {
-			t.Fatalf("Ask() error = %v, want nil with fallback", got.err)
-		}
-		if got.answer.Choice != nil || got.answer.Text != "" || !got.answer.Fallback {
-			t.Fatalf("Ask() answer = %#v, want exact fallback sentinel", got.answer)
-		}
-		if statuses := publisher.statuses(); !equalClarifyStatuses(statuses, []toolspkg.ClarifyStatus{
-			toolspkg.ClarifyStatusPending,
-			toolspkg.ClarifyStatusTimedOut,
-		}) {
-			t.Fatalf("published statuses = %v, want pending then timed_out", statuses)
-		}
-	})
 }
 
-func TestClarifyBridgeAnswerExpiryRace(t *testing.T) {
+func TestClarifyBridgeAnswerCancelRace(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should resolve concurrent answers racing finite expiry exactly once", func(t *testing.T) {
+	t.Run("Should resolve concurrent answers racing cancellation exactly once", func(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, 20*time.Millisecond, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.await(t)
@@ -661,6 +670,7 @@ func TestClarifyBridgeAnswerExpiryRace(t *testing.T) {
 				)
 			})
 		}
+		wg.Go(func() { bridge.CancelSession(scope.SessionID) })
 		wg.Wait()
 
 		succeeded := 0
@@ -684,15 +694,15 @@ func TestClarifyBridgeAnswerExpiryRace(t *testing.T) {
 			if got.err != nil || got.answer.Text != "yes" || got.answer.Fallback {
 				t.Fatalf("Ask() result = %#v, want the winning answer", got)
 			}
-		case toolspkg.ClarifyStatusTimedOut:
+		case toolspkg.ClarifyStatusCanceled:
 			if succeeded != 0 {
-				t.Fatalf("Answer() successes = %d, want none after expiry won", succeeded)
+				t.Fatalf("Answer() successes = %d, want none after cancellation won", succeeded)
 			}
-			if got.err != nil || got.answer.Choice != nil || got.answer.Text != "" || !got.answer.Fallback {
-				t.Fatalf("Ask() answer = %#v, want exact fallback sentinel", got.answer)
+			if !errors.Is(got.err, toolspkg.ErrClarifyCanceled) {
+				t.Fatalf("Ask() error = %v, want %v", got.err, toolspkg.ErrClarifyCanceled)
 			}
 		default:
-			t.Fatalf("terminal status = %q, want resolved or timed_out", statuses[1])
+			t.Fatalf("terminal status = %q, want resolved or canceled", statuses[1])
 		}
 	})
 }
@@ -773,6 +783,25 @@ func askClarification(
 	result := make(chan clarifyResult, 1)
 	go func() {
 		answer, err := bridge.Ask(testutil.Context(t), scope, question)
+		result <- clarifyResult{answer: answer, err: err}
+	}()
+	return result
+}
+
+// askClarificationOutlivingFakeTime asks under a context with no deadline. testutil.Context
+// bounds a wait by fake time too, so a synctest sleep past that bound would cancel the ask.
+func askClarificationOutlivingFakeTime(
+	t *testing.T,
+	bridge *clarifyBridge,
+	scope toolspkg.Scope,
+	question toolspkg.ClarifyQuestion,
+) <-chan clarifyResult {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	result := make(chan clarifyResult, 1)
+	go func() {
+		answer, err := bridge.Ask(ctx, scope, question)
 		result <- clarifyResult{answer: answer, err: err}
 	}()
 	return result

@@ -245,7 +245,6 @@ func (m *manualClarifyTicker) cadence() time.Duration {
 
 func newTestClarifyBridgeWithKeepalive(
 	t *testing.T,
-	timeout time.Duration,
 	publisher clarifyEventPublisher,
 	keepalive ClarifyKeepalive,
 	ticker *manualClarifyTicker,
@@ -261,7 +260,6 @@ func newTestClarifyBridgeWithKeepalive(
 	}
 	args = append(args, options...)
 	bridge, err := newClarifyBridge(
-		timeout,
 		publisher,
 		&clarifySummaryStub{},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -310,7 +308,7 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		keepalive := newRecordingClarifyKeepalive()
 		ticker := newManualClarifyTicker()
 		clock := newStubClarifyClock(time.Date(2026, 9, 17, 10, 0, 0, 0, time.UTC))
-		bridge := newTestClarifyBridgeWithKeepalive(t, 0, publisher, keepalive, ticker, withClarifyClock(clock.Now))
+		bridge := newTestClarifyBridgeWithKeepalive(t, publisher, keepalive, ticker, withClarifyClock(clock.Now))
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Which env first?"})
 		publisher.await(t)
@@ -355,7 +353,6 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		keepalive.fail = errors.New("agent gone")
 		ticker := newManualClarifyTicker()
 		bridge, err := newClarifyBridge(
-			0,
 			publisher,
 			&clarifySummaryStub{},
 			logger,
@@ -388,7 +385,7 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		logs.awaitContains(t, "clarification keepalive ping failed")
 	})
 
-	t.Run("Should stop pinging after answer expiry and cancel", func(t *testing.T) {
+	t.Run("Should stop pinging after an answer or cancel", func(t *testing.T) {
 		t.Parallel()
 
 		runTerminal := func(t *testing.T, name string, settle func(
@@ -406,7 +403,7 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 				publisher := newClarifyPublisherStub()
 				keepalive := newRecordingClarifyKeepalive()
 				ticker := newManualClarifyTicker()
-				bridge := newTestClarifyBridgeWithKeepalive(t, 0, publisher, keepalive, ticker)
+				bridge := newTestClarifyBridgeWithKeepalive(t, publisher, keepalive, ticker)
 				scope := testClarifyScope()
 				result := askClarification(
 					t,
@@ -464,47 +461,11 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		})
 	})
 
-	t.Run("Should stop pinging after finite expiry with one fallback resolution", func(t *testing.T) {
-		t.Parallel()
-
-		publisher := newClarifyPublisherStub()
-		keepalive := newRecordingClarifyKeepalive()
-		ticker := newManualClarifyTicker()
-		bridge := newTestClarifyBridgeWithKeepalive(t, 30*time.Millisecond, publisher, keepalive, ticker)
-		result := askClarification(
-			t,
-			bridge,
-			testClarifyScope(),
-			toolspkg.ClarifyQuestion{Question: "Continue?"},
-		)
-		publisher.await(t)
-		keepalive.await(t)
-		ticker.fire()
-		keepalive.await(t)
-		got := awaitClarifyResult(t, result)
-		if got.err != nil || !got.answer.Fallback {
-			t.Fatalf("Ask() result = %#v, want one fallback resolution", got)
-		}
-		if statuses := publisher.statuses(); !equalClarifyStatuses(statuses, []toolspkg.ClarifyStatus{
-			toolspkg.ClarifyStatusPending,
-			toolspkg.ClarifyStatusTimedOut,
-		}) {
-			t.Fatalf("published statuses = %v, want pending then timed_out", statuses)
-		}
-		settled := keepalive.count()
-		ticker.fire()
-		ticker.fire()
-		ticker.awaitStop(t)
-		if count := keepalive.count(); count != settled {
-			t.Fatalf("keepalive pings after expiry = %d, want %d", count, settled)
-		}
-	})
-
 	t.Run("Should wait exactly as before without a keepalive", func(t *testing.T) {
 		t.Parallel()
 
 		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, 0, publisher)
+		bridge := newTestClarifyBridge(t, publisher)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.await(t)
@@ -529,7 +490,7 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		publisher := newClarifyPublisherStub()
 		keepalive := newRecordingClarifyKeepalive()
 		ticker := newManualClarifyTicker()
-		bridge := newTestClarifyBridgeWithKeepalive(t, 0, publisher, keepalive, ticker)
+		bridge := newTestClarifyBridgeWithKeepalive(t, publisher, keepalive, ticker)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.await(t)
@@ -590,7 +551,7 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		keepalive := newBlockingClarifyKeepalive()
 		t.Cleanup(keepalive.unblock)
 		ticker := newManualClarifyTicker()
-		bridge := newTestClarifyBridgeWithKeepalive(t, 0, publisher, keepalive, ticker)
+		bridge := newTestClarifyBridgeWithKeepalive(t, publisher, keepalive, ticker)
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.await(t)
@@ -622,20 +583,17 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		keepalive.awaitCount(t, 1)
 	})
 
-	t.Run("Should carry the finite deadline on each ping", func(t *testing.T) {
+	t.Run("Should send a zero deadline on each ping", func(t *testing.T) {
 		t.Parallel()
 
-		clock := newStubClarifyClock(time.Now().UTC())
 		publisher := newClarifyPublisherStub()
 		keepalive := newRecordingClarifyKeepalive()
 		ticker := newManualClarifyTicker()
 		bridge, err := newClarifyBridge(
-			5*time.Minute,
 			publisher,
 			&clarifySummaryStub{},
 			slog.New(slog.NewTextHandler(io.Discard, nil)),
 			withClarifyIDGenerator(func() string { return "clarify-request" }),
-			withClarifyClock(clock.Now),
 			withClarifyKeepalive(keepalive),
 			withClarifyPingTicker(ticker.ticker),
 		)
@@ -646,9 +604,8 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.await(t)
 		ping := keepalive.await(t)
-		wantDeadline := clock.Now().Add(5 * time.Minute)
-		if !ping.Deadline.Equal(wantDeadline) {
-			t.Fatalf("ping deadline = %s, want pinned %s", ping.Deadline, wantDeadline)
+		if !ping.Deadline.IsZero() {
+			t.Fatalf("ping deadline = %s, want zero (unbounded wait)", ping.Deadline)
 		}
 		bridge.CancelSession(scope.SessionID)
 		awaitClarifyResult(t, result)

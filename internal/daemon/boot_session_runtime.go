@@ -119,7 +119,6 @@ func (d *Daemon) bootClarifyBridge(state *bootState, cleanup *bootCleanup) error
 		return errors.New("daemon: session manager does not implement clarification event publication")
 	}
 	bridge, err := newClarifyBridge(
-		state.cfg.Tools.Clarify.Timeout,
 		publisher,
 		extensionEventSummaryStore(state.registry),
 		state.logger,

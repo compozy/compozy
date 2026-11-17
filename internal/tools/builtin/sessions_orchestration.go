@@ -268,7 +268,8 @@ const sessionClarifyAnswerOutputSchema = `{
 	"required":["outcome","request_id"],
 	"properties":{
 		"outcome":{"type":"string","enum":["answered","already-resolved","resolved-after-restart","queue-full"]},
-		"request_id":{"type":"string"},"resolved_answer":{"type":"string"}
+		"request_id":{"type":"string"},"resolved_answer":{"type":"string"},
+		"source":{"type":"string","enum":["choice","custom"]}
 	},
 	"additionalProperties":false
 }`

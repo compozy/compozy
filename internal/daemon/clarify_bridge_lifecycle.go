@@ -34,20 +34,20 @@ func (b *clarifyBridge) completeExplicit(
 	return nil
 }
 
+// completeAutomatic ends a wait without an answer (cancel or stop). Only the
+// canceled status reaches here: clarifications no longer expire by time.
 func (b *clarifyBridge) completeAutomatic(
 	handle *clarifyHandle,
 	status toolspkg.ClarifyStatus,
-	answer toolspkg.ClarifyAnswer,
 	resultErr error,
 ) {
-	b.completeAutomaticWithContext(context.Background(), handle, status, answer, resultErr)
+	b.completeAutomaticWithContext(context.Background(), handle, status, resultErr)
 }
 
 func (b *clarifyBridge) completeAutomaticWithContext(
 	parent context.Context,
 	handle *clarifyHandle,
 	status toolspkg.ClarifyStatus,
-	answer toolspkg.ClarifyAnswer,
 	resultErr error,
 ) {
 	handle.completionMu.Lock()
@@ -57,11 +57,7 @@ func (b *clarifyBridge) completeAutomaticWithContext(
 	}
 	ctx, cancel := context.WithTimeout(parent, clarifyObservabilityTimeout)
 	defer cancel()
-	var eventAnswer *toolspkg.ClarifyAnswer
-	if status == toolspkg.ClarifyStatusTimedOut {
-		eventAnswer = &answer
-	}
-	if err := b.publish(ctx, handle, status, eventAnswer, false); err != nil {
+	if err := b.publish(ctx, handle, status, nil, false); err != nil {
 		b.logger.WarnContext(
 			ctx,
 			"clarification terminal observability failed",
@@ -71,7 +67,7 @@ func (b *clarifyBridge) completeAutomaticWithContext(
 			"error", err,
 		)
 	}
-	b.release(handle, clarifyResult{answer: answer, err: resultErr})
+	b.release(handle, clarifyResult{err: resultErr})
 }
 
 func (b *clarifyBridge) release(handle *clarifyHandle, result clarifyResult) {
@@ -208,12 +204,7 @@ func (b *clarifyBridge) CancelSession(sessionID string) {
 	handle := b.pending[target]
 	b.mu.Unlock()
 	if handle != nil {
-		b.completeAutomatic(
-			handle,
-			toolspkg.ClarifyStatusCanceled,
-			toolspkg.ClarifyAnswer{},
-			toolspkg.ErrClarifyCanceled,
-		)
+		b.completeAutomatic(handle, toolspkg.ClarifyStatusCanceled, toolspkg.ErrClarifyCanceled)
 	}
 }
 
@@ -229,13 +220,7 @@ func (b *clarifyBridge) Close(ctx context.Context) error {
 	}
 	b.mu.Unlock()
 	for _, handle := range handles {
-		b.completeAutomaticWithContext(
-			ctx,
-			handle,
-			toolspkg.ClarifyStatusCanceled,
-			toolspkg.ClarifyAnswer{},
-			toolspkg.ErrClarifyCanceled,
-		)
+		b.completeAutomaticWithContext(ctx, handle, toolspkg.ClarifyStatusCanceled, toolspkg.ErrClarifyCanceled)
 	}
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("daemon: wait for clarification callers: %w", err)

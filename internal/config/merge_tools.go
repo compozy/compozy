@@ -1,9 +1,22 @@
 package config
 
 import (
+	"log/slog"
 	"slices"
+	"sync"
 	"time"
 )
+
+// clarifyTimeoutDeprecationWarning names the retained key, its unbounded effect, and its removal release.
+const clarifyTimeoutDeprecationWarning = "tools.clarify.timeout is deprecated and has no effect: " +
+	"clarification waits are unbounded until answered; the key will be removed in the next release"
+
+// clarifyTimeoutDeprecationOnce gates the warning to once per process; config reloads are frequent.
+var clarifyTimeoutDeprecationOnce sync.Once
+
+func warnClarifyTimeoutDeprecated() {
+	clarifyTimeoutDeprecationOnce.Do(func() { slog.Warn(clarifyTimeoutDeprecationWarning) })
+}
 
 type toolsOverlay struct {
 	Enabled               *bool                 `toml:"enabled"`
@@ -60,6 +73,7 @@ func (o toolsHostedMCPOverlay) Apply(dst *ToolsHostedMCPConfig) {
 func (o toolsClarifyOverlay) Apply(dst *ToolsClarifyConfig) {
 	if o.Timeout != nil {
 		dst.Timeout = *o.Timeout
+		warnClarifyTimeoutDeprecated()
 	}
 }
 

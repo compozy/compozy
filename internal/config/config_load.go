@@ -223,6 +223,9 @@ func loadWithHome(
 			return Config{}, fmt.Errorf("validate config: %w", err)
 		}
 	}
+	// The retained tools.clarify.timeout shim was validated above and is never applied: waits are
+	// unbounded, so the loaded effective value is the unbounded default that config reads report.
+	cfg.Tools.Clarify.Timeout = DefaultToolsClarifyTimeout
 
 	return cfg, nil
 }

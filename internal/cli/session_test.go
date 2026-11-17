@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
@@ -2163,6 +2164,59 @@ func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T)
 		got.Outcome != "answered" || got.RequestID != "req-1" {
 		t.Fatalf("clarification answer = %#v, want exact wire result", got)
 	}
+}
+
+func TestSessionClarifyAnswerSendsCustomTextAsCustomSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send custom text as the custom source", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			answerSessionClarificationFn: func(
+				_ context.Context,
+				_ string,
+				requestID string,
+				request ClarificationAnswerRequest,
+			) (ClarificationAnswerRecord, error) {
+				if request.ChoiceIndex != nil || request.Text != "Hybrid path" {
+					t.Fatalf("answer request = %#v, want custom text without a choice index", request)
+				}
+				return ClarificationAnswerRecord{
+					Text:           "Hybrid path",
+					Source:         toolspkg.ClarifyAnswerSourceCustom,
+					Outcome:        "answered",
+					RequestID:      requestID,
+					ResolvedAnswer: "Hybrid path",
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			sessionClarifyCommandUse,
+			"answer",
+			"sess-1",
+			"req-1",
+			"--text",
+			"  Hybrid path  ",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session clarify answer --text) error = %v", err)
+		}
+		var got ClarificationAnswerRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("json.Unmarshal(session clarify answer) error = %v", err)
+		}
+		if got.Choice != nil || got.Source != toolspkg.ClarifyAnswerSourceCustom ||
+			got.ResolvedAnswer != "Hybrid path" {
+			t.Fatalf("clarification answer = %#v, want the custom receipt", got)
+		}
+	})
 }
 
 func TestSessionClarifyAnswerRequiresExactlyOneAnswerFlag(t *testing.T) {

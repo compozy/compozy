@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type DependencyKind string
+
 type DescribeGatewayRequirement struct {
 	Permissions []string `json:"permissions"`
 }
@@ -190,8 +192,4 @@ type EventPreRecordPayload struct {
 	RecordType     string          `json:"record_type,omitempty"`
 	Sequence       int64           `json:"sequence,omitempty"`
 	Content        json.RawMessage `json:"content,omitempty"`
-}
-
-type EventRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

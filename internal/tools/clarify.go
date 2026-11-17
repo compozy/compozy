@@ -33,8 +33,22 @@ type ClarifyStatus string
 const (
 	ClarifyStatusPending  ClarifyStatus = "pending"
 	ClarifyStatusResolved ClarifyStatus = "resolved"
+	// ClarifyStatusTimedOut is no longer produced: clarifications wait until
+	// answered. The status stays so durable history written before the change
+	// still validates and projects.
 	ClarifyStatusTimedOut ClarifyStatus = "timed_out"
 	ClarifyStatusCanceled ClarifyStatus = "canceled"
+)
+
+// ClarifyAnswerSource records which input family produced a resolved answer.
+type ClarifyAnswerSource string
+
+const (
+	// ClarifyAnswerSourceChoice marks an answer selected by choice_index.
+	ClarifyAnswerSourceChoice ClarifyAnswerSource = "choice"
+	// ClarifyAnswerSourceCustom marks free text: a question without choices, or
+	// the "other" answer on a question with choices.
+	ClarifyAnswerSourceCustom ClarifyAnswerSource = "custom"
 )
 
 // ClarifyQuestion is the model-authored request accepted by the broker.
@@ -80,10 +94,13 @@ func (q ClarifyQuestion) Normalize() (ClarifyQuestion, error) {
 }
 
 // ClarifyAnswer is the frozen answer returned to native and extension callers.
+// Source is additive: answers persisted before it existed decode with an empty
+// source, and Fallback is never set by a live wait any more.
 type ClarifyAnswer struct {
-	Choice   *int   `json:"choice"`
-	Text     string `json:"text"`
-	Fallback bool   `json:"fallback"`
+	Choice   *int                `json:"choice"`
+	Text     string              `json:"text"`
+	Fallback bool                `json:"fallback"`
+	Source   ClarifyAnswerSource `json:"source,omitempty"`
 }
 
 // Resolution returns the operator-visible value represented by a normalized answer.
@@ -103,7 +120,9 @@ type ClarifyAnswerResult struct {
 	ResolvedAnswer string `json:"resolved_answer,omitempty"`
 }
 
-// ClarifyAnswerRequest is the public answer mutation payload.
+// ClarifyAnswerRequest is the public answer mutation payload. Text is the
+// free-text answer: the only answer on a question without choices, and the
+// "other" answer on a question with choices. It is exclusive with ChoiceIndex.
 type ClarifyAnswerRequest struct {
 	ChoiceIndex *int   `json:"choice_index,omitzero"`
 	Text        string `json:"text,omitempty"`
@@ -117,6 +136,14 @@ func (r ClarifyAnswerRequest) Normalize(question ClarifyQuestion) (ClarifyAnswer
 	if hasChoice == hasText {
 		return ClarifyAnswer{}, fmt.Errorf(
 			"%w: answer requires exactly one of choice_index or text",
+			ErrClarifyInvalid,
+		)
+	}
+	if hasText && slices.Contains(question.Choices, text) {
+		// A custom answer equal to a choice label would be indistinguishable from
+		// that choice once the resolution is stored as a plain string.
+		return ClarifyAnswer{}, fmt.Errorf(
+			"%w: text repeats a choice; answer with choice_index instead",
 			ErrClarifyInvalid,
 		)
 	}
@@ -136,9 +163,9 @@ func (r ClarifyAnswerRequest) Normalize(question ClarifyQuestion) (ClarifyAnswer
 				index,
 			)
 		}
-		return ClarifyAnswer{Choice: new(index)}, nil
+		return ClarifyAnswer{Choice: new(index), Source: ClarifyAnswerSourceChoice}, nil
 	}
-	return ClarifyAnswer{Text: text}, nil
+	return ClarifyAnswer{Text: text, Source: ClarifyAnswerSourceCustom}, nil
 }
 
 // ClarifyPending is the complete live projection for one unresolved question.
@@ -150,7 +177,9 @@ type ClarifyPending struct {
 	Question    string    `json:"question"`
 	Choices     []string  `json:"choices,omitempty"`
 	AskedAt     time.Time `json:"asked_at"`
-	Deadline    time.Time `json:"deadline"`
+	// Deadline is always zero: a pending clarification waits until answered.
+	// The field stays for wire compatibility and is projected as null.
+	Deadline time.Time `json:"deadline"`
 }
 
 // Clone returns an isolated pending projection.
@@ -171,15 +200,8 @@ type ClarifyEvent struct {
 
 // Validate ensures lifecycle evidence cannot represent an impossible transition.
 func (e ClarifyEvent) Validate() error {
-	if strings.TrimSpace(e.Request.RequestID) == "" || strings.TrimSpace(e.Request.SessionID) == "" {
-		return errors.New("tools: clarification event request and session IDs are required")
-	}
-	if strings.TrimSpace(e.Request.WorkspaceID) == "" || strings.TrimSpace(e.Request.AgentName) == "" {
-		return errors.New("tools: clarification event workspace and agent are required")
-	}
-	// A zero Deadline selects an unbounded wait.
-	if e.At.IsZero() || e.Request.AskedAt.IsZero() {
-		return errors.New("tools: clarification event timestamps are required")
+	if err := e.validateIdentity(); err != nil {
+		return err
 	}
 	switch e.Status {
 	case ClarifyStatusPending:
@@ -189,6 +211,9 @@ func (e ClarifyEvent) Validate() error {
 	case ClarifyStatusResolved:
 		if e.Answer == nil || e.Answer.Fallback {
 			return errors.New("tools: resolved clarification event requires a non-fallback answer")
+		}
+		if err := e.Answer.validateSource(); err != nil {
+			return err
 		}
 	case ClarifyStatusTimedOut:
 		if e.Answer == nil || e.Answer.Choice != nil || e.Answer.Text != "" || !e.Answer.Fallback {
@@ -205,6 +230,40 @@ func (e ClarifyEvent) Validate() error {
 		return fmt.Errorf("tools: unsupported clarification status %q", e.Status)
 	}
 	return nil
+}
+
+func (e ClarifyEvent) validateIdentity() error {
+	if strings.TrimSpace(e.Request.RequestID) == "" || strings.TrimSpace(e.Request.SessionID) == "" {
+		return errors.New("tools: clarification event request and session IDs are required")
+	}
+	if strings.TrimSpace(e.Request.WorkspaceID) == "" || strings.TrimSpace(e.Request.AgentName) == "" {
+		return errors.New("tools: clarification event workspace and agent are required")
+	}
+	if e.At.IsZero() || e.Request.AskedAt.IsZero() {
+		return errors.New("tools: clarification event timestamps are required")
+	}
+	return nil
+}
+
+// validateSource checks a resolved answer's recorded source against its payload.
+// Legacy answers predate Source and carry an empty value, which stays valid.
+func (a ClarifyAnswer) validateSource() error {
+	switch a.Source {
+	case "":
+		return nil
+	case ClarifyAnswerSourceChoice:
+		if a.Choice == nil || a.Text != "" {
+			return errors.New("tools: choice clarification answer requires only a choice")
+		}
+		return nil
+	case ClarifyAnswerSourceCustom:
+		if a.Choice != nil || a.Text == "" {
+			return errors.New("tools: custom clarification answer requires only text")
+		}
+		return nil
+	default:
+		return fmt.Errorf("tools: unsupported clarification answer source %q", a.Source)
+	}
 }
 
 // ClarifyBroker owns the boot-scoped live clarification projection.

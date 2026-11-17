@@ -4,12 +4,12 @@ area: RT
 title: Answer a live agent clarification
 persona: Théo
 journey: J-answer-agent-requests
-expected: A live session derives `waiting-for-input`, exposes one sanitized clarification through status and interaction discovery, accepts an offered choice or free text through Web, CLI, HTTP, or UDS, resumes the live tool with `answered`, resolves a restart-orphaned request with `resolved-after-restart`, returns the original winner on duplicate resolution, and keeps all evidence workspace-isolated; an unbounded pending request shows `deadline: null` with no countdown, stays answerable past the 60s mark while keepalive pings flow, and a late answer returns the answer while a finite policy still falls back with `timed_out`.
+expected: A live session derives `waiting-for-input`, exposes one sanitized clarification through status and interaction discovery, accepts an offered choice, free text, or custom text alongside choices through Web, CLI, HTTP, or UDS (custom answers record `source: custom`), resumes the live tool with `answered`, resolves a restart-orphaned request with `resolved-after-restart`, returns the original winner on duplicate resolution, and keeps all evidence workspace-isolated; a pending request shows `deadline: null` with no countdown, stays answerable past the 60s mark while keepalive pings flow, and a late answer returns the answer. Waits never expire, so a retained `tools.clarify.timeout` value never produces a fallback.
 entry_points: Web session timeline; compozy__clarify; compozy session clarify pending/answer; GET/POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications; compozy config get/set tools.clarify.timeout
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260917-clarify-timeout-config-set
 fix_status: fixed
-retest_status: pass
+retest_status: untested
 fix_commits: working-tree
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa; docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json; docs/qa/reports/2026-09-17-clarify-keepalive.md
 last_report: docs/qa/reports/2026-09-17-clarify-keepalive.md
@@ -80,11 +80,22 @@ Unbounded-wait and keepalive evidence expectations (all cite timestamp, exact co
   countdown); the wait passes the 60s mark with `_compozy/clarify_ping` notifications observed every
   30s (`seq` from 1, daemon debug logs keyed by session/request ID), and a late `--choice` answer
   returns the exact answer (`fallback: false`), never the sentinel.
-- A finite-policy run with no answer produces the fallback sentinel with `timed_out`; an invalid
-  policy value fails with the exact `tools.clarify.timeout` error while the last valid policy stays.
+- A run that stores a finite `tools.clarify.timeout` (for example `5m`) with no answer leaves the
+  question pending past that value, with pings still flowing and no `timed_out` event, and a late
+  answer resolves it. The stored value only drives a deprecation warning. An invalid value (`25h`,
+  `soon`) still fails with the exact `tools.clarify.timeout` error while the last valid value stays.
+- A custom answer on a question with choices (`text` in the HTTP body, `--text` on the CLI) resolves
+  the wait with `choice: null`, the trimmed text, and `source: custom`. Custom text that repeats a
+  choice label, or a choice combined with text, is rejected with a 400 and the wait stays open.
 - Answer/cancel/stop races resolve exactly once with deterministic loser errors; a second
   same-session ask conflicts naming the live request; extension-asked questions share the same wait
   and ping with no separate vocabulary; pings never cross sessions.
+
+QA impact 2026-11-17 (clarify timeout removal, backend): waits no longer expire. `tools.clarify.timeout`
+is a deprecated shim for one release: it is validated, warned about once, and ignored, and `config get`
+reports the unbounded default. Custom answers on choice questions record `source: custom`. The finite
+expectations above are superseded and `qa_status` is `untested` until the live walk runs. The web
+custom-answer ("Outro") control is a separate designer lane and is not covered by this backend change.
 
 QA impact 2026-10-30 (#1045, web only): the composer clarification dock keeps the question's line
 breaks, is bounded to half the viewport with the question scrolling inside, and has a head chevron

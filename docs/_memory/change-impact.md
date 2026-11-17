@@ -1,5 +1,45 @@
 # Compozy Change Impact
 
+## Clarify timeout removal and custom answers — 2026-11-17
+
+Owner: branch `run/clarify-remover-timeout-e-adicionar-resposta-personalizada-backend-v3-8b88b9f2`
+(backend half; the web composer is a separate designer lane).
+
+- **Behavior.** `compozy__clarify` waits never expire. A pending question resolves only by answer,
+  caller cancel, session stop, or daemon shutdown. Keepalive pings (`_compozy/clarify_ping`) are
+  unchanged. A `timed_out` broker outcome and the `Fallback` sentinel are no longer produced by a live
+  wait; both stay in the wire and durable shapes so history still decodes.
+- **Native tools.** `compozy__clarify` output gains optional `source` (`choice` | `custom`); its
+  descriptor no longer promises a bounded wait. `compozy__session_clarify_answer` input is unchanged
+  (`text` is the custom answer on choice questions, exclusive with `choice`); its output gains optional
+  `source`. Removed: the expiry-only preview "No clarification answer received before timeout."
+- **CLI/HTTP/UDS.** Additive only. Answer results (`ClarifyAnswer`/`ClarificationAnswerPayload`) gain
+  `source`; the request DTO is unchanged. `session clarify answer --text` already accepted custom text
+  on choice questions before this change; its help text is unchanged, so `packages/site` CLI docs are
+  not regenerated here. The `deadline` field stays on the wire and is always `null`. OpenAPI and
+  generated SDK types (Go and TypeScript) are regenerated through `compozy-codegen`.
+- **Extensibility and hooks.** Host API `clarify/ask` result type `ClarifyAnswer` gains `source`
+  (additive). No hook or manifest change.
+- **Config (SD-013 shim).** `tools.clarify.timeout` stays decodable, validated, settable, and
+  allowlisted for one release. Its value is ignored: loading resets the effective value to `0s`
+  (unbounded) after validation, so `config get` reports what applies. A deprecation warning fires once
+  per process when the key is present. Removal: the next release (delete the key, the allowlist entry,
+  the overlay field, and the load-time reset together). Release note needs a deprecation block.
+- **User state.** No SQLite or migration change. Clarify event JSON gains optional `answer.source`;
+  events written before this change decode with an empty source and stay valid. Persisted `timed_out`
+  events keep validating.
+- **Workspace isolation.** No change: answers resolve through the same session/workspace/agent scope
+  checks; custom text is not a new trust boundary.
+- **Official skill and docs.** `skills/compozy/references/native-tools.md` describes the no-timeout wait,
+  `source`, and custom answers. `docs/research/interactive-tools.md`, the clarify journey, and the
+  round-trip and policy scenarios are updated.
+- **Web.** Impact handled by the designer lane: the composer "Outro" answer, and any countdown or
+  fallback copy. `make codegen` did not modify `web/`; the designer lane must consume the new optional
+  `source` field where it reads answers.
+- **QA.** `RT-session-clarification-roundtrip` and `MS-clarify-timeout-policy` reset to `untested` for
+  the live walk; `J-answer-agent-requests` updated. The `CH-clarify-*` charters describe the finite
+  control and are immutable by convention; they need a follow-up charter, not an edit.
+
 ## MCP connection popovers, panels and dialogs redesign — 2026-11-16
 
 Owner: branch `feat/mcp-redesign` (plan `.compozy/tasks/mcp-ux-redesign/_slices.md`).

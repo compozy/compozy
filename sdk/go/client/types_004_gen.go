@@ -270,10 +270,14 @@ type ClarificationsResponse struct {
 
 // ClarifyAnswer is a daemon API value.
 type ClarifyAnswer struct {
-	Choice   *int   `json:"choice"`
-	Text     string `json:"text"`
-	Fallback bool   `json:"fallback"`
+	Choice   *int                `json:"choice"`
+	Text     string              `json:"text"`
+	Fallback bool                `json:"fallback"`
+	Source   ClarifyAnswerSource `json:"source,omitempty"`
 }
+
+// ClarifyAnswerSource is a daemon API value.
+type ClarifyAnswerSource string
 
 // ClearTaskBlockRequest is a daemon API value.
 type ClearTaskBlockRequest struct {

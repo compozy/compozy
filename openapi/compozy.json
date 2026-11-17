@@ -4791,6 +4791,9 @@
           "fallback": {
             "type": "boolean"
           },
+          "source": {
+            "type": "string"
+          },
           "text": {
             "type": "string"
           }

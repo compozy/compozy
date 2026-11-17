@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type HookRunOutcome string
+
 type HookSkillSource uint8
 
 type HookSource uint8
@@ -206,9 +208,4 @@ type LoopContext struct {
 	ActorID         string `json:"actor_id,omitempty"`
 	OriginKind      string `json:"origin_kind,omitempty"`
 	OriginRef       string `json:"origin_ref,omitempty"`
-}
-
-type LoopControlPatch struct {
-	Deny       bool   `json:"deny,omitempty"`
-	DenyReason string `json:"deny_reason,omitempty"`
 }

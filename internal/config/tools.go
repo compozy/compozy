@@ -29,11 +29,11 @@ const (
 	// MaxHostedMCPBindNonceTTLSeconds is the largest supported hosted MCP bind window.
 	MaxHostedMCPBindNonceTTLSeconds = 300
 
-	// DefaultToolsClarifyTimeout is the boot-snapshotted clarification wait (zero means unbounded).
+	// DefaultToolsClarifyTimeout is the effective clarification wait: zero, which is unbounded.
 	DefaultToolsClarifyTimeout time.Duration = 0
-	// MinToolsClarifyTimeout is the smallest supported clarification wait.
+	// MinToolsClarifyTimeout is the smallest value the retained tools.clarify.timeout shim accepts.
 	MinToolsClarifyTimeout = time.Second
-	// MaxToolsClarifyTimeout is the largest supported clarification wait.
+	// MaxToolsClarifyTimeout is the largest value the retained tools.clarify.timeout shim accepts.
 	MaxToolsClarifyTimeout = 24 * time.Hour
 
 	// DefaultToolsArtifactMaxCount is the retained artifact count ceiling.
@@ -72,7 +72,11 @@ type ToolsHostedMCPConfig struct {
 	BindNonceTTLSeconds int `toml:"bind_nonce_ttl_seconds"`
 }
 
-// ToolsClarifyConfig controls the boot-scoped human clarification broker.
+// ToolsClarifyConfig controls the human clarification broker. Timeout is a
+// deprecated compatibility shim: the value is decoded and validated so typos
+// surface, but clarification waits are unbounded. Loading resets the effective
+// value to DefaultToolsClarifyTimeout, so config reads report what applies.
+// The key and this field are removed in the next release.
 type ToolsClarifyConfig struct {
 	Timeout time.Duration `toml:"timeout"`
 }
@@ -154,9 +158,9 @@ func (c ToolsHostedMCPConfig) Validate() error {
 	return nil
 }
 
-// Validate ensures clarification waits are either unbounded (zero) or inside
-// the finite 1s-24h band. Zero covers both the omitted key (via
-// DefaultToolsConfig) and an explicit `0s`.
+// Validate keeps the retained tools.clarify.timeout shim well formed: zero or
+// inside the 1s-24h band. The value never bounds a wait, so validation exists
+// only so a typo surfaces during the shim release.
 func (c ToolsClarifyConfig) Validate() error {
 	if c.Timeout == 0 {
 		return nil

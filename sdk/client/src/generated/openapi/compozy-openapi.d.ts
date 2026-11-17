@@ -9600,6 +9600,7 @@ export interface components {
     ClarifyAnswer: {
       choice: number | null;
       fallback: boolean;
+      source?: string;
       text: string;
     };
     ClearTaskBlockRequest: {

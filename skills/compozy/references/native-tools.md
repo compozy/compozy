@@ -452,10 +452,11 @@ session's active prompt and returns `canceled` or `nothing-in-flight` without st
 
 `compozy__session_approve` resolves another session's permission request with `allow-once`,
 `allow-always`, `reject-once`, or `reject-always`. `compozy__session_clarify_answer` resolves another
-session's pending question with either a one-based `choice` or text. Both preserve durable
-post-restart interactions and can return `already-resolved`, `resolved-after-restart`, or
-`queue-full`; self-action is denied. Expired permissions are retained as `timed_out`; stopping or losing
-their runtime cancels remaining requests. Late responses to expired/canceled permissions are
+session's pending question with either a one-based `choice` or text. On a question with choices, `text` is
+the operator's own answer: it is exclusive with `choice`, must not repeat a choice label, and the result
+reports `source: custom`. Both preserve durable post-restart interactions and can return
+`already-resolved`, `resolved-after-restart`, or `queue-full`; self-action is denied. Expired permissions
+are retained as `timed_out`; stopping or losing their runtime cancels remaining requests. Late responses to expired/canceled permissions are
 refused with an explicit terminal-state message and never execute the operation.
 Read `compozy session interactions` or
 `compozy__session_status` for the durable request IDs instead of matching display text.
@@ -528,8 +529,10 @@ root `--profile` selection outside a session. CLI:
 `compozy --profile <profile> tool approvals set|list|revoke --workspace <workspace>`.
 
 Clarification: `compozy__clarify` asks one active-session question with at most four choices and returns
-zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session clarify pending|answer`
-(choice presentation is one-based).
+zero-based `{choice,text,fallback,source}`. The wait has no timeout: it stays open until the operator
+answers, the call is canceled, or the session stops. The operator may answer with a choice or with custom
+text, and `source` reports which (`choice` or `custom`). It is not approval. CLI: `compozy session clarify
+pending|answer` (choice presentation is one-based).
 
 `compozy__session_list` accepts `board_column: ["needs_you", "working", "waiting", "in_review", "done"]`
 and `children: "exclude"` (default `include`). Columns filter before pagination/counting;

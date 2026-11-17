@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type ConnectivityTeardownRequest struct {
+	Tier     string    `json:"tier"`
+	Deadline time.Time `json:"deadline"`
+}
+
 type ConnectivityTeardownResponse struct {
 	Stopped bool `json:"stopped"`
 }
@@ -263,5 +268,3 @@ type CountedCursorPagePayload struct {
 	Total      int    `json:"total"`
 	Limit      int    `json:"limit"`
 }
-
-type DependencyKind string

@@ -1812,9 +1812,16 @@ func TestDaemonNativeTools(t *testing.T) {
 			if scope.SessionID != targetID || scope.WorkspaceID != workspaceID || requestID != "clr-1" {
 				t.Fatalf("clarify answer scope/request = %#v/%q", scope, requestID)
 			}
-			clarifyChoice = request.ChoiceIndex
+			if request.ChoiceIndex != nil {
+				clarifyChoice = request.ChoiceIndex
+				return toolspkg.ClarifyAnswerResult{
+					Outcome: "answered", RequestID: requestID, ResolvedAnswer: "second",
+				}, nil
+			}
+			custom := toolspkg.ClarifyAnswer{Text: request.Text, Source: toolspkg.ClarifyAnswerSourceCustom}
 			return toolspkg.ClarifyAnswerResult{
-				Outcome: "answered", RequestID: requestID, ResolvedAnswer: "second",
+				ClarifyAnswer: custom,
+				Outcome:       "answered", RequestID: requestID, ResolvedAnswer: request.Text,
 			}, nil
 		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -1849,6 +1856,11 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.ToolIDSessionClarifyAnswer,
 				`{"session_id":"sess-target","request_id":"clr-1","choice":2}`,
 				`"outcome":"answered"`,
+			},
+			{
+				toolspkg.ToolIDSessionClarifyAnswer,
+				`{"session_id":"sess-target","request_id":"clr-1","text":"Other path"}`,
+				`"source":"custom"`,
 			},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-target"}`, `"turn_id":"turn-1"`},
 			{toolspkg.ToolIDSessionCompact, `{"session_id":"sess-target"}`, `"status":"accepted"`},

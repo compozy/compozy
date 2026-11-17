@@ -41,7 +41,6 @@ type clarifyOperatorAskerSetter interface {
 type clarifyBridge struct {
 	mu                sync.Mutex
 	pending           map[string]*clarifyHandle
-	timeout           time.Duration
 	publisher         clarifyEventPublisher
 	summaries         clarifySummaryWriter
 	logger            *slog.Logger
@@ -62,7 +61,6 @@ type clarifyHandle struct {
 	ready        atomic.Bool
 	terminal     bool
 	profileID    string
-	timeout      time.Duration
 	// pingSeq counts keepalive attempts from 1 under completionMu.
 	pingSeq uint64
 }
@@ -130,15 +128,14 @@ func clarifySessionProfileResolver(
 	}
 }
 
+// newClarifyBridge builds the broker. Waits never expire: a pending clarification
+// resolves only by answer, cancellation, or shutdown.
 func newClarifyBridge(
-	timeout time.Duration,
 	publisher clarifyEventPublisher,
 	summaries clarifySummaryWriter,
 	logger *slog.Logger,
 	options ...clarifyBridgeOption,
 ) (*clarifyBridge, error) {
-	// Non-positive timeout selects unbounded waits: no automatic expiration.
-	// The per-request policy is pinned at Ask time; see clarifyHandle.timeout.
 	if publisher == nil {
 		return nil, errors.New("daemon: clarification event publisher is required")
 	}
@@ -147,7 +144,6 @@ func newClarifyBridge(
 	}
 	bridge := &clarifyBridge{
 		pending:   make(map[string]*clarifyHandle),
-		timeout:   timeout,
 		publisher: publisher,
 		summaries: summaries,
 		logger:    logger,
@@ -184,15 +180,8 @@ func (b *clarifyBridge) Ask(
 		return toolspkg.ClarifyAnswer{}, err
 	}
 	now := b.now().UTC()
-	policy := b.timeout
-	unbounded := policy <= 0
-	var deadline time.Time
-	if !unbounded {
-		deadline = now.Add(policy)
-	}
 	handle := &clarifyHandle{
 		profileID: strings.TrimSpace(normalizedScope.ProfileID),
-		timeout:   policy,
 		pending: toolspkg.ClarifyPending{
 			RequestID:   strings.TrimSpace(b.newID()),
 			WorkspaceID: normalizedScope.WorkspaceID,
@@ -201,7 +190,6 @@ func (b *clarifyBridge) Ask(
 			Question:    normalizedQuestion.Question,
 			Choices:     append([]string(nil), normalizedQuestion.Choices...),
 			AskedAt:     now,
-			Deadline:    deadline,
 		},
 		result:    make(chan clarifyResult, 1),
 		published: make(chan struct{}),
@@ -230,22 +218,14 @@ func (b *clarifyBridge) Ask(
 	return b.awaitClarifyResolution(ctx, handle)
 }
 
-// awaitClarifyResolution blocks until answer, finite expiry, cancel, or
-// close. A dedicated sender goroutine owns the keepalive ticker and dies
-// with the wait, so a wedged send delays only later pings.
+// awaitClarifyResolution blocks until an answer, caller cancellation, or
+// close; a wait never expires on its own. A dedicated sender goroutine owns
+// the keepalive ticker and dies with the wait, so a wedged send delays only
+// later pings.
 func (b *clarifyBridge) awaitClarifyResolution(
 	ctx context.Context,
 	handle *clarifyHandle,
 ) (toolspkg.ClarifyAnswer, error) {
-	// Unbounded waits arm no timer: a nil channel blocks forever, so the
-	// expiry case stays disabled and no timer goroutine leaks. The guard
-	// reads the pinned creation-time policy, never the live broker policy.
-	var timerC <-chan time.Time
-	if handle.timeout > 0 {
-		timer := time.NewTimer(time.Until(handle.pending.Deadline))
-		defer timer.Stop()
-		timerC = timer.C
-	}
 	done := make(chan struct{})
 	if b.keepalive != nil {
 		go b.runKeepalive(handle, done)
@@ -255,16 +235,8 @@ func (b *clarifyBridge) awaitClarifyResolution(
 		select {
 		case result := <-handle.result:
 			return result.answer, result.err
-		case <-timerC:
-			fallback := toolspkg.ClarifyAnswer{Fallback: true}
-			b.completeAutomatic(handle, toolspkg.ClarifyStatusTimedOut, fallback, nil)
 		case <-ctx.Done():
-			b.completeAutomatic(
-				handle,
-				toolspkg.ClarifyStatusCanceled,
-				toolspkg.ClarifyAnswer{},
-				toolspkg.ErrClarifyCanceled,
-			)
+			b.completeAutomatic(handle, toolspkg.ClarifyStatusCanceled, toolspkg.ErrClarifyCanceled)
 		}
 	}
 }

@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type EventRecordPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type EventRecordPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
@@ -196,13 +200,4 @@ type ForgePRSearchRequest struct {
 type ForgePRSearchResponse struct {
 	Items   []ForgePRCandidate `json:"items"`
 	HasMore bool               `json:"has_more"`
-}
-
-type ForgeReview struct {
-	ID          string     `json:"id"`
-	Author      string     `json:"author,omitempty"`
-	IsBot       bool       `json:"is_bot,omitempty"`
-	State       string     `json:"state"`
-	SubmittedAt *time.Time `json:"submitted_at,omitempty"`
-	Commit      string     `json:"commit,omitempty"`
 }

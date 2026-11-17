@@ -146,6 +146,7 @@ func sessionClarificationAnswerBundle(answer ClarificationAnswerRecord) outputBu
 				{Label: "Request", Value: stringOrDash(answer.RequestID)},
 				{Label: "Choice", Value: clarificationHumanChoice(answer)},
 				{Label: "Text", Value: stringOrDash(answer.Text)},
+				{Label: resourceSourceValue, Value: stringOrDash(string(answer.Source))},
 				{Label: "Resolved Answer", Value: stringOrDash(answer.ResolvedAnswer)},
 				{Label: "Fallback", Value: strconv.FormatBool(answer.Fallback)},
 			}), nil
@@ -158,6 +159,7 @@ func sessionClarificationAnswerBundle(answer ClarificationAnswerRecord) outputBu
 					sessionRequestIDKey,
 					"choice",
 					sessionClarifyTextFlag,
+					cliSourceKey,
 					"resolved_answer",
 					"fallback",
 				},
@@ -166,6 +168,7 @@ func sessionClarificationAnswerBundle(answer ClarificationAnswerRecord) outputBu
 					answer.RequestID,
 					clarificationWireChoice(answer),
 					answer.Text,
+					string(answer.Source),
 					answer.ResolvedAnswer,
 					strconv.FormatBool(answer.Fallback),
 				},

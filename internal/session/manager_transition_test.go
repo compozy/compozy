@@ -1217,7 +1217,8 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("ResolveOrphanedClarification() error = %v", err)
 		}
 		if result.Outcome != store.PendingInteractionOutcomeResolvedAfterRestart ||
-			result.Choice == nil || *result.Choice != choice || result.ResolvedAnswer != "Safe" {
+			result.Choice == nil || *result.Choice != choice || result.ResolvedAnswer != "Safe" ||
+			result.Source != toolspkg.ClarifyAnswerSourceChoice {
 			t.Fatalf("ResolveOrphanedClarification() = %#v", result)
 		}
 		assertOrphanResolutionQueue(t, catalog, sessionID, "Response: Safe")
@@ -1253,6 +1254,39 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			duplicate.Choice == nil || *duplicate.Choice != choice || duplicate.ResolvedAnswer != "Safe" {
 			t.Fatalf("ResolveOrphanedClarification(duplicate) = %#v", duplicate)
 		}
+	})
+
+	t.Run("Should atomically resolve an orphaned custom answer as custom text", func(t *testing.T) {
+		t.Parallel()
+
+		h, restarted, catalog, sessionID := newOrphanResolutionHarness(
+			t,
+			store.PendingInteractionKindClarify,
+			store.PendingInteractionPayload{Choices: []string{"Fast", "Safe"}},
+		)
+		creator := createSession(t, h)
+		registerManagerInputQueueSession(t, catalog, h, creator)
+		ctx := WithActingSession(testutil.Context(t), creator.ID)
+		result, err := restarted.ResolveOrphanedClarification(
+			ctx,
+			toolspkg.Scope{
+				WorkspaceID: h.workspaceID,
+				SessionID:   sessionID,
+				AgentName:   "coder",
+				Operator:    true,
+			},
+			"request-orphan",
+			toolspkg.ClarifyAnswerRequest{Text: "Hybrid path"},
+		)
+		if err != nil {
+			t.Fatalf("ResolveOrphanedClarification(custom) error = %v", err)
+		}
+		if result.Outcome != store.PendingInteractionOutcomeResolvedAfterRestart ||
+			result.Choice != nil || result.Text != "Hybrid path" || result.ResolvedAnswer != "Hybrid path" ||
+			result.Source != toolspkg.ClarifyAnswerSourceCustom {
+			t.Fatalf("ResolveOrphanedClarification(custom) = %#v, want custom text with source custom", result)
+		}
+		assertOrphanResolutionQueue(t, catalog, sessionID, "Response: Hybrid path")
 	})
 
 	t.Run("Should hydrate durable attention badges in a fresh manager", func(t *testing.T) {

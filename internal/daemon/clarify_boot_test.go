@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -112,9 +113,6 @@ func TestClarifyBootWiring(t *testing.T) {
 		}
 		sessions := &fakeSessionManager{}
 		bridge := bootClarifyBroker(t, &cfg, sessions)
-		if bridge.timeout != 0 {
-			t.Fatalf("booted broker timeout = %s, want 0s (unbounded)", bridge.timeout)
-		}
 		if bridge.keepalive == nil {
 			t.Fatal("booted broker keepalive = nil, want the session resolver")
 		}
@@ -160,39 +158,53 @@ func TestClarifyBootWiring(t *testing.T) {
 		}
 	})
 
-	t.Run("Should boot a finite broker preserving the loaded policy", func(t *testing.T) {
+	t.Run("Should boot the retained shim value as an unbounded broker", func(t *testing.T) {
 		t.Parallel()
 
 		cfg := loadClarifyBootConfig(t, "[tools.clarify]\ntimeout = \"5m\"\n")
-		if cfg.Tools.Clarify.Timeout != 5*time.Minute {
-			t.Fatalf("LoadForHome() Clarify.Timeout = %s, want 5m", cfg.Tools.Clarify.Timeout)
+		if cfg.Tools.Clarify.Timeout != 0 {
+			t.Fatalf(
+				"LoadForHome() Clarify.Timeout = %s, want 0s (shim value is not applied)",
+				cfg.Tools.Clarify.Timeout,
+			)
 		}
 		bridge := bootClarifyBroker(t, &cfg, &fakeSessionManager{})
-		if bridge.timeout != 5*time.Minute {
-			t.Fatalf("booted broker timeout = %s, want the loaded 5m policy", bridge.timeout)
+		scope := testClarifyScope()
+		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
+		pending := awaitPendingClarification(t, bridge, scope)
+		if !pending[0].Deadline.IsZero() {
+			t.Fatalf("booted pending deadline = %s, want zero (unbounded)", pending[0].Deadline)
 		}
+		bridge.CancelSession(scope.SessionID)
+		awaitClarifyResult(t, result)
 	})
 
-	t.Run("Should expire a finite booted wait once with pings then silence", func(t *testing.T) {
+	t.Run("Should keep a booted wait pending past the retained shim value with pings continuing", func(t *testing.T) {
 		t.Parallel()
 
 		synctest.Test(t, func(t *testing.T) {
-			cfg := loadClarifyBootConfig(t, "")
-			cfg.Tools.Clarify.Timeout = 25 * time.Millisecond
+			cfg := loadClarifyBootConfig(t, "[tools.clarify]\ntimeout = \"1s\"\n")
 			sessions := &fakeSessionManager{}
 			bridge := bootClarifyBroker(t, &cfg, sessions)
-			result := askClarification(
+			scope := testClarifyScope()
+			result := askClarificationOutlivingFakeTime(
 				t,
 				bridge,
-				testClarifyScope(),
+				scope,
 				toolspkg.ClarifyQuestion{Question: "Continue?"},
 			)
-			got := awaitClarifyResult(t, result)
-			if got.err != nil || !got.answer.Fallback {
-				t.Fatalf("Ask() result = %#v, want one fallback resolution", got)
+			// Two minutes of fake time: the retained 1s value must not end the wait.
+			time.Sleep(2 * time.Minute)
+			assertClarifyBlocked(t, result)
+			if pending := awaitPendingClarification(t, bridge, scope); len(pending) != 1 {
+				t.Fatalf("pending clarifications = %d, want the unanswered question still open", len(pending))
 			}
-			if settled := sessions.agentExtensionCallCount(); settled != 1 {
-				t.Fatalf("session extension calls = %d, want only the immediate first ping", settled)
+			if calls := sessions.agentExtensionCallCount(); calls < 3 {
+				t.Fatalf("session extension calls = %d, want keepalive pings through the wait", calls)
+			}
+			bridge.CancelSession(scope.SessionID)
+			if got := awaitClarifyResult(t, result); !errors.Is(got.err, toolspkg.ErrClarifyCanceled) {
+				t.Fatalf("Ask() error = %v, want %v", got.err, toolspkg.ErrClarifyCanceled)
 			}
 		})
 	})

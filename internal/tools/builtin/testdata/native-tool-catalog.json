@@ -804,7 +804,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "d3fc8dbc692d79635a47d83e5aefc1de78dc7881fa979dfb2d1e2cd143fc4080",
-    "output_schema_digest": "64171711abe36c366e04ff318f6424d525ba2b1a53db625f6a73adc0f4753bf3",
+    "output_schema_digest": "1f4b325acdc6c0e2222cdc5490f22ad43da36eeb1d6dd729040a134c2c755ef1",
     "result_contract": "single",
     "single_result_reason": "content"
   },
@@ -2627,7 +2627,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "6c982117af210032211a6e65c9d5004b5fde421d3b4ce2951a0ea80889d6b78d",
-    "output_schema_digest": "d3b4ee74a53350b918b881554b209da6950f9fe93c074c2d476309b225fe2214",
+    "output_schema_digest": "db00f3b849890b02276cc5da40ee3261f05acda178eebe0b7cb9e31f43e1082b",
     "result_contract": "single",
     "single_result_reason": "minimal"
   },

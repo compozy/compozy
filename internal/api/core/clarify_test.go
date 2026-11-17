@@ -89,6 +89,34 @@ func TestClarifyCoreHandlersAuthorizeLiveSessionScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should record a custom text answer on a choice question with the custom source", func(t *testing.T) {
+		t.Parallel()
+
+		broker := &clarifyBrokerStub{}
+		engine := newClarifyCoreRouter(broker)
+		answer := performClarifyCoreRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-one/sessions/session-one/clarifications/request-one/answer",
+			[]byte(`{"text":"Other path"}`),
+		)
+		if answer.Code != http.StatusOK {
+			t.Fatalf("answer status = %d, want %d; body=%s", answer.Code, http.StatusOK, answer.Body.String())
+		}
+		var payload contract.ClarificationAnswerPayload
+		if err := json.Unmarshal(answer.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode answer response error = %v", err)
+		}
+		if payload.Choice != nil || payload.Text != "Other path" ||
+			payload.Source != toolspkg.ClarifyAnswerSourceCustom {
+			t.Fatalf("answer response = %#v, want custom text with source custom", payload)
+		}
+		if broker.answerRequest.ChoiceIndex != nil || broker.answerRequest.Text != "Other path" {
+			t.Fatalf("Answer() request = %#v, want custom text without a choice index", broker.answerRequest)
+		}
+	})
+
 	t.Run("Should reject a foreign workspace before consulting the broker", func(t *testing.T) {
 		t.Parallel()
 

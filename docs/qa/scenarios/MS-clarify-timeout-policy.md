@@ -1,32 +1,34 @@
 ---
 id: MS-clarify-timeout-policy
 area: MS
-title: Configure clarification timeout policy with restart truth
+title: Configure the retained clarification timeout shim with restart truth
 persona: Dora
 journey: J-administer-runtime-settings
-expected: Dora sets tools.clarify.timeout to omitted, 0s, a finite value, or an invalid value and every surface agrees on the effective policy, the restart requirement, and the rejection with the last valid policy kept.
+expected: Dora sets tools.clarify.timeout to omitted, 0s, a valid finite value, or an invalid value. Every valid value is accepted with a deprecation warning and reads back as the unbounded effective policy; an invalid value fails with the exact range error while the last valid value stays.
 entry_points: compozy config get/set tools.clarify.timeout -o json; config.toml [tools.clarify]
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260917-clarify-timeout-config-set
 fix_status: fixed
-retest_status: pass
+retest_status: untested
 fix_commits: working-tree
 evidence: docs/qa/reports/2026-09-17-clarify-keepalive.md
 last_report: docs/qa/reports/2026-09-17-clarify-keepalive.md
 overlaps: RT-session-clarification-roundtrip
 ---
 
-Set the policy through each shape and prove the effective value after a daemon restart: omitted and
-explicit `0s` both mean no automatic expiration; `1s`–`24h` (including the `5m` opt-back) keep the
-existing deadline behavior; `-5s`, `500ms`, `25h`, `soon`, and `99h` fail with the exact
+Set the retained key through each shape and prove what the daemon applies. Omitted and explicit `0s`
+both mean an unbounded wait. A valid `1s`–`24h` value (for example `5m`) is accepted but ignored, so
+the wait is still unbounded. Every read agrees on the effective value: `config get -o json` reports the
+unbounded default, not the stored value. The daemon logs once per process that `tools.clarify.timeout`
+is deprecated, that clarification waits are unbounded until answered, and that the key will be removed
+in the next release. `-5s`, `500ms`, `25h`, `soon`, and `99h` fail with the exact
 `tools.clarify.timeout must be between 1s and 24h, or 0s for no expiration: <value>` error while the
-last valid policy stays active. Every read — CLI structured output, the config file, and the pending
-clarification projection (`deadline: null` when unbounded) — agrees, and the change reports the
-`restart-required` lifecycle; a policy flip never rewrites a live wait (creation-time pinning).
+last valid value stays. The pending clarification projection shows `deadline: null` for every wait.
 
-Minted 2026-09-17 by clarify-keepalive task 04: the config-lifecycle half of the unbounded-default
-change, which the RT clarification round-trip cannot represent (that scenario owns the runtime wait,
-not the admin policy lifecycle). Runtime waits, keepalive pings, races, extension inheritance, and
-isolation stay with `RT-session-clarification-roundtrip`; IT-001
-(`.compozy/tasks/clarify-keepalive/_tests.md`) covers loader→boot→broker propagation as automated
-evidence, while task 05 walks this scenario live via `CH-clarify-policy-matrix`.
+The key keeps its `restart-required` lifecycle entry through the shim release, but a write changes no
+wait: there is no expiry to re-apply.
+
+Minted 2026-09-17 by clarify-keepalive task 04 for the config-lifecycle half of the unbounded-default
+change. Superseded 2026-11-17: the finite behavior it originally covered was removed. The key is a
+deprecated shim until its removal release. Runtime waits, keepalive pings, races, extension inheritance,
+and isolation stay with `RT-session-clarification-roundtrip`.

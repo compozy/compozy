@@ -148,6 +148,9 @@ func (n *daemonNativeTools) sessionClarifyAnswer(
 	if result.ResolvedAnswer != "" {
 		payload["resolved_answer"] = result.ResolvedAnswer
 	}
+	if result.Source != "" {
+		payload["source"] = string(result.Source)
+	}
 	return structuredResult(payload, result.Outcome)
 }
 

@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type MessageStartPatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	Role       *string `json:"role,omitempty"`
+	DeltaType  *string `json:"delta_type,omitempty"`
+	Text       *string `json:"text,omitempty"`
+}
+
 type MessageStartPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
@@ -204,9 +212,4 @@ type OwnerKind string
 type Ownership struct {
 	Kind OwnerKind `json:"kind"`
 	Ref  string    `json:"ref"`
-}
-
-type Pagination struct {
-	HasMore  bool `json:"has_more"`
-	PageSize int  `json:"page_size,omitempty"`
 }

@@ -273,10 +273,10 @@ func answerForStoredResolution(
 	}
 	for index, choice := range question.Choices {
 		if strings.TrimSpace(choice) == value {
-			return toolspkg.ClarifyAnswer{Choice: new(index)}
+			return toolspkg.ClarifyAnswer{Choice: new(index), Source: toolspkg.ClarifyAnswerSourceChoice}
 		}
 	}
-	return toolspkg.ClarifyAnswer{Text: value}
+	return toolspkg.ClarifyAnswer{Text: value, Source: toolspkg.ClarifyAnswerSourceCustom}
 }
 
 func (m *Manager) resolveOrphanedInteraction(

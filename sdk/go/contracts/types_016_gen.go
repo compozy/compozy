@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type ResourceSourceKind string
+
 type ResourcesListParams struct {
 	Kind  ResourceKind   `json:"kind,omitempty"`
 	Scope *ResourceScope `json:"scope,omitempty"`
@@ -186,5 +188,3 @@ type SessionAttentionChangedPayload struct {
 	Class          string    `json:"class"`
 	At             time.Time `json:"at"`
 }
-
-type SessionAttentionObservationPatch struct{}

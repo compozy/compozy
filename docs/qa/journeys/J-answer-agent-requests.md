@@ -3,9 +3,8 @@
 An operator supervising a live session answers a native-tool approval prompt or an agent question
 exactly once and is never asked the same thing again: `allow_always`/`reject_always` persist a
 durable grant that survives daemon restart and is revocable, and `compozy__clarify` blocks the agent
-until the operator answers (or, under a finite tools.clarify.timeout, the deadline resolves the
-explicit unanswered sentinel; the unbounded default keeps it pending, kept alive by
-_compozy/clarify_ping). Covers
+until the operator answers. Waits never expire: a retained `tools.clarify.timeout` value is ignored, so
+the question stays pending, kept alive by `_compozy/clarify_ping`. Covers
 US-001 (D1, ADR-001) and US-002 (D7, ADR-001).
 
 ```mermaid
@@ -26,11 +25,10 @@ flowchart TD
     RV --> RP[Next matching call prompts again]
     P --> C[Agent calls compozy__clarify with ≤4 choices]
     C --> Q[SSE question card + CLI/HTTP pending projection]
-    Q -->|operator answers choice or free text| AN[Tool result carries the exact answer; turn unblocks]
-    Q -->|finite timeout expires with no answer| TS[Unanswered sentinel Choice=nil Text empty Fallback=true — never a synthesized selection]
-    Q -->|unbounded default, never answered| UP[Pending with deadline null, kept alive by pings until answered]
+    Q -->|operator answers a choice or custom text| AN[Tool result carries the exact answer and its source; turn unblocks]
+    Q -->|never answered| UP[Pending with deadline null, kept alive by pings until answered]
     Q -.->|operator closes the tab| AB[Abandon: question stays pending in-memory]
-    AB -.->|returns before timeout| AN
+    AB -.->|returns and answers later| AN
     AB -.->|daemon restarts| ORPHAN[Durable request becomes orphaned with the same interaction ID]
     ORPHAN -->|operator resolves once| RESUME[Resolution and continuation queue commit atomically]
     RESUME --> TE
@@ -77,6 +75,6 @@ journey:
   abandonment:
     - at_step: 4
       how: "The operator never answers the clarify question."
-      resume: "Under the unbounded default the question stays pending and answerable; only a finite tools.clarify.timeout resolves the explicit unanswered sentinel (never a synthesized choice). After a daemon restart, the durable request remains discoverable as orphaned and an explicit resolution atomically queues one continuation; queue-full leaves it retryable."
+      resume: "The question never expires: it stays pending and answerable, and pings keep the blocked call alive. Only a cancel or session stop ends it without an answer, and that is never a synthesized choice. After a daemon restart, the durable request remains discoverable as orphaned and an explicit resolution atomically queues one continuation; queue-full leaves it retryable."
   crosses: [tool-approval-bridge, three-mode-policy, GlobalDB-grants, clarify-broker, SSE, Web-settings, CLI, HTTP, UDS, native-tools]
 ```

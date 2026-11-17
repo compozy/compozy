@@ -1130,10 +1130,13 @@ export interface AutonomyObservationPatch {
   labels?: Record<string, string>;
 }
 
+export type ClarifyAnswerSource = string;
+
 export interface ClarifyAnswer {
   choice?: number;
   text: string;
   fallback: boolean;
+  source?: ClarifyAnswerSource;
 }
 
 export interface ClarifyAskParams {

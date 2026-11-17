@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type PromptRuntimeSelectionPayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+}
+
 type ProviderModelConfigurationPayload struct {
 	ReasoningEffort *Effort `json:"reasoning_effort,omitempty"`
 	Fast            *bool   `json:"fast,omitempty"`
@@ -137,5 +145,3 @@ type ResourceSource struct {
 	Kind ResourceSourceKind `json:"kind"`
 	ID   string             `json:"id"`
 }
-
-type ResourceSourceKind string

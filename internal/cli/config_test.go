@@ -3373,3 +3373,43 @@ bottom_center = false
 		}
 	})
 }
+
+func TestConfigGetReportsEffectiveClarifyTimeout(t *testing.T) {
+	t.Parallel()
+
+	const path = "tools.clarify.timeout"
+	readValue := func(t *testing.T, deps commandDeps) any {
+		t.Helper()
+		out, _, err := executeRootCommand(t, deps, "config", "get", path, "-o", "json")
+		if err != nil {
+			t.Fatalf("config get %s error = %v", path, err)
+		}
+		var record configValueRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config get) error = %v", err)
+		}
+		return record.Value
+	}
+
+	t.Run("Should report the unbounded default after a retained finite value is stored", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		defaultValue := readValue(t, deps)
+		if _, _, err := executeRootCommand(t, deps, "config", "set", path, "5m", "-o", "json"); err != nil {
+			t.Fatalf("config set %s error = %v, want the retained shim value accepted", path, err)
+		}
+		if got := readValue(t, deps); got != defaultValue {
+			t.Fatalf("config get %s = %#v, want the unbounded default %#v", path, got, defaultValue)
+		}
+	})
+
+	t.Run("Should still reject an out-of-band retained value at set time", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		if _, _, err := executeRootCommand(t, deps, "config", "set", path, "25h", "-o", "json"); err == nil {
+			t.Fatalf("config set %s 25h error = nil, want the shim range rejected", path)
+		}
+	})
+}

@@ -175,10 +175,8 @@ func daemonKeepaliveTerminalSeq(t testing.TB, harness *e2etest.RuntimeHarness, r
 // TestClarifyKeepaliveE2EJourneys runs the two spec E2E journeys against a live
 // daemon with a fixture-backed mock agent session. Assigned cases: E2E-001
 // (unbounded pending survives past the 60s agent-idle mark on keepalive pings,
-// then resolves the blocked tool call), E2E-002 (finite policy still falls
-// back; a timely answer resolves normally). The finite journey uses a 2s policy
-// instead of 5m: identical code path, runnable live (see _tests.md E2E-002;
-// the 5m value itself is pinned at the broker and boot levels).
+// then resolves the blocked tool call), E2E-002 (a retained tools.clarify.timeout
+// value is ignored: the wait outlives it and a late answer resolves normally).
 func TestClarifyKeepaliveE2EJourneys(t *testing.T) {
 	t.Run("Should hold an unbounded clarification past 60s and resolve it [E2E-001]", func(t *testing.T) {
 		t.Parallel()
@@ -236,10 +234,11 @@ func TestClarifyKeepaliveE2EJourneys(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fall back without an answer and resolve a timely one [E2E-002]", func(t *testing.T) {
+	t.Run("Should keep an unanswered wait open past the retained timeout [E2E-002]", func(t *testing.T) {
 		t.Parallel()
 
 		options := keepaliveRuntimeOptions(t, func(cfg *compozyconfig.Config) {
+			// The retained shim value is never applied: the wait below must outlive it.
 			cfg.Tools.Clarify.Timeout = 2 * time.Second
 		})
 		harness := e2etest.StartRuntimeHarness(t, &options)
@@ -251,28 +250,25 @@ func TestClarifyKeepaliveE2EJourneys(t *testing.T) {
 		defer closeAttentionMCPClient(t, client)
 
 		unanswered := startKeepaliveClarifyCall(ctx, client, "Which path?", []string{"Fast", "Safe"})
-		expired := waitForAttentionInteraction(
+		interaction := waitForAttentionInteraction(
 			t, ctx, harness, target.ID, store.PendingInteractionKindClarify,
 		)
-		if got := awaitKeepaliveClarifyResult(t, ctx, unanswered); got.Choice != nil || got.Text != "" ||
-			!got.Fallback {
-			t.Fatalf("expired clarify result = %#v, want the fallback sentinel", got)
+		// Several multiples of the retained 2s value pass here; the call must stay blocked.
+		time.Sleep(10 * time.Second)
+		assertKeepaliveCallBlocked(t, unanswered)
+		if pending := readKeepalivePending(t, ctx, harness, target.ID); len(pending.Clarifications) != 1 {
+			t.Fatalf(
+				"pending clarifications = %d, want the unanswered question still open",
+				len(pending.Clarifications),
+			)
 		}
-		// Terminal decisions leave the open-interaction set; absence plus the
-		// fallback sentinel is the live timed_out evidence.
-		waitForAttentionInteractionAbsent(t, ctx, harness, target.ID, expired.InteractionID)
-
-		answered := startKeepaliveClarifyCall(ctx, client, "Which path?", []string{"Fast", "Safe"})
-		timely := waitForAttentionInteractionWhileCallPending(
-			t, ctx, harness, target.ID, store.PendingInteractionKindClarify, answered,
-		)
-		answer := answerKeepaliveClarify(t, ctx, harness, target.ID, timely.ProviderRequestID, "--choice", "2")
-		if answer.Outcome != store.PendingInteractionOutcomeAnswered || answer.ResolvedAnswer != "Safe" {
-			t.Fatalf("CLI clarify answer = %#v, want the answered Safe outcome", answer)
+		answer := answerKeepaliveClarify(t, ctx, harness, target.ID, interaction.ProviderRequestID, "--choice", "1")
+		if answer.Outcome != store.PendingInteractionOutcomeAnswered || answer.ResolvedAnswer != "Fast" {
+			t.Fatalf("CLI clarify answer = %#v, want the answered Fast outcome", answer)
 		}
-		if got := awaitKeepaliveClarifyResult(t, ctx, answered); got.Choice == nil || *got.Choice != 1 ||
+		if got := awaitKeepaliveClarifyResult(t, ctx, unanswered); got.Choice == nil || *got.Choice != 0 ||
 			got.Fallback {
-			t.Fatalf("timely clarify result = %#v, want {choice 1, no fallback}", got)
+			t.Fatalf("late clarify result = %#v, want {choice 0, no fallback}", got)
 		}
 	})
 }

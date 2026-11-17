@@ -26,10 +26,13 @@ type Chip struct {
 }
 
 type ClarifyAnswer struct {
-	Choice   *int   `json:"choice"`
-	Text     string `json:"text"`
-	Fallback bool   `json:"fallback"`
+	Choice   *int                `json:"choice"`
+	Text     string              `json:"text"`
+	Fallback bool                `json:"fallback"`
+	Source   ClarifyAnswerSource `json:"source,omitempty"`
 }
+
+type ClarifyAnswerSource string
 
 type ClarifyAskParams struct {
 	InvocationID string   `json:"invocation_id"`
@@ -156,9 +159,4 @@ type ConnectivityReachability struct {
 
 type ConnectivityStatusRequest struct {
 	Tier string `json:"tier"`
-}
-
-type ConnectivityTeardownRequest struct {
-	Tier     string    `json:"tier"`
-	Deadline time.Time `json:"deadline"`
 }

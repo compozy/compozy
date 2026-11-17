@@ -27,7 +27,8 @@ const clarifyOutputSchema = `{
 	"properties":{
 		"choice":{"type":["integer","null"],"minimum":0},
 		"text":{"type":"string"},
-		"fallback":{"type":"boolean"}
+		"fallback":{"type":"boolean"},
+		"source":{"type":"string","enum":["choice","custom"]}
 	},
 	"additionalProperties":false
 }`
@@ -37,7 +38,8 @@ func clarifyDescriptors() []toolspkg.Descriptor {
 		toolspkg.ToolIDClarify,
 		"clarify",
 		"Clarify",
-		"Ask the user one bounded question and wait for the answer or configured timeout.",
+		"Ask the user one question and wait until they answer; the wait has no timeout. "+
+			"Choices are optional; the user may also answer with custom text.",
 		clarifyInputSchema,
 		toolspkg.RiskRead,
 		true,

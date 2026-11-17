@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type Pagination struct {
+	HasMore  bool `json:"has_more"`
+	PageSize int  `json:"page_size,omitempty"`
+}
+
 type PatchOp struct {
 	Op    string          `json:"op"`
 	Path  string          `json:"path"`
@@ -240,12 +245,4 @@ type PromptPayload struct {
 	InputClass     string         `json:"input_class,omitempty"`
 	Prompt         string         `json:"prompt,omitempty"`
 	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type PromptRuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }

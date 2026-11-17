@@ -71,10 +71,12 @@ reached the operator, and each provider degraded on its own.
 
 - `tools.ClarifyBroker` (`internal/tools/clarify.go:211`) owns `Ask`, `Pending`, and
   `Answer`. A question carries free text plus at most `MaxClarifyChoices = 4` choices
-  (`internal/tools/clarify.go:14`), and `ClarifyAnswer` carries either `choice` or `text`.
+  (`internal/tools/clarify.go:14`), and `ClarifyAnswer` carries either `choice` or `text`, with a
+  `source` (`choice` or `custom`) that records which one the operator gave. Custom text is accepted
+  alongside choices, never combined with a choice in one answer, and may not repeat a choice label.
 - The daemon broker (`internal/daemon/clarify_bridge.go`) publishes durable pending/resolved
-  events, keeps the wait alive with keepalive pings, and honors `tools.clarify.timeout`
-  (default `0`, meaning unbounded).
+  events and keeps the wait alive with keepalive pings. Waits never expire. The retained
+  `tools.clarify.timeout` key is validated but ignored during its deprecation release.
 - `compozy__clarify` (`internal/tools/builtin/clarify.go`, `internal/daemon/native_clarify_tool.go`)
   is the model-facing wrapper. `requires_interaction` (`internal/extension/manifest.go:246`)
   marks extension tools that need an approval; it is a different, approval-shaped surface.

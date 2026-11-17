@@ -1,9 +1,12 @@
 package config
 
 import (
+	"bytes"
+	"log/slog"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -369,8 +372,9 @@ trusted_sources = ["mcp:workspace", "extension:linear"]
 		if got, want := cfg.Tools.HostedMCP.BindNonceTTLSeconds, 15; got != want {
 			t.Fatalf("LoadForHome() BindNonceTTLSeconds = %d, want %d", got, want)
 		}
-		if got, want := cfg.Tools.Clarify.Timeout, 90*time.Second; got != want {
-			t.Fatalf("LoadForHome() Clarify.Timeout = %s, want %s", got, want)
+		// The retained shim is validated but never applied: the effective wait stays unbounded.
+		if got, want := cfg.Tools.Clarify.Timeout, DefaultToolsClarifyTimeout; got != want {
+			t.Fatalf("LoadForHome() Clarify.Timeout = %s, want %s (unbounded)", got, want)
 		}
 		if got, want := cfg.Tools.Artifacts.MaxCount, 20; got != want {
 			t.Fatalf("LoadForHome() Artifacts.MaxCount = %d, want %d", got, want)
@@ -688,6 +692,26 @@ func TestToolsClarifyUnboundedPolicy(t *testing.T) {
 		}
 	})
 
+	t.Run("Should load a retained finite timeout as the unbounded effective wait", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, "[tools.clarify]\ntimeout = \"5m\"\n")
+		cfg, err := LoadForHome(homePaths, withoutDotEnv())
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v, want the valid shim value to load", err)
+		}
+		if got := cfg.Tools.Clarify.Timeout; got != 0 {
+			t.Fatalf("LoadForHome() Clarify.Timeout = %s, want 0s (shim value is not applied)", got)
+		}
+	})
+
 	t.Run("Should reject out-of-band clarify timeouts", func(t *testing.T) {
 		t.Parallel()
 
@@ -763,6 +787,83 @@ func TestToolsClarifyUnboundedPolicy(t *testing.T) {
 			if !strings.Contains(err.Error(), wantPrefix) {
 				t.Fatalf("Validate() timeout = %s error = %q, want prefix %q", timeout, err, wantPrefix)
 			}
+		}
+	})
+}
+
+// TestClarifyTimeoutShimWarning runs sequentially: it swaps the process logger and resets the
+// once-per-process gate, so no parallel test can observe or race either.
+func TestClarifyTimeoutShimWarning(t *testing.T) {
+	loadWithKey := func(t *testing.T, contents string) (Config, string) {
+		t.Helper()
+		var logs bytes.Buffer
+		original := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
+		t.Cleanup(func() { slog.SetDefault(original) })
+		clarifyTimeoutDeprecationOnce = sync.Once{}
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		if contents != "" {
+			writeFile(t, homePaths.ConfigFile, contents)
+		}
+		cfg, err := LoadForHome(homePaths, withoutDotEnv())
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		return cfg, logs.String()
+	}
+
+	t.Run("Should warn that the key is deprecated, unbounded, and removed next release", func(t *testing.T) {
+		cfg, logs := loadWithKey(t, "[tools.clarify]\ntimeout = \"5m\"\n")
+		if cfg.Tools.Clarify.Timeout != 0 {
+			t.Fatalf("LoadForHome() Clarify.Timeout = %s, want 0s", cfg.Tools.Clarify.Timeout)
+		}
+		for _, want := range []string{
+			"tools.clarify.timeout is deprecated",
+			"clarification waits are unbounded until answered",
+			"will be removed in the next release",
+		} {
+			if !strings.Contains(logs, want) {
+				t.Fatalf("warning log = %q, want it to contain %q", logs, want)
+			}
+		}
+	})
+
+	t.Run("Should stay quiet when the key is absent", func(t *testing.T) {
+		_, logs := loadWithKey(t, "")
+		if strings.Contains(logs, "tools.clarify.timeout") {
+			t.Fatalf("warning log = %q, want no clarify deprecation without the key", logs)
+		}
+	})
+
+	t.Run("Should warn once per process across reloads", func(t *testing.T) {
+		_, first := loadWithKey(t, "[tools.clarify]\ntimeout = \"5m\"\n")
+		if !strings.Contains(first, "tools.clarify.timeout is deprecated") {
+			t.Fatalf("first load log = %q, want the deprecation warning", first)
+		}
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, "[tools.clarify]\ntimeout = \"5m\"\n")
+		var logs bytes.Buffer
+		original := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
+		t.Cleanup(func() { slog.SetDefault(original) })
+		if _, err := LoadForHome(homePaths, withoutDotEnv()); err != nil {
+			t.Fatalf("LoadForHome(reload) error = %v", err)
+		}
+		if strings.Contains(logs.String(), "tools.clarify.timeout") {
+			t.Fatalf("reload log = %q, want the warning suppressed after the first", logs.String())
 		}
 	})
 }

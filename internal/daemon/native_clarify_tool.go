@@ -70,8 +70,6 @@ func (n *daemonNativeTools) clarifyBroker() toolspkg.ClarifyBroker {
 
 func clarifyPreview(answer toolspkg.ClarifyAnswer) string {
 	switch {
-	case answer.Fallback:
-		return "No clarification answer received before timeout."
 	case answer.Choice != nil:
 		return fmt.Sprintf("Clarification answered with choice %d.", *answer.Choice)
 	default:

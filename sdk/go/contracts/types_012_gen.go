@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type LoopControlPatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
 type LoopGatePostPayload struct {
 	Event           HookEvent `json:"event"`
 	Timestamp       time.Time `json:"timestamp"`
@@ -407,12 +412,4 @@ type MessagePayload struct {
 	DeltaType      string          `json:"delta_type,omitempty"`
 	Text           string          `json:"text,omitempty"`
 	Raw            json.RawMessage `json:"raw,omitempty"`
-}
-
-type MessageStartPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
 }

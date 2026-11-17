@@ -1381,6 +1381,7 @@ export type ClarificationsResponse = {
 export type ClarifyAnswer = {
   choice: number | null;
   fallback: boolean;
+  source?: string;
   text: string;
 };
 
