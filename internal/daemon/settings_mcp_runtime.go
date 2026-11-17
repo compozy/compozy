@@ -36,7 +36,7 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 	if err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, err
 	}
-	if suppressed, err := s.suppressedMCPRuntimeStatus(ctx, key, tracked); err != nil {
+	if suppressed, err := s.suppressedMCPAuthRuntimeStatus(ctx, key, tracked, target, server); err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, err
 	} else if suppressed != nil {
 		return *suppressed, nil
@@ -139,6 +139,9 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 		}),
 		mcppkg.WithTokenStore(s.mcpAuthStore),
 		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
+		mcppkg.WithAuthRecovery(func(ctx context.Context, resolved *mcppkg.ResolvedServer) error {
+			return s.recoverMCPAuthentication(ctx, resolved.Target, resolved.Server)
+		}),
 		mcppkg.WithSecretLookup(s.lookupSecret),
 		mcppkg.WithSecretResolver(s.secretRefs),
 		mcppkg.WithTimeout(s.mcpStatusTimeoutOrDefault()),
@@ -253,6 +256,9 @@ func runtimeStateFromMCPAuthStatus(
 	case mcpauth.StatusNeedsLogin:
 		return settingspkg.MCPServerRuntimeStateAuthRequired, true
 	case mcpauth.StatusExpired:
+		if status.TokenPresent && status.Refreshable {
+			return "", false
+		}
 		return settingspkg.MCPServerRuntimeStateAuthExpired, true
 	case mcpauth.StatusInvalid:
 		return settingspkg.MCPServerRuntimeStateAuthInvalid, true

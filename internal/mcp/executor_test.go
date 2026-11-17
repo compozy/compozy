@@ -525,13 +525,43 @@ func TestMCPCallExecutor(t *testing.T) {
 		if err != nil || status.Status != mcpauth.StatusAuthenticated {
 			t.Fatalf("exchange = %#v, %v", status, err)
 		}
-		executor := newTestMCPExecutor(t, server, WithTokenStore(store))
+		executor := newTestMCPExecutor(t, server, WithTokenStore(store),
+			WithSecretResolver(secretRefResolverFunc(func(context.Context, string) (string, error) {
+				return login.Config.ClientSecret, nil
+			})))
 		tools, err := executor.ListTools(
 			t.Context(),
 			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name},
 		)
 		if err != nil || len(tools) == 0 {
 			t.Fatalf("tools after sign in = %d, %v", len(tools), err)
+		}
+		token, err := store.GetMCPAuthToken(t.Context(), target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		token.ExpiresAt = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+			t.Fatal(err)
+		}
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+		statusView, err := executor.Status(t.Context(), source, "")
+		if err != nil || statusView.Status != "expired" || !statusView.Refreshable {
+			t.Fatalf("expired status = %+v, %v", statusView, err)
+		}
+		if reason, denied := toolspkg.MCPAuthStatusReason(statusView); denied {
+			t.Fatalf("refreshable tool gated before call: %s", reason)
+		}
+		beforeRefresh := len(fixture.Requests().Token)
+		result, err := executor.CallTool(t.Context(), source, toolspkg.MCPToolCallRequest{
+			ToolID: "mcp__fixture__echo", RawToolName: "echo", Input: json.RawMessage(`{"message":"renewed-call"}`),
+		})
+		if err != nil || !strings.Contains(result.Preview, "renewed-call") {
+			t.Fatalf("call across expiry = %+v, %v", result, err)
+		}
+		refreshes := fixture.Requests().Token
+		if len(refreshes) != beforeRefresh+1 || refreshes[beforeRefresh].Get("grant_type") != "refresh_token" {
+			t.Fatal("expired call did not refresh exactly once")
 		}
 		server.Auth = compozyconfig.MCPAuthConfig{Registration: "auto"}
 		server.Headers = map[string]string{"X-API-Version": "1"}

@@ -294,6 +294,9 @@ func MCPAuthStatusReason(status MCPAuthStatus) (ReasonCode, bool) {
 	case mcpAuthStatusNeedsLogin:
 		return ReasonMCPAuthRequired, true
 	case mcpAuthStatusExpired:
+		if status.TokenPresent && status.Refreshable {
+			return "", false
+		}
 		return ReasonMCPAuthExpired, true
 	case mcpAuthStatusInvalid:
 		return ReasonMCPAuthInvalid, true

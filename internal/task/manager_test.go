@@ -994,6 +994,8 @@ func (s *inMemoryManagerStore) UpdateTask(_ context.Context, taskRecord Task, _ 
 }
 
 func (s *inMemoryManagerStore) GetTask(_ context.Context, id string) (Task, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.coordinatorCompleted && s.coordinatorPublicationErr != nil {
 		return Task{}, s.coordinatorPublicationErr
 	}

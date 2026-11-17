@@ -1013,6 +1013,43 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve a missing Cursor effort default from supported bindings", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name   string
+			output string
+			want   ReasoningEffort
+		}{
+			{name: "Should choose the lowest supported effort independent of alias order", output: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-low - Gemini Flash Low", want: ReasoningEffortLow},
+			{name: "Should preserve the provider-marked default", output: "gemini-3.8-flash-high - Gemini Flash\ngemini-3.8-flash-low - Gemini Flash Low", want: ReasoningEffortHigh},
+			{name: "Should preserve a bare provider-default binding", output: "gemini-3.8-flash - Gemini Flash\ngemini-3.8-flash-low - Gemini Flash Low", want: ""},
+			{name: "Should preserve a bare Fast binding beside effort-specific normal bindings", output: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-fast - Gemini Flash Fast", want: ""},
+			{name: "Should ignore lower effort fast and thinking variants", output: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-low-fast - Gemini Flash Low Fast\ngemini-3.8-flash-low-thinking - Gemini Flash Low Thinking", want: ReasoningEffortHigh},
+			{name: "Should resolve fast-only models from their supported effort", output: "gemini-3.8-flash-high-fast - Gemini Flash High Fast\ngemini-3.8-flash-low-fast - Gemini Flash Low Fast", want: ReasoningEffortLow},
+			{name: "Should resolve thinking-only models from their supported effort", output: "gemini-3.8-flash-high-thinking - Gemini Flash High Thinking\ngemini-3.8-flash-low-thinking - Gemini Flash Low Thinking", want: ReasoningEffortLow},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				rows, err := parseCursorModelRows("cursor", tc.output, testTime(0))
+				if err != nil {
+					t.Fatal(err)
+				}
+				models := MergeRows(rows, MergeOptions{})
+				if len(models) != 1 {
+					t.Fatalf("models = %#v, want one logical model", models)
+				}
+				got := models[0].DefaultReasoningEffort
+				if tc.want == "" {
+					if got != nil {
+						t.Fatalf("default = %q, want provider default", *got)
+					}
+				} else if got == nil || *got != tc.want {
+					t.Fatalf("default = %v, want %q", got, tc.want)
+				}
+			})
+		}
+	})
+
 	t.Run("Should use the resolved native Claude executable for ACP discovery", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {

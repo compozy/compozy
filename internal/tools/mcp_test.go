@@ -1971,6 +1971,27 @@ func TestMCPProviderAdvertisedDiscoveryRetention(t *testing.T) {
 		if catalog().Digest != bound.Digest {
 			t.Fatal("health loss discarded source views")
 		}
+		executor.setListError(nil)
+		executor.setStatus(MCPAuthStatus{Status: mcpAuthStatusExpired, TokenPresent: true, Refreshable: true})
+		if catalog().Digest != bound.Digest {
+			t.Fatal("refreshable expiry discarded source entitlement")
+		}
+		views, err := registry.AdvertisedSessionProjection(
+			t.Context(),
+			Scope{SessionID: "retained", WorkspaceID: "workspace-a"},
+		)
+		if err != nil || len(views) != 1 || !views[0].Availability.Executable {
+			t.Fatalf("refreshable tool unavailable: %+v, %v", views, err)
+		}
+		for _, status := range []MCPAuthStatus{
+			{Status: mcpAuthStatusExpired, TokenPresent: true},
+			{Status: mcpAuthStatusExpired, Refreshable: true},
+		} {
+			executor.setStatus(status)
+			if len(catalog().Servers) != 0 {
+				t.Fatal("expiry without usable credentials retained source entitlement")
+			}
+		}
 		executor.setStatus(MCPAuthStatus{Status: mcpAuthStatusNeedsLogin})
 		if catalog().Digest == bound.Digest {
 			t.Fatal("sign-out retained source entitlement")

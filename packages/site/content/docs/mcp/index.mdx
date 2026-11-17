@@ -86,6 +86,21 @@ server; they report what CompozyOS already knows.
 
 ## States and fixes
 
+OAuth access tokens renew when CompozyOS next discovers or calls the server. An expired access
+token with a usable refresh token keeps the server's tools in open sessions, so routine expiry
+does not require signing in again. Passive status reads may still report `expired` together with
+`token_present: true` and `refreshable: true` until the next use.
+
+If the OAuth server is temporarily unavailable, the call can fail while the tools stay listed.
+Retries use a shared backoff with jitter, from about one second up to one minute. Try the call
+again after the connection recovers. If the server rejects the refresh token as invalid or revoked,
+the tools are withdrawn and the server needs sign-in. Expiry without a usable refresh token also
+needs sign-in.
+
+Successful sign-in or renewal clears an old authentication-related dead-server mark. Connection
+failures continue to use the normal server recovery checks. Refresh-failure logs identify the
+server, cause class, and attempt count without including credentials.
+
 | State                             | Meaning                                                            | Fix                                                                                                               |
 | --------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | **Ready**                         | The agent can call its tools.                                      | —                                                                                                                 |

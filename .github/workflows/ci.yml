@@ -26,6 +26,7 @@ concurrency:
 env:
   CGO_ENABLED: 0
   GO_VERSION: "1.27.3"
+  COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/gotest-json
   # Turborepo remote cache (Vercel): jobs exchange the GitHub OIDC token for a
   # short-lived Turborepo token (revoked at job end). Pull requests read the
   # shared cache; push and workflow_dispatch lanes upload. Fork PRs skip the
@@ -309,6 +310,7 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
           install-golangci-lint: "true"
           save-cache: ${{ env.SAVE_CACHE }}
@@ -328,13 +330,22 @@ jobs:
           make source-size
           make go-lint
 
+      - name: Prepare contract test receipts
+        run: mkdir -p /tmp/gotest-json
+
       - name: Verify integration selection and census contracts
         env:
           CGO_ENABLED: "1"
         run: >-
-          go test -race -tags=mage ./magefiles
-          -run '^Test(Integration|GlobalDBIntegration|GoTest|LoadGoTestCensus|Census|Partition|MissingPackage)'
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5
+          --jsonfile /tmp/gotest-json/gotest-mage.json --packages ./magefiles -- -race -tags=mage
+          -run '^Test(Integration|GlobalDBIntegration|GoTest|LoadGoTestCensus|Census|Partition|MissingPackage|Flake|Perf)'
           -count=1 -timeout=5m
+
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: go-static
 
       - name: Save golangci-lint cache
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -419,6 +430,11 @@ jobs:
       - name: Run Go runtime verification
         run: make test
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: go-test-${{ matrix.shard_index }}
+
       - name: Upload gotestsum timing data
         if: always()
         uses: actions/upload-artifact@v7
@@ -450,6 +466,7 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
           save-cache: ${{ env.SAVE_CACHE }}
 
@@ -457,9 +474,14 @@ jobs:
         run: |
           go -C sdk/go build ./...
           go -C sdk/go vet ./...
-          go -C sdk/go test -race -parallel=4 ./...
+          go run github.com/magefile/mage@v1.17.2 testSDKGo
         env:
           CGO_ENABLED: 1
+
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: sdk-go-test
 
   go-build:
     name: Go (build, boundaries)
@@ -493,13 +515,23 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
           save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Verify Darwin hosted MCP peer identity
-        run: go test ./internal/mcp -run '^TestPeerInfoFromUnixConnIdentifiesLocalPeer$' -count=1
+        run: |
+          mkdir -p /tmp/gotest-json
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 \
+            --jsonfile /tmp/gotest-json/gotest-darwin.json --packages ./internal/mcp -- \
+            -run '^TestPeerInfoFromUnixConnIdentifiesLocalPeer$' -count=1
         env:
           CGO_ENABLED: 0
+
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: go-peer-darwin
 
   go-terminal-windows:
     name: Go (Windows terminal runtime)
@@ -529,12 +561,17 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
           save-cache: ${{ env.SAVE_CACHE }}
 
+      - name: Prepare Windows test receipts
+        shell: bash
+        run: mkdir -p .tmp/gotest-json
+
       - name: Verify Windows hosted MCP peer identity
         run: >-
-          go test ./internal/mcp
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-1.json --packages "./internal/mcp" --
           -run '^(TestPeerInfo|TestWindowsPeerIdentity)'
           -count=1
         env:
@@ -542,20 +579,20 @@ jobs:
 
       - name: Verify Windows terminal runtime
         run: >-
-          go test ./internal/procutil ./internal/terminal/pty ./internal/terminal
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-2.json --packages "./internal/procutil ./internal/terminal/pty ./internal/terminal" --
           -run '^(TestWindowsProcessHandleTermination|TestWindowsPTYHardening|TestWindowsPipeRuntime|TestWindowsDefaultShellResolution|TestResolveCapabilities)$'
           -count=1
         env:
           CGO_ENABLED: 0
 
       - name: Verify Windows managed stdout lifetime
-        run: go test ./internal/subprocess -run '^TestProcessStdoutLifetime$' -count=1
+        run: gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-3.json --packages "./internal/subprocess" -- -run '^TestProcessStdoutLifetime$' -count=1
         env:
           CGO_ENABLED: 0
 
       - name: Verify read-only config and retirement migration on Windows
         run: >-
-          go test ./internal/config
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-4.json --packages "./internal/config" --
           -run '^(TestPersistedOverlayWindowsReadPermissions|TestLoadConfigArchivesRetiredSkillAcquisition)$'
           -count=1
         env:
@@ -563,7 +600,7 @@ jobs:
 
       - name: Verify Windows private files and Gateway recovery
         run: >-
-          go test ./internal/fileutil ./internal/cli
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-5.json --packages "./internal/fileutil ./internal/cli" --
           -run '^(TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets|TestWindowsPrivateFiles|TestGatewayCredentialStore|TestGatewayProfileTransactionLock|TestGatewayProfileTransactionJournal|TestGatewayProfileTransactionRecovery|TestGatewayProfileTransactionJournalPath)$'
           -count=1
         env:
@@ -571,7 +608,7 @@ jobs:
 
       - name: Verify Windows startup, rooted writes, and session deletion
         run: >-
-          go test ./internal/daemon ./internal/fileutil ./internal/session ./internal/profile
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-6.json --packages "./internal/daemon ./internal/fileutil ./internal/session ./internal/profile" --
           -run '^(TestUpdateLock|TestWindowsDirectoryMoveNoReplaceContract|TestWindowsDirectoryCreationThroughReadOnlyAncestor|TestManagerQueriesUseWorkspaceRegistration|TestNormalizeIdentitySymbols|TestManagerDelete)/(Should_remove_the_committed_bound_tree_without_a_private_directory_leak|Should_reject_a_concurrent_runtime_mutation|Should_replace_a_stale_owner_with_the_caller_identity|Should_create_descendants_without_requesting_write_access_to_an_existing_ancestor|Should_list_and_inspect_stopped_sessions_without_resolving_runtime_resources|Should_recognize_the_entire_catalog_with_either_LF_or_CRLF_line_endings|Should_remove_a_stopped_user_session_from_durable_counts|Should_wait_for_active_stored_readers_before_committing_deletion|Should_restore_the_staged_directory_when_catalog_deletion_fails|Should_recover_an_interrupted_staged_tombstone_from_every_catalog_state)$'
           -count=1
         env:
@@ -579,7 +616,7 @@ jobs:
 
       - name: Verify Windows skill cache and detached log rotation
         run: >-
-          go test ./internal/filesnap ./internal/skillscan ./internal/cli
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-7.json --packages "./internal/filesnap ./internal/skillscan ./internal/cli" --
           -run '^(TestFromInfo|TestDirectoryResultUnchanged|TestSpawnDetachedDaemonProcess|TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv)$'
           -count=1
         env:
@@ -591,10 +628,17 @@ jobs:
           CGO_ENABLED: 0
 
       - name: Exercise repeated native Windows CLI and OS keyring recovery
-        run: go test -tags integration ./internal/cli -run '^TestWindowsGatewayCLI$' -count=1 -v
+        run: gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-8.json --packages "./internal/cli" -- -tags integration -run '^TestWindowsGatewayCLI$' -count=1 -v
         env:
           CGO_ENABLED: 0
           COMPOZY_TEST_BINARY: ${{ runner.temp }}/compozy-gateway-test.exe
+
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        env:
+          COMPOZY_GO_TEST_JSONFILE_DIR: .tmp/gotest-json
+        with:
+          job: go-windows
 
   desktop:
     name: Desktop (format, lint, test, build)
@@ -719,6 +763,11 @@ jobs:
           CGO_ENABLED: 0
           CI: "true"
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: e2e-runtime
+
       - name: Upload runtime E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -778,14 +827,10 @@ jobs:
           CI: "true"
           COMPOZY_E2E_WEB_SHARD: ${{ matrix.shard }}/6
 
-      - name: Upload E2E-023 switch CPU diagnostics
+      - uses: ./.github/actions/report-flakes
         if: always()
-        uses: actions/upload-artifact@v7
         with:
-          name: e2e023-diagnostics-shard-${{ matrix.shard }}
-          path: .tmp/playwright/test-results/*E2E-023*/diagnostic-profiles
-          if-no-files-found: ignore
-          retention-days: 7
+          job: e2e-web-${{ matrix.shard }}
 
       - name: Upload session lifecycle QA evidence
         if: always()
@@ -907,6 +952,11 @@ jobs:
           CGO_ENABLED: 0
           CI: "true"
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: e2e-desktop
+
       - name: Upload desktop E2E artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -938,3 +988,94 @@ jobs:
       - name: Note an unselected heavy lane
         if: needs.changes.outputs.heavy != 'true'
         run: echo "::notice title=Heavy lane not selected::Integration, Windows and E2E lanes run on main pushes and nightly. Add the ci:full label and re-run to run them here."
+
+  e2e-perf:
+    name: Nightly E2E-023 performance census
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    # Informational on explicitly opted-in PRs; deliberately outside both merge
+    # aggregators and Release publication dependencies. Never retry a failed census.
+    if: github.event_name == 'schedule' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:full'))
+    outputs:
+      rejected: ${{ steps.judge.outcome == 'failure' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          build-cache-job: go-build
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "true"
+      - *install-terminal-scenario-shell
+      - name: Collect five complete performance samples without retries
+        id: samples
+        run: make test-e2e-web
+        env:
+          CI: "true"
+          COMPOZY_E2E_PERF: "1"
+      - name: Judge the median against the unchanged 50 ms budget
+        id: judge
+        # Provisioning/build failures produce no report and belong to their own
+        # failing step. A successful collection must produce a judgeable report;
+        # incomplete or functionally failed reports still get judged.
+        if: always() && (steps.samples.outcome == 'success' || hashFiles('.tmp/playwright/playwright-web.json') != '')
+        shell: bash
+        run: |
+          mkdir -p .tmp/playwright
+          go run github.com/magefile/mage@v1.17.2 testPerfCensus .tmp/playwright/playwright-web.json 2>&1 | tee .tmp/playwright/perf-judgment.txt
+      - name: Retain every performance sample
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-perf-census
+          path: .tmp/playwright
+          if-no-files-found: error
+          retention-days: 14
+
+  e2e-perf-issue:
+    name: Update performance census tracking issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: e2e-perf
+    if: always() && !cancelled() && needs.e2e-perf.outputs.rejected == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    # Serialize the small issue update only; every independent census can run.
+    concurrency:
+      group: e2e-perf-tracking-issue
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: e2e-perf-census
+          path: .tmp/playwright
+      - name: Update the performance tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPOZY_FLAKE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash .github/scripts/perf-census-issue.sh .tmp/playwright/perf-judgment.txt
+
+  flake-census:
+    name: Collect recovered test flakes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      [
+        go-static,
+        go-test,
+        sdk-go-test,
+        go-integration,
+        go-peer-darwin,
+        go-terminal-windows,
+        e2e-runtime,
+        e2e-web,
+        e2e-desktop,
+      ]
+    if: always() && !cancelled()
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/collect-flakes

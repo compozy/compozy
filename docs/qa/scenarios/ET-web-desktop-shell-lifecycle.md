@@ -16,6 +16,19 @@ last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
+qa-impact: 2026-11-16 CI flakiness decisions relocate E2E-023 to the nightly performance
+census. Five independent, unretried eleven-tab runs retain every envelope; both the
+switch and peer median must be <=50 ms. The lane runs nightly or on explicit
+ci:full PRs, is informational outside merge-gating aggregators, and updates one
+performance tracking issue on rejection. Each run still asserts restore <500 ms and
+functional convergence. A missing/failed sample fails the census with an annotation.
+The census analysis counted 24 intermittent performance failures (51–73 ms), so five
+samples and the median tolerate isolated spikes while failing a majority breach;
+this is not evidence of a production root cause or per-frame headroom. The ordinary
+merge/release browser lanes exclude `@perf`; nightly and explicit `ci:full` PRs
+exercise the dedicated census. Validation receipts belong to the delivery PR; no local E2E
+walk is claimed under the overloaded-host restriction.
+
 qa-impact: 2026-11-15 accepted window-manager commands retain workspace authorization and
 finish their durable commit within a separate 30-second lifetime after a browser disconnect.
 Pin a tab and immediately reload; its pin and leftmost position must survive. Repeat with

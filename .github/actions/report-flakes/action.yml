@@ -1,0 +1,32 @@
+name: Report recovered test flakes
+description: Annotate recovered tests and upload structured census receipts, including on failed jobs
+inputs:
+  job:
+    description: Unique job and shard identity
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Report recovered test flakes
+      id: report
+      shell: bash
+      env:
+        COMPOZY_FLAKE_JOB: ${{ inputs.job }}
+        COMPOZY_FLAKE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        mkdir -p .tmp/test-receipts
+        # Keep Go receipts and Playwright's two JSON reporters in one bounded tree.
+        if [[ -n "${COMPOZY_GO_TEST_JSONFILE_DIR:-}" && -d "$COMPOZY_GO_TEST_JSONFILE_DIR" ]]; then
+          cp -R "$COMPOZY_GO_TEST_JSONFILE_DIR" .tmp/test-receipts/go
+        fi
+        for report in .tmp/playwright/playwright*.json; do
+          [[ ! -f "$report" ]] || cp "$report" .tmp/test-receipts/
+        done
+        go run github.com/magefile/mage@v1.17.2 testFlakes .tmp/test-receipts .tmp/flake-report/flakes.json
+    - uses: actions/upload-artifact@v7
+      if: always() && steps.report.outputs.count != '' && steps.report.outputs.count != '0'
+      with:
+        name: flake-report-${{ inputs.job }}-${{ github.run_attempt }}
+        path: .tmp/flake-report/flakes.json
+        retention-days: 14
+        if-no-files-found: error

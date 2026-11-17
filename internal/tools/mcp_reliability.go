@@ -84,8 +84,9 @@ func (p *MCPProvider) listSourceDescriptors(
 			return nil, false, fmt.Errorf("tools: admit mcp source %q: %w", source.Owner, err)
 		}
 		if !decision.Allowed {
-			// A settled breaker decision is reusable; failed discovery attempts are not.
-			return p.reliability.cached(key, reliabilityState), true, nil
+			if !p.canRecoverAuthFailure(ctx, source, decision.Reason) {
+				return p.reliability.cached(key, reliabilityState), true, nil
+			}
 		}
 	}
 
@@ -105,6 +106,26 @@ func (p *MCPProvider) listSourceDescriptors(
 		return p.discoveryFailed(ctx, source, key, tracked, reliabilityState, err)
 	}
 	return p.discoverySucceeded(ctx, source, key, tracked, reliabilityState, discovered)
+}
+
+func (p *MCPProvider) canRecoverAuthFailure(ctx context.Context, source SourceRef, reason string) bool {
+	if isNilInterface(p.auth) || !MCPAuthenticationFailure(reason) {
+		return false
+	}
+	status, err := p.auth.Status(ctx, source, "")
+	if err != nil || !status.TokenPresent {
+		return false
+	}
+	return status.Status == mcpAuthStatusAuthenticated ||
+		(status.Status == mcpAuthStatusExpired && status.Refreshable)
+}
+
+// MCPAuthenticationFailure recognizes persisted auth diagnostics from earlier releases.
+func MCPAuthenticationFailure(reason string) bool {
+	reason = strings.ToLower(reason)
+	return strings.Contains(reason, "mcp_auth_") || strings.Contains(reason, "mcp auth") ||
+		strings.Contains(reason, "needs sign-in") || strings.Contains(reason, "token is expired") ||
+		strings.Contains(reason, "login required")
 }
 
 type mcpDiscoveryGeneration struct{ check, list uint64 }
@@ -359,7 +380,6 @@ func MCPDiscoveryFailureClass(err error) deadentity.FailureClass {
 		ReasonMCPAuthRequired,
 		ReasonMCPAuthExpired,
 		ReasonMCPAuthInvalid,
-		ReasonMCPAuthRefreshFailed,
 		ReasonSourceDisabled:
 		return deadentity.FailurePermanent
 	default:

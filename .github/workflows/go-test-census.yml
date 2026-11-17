@@ -3,6 +3,7 @@ name: Go test census refresh
 on:
   schedule:
     - cron: "23 5 * * 1"
+    - cron: "37 6 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -16,6 +17,7 @@ permissions:
 
 jobs:
   refresh:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '23 5 * * 1'
     name: Fold shard timings into the census
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -145,3 +147,21 @@ jobs:
             echo "Open the refresh PR manually: ${compare_url}"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "::notice title=Census refresh pushed::Open the PR manually: ${compare_url}"
+
+  flakes:
+    name: Update the recovered-flake ledger
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          build-cache: "false"
+      - name: Deduplicate structured artifacts and update one tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/flake-census.sh
