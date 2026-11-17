@@ -346,6 +346,11 @@ retain last-known-good tools on failure, and publish changed session summaries w
 Unavailable checks return 503, disabled sources 400, and client-canceled checks 499.
 Settings items expose the declaration file as `definition_source` when available.
 
+Use the canonical ID returned by tool discovery in approvals and policy selectors. A tool such as
+`_dd_gff` can appear as `mcp__<server>__raw__x<base32>`. The original name is sent to the server on
+each call, and `mcp__<server>__*` covers both encoded and ordinary IDs. A ready server can have a
+runtime diagnostic for names that could not be normalized or IDs shared by multiple tools.
+
 ### Runtime MCP Inventory
 
 Each runtime CLI (Claude Code, Codex, Gemini CLI, OpenCode, Kimi CLI, Qwen Code, GitHub Copilot CLI,

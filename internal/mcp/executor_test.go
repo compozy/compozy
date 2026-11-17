@@ -117,17 +117,107 @@ func TestMCPCallExecutor(t *testing.T) {
 			URL:       fixture.StartHTTP(t).URL,
 		})
 		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
-		descriptors, protocolVersion, err := executor.ListToolsWithProtocol(t.Context(), source)
+		discovery, err := executor.DiscoverTools(t.Context(), source)
 		if err != nil {
-			t.Fatalf("ListToolsWithProtocol() error = %v", err)
+			t.Fatalf("DiscoverTools() error = %v", err)
 		}
-		if got, want := protocolVersion, mcpfixture.ModernProtocolVersion; got != want {
+		if got, want := discovery.ProtocolVersion, mcpfixture.ModernProtocolVersion; got != want {
 			t.Fatalf("protocol version = %q, want %q", got, want)
 		}
-		if got, want := len(descriptors), 2; got != want {
+		if got, want := len(discovery.Descriptors), 2; got != want {
 			t.Fatalf("descriptor count = %d, want %d after pagination", got, want)
 		}
 	})
+
+	for _, version := range []string{protocolVersionModern, protocolVersionLegacy} {
+		t.Run("Should discover encoded tools and preserve callable protocol names over "+version, func(t *testing.T) {
+			t.Parallel()
+
+			server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "names", Version: "1.0.0"}, &mcpsdk.ServerOptions{
+				SupportedProtocolVersions: []string{version},
+			})
+			fixtureNames := []string{
+				"_dd_gff",
+				"dd_gff",
+				"echo",
+				" spaced_tool ",
+				"Search.Read",
+				"search_read",
+				strings.Repeat("t", 64),
+			}
+			for _, name := range fixtureNames {
+				server.AddTool(&mcpsdk.Tool{
+					Name:        name,
+					InputSchema: json.RawMessage(`{"type":"object"}`),
+				}, func(_ context.Context, request *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+					return &mcpsdk.CallToolResult{
+						Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: request.Params.Name}},
+					}, nil
+				})
+			}
+			server.AddReceivingMiddleware(withTestMCPListTTL)
+			remote := newTestMCPHTTPServer(server)
+			t.Cleanup(remote.Close)
+			executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+				Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: remote.URL,
+			})
+			source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+			roundTrip := map[toolspkg.ToolID]string{"mcp__fixture__raw__xl5sgix3hmzta": "_dd_gff"}
+			want := map[string]toolspkg.ToolID{
+				"_dd_gff":     "mcp__fixture__raw__xl5sgix3hmzta",
+				"dd_gff":      "mcp__fixture__dd_gff",
+				"echo":        "mcp__fixture__echo",
+				"Search.Read": "mcp__fixture__search_read",
+				"search_read": "mcp__fixture__search_read",
+			}
+			wantCount, skipped := 3, 4
+			messages := []string{"exceeds 64 characters", "mcp__fixture__search_read"}
+			if version == protocolVersionLegacy {
+				roundTrip["mcp__fixture__spaced_tool"] = " spaced_tool "
+				want[" spaced_tool "] = "mcp__fixture__spaced_tool"
+				wantCount, skipped = 4, 3
+			} else {
+				messages = append(messages, "cannot be sent unchanged in the Mcp-Name header")
+			}
+			messages = append(messages, fmt.Sprintf("Skipped %d MCP tool entries", skipped))
+			for range 2 {
+				discovery, err := executor.DiscoverTools(t.Context(), source)
+				if err != nil || discovery.ProtocolVersion != version {
+					t.Fatalf("negotiated version = %q, %v, want %q", discovery.ProtocolVersion, err, version)
+				}
+				names := make(map[string]toolspkg.ToolID, len(discovery.Descriptors))
+				for _, descriptor := range discovery.Descriptors {
+					names[descriptor.Source.RawToolName] = descriptor.ID
+					if wantName, ok := roundTrip[descriptor.ID]; ok {
+						if descriptor.RawName != wantName || descriptor.Source.RawToolName != wantName {
+							t.Fatalf("descriptor names = %q, %q, want %q",
+								descriptor.RawName, descriptor.Source.RawToolName, wantName)
+						}
+						result := callMCPTool(t, executor, descriptor, json.RawMessage(`{}`))
+						if got := result.Content[0].Text; got != wantName {
+							t.Fatalf("tools/call name = %q, want %q", got, wantName)
+						}
+					}
+				}
+				if len(discovery.Descriptors) != len(want) || !maps.Equal(names, want) ||
+					discovery.ToolCount != wantCount {
+					t.Fatalf("discovered tools = %v, count = %d, want %v and %d available",
+						names, discovery.ToolCount, want, wantCount)
+				}
+				for _, message := range messages {
+					if !strings.Contains(discovery.Diagnostic, message) {
+						t.Fatalf("diagnostic = %q, want %q", discovery.Diagnostic, message)
+					}
+				}
+			}
+			if version == protocolVersionModern {
+				_, err := executor.CallTool(t.Context(), source, toolspkg.MCPToolCallRequest{
+					ToolID: "mcp__fixture__spaced_tool", RawToolName: " spaced_tool ",
+				})
+				requireReason(t, err, toolspkg.ReasonIDInvalidFormat)
+			}
+		})
+	}
 
 	t.Run("Should negotiate legacy fallback and reject MRTR input requests", func(t *testing.T) {
 		t.Parallel()
@@ -139,11 +229,11 @@ func TestMCPCallExecutor(t *testing.T) {
 			URL:       legacy.StartHTTP(t).URL,
 		})
 		legacySource := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "legacy", RawServerName: "legacy"}
-		_, protocolVersion, err := legacyExecutor.ListToolsWithProtocol(t.Context(), legacySource)
+		discovery, err := legacyExecutor.DiscoverTools(t.Context(), legacySource)
 		if err != nil {
-			t.Fatalf("ListToolsWithProtocol(legacy) error = %v", err)
+			t.Fatalf("DiscoverTools(legacy) error = %v", err)
 		}
-		if got, want := protocolVersion, mcpfixture.LegacyProtocolVersion; got != want {
+		if got, want := discovery.ProtocolVersion, mcpfixture.LegacyProtocolVersion; got != want {
 			t.Fatalf("legacy protocol version = %q, want %q", got, want)
 		}
 
@@ -1709,22 +1799,22 @@ func TestMCPToolListCache(t *testing.T) {
 			InputSchema:  json.RawMessage(`{"type":"object"}`),
 			OutputSchema: json.RawMessage(`{"type":"string"}`),
 		}}
-		executor.cacheTools("fixture", descriptors, 1_000, now)
+		executor.cacheTools("fixture", ToolDiscovery{Descriptors: descriptors}, 1_000, now)
 		descriptors[0].InputSchema[0] = '['
 
 		first, ok := executor.cachedTools("fixture", now)
 		if !ok {
 			t.Fatal("cachedTools() miss, want hit")
 		}
-		if got, want := string(first[0].InputSchema), `{"type":"object"}`; got != want {
+		if got, want := string(first.Descriptors[0].InputSchema), `{"type":"object"}`; got != want {
 			t.Fatalf("cached input schema = %q, want %q", got, want)
 		}
-		first[0].OutputSchema[0] = '['
+		first.Descriptors[0].OutputSchema[0] = '['
 		second, ok := executor.cachedTools("fixture", now)
 		if !ok {
 			t.Fatal("cachedTools() second miss, want hit")
 		}
-		if got, want := string(second[0].OutputSchema), `{"type":"string"}`; got != want {
+		if got, want := string(second.Descriptors[0].OutputSchema), `{"type":"string"}`; got != want {
 			t.Fatalf("cached output schema = %q, want %q", got, want)
 		}
 	})
@@ -1734,8 +1824,8 @@ func TestMCPToolListCache(t *testing.T) {
 
 		now := time.Now()
 		executor := &CallExecutor{toolCache: mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)}}
-		executor.cacheTools("expired-binding", nil, 1, now)
-		executor.cacheTools("current-binding", nil, 1_000, now.Add(time.Millisecond))
+		executor.cacheTools("expired-binding", ToolDiscovery{}, 1, now)
+		executor.cacheTools("current-binding", ToolDiscovery{}, 1_000, now.Add(time.Millisecond))
 
 		executor.toolCache.mu.Lock()
 		_, retainedExpired := executor.toolCache.entries["expired-binding"]
@@ -4403,7 +4493,7 @@ func TestCheckInReadOnlyOverride(t *testing.T) {
 					InputSchema: json.RawMessage(`{"type":"object"}`),
 					Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: new(tc.destructive)},
 				}
-				descriptors, err := executor.descriptorsFromTools(
+				discovery, err := executor.descriptorsFromTools(
 					toolspkg.SourceRef{},
 					&ResolvedServer{ReadOnlyOverrideOrigin: new(tc.origin), Server: compozyconfig.MCPServer{
 						Name:          "fixture",
@@ -4411,12 +4501,13 @@ func TestCheckInReadOnlyOverride(t *testing.T) {
 						CatalogEntry:  tc.catalog,
 						ReadOnlyTools: []string{"read"},
 					}},
+					protocolVersionLegacy,
 					[]*mcpsdk.Tool{&tool},
 				)
 				if err != nil {
 					t.Fatal(err)
 				}
-				d := descriptors[0]
+				d := discovery.Descriptors[0]
 				if d.ReadOnlyOverrideOrigin != tc.origin || d.ReadOnly || d.ReadOnlyOverride != tc.wantOverride ||
 					d.Destructive != tc.destructive {
 					t.Fatalf("descriptor=%+v", d)

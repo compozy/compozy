@@ -2012,6 +2012,19 @@ func TestSourceFailureAndTextBudget(t *testing.T) {
 }
 
 func TestCheckInAuthorityPolicy(t *testing.T) {
+	t.Run("Should accept an exact encoded MCP tool as a check-in write selector", func(t *testing.T) {
+		t.Parallel()
+
+		const toolID = "mcp__fixture__raw__xl5sgix3hmzta"
+		policy, err := parseCheckIns(map[string]any{"allow_writes": []string{toolID}})
+		if err != nil || !slices.Equal(policy.AllowWrites, []string{toolID}) {
+			t.Fatalf("encoded selector = %+v, %v", policy, err)
+		}
+		if warnings := CheckInSelectorWarnings(policy, map[string]bool{toolID: false}); len(warnings) != 0 {
+			t.Fatalf("warnings for an encoded write tool = %+v", warnings)
+		}
+	})
+
 	t.Run("Should parse strict check-in keys and stable authority [UT-010 UT-012]", func(t *testing.T) {
 		t.Parallel()
 		for _, body := range []string{"max_tool_calls: 0", "max_tool_calls: 101", "max_tool_calls: 26", "allow_writes: [compozy__*]", "max_write_calls: -1", "allow_writes: [bad]", "unknown: true"} {

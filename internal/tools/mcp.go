@@ -1,15 +1,19 @@
 package tools
 
 import (
+	"cmp"
 	"context"
+	"encoding/base32"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const (
 	mcpNamespace                   = "mcp"
+	mcpRawToolSegment              = "raw"
 	mcpProviderOwner               = "mcp"
 	mcpAuthStatusUnconfigured      = "unconfigured"
 	mcpAuthStatusNeedsLogin        = "needs_login"
@@ -268,17 +272,31 @@ func Canonicalize(rawServer, rawTool string) (ToolID, error) {
 	if err != nil {
 		return "", err
 	}
-	tool, err := canonicalMCPSegment("mcp.tool", rawTool)
-	if err != nil {
-		return "", err
+	legacyTool, legacyErr := canonicalMCPSegment("mcp.tool", rawTool)
+	if legacyErr == nil {
+		return validateMCPToolID(mcpNamespace + "__" + server + "__" + legacyTool)
 	}
-	id := ToolID(mcpNamespace + "__" + server + "__" + tool)
-	if len(id) > maxSegmentedIDLength {
-		return "", NewValidationError(
-			"tool_id",
-			ReasonIDTooLong,
-			"mcp tool id exceeds 64 characters",
-		)
+	if strings.TrimSpace(rawTool) == "" || !utf8.ValidString(rawTool) || strings.ContainsRune(rawTool, 0) {
+		return "", legacyErr
+	}
+	// A fourth segment keeps encoded names disjoint from every previously assigned tool ID.
+	prefix := mcpNamespace + "__" + server + "__" + mcpRawToolSegment + "__x"
+	if len(prefix)+mcpRawToolEncoding.EncodedLen(len(rawTool)) > maxSegmentedIDLength {
+		return "", mcpToolIDTooLong()
+	}
+	return validateMCPToolID(prefix + mcpRawToolEncoding.EncodeToString([]byte(rawTool)))
+}
+
+var mcpRawToolEncoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567").WithPadding(base32.NoPadding)
+
+func mcpToolIDTooLong() error {
+	return NewValidationError("tool_id", ReasonIDTooLong, "mcp tool id exceeds 64 characters")
+}
+
+func validateMCPToolID(value string) (ToolID, error) {
+	id := ToolID(value)
+	if len(value) > maxSegmentedIDLength {
+		return "", mcpToolIDTooLong()
 	}
 	if err := id.Validate(); err != nil {
 		return "", err
@@ -311,7 +329,7 @@ func MCPAuthStatusReason(status MCPAuthStatus) (ReasonCode, bool) {
 
 func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor, error) {
 	rawServer := firstNonEmpty(desc.Source.RawServerName, source.RawServerName, source.Owner)
-	rawTool := firstNonEmpty(desc.Source.RawToolName, desc.RawName)
+	rawTool := cmp.Or(desc.Source.RawToolName, desc.RawName)
 	id, err := Canonicalize(rawServer, rawTool)
 	if err != nil {
 		return Descriptor{}, err
@@ -323,7 +341,7 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 			"mcp descriptor id does not match canonical raw server/tool names",
 		)
 	}
-	owner, err := mcpOwnerFromID(id)
+	owner, err := MCPToolOwner(id)
 	if err != nil {
 		return Descriptor{}, err
 	}
@@ -437,12 +455,16 @@ func canonicalMCPSegment(field string, raw string) (string, error) {
 	}
 }
 
-func mcpOwnerFromID(id ToolID) (string, error) {
+// MCPToolOwner returns the canonical server segment of an MCP tool ID.
+func MCPToolOwner(id ToolID) (string, error) {
 	segments, err := id.Segments()
 	if err != nil {
 		return "", err
 	}
-	if len(segments) != 3 || segments[0] != mcpNamespace {
+	legacy := len(segments) == 3
+	encoded := len(segments) == 4 && segments[2] == mcpRawToolSegment &&
+		len(segments[3]) > 1 && strings.HasPrefix(segments[3], "x")
+	if segments[0] != mcpNamespace || (!legacy && !encoded) {
 		return "", NewValidationError(
 			"tool_id",
 			ReasonIDInvalidFormat,

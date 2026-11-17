@@ -74,6 +74,67 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		requireDecisionReason(t, decision, ReasonPolicyDenied)
 	})
 
+	t.Run("Should preserve exact MCP policy matches and recognize encoded IDs in server narrowing", func(t *testing.T) {
+		t.Parallel()
+
+		legacy, err := mcpRegistryDescriptor(SourceRef{Owner: "github"}, MCPToolDescriptor{
+			RawName: "Search.Tool", InputSchema: json.RawMessage(`{"type":"object"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := mcpRegistryDescriptor(SourceRef{Owner: "github"}, MCPToolDescriptor{
+			RawName: "_search_tool", InputSchema: json.RawMessage(`{"type":"object"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		patterns, err := ParseToolPatterns([]string{"mcp__github__*", "mcp__github__search_tool"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		universe := []ToolID{legacy.ID, encoded.ID}
+		inputs := PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveAll,
+			ExternalDefault:      ExternalDefaultEnabled,
+			AllowTools:           patterns[:1],
+			DenyTools:            patterns[1:],
+		}
+		evaluator, err := NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, universe)
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacyDecision, err := evaluator.Evaluate(ctx, Scope{}, legacy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireDecisionReason(t, legacyDecision, ReasonPolicyDenied)
+		encodedDecision, err := evaluator.Evaluate(ctx, Scope{}, encoded)
+		if err != nil || !encodedDecision.Callable {
+			t.Fatalf("encoded tool under server wildcard = %+v, %v, want callable", encodedDecision, err)
+		}
+		legacyPrefix, err := ParseToolPattern("mcp__github__raw_*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if legacyPrefix.Match(encoded.ID) || !legacyPrefix.Match("mcp__github__raw_status") {
+			t.Fatal("raw_* must match a legacy tool prefix without covering the encoding segment")
+		}
+		inputs.DenyTools = nil
+		inputs.Session = SessionToolPolicy{
+			Enforced: true, MCPByServer: true, MCPServers: []string{"github"}, Tools: []ToolID{encoded.ID},
+		}
+		evaluator, err = NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, universe)
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacyDecision, err = evaluator.Evaluate(ctx, Scope{}, legacy)
+		if err != nil || legacyDecision.Callable {
+			t.Fatalf("legacy tool under encoded-only session grant = %+v, %v, want denied", legacyDecision, err)
+		}
+		requireDecisionReason(t, legacyDecision, ReasonSessionDenied)
+	})
+
 	t.Run("Should report policy denials beside the disabled source when tools are disabled", func(t *testing.T) {
 		t.Parallel()
 

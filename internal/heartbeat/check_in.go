@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type CheckInsPolicy struct {
@@ -120,6 +121,10 @@ func validCheckInSelector(selector string) bool {
 		return false
 	}
 	parts := strings.Split(selector, "__")
+	if len(parts) == 4 {
+		_, err := toolspkg.MCPToolOwner(toolspkg.ToolID(selector))
+		return err == nil
+	}
 	if len(parts) != 2 && len(parts) != 3 {
 		return false
 	}

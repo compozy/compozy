@@ -68,3 +68,17 @@ allowlist. Remote HTTP/OAuth use hosted mode; direct ACP mode currently supports
 Include authored root ceilings and explicit native-only child tool overrides: config refresh
 must preserve those restrictions. Edit and delete personal-profile and workspace-profile files
 outside Settings and verify catalog publication changes without a daemon restart.
+
+### Remote tool names outside the canonical ID grammar
+
+In an isolated daemon, point a manual Streamable HTTP definition at a local fake that lists
+`_dd_gff`, `dd_gff`, `echo`, an over-length name, and two legacy aliases such as
+`Search.Read` and `search_read`. Check the server through `compozy mcp check <name> -o json`.
+Require a ready probe with three unambiguous tools and a diagnostic for skipped entries.
+Search for the canonical IDs and invoke the encoded and ordinary tools by ID. Require the fake
+server to receive each original name in `tools/call`. The two legacy aliases must remain
+unavailable through their shared ID.
+
+Then add `" spaced_tool "` to the fixture. On legacy Streamable HTTP, require the padded name to
+round-trip unchanged and the ready probe to count it. On Streamable HTTP 2026-07-28, require the
+probe to skip it with a diagnostic mentioning the `Mcp-Name` header and keep the other tools usable.
