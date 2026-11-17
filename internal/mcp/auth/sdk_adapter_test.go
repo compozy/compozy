@@ -135,31 +135,39 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 				"DCR management credentials were not supplied as an atomic pair to the store boundary",
 			)
 		}
-		// Invariant: refresh rejects invalid persisted clients without registering replacements or sending tokens.
+		// Invariant: only reusable persisted clients allow refresh, without registering replacements or sending tokens.
 		// Owner: hosted OAuth registration validation; canonical suite: TestHostedOAuthAdapterPersistsDCRBeforeHandoff.
-		for _, invalid := range []struct {
-			name   string
-			change func(*ClientRegistration)
+		for _, registration := range []struct {
+			name        string
+			change      func(*ClientRegistration)
+			refreshable bool
 		}{
-			{"Should reject a missing client", func(r *ClientRegistration) { r.ClientID = "" }},
-			{"Should reject a changed definition", func(r *ClientRegistration) { r.DefinitionFingerprint = "changed" }},
-			{"Should reject a changed issuer", func(r *ClientRegistration) { r.Issuer = "https://other.example" }},
-			{"Should reject insufficient scopes", func(r *ClientRegistration) { r.Scopes = nil }},
+			{"Should keep a reusable client refreshable", func(*ClientRegistration) {}, true},
+			{"Should reject a missing client", func(r *ClientRegistration) { r.ClientID = "" }, false},
+			{"Should reject a changed definition", func(r *ClientRegistration) { r.DefinitionFingerprint = "changed" }, false},
+			{"Should reject a changed issuer", func(r *ClientRegistration) { r.Issuer = "https://other.example" }, false},
+			{"Should reject insufficient scopes", func(r *ClientRegistration) { r.Scopes = nil }, false},
 			{"Should reject an expired client secret", func(r *ClientRegistration) {
 				r.ClientSecretExpiresAt = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-			}},
+			}, false},
 		} {
-			t.Run(invalid.name, func(t *testing.T) {
+			t.Run(registration.name, func(t *testing.T) {
 				t.Parallel()
 				local := &adapterTestStore{registration: store.registration}
-				invalid.change(&local.registration)
+				registration.change(&local.registration)
 				refresh, err := NewService(local,
-					withHTTPClientForTest(fixture.Server.Client()), WithRegistrationStore(local))
+					withHTTPClientForTest(fixture.Server.Client()), WithRegistrationStore(local),
+					WithSecretRefResolver(func(context.Context, string) (string, error) {
+						return store.secrets.ClientSecret, nil
+					}))
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, _, err := refresh.hostedRefreshConfig(t.Context(), state.Config); err == nil {
-					t.Fatal("refresh accepted an invalid persisted client")
+				if _, _, err := refresh.hostedRefreshConfig(
+					t.Context(),
+					state.Config,
+				); (err == nil) != registration.refreshable {
+					t.Fatalf("registration refreshable = %v, error = %v", registration.refreshable, err)
 				}
 				local.token = TokenRecord{
 					Target: state.Config.Target, DefinitionFingerprint: store.registration.DefinitionFingerprint,
@@ -168,8 +176,8 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 					ExpiresAt: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
 				}
 				status, err := refresh.Status(t.Context(), state.Config)
-				if err != nil || status.Refreshable {
-					t.Fatalf("invalid registration remained refreshable: %+v, %v", status, err)
+				if err != nil || status.Refreshable != registration.refreshable {
+					t.Fatalf("status = %+v, error = %v, want refreshable = %v", status, err, registration.refreshable)
 				}
 				requests := fixture.Requests()
 				if len(requests.Registration) != 1 || len(requests.Token) != 0 {
