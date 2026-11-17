@@ -337,7 +337,7 @@ jobs:
           CGO_ENABLED: "1"
         run: >-
           go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5
-          --jsonfile /tmp/gotest-json/gotest-mage.json -- -race -tags=mage ./magefiles
+          --jsonfile /tmp/gotest-json/gotest-mage.json --packages ./magefiles -- -race -tags=mage
           -run '^Test(Integration|GlobalDBIntegration|GoTest|LoadGoTestCensus|Census|Partition|MissingPackage|Flake|Perf)'
           -count=1 -timeout=5m
 
@@ -520,7 +520,7 @@ jobs:
         run: |
           mkdir -p /tmp/gotest-json
           go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 \
-            --jsonfile /tmp/gotest-json/gotest-darwin.json -- ./internal/mcp \
+            --jsonfile /tmp/gotest-json/gotest-darwin.json --packages ./internal/mcp -- \
             -run '^TestPeerInfoFromUnixConnIdentifiesLocalPeer$' -count=1
         env:
           CGO_ENABLED: 0
@@ -567,7 +567,7 @@ jobs:
 
       - name: Verify Windows hosted MCP peer identity
         run: >-
-          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-1.json -- ./internal/mcp
+          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-1.json --packages "./internal/mcp" --
           -run '^(TestPeerInfo|TestWindowsPeerIdentity)'
           -count=1
         env:
@@ -575,20 +575,20 @@ jobs:
 
       - name: Verify Windows terminal runtime
         run: >-
-          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-2.json -- ./internal/procutil ./internal/terminal/pty ./internal/terminal
+          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-2.json --packages "./internal/procutil ./internal/terminal/pty ./internal/terminal" --
           -run '^(TestWindowsProcessHandleTermination|TestWindowsPTYHardening|TestWindowsPipeRuntime|TestWindowsDefaultShellResolution|TestResolveCapabilities)$'
           -count=1
         env:
           CGO_ENABLED: 0
 
       - name: Verify Windows managed stdout lifetime
-        run: go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-3.json -- ./internal/subprocess -run '^TestProcessStdoutLifetime$' -count=1
+        run: go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-3.json --packages "./internal/subprocess" -- -run '^TestProcessStdoutLifetime$' -count=1
         env:
           CGO_ENABLED: 0
 
       - name: Verify read-only config and retirement migration on Windows
         run: >-
-          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-4.json -- ./internal/config
+          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-4.json --packages "./internal/config" --
           -run '^(TestPersistedOverlayWindowsReadPermissions|TestLoadConfigArchivesRetiredSkillAcquisition)$'
           -count=1
         env:
@@ -596,7 +596,7 @@ jobs:
 
       - name: Verify Windows private files and Gateway recovery
         run: >-
-          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-5.json -- ./internal/fileutil ./internal/cli
+          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-5.json --packages "./internal/fileutil ./internal/cli" --
           -run '^(TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets|TestWindowsPrivateFiles|TestGatewayCredentialStore|TestGatewayProfileTransactionLock|TestGatewayProfileTransactionJournal|TestGatewayProfileTransactionRecovery|TestGatewayProfileTransactionJournalPath)$'
           -count=1
         env:
@@ -604,7 +604,7 @@ jobs:
 
       - name: Verify Windows startup, rooted writes, and session deletion
         run: >-
-          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-6.json -- ./internal/daemon ./internal/fileutil ./internal/session ./internal/profile
+          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-6.json --packages "./internal/daemon ./internal/fileutil ./internal/session ./internal/profile" --
           -run '^(TestUpdateLock|TestWindowsDirectoryMoveNoReplaceContract|TestWindowsDirectoryCreationThroughReadOnlyAncestor|TestManagerQueriesUseWorkspaceRegistration|TestNormalizeIdentitySymbols|TestManagerDelete)/(Should_remove_the_committed_bound_tree_without_a_private_directory_leak|Should_reject_a_concurrent_runtime_mutation|Should_replace_a_stale_owner_with_the_caller_identity|Should_create_descendants_without_requesting_write_access_to_an_existing_ancestor|Should_list_and_inspect_stopped_sessions_without_resolving_runtime_resources|Should_recognize_the_entire_catalog_with_either_LF_or_CRLF_line_endings|Should_remove_a_stopped_user_session_from_durable_counts|Should_wait_for_active_stored_readers_before_committing_deletion|Should_restore_the_staged_directory_when_catalog_deletion_fails|Should_recover_an_interrupted_staged_tombstone_from_every_catalog_state)$'
           -count=1
         env:
@@ -612,7 +612,7 @@ jobs:
 
       - name: Verify Windows skill cache and detached log rotation
         run: >-
-          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-7.json -- ./internal/filesnap ./internal/skillscan ./internal/cli
+          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-7.json --packages "./internal/filesnap ./internal/skillscan ./internal/cli" --
           -run '^(TestFromInfo|TestDirectoryResultUnchanged|TestSpawnDetachedDaemonProcess|TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv)$'
           -count=1
         env:
@@ -624,7 +624,7 @@ jobs:
           CGO_ENABLED: 0
 
       - name: Exercise repeated native Windows CLI and OS keyring recovery
-        run: go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-8.json -- -tags integration ./internal/cli -run '^TestWindowsGatewayCLI$' -count=1 -v
+        run: go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-8.json --packages "./internal/cli" -- -tags integration -run '^TestWindowsGatewayCLI$' -count=1 -v
         env:
           CGO_ENABLED: 0
           COMPOZY_TEST_BINARY: ${{ runner.temp }}/compozy-gateway-test.exe

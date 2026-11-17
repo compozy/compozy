@@ -265,7 +265,7 @@ jobs:
         run: |
           mkdir -p /tmp/gotest-json
           go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 \
-            --jsonfile /tmp/gotest-json/gotest-release-contract.json -- -race ./internal/config \
+            --jsonfile /tmp/gotest-json/gotest-release-contract.json --packages ./internal/config -- -race \
             -run '^TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast$' \
             -count=1
 

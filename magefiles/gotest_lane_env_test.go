@@ -58,6 +58,14 @@ func TestGoTestRetryPolicy(t *testing.T) {
 			if got := gotestsumRunnerArgs(); !slices.Equal(got, tc.want) {
 				t.Fatalf("args=%v want=%v", got, tc.want)
 			}
+			// Package selection belongs to gotestsum so retries can select a
+			// failed test without rerunning the original package list.
+			args := gotestsumJSONArgs("receipt.json", "example.com/a", "example.com/b")
+			want := append(slices.Clone(tc.want), "--jsonfile", "receipt.json",
+				"--packages", "example.com/a example.com/b", "--")
+			if !slices.Equal(args, want) {
+				t.Fatalf("runner package selection=%v want=%v", args, want)
+			}
 		})
 	}
 }

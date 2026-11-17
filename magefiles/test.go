@@ -34,12 +34,11 @@ func Test() error {
 		"-timeout", goUnitTestTimeout,
 	)
 	for index, invocation := range invocations {
-		args := gotestsumInvocationArgs(jsonFileDir, index)
+		args := gotestsumInvocationArgs(jsonFileDir, index, invocation.packages...)
 		args = append(args, testArgs...)
 		if len(invocation.tests) > 0 {
 			args = append(args, "-run", exactGoTestRunPattern(invocation.tests))
 		}
-		args = append(args, invocation.packages...)
 		if err := runGotestsum(ctx, nil, args...); err != nil {
 			return err
 		}
@@ -67,7 +66,8 @@ func TestSDKGo() error {
 	if jsonDir != "" {
 		jsonPath = filepath.Join(jsonDir, "gotest-sdk.json")
 	}
-	args := append(gotestsumJSONArgs(jsonPath), goSDKTestArgs(os.Getenv(goTestUncachedEnvVar) == "1")[1:]...)
+	testArgs := goSDKTestArgs(os.Getenv(goTestUncachedEnvVar) == "1")
+	args := append(gotestsumJSONArgs(jsonPath, "./..."), testArgs[1:len(testArgs)-1]...)
 	return runGotestsumInDir(context.Background(), "sdk/go", nil, args...)
 }
 
@@ -90,23 +90,25 @@ func gotestsumRunnerArgs() []string {
 	return args
 }
 
-func gotestsumInvocationArgs(jsonFileDir string, invocationIndex int) []string {
+func gotestsumInvocationArgs(jsonFileDir string, invocationIndex int, packages ...string) []string {
 	if jsonFileDir == "" {
-		return gotestsumJSONArgs("")
+		return gotestsumJSONArgs("", packages...)
 	}
 	stamp := strings.TrimSpace(os.Getenv(goTestShardIndexEnvVar))
 	if stamp == "" {
 		stamp = "all"
 	}
-	return gotestsumJSONArgs(filepath.Join(jsonFileDir, fmt.Sprintf("gotest-shard%s-%d.json", stamp, invocationIndex)))
+	return gotestsumJSONArgs(
+		filepath.Join(jsonFileDir, fmt.Sprintf("gotest-shard%s-%d.json", stamp, invocationIndex)),
+		packages...)
 }
 
-func gotestsumJSONArgs(path string) []string {
+func gotestsumJSONArgs(path string, packages ...string) []string {
 	args := gotestsumRunnerArgs()
 	if path != "" {
 		args = append(args, "--jsonfile", path)
 	}
-	return append(args, "--")
+	return append(args, "--packages", strings.Join(packages, " "), "--")
 }
 
 func shouldRunSDKGoTests(shardIndex, shardTotal string) (bool, error) {
@@ -143,14 +145,13 @@ func TestIntegration() error {
 		packageLimit = goUnitTestPackageLimit()
 	}
 	for index, invocation := range invocations {
-		args := gotestsumInvocationArgs(jsonFileDir, index)
+		args := gotestsumInvocationArgs(jsonFileDir, index, invocation.packages...)
 		args = append(args, goIntegrationTestSafetyArgs()...)
 		args = append(args, "-p", packageLimit,
 			"-timeout", goIntegrationTestTimeout, "-tags", "integration")
 		if len(invocation.tests) > 0 {
 			args = append(args, "-run", exactGoTestRunPattern(invocation.tests))
 		}
-		args = append(args, invocation.packages...)
 		startedAt := time.Now()
 		err := runGotestsum(ctx, nil, args...)
 		fmt.Printf(
@@ -182,7 +183,7 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 	if jsonDir != "" {
 		jsonPath = filepath.Join(jsonDir, "gotest-"+filepath.Base(artifactDir)+".json")
 	}
-	args := gotestsumJSONArgs(jsonPath)
+	args := gotestsumJSONArgs(jsonPath, suite.Packages...)
 	args = append(args,
 		"-race",
 		"-p",
@@ -200,7 +201,6 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 	if strings.TrimSpace(suite.Run) != "" {
 		args = append(args, "-run", suite.Run)
 	}
-	args = append(args, suite.Packages...)
 	return runGotestsum(ctx, env, args...)
 }
 
