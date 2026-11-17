@@ -81,13 +81,28 @@ func (m *Manager) restartWaitingSessions(ctx context.Context, infos []*Info) map
 		if info != nil && info.Type == SessionTypeSpawned && restartResumeOwns(info.Type, info.Lineage) &&
 			info.StopReason == store.StopShutdown && info.Lineage.AutoStopOnParent && info.ArchivedAt == nil &&
 			info.Lineage.TTLExpiresAt != nil && info.Lineage.TTLExpiresAt.After(m.now()) {
-			pending, err := m.HasPendingRestart(ctx, info.ID)
+			meta, err := m.readMetaWithContext(ctx, info.ID)
+			if err != nil {
+				m.logger.WarnContext(ctx, "session: worker restart metadata unavailable", "session_id", info.ID,
+					"parent_session_id", info.Lineage.ParentSessionID, "error", err)
+				continue
+			}
+			checkpoint, pending, err := m.pendingRestartCheckpoint(ctx, &meta)
 			if err != nil {
 				m.logger.WarnContext(ctx, "session: worker restart checkpoint unavailable", "session_id", info.ID,
 					"parent_session_id", info.Lineage.ParentSessionID, "error", err)
 				continue
 			}
-			if pending {
+			if !pending {
+				continue
+			}
+			reason, err := m.restartSkipReason(ctx, &meta, checkpoint)
+			if err != nil {
+				m.logger.WarnContext(ctx, "session: worker restart eligibility unavailable", "session_id", info.ID,
+					"parent_session_id", info.Lineage.ParentSessionID, "error", err)
+				continue
+			}
+			if reason == restartParentStoppedReason {
 				waiting[info.Lineage.ParentSessionID] = true
 			}
 		}

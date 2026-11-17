@@ -187,6 +187,8 @@ func TestResumeInterruptedSession(t *testing.T) {
 	}{
 		{name: "Should continue a spawned worker after restart", restart: true, spawned: true, wantResume: true},
 		{name: "Should reopen an idle shutdown parent before its worker", restart: true, spawned: true, idleParent: true, wantResume: true},
+		{name: "Should leave an idle parent stopped when its worker completed during drain", restart: true, spawned: true, idleParent: true, completed: true},
+		{name: "Should leave an idle parent stopped when its worker exhausted its budget", restart: true, spawned: true, idleParent: true, budget: true},
 		{name: "Should keep an expired worker stopped", restart: true, spawned: true, expired: true},
 		{name: "Should keep an archived worker stopped", restart: true, spawned: true, archived: true},
 		{name: "Should keep a worker stopped when its auto-stop parent is missing", restart: true, spawned: true, noParent: true},
@@ -424,6 +426,7 @@ func TestResumeInterruptedSession(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			starts := len(h.driver.startCalls)
 			var resumed bool
 			switch {
 			case tc.instance != "":
@@ -434,7 +437,7 @@ func TestResumeInterruptedSession(t *testing.T) {
 					err = h.manager.ResumeInterruptedSessions(t.Context())
 					_, resumed = h.manager.Get(target.ID)
 				}
-			case tc.spawned && tc.wantResume:
+			case tc.spawned && (tc.wantResume || tc.idleParent):
 				err = h.manager.ResumeInterruptedSessions(t.Context())
 				_, resumed = h.manager.Get(target.ID)
 			default:
@@ -445,6 +448,9 @@ func TestResumeInterruptedSession(t *testing.T) {
 			}
 			if resumed != tc.wantResume {
 				t.Fatalf("resumed = %t, want %t; error %v", resumed, tc.wantResume, err)
+			}
+			if tc.idleParent && !tc.wantResume && len(h.driver.startCalls) != starts {
+				t.Fatal("refused worker reopened its idle parent")
 			}
 			if resumed {
 				if got := h.driver.startCalls[len(h.driver.startCalls)-1].ResumeSessionID; got != originalACP {

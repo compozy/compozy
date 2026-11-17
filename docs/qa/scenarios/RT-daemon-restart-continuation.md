@@ -39,6 +39,8 @@ overlaps: RT-daemon-drain-admission; RT-subagent-restart
    Controls with an expired TTL, an archived or explicitly stopped worker, a stopped auto-stop
    parent, or an exhausted spawn budget stay stopped. A delegated subagent uses its own recovery
    path and receives no second continuation from the ordinary resume pool.
+   With creator notification disabled, a worker that completed during drain or exhausted its
+   spawn budget must also leave its idle shutdown-stopped parent unopened during bulk recovery.
 9. With `notify_creator`, stop a child during daemon shutdown after the wake bridge has quiesced.
    Boot again: the parent receives one stopped notice tied to the durable child stop receipt.
    Repeat recovery: that same notice costs no additional turn and does not reopen an idle parent.
@@ -87,6 +89,14 @@ three interrupted conversations plus an idle parent and idle auto-stop worker. O
 worker owned a monitor, and `notify_creator` was disabled for that pair. Both saved bindings
 reopened, the monitor stayed active, and neither completed turn received a continuation. Public
 HTTP/UDS reads agreed; explicit stops still prevented every resume.
+
+The follow-up review regressions failed before the bulk-recovery repair: completed and
+budget-refused workers reopened their idle parents. The repaired canonical session suites passed
+(32.902s), including ordinary-error shutdown retries that retain the same durable wake identity
+without another admission. Boot-readiness and asynchronous Loop recovery assertions passed
+with `ErrStarting` while preserving the separate `ErrDraining` contract (1.937s).
+The unchanged real-process restart/crash/stop suite passed after this repair (25.15s, package
+27.382s), including the historical shutdown receipt after the worker successfully continued.
 
 Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
 canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted

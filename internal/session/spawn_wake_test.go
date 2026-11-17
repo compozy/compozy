@@ -206,10 +206,19 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 	}
 	// Invariant: a shutdown wake is deferred and derived after manager replacement with a durable
 	// identity; boot never revives a deliberately stopped parent. Owner: spawn wake recovery.
-	for _, parentStopped := range []bool{false, true} {
+	for _, tc := range []struct {
+		name          string
+		parentStopped bool
+		err           error
+	}{
+		{name: "Should recover shutdown wake after retryable error", err: ErrSpawnWakeRetryable},
+		{name: "Should recover shutdown wake after uncertain delivery", err: errors.New("delivery outcome unknown")},
+		{name: "Should suppress shutdown wake for an explicitly stopped parent", parentStopped: true, err: ErrSpawnWakeRetryable},
+	} {
 		t.Run(
-			fmt.Sprintf("Should recover shutdown wake with explicit parent stop %t", parentStopped),
+			tc.name,
 			func(t *testing.T) {
+				parentStopped := tc.parentStopped
 				db := openManagerInputQueueStore(t)
 				notifier := &recordingSpawnWakeNotifier{}
 				opts := []Option{WithSessionCatalog(db), WithSessionInputQueueStore(db),
@@ -246,7 +255,7 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 				}
 				h.manager = newManagerWithHarness(t, h, opts...)
 				t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
-				notifier.err = ErrSpawnWakeRetryable
+				notifier.err = tc.err
 				for attempt := range 3 {
 					if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
 						t.Fatal(err)
@@ -313,7 +322,7 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 			},
 		)
 	}
-	// The manager owns reservations: pre-dispatch failures can retry, while
+	// For non-shutdown wakes, pre-dispatch failures can retry, while
 	// admitted or uncertain outcomes must retain duplicate suppression.
 	for _, test := range []struct {
 		name      string

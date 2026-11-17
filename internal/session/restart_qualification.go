@@ -11,6 +11,8 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+const restartParentStoppedReason = "parent_stopped"
+
 // QualifyRestartContinuation shares restart safety checks with Loop recovery, whose durable node transition owns retry.
 func (m *Manager) QualifyRestartContinuation(ctx context.Context, id string) (bool, error) {
 	meta, err := m.readMetaWithContext(ctx, id)
@@ -108,7 +110,7 @@ func (m *Manager) restartSpawnSkipReason(ctx context.Context, meta *store.Sessio
 	// Report a stopped parent only after every other check, so monitor recovery can safely
 	// reopen a required shutdown-stopped parent without reviving one for an ineligible child.
 	if lineage.AutoStopOnParent && parentStopped {
-		return "parent_stopped", nil
+		return restartParentStoppedReason, nil
 	}
 	return "", nil
 }

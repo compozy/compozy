@@ -132,7 +132,7 @@ func (m *Manager) resumeMonitorOwnerParent(
 	if err != nil {
 		return err
 	}
-	if reason != "parent_stopped" {
+	if reason != restartParentStoppedReason {
 		if reason != "" {
 			return &MonitorOwnerIneligibleError{Reason: reason}
 		}

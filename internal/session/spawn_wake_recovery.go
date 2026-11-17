@@ -11,6 +11,7 @@ import (
 )
 
 func spawnWakeCanRetry(err error, shutdown bool) bool {
+	// Shutdown recovery checks SyntheticWakeAdmitted durably before redispatching any failed delivery.
 	return shutdown || errors.Is(err, ErrSpawnWakeRetryable)
 }
 
