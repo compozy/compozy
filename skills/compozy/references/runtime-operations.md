@@ -43,6 +43,10 @@ Use `compozy drain -o json` (or `POST /api/drain` over HTTP/UDS) to close daemon
 
 Confirm drain through `.daemon.status == "draining"` in `compozy status -o json` or the informational `daemon_draining` item in `compozy doctor -o json`. Use `compozy undrain -o json` or `POST /api/undrain` to restore `{"state":"active"}`. Drain is in-memory, applies across every workspace, and clears on daemon restart.
 
+While the daemon is starting, new prompts return `503` with code `daemon_starting`,
+`retryable: true`, and `daemon starting, retry when ready`. Wait for readiness before retrying
+the same message identity. This is distinct from an operator drain, whose existing refusal stays unchanged.
+
 ## Session Lifecycle
 
 CompozyOS sessions are daemon-owned runtimes. Common states:
@@ -89,6 +93,29 @@ A normal prompt to an eligible stopped public session restarts its ACP process, 
 history, and submits the new prompt against the same session ID. Concurrent prompts share one
 restart. Attach, queue management, steer, interrupt, and other control operations never trigger this
 restart.
+
+Outside an instance lineage, `compozy__session_prompt` with an omitted `mode` deliberately reopens
+an eligible stopped session. Explicit `queue`, `steer`, or `interrupt` returns `session_not_promptable`.
+Instance messages can instead be queued or held; that disposition alone does not confirm runtime recovery.
+Inspect `stop_reason` first; a daemon interruption and an explicit user stop are different decisions.
+
+After a restart, eligible `session_spawn` workers with interrupted turns continue automatically,
+after their parents. Expired, archived, explicitly stopped workers, exhausted spawn budgets, and
+workers whose `auto_stop_on_parent` parent is no longer live stay stopped. Delegated subagents keep
+their own recovery owner. Worker monitors follow the same restart eligibility rules as user-session
+monitors. With `notify_creator`, a child stop recorded during shutdown is recovered from its durable
+stop receipt and admitted once to an eligible parent; the notice describes the shutdown edge, so
+read current child status before intervening. Already admitted notices never reopen an idle parent.
+An unreadable child receipt is logged with its cause without blocking other sessions' recovery.
+
+An idle always-on instance main also reopens its saved binding after restart without repeating
+its completed turn or requiring queued input. Recovery refusals include their cause in the daemon
+log and, when a saved binding exists, a `session.restart_skipped` event. An ordinary idle session
+with no interrupted turn logs `no_pending_interruption`. Worker recovery reopens its saved binding
+only for an interrupted auto-stop worker, a recovered worker monitor or an undelivered child
+shutdown notice; an idle worker alone does not reopen its parent. Monitor recovery checks both
+saved bindings and restart eligibility before reopening a shutdown-stopped parent. Reply watches
+retain their own wake rules.
 
 If ACP disconnects during a prompt, CompozyOS keeps every persisted event and automatically tries to
 replace the runtime three times with 1, 2, and 4 second delays. Session status reports
@@ -1553,8 +1580,9 @@ the existing session events surfaces. Interrupted metadata uses `stop_reason: "s
 an invented `process_exit` failure. Confirmed agent failures remain failures. The Web timeline shows
 the interruption and resumption; CLI, HTTP/UDS and native reads share the same persisted state.
 
-A session that was idle when the restart began has no interrupted turn, so boot leaves it
-`stopped` with `stop_reason: "shutdown"`. Prompt it with `compozy__session_prompt` (or
+A session that was idle when the restart began has no interrupted turn. Unless it is an instance
+main or needed for an interrupted worker, an eligible wake, or an undelivered child shutdown notice,
+boot leaves it `stopped` with `stop_reason: "shutdown"`. Prompt it with `compozy__session_prompt` (or
 `compozy session prompt`) to resume the same session in place with its history and parent; reach for
 `session continue` only to change agent or runtime, since it creates a new session.
 

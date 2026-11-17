@@ -818,7 +818,7 @@ func TestLoopActionBootRestartRecovery(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("queued recovery lost composition-root admission")
 		}
-		if err := gate.Check(t.Context()); !errors.Is(err, admission.ErrDraining) {
+		if err := gate.Check(t.Context()); !errors.Is(err, admission.ErrStarting) {
 			t.Fatal("external gate opened early", err)
 		}
 	})

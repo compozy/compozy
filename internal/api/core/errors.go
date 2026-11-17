@@ -112,7 +112,8 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 		err = ErrRequestBodyTooLarge
 		maskInternalErrors = false
 	}
-	if errors.Is(err, admission.ErrDraining) {
+	if errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting) {
+		status = http.StatusServiceUnavailable
 		maskInternalErrors = false
 	}
 	if errors.Is(err, gateway.ErrDeviceRevoked) {

@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+const restartParentStoppedReason = "parent_stopped"
 
 // QualifyRestartContinuation shares restart safety checks with Loop recovery, whose durable node transition owns retry.
 func (m *Manager) QualifyRestartContinuation(ctx context.Context, id string) (bool, error) {
@@ -59,7 +62,57 @@ func (m *Manager) restartSkipReason(
 	if reason, err := m.restartRuntimeSkipReason(ctx, meta, checkpoint, &workspace); err != nil || reason != "" {
 		return reason, err
 	}
-	return m.restartLimitReason(ctx, meta, cfg)
+	if reason, err := m.restartLimitReason(ctx, meta, cfg); err != nil || reason != "" {
+		return reason, err
+	}
+	return m.restartSpawnSkipReason(ctx, meta)
+}
+
+func (m *Manager) restartSpawnSkipReason(ctx context.Context, meta *store.SessionMeta) (string, error) {
+	if normalizeSessionType(Type(meta.SessionType)) != SessionTypeSpawned {
+		return "", nil
+	}
+	if !restartResumeOwns(SessionTypeSpawned, meta.Lineage) {
+		// Delegated children enter through their service's recovery owner, which enforces
+		// their turn lifetime instead of the long-lived worker TTL and spawn budget.
+		return "", nil
+	}
+	lineage := meta.Lineage
+	if lineage.TTLExpiresAt == nil || !lineage.TTLExpiresAt.After(m.now()) {
+		return "expired", nil
+	}
+	parent, err := m.Status(ctx, lineage.ParentSessionID)
+	if err != nil && !errors.Is(err, ErrSessionNotFound) {
+		return "", err
+	}
+	parentStopped := parent == nil || (parent.State != StateActive && parent.State != StateStarting)
+	var governance spawnGovernance
+	if parent == nil {
+		// Independent workers retain their accepted bounds even after the parent is removed.
+		parent = &Info{ID: lineage.ParentSessionID, Lineage: &store.SessionLineage{SpawnBudget: lineage.SpawnBudget}}
+		governance = spawnGovernance{rootID: lineage.RootSessionID, depth: max(0, lineage.SpawnDepth-1)}
+	} else {
+		governance, err = m.spawnGovernanceForParent(ctx, parent)
+		if err != nil {
+			return "", err
+		}
+	}
+	budget := store.EffectiveSessionSpawnBudget(store.NormalizeSessionLineage(parent.ID, parent.Lineage).SpawnBudget)
+	if governance.depth+1 > budget.MaxDepth {
+		return "spawn_budget", nil
+	}
+	if err := m.validateSpawnCaps(ctx, parent, governance, budget, meta.WorkspaceID); err != nil {
+		if errors.Is(err, ErrSpawnLimitExceeded) {
+			return "spawn_budget", nil
+		}
+		return "", err
+	}
+	// Report a stopped parent only after every other check, so monitor recovery can safely
+	// reopen a required shutdown-stopped parent without reviving one for an ineligible child.
+	if lineage.AutoStopOnParent && parentStopped {
+		return restartParentStoppedReason, nil
+	}
+	return "", nil
 }
 
 // restartFailureRequiresOperator reports whether a failure retained on an interrupted session

@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// Invariant: restart recovery resumes interrupted user sessions with bounded concurrency while
+// Invariant: restart recovery resumes eligible ordinary sessions with bounded concurrency while
 // instance mains go first, a parent settles before its child, and sessions sharing a worktree keep
 // their serial order. Owner: session restart continuation.
 func TestRestartResumePool(t *testing.T) {
@@ -35,7 +35,12 @@ func TestRestartResumePool(t *testing.T) {
 			interrupted("plain"),
 			nil,
 			{ID: "explicit-stop", Type: SessionTypeUser, StopReason: store.StopUserCanceled},
-			{ID: "spawned", Type: SessionTypeSpawned, StopReason: store.StopShutdown},
+			{ID: "spawned", Type: SessionTypeSpawned, StopReason: store.StopShutdown,
+				Lineage: &store.SessionLineage{ParentSessionID: "parent", SpawnRole: DefaultSpawnRole}},
+			{ID: "delegated", Type: SessionTypeSpawned, StopReason: store.StopShutdown,
+				Lineage: &store.SessionLineage{SpawnRole: store.SubagentSpawnRole}},
+			{ID: "internal", Type: SessionTypeSpawned, StopReason: store.StopShutdown,
+				Lineage: &store.SessionLineage{SpawnRole: SpawnRoleAutoTitle}},
 			interrupted("parent", inWorktree("wt-1")),
 			interrupted("main", instanceMain),
 			interrupted("sibling", inWorktree("wt-1")),
@@ -44,10 +49,10 @@ func TestRestartResumePool(t *testing.T) {
 		for _, item := range items {
 			ids = append(ids, item.id)
 		}
-		if want := []string{"main", "plain", "parent", "sibling", "child"}; !slices.Equal(ids, want) {
+		if want := []string{"main", "plain", "parent", "sibling", "child", "spawned"}; !slices.Equal(ids, want) {
 			t.Fatalf("resume order = %v, want %v", ids, want)
 		}
-		wantAfter := [][]int{nil, nil, nil, {2}, {2, 3}}
+		wantAfter := [][]int{nil, nil, nil, {2}, {2, 3}, {2}}
 		for index, item := range items {
 			if !slices.Equal(item.after, wantAfter[index]) {
 				t.Fatalf("item %q waits for %v, want %v", item.id, item.after, wantAfter[index])

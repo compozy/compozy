@@ -163,6 +163,11 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 			"is woken when the receiver finishes; set it to get the receiver's final answer back as a reply "+
 			"wake. To answer a message you received, pass its message id as in_reply_to. notify_on_complete "+
 			"and in_reply_to require an agent session; operator-scoped calls are refused with invalid_request. "+
+			"Outside an instance lineage, a stopped session restarts only when mode is omitted; "+
+			"explicit queue, steer, or interrupt returns session_not_promptable. "+
+			"Check its stop reason before deliberately restarting it. "+
+			"Instance messages may instead be queued or held; that disposition alone does not mean the runtime restarted. "+
+			"During daemon boot, daemon_starting with retryable=true means retry after readiness. "+
 			"A message to a session parked in Later is queued with disposition later and does not resume it.",
 		sessionPromptInputSchema,
 		toolspkg.RiskMutating,

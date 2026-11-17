@@ -50,6 +50,7 @@ authoritative. The error envelope is unchanged; messages can include a bounded, 
 
 | Code                                           | Meaning and next action                                                                                                                    |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `daemon_starting` with `retryable: true`       | Boot recovery is still running. Wait for daemon readiness, then retry the same message identity.                                           |
 | `subagent_archive_follows_parent`              | A child cannot be archived independently. Archive through its parent.                                                                      |
 | `session_archive_requires_stopped`             | Stop the session before archiving. A detached runtime is not a stopped session.                                                            |
 | `session_in_later`                             | The session is parked in Later. Bring it back with `compozy__session_resume_later`, or let the operator prompt it.                         |

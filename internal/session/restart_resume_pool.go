@@ -20,7 +20,7 @@ type restartResumeItem struct {
 	after []int
 }
 
-// planRestartResumes orders interrupted user sessions for the bounded resume pool. Parents come
+// planRestartResumes orders interrupted public sessions for the bounded resume pool. Parents come
 // before their children and always-on instance mains before other sessions of the same depth.
 // A child waits for its parent, and sessions sharing a worktree keep their serial order, because
 // both pairs contend on the same owner state. Every dependency points to an earlier item.
@@ -28,7 +28,7 @@ func planRestartResumes(infos []*Info) []restartResumeItem {
 	candidates := make([]*Info, 0, len(infos))
 	byID := make(map[string]*Info, len(infos))
 	for _, info := range infos {
-		if info == nil || info.Type != SessionTypeUser || info.StopReason != store.StopShutdown {
+		if info == nil || !restartResumeOwns(info.Type, info.Lineage) || info.StopReason != store.StopShutdown {
 			continue
 		}
 		candidates = append(candidates, info)
@@ -62,6 +62,52 @@ func planRestartResumes(infos []*Info) []restartResumeItem {
 		items = append(items, item)
 	}
 	return items
+}
+
+func restartResumeOwns(sessionType Type, lineage *store.SessionLineage) bool {
+	return sessionType == SessionTypeUser || (sessionType == SessionTypeSpawned && lineage != nil &&
+		lineage.SpawnRole != store.SubagentSpawnRole && !IsInternalSpawnRole(lineage.SpawnRole))
+}
+
+// Idle instance mains and required worker parents reopen their captured binding without
+// continuing a completed turn. Other idle sessions remain stopped.
+func (m *Manager) restartWaitingSessions(ctx context.Context, infos []*Info) map[string]bool {
+	waiting := make(map[string]bool)
+	for _, info := range infos {
+		if info != nil && info.Type == SessionTypeUser && info.InstanceID != "" &&
+			info.StopReason == store.StopShutdown {
+			waiting[info.ID] = true
+		}
+		if info != nil && info.Type == SessionTypeSpawned && restartResumeOwns(info.Type, info.Lineage) &&
+			info.StopReason == store.StopShutdown && info.Lineage.AutoStopOnParent && info.ArchivedAt == nil &&
+			info.Lineage.TTLExpiresAt != nil && info.Lineage.TTLExpiresAt.After(m.now()) {
+			meta, err := m.readMetaWithContext(ctx, info.ID)
+			if err != nil {
+				m.logger.WarnContext(ctx, "session: worker restart metadata unavailable", "session_id", info.ID,
+					"parent_session_id", info.Lineage.ParentSessionID, "error", err)
+				continue
+			}
+			checkpoint, pending, err := m.pendingRestartCheckpoint(ctx, &meta)
+			if err != nil {
+				m.logger.WarnContext(ctx, "session: worker restart checkpoint unavailable", "session_id", info.ID,
+					"parent_session_id", info.Lineage.ParentSessionID, "error", err)
+				continue
+			}
+			if !pending {
+				continue
+			}
+			reason, err := m.restartSkipReason(ctx, &meta, checkpoint)
+			if err != nil {
+				m.logger.WarnContext(ctx, "session: worker restart eligibility unavailable", "session_id", info.ID,
+					"parent_session_id", info.Lineage.ParentSessionID, "error", err)
+				continue
+			}
+			if reason == restartParentStoppedReason {
+				waiting[info.Lineage.ParentSessionID] = true
+			}
+		}
+	}
+	return waiting
 }
 
 func restartResumeParent(info *Info) string {

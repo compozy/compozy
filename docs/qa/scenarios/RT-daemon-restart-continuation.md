@@ -32,11 +32,71 @@ overlaps: RT-daemon-drain-admission; RT-subagent-restart
    default and trigger four interruptions inside five minutes: the fourth is paused by the breaker.
 7. Explicitly stop a session and then stop the daemon. Start again: neither automatically resumes.
    A turn that finishes during the grace period also receives no continuation.
+8. Repeat with a `session_spawn` worker and its parent, with a monitor owned by the worker.
+   The interrupted worker continues once after its parent, and its monitor remains recoverable.
+   Repeat with both worker and parent idle and only the worker owning a monitor: the monitor
+   reopens their eligible saved bindings without replaying either completed turn.
+   Controls with an expired TTL, an archived or explicitly stopped worker, a stopped auto-stop
+   parent, or an exhausted spawn budget stay stopped. A delegated subagent uses its own recovery
+   path and receives no second continuation from the ordinary resume pool.
+   With creator notification disabled, a worker that completed during drain or exhausted its
+   spawn budget must also leave its idle shutdown-stopped parent unopened during bulk recovery.
+9. With `notify_creator`, stop a child during daemon shutdown after the wake bridge has quiesced.
+   Boot again: the parent receives one stopped notice tied to the durable child stop receipt.
+   Repeat recovery: that same notice costs no additional turn and does not reopen an idle parent.
+   An idle worker without a continuation, recovered monitor or undelivered notice does not reopen its idle parent.
+   Archived or expired children do not replay shutdown notices. One unreadable child receipt logs
+   its cause while recovery continues for other children. An explicitly stopped parent stays stopped.
+10. While HTTP/UDS serves during boot recovery, send a prompt. Expect `503`, code
+    `daemon_starting`, `retryable: true`, and retry guidance. Retry the same message identity after
+    readiness. An operator drain retains its existing draining refusal. Continue/fork preserve their
+    existing `new_work_admission_unavailable` code while adding the retryable boot guidance.
+11. Restart with an always-on instance main whose last turn finished and whose input queue is empty.
+    Its saved binding reopens after HTTP/UDS starts, without replaying the completed prompt.
+    Disable automatic continuation and repeat: the main remains stopped with a refusal cause in
+    the daemon log and a `session.restart_skipped` event. Explicit stops remain stopped.
 
 The canonical composition-root test is `TestDaemonRestartContinuesSessions` in
 `internal/daemon/restart_integration_test.go`; qualification, durable attempt limits and admission
 identities belong to the session manager resume suite. Focused integration evidence does not by
 itself certify all Web/CLI interaction branches above.
+
+Targeted automated verification 2026-11-16 (#1778):
+`GOMAXPROCS=2 go test -p 2 -tags integration ./internal/daemon -run '^(TestDaemonRestartContinuesSessions|TestSubagentCleanRestartDaemonIntegration)$' -count=1 -timeout=180s -v`
+passed in disposable homes with real daemon and provider-fixture processes. Restart and crash
+preserved the spawned worker's queued input and monitor, resumed its interrupted turn once,
+and delivered one shutdown notice to its parent across replacement and a third boot.
+Explicit daemon stop remained stopped, and delegated recovery kept its existing owner.
+Focused session qualification and admission/transport suites also passed for the controls in
+steps 8–10. The full persona/Web/CLI journey remains untested.
+
+The 2026-11-16 extension for step 11 passed `TestBootResumesInstancesAfterServersStart` with
+real daemon/provider-fixture processes: an instance main with queued input and an idle main in
+a separate workspace both resumed only after listeners started. Two provider loads and three
+total prompts proved that the idle main's completed work was not replayed. The focused
+`TestResumeInterruptedSession` cases also passed for explicit stops, opt-out diagnostics and
+preventing an already blocked interruption from using the idle recovery path.
+
+Review repairs passed the canonical session wake suite, including repeated recovery without
+reopening an already notified idle parent, an idle worker without continuation, and archived,
+expired or unreadable child receipts. The isolated real restart/crash/stop suite passed again after
+waiting for prompt drains before its unchanged public-state assertions. The deferred-fire scheduler
+suite passed with boot admission retaining the scheduled fire. Continue/fork error tests retained
+their stable admission code and retryable HTTP/native payloads.
+
+The final isolated real-process restart/crash/stop suite passed with five sessions (43.04s):
+three interrupted conversations plus an idle parent and idle auto-stop worker. Only the idle
+worker owned a monitor, and `notify_creator` was disabled for that pair. Both saved bindings
+reopened, the monitor stayed active, and neither completed turn received a continuation. Public
+HTTP/UDS reads agreed; explicit stops still prevented every resume.
+
+The follow-up review regressions failed before the bulk-recovery repair: completed and
+budget-refused workers reopened their idle parents. The repaired canonical session suites passed
+(32.902s), including ordinary-error shutdown retries that retain the same durable wake identity
+without another admission. Boot-readiness and asynchronous Loop recovery assertions passed
+with `ErrStarting` while preserving the separate `ErrDraining` contract (1.937s).
+The unchanged real-process restart/crash/stop suite passed after this repair (25.15s, package
+27.382s), including the historical shutdown receipt after the worker successfully continued.
 
 Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
 canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted

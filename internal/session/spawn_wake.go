@@ -173,15 +173,12 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 	if !ok {
 		return
 	}
-	event := SpawnWakeEvent{
-		ChildSessionID: strings.TrimSpace(info.ID),
-		ChildAgentName: strings.TrimSpace(info.AgentName),
-		Reason:         reason,
-		Badge:          badge,
-		Detail:         spawnWakeDetail(info, badge),
-		WakeEventID:    spawnWakeEventID(info, reason),
-	}.Normalize()
-	if err := event.Validate(); err != nil {
+	shutdown, deferred := m.spawnShutdownWakeState(info, badge)
+	if deferred {
+		return
+	}
+	event, err := m.prepareSpawnWakeEvent(ctx, info, badge, reason, shutdown)
+	if err != nil {
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "delivery_failed", err)
 		return
 	}
@@ -213,7 +210,7 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 		return
 	}
 	if err := m.spawnWakeNotifier.WakeSpawnCreator(context.WithoutCancel(ctx), creatorSessionID, event); err != nil {
-		if errors.Is(err, ErrSpawnWakeRetryable) {
+		if spawnWakeCanRetry(err, shutdown) {
 			m.releaseSpawnWakeEvent(event.WakeEventID)
 		}
 		if errors.Is(err, ErrSpawnWakeSessionNotLive) {

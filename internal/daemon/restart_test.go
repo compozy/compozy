@@ -1193,7 +1193,7 @@ func TestMarkRestartReadyRequiresFreshDaemonInfo(t *testing.T) {
 	}
 	t.Run("Should withhold ready while booting", func(t *testing.T) {
 		d.admission.BeginBoot(t.Context())
-		if _, err := d.GetRestartOperation(t.Context(), operation.OperationID); !errors.Is(err, admission.ErrDraining) {
+		if _, err := d.GetRestartOperation(t.Context(), operation.OperationID); !errors.Is(err, admission.ErrStarting) {
 			t.Fatalf("booting responder reported ready: %v", err)
 		}
 	})
