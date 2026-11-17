@@ -341,6 +341,7 @@ func (s *daemonExtensionService) extensionSecretTarget(
 	if strings.TrimSpace(ext.Status.WorkspaceID) != key.WorkspaceID {
 		return nil, extensionpkg.ErrExtensionNotDevLinked
 	}
+	populateExtensionManifest(s.logger, ext)
 	return ext, nil
 }
 

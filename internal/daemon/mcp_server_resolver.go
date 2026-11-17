@@ -143,8 +143,8 @@ func projectExtensionSecretHeaders(
 		return compozyconfig.MCPServer{}, err
 	}
 	resourceKey := extensionpkg.ProfileInstanceKey(owner.ID, profileID, workspaceID)
-	if activeProfileID = strings.TrimSpace(activeProfileID); activeProfileID != "" {
-		profileID = activeProfileID
+	if projectedProfileID := strings.TrimSpace(activeProfileID); projectedProfileID != "" {
+		profileID = projectedProfileID
 	}
 	if err := projectAgentPluginHeaderInputs(ctx, state, &server, resourceKey, profileID); err != nil {
 		return compozyconfig.MCPServer{}, err

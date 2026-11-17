@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +38,8 @@ func TestMCPRenderHeaderInputs(t *testing.T) {
 				t.Fatal(err)
 			}
 			want := map[string]string{"DD_API_KEY": configured, "X-Fallback": "package-default", "X-Empty": ""}
-			if !maps.Equal(rendered.Headers, want) || len(secrets) != 2 {
+			slices.Sort(secrets)
+			if !maps.Equal(rendered.Headers, want) || !slices.Equal(secrets, []string{configured, "package-default"}) {
 				t.Fatal("unexpected credentials in rendered headers or redactions")
 			}
 			if server.Headers["DD_API_KEY"] != "${DD_API_KEY:-}" || len(server.Headers) != 4 {

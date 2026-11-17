@@ -191,28 +191,43 @@ func TestExtensionSecretsRemoteHeaderBinding(t *testing.T) {
 		assertHeader("another-profile", "", "")
 		assertHeader(profile, "another-workspace", "")
 
-		root := t.TempDir()
-		manifestPath := filepath.Join(root, ".claude-plugin", "plugin.json")
-		if err := os.Mkdir(filepath.Dir(manifestPath), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(manifestPath, []byte(`{"name":"kit","version":"1.0.0"}`), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		const mcpDefinition = `{"mcpServers":{"mcp":{"type":"http","url":"https://fixture.example.test/v1/mcp",
-			"headers":{"DD_API_KEY":"${DD_API_KEY:-}"}}}}`
-		if err := os.WriteFile(filepath.Join(root, ".mcp.json"), []byte(mcpDefinition), 0o600); err != nil {
-			t.Fatal(err)
-		}
 		// The manager falls back to installation metadata immediately after a secret write.
 		publicationRuntime.fallback = &extensionpkg.Extension{Info: extensionpkg.ExtensionInfo{
-			Name: key.Name, Format: extensionpkg.FormatAgentPlugin, ManifestPath: manifestPath,
+			Name: key.Name, Format: extensionpkg.FormatAgentPlugin, ManifestPath: writeAgentPluginHeaderFixture(t),
 		}}
 		assertHeader(profile, "", value)
 		if err := service.deleteExtensionSecretForProfileInstance(ctx, key, profile, input); err != nil {
 			t.Fatal(err)
 		}
 		assertHeader(profile, "", "")
+	})
+
+	t.Run("Should list and bind a workspace header input without an active plugin runtime", func(t *testing.T) {
+		t.Parallel()
+		service, _ := newExtensionSecretsTestService(t, nil, newExtensionSecretVaultFake())
+		const input = "DD_API_KEY"
+		key := extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "workspace-a"}
+		profile := store.DefaultProfileID
+		snapshot := &extensionpkg.Extension{
+			Info: extensionpkg.ExtensionInfo{
+				Name: key.Name, Format: extensionpkg.FormatAgentPlugin, ManifestPath: writeAgentPluginHeaderFixture(t),
+			},
+			Status: extensionpkg.ExtensionStatus{WorkspaceID: key.WorkspaceID},
+		}
+		service.runtime = &profileReadDevRuntime{ext: snapshot}
+		before, err := service.extensionSecretsForProfileInstance(t.Context(), key, profile)
+		if err != nil || !slices.Equal(before.DeclaredEnv, []string{input}) || len(before.BoundEnvKeys) != 0 {
+			t.Fatalf("unbound declared and bound names = %v %v, err = %v", before.DeclaredEnv, before.BoundEnvKeys, err)
+		}
+		snapshot.Manifest = nil
+		after, err := service.setExtensionSecretsForProfileInstance(t.Context(), key, profile,
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{{
+				EnvName: input, Value: new("fixture-header-value"),
+			}}})
+		if err != nil || !slices.Equal(after.BoundEnvKeys, []string{input}) || len(after.Bindings) != 1 ||
+			after.Bindings[0].Stale {
+			t.Fatalf("bound names = %v, err = %v, want one current workspace binding", after.BoundEnvKeys, err)
+		}
 	})
 
 	t.Run(
@@ -747,6 +762,24 @@ func TestExtensionSecretsGarbageCollectionAndStaleProjection(t *testing.T) {
 			t.Fatalf("MissingEnv = %#v, want only unbound declared env", payload.MissingEnv)
 		}
 	})
+}
+
+func writeAgentPluginHeaderFixture(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	manifestPath := filepath.Join(root, ".claude-plugin", "plugin.json")
+	if err := os.Mkdir(filepath.Dir(manifestPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, []byte(`{"name":"kit","version":"1.0.0"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	const mcpDefinition = `{"mcpServers":{"mcp":{"type":"http","url":"https://fixture.example.test/v1/mcp",
+		"headers":{"DD_API_KEY":"${DD_API_KEY:-}"}}}}`
+	if err := os.WriteFile(filepath.Join(root, ".mcp.json"), []byte(mcpDefinition), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return manifestPath
 }
 
 func newExtensionSecretsTestService(

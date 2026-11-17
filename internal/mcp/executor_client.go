@@ -273,7 +273,7 @@ func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Respo
 		return nil, err
 	}
 	if authErr := authorizationChallengeError(response); authErr != nil {
-		if t.requireMetadata && t.header == "" &&
+		if errors.Is(authErr, ErrAuthorizationRequired) && t.requireMetadata && t.header == "" &&
 			mcpauth.AdvertisedProtectedResourceMetadataURL(response.Header, request.URL.String()) == "" {
 			authErr = errRemoteAuthenticationRejected
 		}
