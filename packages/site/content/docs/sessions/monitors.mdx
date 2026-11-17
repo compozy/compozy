@@ -78,6 +78,11 @@ they are done. The wake lists each session and its state.
   HTTP/UDS list and cancel responses. Results use the viewer's access. A target that is no
   longer readable has no name or observed state in that result; it reads `unknown` with reason
   `access_denied`. Names outside the viewer's scope have secrets redacted.
+- For a prompted read, **Always allow** saves the `monitor_create` read grant for that target scope;
+  wakes and later results honor it until it is revoked or the current policy refuses it.
+  **Allow once** admits only the current call. Later results and wakes need current authorization.
+- Target ownership is retained across restarts, so deleting a readable target still reports `gone`.
+  Access is checked against its captured workspace and profile when the session is no longer available.
 - By default a session counts once it is idle, needs input or approval, needs attention, stopped, or
   failed. Use `states` to narrow or widen that list.
 - A stopped, failed, archived, or deleted session always counts, so it can't leave the agent waiting.

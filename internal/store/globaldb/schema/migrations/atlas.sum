@@ -1,4 +1,4 @@
-h1:E0gqx28+5yDLposWMui2Wn7w0Ibqo6wGn2FLqILdWbw=
+h1:D78H+8iQab0ERjNQC7PsE3uYDx4uKI+nJR2l6mk2Fqs=
 00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=
 00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=
 00003_schema.sql h1:x8VmofWOLCS5ARICKEemtVqBU1zUxT7fJSwOeC8yV18=
@@ -203,3 +203,4 @@ h1:E0gqx28+5yDLposWMui2Wn7w0Ibqo6wGn2FLqILdWbw=
 00202_permission_intent.sql h1:iaBLCUx7HzuXnugNbxkswMaljUhMH5cmftTUIEERYjg=
 00203_legacy_session_permission_intent.sql h1:SHpq4VkQ3bwLny7gtnZ9lxCnKhrD48jMf+cAJGLRz+c=
 00204_repair_legacy_permission_intent.sql h1:IzaoD8s9bw591/lsrWiCU9kIqhdXYo9+2AqYCbnPZUg=
+00205_schema.sql h1:aa0b0L1TWYbosVGLy96sSH74JNPQUUEoij++pOmuzt0=

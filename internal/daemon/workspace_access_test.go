@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -319,7 +320,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		t.Parallel()
 		sessions := sessionsFor(workspaceaccess.ModeApproveAll)
 		policy := newPolicy(t, sessions)
-		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{},
+		service, err := monitorpkg.NewService(t.Context(), nil, retryMonitorWaker{},
 			monitorpkg.WithSessionTargets(monitorSessionTargets{sessions: func() any { return sessions }}))
 		if err != nil {
 			t.Fatal(err)
@@ -374,6 +375,121 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		if err != nil || visible.Reason != "access_denied" || visible.Targets[0].Name != "" ||
 			visible.Targets[0].Matched || visible.Targets[0].State != monitorpkg.TargetStateUnknown {
 			t.Fatalf("revoked monitor = %#v, %v", visible, err)
+		}
+	})
+	// Invariant: prompt-approved monitor reads retain only exact saved consent, with live revocation.
+	// Owner: native authorization boundary; canonical suite: TestNativeSessionTargetAccess.
+	t.Run("Should retain Always allow monitor grants and keep Allow once call scoped", func(t *testing.T) {
+		t.Parallel()
+		for _, choice := range []acpsdk.PermissionOptionId{workspaceAccessAllowAlwaysID, workspaceAccessAllowOnceID} {
+			t.Run(string(choice), func(t *testing.T) {
+				t.Parallel()
+				sessions := sessionsFor(workspaceaccess.ModeAuto)
+				policy := newPolicy(t, sessions)
+				grants := &recordingApprovalGrantStore{}
+				requester := selectedPermissionRequester(choice)
+				binder := newNativeWorkspaceInputBinder(nativeTestWorkspaceService(t), sessions, policy,
+					newWorkspaceAccessPromptBridge(func() sessionPermissionRequester { return requester }, time.Second,
+						newWorkspaceAccessConsentCache(), grants, slog.New(slog.DiscardHandler)))
+				service, err := monitorpkg.NewService(t.Context(), nil, retryMonitorWaker{},
+					monitorpkg.WithSessionTargets(monitorSessionTargets{sessions: func() any { return sessions }}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+						t.Error(err)
+					}
+				})
+				deps := &daemonNativeToolsDeps{
+					Sessions:        sessions,
+					Workspaces:      nativeTestWorkspaceService(t),
+					WorkspaceAccess: policy,
+					ApprovalGrants:  grants,
+					Monitors:        func() *monitorpkg.Service { return service },
+				}
+				registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, deps,
+					toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy,
+					toolspkg.WithCallInputBinder(binder), toolspkg.WithCallInputAuthorizer(binder))
+				scope := actorScope
+				scope.ProfileID = "p-x"
+				if _, err := registry.Call(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDMonitorCreate,
+						Input: json.RawMessage(
+							`{"kind":"session","description":"watch work","target_session_ids":["sess-sibling"]}`,
+						),
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+				if len(requester.requests) != 1 {
+					t.Fatalf("prompts = %d, want one", len(requester.requests))
+				}
+				mon := service.List(scope.SessionID)[0]
+				if len(mon.TargetScopes) != 1 || mon.TargetScopes[0].WorkspaceID != foreignWorkspace ||
+					mon.TargetScopes[0].ProfileID != scope.ProfileID {
+					t.Fatalf("captured scope = %+v", mon.TargetScopes)
+				}
+				mon.Targets = []monitorpkg.TargetStatus{
+					{SessionID: "sess-sibling", Name: "deploy", State: "idle", Matched: true},
+				}
+				n := &daemonNativeTools{deps: deps}
+				check := func(wantVisible bool) {
+					t.Helper()
+					visible, err := n.visibleMonitor(t.Context(), scope.SessionID, mon)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if visible.Targets[0].Matched != wantVisible ||
+						(visible.Targets[0].State == "idle") != wantVisible {
+						t.Fatalf("visible monitor = %+v, want visible %t", visible, wantVisible)
+					}
+				}
+				check(choice == workspaceAccessAllowAlwaysID)
+				if choice != workspaceAccessAllowAlwaysID {
+					return
+				}
+				// A different tool's grant, removed grant, lookup error, or new owner cannot authorize the watch.
+				saved := grants.grants[0]
+				grants.grants[0].ToolID = toolspkg.ToolIDSessionStatus
+				check(false)
+				grants.grants = nil
+				check(false)
+				grants.grants = []toolspkg.ApprovalGrant{saved}
+				grants.lookupErr = errors.New("unavailable")
+				check(false)
+				grants.lookupErr = nil
+				original := sessions.StatusFn
+				moved := *sessions
+				moved.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+					info, err := original(ctx, id)
+					if id == "sess-sibling" && info != nil {
+						info.ProfileID = "p-y"
+					}
+					return info, err
+				}
+				deps.Sessions = &moved
+				check(false)
+				deps.Sessions = sessions
+				// Hard policy refusals dominate a saved read grant.
+				deps.WorkspaceAccess = newPolicy(t, sessionsFor(workspaceaccess.ModeDenyAll))
+				check(false)
+				consent := newWorkspaceAccessConsentCache()
+				consent.PutConsent(t.Context(), scope.SessionID, workspaceaccess.ConsentReject)
+				facts, err := newWorkspaceAccessModeSource(sessions)
+				if err != nil {
+					t.Fatal(err)
+				}
+				deps.WorkspaceAccess, err = workspaceaccess.New(workspaceaccess.Deps{Facts: facts, Consent: consent,
+					Audit: nativeSessionTargetAuditStub{}, Log: slog.New(slog.DiscardHandler)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				check(false)
+			})
 		}
 	})
 	t.Run("Should preserve authorized global and all task catalog scopes through dispatch", func(t *testing.T) {

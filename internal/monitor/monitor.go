@@ -149,6 +149,8 @@ type Spec struct {
 	Delay time.Duration
 	// Targets are the sessions a session monitor watches.
 	Targets []string
+	// TargetScopes captures immutable ownership for access rechecks after a target is removed.
+	TargetScopes []TargetScope
 	// States are the target states that satisfy a session monitor. Empty selects the default set.
 	States []string
 }
@@ -177,7 +179,8 @@ type Monitor struct {
 	States           []string `json:"states,omitempty"`
 	// Targets is each target's state when a session monitor fired. It is stored with the monitor, so
 	// a wake re-delivered after a restart reports what fired it.
-	Targets []TargetStatus `json:"targets,omitempty"`
+	Targets      []TargetStatus `json:"targets,omitempty"`
+	TargetScopes []TargetScope  `json:"-"`
 	// Reused marks a Create that returned an already-active identical terminal
 	// monitor instead of registering a duplicate wake. It is not part of the wire shape.
 	Reused bool `json:"-"`

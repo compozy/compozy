@@ -1472,7 +1472,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should watch same-workspace sessions and refuse any other target", func(t *testing.T) {
+	t.Run("Should keep monitor targets local when the workspace access policy is missing", func(t *testing.T) {
 		t.Parallel()
 		sessions := nativeTestSessionManager("ws-1")
 		targets := monitorSessionTargets{sessions: func() any { return sessions }}
@@ -16934,6 +16934,29 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		}
 	}
 	scope := toolspkg.Scope{WorkspaceID: workspaceID, SessionID: callerID, AgentName: "creator"}
+
+	// Invariant: a selected profile never changes or invalidates the authenticated spawn parent.
+	// Owner: native spawn boundary; canonical suite: TestDaemonNativeSessionSpawnOrchestration.
+	t.Run("Should resolve the caller parent after a permitted profile selection", func(t *testing.T) {
+		t.Parallel()
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			if opts.ParentSessionID != callerID {
+				t.Fatalf("parent = %q", opts.ParentSessionID)
+			}
+			return child(opts), nil
+		})
+		manager.spawnWsFn = func(context.Context, string, string) (string, error) { return workspaceID, nil }
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{Sessions: manager, Workspaces: nativeTestWorkspaceService(t)},
+		}
+		selected := scope
+		selected.ProfileID = "selected-profile"
+		if _, err := n.sessionSpawn(t.Context(), selected, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionSpawn,
+			Input: json.RawMessage(`{"agent_name":"worker"}`),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	t.Run("Should bind a new worktree, inherit permissions, and send the first prompt", func(t *testing.T) {
 		t.Parallel()

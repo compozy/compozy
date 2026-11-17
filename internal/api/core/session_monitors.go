@@ -91,7 +91,13 @@ func (h *BaseHandlers) visibleSessionMonitor(
 	}
 	var denied bool
 	mon.Targets, denied = VisibleMonitorTargets(
-		c.Request.Context(), h.Sessions, h.WorkspaceAccess, viewer, mon.Targets, workspaceaccess.SeamIdentity,
+		c.Request.Context(),
+		h.Sessions,
+		h.WorkspaceAccess,
+		h.ApprovalGrants,
+		viewer,
+		&mon,
+		workspaceaccess.SeamIdentity,
 	)
 	if denied {
 		mon.Reason = "access_denied"

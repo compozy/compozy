@@ -203,7 +203,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 			ID: id, SessionID: normalized.SessionID, Kind: normalized.Kind, Description: normalized.Description,
 			TerminalID: normalized.TerminalID, Until: normalized.Until, Pattern: normalized.Pattern,
 			Branch: normalized.Branch, Status: StatusActive, CreatedAt: now, DeadlineAt: now.Add(window),
-			TargetSessionIDs: normalized.Targets, States: normalized.States,
+			TargetSessionIDs: normalized.Targets, States: normalized.States, TargetScopes: normalized.TargetScopes,
 		},
 		pullRequest: newPullRequestWatch(normalized, target),
 		terminalKey: terminalKey(normalized),

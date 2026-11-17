@@ -169,7 +169,7 @@ func (b *nativeWorkspaceInputBinder) authorizeAccessTarget(
 		unresolvedTarget: target.ref.Kind == workspaceaccess.TargetUnresolved,
 	}
 	if prompt.remember {
-		prompt.grant = workspaceAccessReadGrantKey(scope, call, descriptor, actor, target.ref)
+		prompt.grant = toolspkg.WorkspaceAccessReadGrantKey(scope, call, descriptor, actor, target.ref)
 	}
 	allowed, err := b.prompter.RequestWorkspaceAccess(ctx, scope, call, descriptor, prompt)
 	if err != nil {

@@ -109,9 +109,9 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			toolspkg.ReasonExtensionValidationFailed,
 		)
 	case errors.Is(err, taskpkg.ErrPermissionDenied):
-		return toolspkg.NewWorkspaceAccessDeniedError(id,
-			"extension changes require the caller's workspace and profile; global installations and replacing "+
-				"code shared outside that scope require the operator")
+		return toolspkg.NewToolError(toolspkg.ErrorCodeBackendFailed, id,
+			"extension access requires the caller's workspace and profile; global installations and replacing "+
+				"code shared outside that scope require the operator", err)
 	case errors.Is(err, extensionpkg.ErrExtensionWorkspaceDenied):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeDenied,

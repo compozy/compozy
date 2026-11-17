@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -26,7 +27,7 @@ func (n *daemonNativeTools) visibleMonitor(
 	}
 	var denied bool
 	mon.Targets, denied = core.VisibleMonitorTargets(
-		ctx, n.deps.Sessions, n.deps.WorkspaceAccess, owner, mon.Targets, workspaceaccess.SeamTool,
+		ctx, n.deps.Sessions, n.deps.WorkspaceAccess, n.deps.ApprovalGrants, owner, &mon, workspaceaccess.SeamTool,
 	)
 	if denied {
 		mon.Reason = "access_denied"
@@ -39,4 +40,11 @@ func (w *monitorSessionWaker) accessPolicy() workspaceaccess.Policy {
 		return nil
 	}
 	return w.workspaceAccess()
+}
+
+func (w *monitorSessionWaker) grantStore() toolspkg.ApprovalGrantStore {
+	if w.approvalGrants == nil {
+		return nil
+	}
+	return w.approvalGrants()
 }

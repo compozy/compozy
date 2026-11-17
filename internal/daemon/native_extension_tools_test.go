@@ -226,6 +226,22 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
+	// Invariant: extension access refusals keep their established public error code and truthful scope requirement.
+	// Owner: native extension errors; canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should preserve the extension permission error code for reads and writes", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDExtensionsInventory, toolspkg.ToolIDExtensionsInstall} {
+			err := nativeExtensionToolError(id, taskpkg.ErrPermissionDenied)
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || toolErr.Code != toolspkg.ErrorCodeBackendFailed || !errors.Is(err, taskpkg.ErrPermissionDenied) ||
+				!strings.Contains(
+					toolErr.Message,
+					"extension access",
+				) || !strings.Contains(toolErr.Message, "operator") {
+				t.Fatalf("permission error = %#v, want compatible scope refusal", err)
+			}
+		}
+	})
 	// Invariant: global native reads retain the selected profile even without a workspace.
 	// Owner: native extension boundary. Canonical suite: TestDaemonNativeExtensionTools.
 	t.Run("Should forward named profiles for list info and provenance", func(t *testing.T) {

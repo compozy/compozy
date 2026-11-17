@@ -4043,7 +4043,9 @@ func TestServiceSessionMonitorsAcrossRestart(t *testing.T) {
 			store, waker := newMemoryStore(), &recordingWaker{}
 			targets := newFakeTargets(map[string]string{"sess-a": "running"})
 			first := newTargetService(t, targets, waker, store)
-			created, err := first.Create(t.Context(), sessionSpec("sess-o", "sess-a"))
+			spec := sessionSpec("sess-o", "sess-a")
+			spec.TargetScopes = []TargetScope{{SessionID: "sess-a", WorkspaceID: "ws-foreign", ProfileID: "p-other"}}
+			created, err := first.Create(t.Context(), spec)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -4057,7 +4059,8 @@ func TestServiceSessionMonitorsAcrossRestart(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := wokenTargets(t, waker, 1)
-			if got[0].Monitor.ID != created.ID || got[0].Outcome.Targets[0].State != TargetStateGone {
+			if got[0].Monitor.ID != created.ID || got[0].Outcome.Targets[0].State != TargetStateGone ||
+				!slices.Equal(got[0].Monitor.TargetScopes, spec.TargetScopes) {
 				t.Fatalf("recovered wake = %+v", got[0])
 			}
 		})

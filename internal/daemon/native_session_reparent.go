@@ -92,7 +92,7 @@ func (n *daemonNativeTools) nativeReparentTarget(
 	if targetProfile != profileID {
 		return nil, toolspkg.NewWorkspaceAccessDeniedError(
 			id,
-			"this operation requires a source session in the caller's profile",
+			"this operation requires both sessions in the caller's profile",
 		)
 	}
 	return info, nil

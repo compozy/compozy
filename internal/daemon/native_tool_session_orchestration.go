@@ -217,7 +217,7 @@ func (n *daemonNativeTools) nativeOrchestrationTarget(
 		}
 		return "", nil, nativeSessionOrchestrationError(id, err)
 	}
-	if !scope.Operator && info.ProfileID != scope.ProfileID {
+	if !scope.Operator && target != scope.SessionID && info.ProfileID != scope.ProfileID {
 		return "", nil, toolspkg.NewWorkspaceAccessDeniedError(id,
 			"this operation requires a session in the caller's workspace and profile")
 	}

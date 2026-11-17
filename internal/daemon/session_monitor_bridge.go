@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -35,6 +36,7 @@ type sessionCatalogChangePublisher interface {
 type monitorSessionWaker struct {
 	sessions        func() monitorSessionManager
 	workspaceAccess func() workspaceaccess.Policy
+	approvalGrants  func() toolspkg.ApprovalGrantStore
 }
 
 func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification monitorpkg.Notification) error {
@@ -61,12 +63,14 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 	}
 	if notification.Monitor.Kind == monitorpkg.KindSession {
 		var denied bool
+		notification.Monitor.Targets = notification.Outcome.Targets
 		notification.Outcome.Targets, denied = core.VisibleMonitorTargets(
 			ctx,
 			sessions,
 			w.accessPolicy(),
+			w.grantStore(),
 			info,
-			notification.Outcome.Targets,
+			&notification.Monitor,
 			workspaceaccess.SeamTool,
 		)
 		if denied {
@@ -236,6 +240,9 @@ func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpk
 	}
 	waker := &monitorSessionWaker{
 		workspaceAccess: func() workspaceaccess.Policy { return state.accessPolicy },
+		approvalGrants: func() toolspkg.ApprovalGrantStore {
+			return state.deps.ApprovalGrants
+		},
 		sessions: func() monitorSessionManager {
 			if manager, ok := state.sessions.(monitorSessionManager); ok {
 				return manager

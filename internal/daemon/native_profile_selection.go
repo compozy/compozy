@@ -171,7 +171,7 @@ func (n *daemonNativeTools) authorizeNativeProfileSwitch(
 			prompt.targetWorkspace = workspaceaccess.UserSelector
 		}
 		if prompt.remember {
-			prompt.grant = workspaceAccessReadGrantKey(scope, req, descriptor, actor, target)
+			prompt.grant = toolspkg.WorkspaceAccessReadGrantKey(scope, req, descriptor, actor, target)
 		}
 		allowed, promptErr := n.deps.WorkspaceAccessPrompter.RequestWorkspaceAccess(
 			ctx, scope, req, descriptor, prompt,

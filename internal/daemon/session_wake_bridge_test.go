@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
@@ -694,6 +695,72 @@ func TestMonitorSessionWaker(t *testing.T) {
 		}
 	})
 
+	// Invariant: immutable target ownership keeps deleted local targets readable and foreign targets revocable.
+	// Owner: wake boundary; canonical suite: TestMonitorSessionWaker.
+	t.Run("Should preserve deleted local targets and recheck saved foreign monitor grants", func(t *testing.T) {
+		t.Parallel()
+		for _, statusErr := range []error{session.ErrSessionNotFound, errors.New("temporary read failure")} {
+			t.Run(statusErr.Error(), func(t *testing.T) {
+				t.Parallel()
+				owner := &session.Info{ID: "sess-owner", AgentName: "coder", WorkspaceID: "ws-own", ProfileID: "p-own",
+					State: session.StateActive}
+				manager := &monitorWakeManagerStub{statusFn: func(_ context.Context, id string) (*session.Info, error) {
+					if id == owner.ID {
+						return owner, nil
+					}
+					return nil, statusErr
+				}}
+				policy := &recordingNativeWorkspaceAccessPolicy{
+					decision: workspaceaccess.Decision{PromptEligible: true},
+				}
+				grants := &recordingApprovalGrantStore{}
+				waker := &monitorSessionWaker{sessions: func() monitorSessionManager { return manager },
+					workspaceAccess: func() workspaceaccess.Policy { return policy },
+					approvalGrants:  func() toolspkg.ApprovalGrantStore { return grants }}
+				wake := monitorpkg.Notification{Monitor: monitorpkg.Monitor{ID: "mon-test", SessionID: owner.ID,
+					Kind: monitorpkg.KindSession, Until: "all", TargetScopes: []monitorpkg.TargetScope{
+						{SessionID: "sess-target", WorkspaceID: owner.WorkspaceID, ProfileID: owner.ProfileID},
+					}}, Outcome: monitorpkg.Outcome{Reason: monitorpkg.ReasonConditionMet, Targets: []monitorpkg.TargetStatus{
+					{SessionID: "sess-target", State: monitorpkg.TargetStateGone, Matched: true},
+				}}}
+				requireWake := func(wantVisible bool) {
+					t.Helper()
+					if err := waker.WakeSession(t.Context(), wake); err != nil {
+						t.Fatal(err)
+					}
+					for _, message := range []string{manager.opts.Message, manager.opts.Coalesce.CompactText} {
+						if strings.Contains(message, "access_denied") == wantVisible ||
+							strings.Contains(message, "<state>gone") != wantVisible {
+							t.Fatalf("wake = %s, want visible %t", message, wantVisible)
+						}
+					}
+				}
+				requireWake(true)
+				wake.Monitor.TargetScopes[0].WorkspaceID = "ws-other"
+				requireWake(false)
+				key := toolspkg.WorkspaceAccessReadGrantKey(
+					toolspkg.Scope{
+						WorkspaceID: owner.WorkspaceID, ProfileID: owner.ProfileID, AgentName: owner.AgentName,
+					},
+					toolspkg.CallRequest{},
+					toolspkg.Descriptor{ID: toolspkg.ToolIDMonitorCreate, ReadOnly: true},
+					workspaceaccess.ActorRef{
+						AgentName: owner.AgentName,
+					},
+					workspaceaccess.ScopeTarget("ws-other", owner.ProfileID),
+				)
+				if key == nil {
+					t.Fatal("missing monitor read grant key")
+				}
+				grants.grants = []toolspkg.ApprovalGrant{
+					{ApprovalGrantKey: *key, Decision: toolspkg.ApprovalGrantAllow},
+				}
+				requireWake(true)
+				grants.grants = nil
+				requireWake(false)
+			})
+		}
+	})
 	fired := monitorpkg.Notification{
 		Monitor: monitorpkg.Monitor{
 			ID: "mon-0123456789ab", SessionID: "sess-1", Kind: monitorpkg.KindTerminal,

@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/sessionprocess"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -362,11 +364,30 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 				ID: "mon-cccccccccccc", SessionID: "sess-2", Kind: monitor.KindSession, Description: "wait for workers",
 				Until: monitor.UntilAll, Status: monitor.StatusActive, CreatedAt: at, DeadlineAt: at.Add(time.Hour),
 				TargetSessionIDs: []string{"sess-a", "sess-b"}, States: []string{monitor.TargetStateIdle},
+				TargetScopes: []monitor.TargetScope{
+					{SessionID: "sess-a", WorkspaceID: "ws-foreign", ProfileID: "prof-1"},
+					{SessionID: "sess-b", WorkspaceID: "ws-1", ProfileID: "prof-other"},
+				},
 			},
 			WorkspaceID: "ws-1", ProfileID: "prof-1", Timeout: time.Hour, Version: 1,
 		}
 		if err := db.SaveMonitor(ctx, watch); err != nil {
 			t.Fatal(err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		db = openGlobalDBForTest(suite, path)
+		activeRows, err := db.LoadMonitors(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		activeIndex := slices.IndexFunc(
+			activeRows,
+			func(record monitor.Record) bool { return record.Monitor.ID == watch.Monitor.ID },
+		)
+		if activeIndex < 0 || !reflect.DeepEqual(activeRows[activeIndex].Monitor, watch.Monitor) {
+			t.Fatalf("active monitor scopes did not round-trip: %+v", activeRows)
 		}
 		watch.Monitor.Status = monitor.StatusDelivering
 		watch.Monitor.FiredAt = at.Add(time.Minute)
@@ -393,6 +414,60 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		if _, err := db.DB().
 			ExecContext(ctx, `DELETE FROM session_monitors WHERE id = ?`, watch.Monitor.ID); err != nil {
 			t.Fatal(err)
+		}
+	})
+	// Invariant: upgrades retain the immutable local ownership of every pre-policy session watch.
+	// Owner: global SQLite migration; canonical suite: TestGlobalDBSessionMonitors.
+	t.Run("Should backfill immutable session target scopes without losing retained outcomes", func(t *testing.T) {
+		upgradePath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix, err := openGlobalMigrationPrefixDatabase(
+			t,
+			upgradePath,
+			globalMigrationPrefixBefore(t, "00205_schema.sql"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const seed = `INSERT INTO session_monitors
+   (id,session_id,workspace_id,profile_id,kind,description,until,status,created_at,deadline_at,
+    target_session_ids,states,targets,version)
+   VALUES ('mon-legacy','sess-owner','ws-own','prof-own','session','wait','all','delivering',
+    '2026-11-01T09:00:00Z','2026-11-01T10:00:00Z','["sess-a","sess-deleted"]','["idle"]',
+    '[{"session_id":"sess-deleted","state":"gone","matched":true}]',7)`
+		_, seedErr := prefix.ExecContext(ctx, seed)
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(upgradePath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := errors.Join(
+			seedErr,
+			bindTelemetryDestination(ctx, prefix, target.DB()),
+			target.Close(ctx),
+			prefix.Close(),
+		); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, upgradePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		rows, err := upgraded.LoadMonitors(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []monitor.TargetScope{
+			{SessionID: "sess-a", WorkspaceID: "ws-own", ProfileID: "prof-own"},
+			{SessionID: "sess-deleted", WorkspaceID: "ws-own", ProfileID: "prof-own"},
+		}
+		if len(rows) != 1 || !slices.Equal(rows[0].Monitor.TargetScopes, want) || rows[0].Version != 7 ||
+			len(rows[0].Monitor.Targets) != 1 || rows[0].Monitor.Targets[0].State != monitor.TargetStateGone ||
+			!rows[0].Monitor.Targets[0].Matched {
+			t.Fatalf("migrated monitor = %+v", rows)
 		}
 	})
 	t.Run("Should preserve terminal and timer monitors across the session kind migration", func(t *testing.T) {

@@ -64,8 +64,9 @@ func (n *daemonNativeTools) monitorCreate(
 		return toolspkg.ToolResult{}, err
 	}
 	kind := monitorpkg.Kind(strings.TrimSpace(input.Kind))
+	var targetScopes []monitorpkg.TargetScope
 	if kind == monitorpkg.KindSession {
-		err = n.authorizeMonitorTargets(ctx, scope, req.ToolID, sessionID, input.TargetSessionIDs)
+		targetScopes, err = n.authorizeMonitorTargets(ctx, scope, req.ToolID, sessionID, input.TargetSessionIDs)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
@@ -76,7 +77,7 @@ func (n *daemonNativeTools) monitorCreate(
 		TerminalID: input.TerminalID, Until: input.Until, Pattern: input.Pattern, Branch: input.Branch,
 		Timeout: time.Duration(input.TimeoutSeconds) * time.Second,
 		Delay:   time.Duration(input.DelaySeconds) * time.Second,
-		Targets: input.TargetSessionIDs, States: input.States,
+		Targets: input.TargetSessionIDs, States: input.States, TargetScopes: targetScopes,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, monitorToolError(req.ToolID, err)
@@ -105,28 +106,27 @@ func (n *daemonNativeTools) monitorCreate(
 	return structuredResult(map[string]any{monitorResultField: created}, preview)
 }
 
-// authorizeMonitorTargets preserves the dispatch admission and rejects self-targets.
+// authorizeMonitorTargets preserves dispatch admission and captures immutable target ownership.
 func (n *daemonNativeTools) authorizeMonitorTargets(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	id toolspkg.ToolID,
-	ownerID string,
-	targets []string,
-) error {
+	ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolID, ownerID string, targets []string,
+) ([]monitorpkg.TargetScope, error) {
 	if len(targets) == 0 {
-		return nil
+		return nil, nil
 	}
-	_, _, err := n.nativeOrchestrationTarget(ctx, scope, id, ownerID, false)
-	if err != nil {
-		return err
+	if _, _, err := n.nativeOrchestrationTarget(ctx, scope, id, ownerID, false); err != nil {
+		return nil, err
 	}
+	scopes := make([]monitorpkg.TargetScope, 0, len(targets))
 	for _, target := range targets {
-		_, _, err := n.nativeOrchestrationTarget(ctx, scope, id, target, true)
+		_, info, err := n.nativeOrchestrationTarget(ctx, scope, id, target, true)
 		if err != nil {
-			return err
+			return nil, err
 		}
+		scopes = append(scopes, monitorpkg.TargetScope{
+			SessionID: info.ID, WorkspaceID: info.WorkspaceID, ProfileID: info.ProfileID,
+		})
 	}
-	return nil
+	return scopes, nil
 }
 
 func (n *daemonNativeTools) monitorList(

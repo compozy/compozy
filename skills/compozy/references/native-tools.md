@@ -252,6 +252,11 @@ and the owner is resumed only when restart auto-continue rules allow it. A shutd
 reason and nothing wakes the session. While an owner check is retried after a restart the monitor stays
 listed as active; deleting a non-running owner in that window cancels its monitors at the next check (within
 about 30 seconds). A transient failure is retried for at least 15 minutes from its first persisted failure.
+Prompted monitor reads honor the exact saved `monitor_create` read grant from **Always allow**.
+**Allow once** covers the current call only; wakes and later results need current authorization.
+Deny-all, a rejected session, or grant revocation still hides the target. Immutable target ownership
+survives restart and deletion, so a readable deleted target continues to report `gone`.
+
 Operators see `monitor_summary.active` on full session payloads (`compozy__session_status` with `result_view: "full"`) and can cancel monitors (no wake).
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or

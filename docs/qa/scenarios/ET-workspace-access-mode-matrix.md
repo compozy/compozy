@@ -82,3 +82,14 @@ isolated homes and SQLite catalogs: an approve-all owner registered a foreign-wo
 waited for the target, stopped it, and received the stopped-state wake. The HTTP/UDS monitor suite
 also passed authenticated retained-target revocation, viewer authorization and operator reads.
 No live daemon was used.
+
+Review follow-up for #1779: under a prompted mode, select **Always allow** for a foreign
+session monitor, then verify later results and full/compact wakes retain readable state. Revoke
+the exact grant or switch to deny-all/session rejection and verify redaction. **Allow once**
+admits only the current call. Delete an own-scope target and verify `gone`/matched remains
+readable, including after restart. `TestGlobalDBSessionMonitors` owns the real SQLite migration
+and target-scope round trip; `TestServiceSessionMonitorsAcrossRestart` owns recovered wakes.
+
+QA result for the review follow-up: prompt grants/revocation, deleted-target full/compact wakes,
+restart ownership, SQLite scope backfill and reopen passed in those owning suites. The isolated
+real-session journey and authenticated HTTP monitor suite passed again after the repair.
