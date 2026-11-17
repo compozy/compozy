@@ -130,7 +130,9 @@ Closing and reopening:
 
 - Every close pushes exactly one closed entry, whatever the scope: one command, one revision, one
   entry. Closing a split member gives its space to its sibling; closing the last window of a tab
-  closes the tab; closing the last tab of a desktop leaves one New Tab window.
+  closes the tab; closing the last tab of a desktop leaves one New Tab window. That placeholder
+  stands in for an empty desktop only: the first real window that opens, moves, or reopens there
+  (as a tab or a split) replaces it; a New Tab opened on a desktop that already holds content stays.
 - `close --scope tab` (default) closes one window. It is refused with
   `window_manager_window_pinned` when that window is the last one of a pinned tab (unpin first);
   a member of a pinned split tab with other members closes normally. `group` closes every window of
