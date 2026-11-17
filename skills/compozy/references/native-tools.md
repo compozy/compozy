@@ -369,6 +369,22 @@ a spawned child cannot spawn governed children, so delegate a subagent instead. 
 needs `provider` too; the refusal says so. Check `limits.can_spawn_children` in your situation
 context before spawning.
 
+When an always-on main creates an ordinary provenance child with
+`compozy__session_create`, its settled turn (idle with no active prompt or queued
+input), stop, or failure queues a main-session turn even without a session monitor.
+This lifecycle wake is independent of Heartbeat triage and its digest. A covering
+session monitor or reply watch remains the sole wake path for that revision.
+Delivery retries on the mechanical scheduler cadence and survives restart without
+duplicate turns. Archived, Later, and explicitly stopped children are excluded;
+instance pause guards still hold autonomous input. Governed spawn opt-outs and
+ordinary non-main creators keep their existing `notify_creator` behavior.
+Only children enrolled at creation use this path; adopted sessions and historical
+results from before enrollment are not replayed. Clear and rewind operations do
+not report completion.
+Pending wakes follow the instance's current main after rotation and wait while
+that main is stopped or in Later. Canceling a monitor after it covered a result
+does not replay that result through the automatic path.
+
 Subagent tools, also in the `sessions` toolset: `compozy__subagent_capabilities`,
 `compozy__subagent_delegate`, `compozy__subagent_status`, `compozy__subagent_cancel`. A subagent is a
 delegated child session owned by the caller's current turn. Every subagent tool requires the caller to

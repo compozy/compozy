@@ -44,6 +44,7 @@ func (m *Manager) finalizeStoppedOwned(
 	defer func() {
 		m.finishFinalization(session.ID, err)
 		if err == nil && session.Info().State == StateStopped {
+			m.retryChildSettleWake(ctx, session.Info())
 			if service := m.ReplyWatches(); service != nil {
 				service.OnTurnSettled(ctx, session.ID, "")
 			}

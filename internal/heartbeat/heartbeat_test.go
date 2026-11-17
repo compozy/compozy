@@ -1564,6 +1564,8 @@ func TestWorkLogDigest(t *testing.T) {
 		{"Should ignore a recent entry", "- [ ] wl-20261102-01 | 2026-11-02T14:31:00Z | Export", 0, false},
 		{"Should ignore the exact age boundary", "- [ ] wl-20261102-01 | 2026-11-02T14:30:00Z | Export", 0, false},
 		{"Should ignore dispatched work", "- [~] wl-20261102-01 | 2026-11-02T14:00:00Z | Export", 0, false},
+		// Session lifecycle owns child-settle wakes; dispatched entries do not spend a triage turn.
+		{"Should leave dispatched sessions to lifecycle wakes", "- [~] wl-20261102-01 | 2026-11-02T14:00:00Z | Export | session:sess-child", 0, false},
 		{"Should ignore closed work", "- [x] wl-20261102-01 | 2026-11-02T14:00:00Z | Export", 0, false},
 		{"Should reject invalid identifiers", "- [ ] wl-1 | 2026-11-02T14:00:00Z | Export", 0, true},
 		{"Should reject invalid timestamps", "- [ ] wl-20261102-01 | yesterday | Export", 0, true},
@@ -1744,6 +1746,8 @@ func TestCheckInSourceDeclarations(t *testing.T) {
 }
 
 func TestSourceDigestGateAndFolding(t *testing.T) {
+	// Invariant: lifecycle notifications do not bypass the check service digest gate
+	// or gain proposal execution authority. Owner: heartbeat; existing digest/check suite.
 	t.Run("Should gate empty and unchanged digests with guidance [UT-030 UT-031]", func(t *testing.T) {
 		t.Parallel()
 		service := CheckService{config: CheckConfig{MaxInterval: 24 * time.Hour}}

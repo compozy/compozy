@@ -37,7 +37,12 @@ func (m *Manager) ResumeInterruptedSessions(ctx context.Context) error {
 		}); err != nil {
 		return err
 	}
-	return m.recoverSpawnShutdownWakes(ctx, infos)
+	if err := m.recoverSpawnShutdownWakes(ctx, infos); err != nil {
+		return err
+	}
+	m.recoverChildSettleWakes(ctx, infos)
+	m.retryChildSettleWakes(ctx)
+	return ctx.Err()
 }
 
 // Idle instance mains and required worker parents reopen their binding without replaying a

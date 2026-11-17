@@ -236,7 +236,6 @@ is not a committed observation. The native lifecycle and Manager persistence sui
 deterministic checks; the native daemon integration uses real ACP subprocesses and SQLite.
 CI owns the full transport journey; these schedules do not claim a live-provider occurrence.
 
-
 QA impact 2026-11-12 (issue #1566): create a child with `notify_creator: false` and let its
 parent register a session monitor covering the child and `needs-attention`. When the child
 ends with no open work, require one monitor wake and no additional early-stop session wake.
@@ -326,3 +325,28 @@ explicit request for the excluded tool: the spawn is refused with a subset error
 inheritance without a tool-policy difference keeps its live intent. Automated owner:
 `TestManagerSpawnResolvesPermissionSelection`; execution and the public-surface walk remain
 unrun locally under release-mode instructions.
+
+QA impact 2026-11-17 (issue #1784): an always-on instance main receives one queued
+turn for each settled revision of an ordinary provenance child created through
+`session_create`, even with default `notify_creator: false`. In an isolated home,
+create three children, send each a parent-origin assignment without a reply watch,
+and finish them at different times. Require a main turn for each final report,
+and repeat with stopped and failed children. Register an idle session monitor
+before one completion and require only its monitor wake. Restart before delivery,
+after delivery, and after monitor coverage: require no lost or duplicate wake.
+Exercise a transient bridge failure and require retry on the next 15-second
+mechanical sweep. Pending child input or an active prompt must postpone settlement;
+archive, Later, explicit stop, and governed `notify_creator: false` must remain
+respected. Ordinary non-main provenance creators keep existing behavior. Heartbeat
+`[~]` entries and unchanged-digest skipping remain unchanged and triage stays
+proposal-only. Automated evidence lives in `TestAlwaysOnChildSettleWake`,
+`TestSessionWorkSourcesMonitors`, `TestWorkLogDigest`,
+`TestSourceDigestGateAndFolding`, and the real ACP child-settle journey in
+`session_wake_bridge_test.go`. Historical children without creation enrollment
+and adopted conversations must not wake on boot. Clear and rewind must not emit
+a completion; subsequent new work must still wake once. Automatic completions
+stay queued through long main turns instead of being promoted to steering.
+Stop an interrupted child at daemon restart and refuse its continuation; its
+main must receive one stopped wake. Hold delivery through a main rotation and
+require one turn on the successor. A declined conversation reset must not
+suppress a subsequent real stop.

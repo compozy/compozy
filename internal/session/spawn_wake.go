@@ -16,6 +16,9 @@ import (
 // SpawnWakeKindEndedEarly identifies a revision-fenced early-stop alarm in the durable queue.
 const SpawnWakeKindEndedEarly = "session_ended_early"
 
+// SpawnWakeKindChildSettled identifies a revision-fenced wake for an always-on main.
+const SpawnWakeKindChildSettled = "session_child_settled"
+
 const (
 	// SpawnWakeReasonStopped wakes the creator when a child stops without failure.
 	SpawnWakeReasonStopped SpawnWakeReason = "stopped"
@@ -48,6 +51,7 @@ type SpawnWakeReason string
 
 // SpawnWakeEvent is the bounded child-session wake payload handed to the daemon bridge.
 type SpawnWakeEvent struct {
+	Automatic      bool            `json:"-"`
 	ChildSessionID string          `json:"child_session_id"`
 	ChildAgentName string          `json:"child_agent_name,omitempty"`
 	Reason         SpawnWakeReason `json:"reason"`
@@ -68,6 +72,7 @@ type SpawnWakeNotifier interface {
 // Normalize returns canonical, redacted, bounded wake data.
 func (event SpawnWakeEvent) Normalize() SpawnWakeEvent {
 	return SpawnWakeEvent{
+		Automatic:      event.Automatic,
 		ChildSessionID: strings.TrimSpace(event.ChildSessionID),
 		ChildAgentName: strings.TrimSpace(event.ChildAgentName),
 		Reason:         SpawnWakeReason(strings.ToLower(strings.TrimSpace(string(event.Reason)))),
@@ -169,22 +174,11 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 	if creatorSessionID == "" {
 		return
 	}
-	reason, ok := spawnWakeReasonForBadge(badge)
-	if !ok {
+	event, ready := m.prepareCreatorWake(ctx, info, badge)
+	if !ready {
 		return
 	}
-	shutdown, deferred := m.spawnShutdownWakeState(info, badge)
-	if deferred {
-		return
-	}
-	event, err := m.prepareSpawnWakeEvent(ctx, info, badge, reason, shutdown)
-	if err != nil {
-		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "delivery_failed", err)
-		return
-	}
-	if !m.reserveSpawnWakeEvent(event.WakeEventID) {
-		return
-	}
+	badge = event.Badge
 	// An early stop is a supervision alarm, not a lifecycle notification: it reaches
 	// the parent even when the parent opted out of completion wakes.
 	endedEarly := EndedEarlyAttention(info, badge)
@@ -196,7 +190,7 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 		event.EndedEarly = true
 		event.FinalAnswer = sanitizeSpawnWakeAnswer(m.endedEarlyAnswer(ctx, info))
 	}
-	if !lineage.NotifyCreator && !endedEarly {
+	if !lineage.NotifyCreator && !endedEarly && !event.Automatic {
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "wake_creator_disabled", nil)
 		return
 	}
@@ -206,20 +200,40 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 	}
 	if event.Reason == SpawnWakeReasonCompleted &&
 		m.creatorAwaitsChildReply(ctx, creatorSessionID, event.ChildSessionID, completedTurnID) {
+		if err := m.recordChildWakeCoverage(ctx, creatorSessionID, event); err != nil {
+			m.releaseSpawnWakeEvent(event.WakeEventID)
+			m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "delivery_failed", err)
+			return
+		}
+		m.childWakePending.Delete(info.ID)
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "reply_watch_covers", nil)
 		return
 	}
+	m.deliverCreatorWake(ctx, creatorSessionID, info, event)
+}
+
+func (m *Manager) deliverCreatorWake(ctx context.Context, creatorSessionID string, info *Info, event SpawnWakeEvent) {
 	if err := m.spawnWakeNotifier.WakeSpawnCreator(context.WithoutCancel(ctx), creatorSessionID, event); err != nil {
-		if spawnWakeCanRetry(err, shutdown) {
+		if spawnWakeCanRetry(err, info.StopReason == store.StopShutdown) || event.Automatic {
 			m.releaseSpawnWakeEvent(event.WakeEventID)
 		}
 		if errors.Is(err, ErrSpawnWakeSessionNotLive) {
+			if event.Automatic {
+				m.logger.DebugContext(ctx, "session: child wake waits for main", "session_id", info.ID)
+				return
+			}
 			m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "session_not_live", nil)
 			return
 		}
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "delivery_failed", err)
 		return
 	}
+	if err := m.recordChildWakeCoverage(ctx, creatorSessionID, event); err != nil {
+		m.releaseSpawnWakeEvent(event.WakeEventID)
+		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "delivery_failed", err)
+		return
+	}
+	m.childWakePending.Delete(info.ID)
 	m.logger.InfoContext(
 		ctx,
 		"session.spawn_wake.delivered",
@@ -256,6 +270,9 @@ func spawnWakeEventID(info *Info, reason SpawnWakeReason) string {
 
 // validateSpawnWake drops an alarm whose child has advanced while the creator was busy.
 func (m *Manager) validateSpawnWake(ctx context.Context, creatorID string, meta *acp.PromptSyntheticMeta) error {
+	if meta != nil && meta.Kind == SpawnWakeKindChildSettled {
+		return m.validateAutomaticChildWake(ctx, creatorID, meta)
+	}
 	if !isSpawnWakeMeta(meta) || meta.Reason != string(SpawnWakeReasonNeedsAttention) {
 		return nil
 	}
@@ -294,8 +311,10 @@ func (m *Manager) validateSpawnWake(ctx context.Context, creatorID string, meta 
 }
 
 func isSpawnWakeMeta(meta *acp.PromptSyntheticMeta) bool {
-	return meta != nil && (meta.Kind == "" || meta.Kind == SpawnWakeKindEndedEarly) &&
-		meta.ChildSessionID != "" && meta.WakeEventID != "" && SpawnWakeReason(meta.Reason).valid()
+	return meta != nil &&
+		(meta.Kind == "" || meta.Kind == SpawnWakeKindEndedEarly || meta.Kind == SpawnWakeKindChildSettled) &&
+		meta.ChildSessionID != "" && meta.WakeEventID != "" &&
+		SpawnWakeReason(meta.Reason).valid()
 }
 
 func (m *Manager) reserveSpawnWakeEvent(wakeEventID string) bool {

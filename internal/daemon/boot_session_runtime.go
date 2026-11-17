@@ -27,6 +27,7 @@ func (d *Daemon) bootSessionRuntime(
 		return fmt.Errorf("daemon: create session wake bridge: %w", err)
 	}
 	state.sessionWakeBridge = sessionWakeBridge
+	sessionWakeBridge.configureInstances(state)
 	cleanup.add(sessionWakeBridge.shutdown)
 
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))

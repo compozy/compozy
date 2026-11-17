@@ -173,6 +173,9 @@ func forwardMonitorTargetChanges(
 }
 
 func monitorAttentionOccurrence(info *session.Info, badge session.Badge) string {
+	if info != nil && (badge == session.BadgeIdle || badge == session.BadgeDone) && info.LastSettledRevision > 0 {
+		return fmt.Sprintf("%d:settled:%d", info.TranscriptEpoch, info.LastSettledRevision)
+	}
 	if session.EndedEarlyAttention(info, badge) {
 		return fmt.Sprintf("%d:ended-early:%s", info.TranscriptEpoch, info.EndedEarlyTurnID)
 	}
