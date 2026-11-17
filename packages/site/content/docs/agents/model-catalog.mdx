@@ -47,9 +47,10 @@ Providers with a safe live adapter register `provider_live:<id>` sources. Claude
 and Google Antigravity (`agy`) inspect a short-lived ACP session and preserve the exact model and configuration options it advertises.
 Cursor instead runs `cursor-agent models`, groups its transport aliases into logical model IDs, and
 stores the valid Reasoning, Fast, and Thinking combinations without exposing those aliases. When
-no default effort is declared, discovery prefers normal, non-Thinking bindings, then non-Thinking
-Fast, normal Thinking, and Fast Thinking bindings. In the first available mode, a bare transport
-keeps the provider's unspecified effort; otherwise discovery publishes the lowest supported effort
+no default effort is declared, a bare transport in any mode keeps the provider's unspecified effort.
+If every transport requires an effort, discovery prefers normal, non-Thinking bindings, then
+non-Thinking Fast, normal Thinking, and Fast Thinking bindings. In the first available mode,
+discovery publishes the lowest supported effort
 in this order: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`.
 A declared default keeps precedence. The picker and runtime use this same catalog default;
 an explicitly unsupported effort or effort/Fast/Thinking combination is still rejected.

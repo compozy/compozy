@@ -1023,6 +1023,7 @@ func TestLiveProviderSources(t *testing.T) {
 			{name: "Should choose the lowest supported effort independent of alias order", output: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-low - Gemini Flash Low", want: ReasoningEffortLow},
 			{name: "Should preserve the provider-marked default", output: "gemini-3.8-flash-high - Gemini Flash\ngemini-3.8-flash-low - Gemini Flash Low", want: ReasoningEffortHigh},
 			{name: "Should preserve a bare provider-default binding", output: "gemini-3.8-flash - Gemini Flash\ngemini-3.8-flash-low - Gemini Flash Low", want: ""},
+			{name: "Should preserve a bare Fast binding beside effort-specific normal bindings", output: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-fast - Gemini Flash Fast", want: ""},
 			{name: "Should ignore lower effort fast and thinking variants", output: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-low-fast - Gemini Flash Low Fast\ngemini-3.8-flash-low-thinking - Gemini Flash Low Thinking", want: ReasoningEffortHigh},
 			{name: "Should resolve fast-only models from their supported effort", output: "gemini-3.8-flash-high-fast - Gemini Flash High Fast\ngemini-3.8-flash-low-fast - Gemini Flash Low Fast", want: ReasoningEffortLow},
 			{name: "Should resolve thinking-only models from their supported effort", output: "gemini-3.8-flash-high-thinking - Gemini Flash High Thinking\ngemini-3.8-flash-low-thinking - Gemini Flash Low Thinking", want: ReasoningEffortLow},

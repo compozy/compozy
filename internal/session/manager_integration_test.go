@@ -1681,7 +1681,7 @@ func TestManagerIntegrationCursorDefaultReasoning(t *testing.T) {
 			Agents: []compozyconfig.AgentDef{{Name: "coder", Provider: "cursor", Command: shellquote.Join(wrapper, "acp"), Prompt: "Exercise the Cursor default transport."}},
 		})
 		driver := newIntegrationACPDriver(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))), acp.WithStopTimeout(100*time.Millisecond))
-		h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)), WithModelCatalog(modelCatalogStub{models: cursorDefaultCatalogModels(t)}))
+		h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)), WithModelCatalog(modelCatalogStub{models: cursorCatalogModels(t, cursorDefaultCatalogOutput)}))
 		sess, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Provider: "cursor", Model: "gemini-3.8-flash", Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatal(err)

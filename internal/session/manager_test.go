@@ -860,12 +860,19 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
-	t.Run("Should launch the catalog-resolved Cursor default without an explicit effort", func(t *testing.T) {
+	t.Run("Should launch Cursor without an explicit effort", func(t *testing.T) {
 		t.Parallel()
-		for _, speed := range []speedpkg.Speed{speedpkg.SpeedNormal, speedpkg.SpeedFast} {
-			t.Run("Should select the supported default at speed "+string(speed), func(t *testing.T) {
+		for _, tc := range []struct {
+			name, output, want string
+			speed              speedpkg.Speed
+		}{
+			{name: "Should select the supported normal default", output: cursorDefaultCatalogOutput, speed: speedpkg.SpeedNormal, want: "gemini-3.8-flash-low"},
+			{name: "Should select the supported Fast default", output: cursorDefaultCatalogOutput, speed: speedpkg.SpeedFast, want: "gemini-3.8-flash-low-fast"},
+			{name: "Should preserve a bare Fast transport beside an effort-specific normal transport", output: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-fast - Gemini Flash Fast", speed: speedpkg.SpeedFast, want: "gemini-3.8-flash-fast"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				models := cursorDefaultCatalogModels(t)
+				models := cursorCatalogModels(t, tc.output)
 				h := newHarness(t, WithModelCatalog(modelCatalogStub{models: models}))
 				session, err := h.manager.Create(
 					t.Context(),
@@ -874,7 +881,7 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 							AgentName: "coder",
 							Provider:  "cursor",
 							Model:     "gemini-3.8-flash",
-							Speed:     speed,
+							Speed:     tc.speed,
 							Workspace: h.workspaceID,
 						},
 					),
@@ -883,16 +890,12 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 					t.Fatalf("Create() error = %v", err)
 				}
 				t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
-				want := "gemini-3.8-flash-low"
-				if speed == speedpkg.SpeedFast {
-					want += "-fast"
-				}
-				if got := h.driver.startCalls[0].LaunchModelID; got != want {
-					t.Fatalf("LaunchModelID = %q, want %q", got, want)
+				if got := h.driver.startCalls[0].LaunchModelID; got != tc.want {
+					t.Fatalf("LaunchModelID = %q, want %q", got, tc.want)
 				}
 			})
 		}
-		models := cursorDefaultCatalogModels(t)
+		models := cursorCatalogModels(t, cursorDefaultCatalogOutput)
 		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: models}))
 		_, err := h.manager.Create(
 			t.Context(),
@@ -2181,21 +2184,23 @@ func TestManagerProcessActivity(t *testing.T) {
 	})
 }
 
-// cursorDefaultCatalogExecutor replaces only the provider command I/O boundary.
-type cursorDefaultCatalogExecutor struct{}
+// cursorCatalogExecutor replaces only the provider command I/O boundary.
+type cursorCatalogExecutor string
 
-var _ modelcatalog.DiscoveryCommandExecutor = cursorDefaultCatalogExecutor{}
+var _ modelcatalog.DiscoveryCommandExecutor = cursorCatalogExecutor("")
 
-func (cursorDefaultCatalogExecutor) RunDiscoveryCommand(
+func (output cursorCatalogExecutor) RunDiscoveryCommand(
 	context.Context,
 	modelcatalog.DiscoveryCommandRequest,
 ) (modelcatalog.DiscoveryCommandResult, error) {
 	return modelcatalog.DiscoveryCommandResult{
-		Stdout: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-low - Gemini Flash Low\ngemini-3.8-flash-low-fast - Gemini Flash Low Fast\ngemini-3.8-flash-high-fast - Gemini Flash High Fast",
+		Stdout: string(output),
 	}, nil
 }
 
-func cursorDefaultCatalogModels(t *testing.T) []modelcatalog.Model {
+const cursorDefaultCatalogOutput = "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-low - Gemini Flash Low\ngemini-3.8-flash-low-fast - Gemini Flash Low Fast\ngemini-3.8-flash-high-fast - Gemini Flash High Fast"
+
+func cursorCatalogModels(t *testing.T, output string) []modelcatalog.Model {
 	t.Helper()
 	source, err := modelcatalog.NewLiveProviderSource(
 		"cursor",
@@ -2205,7 +2210,7 @@ func cursorDefaultCatalogModels(t *testing.T) []modelcatalog.Model {
 				"HOME=" + t.TempDir(),
 			},
 			WorkingDir:      t.TempDir(),
-			CommandExecutor: cursorDefaultCatalogExecutor{},
+			CommandExecutor: cursorCatalogExecutor(output),
 		},
 	)
 	if err != nil {

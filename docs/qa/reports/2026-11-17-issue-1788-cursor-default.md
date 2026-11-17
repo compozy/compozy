@@ -9,10 +9,12 @@ field. The session manager uses that default to choose the launch alias; the
 Web derives the displayed default from the same field. Explicit `ultra` remains
 invalid. Declared defaults and bare normal bindings preserve their behavior.
 
-The fallback prefers normal, non-Thinking bindings, then non-Thinking Fast,
-normal Thinking, and Fast Thinking bindings. In the first available mode, it
-preserves a bare transport or selects the lowest supported effort in canonical
-order. It never enables Fast or Thinking or changes an explicit effort to obtain
+The fallback preserves unspecified effort when any bare transport exists, so a
+model-wide inferred effort cannot block a bare alias in another mode. If every
+transport requires an effort, it prefers normal, non-Thinking bindings, then
+non-Thinking Fast, normal Thinking, and Fast Thinking bindings, selecting the
+lowest supported effort in canonical order from the first available mode.
+It never enables Fast or Thinking or changes an explicit effort to obtain
 a match. No public runtime-selection or payload shape changes.
 
 ## Evidence
@@ -20,16 +22,20 @@ a match. No public runtime-selection or payload shape changes.
 - Catalog: `TestLiveProviderSources/Should_resolve_a_missing_Cursor` covers
   fallback, declared default, bare binding, normal-mode precedence, and
   Fast-only/Thinking-only defaults. Existing Cursor aggregation cases also passed.
+  The mixed normal-effort/bare-Fast case preserves the unspecified model default.
 - Runtime: `TestCreateAppliesRuntimeModelOverride` passed, including normal/Fast
   default alias launch and explicit unsupported-effort rejection.
+  It also preserves the existing bare Fast launch when normal aliases require
+  an effort. Both new regression assertions failed before the corrective guard.
 - Web: focused Turborepo model-catalog suites passed (31 tests), including
   agreement between active-session derivation and runtime-selector defaults.
-- Real integration: isolated ACP subprocess and SQLite check passed (19.133s).
+- Real integration: isolated ACP subprocess and SQLite check passed again after
+  the bare-Fast correction (9.965s).
 - Go lint: the full configured lint set and the owning integration lint lane
   passed on both changed packages (0 issues).
-- Independent review: Claude Opus 5.5 / high approved both the first and corrective
-  candidates without blockers. Fast-only/Thinking-only fallback and review nits
-  were addressed. The reviewer ran no checks independently.
+- Independent review: Claude Opus 5.5 / high approved the initial candidate and
+  both corrective versions without blockers, including the bare-Fast guard.
+  Review nits were addressed. The reviewer ran no checks independently.
 
 Focused commands (all passed; Go runs use `GOMAXPROCS=2`, `GOFLAGS=-p=2`,
 and a task-owned `GOCACHE`):

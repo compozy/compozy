@@ -261,6 +261,12 @@ func cursorDefaultReasoningEffort(
 		}
 		return cloneModelRowPointer(variant.reasoningEffort)
 	}
+	// A model-wide inferred effort must not block a bare transport in another mode.
+	for _, variant := range variants {
+		if variant.reasoningEffort == nil {
+			return nil
+		}
+	}
 	for _, mode := range []struct{ fast, thinking bool }{
 		{false, false}, {true, false}, {false, true}, {true, true},
 	} {
@@ -268,10 +274,6 @@ func cursorDefaultReasoningEffort(
 		for _, variant := range variants {
 			if variant.fast != mode.fast || variant.thinking != mode.thinking {
 				continue
-			}
-			// A bare transport already represents the provider's unspecified effort.
-			if variant.reasoningEffort == nil {
-				return nil
 			}
 			if lowest == nil || compareReasoningEfforts(*variant.reasoningEffort, *lowest) < 0 {
 				lowest = variant.reasoningEffort
