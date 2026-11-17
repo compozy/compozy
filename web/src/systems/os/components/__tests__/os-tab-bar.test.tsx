@@ -10,7 +10,8 @@
 // leaves out items that cannot apply and the submenus they empty, and offers no retired control.
 // A session tab's tile shows its agent's face (an always-on main's instance avatar, else the
 // agent's configured appearance, from the list or the open window's detail read) and keeps the
-// generic mark for a session with no agent (#1709).
+// generic mark for a session with no agent (#1709). The session lookup every tab takes keeps its
+// identity while the sessions it holds are unchanged, so a bar re-render keeps unchanged tabs (#1736).
 // Owning layer: OsTabBar + useOsTabBar over the shell projection. Width rules: lib/tab-width.
 // Boundary OUT: runtime command execution and daemon reducers.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -50,6 +51,7 @@ import type {
 } from "../../lib/window-manager-types";
 import { buildOsDesktopRuntimeView } from "../../lib/window-manager-view";
 import { windowManagerStore } from "../../stores/window-manager-store";
+import { useTabSessions } from "../../hooks/use-os-tab-bar";
 import { OsTabBar } from "../os-tab-bar";
 
 vi.mock("@/systems/workspace", async importOriginal => ({
@@ -888,5 +890,34 @@ describe("OsTabBar", () => {
     expect(markOf("tab:w-plain")).toBeNull();
     expect(markOf("tab:tasks")).toBeNull();
     expect(markOf("tab:split")).toBeNull();
+  });
+  it("Should keep the tab session lookup while its sessions are unchanged [#1736]", () => {
+    const session = (id: string, name: string): SessionPayload => ({
+      ...primarySessionFixture,
+      id,
+      name,
+    });
+    sessionRows = [session("sess-a", "Alpha"), session("sess-b", "Beta")];
+    const { result, rerender } = renderHook(
+      ({ ids }: { ids: readonly string[] }) => useTabSessions(ids),
+      {
+        initialProps: { ids: ["sess-a"] as readonly string[] },
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    const first = result.current;
+    expect(first.get("sess-a")?.name).toBe("Alpha");
+
+    // A re-render that reads the same sessions (a tab switch) hands every tab the same lookup.
+    rerender({ ids: ["sess-a"] });
+    expect(result.current).toBe(first);
+
+    // A changed session is a new lookup that shows the change.
+    sessionRows = [session("sess-a", "Alpha renamed"), sessionRows[1]!];
+    rerender({ ids: ["sess-a"] });
+    expect(result.current).not.toBe(first);
+    expect(result.current.get("sess-a")?.name).toBe("Alpha renamed");
   });
 });
