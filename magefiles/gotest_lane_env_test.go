@@ -125,6 +125,7 @@ func TestFlakeReport(t *testing.T) {
 	t.Run(
 		"Should reject a dynamically skipped Playwright retry while retaining recovered receipts",
 		func(t *testing.T) {
+			t.Setenv("GITHUB_OUTPUT", "")
 			root := t.TempDir()
 			writeTestFile(t, root, "playwright.json", `{"suites":[{"specs":[
 {"file":"os.spec.ts","title":"skipped retry","tests":[{"expectedStatus":"skipped","results":[{"status":"failed","retry":0},{"status":"skipped","retry":1}]}]},
