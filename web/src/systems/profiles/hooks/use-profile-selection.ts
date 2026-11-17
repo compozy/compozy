@@ -180,7 +180,10 @@ export function useSwitchProfile() {
       if (context.switchId !== null) settleProfileSwitch(context.switchId);
       await rememberPersisted(view);
     },
-    onError: (error, _view, context) => {
+    onError: (error, view, context) => {
+      // Reread before rolling back: a rollback to no view enters the remembered choice once no
+      // reread is pending, and the cached one predates this write.
+      invalidateSelection(view);
       // Switches overlap: the store rolls this one back along the pending chain, so a later
       // switch keeps the view and a chain of failures returns to where the operator started.
       if (context && context.switchId !== null) {
@@ -191,8 +194,9 @@ export function useSwitchProfile() {
         tone: "error",
       });
     },
-    onSettled: (_data, _error, view) => {
-      invalidateSelection(view);
+    onSettled: (_data, error, view) => {
+      // A failed write already reread in onError.
+      if (error === null) invalidateSelection(view);
     },
   });
   return {

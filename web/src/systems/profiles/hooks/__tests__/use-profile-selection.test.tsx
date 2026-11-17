@@ -373,6 +373,41 @@ describe("global profile selection", () => {
     await waitFor(() => expect(result.current.read.destination).toBe("marketing"));
   });
 
+  it("Should enter the reread choice, not the cached one, after an unknown switch failure empties the view [#1736]", async () => {
+    const { wrapper } = createWrapper();
+    const answers: Array<(selection: { scope: "global"; profile: string }) => void> = [];
+    vi.mocked(fetchProfileSelection).mockImplementation(
+      () => new Promise(resolve => answers.push(resolve))
+    );
+    vi.mocked(putProfileSelection).mockRejectedValue(new Error("daemon unavailable"));
+    const { result } = renderHook(
+      () => ({ view: useActiveProfileView(), switchProfile: useSwitchProfile() }),
+      { wrapper }
+    );
+    await waitFor(() => expect(answers).toHaveLength(1));
+
+    let write: Promise<unknown> = Promise.resolve();
+    act(() => {
+      write = result.current.switchProfile
+        .mutateAsync({ kind: "profile", profile: "open-design" })
+        .catch(() => undefined);
+    });
+    // The boot read lands while the switch is shown, caching the choice from before the write.
+    await act(async () => answers[0]!({ scope: "global", profile: "marketing" }));
+
+    await act(async () => {
+      await write;
+    });
+    expect(localProfileView()).toBeNull();
+
+    await waitFor(() => expect(answers.length).toBeGreaterThan(1));
+    await act(async () => answers.at(-1)!({ scope: "global", profile: "open-design" }));
+
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "open-design" })
+    );
+  });
+
   it.each([
     {
       label: "refused",
