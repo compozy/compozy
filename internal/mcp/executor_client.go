@@ -52,7 +52,11 @@ func (e *CallExecutor) openRenderedClient(
 		if e.stdioPool != nil {
 			return e.openPooledStdioClient(ctx, resolved)
 		}
-		launch, err := e.newMCPStdioLaunch(ctx, server, resolved.Target)
+		spec, err := e.clientStdioSpec(ctx, resolved)
+		if err != nil {
+			return nil, err
+		}
+		launch, err := newMCPStdioProcess(ctx, spec, mcpStdioLayout{}, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -102,6 +106,11 @@ func (e *CallExecutor) renderHTTPServer(ctx context.Context, resolved *ResolvedS
 		registerMCPRequestSecret(ctx, secret)
 	}
 	resolved.Server = rendered
+	headers, err := e.resolveMCPRequestHeaders(ctx, rendered)
+	if err != nil {
+		return err
+	}
+	resolved.requestHeaders = headers
 	return nil
 }
 
@@ -135,7 +144,7 @@ func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.
 }
 
 func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved *ResolvedServer) (*managedMCPClient, error) {
-	spec, err := e.mcpStdioSpec(ctx, resolved.Server, resolved.Target)
+	spec, err := e.clientStdioSpec(ctx, resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +153,16 @@ func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved *Reso
 		return nil, err
 	}
 	return &managedMCPClient{session: lease.session.session, release: lease.release}, nil
+}
+
+func (e *CallExecutor) clientStdioSpec(ctx context.Context, resolved *ResolvedServer) (mcpStdioSpec, error) {
+	if resolved.listingSpec == nil {
+		return e.mcpStdioSpec(ctx, resolved.Server, resolved.Target)
+	}
+	if err := e.prepareMCPDataDir(resolved.Server); err != nil {
+		return mcpStdioSpec{}, err
+	}
+	return *resolved.listingSpec, nil
 }
 
 func closeMCPClient(client *managedMCPClient) error {
@@ -186,9 +205,13 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
-	headers, err := e.resolveMCPRequestHeaders(ctx, resolved.Server)
-	if err != nil {
-		return nil, err
+	headers := resolved.requestHeaders
+	if headers == nil {
+		var err error
+		headers, err = e.resolveMCPRequestHeaders(ctx, resolved.Server)
+		if err != nil {
+			return nil, err
+		}
 	}
 	configureMCPRedirectPolicy(
 		client,

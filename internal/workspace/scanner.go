@@ -275,6 +275,7 @@ func scanAgentSource(
 			return fmt.Errorf("workspace: snapshot agent definition %q: %w", agentPath, err)
 		}
 		if _, ok := snapshots[agentPath]; !ok {
+			snapshots[agentPath] = filesnap.Snapshot{Size: -1}
 			continue
 		}
 		if compozyconfig.IsReservedAgentName(entry.Name()) {

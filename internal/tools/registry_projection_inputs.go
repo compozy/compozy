@@ -63,12 +63,15 @@ func (r *RuntimeRegistry) ExternalProjectionFingerprint(ctx context.Context, sco
 					descriptor: descriptor, provider: provider, providerIndex: providerIndex,
 				}})
 			}
-			availability := r.projectionAvailabilities(ctx, providerScope, entries)
+			shared := r.projectionAvailabilities(ctx, providerScope, entries)
+			availability := make(map[ToolID]Availability, len(descriptors))
 			for _, entry := range entries {
 				id := entry.entry.descriptor.ID
-				if _, found := availability[id]; !found {
-					availability[id] = r.availabilityFor(ctx, providerScope, entry.entry)
+				value, found := shared[id]
+				if !found {
+					value = r.availabilityFor(ctx, providerScope, entry.entry)
 				}
+				availability[id] = value
 			}
 			encoded, err := json.Marshal(struct {
 				Descriptors  []Descriptor

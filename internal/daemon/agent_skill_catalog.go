@@ -60,7 +60,11 @@ func (c *resourceAgentCatalog) ResolvePolicyAgent(
 	name string,
 	resolved *workspacepkg.ResolvedAgentConfig,
 ) (compozyconfig.AgentDef, error) {
-	return c.resolveAgent(name, agentCatalogPolicySnapshot(resolved))
+	snapshot := agentCatalogPolicySnapshot(resolved)
+	if err := snapshot.captureAuthoredAgent(strings.TrimSpace(name)); err != nil {
+		return compozyconfig.AgentDef{}, err
+	}
+	return c.resolveAgent(name, snapshot)
 }
 
 // resolveAgent applies scope precedence and preserves missing-workspace and unavailable-agent errors.
@@ -72,7 +76,7 @@ func (c *resourceAgentCatalog) resolveAgent(
 	if target == "" {
 		return compozyconfig.AgentDef{}, errors.New("session: agent name is required")
 	}
-	if record, ok := c.lookupAgentRecord(target, snapshot.lens); ok {
+	if record, ok := c.lookupAgentRecordSnapshot(target, snapshot); ok {
 		return cloneAgentDef(record.Spec), nil
 	}
 	if snapshot.present {
@@ -105,6 +109,12 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 	target string,
 	lens agentCatalogLens,
 ) (resources.Record[compozyconfig.AgentDef], bool) {
+	return c.lookupAgentRecordSnapshot(target, agentCatalogSnapshot{lens: lens})
+}
+
+func (c *resourceAgentCatalog) lookupAgentRecordSnapshot(
+	target string, snapshot agentCatalogSnapshot,
+) (resources.Record[compozyconfig.AgentDef], bool) {
 	if c == nil || c.catalog == nil {
 		return resources.Record[compozyconfig.AgentDef]{}, false
 	}
@@ -113,14 +123,22 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 	bestKey := ""
 	var best resources.Record[compozyconfig.AgentDef]
 	found := false
+	if snapshot.authored != nil {
+		best = *snapshot.authored
+		bestRank, found = snapshot.lens.rank(best.Scope)
+		bestKey = agentRecordSortKey(best)
+	}
 
 	c.catalog.mu.RLock()
 	defer c.catalog.mu.RUnlock()
 	for _, record := range c.catalog.records {
+		if snapshot.liveAuthored && isAuthoredAgentRecord(record) {
+			continue
+		}
 		if strings.TrimSpace(record.Spec.Name) != target {
 			continue
 		}
-		rank, visible := lens.rank(record.Scope)
+		rank, visible := snapshot.lens.rank(record.Scope)
 		if !visible {
 			continue
 		}

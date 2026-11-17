@@ -65,7 +65,8 @@ func (e *CallExecutor) finishToolList(key string) {
 }
 
 func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh bool,
-	source toolspkg.SourceRef, authorizationHeader string, discovery ToolDiscovery, raw []*mcpsdk.Tool, ttlMs int,
+	discovery ToolDiscovery, raw []*mcpsdk.Tool, ttlMs int,
+	projectionKey string,
 ) error {
 	e.toolCache.publicationMu.Lock()
 	defer e.toolCache.publicationMu.Unlock()
@@ -79,7 +80,7 @@ func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh
 	}
 	now := time.Now()
 	e.cacheTools(key, discovery, raw, ttlMs, now)
-	return e.recordToolProjection(source, authorizationHeader, discovery.Descriptors, ttlMs, now)
+	return e.recordToolProjection(projectionKey, discovery.Descriptors, e.effectiveToolListTTL(ttlMs), now)
 }
 
 type mcpToolListCacheEntry struct {
@@ -114,7 +115,7 @@ func (e *CallExecutor) cachedToolListing(key string, now time.Time) (mcpToolList
 func (e *CallExecutor) cacheTools(
 	key string, discovery ToolDiscovery, raw []*mcpsdk.Tool, ttlMs int, now time.Time,
 ) {
-	ttl := max(mcpToolListFloor, time.Duration(ttlMs)*time.Millisecond)
+	ttl := e.effectiveToolListTTL(ttlMs)
 	e.toolCache.mu.Lock()
 	if e.toolCache.entries == nil {
 		e.toolCache.entries = make(map[string]mcpToolListCacheEntry)
@@ -129,6 +130,14 @@ func (e *CallExecutor) cacheTools(
 		expiresAt: now.Add(ttl),
 	}
 	e.toolCache.mu.Unlock()
+}
+
+func (e *CallExecutor) effectiveToolListTTL(ttlMs int) time.Duration {
+	floor := e.toolListFloor
+	if floor <= 0 {
+		floor = mcpToolListFloor
+	}
+	return max(floor, time.Duration(ttlMs)*time.Millisecond)
 }
 
 func cloneMCPToolDescriptors(descriptors []toolspkg.MCPToolDescriptor) []toolspkg.MCPToolDescriptor {
@@ -174,20 +183,8 @@ func (e *CallExecutor) ProjectionGeneration(
 }
 
 func (e *CallExecutor) recordToolProjection(
-	source toolspkg.SourceRef,
-	authorizationHeader string,
-	descriptors []toolspkg.MCPToolDescriptor,
-	ttlMs int,
-	now time.Time,
+	key string, descriptors []toolspkg.MCPToolDescriptor, ttl time.Duration, now time.Time,
 ) error {
-	key := mcpProjectionSourceKey(source, authorizationHeader)
-	if ttlMs <= 0 {
-		e.toolCache.mu.Lock()
-		e.pruneToolProjectionStatesLocked(now)
-		delete(e.toolCache.projectionStates, key)
-		e.toolCache.mu.Unlock()
-		return nil
-	}
 	fingerprint, err := fingerprintMCPToolDescriptors(descriptors)
 	if err != nil {
 		return err
@@ -205,7 +202,7 @@ func (e *CallExecutor) recordToolProjection(
 		state.generation = 1
 	}
 	state.fingerprint = fingerprint
-	state.expiresAt = now.Add(time.Duration(ttlMs) * time.Millisecond)
+	state.expiresAt = now.Add(ttl)
 	e.toolCache.projectionStates[key] = state
 	e.toolCache.mu.Unlock()
 	return nil
@@ -235,13 +232,16 @@ func (e *CallExecutor) projectionSourceKey(
 	source toolspkg.SourceRef,
 ) (string, bool) {
 	if e.servers == nil {
-		return mcpProjectionSourceKey(source, ""), true
+		return mcpProjectionSourceKey(source, "", ""), true
 	}
 	resolved, err := e.resolveServer(ctx, source, "")
 	if err != nil {
 		return "", false
 	}
-	return mcpProjectionSourceKey(source, e.authorizationHeader(ctx, &resolved)), true
+	if err := e.prepareToolListing(ctx, &resolved); err != nil {
+		return "", false
+	}
+	return mcpProjectionSourceKey(source, e.authorizationHeader(ctx, &resolved), resolved.listingBinding), true
 }
 
 func (e *CallExecutor) pruneToolProjectionStatesLocked(now time.Time) {
@@ -250,7 +250,7 @@ func (e *CallExecutor) pruneToolProjectionStatesLocked(now time.Time) {
 	})
 }
 
-func mcpProjectionSourceKey(source toolspkg.SourceRef, authorizationHeader string) string {
+func mcpProjectionSourceKey(source toolspkg.SourceRef, authorizationHeader, binding string) string {
 	authBinding := sha256.Sum256([]byte(authorizationHeader))
 	parts := []string{
 		string(source.Kind),
@@ -267,6 +267,9 @@ func mcpProjectionSourceKey(source toolspkg.SourceRef, authorizationHeader strin
 	var key strings.Builder
 	for _, part := range parts {
 		fmt.Fprintf(&key, "%d:%s", len(part), part)
+	}
+	if binding != "" {
+		fmt.Fprintf(&key, "%d:%s", len(binding), binding)
 	}
 	return key.String()
 }
@@ -306,7 +309,7 @@ func (e *CallExecutor) toolCacheKey(
 	key := targetKey + "\x00" +
 		fingerprint + "\x00" + string(resolved.overrideOrigin()) + "\x00" +
 		protocolVersion + "\x00" +
-		hex.EncodeToString(authBinding[:])
+		hex.EncodeToString(authBinding[:]) + "\x00" + resolved.listingBinding
 	return key, nil
 }
 
@@ -321,11 +324,11 @@ func (e *CallExecutor) cachedPooledStdioTools(
 	if e.stdioPool == nil || resolved.Server.EffectiveTransport() != compozyconfig.MCPServerTransportStdio {
 		return ToolDiscovery{}, false
 	}
-	spec, err := e.resolveMCPStdioSpec(ctx, resolved.Server, resolved.Target)
-	if err != nil {
+	spec := resolved.listingSpec
+	if spec == nil {
 		return ToolDiscovery{}, false
 	}
-	protocolVersion, ok := e.stdioPool.knownProtocol(spec)
+	protocolVersion, ok := e.stdioPool.knownProtocol(*spec)
 	if !ok {
 		return ToolDiscovery{}, false
 	}

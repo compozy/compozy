@@ -167,3 +167,6 @@ remain historical; their new impact notes point to this bounded evidence.
 
 PR delivery is governed separately by the current head's CI and review evidence. This report
 certifies the targeted runtime QA described above.
+
+The [review remediation run](2026-11-17-daemon-cpu-hot-paths-review.md) records the
+repeated targeted QA and the updated CPU and allocation comparison.

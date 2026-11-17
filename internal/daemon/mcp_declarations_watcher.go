@@ -93,7 +93,7 @@ func (d *Daemon) bootMCPDeclarationWatcher(ctx context.Context, state *bootState
 	if policyComplete, ok := worker.Begin(); ok {
 		go func() {
 			defer policyComplete()
-			runAgentConfigWatcher(workerCtx, state)
+			runAgentConfigWatcher(workerCtx, state, agentConfigPollInterval)
 		}()
 	}
 	go func() {
@@ -143,27 +143,17 @@ func runMCPDeclarationWatcher(
 
 // Keep the bounded stat observer independent of slow MCP discovery. The declaration worker
 // owns and joins it, and the configured skills watcher retains its public cadence.
-func runAgentConfigWatcher(ctx context.Context, state *bootState) {
-	ticker := time.NewTicker(agentConfigPollInterval)
+func runAgentConfigWatcher(ctx context.Context, state *bootState, interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	agentSyncPending := false
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			changed, err := state.workspaceResolver.PollAgentConfig(ctx)
-			agentSyncPending = agentSyncPending || changed
-			if err == nil && agentSyncPending && state.agentSkillResources != nil {
-				// Policy selects published agent records before workspace fallbacks. Publish edits
-				// on change at the policy bound, retaining the configurable skill poll cadence.
-				syncErr := state.agentSkillResources.Sync(ctx)
-				err = errors.Join(err, syncErr)
-				if syncErr == nil {
-					agentSyncPending = false
-					state.workspaceResolver.InvalidateAll()
-				}
-			}
+			// Policy reads overlay current authored definitions on published records. Full
+			// agent/skill publication may block independently without delaying this observer.
+			_, err := state.workspaceResolver.PollAgentConfig(ctx)
 			if err != nil && ctx.Err() == nil && state.logger != nil {
 				state.logger.DebugContext(ctx, "daemon: agent policy refresh deferred")
 			}

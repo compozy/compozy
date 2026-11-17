@@ -17,6 +17,7 @@ type sessionMCPSummarySnapshot struct {
 	key        string
 	summary    session.MCPSummary
 	hasServers bool
+	lastRead   time.Time
 }
 
 type sessionMCPScopeSnapshot struct {
@@ -28,6 +29,11 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 	ctx = r.registry.ReadContext(tools.EnsureProjectionListings(tools.WithCachedMCPProjection(ctx)))
 	local, err := r.summaryLocalInputs(ctx, id)
 	if err != nil {
+		if errors.Is(err, session.ErrSessionNotFound) {
+			r.mu.Lock()
+			delete(r.snapshots, id)
+			r.mu.Unlock()
+		}
 		return nil, err
 	}
 	key, err := r.summaryInputs(ctx, id, local)
@@ -36,6 +42,10 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 	}
 	r.mu.Lock()
 	cached, found := r.snapshots[id]
+	if found {
+		cached.lastRead = time.Now()
+		r.snapshots[id] = cached
+	}
 	r.mu.Unlock()
 	if !found || local == "" || cached.key != key {
 		result, err := r.ListSessionMCP(ctx, id)
@@ -44,6 +54,7 @@ func (r *sessionMCPReadModel) SessionMCPSummary(ctx context.Context, id string) 
 		}
 		cached = sessionMCPSummarySnapshot{
 			key: key, summary: result.MCPSummary,
+			lastRead:   time.Now(),
 			hasServers: len(result.CompozyServers)+len(result.RuntimeServers.Servers) > 0,
 		}
 		// Re-read live fences, not the request-local policy/listing snapshots.
@@ -108,10 +119,7 @@ func (r *sessionMCPReadModel) summaryScopeInputs(ctx context.Context, info *sess
 	digest := sha256.Sum256(data)
 	fingerprint := hex.EncodeToString(digest[:])
 	if fence == r.summaryScopeFence() {
-		interval := r.state.cfg.Skills.PollInterval
-		if interval <= 0 {
-			interval = 3 * time.Second
-		}
+		interval := r.summaryIdleTTL()
 		r.mu.Lock()
 		if r.scopes == nil {
 			r.scopes = make(map[string]sessionMCPScopeSnapshot)
@@ -135,7 +143,19 @@ func (r *sessionMCPReadModel) summaryScopeFence() string {
 	if r.state.runtimeMCPInventory != nil {
 		inventory = r.state.runtimeMCPInventory.Revision()
 	}
-	return fmt.Sprintf("%d:%d:%d", epoch, inventory, r.state.mcpAuthGeneration.GlobalRevision())
+	var policy uint64
+	if r.state.workspaceResolver != nil {
+		policy = r.state.workspaceResolver.AgentConfigRevision()
+	}
+	return fmt.Sprintf("%d:%d:%d:%d:%d", epoch, inventory, r.state.mcpAuthGeneration.GlobalRevision(),
+		policy, r.state.agentCatalog.Revision())
+}
+
+func (r *sessionMCPReadModel) summaryIdleTTL() time.Duration {
+	if interval := r.state.cfg.Skills.PollInterval; interval > 0 {
+		return interval
+	}
+	return 3 * time.Second
 }
 
 func (r *sessionMCPReadModel) summaryLocalInputs(ctx context.Context, id string) (string, error) {
@@ -156,20 +176,13 @@ func (r *sessionMCPReadModel) summaryLocalInputs(ctx context.Context, id string)
 	if err != nil {
 		return "", err
 	}
-	var epoch, inventory uint64
-	if r.state.toolProjectionEpoch != nil {
-		epoch = r.state.toolProjectionEpoch.Current()
-	}
-	if r.state.runtimeMCPInventory != nil {
-		inventory = r.state.runtimeMCPInventory.Revision()
-	}
 	data, err := json.Marshal(struct {
 		Profile, Workspace, Agent, Instance, Permissions, Runtime string
 		Type                                                      session.Type
 		Lineage                                                   any
-		Epoch, Inventory, Auth                                    uint64
+		PolicyFence                                               string
 	}{info.ProfileID, info.WorkspaceID, info.AgentName, info.InstanceID, info.EffectivePermissions, runtime,
-		info.Type, info.Lineage, epoch, inventory, r.state.mcpAuthGeneration.GlobalRevision()})
+		info.Type, info.Lineage, r.summaryScopeFence()})
 	return string(data), err
 }
 
@@ -188,16 +201,16 @@ func (r *sessionMCPReadModel) refresh(ctx context.Context) error {
 	r.mu.Lock()
 	clear(r.scopes)
 	r.mu.Unlock()
-	ctx = r.registry.ReadContext(tools.WithProjectionListings(
-		tools.WithCachedMCPProjection(ctx), tools.NewProjectionListings(),
-	))
 	active := map[string]bool{}
 	var errs []error
 	for _, id := range manager.BoundMCPSessionIDs() {
 		active[id] = true
-		summary, err := r.SessionMCPSummary(ctx, id)
+		readCtx := r.registry.ReadContext(tools.WithProjectionListings(
+			tools.WithCachedMCPProjection(ctx), tools.NewProjectionListings(),
+		))
+		summary, err := r.SessionMCPSummary(readCtx, id)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("daemon: read MCP summary for session %q: %w", id, err))
 			continue
 		}
 		current := session.MCPSummary{}
@@ -211,7 +224,7 @@ func (r *sessionMCPReadModel) refresh(ctx context.Context) error {
 			continue
 		}
 		if err := manager.RecordMCPChanged(ctx, id, current); err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("daemon: record MCP summary for session %q: %w", id, err))
 			continue
 		}
 		r.mu.Lock()
@@ -222,6 +235,11 @@ func (r *sessionMCPReadModel) refresh(ctx context.Context) error {
 	for id := range r.summaries {
 		if !active[id] {
 			delete(r.summaries, id)
+		}
+	}
+	now := time.Now()
+	for id, snapshot := range r.snapshots {
+		if !active[id] && now.Sub(snapshot.lastRead) >= r.summaryIdleTTL() {
 			delete(r.snapshots, id)
 		}
 	}

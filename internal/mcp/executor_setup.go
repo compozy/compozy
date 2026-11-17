@@ -42,6 +42,7 @@ type CallExecutor struct {
 	secureClient   *securehttp.Client
 	authGeneration *mcpauth.MutationGeneration
 	timeout        time.Duration
+	toolListFloor  time.Duration
 	toolCache      mcpToolListCache
 	stdioPool      *StdioSessionPool
 }
@@ -115,6 +116,15 @@ func WithTimeout(timeout time.Duration) CallExecutorOption {
 	return func(executor *CallExecutor) {
 		if timeout > 0 {
 			executor.timeout = timeout
+		}
+	}
+}
+
+// WithToolListFloor bounds ordinary discovery frequency; explicit checks always bypass it.
+func WithToolListFloor(interval time.Duration) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		if interval > 0 {
+			executor.toolListFloor = interval
 		}
 	}
 }

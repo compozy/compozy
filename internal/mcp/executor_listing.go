@@ -153,7 +153,7 @@ func (e *CallExecutor) listResolvedTools(
 		return ToolDiscovery{}, err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, &resolved)
-	if err = e.renderHTTPServer(ctx, &resolved); err != nil {
+	if err = e.prepareToolListing(ctx, &resolved); err != nil {
 		runtimeHealthErr = err
 		return ToolDiscovery{}, err
 	}
@@ -234,15 +234,42 @@ func (e *CallExecutor) listToolsFromClient(
 		cacheKey,
 		attempt,
 		fresh,
-		source,
-		authorizationHeader,
 		discovery,
 		raw,
 		ttlMs,
+		mcpProjectionSourceKey(source, authorizationHeader, resolved.listingBinding),
 	); err != nil {
 		return ToolDiscovery{}, nil, err
 	}
 	return discovery, nil, nil
+}
+
+func (e *CallExecutor) prepareToolListing(ctx context.Context, resolved *ResolvedServer) error {
+	if resolved.Server.EffectiveTransport() == compozyconfig.MCPServerTransportHTTP {
+		if err := e.renderHTTPServer(ctx, resolved); err != nil {
+			return err
+		}
+		if len(resolved.Server.SecretHeaders) == 0 && len(resolved.Server.InputValues) == 0 {
+			return nil
+		}
+		data, err := json.Marshal(struct {
+			Server  compozyconfig.MCPServer
+			Headers map[string][]string
+		}{resolved.Server, resolved.requestHeaders})
+		if err != nil {
+			return fmt.Errorf("mcp: encode resolved listing identity: %w", err)
+		}
+		// Only the digest enters cache keys; the transport uses this same resolved material.
+		resolved.listingBinding = fmt.Sprintf("%x", sha256.Sum256(data))
+		return nil
+	}
+	spec, err := e.resolveMCPStdioSpec(ctx, resolved.Server, resolved.Target)
+	if err != nil {
+		return err
+	}
+	resolved.listingSpec = &spec
+	resolved.listingBinding = spec.digest
+	return nil
 }
 
 func (e *CallExecutor) cachedHTTPTools(

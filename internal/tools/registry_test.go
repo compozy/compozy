@@ -535,6 +535,31 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		}
 	})
 
+	// Invariant: external fingerprints describe the same providers regardless of sibling read order.
+	// Owner: registry projection inputs; canonical suite: runtime projections.
+	t.Run("Should hash only each provider's own availability", func(t *testing.T) {
+		t.Parallel()
+		first, second := validDescriptor(), validDescriptor()
+		second.ID = "compozy__second"
+		registry, err := NewRegistry(WithProviders(
+			providerWithDescriptors(first.Source, first), providerWithDescriptors(second.Source, second),
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := registry.ReadContext(EnsureProjectionListings(t.Context()))
+		if _, err := registry.DiagnosticProjection(ctx, Scope{}); err != nil {
+			t.Fatal(err)
+		}
+		afterSibling, err := registry.ExternalProjectionFingerprint(ctx, Scope{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fresh, err := registry.ExternalProjectionFingerprint(t.Context(), Scope{})
+		if err != nil || afterSibling != fresh {
+			t.Fatalf("fingerprint after sibling = %q, fresh = %q, error=%v", afterSibling, fresh, err)
+		}
+	})
 	// Invariant: sibling views share policy/index/availability, while returned schemas remain caller-owned.
 	// Owner: registry read boundary; canonical suite: runtime projections.
 	t.Run("Should share one read without leaking schema mutations", func(t *testing.T) {
@@ -1973,7 +1998,7 @@ func TestRuntimeRegistryProjectionInvalidation(t *testing.T) {
 			if !tc.deny && tc.failure == nil && err != nil {
 				t.Fatal(err)
 			}
-			if tc.failure != nil && err == nil {
+			if tc.failure != nil && !errors.Is(err, tc.failure) {
 				t.Fatal("partial failure was lost")
 			}
 			if invalidations != tc.want {

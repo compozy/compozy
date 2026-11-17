@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
@@ -1609,6 +1610,142 @@ func TestSessionMCPReadModel(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: later sessions never reuse discovery from before an epoch or policy-only withdrawal.
+	// Owner: daemon summary cache; canonical suite: session MCP reads.
+	for _, policyOnly := range []bool{false, true} {
+		name := "Should isolate refresh reads across an epoch change"
+		if policyOnly {
+			name = "Should invalidate summaries across a policy-only withdrawal"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			model, manager, executor, _ := newSessionMCPReadFixture(t)
+			model.state.toolProjectionEpoch = mcppkg.NewProjectionEpoch()
+			home := testHomePaths(t)
+			resolver, err := workspacepkg.NewResolver(&recordingRegistry{}, workspacepkg.WithHomePaths(home))
+			if err != nil {
+				t.Fatal(err)
+			}
+			model.state.workspaceResolver = resolver
+			withdrawn := false
+			provider, err := toolspkg.NewMCPProvider(
+				toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) {
+					if withdrawn {
+						return nil, nil
+					}
+					return []toolspkg.SourceRef{
+						{Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear", Scope: "user"},
+						{Kind: toolspkg.SourceMCP, Owner: "sentry", RawServerName: "sentry", Scope: "user"},
+					}, nil
+				}),
+				executor,
+				nil,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs := nativeApproveAllPolicyInputs()
+			inputs.ExternalDefault = toolspkg.ExternalDefaultEnabled
+			model.registry, err = toolspkg.NewRegistry(
+				toolspkg.WithProviders(provider),
+				toolspkg.WithPolicyInputs(inputs, toolspkg.ToolsetCatalog{}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			views, err := model.registry.SessionProjection(t.Context(), toolspkg.Scope{
+				SessionID: "sess-1", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-auth", AgentName: "coder",
+			})
+			if err != nil || len(views) != 2 {
+				t.Fatalf("warm replacement projection = %+v, %v", views, err)
+			}
+			info, err := manager.Status(t.Context(), "sess-1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			manager.SessionManager = &apitest.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					current := *info
+					current.ID = id
+					return &current, nil
+				},
+			}
+			manager.boundIDs = []string{"sess-1", "sess-2"}
+			manager.onRecord = func(id string) {
+				if id != "sess-1" {
+					return
+				}
+				withdrawn = true
+				if policyOnly {
+					resolver.InvalidateAll()
+				} else {
+					model.state.toolProjectionEpoch.Advance()
+				}
+			}
+			if err := model.refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(manager.changes) != 2 || manager.changes[0].Usable != 2 || manager.changes[1].Usable != 0 {
+				t.Fatalf("summaries across withdrawal = %+v", manager.changes)
+			}
+			reads := manager.reads
+			summary, err := model.SessionMCPSummary(t.Context(), "sess-2")
+			if err != nil || summary == nil || summary.Usable != 0 || manager.reads != reads {
+				t.Fatalf(
+					"post-withdrawal cached summary = %+v, %v; reads=%d, want %d",
+					summary,
+					err,
+					manager.reads,
+					reads,
+				)
+			}
+		})
+	}
+	// Invariant: detail-only snapshots stay warm while read and leave the cache after inactivity or deletion.
+	// Owner: daemon summary cache; canonical suite: session MCP reads.
+	t.Run(
+		"Should evict idle and deleted detail-only sessions independently of published summaries",
+		func(t *testing.T) {
+			t.Parallel()
+			model, manager, _, _ := newSessionMCPReadFixture(t)
+			manager.boundIDs = []string{}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if err := model.refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if manager.reads != 1 {
+				t.Fatalf("active unbound session rebuilt %d times", manager.reads)
+			}
+			model.mu.Lock()
+			snapshot := model.snapshots["sess-1"]
+			snapshot.lastRead = time.Now().Add(-model.summaryIdleTTL())
+			model.snapshots["sess-1"] = snapshot
+			model.mu.Unlock()
+			if err := model.refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if manager.reads != 2 {
+				t.Fatalf("idle snapshot survived eviction: reads=%d", manager.reads)
+			}
+			manager.SessionManager = &apitest.StubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) { return nil, session.ErrSessionNotFound },
+			}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); !errors.Is(err, session.ErrSessionNotFound) {
+				t.Fatalf("deleted session error = %v", err)
+			}
+			if len(model.snapshots) != 0 {
+				t.Fatalf("deleted snapshots retained: %d", len(model.snapshots))
+			}
+		},
+	)
 	// Invariant: explicit session ids cannot cross the trusted workspace/profile; owner: native adapter.
 	for _, scope := range []toolspkg.Scope{{WorkspaceID: "foreign", ProfileID: store.DefaultProfileID}, {WorkspaceID: "ws-auth", ProfileID: "foreign-profile"}} {
 		t.Run("Should reject a foreign native session scope "+scope.WorkspaceID+scope.ProfileID, func(t *testing.T) {
@@ -1645,17 +1782,27 @@ func (s sessionMCPAuthorityStub) EffectiveMCPAuthority(context.Context, string) 
 
 type sessionMCPManagerStub struct {
 	core.SessionManager
-	runtime session.MCPRuntimeSnapshot
-	reader  session.MCPReader
-	changes []session.MCPSummary
-	reads   int
+	runtime  session.MCPRuntimeSnapshot
+	reader   session.MCPReader
+	changes  []session.MCPSummary
+	boundIDs []string
+	onRecord func(string)
+	reads    int
 }
 
 var _ session.MCPReader = (*sessionMCPManagerStub)(nil)
 
-func (s *sessionMCPManagerStub) BoundMCPSessionIDs() []string { return []string{"sess-1"} }
-func (s *sessionMCPManagerStub) RecordMCPChanged(_ context.Context, _ string, summary session.MCPSummary) error {
+func (s *sessionMCPManagerStub) BoundMCPSessionIDs() []string {
+	if s.boundIDs != nil {
+		return s.boundIDs
+	}
+	return []string{"sess-1"}
+}
+func (s *sessionMCPManagerStub) RecordMCPChanged(_ context.Context, id string, summary session.MCPSummary) error {
 	s.changes = append(s.changes, summary)
+	if s.onRecord != nil {
+		s.onRecord(id)
+	}
 	return nil
 }
 

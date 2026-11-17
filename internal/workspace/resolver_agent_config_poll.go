@@ -20,7 +20,14 @@ type AgentConfigScope struct {
 	ProfileName  string
 }
 
-// WatchAgentConfigs retains publication dependencies independently of read-cache lifetimes.
+// AgentConfigRevision fences policy snapshots across explicit and observed invalidation.
+func (r *Resolver) AgentConfigRevision() uint64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.agentConfigGeneration
+}
+
+// WatchAgentConfigs retains dependencies for cached consumers that may not resolve policy again.
 func (r *Resolver) WatchAgentConfigs(ctx context.Context, scopes []AgentConfigScope) error {
 	snapshots := make(map[string]map[string]filesnap.Snapshot, len(scopes))
 	for _, scope := range scopes {
@@ -63,8 +70,7 @@ func (r *Resolver) WatchAgentConfigs(ctx context.Context, scopes []AgentConfigSc
 	return nil
 }
 
-// Keep observations independent of read-cache renewal and explicit invalidation. Otherwise a
-// read that discovers an edit first, or an invalidated cache, could hide it from publication.
+// A direct read can see an edit before the observer wakes the hosted streams.
 func (r *Resolver) touchAgentConfigObservationLocked(
 	key string, snapshots map[string]filesnap.Snapshot, now time.Time,
 ) {

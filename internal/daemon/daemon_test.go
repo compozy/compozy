@@ -6409,78 +6409,95 @@ args = ["-c", "printf '{}'"]
 
 func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 	t.Parallel()
-	t.Run("Should publish agent policy edits and retry independently of declaration refresh", func(t *testing.T) {
+	// Invariant: authored policy takes effect at the bound while publication is blocked.
+	// Owner: daemon policy observer; canonical suite: boot resource watchers.
+	t.Run("Should enforce agent policy independently of blocked resource publication", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			home := testHomePaths(t)
 			cfg := compozyconfig.DefaultWithHome(home)
-			cfg.Skills.PollInterval = time.Hour
-			root := t.TempDir()
 			registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
-				"ws_policy_watch": {ID: "ws_policy_watch", Name: "repo", RootDir: root},
+				"ws_policy_watch": {ID: "ws_policy_watch", Name: "repo", RootDir: t.TempDir()},
 			}}
+			observed := make(chan struct{}, 1)
 			resolver, err := workspacepkg.NewResolver(registry,
 				workspacepkg.WithHomePaths(home), workspacepkg.WithSnapshotTTL(agentConfigMaxStaleness),
 				workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+				workspacepkg.WithInvalidationHook(func() {
+					select {
+					case observed <- struct{}{}:
+					default:
+					}
+				}),
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			path := filepath.Join(home.AgentsDir, "observed", "AGENT.md")
 			writeDaemonFile(t, path, "---\nname: observed\nprovider: codex\n---\nOriginal.\n")
-			if err := watchPublishedAgentConfigs(t.Context(), resolver, registry, nil); err != nil {
+			initial, err := resolver.ResolveAgentConfig(t.Context(), "ws_policy_watch", "")
+			if err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-			attempts := 0
-			published := make(chan bool, 2)
-			state := &bootState{cfg: cfg, workspaceResolver: resolver,
-				agentSkillResources: agentSkillPublisherFunc(func(ctx context.Context) error {
-					attempts++
-					if attempts == 1 {
-						return errors.New("publication temporarily unavailable")
-					}
-					resolved, err := resolver.ResolveAgentConfig(ctx, "ws_policy_watch", "")
-					if err != nil {
-						return err
-					}
-					for _, agent := range resolved.Agents {
-						if agent.Name == "observed" {
-							published <- slices.Contains(agent.DenyTools, "compozy__tool_search")
-						}
-					}
-					return nil
-				}),
-			}
-			watcher := &mcpDeclarationWatcher{
-				paths: func(context.Context) ([]string, error) { return nil, nil },
-				sync:  func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() },
-			}
-			go runMCPDeclarationWatcher(ctx, state, watcher, cfg.Skills.PollInterval)
-			go runAgentConfigWatcher(ctx, state)
-			synctest.Wait()
-			writeDaemonFile(t, path,
-				"---\nname: observed\nprovider: codex\ndeny_tools: [compozy__tool_search]\n---\nRestricted.\n")
-			time.Sleep(agentConfigPollInterval)
-			synctest.Wait()
-			if attempts != 1 {
-				t.Fatalf("publication attempts after edit = %d, want 1", attempts)
-			}
-			time.Sleep(agentConfigPollInterval)
-			synctest.Wait()
 			select {
-			case denied := <-published:
-				if !denied {
-					t.Fatal("published policy did not contain the edited deny_tools")
-				}
+			case <-observed: // Initial registration can invalidate the resolver.
 			default:
-				t.Fatal("failed publication was not retried within the bound")
 			}
-			time.Sleep(agentConfigPollInterval)
-			synctest.Wait()
-			if attempts != 2 {
-				t.Fatalf("unchanged policy republished: attempts=%d, want 2", attempts)
+			index := slices.IndexFunc(initial.Agents, func(agent compozyconfig.AgentDef) bool {
+				return agent.Name == "observed"
+			})
+			if index < 0 {
+				t.Fatal("authored agent missing from the initial policy snapshot")
+			}
+			actor := agentSkillSyncActor()
+			catalog := newResourceCatalog(cloneAgentDef)
+			catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{
+				ID: agentManagedIDPrefix + "stale",
+				Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspaceProfile,
+					ID:   initial.ID + "@pf:" + daemonDefaultProfileName,
+				},
+				Source: actor.Source,
+				Owner:  managedDraftOwner(actor, nil),
+				Spec:   initial.Agents[index],
+			}})
+			policy := agentCatalogDependency(catalog)
+			ctx, cancel := context.WithCancel(t.Context())
+			var workers sync.WaitGroup
+			defer func() { cancel(); workers.Wait() }()
+
+			started := make(chan struct{})
+			markStarted := sync.OnceFunc(func() { close(started) })
+			publisher := agentSkillPublisherFunc(func(ctx context.Context) error {
+				markStarted()
+				<-ctx.Done()
+				return ctx.Err()
+			})
+			workers.Go(func() {
+				if err := publisher.Sync(ctx); !errors.Is(err, context.Canceled) {
+					t.Errorf("blocked publisher returned %v; want cancellation", err)
+				}
+			})
+			<-started
+			state := &bootState{cfg: cfg, workspaceResolver: resolver, agentSkillResources: publisher}
+			workers.Go(func() { runAgentConfigWatcher(ctx, state, agentConfigPollInterval) })
+			writeDaemonFile(
+				t,
+				path,
+				"---\nname: observed\nprovider: codex\ndeny_tools: [compozy__tool_search]\n---\nRestricted.\n",
+			)
+			select {
+			case <-observed:
+			case <-time.After(agentConfigMaxStaleness):
+				t.Fatal("policy observer exceeded the approved freshness bound")
+			}
+			current, err := resolver.ResolveAgentConfig(t.Context(), initial.ID, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			agent, err := policy.ResolvePolicyAgent("observed", &current)
+			if err != nil || !slices.Contains(agent.DenyTools, "compozy__tool_search") {
+				t.Fatalf("current policy while publication is blocked = %+v, %v", agent, err)
 			}
 		})
 	})

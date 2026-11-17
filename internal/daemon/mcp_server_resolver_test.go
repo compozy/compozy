@@ -1233,59 +1233,69 @@ func TestWorkspaceMCPConsent(t *testing.T) {
 		"Should retain persisted approval identity for symlinked and percent-encoded declaring files",
 		func(t *testing.T) {
 			t.Parallel()
-			for _, external := range []bool{false, true} {
-				state, req := newMCPConsentFixture(t)
-				workspace, err := state.workspaceResolver.ResolveAgentConfig(t.Context(), req.WorkspaceID, "")
-				if err != nil {
-					t.Fatal(err)
-				}
-				targetDir := workspace.RootDir
-				if external {
-					targetDir = t.TempDir()
-				}
-				target := filepath.Join(targetDir, "shared-mcp.json")
-				if err := os.WriteFile(target, []byte(`{"mcpServers":{}}`), 0o600); err != nil {
-					t.Fatal(err)
-				}
-				path := filepath.Join(filepath.Dir(req.Server.DefinitionSource), "mcp%20settings.json")
-				if err := os.Symlink(target, path); err != nil {
-					t.Fatal(err)
-				}
-				want := filepath.ToSlash(filepath.Join(compozyconfig.DirName, "mcp%20settings.json"))
-				got, err := mcpApprovalSourceID(t.Context(), state, req.WorkspaceID, path)
-				if err != nil || got != want {
-					t.Fatalf("approval source (external=%t) = %q, %v; want %q", external, got, err, want)
-				}
-				alias := filepath.Join(t.TempDir(), "workspace-alias")
-				if err := os.Symlink(workspace.RootDir, alias); err != nil {
-					t.Fatal(err)
-				}
-				aliasedPath := filepath.Join(alias, compozyconfig.DirName, filepath.Base(path))
-				got, err = mcpApprovalSourceID(t.Context(), state, req.WorkspaceID, aliasedPath)
-				if err != nil || got != want {
-					t.Fatalf("aliased approval source = %q, %v; want %q", got, err, want)
-				}
-				decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
-				if err != nil {
-					t.Fatal(err)
-				}
-				repository, ok := state.registry.(MCPApprovalStore)
-				if !ok {
-					t.Fatal("approval repository unavailable")
-				}
-				if err := repository.PutMCPServerApproval(t.Context(), MCPApproval{
-					ProfileID: store.DefaultProfileID, WorkspaceID: req.WorkspaceID,
-					ServerName: req.Server.Name, SourceID: want, DefinitionDigest: decision.DefinitionDigest,
-				}); err != nil {
-					t.Fatal(err)
-				}
-				state.invalidateMCPApprovals(store.DefaultProfileID, req.WorkspaceID)
-				// Existing records keep matching the declaring path rather than its resolved target.
-				req.Server.DefinitionSource = path
-				again, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
-				if err != nil || !again.Admitted {
-					t.Fatalf("persisted approval (external=%t) = %+v, %v", external, again, err)
-				}
+			for _, tc := range []struct {
+				name     string
+				external bool
+			}{
+				{"Should preserve an internal target", false},
+				{"Should preserve an external target", true},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					external := tc.external
+					state, req := newMCPConsentFixture(t)
+					workspace, err := state.workspaceResolver.ResolveAgentConfig(t.Context(), req.WorkspaceID, "")
+					if err != nil {
+						t.Fatal(err)
+					}
+					targetDir := workspace.RootDir
+					if external {
+						targetDir = t.TempDir()
+					}
+					target := filepath.Join(targetDir, "shared-mcp.json")
+					if err := os.WriteFile(target, []byte(`{"mcpServers":{}}`), 0o600); err != nil {
+						t.Fatal(err)
+					}
+					path := filepath.Join(filepath.Dir(req.Server.DefinitionSource), "mcp%20settings.json")
+					if err := os.Symlink(target, path); err != nil {
+						t.Fatal(err)
+					}
+					want := filepath.ToSlash(filepath.Join(compozyconfig.DirName, "mcp%20settings.json"))
+					got, err := mcpApprovalSourceID(t.Context(), state, req.WorkspaceID, path)
+					if err != nil || got != want {
+						t.Fatalf("approval source (external=%t) = %q, %v; want %q", external, got, err, want)
+					}
+					alias := filepath.Join(t.TempDir(), "workspace-alias")
+					if err := os.Symlink(workspace.RootDir, alias); err != nil {
+						t.Fatal(err)
+					}
+					aliasedPath := filepath.Join(alias, compozyconfig.DirName, filepath.Base(path))
+					got, err = mcpApprovalSourceID(t.Context(), state, req.WorkspaceID, aliasedPath)
+					if err != nil || got != want {
+						t.Fatalf("aliased approval source = %q, %v; want %q", got, err, want)
+					}
+					decision, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+					if err != nil {
+						t.Fatal(err)
+					}
+					repository, ok := state.registry.(MCPApprovalStore)
+					if !ok {
+						t.Fatal("approval repository unavailable")
+					}
+					if err := repository.PutMCPServerApproval(t.Context(), MCPApproval{
+						ProfileID: store.DefaultProfileID, WorkspaceID: req.WorkspaceID,
+						ServerName: req.Server.Name, SourceID: want, DefinitionDigest: decision.DefinitionDigest,
+					}); err != nil {
+						t.Fatal(err)
+					}
+					state.invalidateMCPApprovals(store.DefaultProfileID, req.WorkspaceID)
+					// Existing records keep matching the declaring path rather than its resolved target.
+					req.Server.DefinitionSource = path
+					again, err := (settingsMCPConsent{state: state}).MCPConsent(t.Context(), req)
+					if err != nil || !again.Admitted {
+						t.Fatalf("persisted approval (external=%t) = %+v, %v", external, again, err)
+					}
+				})
 			}
 		},
 	)
