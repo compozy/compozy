@@ -6,6 +6,7 @@
 // and directional focus only reaches windows on screen in the active tab. A view-only close takes a window off the desk without
 // the operator close guard and never races a close that guard is confirming (#1194).
 // Owning layer: the Query cache → runtime projection and runtime → command boundaries.
+import { createEventRecorder } from "@/test/event-recorder";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { useAtom } from "@xstate/store-react";
@@ -57,18 +58,18 @@ async function flushCommandQueue(): Promise<void> {
 type CommandAnswer = Awaited<ReturnType<typeof executeWindowManagerCommand>>;
 
 /** Holds every command's answer until the test gives it, in send order. */
-function deferCommandAnswers(): Array<(answer: CommandAnswer) => void> {
-  const answers: Array<(answer: CommandAnswer) => void> = [];
+function deferCommandAnswers() {
+  const answers = createEventRecorder<(answer: CommandAnswer) => void>();
   vi.mocked(executeWindowManagerCommand).mockImplementation(
     () =>
       new Promise<CommandAnswer>(resolve => {
-        answers.push(resolve);
+        answers.record(resolve);
       })
   );
   onTestFinished(() => {
     vi.mocked(executeWindowManagerCommand).mockReset();
   });
-  return answers;
+  return { answers: answers.events, waitForCommand: answers.waitForCount };
 }
 
 /** What reached the daemon, in order: a focus by its window, any other command by its id. */
@@ -465,11 +466,13 @@ describe("WindowManagerRuntime", () => {
       deadlines.push(controller);
       return controller.signal;
     });
+    const requestStarted = Promise.withResolvers<void>();
     // A request stalled in the browser's connection pool settles only when its signal aborts.
     vi.mocked(executeWindowManagerCommand).mockImplementation(
       (_workspace, _profile, _client, _revision, _command, signal) =>
         new Promise((_resolve, reject) => {
           signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+          requestStarted.resolve();
         })
     );
     const runtime = new WindowManagerRuntime(queryClient);
@@ -493,7 +496,8 @@ describe("WindowManagerRuntime", () => {
       [WINDOW_MANAGER_COMMAND_DEADLINE_MS],
       [WINDOW_MANAGER_COMMAND_DEADLINE_MS],
     ]);
-    await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledOnce());
+    await requestStarted.promise;
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
     for (const deadline of deadlines) deadline.abort(new DOMException("timed out", "TimeoutError"));
 
     await expect(first.completion).resolves.toBe(false);
@@ -573,11 +577,12 @@ describe("WindowManagerRuntime", () => {
     }
 
     it("Should not send a queued focus that a newer focus replaced before its turn", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
 
       const first = runtime.focusWindow("app:a", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // Behind the focus in flight, two more clicks queue: only the newer one is still wanted.
       const replaced = runtime.focusWindow("app:b", REPLACEABLE);
       const newest = runtime.focusWindow("app:c", REPLACEABLE);
@@ -585,7 +590,8 @@ describe("WindowManagerRuntime", () => {
       answers[0]!(answer(null));
 
       await expect(replaced.completion).resolves.toBe(false);
-      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      await waitForCommand(2);
+      expect(answers).toHaveLength(2);
       answers[1]!(answer(null));
       await expect(newest.completion).resolves.toBe(true);
       await expect(first.completion).resolves.toBe(false);
@@ -593,17 +599,19 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should never drop or reorder a layout command queued between two focuses", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
 
       runtime.focusWindow("app:a", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // The layout command sits between the two focuses, so the earlier focus keeps its turn.
       const kept = runtime.focusWindow("app:b", REPLACEABLE);
       runtime.undoLayout();
       const last = runtime.focusWindow("app:c", REPLACEABLE);
       for (let sent = 0; sent < 4; sent += 1) {
-        await vi.waitFor(() => expect(answers).toHaveLength(sent + 1));
+        await waitForCommand(sent + 1);
+        expect(answers).toHaveLength(sent + 1);
         answers[sent]!(answer(null));
       }
 
@@ -613,12 +621,13 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should not move the shown tab back to a focus whose answer arrives after a newer click", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
       expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
 
       const replaced = runtime.focusWindow("app:a", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       const newest = runtime.focusWindow("app:b", REPLACEABLE);
       // The stream reports the daemon focusing the replaced window, then its answer lands.
       runtime.setClient(focusedView("app:a", 2));
@@ -627,7 +636,8 @@ describe("WindowManagerRuntime", () => {
       await expect(replaced.completion).resolves.toBe(false);
       expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
 
-      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      await waitForCommand(2);
+      expect(answers).toHaveLength(2);
       answers[1]!(answer(focusedView("app:b", 3)));
       await expect(newest.completion).resolves.toBe(true);
       expect(shownTab(runtime)).toBe(tabIdFor("app:b"));
@@ -636,16 +646,18 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should send and complete a focus whose caller acts on its result", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
 
       runtime.focusWindow("app:a", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // An open or a landing waits for its focus; a newer click does not replace it.
       const landing = runtime.focusWindow("app:b");
       const click = runtime.focusWindow("app:c", REPLACEABLE);
       for (let sent = 0; sent < 3; sent += 1) {
-        await vi.waitFor(() => expect(answers).toHaveLength(sent + 1));
+        await waitForCommand(sent + 1);
+        expect(answers).toHaveLength(sent + 1);
         answers[sent]!(answer(null));
       }
 
@@ -655,13 +667,14 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should adopt and report a view from another source held while a focus waited", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
       const adopted = vi.fn();
       runtime.onHeldClientAdopted(adopted);
 
       const click = runtime.focusWindow("app:b", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // Another source focuses app:a while this click waits for its answer.
       runtime.setClient(focusedView("app:a", 5));
       expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
@@ -674,13 +687,14 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should adopt a held view once it has waited the hold limit while a focus is still in flight [R9-04]", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
       const adopted = vi.fn();
       runtime.onHeldClientAdopted(adopted);
 
       const click = runtime.focusWindow("app:b", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // Only the hold timer is faked: the click stays in flight while the limit passes.
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       onTestFinished(() => {
@@ -702,16 +716,18 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should show the window of a same-window pair whose repeat the daemon answers unapplied [R9-01]", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
 
       const first = runtime.focusWindow("app:a", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // Pointer-down and focus entering the pane each ask for app:a.
       const repeat = runtime.focusWindow("app:a", REPLACEABLE);
       answers[0]!(answer(focusedView("app:a", 2)));
       await expect(first.completion).resolves.toBe(false);
-      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      await waitForCommand(2);
+      expect(answers).toHaveLength(2);
       // The daemon already focused app:a: the repeat changes nothing.
       answers[1]!({ ...answer(null), applied: false });
 
@@ -722,7 +738,7 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should keep the new binding's held view when an answer from the binding it left arrives [R9-03, AS-F-16]", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
       const adopted = vi.fn();
       runtime.onHeldClientAdopted(adopted);
@@ -733,7 +749,8 @@ describe("WindowManagerRuntime", () => {
 
       // Workspace X (workspace:test) has a click in flight.
       const left = runtime.focusWindow("app:a", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // The runtime binds workspace Y and queues Y's own click behind X's.
       runtime.bind({
         workspaceId: "workspace:other",
@@ -751,7 +768,8 @@ describe("WindowManagerRuntime", () => {
       // Another source moves Y's client to app:a at Y's revision 5 while Y's click waits.
       runtime.setClient(inOther(focusedView("app:a", 5)));
       expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
-      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      await waitForCommand(2);
+      expect(answers).toHaveLength(2);
       answers[1]!(answer(null));
 
       await expect(click.completion).resolves.toBe(true);
@@ -765,13 +783,14 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should drop what was held for a registration that ended [R9-03]", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
       const adopted = vi.fn();
       runtime.onHeldClientAdopted(adopted);
 
       const click = runtime.focusWindow("app:b", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // Another source's view waits behind the click; then the registration ends and a new one
       // starts its revisions from 1.
       runtime.setClient(focusedView("app:a", 30));
@@ -790,11 +809,12 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should still send a focus whose caller acts on its result when the registration restarts before its turn [R10-03]", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startRuntime();
 
       runtime.focusWindow("app:a", REPLACEABLE);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // An open's landing and a later click queue behind the click in flight.
       const landing = runtime.focusWindow("app:b");
       const click = runtime.focusWindow("app:c", REPLACEABLE);
@@ -805,7 +825,8 @@ describe("WindowManagerRuntime", () => {
 
       // The landing still runs and shows its answer under the new registration; the click,
       // presentation for the registration that ended, is not sent.
-      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      await waitForCommand(2);
+      expect(answers).toHaveLength(2);
       answers[1]!(answer(focusedView("app:b", 2)));
       await expect(landing.completion).resolves.toBe(true);
       await expect(click.completion).resolves.toBe(false);
@@ -861,21 +882,24 @@ describe("WindowManagerRuntime", () => {
     }
 
     it("Should step from the focus still waiting for its answer, not the view before it", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startSplitRuntime();
 
       runtime.focusDirection("right");
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       answers[0]!(splitAnswer(splitView("app:agents", 2)));
       await vi.waitFor(() => expect(runtime.getState().focusedId).toBe("app:agents"));
       // Left is sent; before its answer shows, the view still names Agents.
       runtime.focusDirection("left");
-      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      await waitForCommand(2);
+      expect(answers).toHaveLength(2);
       expect(runtime.getState().focusedId).toBe("app:agents");
       // Right again starts from Tasks, where the operator already is (E2E-010).
       runtime.focusDirection("right");
       answers[1]!(splitAnswer(splitView("app:tasks", 3)));
-      await vi.waitFor(() => expect(answers).toHaveLength(3));
+      await waitForCommand(3);
+      expect(answers).toHaveLength(3);
       answers[2]!(splitAnswer(splitView("app:agents", 4)));
 
       await vi.waitFor(() => expect(runtime.getState().focusedId).toBe("app:agents"));
@@ -883,13 +907,14 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should swap the focused window with its neighbour on that side and never wrap [#1658]", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startSplitRuntime();
 
       // Focus wrap is on, yet nothing lies left of Tasks: a swap that way sends nothing.
       runtime.swapDirection("left");
       runtime.swapDirection("right");
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       answers[0]!(splitAnswer(splitView("app:tasks", 2)));
 
       expect(sentCommands()).toEqual(["window.swap"]);
@@ -902,7 +927,7 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should resolve a swap pressed behind another against the layout that one leaves [#1658]", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startSplitRuntime();
       // The first swap's answer: the daemon keeps both leaves and exchanges their windows, so
       // Agents | Tasks and nothing lies right of Tasks any more.
@@ -930,7 +955,8 @@ describe("WindowManagerRuntime", () => {
 
       runtime.swapDirection("right");
       runtime.swapDirection("right");
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       answers[0]!({ ...splitAnswer(splitView("app:tasks", 2)), snapshot: swapped });
 
       // The second press reads the swapped layout and has no neighbour: it does not swap back.
@@ -967,7 +993,7 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should count an unanswered Shift-drop swap for the next directional press [#1658]", async () => {
-      deferCommandAnswers();
+      const { waitForCommand } = deferCommandAnswers();
       const runtime = startSplitRuntime();
       const leftmost = () =>
         [...runtime.directionalCandidates()].sort((a, b) => a.rect.x - b.rect.x)[0]?.id;
@@ -976,19 +1002,20 @@ describe("WindowManagerRuntime", () => {
       expect(leftmost()).toBe("app:agents");
       // Tasks now stands on the right: a Swap right from it has nothing to trade with.
       runtime.swapDirection("right");
-      await vi.waitFor(() => expect(sentCommands()).toHaveLength(1));
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await waitForCommand(1);
+      expect(sentCommands()).toHaveLength(1);
       expect(sentCommands()).toEqual(["window.swap"]);
     });
 
     it("Should report the window a directional focus targets and whether it landed [#1655]", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startSplitRuntime();
 
       // The shell hands the keyboard to this window once the focus lands.
       const moved = runtime.focusDirection("right");
       expect(moved?.windowId).toBe("app:agents");
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       answers[0]!(splitAnswer(splitView("app:agents", 2)));
 
       await expect(moved!.completion).resolves.toBe(true);
@@ -996,13 +1023,15 @@ describe("WindowManagerRuntime", () => {
     });
 
     it("Should tell the coordinator about a directional focus whose stream view arrived before its answer [R10-01]", async () => {
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startSplitRuntime();
-      const reported = vi.fn();
+      const heldViewAdopted = Promise.withResolvers<void>();
+      const reported = vi.fn(() => heldViewAdopted.resolve());
       runtime.onHeldClientAdopted(reported);
 
       runtime.focusDirection("right");
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
       // The daemon publishes the client event before it answers: the view waits behind the focus.
       runtime.setClient(splitView("app:agents", 2));
       expect(runtime.getState().focusedId).toBe("app:tasks");
@@ -1010,7 +1039,8 @@ describe("WindowManagerRuntime", () => {
       // follows the new pane (use-desktop-chrome wires this listener to the coordinator).
       answers[0]!(splitAnswer(splitView("app:agents", 2)));
 
-      await vi.waitFor(() => expect(reported).toHaveBeenCalledOnce());
+      await heldViewAdopted.promise;
+      expect(reported).toHaveBeenCalledOnce();
       expect(runtime.getState().focusedId).toBe("app:agents");
     });
   });
@@ -1401,11 +1431,7 @@ describe("WindowManagerRuntime", () => {
       snapshotWithAgentsRoute(initialRoute)
     );
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
-    let resolveFirst!: (result: Awaited<ReturnType<typeof executeWindowManagerCommand>>) => void;
-    let resolveSecond!: (result: Awaited<ReturnType<typeof executeWindowManagerCommand>>) => void;
-    vi.mocked(executeWindowManagerCommand)
-      .mockReturnValueOnce(new Promise(resolve => (resolveFirst = resolve)))
-      .mockReturnValueOnce(new Promise(resolve => (resolveSecond = resolve)));
+    const { answers, waitForCommand } = deferCommandAnswers();
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
@@ -1424,8 +1450,8 @@ describe("WindowManagerRuntime", () => {
 
     const routeWhileQueued = runtime.getState().windows["app:agents"]?.route;
     expect(runtime.getState().windows["app:agents"]?.instanceKey).toBeNull();
-    await flushCommandQueue();
-    resolveFirst({
+    await waitForCommand(1);
+    answers[0]!({
       snapshot: snapshotWithAgentsRoute(releaseRoute, 8),
       applied: true,
       changes: {
@@ -1440,8 +1466,9 @@ describe("WindowManagerRuntime", () => {
     await expect(first.completion).resolves.toBe(true);
 
     const routeAfterIntermediateResult = runtime.getState().windows["app:agents"]?.route;
-    await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2));
-    resolveSecond({
+    await waitForCommand(2);
+    expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2);
+    answers[1]!({
       snapshot: snapshotWithAgentsRoute(opsRoute, 9),
       applied: true,
       changes: {
@@ -1475,9 +1502,7 @@ describe("WindowManagerRuntime", () => {
         snapshotWithAgentsRoute(initialRoute)
       );
       queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
-      vi.mocked(executeWindowManagerCommand).mockReturnValue(
-        new Promise<Awaited<ReturnType<typeof executeWindowManagerCommand>>>(() => {})
-      );
+      const { waitForCommand } = deferCommandAnswers();
       const runtime = new WindowManagerRuntime(queryClient);
       runtime.bind({
         workspaceId: "workspace:test",
@@ -1496,7 +1521,8 @@ describe("WindowManagerRuntime", () => {
       });
 
       runtime.retargetWindow("app:agents", instanceKey, retargetRoute);
-      await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledOnce());
+      await waitForCommand(1);
+      expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
 
       expect(runtime.getState().windows["app:agents"]).toMatchObject({
         instanceKey: projectedInstanceKey,
@@ -2604,14 +2630,18 @@ describe("WindowManagerRuntime", () => {
       ]);
       queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
       queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
-      vi.mocked(executeWindowManagerCommand).mockResolvedValue({
-        snapshot: { ...snapshot, revision: 8 },
-        applied: true,
-        changes: EMPTY_CHANGES,
-        diagnostics: [],
-        deprecations: [],
-        client: null,
-        rebasedFrom: null,
+      const requestStarted = Promise.withResolvers<void>();
+      vi.mocked(executeWindowManagerCommand).mockImplementation(async () => {
+        requestStarted.resolve();
+        return {
+          snapshot: { ...snapshot, revision: 8 },
+          applied: true,
+          changes: EMPTY_CHANGES,
+          diagnostics: [],
+          deprecations: [],
+          client: null,
+          rebasedFrom: null,
+        };
       });
       const runtime = new WindowManagerRuntime(queryClient);
       runtime.bind({
@@ -2632,7 +2662,8 @@ describe("WindowManagerRuntime", () => {
 
       runtime.arrangeLayout(anchor, preset);
 
-      await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledTimes(1));
+      await requestStarted.promise;
+      expect(executeWindowManagerCommand).toHaveBeenCalledTimes(1);
       expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4]).toEqual({
         commandId: "layout.arrange",
         payload: {
@@ -2700,7 +2731,7 @@ describe("WindowManagerRuntime", () => {
       const snapshot = snapshotWithSplitTab();
       queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
       queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
-      const answers = deferCommandAnswers();
+      const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = new WindowManagerRuntime(queryClient);
       runtime.bind({
         workspaceId: "workspace:test",
@@ -2718,7 +2749,8 @@ describe("WindowManagerRuntime", () => {
         connectedAt: "2026-07-22T00:00:00Z",
       });
       const inFlight = send(runtime);
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitForCommand(1);
+      expect(answers).toHaveLength(1);
 
       // Asked for while the command is in flight: nothing is planned or sent until it settles.
       runtime.balanceFocusedLayout();

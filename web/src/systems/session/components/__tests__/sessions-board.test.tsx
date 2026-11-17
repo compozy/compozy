@@ -31,10 +31,10 @@
 import type { AgentInstancePayload } from "@/systems/agent";
 import { agentInstanceFixture } from "@/systems/agent/mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { projectSessionGroup } from "../../lib/session-list-groups";
 import { workspaceBadgeIdentity, workspacesListOptions } from "@/systems/workspace";
@@ -1076,6 +1076,8 @@ describe("SessionsBoard selection", () => {
       board({ working: { sessions: [moving, gone], count: 2 } })
     );
     await user.click(screen.getByTestId("sessions-board-column-select-working"));
+    vi.useFakeTimers();
+    onTestFinished(() => vi.useRealTimers());
     expect(selectedCount()).toHaveTextContent("2 selected");
 
     // Working re-read first: the card is in no column while Done is still reading. The bar
@@ -1088,14 +1090,17 @@ describe("SessionsBoard selection", () => {
     rerender(board({ working: { sessions: [gone], count: 1 }, done: { sessions: [moved] } }));
     expect(selectedCount()).toHaveTextContent("2 selected");
     expect(cardOf("moving")).toHaveAttribute("aria-pressed", "true");
-    await new Promise(resolve => setTimeout(resolve, 400));
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(400));
     expect(selectedCount()).toHaveTextContent("2 selected");
 
     // Gone from every read after the confirming re-read: it leaves the selection.
     rerender(board({ done: { sessions: [moved], count: 1 } }));
-    await waitFor(() => expect(selectedCount()).toHaveTextContent("1 selected"));
-    await new Promise(resolve => setTimeout(resolve, 400));
     expect(selectedCount()).toHaveTextContent("1 selected");
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(400));
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    vi.useRealTimers();
     await user.keyboard("{Control>}a{/Control}");
     expect(selectedCount()).toHaveTextContent("1 selected");
   });
@@ -1108,20 +1113,26 @@ describe("SessionsBoard selection", () => {
     const absent = board({ working: { sessions: [stay], count: 1 } });
     const { rerender } = renderSelectable(present);
     await user.click(screen.getByTestId("sessions-board-column-select-working"));
+    vi.useFakeTimers();
+    onTestFinished(() => vi.useRealTimers());
 
     // Missing after a confirming re-read: it leaves the selection.
     rerender(absent);
-    await waitFor(() => expect(selectedCount()).toHaveTextContent("1 selected"));
-    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(400));
     rerender(present);
     expect(cardOf("flaky")).toHaveAttribute("aria-pressed", "false");
 
     // Selected again and missing again: held until its own re-read, so a quick return keeps it.
+    vi.useRealTimers();
     await user.click(cardOf("flaky"));
+    vi.useFakeTimers();
     rerender(absent);
     rerender(present);
     expect(cardOf("flaky")).toHaveAttribute("aria-pressed", "true");
-    await new Promise(resolve => setTimeout(resolve, 400));
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(400));
     expect(selectedCount()).toHaveTextContent("2 selected");
   });
 
@@ -1130,10 +1141,13 @@ describe("SessionsBoard selection", () => {
     const kept = card("kept");
     const { rerender } = renderSelectable(board({ working: { sessions: [kept], count: 1 } }));
     await user.click(screen.getByTestId("session-board-card-select-kept"));
+    vi.useFakeTimers();
+    onTestFinished(() => vi.useRealTimers());
 
     // The re-read returns, but a column failed: nothing confirms the card is gone.
     rerender(board({ working: { failure: "refresh" } }));
-    await new Promise(resolve => setTimeout(resolve, 400));
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(400));
     rerender(board({ working: { sessions: [kept], count: 1 } }));
     expect(cardOf("kept")).toHaveAttribute("aria-pressed", "true");
   });
@@ -1143,9 +1157,12 @@ describe("SessionsBoard selection", () => {
     const kept = card("kept");
     const { rerender } = renderSelectable(board({ working: { sessions: [kept], count: 1 } }));
     await user.click(screen.getByTestId("session-board-card-select-kept"));
+    vi.useFakeTimers();
+    onTestFinished(() => vi.useRealTimers());
 
     rerender({ ...board(), columns: [], lanes: [], lanesLoading: true, groupBy: "project" });
-    await new Promise(resolve => setTimeout(resolve, 400));
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(400));
     rerender(board({ working: { sessions: [kept], count: 1 } }));
     expect(selectedCount()).toHaveTextContent("1 selected");
     expect(cardOf("kept")).toHaveAttribute("aria-pressed", "true");

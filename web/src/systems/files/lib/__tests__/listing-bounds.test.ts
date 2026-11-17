@@ -1,3 +1,4 @@
+import { createEventRecorder } from "@/test/event-recorder";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
@@ -11,12 +12,12 @@ describe("withListingSlot", () => {
   it("Should cap concurrent listings and run the queued ones as slots free", async () => {
     let running = 0;
     let peak = 0;
-    const gates: (() => void)[] = [];
+    const listings = createEventRecorder<() => void>();
     const task = () =>
       new Promise<number>(resolve => {
         running += 1;
         peak = Math.max(peak, running);
-        gates.push(() => {
+        listings.record(() => {
           running -= 1;
           resolve(running);
         });
@@ -27,11 +28,11 @@ describe("withListingSlot", () => {
     aborted.abort(new Error("collapsed"));
     await expect(cancelled).rejects.toThrow("collapsed");
 
-    await Promise.resolve();
+    await listings.waitForCount(LISTING_CONCURRENCY);
     expect(peak).toBe(LISTING_CONCURRENCY);
-    while (gates.length > 0) {
-      gates.shift()!();
-      await new Promise(resolve => setTimeout(resolve, 0));
+    for (let index = 0; index < all.length; index += 1) {
+      await listings.waitForCount(index + 1);
+      listings.events[index]!();
     }
     await Promise.all(all);
     expect(peak).toBe(LISTING_CONCURRENCY);

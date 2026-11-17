@@ -1,3 +1,4 @@
+import { createEventRecorder } from "@/test/event-recorder";
 // Suite: useSessionLiveTail
 // Invariants: the infinite transcript cache owns cursor/fences, preserves loaded history, and
 // retains readonly array identity while the exact message sequence is unchanged; burst intake is
@@ -235,15 +236,14 @@ function renderLiveTail(
   options: {
     enabled?: boolean;
     queryClient?: QueryClient;
-    sources?: FakeSessionEventSource[];
     presentation?: SessionWindowPresentation;
   } = {}
 ) {
   const queryClient = options.queryClient ?? createQueryClient();
-  const sources = options.sources ?? [];
+  const opened = createEventRecorder<FakeSessionEventSource>();
   const eventSourceFactory = (url: string) => {
     const source = new FakeSessionEventSource(url);
-    sources.push(source);
+    opened.record(source);
     return source;
   };
   const QueryWrapper = createWrapper(queryClient);
@@ -264,7 +264,7 @@ function renderLiveTail(
         ),
     }
   );
-  return { ...rendered, queryClient, sources };
+  return { ...rendered, queryClient, sources: opened.events, waitForSource: opened.waitForCount };
 }
 
 function seedActiveSession(queryClient: QueryClient) {
@@ -293,9 +293,10 @@ describe("useSessionLiveTail", () => {
     const transcriptError = new Error("transcript endpoint returned 500");
     vi.mocked(fetchSessionTranscript).mockRejectedValue(transcriptError);
 
-    const { result, sources } = renderLiveTail();
+    const { result, sources, waitForSource } = renderLiveTail();
 
-    await waitFor(() => expect(sources).toHaveLength(1));
+    await waitForSource(1);
+    expect(sources).toHaveLength(1);
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect(sources[0]?.url).toBe(STREAM_URL);
@@ -361,9 +362,10 @@ describe("useSessionLiveTail", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);
-    const { result, sources } = renderLiveTail({ queryClient });
+    const { result, sources, waitForSource } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
       await vi.waitFor(() => expect(result.current.isPending).toBe(false));
     });
     const repairTimes: number[] = [];
@@ -392,6 +394,7 @@ describe("useSessionLiveTail", () => {
     vi.mocked(fetchSession)
       .mockResolvedValueOnce(sessionWithState("active"))
       .mockResolvedValue(sessionWithState("stopped"));
+    const recoveryStarted = Promise.withResolvers<void>();
     let recoveryResolved = false;
     let abortedBeforeResolution = false;
     let resolveRecovery: ((response: NormalizedSessionTranscriptResponse) => void) | undefined;
@@ -401,6 +404,7 @@ describe("useSessionLiveTail", () => {
         (_workspaceId, _sessionId, _query, signal) =>
           new Promise((resolve, reject) => {
             resolveRecovery = resolve;
+            recoveryStarted.resolve();
             signal?.addEventListener(
               "abort",
               () => {
@@ -418,7 +422,8 @@ describe("useSessionLiveTail", () => {
     await act(async () => {
       await vi.waitFor(() => expect(result.current.isError).toBe(true));
       await vi.advanceTimersByTimeAsync(5_000);
-      await vi.waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(2));
+      await recoveryStarted.promise;
+      expect(fetchSessionTranscript).toHaveBeenCalledTimes(2);
     });
 
     act(() => {
@@ -709,9 +714,10 @@ describe("useSessionLiveTail", () => {
         transcriptPage([sessionTranscriptFixture[0]!], { firstSequence: 1 })
       )
     );
-    const { result, sources } = renderLiveTail({ queryClient });
+    const { result, sources, waitForSource } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
     });
 
     act(() => {
@@ -798,9 +804,10 @@ describe("useSessionLiveTail", () => {
   it("Should reconcile and reconnect when transcript intake outruns ordered application", async () => {
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);
-    const { result, sources } = renderLiveTail({ queryClient });
+    const { result, sources, waitForSource } = renderLiveTail({ queryClient });
     await waitFor(() => expect(result.current.status).toBe("success"));
-    await waitFor(() => expect(sources).toHaveLength(1));
+    await waitForSource(1);
+    expect(sources).toHaveLength(1);
 
     vi.mocked(fetchSessionTranscript).mockClear();
     vi.mocked(fetchSessionTranscript).mockResolvedValue(
@@ -829,7 +836,8 @@ describe("useSessionLiveTail", () => {
 
     await waitFor(() => expect(sources[0]?.closed).toBe(true));
     await waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(sources).toHaveLength(2));
+    await waitForSource(2);
+    expect(sources).toHaveLength(2);
     expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=300&epoch=1&generation=1`);
     await waitFor(() => expect(result.current.messages[0]?.id).toBe("reconciled"));
   });
@@ -1036,9 +1044,10 @@ describe("useSessionLiveTail", () => {
       sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
       seededTranscriptData(transcriptPage([], { epoch: 4, generation: 7 }))
     );
-    const { sources } = renderLiveTail({ queryClient });
+    const { sources, waitForSource } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
     });
     queryClient.setQueryData<SessionTranscriptData>(
       sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
@@ -1294,9 +1303,10 @@ describe("useSessionLiveTail", () => {
       revision: "other-session",
     });
     const transcriptBefore = queryClient.getQueryData<SessionTranscriptData>(transcriptKey);
-    const { sources } = renderLiveTail({ queryClient });
+    const { sources, waitForSource } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
     });
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -1756,9 +1766,10 @@ describe("useSessionLiveTail", () => {
       sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
       seededTranscriptData(transcriptPage([sessionTranscriptFixture[0]!], { firstSequence: 1 }))
     );
-    const { result, sources } = renderLiveTail({ queryClient });
+    const { result, sources, waitForSource } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
     });
     vi.mocked(fetchSessionTranscript).mockClear();
 
@@ -1782,10 +1793,17 @@ describe("useSessionLiveTail", () => {
     expect(result.current.transport.failure?.attempts).toBe(MAX_RECONNECT_ATTEMPTS);
     expect(fetchSessionTranscript).not.toHaveBeenCalled();
 
+    const retryRead = Promise.withResolvers<void>();
+    vi.mocked(fetchSessionTranscript).mockImplementationOnce(async () => {
+      retryRead.resolve();
+      return transcriptResponse([]);
+    });
     act(() => result.current.retry());
     await act(async () => {
-      await vi.waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(1));
-      await vi.waitFor(() => expect(sources).toHaveLength(MAX_RECONNECT_ATTEMPTS + 2));
+      await retryRead.promise;
+      expect(fetchSessionTranscript).toHaveBeenCalledTimes(1);
+      await waitForSource(MAX_RECONNECT_ATTEMPTS + 2);
+      expect(sources).toHaveLength(MAX_RECONNECT_ATTEMPTS + 2);
     });
     expect(sources.at(-1)?.url).toBe(`${STREAM_URL}&after_sequence=1&epoch=1&generation=1`);
     expect(result.current.transport.phase).toBe("connecting");
@@ -1798,9 +1816,10 @@ describe("useSessionLiveTail", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);
-    const { result, sources, unmount } = renderLiveTail({ queryClient });
+    const { result, sources, waitForSource, unmount } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
     });
     expect(isSessionStreamLive(SESSION_ID)).toBe(false);
 
@@ -1842,9 +1861,10 @@ describe("useSessionLiveTail", () => {
     await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(fetchSessionUsage).toHaveBeenCalledTimes(1);
 
-    const { result, sources } = renderLiveTail({ queryClient });
+    const { result, sources, waitForSource } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
     });
     act(() =>
       sources[0]?.emit("transcript_delta", clarifyDeltaFrame(textMessage("m-1", "one")), "2")
@@ -1867,9 +1887,10 @@ describe("useSessionLiveTail", () => {
     vi.setSystemTime(100_000);
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);
-    const { result, sources } = renderLiveTail({ queryClient });
+    const { result, sources, waitForSource } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
     });
     expect(result.current.transport.phase).toBe("connecting");
     expect(result.current.transport.degradedAt).toBeGreaterThanOrEqual(100_000);
@@ -1928,8 +1949,9 @@ describe("useSessionLiveTail", () => {
       sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
       seededTranscriptData(transcriptPage([sessionTranscriptFixture[0]!], { firstSequence: 1 }))
     );
-    const { result, sources } = renderLiveTail({ queryClient });
-    await waitFor(() => expect(sources).toHaveLength(1));
+    const { result, sources, waitForSource } = renderLiveTail({ queryClient });
+    await waitForSource(1);
+    expect(sources).toHaveLength(1);
     expect(result.current.transport.historyReset).toBeNull();
 
     act(() => {
@@ -1964,9 +1986,10 @@ describe("useSessionLiveTail", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);
-    const { result, sources } = renderLiveTail({ queryClient });
+    const { result, sources, waitForSource } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
     });
     act(() =>
       sources[0]?.emit("transcript_delta", clarifyDeltaFrame(textMessage("m-1", "one")), "2")
@@ -2031,8 +2054,9 @@ describe("useSessionLiveTail", () => {
       sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
       seededTranscriptData(transcriptPage([sessionTranscriptFixture[0]!], { firstSequence: 1 }))
     );
-    const { result, sources } = renderLiveTail({ queryClient });
-    await waitFor(() => expect(sources).toHaveLength(1));
+    const { result, sources, waitForSource } = renderLiveTail({ queryClient });
+    await waitForSource(1);
+    expect(sources).toHaveLength(1);
 
     act(() => {
       sources[0]?.emit(
@@ -2088,9 +2112,10 @@ describe("Session context stream signals", () => {
       const observer = new QueryObserver(queryClient, { queryKey, queryFn, staleTime: Infinity });
       return { queryFn, unsubscribe: observer.subscribe(() => undefined) };
     });
-    const { sources, unmount } = renderLiveTail({ queryClient });
+    const { sources, waitForSource, unmount } = renderLiveTail({ queryClient });
     await act(async () => {
-      await vi.waitFor(() => expect(sources).toHaveLength(1));
+      await waitForSource(1);
+      expect(sources).toHaveLength(1);
     });
     const source = sources[0]!;
     expect(source.listeners.get("session_usage_changed")?.size).toBe(1);
@@ -2122,8 +2147,9 @@ describe("Session context stream signals", () => {
   it("Should not reread usage from a transcript delta and should clear retention on explicit reset", async () => {
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);
-    const { sources, unmount } = renderLiveTail({ queryClient });
-    await waitFor(() => expect(sources).toHaveLength(1));
+    const { sources, waitForSource, unmount } = renderLiveTail({ queryClient });
+    await waitForSource(1);
+    expect(sources).toHaveLength(1);
     const usageKeys = [
       sessionKeys.usage(WORKSPACE_ID, SESSION_ID),
       sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID),

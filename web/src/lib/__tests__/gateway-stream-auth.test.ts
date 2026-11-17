@@ -1,3 +1,4 @@
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -91,52 +92,51 @@ describe("gateway stream auth", () => {
   });
 
   it("Should abort one discovery waiter without canceling the other connection", async () => {
-    let complete!: (response: Response) => void;
-    const fetchMock = vi.fn().mockImplementation(
-      () =>
-        new Promise<Response>(resolve => {
-          complete = resolve;
-        })
-    );
+    const started = Promise.withResolvers<Request>();
+    const response = Promise.withResolvers<Response>();
+    const fetchMock = vi.fn((request: Request) => {
+      started.resolve(request);
+      return response.promise;
+    });
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
     const canceled = acquireStreamTicket(controller.signal);
     const surviving = acquireStreamTicket();
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    const request = await started.promise;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const rejected = expect(canceled).rejects.toMatchObject({ name: "AbortError" });
 
     controller.abort();
     await rejected;
     expect(request.signal.aborted).toBe(false);
-    complete(listenerResponse("local"));
+    response.resolve(listenerResponse("local"));
     await expect(surviving).resolves.toBeNull();
   });
 
   it("Should cancel abandoned discovery and ignore its late result before retrying", async () => {
-    let complete!: (response: Response) => void;
+    const started = Promise.withResolvers<Request>();
+    const response = Promise.withResolvers<Response>();
     const fetchMock = vi
       .fn()
-      .mockImplementationOnce(
-        () =>
-          new Promise<Response>(resolve => {
-            complete = resolve;
-          })
-      )
+      .mockImplementationOnce((request: Request) => {
+        started.resolve(request);
+        return response.promise;
+      })
       .mockImplementation(() => Promise.resolve(listenerResponse("local")));
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
     const canceled = acquireStreamTicket(controller.signal);
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    const request = await started.promise;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const rejected = expect(canceled).rejects.toMatchObject({ name: "AbortError" });
 
     controller.abort();
     await rejected;
     expect(request.signal.aborted).toBe(true);
     await expect(acquireStreamTicket()).resolves.toBeNull();
-    complete(listenerResponse("private"));
-    await new Promise(resolve => setTimeout(resolve, 0));
+    response.resolve(listenerResponse("private"));
+    // Give the released HTTP response its continuation before checking the cached mode.
+    await nextTurn();
     expect(gatewayStreamAuthMode()).toBe("local");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

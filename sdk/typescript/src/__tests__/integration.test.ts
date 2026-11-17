@@ -14,7 +14,6 @@ const packageDir = resolve(sourceDir, "..");
 const workspaceRoot = resolve(packageDir, "../..");
 const tscBin = join(workspaceRoot, "node_modules/.bin/tsc");
 const buildTimeoutMs = 120_000;
-const integrationTimeoutMs = 180_000;
 const messageTimeoutMs = 5_000;
 
 async function newestMtimeMs(path: string): Promise<number> {
@@ -310,16 +309,13 @@ describe("SDK integration", () => {
     );
   });
 
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real subprocess startup, JSON-RPC exchanges and shutdown retain the bounded 180s integration deadline; responses synchronize through stdio events.
-  it(
-    "builds an SDK-based extension and serves real JSON-RPC over stdio",
-    async () => {
-      const sdkEntry = resolve(packageDir, "dist/esm/index.js");
-      const tempDir = await mkdtemp(join(tmpdir(), "compozy-sdk-integration-"));
-      tempDirs.push(tempDir);
-      await writeFile(
-        join(tempDir, "index.mjs"),
-        `import { Extension } from ${JSON.stringify(sdkEntry)};
+  it("builds an SDK-based extension and serves real JSON-RPC over stdio", async () => {
+    const sdkEntry = resolve(packageDir, "dist/esm/index.js");
+    const tempDir = await mkdtemp(join(tmpdir(), "compozy-sdk-integration-"));
+    tempDirs.push(tempDir);
+    await writeFile(
+      join(tempDir, "index.mjs"),
+      `import { Extension } from ${JSON.stringify(sdkEntry)};
        const extension = new Extension(
          {
            name: "integration-ext",
@@ -335,140 +331,135 @@ describe("SDK integration", () => {
          console.error("ready sessions", sessions.length);
        });
        void extension.start();`
+    );
+
+    const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const stdoutInterface = readline.createInterface({ input: child.stdout });
+    const stdout = new BufferedMessageReader(stdoutInterface);
+    const stderr = readline.createInterface({ input: child.stderr });
+    const stderrLines: string[] = [];
+    stderr.on("line", line => {
+      stderrLines.push(line);
+    });
+
+    try {
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocol_version: "1",
+            supported_protocol_versions: ["1"],
+            compozy_version: "0.5.0",
+            session_nonce: "integration-nonce",
+            extension: { name: "integration-ext", version: "0.1.0", source_tier: "user" },
+            capabilities: {
+              provides: ["model.source"],
+              granted_permissions: ["sessions/list"],
+              granted_resource_kinds: [],
+              granted_resource_scopes: [],
+            },
+            methods: {
+              daemon_requests: ["health_check", "shutdown"],
+              extension_services: ["models/list"],
+            },
+            runtime: {
+              health_check_interval_ms: 30000,
+              health_check_timeout_ms: 5000,
+              shutdown_timeout_ms: 10000,
+              default_hook_timeout_ms: 5000,
+            },
+          },
+        })}\n`
       );
 
-      const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      const stdoutInterface = readline.createInterface({ input: child.stdout });
-      const stdout = new BufferedMessageReader(stdoutInterface);
-      const stderr = readline.createInterface({ input: child.stderr });
-      const stderrLines: string[] = [];
-      stderr.on("line", line => {
-        stderrLines.push(line);
+      const diagnostics = { child, label: "initialize response", stderrLines };
+      const initializeResponse = await stdout.next(diagnostics);
+      expect(initializeResponse).toMatchObject({
+        id: 1,
+        result: expect.objectContaining({
+          protocol_version: "1",
+        }),
       });
 
-      try {
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
-            id: 1,
-            method: "initialize",
-            params: {
-              protocol_version: "1",
-              supported_protocol_versions: ["1"],
-              compozy_version: "0.5.0",
-              session_nonce: "integration-nonce",
-              extension: { name: "integration-ext", version: "0.1.0", source_tier: "user" },
-              capabilities: {
-                provides: ["model.source"],
-                granted_permissions: ["sessions/list"],
-                granted_resource_kinds: [],
-                granted_resource_scopes: [],
-              },
-              methods: {
-                daemon_requests: ["health_check", "shutdown"],
-                extension_services: ["models/list"],
-              },
-              runtime: {
-                health_check_interval_ms: 30000,
-                health_check_timeout_ms: 5000,
-                shutdown_timeout_ms: 10000,
-                default_hook_timeout_ms: 5000,
-              },
+      const sessionsListRequest = await stdout.next({
+        ...diagnostics,
+        label: "sessions/list request",
+      });
+      expect(sessionsListRequest).toMatchObject({
+        method: "sessions/list",
+      });
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: sessionsListRequest.id,
+          result: [
+            {
+              id: "sess-1",
+              agent: "claude",
+              state: "active",
+              created_at: "2026-04-10T12:00:00.000Z",
             },
-          })}\n`
-        );
+          ],
+        })}\n`
+      );
 
-        const diagnostics = { child, label: "initialize response", stderrLines };
-        const initializeResponse = await stdout.next(diagnostics);
-        expect(initializeResponse).toMatchObject({
-          id: 1,
-          result: expect.objectContaining({
-            protocol_version: "1",
-          }),
-        });
-
-        const sessionsListRequest = await stdout.next({
-          ...diagnostics,
-          label: "sessions/list request",
-        });
-        expect(sessionsListRequest).toMatchObject({
-          method: "sessions/list",
-        });
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
-            id: sessionsListRequest.id,
-            result: [
-              {
-                id: "sess-1",
-                agent: "claude",
-                state: "active",
-                created_at: "2026-04-10T12:00:00.000Z",
-              },
-            ],
-          })}\n`
-        );
-
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
-            id: 2,
-            method: "models/list",
-            params: {
-              source: "alpha",
-            },
-          })}\n`
-        );
-        const modelsResponse = await stdout.next({
-          ...diagnostics,
-          label: "models/list response",
-        });
-        expect(modelsResponse).toMatchObject({
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
           id: 2,
-          result: { models: ["alpha"] },
-        });
+          method: "models/list",
+          params: {
+            source: "alpha",
+          },
+        })}\n`
+      );
+      const modelsResponse = await stdout.next({
+        ...diagnostics,
+        label: "models/list response",
+      });
+      expect(modelsResponse).toMatchObject({
+        id: 2,
+        result: { models: ["alpha"] },
+      });
 
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
-            id: 3,
-            method: "health_check",
-            params: {},
-          })}\n`
-        );
-        const healthResponse = await stdout.next({
-          ...diagnostics,
-          label: "health_check response",
-        });
-        expect(healthResponse).toMatchObject({
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
           id: 3,
-          result: { healthy: true },
-        });
+          method: "health_check",
+          params: {},
+        })}\n`
+      );
+      const healthResponse = await stdout.next({
+        ...diagnostics,
+        label: "health_check response",
+      });
+      expect(healthResponse).toMatchObject({
+        id: 3,
+        result: { healthy: true },
+      });
 
-        await waitForStderrLine(
-          stderr,
-          { ...diagnostics, label: "ready callback stderr" },
-          /ready sessions.*1/
-        );
-      } finally {
-        await terminateChild(child, [stdoutInterface, stderr]);
-      }
-    },
-    integrationTimeoutMs
-  );
+      await waitForStderrLine(
+        stderr,
+        { ...diagnostics, label: "ready callback stderr" },
+        /ready sessions.*1/
+      );
+    } finally {
+      await terminateChild(child, [stdoutInterface, stderr]);
+    }
+  });
 
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real extension subprocess discovery, tool calls and shutdown retain the bounded 180s integration deadline; responses synchronize through stdio events.
-  it(
-    "serves extension.tool descriptors and calls over real stdio",
-    async () => {
-      const sdkEntry = resolve(packageDir, "dist/esm/index.js");
-      const tempDir = await mkdtemp(join(tmpdir(), "compozy-sdk-tool-integration-"));
-      tempDirs.push(tempDir);
-      await writeFile(
-        join(tempDir, "index.mjs"),
-        `import { Extension } from ${JSON.stringify(sdkEntry)};
+  it("serves extension.tool descriptors and calls over real stdio", async () => {
+    const sdkEntry = resolve(packageDir, "dist/esm/index.js");
+    const tempDir = await mkdtemp(join(tmpdir(), "compozy-sdk-tool-integration-"));
+    tempDirs.push(tempDir);
+    await writeFile(
+      join(tempDir, "index.mjs"),
+      `import { Extension } from ${JSON.stringify(sdkEntry)};
        const extension = new Extension({ name: "tool-ext", version: "0.1.0" });
        extension.tool("search", {
          readOnly: true,
@@ -484,114 +475,112 @@ describe("SDK integration", () => {
          duration_ms: 0
        }));
        void extension.start();`
+    );
+
+    const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const stdoutInterface = readline.createInterface({ input: child.stdout });
+    const stdout = new BufferedMessageReader(stdoutInterface);
+    const stderr = readline.createInterface({ input: child.stderr });
+    const stderrLines: string[] = [];
+    stderr.on("line", line => {
+      stderrLines.push(line);
+    });
+
+    try {
+      const diagnostics = { child, label: "tool initialize response", stderrLines };
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocol_version: "1",
+            supported_protocol_versions: ["1"],
+            compozy_version: "0.5.0",
+            session_nonce: "tool-nonce",
+            extension: { name: "tool-ext", version: "0.1.0", source_tier: "user" },
+            capabilities: {
+              provides: ["tool.provider"],
+              granted_permissions: [],
+              granted_resource_kinds: [],
+              granted_resource_scopes: [],
+            },
+            methods: {
+              daemon_requests: ["health_check", "shutdown"],
+              extension_services: ["provide_tools", "tools/call"],
+            },
+            runtime: {
+              health_check_interval_ms: 30000,
+              health_check_timeout_ms: 5000,
+              shutdown_timeout_ms: 10000,
+              default_hook_timeout_ms: 5000,
+            },
+          },
+        })}\n`
       );
 
-      const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      const stdoutInterface = readline.createInterface({ input: child.stdout });
-      const stdout = new BufferedMessageReader(stdoutInterface);
-      const stderr = readline.createInterface({ input: child.stderr });
-      const stderrLines: string[] = [];
-      stderr.on("line", line => {
-        stderrLines.push(line);
+      await expect(stdout.next(diagnostics)).resolves.toMatchObject({
+        id: 1,
+        result: {
+          accepted_capabilities: { provides: ["tool.provider"] },
+          implemented_methods: expect.arrayContaining(["provide_tools", "tools/call"]),
+        },
       });
 
-      try {
-        const diagnostics = { child, label: "tool initialize response", stderrLines };
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
-            id: 1,
-            method: "initialize",
-            params: {
-              protocol_version: "1",
-              supported_protocol_versions: ["1"],
-              compozy_version: "0.5.0",
-              session_nonce: "tool-nonce",
-              extension: { name: "tool-ext", version: "0.1.0", source_tier: "user" },
-              capabilities: {
-                provides: ["tool.provider"],
-                granted_permissions: [],
-                granted_resource_kinds: [],
-                granted_resource_scopes: [],
-              },
-              methods: {
-                daemon_requests: ["health_check", "shutdown"],
-                extension_services: ["provide_tools", "tools/call"],
-              },
-              runtime: {
-                health_check_interval_ms: 30000,
-                health_check_timeout_ms: 5000,
-                shutdown_timeout_ms: 10000,
-                default_hook_timeout_ms: 5000,
-              },
-            },
-          })}\n`
-        );
-
-        await expect(stdout.next(diagnostics)).resolves.toMatchObject({
-          id: 1,
-          result: {
-            accepted_capabilities: { provides: ["tool.provider"] },
-            implemented_methods: expect.arrayContaining(["provide_tools", "tools/call"]),
-          },
-        });
-
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
-            id: 2,
-            method: "provide_tools",
-            params: {},
-          })}\n`
-        );
-        await expect(
-          stdout.next({ ...diagnostics, label: "provide_tools response" })
-        ).resolves.toMatchObject({
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
           id: 2,
-          result: {
-            tools: [
-              {
-                id: "ext__tool_ext__search",
-                handler: "search",
-                read_only: true,
-                risk: "read",
-              },
-            ],
-          },
-        });
-
-        child.stdin.write(
-          `${JSON.stringify({
-            jsonrpc: "2.0",
-            id: 3,
-            method: "tools/call",
-            params: {
-              tool_id: "ext__tool_ext__search",
+          method: "provide_tools",
+          params: {},
+        })}\n`
+      );
+      await expect(
+        stdout.next({ ...diagnostics, label: "provide_tools response" })
+      ).resolves.toMatchObject({
+        id: 2,
+        result: {
+          tools: [
+            {
+              id: "ext__tool_ext__search",
               handler: "search",
-              session_id: "session-1",
-              input: { query: "alpha" },
+              read_only: true,
+              risk: "read",
             },
-          })}\n`
-        );
-        await expect(
-          stdout.next({ ...diagnostics, label: "tools/call response" })
-        ).resolves.toMatchObject({
+          ],
+        },
+      });
+
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
           id: 3,
-          result: {
-            result: {
-              content: [{ type: "text", text: "result alpha" }],
-              truncated: false,
-              bytes: 0,
-              duration_ms: 0,
-            },
+          method: "tools/call",
+          params: {
+            tool_id: "ext__tool_ext__search",
+            handler: "search",
+            session_id: "session-1",
+            input: { query: "alpha" },
           },
-        });
-      } finally {
-        await terminateChild(child, [stdoutInterface, stderr]);
-      }
-    },
-    integrationTimeoutMs
-  );
+        })}\n`
+      );
+      await expect(
+        stdout.next({ ...diagnostics, label: "tools/call response" })
+      ).resolves.toMatchObject({
+        id: 3,
+        result: {
+          result: {
+            content: [{ type: "text", text: "result alpha" }],
+            truncated: false,
+            bytes: 0,
+            duration_ms: 0,
+          },
+        },
+      });
+    } finally {
+      await terminateChild(child, [stdoutInterface, stderr]);
+    }
+  });
 });

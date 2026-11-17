@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
+import { workspaceFixtures } from "@/systems/workspace/mocks";
 
 import {
   fetchAgentInstanceCheckIns,
@@ -29,7 +30,7 @@ import {
 
 const server = setupServer(...profileHandlers);
 
-beforeAll(() => server.listen());
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterAll(() => server.close());
 
 const CAPACITY = { default: { limit: 10, active: 2 } };
@@ -261,6 +262,7 @@ describe("instance routes and the selected profile", () => {
     });
     const agent = agentPayloadFixture({ definition_digest: "mine" });
     server.use(
+      http.get("*/api/workspaces", () => HttpResponse.json({ workspaces: workspaceFixtures })),
       http.get("*/api/agents/catalog", () =>
         HttpResponse.json({
           items: [

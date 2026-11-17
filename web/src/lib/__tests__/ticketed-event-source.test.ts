@@ -4,12 +4,18 @@
 // Boundary OUT: domain payload reduction, owned by each stream consumer suite.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createEventRecorder } from "@/test/event-recorder";
+
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 import { defaultEventSourceFactory } from "@/systems/session/hooks/session-stream-source";
 
 class FakeEventSource {
-  static instances: FakeEventSource[] = [];
+  static opened = createEventRecorder<FakeEventSource>();
+
+  static get instances() {
+    return this.opened.events;
+  }
 
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
@@ -19,7 +25,7 @@ class FakeEventSource {
   readonly listeners = new Map<string, Set<EventListener>>();
 
   constructor(readonly url: string) {
-    FakeEventSource.instances.push(this);
+    FakeEventSource.opened.record(this);
   }
 
   addEventListener(type: string, listener: EventListener) {
@@ -42,7 +48,11 @@ class FakeEventSource {
 }
 
 class FakeWebSocket {
-  static instances: FakeWebSocket[] = [];
+  static opened = createEventRecorder<FakeWebSocket>();
+
+  static get instances() {
+    return this.opened.events;
+  }
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   onopen: ((event: Event) => void) | null = null;
@@ -50,7 +60,7 @@ class FakeWebSocket {
   closed = false;
 
   constructor(readonly url: string) {
-    FakeWebSocket.instances.push(this);
+    FakeWebSocket.opened.record(this);
   }
 
   close() {
@@ -82,14 +92,15 @@ function requestPath(input: RequestInfo | URL): string {
 }
 
 async function settled(): Promise<void> {
-  await vi.waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
+  await FakeEventSource.opened.waitForCount(1);
+  expect(FakeEventSource.instances.length).toBeGreaterThan(0);
 }
 
 describe("ticketed event source", () => {
   beforeEach(() => {
     resetGatewayStreamAuth();
-    FakeEventSource.instances = [];
-    FakeWebSocket.instances = [];
+    FakeEventSource.opened = createEventRecorder<FakeEventSource>();
+    FakeWebSocket.opened = createEventRecorder<FakeWebSocket>();
     vi.stubGlobal("EventSource", FakeEventSource);
     vi.stubGlobal("WebSocket", FakeWebSocket);
   });
@@ -143,7 +154,8 @@ describe("ticketed event source", () => {
       source.addEventListener("profile.renamed", named);
       source.addEventListener("error", errors);
       source.onmessage = messages;
-      await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+      await FakeWebSocket.opened.waitForCount(1);
+      expect(FakeWebSocket.instances).toHaveLength(1);
       expect(FakeEventSource.instances).toHaveLength(0);
       const first = FakeWebSocket.instances[0];
       expect(new URL(first.url).protocol).toBe("ws:");
@@ -167,7 +179,8 @@ describe("ticketed event source", () => {
       expect(errors).toHaveBeenCalledTimes(1);
       expect(first.closed).toBe(true);
       await vi.advanceTimersByTimeAsync(500);
-      await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2));
+      await FakeWebSocket.opened.waitForCount(2);
+      expect(FakeWebSocket.instances).toHaveLength(2);
       const second = new URL(FakeWebSocket.instances[1].url);
       expect(second.searchParams.get("last_event_id")).toBe("2026-10-02T23:00:00Z|17");
       expect(second.searchParams.get("ticket")).toBe(tier === "private" ? "socket-2" : null);
@@ -232,7 +245,8 @@ describe("ticketed event source", () => {
     );
 
     const source = createStreamEventSource("/api/tasks/t1/stream");
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    await FakeEventSource.opened.waitForCount(1);
+    expect(FakeEventSource.instances).toHaveLength(1);
     const first = FakeEventSource.instances[0];
 
     const errors: Event[] = [];
@@ -244,7 +258,8 @@ describe("ticketed event source", () => {
     expect(first.closed).toBe(true);
 
     await vi.advanceTimersByTimeAsync(600);
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+    await FakeEventSource.opened.waitForCount(2);
+    expect(FakeEventSource.instances).toHaveLength(2);
     expect(FakeEventSource.instances[1].url).toBe("/api/tasks/t1/stream?ticket=tkt_2");
 
     source.close();
@@ -270,14 +285,16 @@ describe("ticketed event source", () => {
     });
     const listener: EventListener = vi.fn();
     source.addEventListener("worktree.exit_action_step", listener);
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    await FakeEventSource.opened.waitForCount(1);
+    expect(FakeEventSource.instances).toHaveLength(1);
     const frame = new MessageEvent("worktree.exit_action_step", { data: "{}" });
     Object.defineProperty(frame, "lastEventId", { value: "41" });
     FakeEventSource.instances[0].emit("worktree.exit_action_step", frame);
     FakeEventSource.instances[0].onerror?.(new Event("error"));
 
     await vi.advanceTimersByTimeAsync(600);
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+    await FakeEventSource.opened.waitForCount(2);
+    expect(FakeEventSource.instances).toHaveLength(2);
     expect(FakeEventSource.instances[1].url).toBe(
       "/api/worktrees/wt_1/stream?after_sequence=41&ticket=tkt_2"
     );
@@ -301,19 +318,22 @@ describe("ticketed event source", () => {
     );
 
     const source = createStreamEventSource("/api/tasks/t1/stream");
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    await FakeEventSource.opened.waitForCount(1);
+    expect(FakeEventSource.instances).toHaveLength(1);
     FakeEventSource.instances[0].onopen?.(new Event("open"));
     FakeEventSource.instances[0].onerror?.(new Event("error"));
 
     await vi.advanceTimersByTimeAsync(500);
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+    await FakeEventSource.opened.waitForCount(2);
+    expect(FakeEventSource.instances).toHaveLength(2);
     FakeEventSource.instances[1].onopen?.(new Event("open"));
     FakeEventSource.instances[1].onerror?.(new Event("error"));
 
     await vi.advanceTimersByTimeAsync(500);
     expect(FakeEventSource.instances).toHaveLength(2);
     await vi.advanceTimersByTimeAsync(500);
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(3));
+    await FakeEventSource.opened.waitForCount(3);
+    expect(FakeEventSource.instances).toHaveLength(3);
 
     source.close();
   });
@@ -333,12 +353,14 @@ describe("ticketed event source", () => {
     );
 
     const source = createStreamEventSource("/api/tasks/t1/stream");
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    await FakeEventSource.opened.waitForCount(1);
+    expect(FakeEventSource.instances).toHaveLength(1);
     FakeEventSource.instances[0].onopen?.(new Event("open"));
     FakeEventSource.instances[0].onerror?.(new Event("error"));
 
     await vi.advanceTimersByTimeAsync(500);
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+    await FakeEventSource.opened.waitForCount(2);
+    expect(FakeEventSource.instances).toHaveLength(2);
     FakeEventSource.instances[1].onopen?.(new Event("open"));
     await vi.advanceTimersByTimeAsync(8_000);
     FakeEventSource.instances[1].onerror?.(new Event("error"));
@@ -346,7 +368,8 @@ describe("ticketed event source", () => {
     await vi.advanceTimersByTimeAsync(499);
     expect(FakeEventSource.instances).toHaveLength(2);
     await vi.advanceTimersByTimeAsync(1);
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(3));
+    await FakeEventSource.opened.waitForCount(3);
+    expect(FakeEventSource.instances).toHaveLength(3);
 
     source.close();
   });
@@ -370,12 +393,14 @@ describe("ticketed event source", () => {
     source.addEventListener("task_event", event => {
       received.push((event as MessageEvent<string>).data);
     });
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    await FakeEventSource.opened.waitForCount(1);
+    expect(FakeEventSource.instances).toHaveLength(1);
 
     FakeEventSource.instances[0].emit("task_event", new MessageEvent("task_event", { data: "a" }));
     FakeEventSource.instances[0].onerror?.(new Event("error"));
     await vi.advanceTimersByTimeAsync(600);
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+    await FakeEventSource.opened.waitForCount(2);
+    expect(FakeEventSource.instances).toHaveLength(2);
 
     FakeEventSource.instances[1].emit("task_event", new MessageEvent("task_event", { data: "b" }));
     expect(received).toEqual(["a", "b"]);
@@ -398,7 +423,8 @@ describe("ticketed event source", () => {
     );
 
     const source = createStreamEventSource("/api/tasks/t1/stream");
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    await FakeEventSource.opened.waitForCount(1);
+    expect(FakeEventSource.instances).toHaveLength(1);
     FakeEventSource.instances[0].onerror?.(new Event("error"));
     source.close();
 
@@ -423,13 +449,19 @@ describe("ticketed event source", () => {
 
     const source = createStreamEventSource("/api/tasks/t1/stream");
     const errors: Event[] = [];
-    source.onerror = event => errors.push(event);
+    const failed = Promise.withResolvers<void>();
+    source.onerror = event => {
+      errors.push(event);
+      failed.resolve();
+    };
 
-    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    await failed.promise;
+    expect(errors).toHaveLength(1);
     expect(FakeEventSource.instances).toHaveLength(0);
 
     await vi.advanceTimersByTimeAsync(600);
-    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    await FakeEventSource.opened.waitForCount(1);
+    expect(FakeEventSource.instances).toHaveLength(1);
     expect(FakeEventSource.instances[0].url).toBe("/api/tasks/t1/stream?ticket=tkt_recovered");
 
     source.close();

@@ -991,7 +991,7 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     });
 
     // A cached, pre-mount catalog must not trigger a duplicate create.
-    await new Promise(resolve => setTimeout(resolve, 5));
+    await act(async () => {});
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
     // While it waits the window says so in one busy region, never "No terminals yet".
     expect(screen.getByRole("status")).toHaveTextContent("Opening a terminal");
@@ -1120,7 +1120,7 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     rerender(
       <TerminalWindowApp {...waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP.slice(1))} />
     );
-    await new Promise(resolve => setTimeout(resolve, 5));
+    await act(async () => {});
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
     expect(actions.onCloseTerminal).not.toHaveBeenCalled();
   });

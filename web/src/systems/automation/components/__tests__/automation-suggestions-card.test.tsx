@@ -146,12 +146,10 @@ describe("AutomationSuggestionsCard", () => {
     expect(screen.getByTestId("suggestion-project")).toHaveTextContent("ws_beta");
     fireEvent.click(screen.getByRole("button", { name: "Create automation" }));
 
-    await vi.waitFor(() =>
-      expect(suggestionHooks.accept.mutateAsync).toHaveBeenCalledWith({
-        workspaceID: "ws_beta",
-        suggestionID: "suggestion_other",
-      })
-    );
+    expect(suggestionHooks.accept.mutateAsync).toHaveBeenCalledWith({
+      workspaceID: "ws_beta",
+      suggestionID: "suggestion_other",
+    });
   });
 
   it("disables both row actions while one server action is pending", () => {

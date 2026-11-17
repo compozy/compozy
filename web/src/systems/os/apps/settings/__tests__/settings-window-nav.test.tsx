@@ -262,7 +262,6 @@ describe("Settings window section area", () => {
     expect(loading.querySelector('[data-slot="skeleton"]')).not.toBeNull();
   });
 
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real lazy module loading may consume the 20s observable waitFor budget; retain the 30s outer deadline.
   it("Should keep the current page, not a loading frame, while the next section's code loads", async () => {
     const { queryClient, snapshotKey } = await renderLoadedSettingsWindow();
     const outlet = screen.getByTestId("settings-shell-outlet");
@@ -284,9 +283,8 @@ describe("Settings window section area", () => {
 
     await waitFor(() => expect(outlet).not.toContainElement(wallpaper), { timeout: 20_000 });
     expect(outlet).not.toHaveAttribute("aria-busy");
-  }, 30_000);
+  });
 
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real lazy module loading may consume the 20s observable waitFor budget; retain the 30s outer deadline.
   it("Should contain a section render failure to the section and still open another section", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     cleanups.push(() => consoleError.mockRestore());
@@ -309,5 +307,5 @@ describe("Settings window section area", () => {
       await screen.findByRole("radiogroup", { name: "Wallpaper" }, { timeout: 20_000 })
     ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
-  }, 30_000);
+  });
 });

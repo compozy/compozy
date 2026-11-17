@@ -2596,19 +2596,21 @@ describe("Nested child runs", () => {
       </Harness>
     );
     try {
+      vi.useFakeTimers();
       const step = screen.getByTestId("loop-run-step-fix_batch");
-      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
-      await waitFor(() =>
+      fireEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await vi.waitFor(() =>
         expect(
           within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
         ).toHaveTextContent("Couldn't read this child run")
       );
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await act(async () => vi.advanceTimersByTimeAsync(300));
       // One read for page one, one for the page that failed — and no more.
       expect(rosterReads).toHaveLength(2);
     } finally {
       rendered.unmount();
       cleanup();
+      vi.useRealTimers();
     }
   });
 

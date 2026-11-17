@@ -282,15 +282,23 @@ describe("ViewRenderer", () => {
       publish: published,
       scheduleFrame: callback => scheduled.push(callback),
     });
-    const first = renderer.open(<CanceledPublishView />);
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const first = renderer.open(
+      <CanceledPublishView
+        waitForRelease={() => {
+          entered.resolve();
+          return release.promise;
+        }}
+      />
+    );
     const controller = new AbortController();
     const pending = renderer.event(handlerForAction(first, "Slow"), [], 1, 1, controller.signal);
+    await entered.promise;
     controller.abort();
 
+    release.resolve();
     expect(await pending).toBeUndefined();
-    await new Promise<void>(resolve => {
-      setTimeout(resolve, 40);
-    });
     for (const callback of scheduled) callback();
     expect(published).not.toHaveBeenCalled();
     renderer.close();
@@ -550,7 +558,7 @@ function PagedNotesView() {
   );
 }
 
-function CanceledPublishView() {
+function CanceledPublishView({ waitForRelease }: { waitForRelease(): Promise<void> }) {
   const [title, setTitle] = useState("Initial");
   return (
     <List>
@@ -562,9 +570,7 @@ function CanceledPublishView() {
             <Action
               title="Slow"
               onAction={async () => {
-                await new Promise<void>(resolve => {
-                  setTimeout(resolve, 20);
-                });
+                await waitForRelease();
                 setTitle("Stale");
                 await showToast({ tone: "info", message: "stale" });
               }}

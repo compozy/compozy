@@ -44,14 +44,16 @@ describe("worktreeMaterializationLogic", () => {
           resolveCreate = resolve;
         })
     );
-    const cancel = vi.fn().mockResolvedValue(undefined);
+    const canceled = Promise.withResolvers<void>();
+    const cancel = vi.fn(async () => canceled.resolve());
 
     store.trigger.startRequested({ name: "payments-retry", execute: create, cancel });
     store.trigger.cancelRequested({ execute: cancel });
     store.trigger.reset({});
     resolveCreate?.(pendingWorktree("wt-late"));
 
-    await vi.waitFor(() => expect(cancel).toHaveBeenCalledWith("wt-late"));
+    await canceled.promise;
+    expect(cancel).toHaveBeenCalledWith("wt-late");
     expect(store.getSnapshot().context.status).toBe("idle");
   });
 });

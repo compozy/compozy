@@ -7,7 +7,7 @@ import { seedRuntimeDatabase } from "../runtime-database";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   applyBrowserRuntimeSeed,
@@ -1130,17 +1130,25 @@ describe("browser runtime seed helpers", () => {
 describe("runtime database seed", () => {
   // Invariant: each runtime owns a writable database; neither sibling copies nor
   // later copies inherit writes. Owner: real SQLite, canonical runtime seed suite.
-  // This real Go/SQLite boundary test compiles storeseed and globaldb on cold
-  // CI runners; allow three minutes for that build without raising other budgets.
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- This process integration test compiles Go and creates real SQLite databases on cold runners, as documented above.
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+  let root: string | undefined;
+  let homes: string[];
+
+  // The first two copies share the cold helper build and create independently writable databases.
+  beforeAll(async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-database-test-"));
+    homes = ["first", "second", "later"].map(name => path.join(root!, name));
+    await Promise.all(homes.map(home => mkdir(home)));
+    await Promise.all(homes.slice(0, 2).map(home => seedRuntimeDatabase(repoRoot, home)));
+  }, 180_000);
+
+  afterAll(async () => {
+    if (root) await rm(root, { recursive: true, force: true });
+  });
+
   it("keeps concurrent and later database copies independent", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-database-test-"));
-    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-    const homes = ["first", "second", "later"].map(name => path.join(root, name));
     const databases: DatabaseSync[] = [];
     try {
-      await Promise.all(homes.map(home => mkdir(home)));
-      await Promise.all(homes.slice(0, 2).map(home => seedRuntimeDatabase(repoRoot, home)));
       const first = new DatabaseSync(path.join(homes[0]!, "compozy.db"));
       databases.push(first);
       first.exec("UPDATE scheduler_pause SET paused = 1 WHERE id = 1");
@@ -1163,7 +1171,6 @@ describe("runtime database seed", () => {
       });
     } finally {
       for (const db of databases) db.close();
-      await rm(root, { recursive: true, force: true });
     }
-  }, 180_000);
+  });
 });

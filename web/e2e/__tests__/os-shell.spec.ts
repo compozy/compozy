@@ -4796,12 +4796,16 @@ test("E2E-021 / E2E-022: the menubar Update pill updates CompozyOS in one activa
 
   let updatePayload: unknown = settingsUpdateBothAvailableFixture;
   const applyRequests: string[][] = [];
+  const keyboardApply = Promise.withResolvers<void>();
+  const pointerApply = Promise.withResolvers<void>();
   await appPage.route("**/api/settings/update", async route => {
     await route.fulfill({ json: updatePayload });
   });
   await appPage.route("**/api/settings/update/apply", async route => {
     const body = route.request().postDataJSON() as { targets: string[] };
-    applyRequests.push(body.targets);
+    const count = applyRequests.push(body.targets);
+    if (count === 1) keyboardApply.resolve();
+    if (count === 2) pointerApply.resolve();
     // Apply only acknowledges acquisition; the GET above becomes the progress feed.
     updatePayload = settingsUpdateApplyingFixture;
     await route.fulfill({
@@ -4825,7 +4829,8 @@ test("E2E-021 / E2E-022: the menubar Update pill updates CompozyOS in one activa
   await indicator.focus();
   await expect(indicator).toBeFocused();
   await appPage.keyboard.press("Enter");
-  await expect.poll(() => applyRequests).toEqual([["runtime", "app"]]);
+  await keyboardApply.promise;
+  expect(applyRequests).toEqual([["runtime", "app"]]);
   await expect(indicator).toHaveAttribute("data-state", "updating", { timeout: 20_000 });
   await expect(indicator).toBeDisabled();
   // One click means no detour: Settings never opens.
@@ -4835,7 +4840,8 @@ test("E2E-021 / E2E-022: the menubar Update pill updates CompozyOS in one activa
   updatePayload = settingsUpdateBothAvailableFixture;
   await expect(indicator).toHaveAttribute("data-state", "available", { timeout: 20_000 });
   await indicator.click();
-  await expect.poll(() => applyRequests).toHaveLength(2);
+  await pointerApply.promise;
+  expect(applyRequests).toHaveLength(2);
   expect(applyRequests[1]).toEqual(["runtime", "app"]);
   await expect(appWindow(appPage, "settings")).toHaveCount(0);
 });

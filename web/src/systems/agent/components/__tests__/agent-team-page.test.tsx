@@ -33,7 +33,7 @@ const server = setupServer(
     });
   })
 );
-beforeAll(() => server.listen());
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 

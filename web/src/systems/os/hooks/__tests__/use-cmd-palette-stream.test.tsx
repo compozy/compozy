@@ -162,7 +162,7 @@ describe("useCmdPaletteStream (UT-104)", () => {
     await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
   });
 
-  it("Should drop frames belonging to another workspace before any cache write", async () => {
+  it("Should drop frames belonging to another workspace before any cache write", () => {
     const { invalidate, sources } = harness();
     const [source] = sources;
     invalidate.mockClear();
@@ -171,7 +171,6 @@ describe("useCmdPaletteStream (UT-104)", () => {
       catalog_revision: "sha256:foreign",
     });
     source?.emit(CMD_PALETTE_CATALOG_CHANGED_EVENT, { workspace: WORKSPACE });
-    await new Promise(resolve => setTimeout(resolve, 0));
     expect(invalidate).not.toHaveBeenCalled();
   });
 

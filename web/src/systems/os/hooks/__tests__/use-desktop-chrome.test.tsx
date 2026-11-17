@@ -15,7 +15,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createAtom } from "@xstate/store";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryOptionsSeen = vi.hoisted(() => [] as Array<{ queryKey: unknown; enabled?: unknown }>);
 const registration = vi.hoisted(() => ({ status: "idle" as string }));
@@ -291,6 +291,7 @@ describe("useWindowScopePruning", () => {
 });
 
 describe("useProfileSwitchWindowSweep", () => {
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
     profileScope.aggregate = false;
     profileScope.ownerId = "p_yankee";
@@ -492,7 +493,7 @@ describe("useProfileSwitchWindowSweep", () => {
     // Coming back to a desk already swept for this switch does not sweep it again.
     act(() => fake.present(deskA));
     rerender({ partition: "ws_a" });
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => {});
     expect(fake.userClose).toHaveBeenCalledTimes(3);
   });
 
@@ -530,14 +531,20 @@ describe("useProfileSwitchWindowSweep", () => {
   it("Should back off a close that keeps failing instead of hammering the daemon", async () => {
     sessionOwners.set("s_xray", "p_xray");
     const { shell, userClose } = fakeShell(true);
-    userClose.mockImplementation(async () => false);
+    vi.useFakeTimers();
+    const closeAttempted = Promise.withResolvers<void>();
+    userClose.mockImplementation(async () => {
+      closeAttempted.resolve();
+      return false;
+    });
     const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
       wrapper: wrapper(),
     });
 
     switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalled());
-    await new Promise(resolve => setTimeout(resolve, 1300));
+    await act(async () => closeAttempted.promise);
+    expect(userClose).toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(1300));
     // Attempts at about 0, 250 and 750 ms; a fixed 250 ms retry would have made six.
     expect(userClose.mock.calls.length).toBeLessThanOrEqual(3);
     unmount();
@@ -546,16 +553,22 @@ describe("useProfileSwitchWindowSweep", () => {
   it("Should stop retrying a refused close once the shell unmounts", async () => {
     sessionOwners.set("s_xray", "p_xray");
     const { shell, userClose } = fakeShell(true);
-    userClose.mockImplementation(async () => false);
+    vi.useFakeTimers();
+    const closeAttempted = Promise.withResolvers<void>();
+    userClose.mockImplementation(async () => {
+      closeAttempted.resolve();
+      return false;
+    });
     const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
       wrapper: wrapper(),
     });
 
     switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalled());
+    await act(async () => closeAttempted.promise);
+    expect(userClose).toHaveBeenCalled();
     unmount();
     const attempts = userClose.mock.calls.length;
-    await new Promise(resolve => setTimeout(resolve, 600));
+    await act(async () => vi.advanceTimersByTimeAsync(600));
     expect(userClose).toHaveBeenCalledTimes(attempts);
   });
 
@@ -570,7 +583,7 @@ describe("useProfileSwitchWindowSweep", () => {
 
     switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() => expect(fake.closed).toEqual(["w_xray"]));
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => {});
     expect(fake.userClose.mock.calls.map(([id]) => id)).not.toContain("w_zulu");
   });
 
@@ -585,7 +598,7 @@ describe("useProfileSwitchWindowSweep", () => {
     profileScope.aggregate = true;
     switchTo({ kind: "aggregate" });
     // Let any owner read the hook might have started settle before asserting nothing closed.
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => {});
     expect(userClose).not.toHaveBeenCalled();
   });
 
@@ -600,8 +613,7 @@ describe("useProfileSwitchWindowSweep", () => {
     // Back to All profiles on the same desk: the windows belong on screen again.
     profileScope.aggregate = true;
     switchTo({ kind: "aggregate" });
-    held.release();
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => held.release());
     expect(userClose).not.toHaveBeenCalled();
   });
 
@@ -618,12 +630,11 @@ describe("useProfileSwitchWindowSweep", () => {
     const yankee = switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() => expect(held.queryClient.fetchQuery).toHaveBeenCalled());
     act(() => failProfileSwitch(yankee));
-    held.release();
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => held.release());
     expect(userClose).not.toHaveBeenCalled();
     // The same epoch cannot authorize a sweep of another desk after rollback either.
     rerender({ partition: "ws_b" });
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => {});
     expect(userClose).not.toHaveBeenCalled();
   });
 
@@ -632,17 +643,23 @@ describe("useProfileSwitchWindowSweep", () => {
     sessionOwners.set("s_zulu", "p_zulu");
     startOn("xray");
     const { shell, userClose } = fakeShell(true);
-    userClose.mockImplementation(async () => false);
+    vi.useFakeTimers();
+    const closeAttempted = Promise.withResolvers<void>();
+    userClose.mockImplementation(async () => {
+      closeAttempted.resolve();
+      return false;
+    });
     const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
       wrapper: wrapper(),
     });
 
     const yankee = switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalledWith("w_xray", true));
+    await act(async () => closeAttempted.promise);
+    expect(userClose).toHaveBeenCalledWith("w_xray", true);
     // The persist failed: the previous answer comes back under the same switch epoch.
     act(() => failProfileSwitch(yankee));
     const attempts = userClose.mock.calls.length;
-    await new Promise(resolve => setTimeout(resolve, 600));
+    await act(async () => vi.advanceTimersByTimeAsync(600));
     expect(userClose).toHaveBeenCalledTimes(attempts);
     expect(userClose.mock.calls.map(([id]) => id)).not.toContain("w_zulu");
     unmount();
@@ -662,8 +679,7 @@ describe("useProfileSwitchWindowSweep", () => {
     // Another project is presented before the owners are read: its desk is still binding.
     act(() => leave());
     rerender({ partition: "ws_b" });
-    held.release();
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => held.release());
     expect(closed).toEqual([]);
 
     rerender({ partition: "ws_a" });
