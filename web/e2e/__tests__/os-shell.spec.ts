@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Browser, Locator, Page } from "@playwright/test";
+import type { Browser, CDPSession, Locator, Page, TestInfo } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
@@ -3644,6 +3645,10 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   try {
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
+    await switchInput.send("Performance.enable");
+    await switchInput.send("Profiler.enable");
+    await switchInput.send("Profiler.setSamplingInterval", { interval: 250 });
+    await switchInput.send("Profiler.start");
     await installSwitchProbe(appPage);
     const start = Date.now();
     while (Date.now() - start < 3000) {
@@ -3653,6 +3658,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     switchProbe = await readSwitchProbe(appPage);
     longTasks = switchProbe.tasks.map(task => task.duration);
+    await captureSwitchProfile(switchInput, testInfo, switchProbe);
   } finally {
     await switchInput.detach();
   }
@@ -3734,6 +3740,29 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   expect(worstFrame).toBeLessThanOrEqual(50);
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
+
+async function captureSwitchProfile(
+  profiler: CDPSession,
+  testInfo: TestInfo,
+  probe: SwitchProbeRecords
+) {
+  const directory = testInfo.outputPath("diagnostic-profiles");
+  await mkdir(directory, { recursive: true });
+  const { profile } = await profiler.send("Profiler.stop");
+  const { metrics } = await profiler.send("Performance.getMetrics");
+  await writeFile(path.join(directory, "switch.cpuprofile"), JSON.stringify(profile));
+  await writeFile(path.join(directory, "switch-timeline.json"), JSON.stringify({ metrics, probe }));
+  await profiler.send("Debugger.enable");
+  const scriptIds = new Set(
+    profile.nodes
+      .filter(node => (node.hitCount ?? 0) > 0 && node.callFrame.url.includes("/assets/"))
+      .map(node => node.callFrame.scriptId)
+  );
+  for (const scriptId of scriptIds) {
+    const { scriptSource } = await profiler.send("Debugger.getScriptSource", { scriptId });
+    await writeFile(path.join(directory, `switch-script-${scriptId}.js`), scriptSource);
+  }
+}
 
 /** A long animation frame over 50ms, with its slowest scripts. */
 interface LongFrameRecord {
