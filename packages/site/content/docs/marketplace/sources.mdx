@@ -198,7 +198,9 @@ Plugins in the Claude Code (`.claude-plugin/`), Cursor (`.cursor-plugin/`) and C
   manifest copy or logs. An invalid name reports `client_placeholder_invalid`.
 - **OAuth.** A remote server's `auth` object (`CLIENT_ID`, `CLIENT_SECRET`, `scopes`) becomes its
   OAuth sign-in. Write the secret as `${CLIENT_SECRET}` so it becomes a secret input. `auth` keys
-  that cannot be mapped are dropped with `client_field_ignored`.
+  that cannot be mapped are dropped with `client_field_ignored`. A remote with plugin-declared
+  headers can also offer **Sign in** when its Bearer challenge points to same-origin OAuth
+  protected-resource metadata. A successful OAuth sign-in uses its own `Authorization` header.
 
 For example, this root `.mcp.json` asks for `NOTION_TOKEN` (secret) and `SERVICENOW_HOST` (text) and
 signs `servicenow` in with OAuth:

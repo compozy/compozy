@@ -4,6 +4,7 @@ import "strings"
 
 // MCPServer describes an MCP server passed through to the agent runtime.
 type MCPServer struct {
+	AgentPlugin      bool                     `json:"-"                           yaml:"-"                         toml:"-"`
 	DefinitionSource string                   `json:"definition_source,omitempty" yaml:"-"                         toml:"-"`
 	ReadOnlyTools    []string                 `json:"read_only_tools,omitempty"   yaml:"read_only_tools,omitempty" toml:"read_only_tools,omitempty"`
 	InputValues      map[string]MCPInputValue `json:"input_values,omitempty"      yaml:"-"                         toml:"-"`

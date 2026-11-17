@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -13,9 +15,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/marketplace"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -107,6 +111,146 @@ func TestExtensionSecretsValidationIsMutationFree(t *testing.T) {
 
 func TestExtensionSecretsRemoteHeaderBinding(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should list set and unset an optional plugin header secret in its exact instance", func(t *testing.T) {
+		t.Parallel()
+		secretVault := newExtensionSecretVaultFake()
+		service, bindings := newExtensionSecretsTestService(t, nil, secretVault)
+		const input = "DD_API_KEY"
+		const value = "fixture-header-value"
+		headerTemplates := map[string]string{input: "${DD_API_KEY:-}"}
+		runtime, ok := service.runtime.(*fakeExtensionRuntime)
+		if !ok {
+			t.Fatal("extension runtime is not a fakeExtensionRuntime")
+		}
+		manifest := runtime.getExt.Manifest
+		manifest.Format = extensionpkg.FormatAgentPlugin
+		manifest.Inputs = []extensionpkg.ManifestInput{
+			{ID: input, Type: "secret", Binding: marketplace.InputBinding{Type: "template", Name: input}},
+		}
+		manifest.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{
+			"mcp": {Transport: "http", URL: "https://fixture.example.test/v1/mcp", Headers: headerTemplates},
+		}
+		ctx := t.Context()
+		key := extensionpkg.GlobalInstanceKey("kit")
+		profile := store.DefaultProfileID
+		before, err := service.extensionSecretsForProfileInstance(ctx, key, profile)
+		if err != nil || !slices.Equal(before.DeclaredEnv, []string{input}) || len(before.BoundEnvKeys) != 0 {
+			t.Fatalf("unbound declared and bound names = %v %v, err = %v", before.DeclaredEnv, before.BoundEnvKeys, err)
+		}
+		otherRef := vault.ExtensionProfileSecretRef("kit", "another-profile", "", input)
+		secretVault.seed(otherRef, "extension-env", "other-fixture-value")
+		_, err = service.setExtensionSecretsForProfileInstance(ctx, key, profile,
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{{
+				EnvName: input, VaultRef: &otherRef,
+			}}})
+		if !errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid) {
+			t.Fatalf("cross-profile reference error = %v", err)
+		}
+		after, err := service.setExtensionSecretsForProfileInstance(ctx, key, profile,
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{{
+				EnvName: input, Value: new(value),
+			}}})
+		if err != nil || !slices.Equal(after.BoundEnvKeys, []string{input}) {
+			t.Fatalf("bound names = %v, err = %v", after.BoundEnvKeys, err)
+		}
+		encoded, err := json.Marshal(after)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(encoded, []byte(value)) || bytes.Contains(encoded, []byte("vault:")) {
+			t.Fatal("secret presence payload exposed credential material")
+		}
+
+		// Simulate a publication made before the CLI write. The scoped read must pick up changes live.
+		definition := compozyconfig.MCPServer{
+			Headers: headerTemplates, InputValues: map[string]compozyconfig.MCPInputValue{input: {}},
+		}
+		publicationRuntime := &resourceSnapshotRuntime{
+			fakeExtensionRuntime: runtime, fallback: runtime.getExt,
+		}
+		state := &bootState{extensionEnvBindings: bindings, extensions: publicationRuntime}
+		assertHeader := func(profileID, workspaceID, want string) {
+			t.Helper()
+			server := cloneDaemonMCPServer(definition)
+			resourceKey := extensionpkg.ProfileInstanceKey(key.Name, store.DefaultProfileID, workspaceID)
+			if err := projectAgentPluginHeaderInputs(ctx, state, &server, resourceKey, profileID); err != nil {
+				t.Fatal(err)
+			}
+			rendered, _, err := server.RenderInputs(func(ref string) (string, error) {
+				return secretVault.ResolveRef(ctx, ref)
+			})
+			if err != nil || rendered.Headers[input] != want {
+				t.Fatal("unexpected credential in the scoped MCP launch")
+			}
+			if _, exists := rendered.Headers[input]; exists != (want != "") {
+				t.Fatal("credential header presence did not match the scoped binding")
+			}
+		}
+		assertHeader(profile, "", value)
+		assertHeader("another-profile", "", "")
+		assertHeader(profile, "another-workspace", "")
+
+		root := t.TempDir()
+		manifestPath := filepath.Join(root, ".claude-plugin", "plugin.json")
+		if err := os.Mkdir(filepath.Dir(manifestPath), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(manifestPath, []byte(`{"name":"kit","version":"1.0.0"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		const mcpDefinition = `{"mcpServers":{"mcp":{"type":"http","url":"https://fixture.example.test/v1/mcp",
+			"headers":{"DD_API_KEY":"${DD_API_KEY:-}"}}}}`
+		if err := os.WriteFile(filepath.Join(root, ".mcp.json"), []byte(mcpDefinition), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		// The manager falls back to installation metadata immediately after a secret write.
+		publicationRuntime.fallback = &extensionpkg.Extension{Info: extensionpkg.ExtensionInfo{
+			Name: key.Name, Format: extensionpkg.FormatAgentPlugin, ManifestPath: manifestPath,
+		}}
+		assertHeader(profile, "", value)
+		if err := service.deleteExtensionSecretForProfileInstance(ctx, key, profile, input); err != nil {
+			t.Fatal(err)
+		}
+		assertHeader(profile, "", "")
+	})
+
+	t.Run(
+		"Should preserve a native extension credential whose input ID differs from its header template",
+		func(t *testing.T) {
+			t.Parallel()
+			const inputName, inputID = "API_TOKEN", "api-token"
+			secretVault := newExtensionSecretVaultFake()
+			service, bindings := newExtensionSecretsTestService(t, nil, secretVault)
+			runtime, ok := service.runtime.(*fakeExtensionRuntime)
+			if !ok {
+				t.Fatal("extension runtime is not a fakeExtensionRuntime")
+			}
+			manifest := runtime.getExt.Manifest
+			manifest.Format = extensionpkg.FormatCompozy
+			manifest.Inputs = []extensionpkg.ManifestInput{
+				{ID: inputID, Type: "secret", Binding: marketplace.InputBinding{Type: "template", Name: inputName}},
+			}
+			key := extensionpkg.ProfileInstanceKey("kit", store.DefaultProfileID, "")
+			ref := vault.ExtensionProfileSecretRef(key.Name, key.ProfileID, "", inputName)
+			server := compozyconfig.MCPServer{
+				Name: "mcp", Transport: "http", Owner: "extension:kit", URL: "https://fixture.example.test/v1/mcp",
+				Headers:     map[string]string{"Authorization": "Bearer ${API_TOKEN:-}"},
+				InputValues: map[string]compozyconfig.MCPInputValue{inputName: {SecretRef: ref}},
+			}
+			state := &bootState{extensionEnvBindings: bindings, extensions: &resourceSnapshotRuntime{
+				fakeExtensionRuntime: runtime, fallback: runtime.getExt,
+			}}
+			if err := projectAgentPluginHeaderInputs(t.Context(), state, &server, key, key.ProfileID); err != nil {
+				t.Fatal(err)
+			}
+			rendered, _, err := server.RenderInputs(func(string) (string, error) { return "fixture-value", nil })
+			if err != nil || rendered.Headers["Authorization"] != "Bearer fixture-value" ||
+				mcpauth.OAuthCapable(server) {
+				t.Fatal("native header credential or its authentication policy changed")
+			}
+		},
+	)
 
 	t.Run("Should persist a profile-scoped remote header binding without exposing secret material", func(t *testing.T) {
 		t.Parallel()

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/resources"
@@ -141,8 +142,12 @@ func projectExtensionSecretHeaders(
 	if err != nil {
 		return compozyconfig.MCPServer{}, err
 	}
-	if projectedProfileID := strings.TrimSpace(activeProfileID); projectedProfileID != "" {
-		profileID = projectedProfileID
+	resourceKey := extensionpkg.ProfileInstanceKey(owner.ID, profileID, workspaceID)
+	if activeProfileID = strings.TrimSpace(activeProfileID); activeProfileID != "" {
+		profileID = activeProfileID
+	}
+	if err := projectAgentPluginHeaderInputs(ctx, state, &server, resourceKey, profileID); err != nil {
+		return compozyconfig.MCPServer{}, err
 	}
 	bindings, err := state.extensionEnvBindings.ResolveEnvBindings(
 		ctx,
@@ -170,6 +175,74 @@ func projectExtensionSecretHeaders(
 		return compozyconfig.MCPServer{}, fmt.Errorf("daemon: validate extension MCP header bindings: %w", err)
 	}
 	return server, nil
+}
+
+func projectAgentPluginHeaderInputs(
+	ctx context.Context,
+	state *bootState,
+	server *compozyconfig.MCPServer,
+	resourceKey extensionpkg.InstanceKey,
+	profileID string,
+) error {
+	runtime, ok := state.currentExtensionRuntime().(scopedExtensionRuntime)
+	if !ok || len(server.Headers) == 0 {
+		return nil
+	}
+	ext, err := runtime.GetForInstance(resourceKey)
+	if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("daemon: read MCP extension definition %q: %w", resourceKey.Name, err)
+	}
+	manifest, err := agentPluginMCPManifest(ext)
+	if err != nil {
+		return fmt.Errorf("daemon: load installed MCP extension definition %q: %w", resourceKey.Name, err)
+	}
+	if manifest == nil || manifest.Format != extensionpkg.FormatAgentPlugin {
+		return nil
+	}
+	server.AgentPlugin = true
+	inputIDs := manifest.AgentPluginHeaderSecretInputs()
+	names := server.OptionalHeaderSecretInputs()
+	for name := range names {
+		if _, declared := inputIDs[name]; !declared {
+			delete(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	bindings, err := state.extensionEnvBindings.ListEnvBindings(
+		ctx,
+		resourceKey.Name,
+		profileID,
+		resourceKey.WorkspaceID,
+	)
+	if err != nil {
+		return fmt.Errorf("daemon: list extension MCP header inputs for %q: %w", resourceKey.Name, err)
+	}
+	for name := range names {
+		server.InputValues[name] = compozyconfig.MCPInputValue{}
+	}
+	for _, binding := range bindings {
+		if _, declared := names[binding.EnvName]; declared &&
+			!binding.Inactive && binding.MCPServer == "" && binding.InputID == inputIDs[binding.EnvName] {
+			server.InputValues[binding.EnvName] = compozyconfig.MCPInputValue{SecretRef: binding.SecretRef}
+		}
+	}
+	return nil
+}
+
+func agentPluginMCPManifest(ext *extensionpkg.Extension) (*extensionpkg.Manifest, error) {
+	if ext == nil {
+		return nil, nil
+	}
+	// Secret writes invalidate the profile runtime, leaving its installation available.
+	if ext.Manifest == nil && ext.Info.Format == extensionpkg.FormatAgentPlugin {
+		return extensionpkg.LoadInstalledManifest(&ext.Info)
+	}
+	return ext.Manifest, nil
 }
 
 func mcpExtensionBindingOwner(

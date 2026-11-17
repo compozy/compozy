@@ -103,14 +103,10 @@ export function probeTone(probe: string): PillTone {
   return "neutral";
 }
 
-/** Explicit OAuth remains supported; implicit discovery excludes header credentials. */
 export function isOAuthCapable(server: SettingsMCPServerEntry): boolean {
   if (server.transport !== "http") return false;
-  if (server.auth) return true;
-  if (server.headers_configured) return false;
-  return (
-    server.auth_status?.auth_type === "oauth" || server.runtime_status?.state === "auth_required"
-  );
+  if (server.auth || server.auth_status?.auth_type === "oauth") return true;
+  return !server.headers_configured && server.runtime_status?.state === "auth_required";
 }
 
 /**
@@ -121,8 +117,13 @@ export function isOAuthCapable(server: SettingsMCPServerEntry): boolean {
 export function isOAuthRepairable(server: SettingsMCPServerEntry): boolean {
   if (!isOAuthCapable(server)) return false;
   const authenticated = server.auth_status?.status === "authenticated";
-  const refreshFailed = server.runtime_status?.state === "auth_refresh_failed";
-  return !authenticated || refreshFailed || mcpScopeEscalationScopes(server).length > 0;
+  const state = server.runtime_status?.state;
+  return (
+    !authenticated ||
+    state === "auth_required" ||
+    state === "auth_refresh_failed" ||
+    mcpScopeEscalationScopes(server).length > 0
+  );
 }
 
 export function authorizeLabel(server: SettingsMCPServerEntry): MCPAuthorizeLabel | null {
@@ -234,7 +235,9 @@ export function summarizeMCPStatus(server: SettingsMCPServerEntry): MCPStatusCel
   if (auth === "invalid") return { label: "Sign-in failed", tone: "destructive" };
   if (runtime?.probe === "failed") return { label: "Couldn't connect", tone: "destructive" };
   if (runtime?.state === "auth_required" || auth === "needs_login") {
-    return { label: "Needs sign-in", tone: "warning" };
+    return isOAuthRepairable(server)
+      ? { label: "Needs sign-in", tone: "warning" }
+      : { label: "Access denied", tone: "destructive" };
   }
   if (runtime?.state === "auth_expired" || auth === "expired") {
     return { label: "Sign-in expired", tone: "warning" };

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/mcp/securehttp"
 	"github.com/compozy/compozy/internal/mcppolicy"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -35,7 +36,8 @@ func (e *CallExecutor) openClient(
 	resolved *ResolvedServer,
 	authorizationHeader string,
 ) (*managedMCPClient, error) {
-	server := resolved.Server
+	definition := resolved.Server
+	server := definition
 	if server.EffectiveTransport() == compozyconfig.MCPServerTransportHTTP {
 		rendered, secrets, err := server.RenderInputs(
 			func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
@@ -70,7 +72,7 @@ func (e *CallExecutor) openClient(
 		}
 		return &managedMCPClient{session: session, cleanup: launch.cleanup}, nil
 	case compozyconfig.MCPServerTransportHTTP:
-		httpClient, err := e.httpClientWithAuthorization(ctx, resolved, authorizationHeader)
+		httpClient, err := e.httpClientWithAuthorization(ctx, resolved, definition, authorizationHeader)
 		if err != nil {
 			return nil, err
 		}
@@ -167,6 +169,7 @@ func releaseMCPClient(client *managedMCPClient, callErr error) error {
 func (e *CallExecutor) httpClientWithAuthorization(
 	ctx context.Context,
 	resolved *ResolvedServer,
+	definition compozyconfig.MCPServer,
 	authorizationHeader string,
 ) (*http.Client, error) {
 	client := e.httpClientForServer(resolved)
@@ -185,6 +188,7 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	)
 	client.Transport = authorizationRoundTripper{
 		next: transport, header: authorizationHeader, headers: headers,
+		requireMetadata: definition.Auth.IsZero() && mcpauth.OAuthWithPluginHeaders(definition),
 	}
 	return client, nil
 }
@@ -247,9 +251,10 @@ func (e *CallExecutor) httpClientForServer(resolved *ResolvedServer) *http.Clien
 }
 
 type authorizationRoundTripper struct {
-	next    http.RoundTripper
-	header  string
-	headers http.Header
+	next            http.RoundTripper
+	header          string
+	headers         http.Header
+	requireMetadata bool
 }
 
 func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -268,6 +273,10 @@ func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Respo
 		return nil, err
 	}
 	if authErr := authorizationChallengeError(response); authErr != nil {
+		if t.requireMetadata && t.header == "" &&
+			mcpauth.AdvertisedProtectedResourceMetadataURL(response.Header, request.URL.String()) == "" {
+			authErr = errRemoteAuthenticationRejected
+		}
 		return nil, errors.Join(authErr, drainAndCloseAuthorizationChallenge(response.Body))
 	}
 	return response, nil

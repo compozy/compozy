@@ -43,7 +43,7 @@ func (s *service) CheckMCPServer(ctx context.Context, req MCPAuthTargetRequest) 
 		if err != nil {
 			return MCPServerItem{}, err
 		}
-		item.RuntimeStatus = &status
+		setMCPRuntimeObservation(item, resolved.server, status)
 		return *item, nil
 	}
 	return MCPServerItem{}, notFoundError(fmt.Errorf("settings: MCP server %q is unavailable", req.Name))

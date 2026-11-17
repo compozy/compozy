@@ -52,10 +52,7 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 	if mcpauth.OAuthCapable(server) {
 		authStatus, err := s.MCPAuthStatus(ctx, target, server)
 		if err != nil {
-			status.State = settingspkg.MCPServerRuntimeStateAuthRequired
-			status.Probe = settingspkg.MCPServerProbeSkipped
-			status.Reason = string(toolspkg.ReasonMCPAuthRequired)
-			status.Diagnostic = diagnostics.Redact(err.Error())
+			status = mcpAuthLookupErrorStatus(server, err)
 			return s.recordMCPProbeFailure(ctx, key, tracked, deadentity.FailurePermanent, status)
 		}
 		if mapped, ok := runtimeStateFromMCPAuthStatus(authStatus); ok {
@@ -99,6 +96,21 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 		}
 	}
 	return readyMCPRuntimeStatus(len(tools), protocolVersion), nil
+}
+
+func mcpAuthLookupErrorStatus(server compozyconfig.MCPServer, err error) settingspkg.MCPServerRuntimeStatus {
+	status := settingspkg.MCPServerRuntimeStatus{
+		Configured: true,
+		State:      settingspkg.MCPServerRuntimeStateAuthRequired,
+		Probe:      settingspkg.MCPServerProbeSkipped,
+		Reason:     string(toolspkg.ReasonMCPAuthRequired),
+		Diagnostic: diagnostics.Redact(err.Error()),
+	}
+	if server.Auth.IsZero() && mcpauth.OAuthWithPluginHeaders(server) {
+		status.State = settingspkg.MCPServerRuntimeStateConfigError
+		status.Reason = string(status.State)
+	}
+	return status
 }
 
 func (s *settingsRuntimeSurface) newMCPProbeExecutor(
@@ -304,9 +316,11 @@ func runtimeStatusFromMCPProbeError(err error) settingspkg.MCPServerRuntimeStatu
 	}
 	status.Reason = string(reason)
 	switch reason {
-	case toolspkg.ReasonMCPAuthRequired, toolspkg.ReasonMCPAuthUnconfigured:
+	case toolspkg.ReasonMCPAuthRequired:
 		status.State = settingspkg.MCPServerRuntimeStateAuthRequired
 		status.Probe = settingspkg.MCPServerProbeSkipped
+	case toolspkg.ReasonMCPAuthUnconfigured:
+		status.State = settingspkg.MCPServerRuntimeStatePermissionDenied
 	case toolspkg.ReasonMCPAuthExpired:
 		status.State = settingspkg.MCPServerRuntimeStateAuthExpired
 		status.Probe = settingspkg.MCPServerProbeSkipped

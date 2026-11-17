@@ -307,6 +307,70 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 			testSettingsMCPAuthRecovery(t, manual)
 		})
 	}
+	t.Run("Should discover and complete OAuth for optional plugin header credentials", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{MCPPath: "/v1/mcp"})
+		db := openDaemonTestGlobalDB(t)
+		secrets, err := vault.NewService(db, compozyconfig.NewVaultKeyProvider(filepath.Dir(db.Path()), nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager, err := newSettingsMCPAuthManagerWithAuthorization(
+			db, nil, db, secrets.ResolveRef, compozyconfig.MCPOAuthConfig{}, nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey: []byte("test installation key"), mcpAuthManager: manager, mcpAuthStore: db,
+			secretResolver: secrets.ResolveRef, secretRefs: secrets,
+		}
+		target := globalMCPTestTarget("mcp")
+		target.Owner = "extension:fixture"
+		server := compozyconfig.MCPServer{
+			AgentPlugin: true,
+			Name:        target.ServerName, Owner: target.Owner, Transport: compozyconfig.MCPServerTransportHTTP,
+			URL: fixture.Endpoints.MCPURL + "?referrer_ide=claude-code-plugin&plugin_version=0.7.17",
+			Headers: map[string]string{
+				"DD_API_KEY": "${DD_API_KEY:-}", "DD_APPLICATION_KEY": "${DD_APPLICATION_KEY:-}",
+				"X-Datadog-MCP-Toolsets": "${DD_MCP_TOOLSETS:-}",
+			},
+			InputValues: map[string]compozyconfig.MCPInputValue{
+				"DD_API_KEY": {}, "DD_APPLICATION_KEY": {}, "DD_MCP_TOOLSETS": {},
+			},
+		}
+		ctx := t.Context()
+		status, err := surface.MCPServerRuntimeStatus(ctx, target, server)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateAuthRequired {
+			t.Fatalf("runtime state = %q, err = %v, want OAuth challenge", status.State, err)
+		}
+		const callback = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+		begin, err := surface.MCPAuthBegin(ctx, target, server, callback)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loginURL, err := url.Parse(begin.AuthorizationURL)
+		if err != nil || loginURL.Query().Get("resource") != fixture.Endpoints.MCPURL {
+			t.Fatal("sign-in did not use the advertised query-free resource")
+		}
+		auth, err := surface.MCPAuthExchange(ctx, target, server, mcpauth.ExchangeInput{
+			RedirectURL: callback + "?state=" + url.QueryEscape(begin.State) + "&code=" + mcpfixture.AuthorizationCode,
+		})
+		if err != nil || auth.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("exchange status = %q, err = %v", auth.Status, err)
+		}
+		status, err = surface.MCPServerRuntimeStatus(ctx, target, server)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateReady || status.ToolCount == 0 {
+			t.Fatalf("authenticated runtime = %#v, err = %v", status, err)
+		}
+		for _, headers := range fixture.Requests().MCPHeaders {
+			if headers.Values("DD_API_KEY") != nil || headers.Values("DD_APPLICATION_KEY") != nil {
+				t.Fatal("an unset credential header reached the MCP server")
+			}
+		}
+	})
+
 	t.Run("Should render template inputs through OAuth begin status and callback", func(t *testing.T) {
 		t.Parallel()
 
@@ -647,6 +711,30 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 }
 
 func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
+	t.Run(
+		"Should refuse to present sign-in for a plugin header rejection without a resource challenge",
+		func(t *testing.T) {
+			t.Parallel()
+			endpoint := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				writer.WriteHeader(http.StatusUnauthorized)
+			}))
+			t.Cleanup(endpoint.Close)
+			target := globalMCPTestTarget("fixture")
+			target.Owner = "extension:fixture"
+			server := compozyconfig.MCPServer{
+				AgentPlugin: true,
+				Name:        target.ServerName, Owner: target.Owner, Transport: compozyconfig.MCPServerTransportHTTP,
+				URL: endpoint.URL, Headers: map[string]string{"DD_API_KEY": "${DD_API_KEY:-}"},
+				InputValues: map[string]compozyconfig.MCPInputValue{"DD_API_KEY": {}},
+			}
+			surface := &settingsRuntimeSurface{digestKey: []byte("test installation key")}
+			status, err := surface.MCPServerRuntimeStatus(t.Context(), target, server)
+			if err != nil || status.State != settingspkg.MCPServerRuntimeStatePermissionDenied {
+				t.Fatalf("runtime state = %q, err = %v, want connection failure", status.State, err)
+			}
+		},
+	)
+
 	// Invariant: passive MCP status never probes and only reuses fresh observations of the same identity.
 	// Owner: daemon Settings runtime; canonical suite: MCPServerRuntimeStatus.
 	t.Run("Should reuse bounded observations without network and invalidate changed identities", func(t *testing.T) {

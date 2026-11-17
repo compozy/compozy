@@ -48,7 +48,8 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 	ext *extensionpkg.Extension,
 	req contract.SetExtensionSecretsRequest,
 ) ([]preparedExtensionSecret, error) {
-	declared := normalizedDeclaredEnv(ext)
+	headerInputs := ext.Manifest.AgentPluginHeaderSecretInputs()
+	declared := normalizedDeclaredEnv(ext, headerInputs)
 	byName, err := normalizeExtensionSecretInputs(ext, declared, req.Bindings)
 	if err != nil {
 		return nil, err
@@ -60,10 +61,26 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 	slices.Sort(names)
 	prepared := make([]preparedExtensionSecret, 0, len(names))
 	for _, name := range names {
-		secret, err := s.prepareExtensionSecret(ctx, key, profileID, byName[name])
+		input := byName[name]
+		inputID := ""
+		if input.MCPServer == "" {
+			inputID = headerInputs[name]
+		}
+		if inputID != "" && input.VaultRef != nil && !strings.HasPrefix(
+			vault.NormalizeRef(
+				*input.VaultRef,
+			),
+			vault.ExtensionProfileSecretOwnerPrefix(key.Name, profileID, key.WorkspaceID),
+		) {
+			return nil, &extensionpkg.EnvBindingValidationError{
+				EnvName: name, Cause: extensionpkg.ErrExtensionEnvBindingInvalid,
+			}
+		}
+		secret, err := s.prepareExtensionSecret(ctx, key, profileID, input)
 		if err != nil {
 			return nil, err
 		}
+		secret.inputID = inputID
 		prepared = append(prepared, secret)
 	}
 	return prepared, nil

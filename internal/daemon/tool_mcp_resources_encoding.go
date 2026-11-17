@@ -116,6 +116,7 @@ func cloneResourceRecord[T any](record resources.Record[T], cloneSpec func(T) T)
 
 func cloneDaemonMCPServer(src compozyconfig.MCPServer) compozyconfig.MCPServer {
 	return compozyconfig.MCPServer{
+		AgentPlugin:      src.AgentPlugin,
 		Name:             src.Name,
 		DefinitionSource: src.DefinitionSource,
 		Reference:        src.Reference,

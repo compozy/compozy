@@ -1,5 +1,24 @@
 # Compozy Change Impact
 
+## Agent Plugin MCP credentials and sign-in
+
+Owner: [#1800](https://github.com/compozy/compozy/issues/1800).
+
+- **Native tools.** Extension MCP discovery can use the owner's OAuth credential or its configured
+  header inputs. Existing MCP status and consent tools retain their IDs and schemas.
+- **CLI/HTTP/UDS.** The existing extension secrets route and command list optional credential input
+  names in `declared_env` and accept them through the existing write operations. Responses retain
+  their shape and expose presence without values or Vault refs. OAuth uses existing owner selectors.
+- **Extensibility and state.** The client adapter still derives optional inputs from existing header
+  syntax. The runtime reads exact scoped bindings and omits unbound headers with empty defaults.
+  Config, manifest grammar, hooks and storage schemas are unchanged.
+- **Isolation.** Vault bindings and MCP projection share the existing profile and extension
+  instance identity. The outbound OAuth metadata probe runs without plugin header credentials.
+- **Web.** Settings pairs a supported OAuth challenge with **Sign in** and reflects discovery in
+  technical details. A plugin rejection without an OAuth action shows **Access denied**.
+- **Official skill, docs and QA.** Updated the extension and MCP guidance and the
+  ET-agent-plugin-remote-header and ET-web-marketplace-mcp-authorize-installed scenarios.
+
 ## MCP connection popovers, panels and dialogs redesign — 2026-11-16
 
 Owner: branch `feat/mcp-redesign` (plan `.compozy/tasks/mcp-ux-redesign/_slices.md`).

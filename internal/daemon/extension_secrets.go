@@ -194,7 +194,8 @@ func (s *daemonExtensionService) extensionSecretsForProfileInstance(
 		return contract.ExtensionSecretsPayload{}, fmt.Errorf("daemon: list extension secret bindings: %w", err)
 	}
 	bound := make([]string, 0, len(bindings))
-	declared := normalizedDeclaredEnv(ext)
+	headerInputs := ext.Manifest.AgentPluginHeaderSecretInputs()
+	declared := normalizedDeclaredEnv(ext, headerInputs)
 	declaredSet := make(map[string]struct{}, len(declared))
 	for _, envName := range declared {
 		declaredSet[envName] = struct{}{}
@@ -202,12 +203,18 @@ func (s *daemonExtensionService) extensionSecretsForProfileInstance(
 	items := make([]contract.ExtensionSecretBindingPayload, 0, len(bindings))
 	for _, binding := range bindings {
 		envName := strings.TrimSpace(binding.EnvName)
+		if _, template := headerInputs[envName]; template && binding.MCPServer == "" &&
+			(binding.ProfileID != profileID || binding.WorkspaceID != key.WorkspaceID) {
+			continue
+		}
 		bound = append(bound, envName)
 		_, current := declaredSet[envName]
 		mcpServer := strings.TrimSpace(binding.MCPServer)
 		headerName := strings.TrimSpace(binding.HeaderName)
 		if mcpServer != "" {
 			_, current = ext.Manifest.Resources.MCPServers[mcpServer]
+		} else if inputID, template := headerInputs[envName]; template {
+			current = binding.InputID == inputID
 		}
 		items = append(items, contract.ExtensionSecretBindingPayload{
 			EnvName: envName, Stale: !current, MCPServer: mcpServer, HeaderName: headerName,
@@ -337,7 +344,7 @@ func (s *daemonExtensionService) extensionSecretTarget(
 	return ext, nil
 }
 
-func normalizedDeclaredEnv(ext *extensionpkg.Extension) []string {
+func normalizedDeclaredEnv(ext *extensionpkg.Extension, headerInputs map[string]string) []string {
 	if ext == nil || ext.Manifest == nil {
 		return nil
 	}
@@ -353,6 +360,11 @@ func normalizedDeclaredEnv(ext *extensionpkg.Extension) []string {
 		}
 		seen[name] = struct{}{}
 		declared = append(declared, name)
+	}
+	for name := range headerInputs {
+		if _, exists := seen[name]; !exists {
+			declared = append(declared, name)
+		}
 	}
 	slices.Sort(declared)
 	return declared
