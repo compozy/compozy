@@ -94,8 +94,9 @@ history, and submits the new prompt against the same session ID. Concurrent prom
 restart. Attach, queue management, steer, interrupt, and other control operations never trigger this
 restart.
 
-For `compozy__session_prompt`, omit `mode` to deliberately reopen an eligible stopped session.
-Explicit `queue`, `steer`, or `interrupt` returns `session_not_promptable` while it is stopped.
+Outside an instance lineage, `compozy__session_prompt` with an omitted `mode` deliberately reopens
+an eligible stopped session. Explicit `queue`, `steer`, or `interrupt` returns `session_not_promptable`.
+Instance messages can instead be queued or held; that disposition alone does not confirm runtime recovery.
 Inspect `stop_reason` first; a daemon interruption and an explicit user stop are different decisions.
 
 After a restart, eligible `session_spawn` workers with interrupted turns continue automatically,
@@ -105,6 +106,11 @@ their own recovery owner. Worker monitors follow the same restart eligibility ru
 monitors. With `notify_creator`, a child stop recorded during shutdown is recovered from its durable
 stop receipt and admitted once to an eligible parent; the notice describes the shutdown edge, so
 read current child status before intervening.
+
+An idle always-on instance main also reopens its saved binding after restart without repeating
+its completed turn or requiring queued input. Recovery refusals include their cause in the daemon
+log and, when a saved binding exists, a `session.restart_skipped` event. An ordinary idle session
+with no interrupted turn remains stopped, with log reason `no_pending_interruption`.
 
 If ACP disconnects during a prompt, CompozyOS keeps every persisted event and automatically tries to
 replace the runtime three times with 1, 2, and 4 second delays. Session status reports

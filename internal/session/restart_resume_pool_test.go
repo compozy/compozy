@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// Invariant: restart recovery resumes interrupted user sessions with bounded concurrency while
+// Invariant: restart recovery resumes eligible ordinary sessions with bounded concurrency while
 // instance mains go first, a parent settles before its child, and sessions sharing a worktree keep
 // their serial order. Owner: session restart continuation.
 func TestRestartResumePool(t *testing.T) {

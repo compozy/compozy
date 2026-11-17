@@ -81,7 +81,7 @@ func (m *Manager) recoverSpawnShutdownWakes(ctx context.Context, infos []*Info) 
 			if err != nil || parent.StopReason != store.StopShutdown {
 				continue
 			}
-			if err := m.ResumeWaitingSession(ctx, parentID); err != nil {
+			if err := m.resumeRestartWaitingSession(ctx, parentID); err != nil {
 				m.logger.WarnContext(
 					ctx,
 					"session: shutdown wake parent unavailable",

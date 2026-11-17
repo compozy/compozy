@@ -39,6 +39,89 @@ import (
 // Invariant: restart recovery admits one continuation per interrupted turn and honors explicit stops and opt-out.
 // Owner: session manager; canonical resume suite. The ACP boundary is fake; checkpoints and admissions use SQLite.
 func TestResumeInterruptedSession(t *testing.T) {
+	// Invariant: an idle instance main reopens once without replay; a refused binding records its
+	// cause, while ordinary idle sessions and explicit stops remain stopped. Owner: restart recovery.
+	for _, tc := range []struct {
+		name                                   string
+		instance, disabled, explicit, wantLive bool
+	}{
+		{name: "Should reopen an idle instance main without replaying its completed turn", instance: true, wantLive: true},
+		{name: "Should record why an idle instance main cannot resume", instance: true, disabled: true},
+		{name: "Should preserve an explicit idle instance stop", instance: true, explicit: true},
+		{name: "Should explain why an ordinary idle session has no continuation"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := openManagerInputQueueStore(t)
+			logs := newCaptureLogHandler()
+			h := newHarness(t, WithSessionCatalog(db), WithSessionInputQueueStore(db),
+				WithSessionPromptAdmissionStore(db), WithLogger(slog.New(logs)),
+				WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
+			registerManagerInputQueueWorkspace(t, db, h)
+			main := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, main.ID) })
+			stream, err := h.manager.Prompt(t.Context(), main.ID, "finish this turn")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, stream)
+			if tc.instance {
+				if _, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+					ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: main.AgentName,
+					PermissionCeiling: "{}", CreatedByKind: "human",
+				}, main.ID, 10); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cause := CauseShutdown
+			if tc.explicit {
+				cause = CauseUserRequested
+			}
+			if err := h.manager.StopWithCause(t.Context(), main.ID, cause, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			if tc.disabled {
+				h.resolver.mu.Lock()
+				workspace := h.resolver.byRef[h.workspaceID]
+				workspace.Config.Session.Restart.AutoContinue = false
+				h.resolver.byRef[h.workspaceID] = workspace
+				h.resolver.mu.Unlock()
+			}
+			for range 2 {
+				if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, live := h.manager.Get(main.ID)
+			if live != tc.wantLive || len(managerPromptCalls(h)) != 1 {
+				t.Fatalf(
+					"live=%t prompts=%d; want live=%t with no replay",
+					live,
+					len(managerPromptCalls(h)),
+					tc.wantLive,
+				)
+			}
+			if tc.disabled {
+				record, found := logs.FindByMessage("session: restart continuation unavailable")
+				if !found || !strings.Contains(record.Attrs["error"], "disabled") ||
+					record.Attrs["session_id"] != main.ID {
+					t.Fatalf("missing boot refusal cause: %+v", logs.Records())
+				}
+				rows, err := h.manager.Events(t.Context(), main.ID, store.EventQuery{Type: restartSkippedEvent})
+				if err != nil || len(rows) != 1 {
+					t.Fatalf("restart refusal events=%d: %v", len(rows), err)
+				}
+				checkpoint, err := decodeRestartCheckpoint(rows[0])
+				if err != nil || checkpoint.Reason != "disabled" {
+					t.Fatalf("restart refusal=%+v: %v", checkpoint, err)
+				}
+			} else if !tc.instance {
+				record, found := logs.FindByMessage("session: restart continuation skipped")
+				if !found || record.Attrs["reason"] != "no_pending_interruption" {
+					t.Fatalf("missing idle recovery explanation: %+v", logs.Records())
+				}
+			}
+		})
+	}
 	for _, tc := range []struct {
 		name        string
 		restart     bool
@@ -89,6 +172,8 @@ func TestResumeInterruptedSession(t *testing.T) {
 		{name: "Should not continue a turn canceled before the shutdown scan captured it", restart: true, cancelRace: true},
 		{name: "Should hold a paused instance continuation until resume", restart: true, instance: "paused", wantResume: true},
 		{name: "Should count an active instance continuation once", restart: true, instance: "active", wantResume: true},
+		{name: "Should not reopen a blocked instance as idle on the next recovery", restart: true,
+			instance: "active", interaction: store.PendingInteractionKindClarify},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			admissions := openManagerInputQueueStore(t)
@@ -302,10 +387,19 @@ func TestResumeInterruptedSession(t *testing.T) {
 				}
 			}
 			var resumed bool
-			if tc.spawned && tc.wantResume {
+			switch {
+			case tc.instance != "":
+				h.manager.sessionCatalog = admissions
 				err = h.manager.ResumeInterruptedSessions(t.Context())
 				_, resumed = h.manager.Get(target.ID)
-			} else {
+				if err == nil && !tc.wantResume {
+					err = h.manager.ResumeInterruptedSessions(t.Context())
+					_, resumed = h.manager.Get(target.ID)
+				}
+			case tc.spawned && tc.wantResume:
+				err = h.manager.ResumeInterruptedSessions(t.Context())
+				_, resumed = h.manager.Get(target.ID)
+			default:
 				resumed, err = h.manager.ResumeInterruptedSession(t.Context(), target.ID)
 			}
 			if err != nil && !errors.Is(err, ErrRestartContinuationSkipped) {
@@ -322,7 +416,7 @@ func TestResumeInterruptedSession(t *testing.T) {
 			if repeated, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID); err != nil || repeated {
 				t.Fatalf("repeated recovery = %t, %v", repeated, err)
 			}
-			if tc.instance != "" {
+			if tc.instance != "" && tc.wantResume {
 				assertInstanceRestartContinuation(t, h, admissions, target.ID, instanceID, tc.instance == "paused")
 			}
 			if tc.queued {

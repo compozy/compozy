@@ -42,6 +42,10 @@ worker or one whose required parent cannot resume stays stopped. With `notify_cr
 stop notice is recovered from the child's durable stop event and admitted to the parent once.
 The notice describes the shutdown; inspect the child's current status before intervening.
 
+An always-on instance's idle main also reopens its saved binding after restart, even with no
+queued input. Its completed turn is not replayed. A refused recovery records its cause in the
+daemon log and, when a saved binding is available, the session's restart history.
+
 During boot recovery, new prompts receive HTTP `503` with code `daemon_starting` and
 `retryable: true`. Retry with the same message identity after the daemon is ready.
 

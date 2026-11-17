@@ -43,6 +43,10 @@ overlaps: RT-daemon-drain-admission; RT-subagent-restart
 10. While HTTP/UDS serves during boot recovery, send a prompt. Expect `503`, code
     `daemon_starting`, `retryable: true`, and retry guidance. Retry the same message identity after
     readiness. An operator drain retains its existing draining refusal.
+11. Restart with an always-on instance main whose last turn finished and whose input queue is empty.
+    Its saved binding reopens after HTTP/UDS starts, without replaying the completed prompt.
+    Disable automatic continuation and repeat: the main remains stopped with a refusal cause in
+    the daemon log and a `session.restart_skipped` event. Explicit stops remain stopped.
 
 The canonical composition-root test is `TestDaemonRestartContinuesSessions` in
 `internal/daemon/restart_integration_test.go`; qualification, durable attempt limits and admission
@@ -57,6 +61,13 @@ and delivered one shutdown notice to its parent across replacement and a third b
 Explicit daemon stop remained stopped, and delegated recovery kept its existing owner.
 Focused session qualification and admission/transport suites also passed for the controls in
 steps 8–10. The full persona/Web/CLI journey remains untested.
+
+The 2026-11-16 extension for step 11 passed `TestBootResumesInstancesAfterServersStart` with
+real daemon/provider-fixture processes: an instance main with queued input and an idle main in
+a separate workspace both resumed only after listeners started. Two provider loads and three
+total prompts proved that the idle main's completed work was not replayed. The focused
+`TestResumeInterruptedSession` cases also passed for explicit stops, opt-out diagnostics and
+preventing an already blocked interruption from using the idle recovery path.
 
 Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
 canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted

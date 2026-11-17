@@ -4110,6 +4110,39 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 			if err != nil || held.Delivery != "held" {
 				t.Fatalf("held input = %+v, %v", held, err)
 			}
+			// An idle main has neither queued input nor an interrupted turn. Its binding must
+			// still reopen after listeners start, without replaying the completed prompt.
+			idleWorkspace := resolveDaemonWorkspace(t, d.workspaceResolver, t.TempDir())
+			idle, err := manager.Create(t.Context(), new(session.CreateOpts{
+				AgentName: "subagent-test", Workspace: idleWorkspace.ID,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			idleStream, err := manager.Prompt(t.Context(), idle.ID, "child work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for event := range idleStream {
+				if event.Type == acp.EventTypeError || event.ToolError() {
+					t.Fatalf("idle main prompt: %+v", event)
+				}
+			}
+			idlePolicy := idle.Info().Lineage.PermissionPolicy
+			idlePolicy.MaterializedTools, idlePolicy.MaterializedMCPServers = false, false
+			idleCeiling, err := json.Marshal(idlePolicy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: idle.AgentName, WorkspaceID: idleWorkspace.ID,
+				PermissionCeiling: string(idleCeiling), CreatedByKind: "human",
+			}, idle.ID, 10); err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.StopWithCause(t.Context(), idle.ID, session.CauseShutdown, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
 			if err := d.Shutdown(t.Context()); err != nil {
 				t.Fatal(err)
 			}
@@ -4145,6 +4178,10 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 				if err != nil || info.RuntimeStatus == store.SessionRuntimeReady {
 					t.Fatalf("main resumed before UDS startup: %+v, %v", info, err)
 				}
+				idleInfo, err := deps.Sessions.Status(ctx, idle.ID)
+				if err != nil || idleInfo.RuntimeStatus == store.SessionRuntimeReady {
+					t.Fatalf("idle main resumed before UDS startup: %+v, %v", idleInfo, err)
+				}
 				queued, err := deps.Registry.(*globaldb.GlobalDB).GetSessionInputQueueEntry(
 					ctx,
 					main.ID,
@@ -4161,6 +4198,10 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 			if !checkedBeforeUDS {
 				t.Fatal("boot never reached the UDS factory")
 			}
+			idleInfo, err := restarted.sessions.Status(t.Context(), idle.ID)
+			if err != nil || idleInfo.RuntimeStatus != store.SessionRuntimeReady {
+				t.Fatalf("idle main did not reopen after boot: %+v, %v", idleInfo, err)
+			}
 			waitForCondition(t, "main input delivered after boot", func() bool {
 				row, err := restarted.registry.(*globaldb.GlobalDB).
 					GetSessionInputQueueEntry(t.Context(), main.ID, held.QueueEntryID)
@@ -4169,7 +4210,7 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 			diagnostics := filepath.Join(d.homePaths.LogsDir, "acpmock", "subagent-test.jsonl")
 			waitForCondition(t, "resumed main prompt completed", func() bool {
 				records, err := acpmock.ReadDiagnostics(diagnostics)
-				return err == nil && len(acpmock.PromptDiagnostics(records)) == 2
+				return err == nil && len(acpmock.PromptDiagnostics(records)) == 3
 			})
 			if err := restarted.Shutdown(t.Context()); err != nil {
 				t.Fatal(err)
@@ -4189,8 +4230,8 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 					}
 				}
 			}
-			if loads != 1 || len(acpmock.PromptDiagnostics(records)) != 2 {
-				t.Fatalf("expected one resume and two total prompts: %+v", records)
+			if loads != 2 || len(acpmock.PromptDiagnostics(records)) != 3 {
+				t.Fatalf("expected two resumes and three total prompts without idle replay: %+v", records)
 			}
 			for _, failure := range []string{
 				"hosted MCP bind did not establish before the launch deadline",

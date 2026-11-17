@@ -69,18 +69,22 @@ func restartResumeOwns(sessionType Type, lineage *store.SessionLineage) bool {
 		lineage.SpawnRole != store.SubagentSpawnRole && !IsInternalSpawnRole(lineage.SpawnRole))
 }
 
-// An idle parent has no interrupted turn, but its captured prompt binding can safely reopen it
-// before an auto-stopping worker is admitted. Other idle sessions remain stopped.
-func (m *Manager) restartWaitingParents(infos []*Info) map[string]bool {
-	parents := make(map[string]bool)
+// Idle instance mains and required worker parents reopen their captured binding without
+// continuing a completed turn. Other idle sessions remain stopped.
+func (m *Manager) restartWaitingSessions(infos []*Info) map[string]bool {
+	waiting := make(map[string]bool)
 	for _, info := range infos {
+		if info != nil && info.Type == SessionTypeUser && info.InstanceID != "" &&
+			info.StopReason == store.StopShutdown {
+			waiting[info.ID] = true
+		}
 		if info != nil && info.Type == SessionTypeSpawned && restartResumeOwns(info.Type, info.Lineage) &&
 			info.StopReason == store.StopShutdown && info.Lineage.AutoStopOnParent && info.ArchivedAt == nil &&
 			info.Lineage.TTLExpiresAt != nil && info.Lineage.TTLExpiresAt.After(m.now()) {
-			parents[info.Lineage.ParentSessionID] = true
+			waiting[info.Lineage.ParentSessionID] = true
 		}
 	}
-	return parents
+	return waiting
 }
 
 func restartResumeParent(info *Info) string {
