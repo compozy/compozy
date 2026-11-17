@@ -3785,6 +3785,7 @@ function diagCommitHook() {
           alternate: F | null;
         };
         const roots: Record<string, number> = {};
+        const propPaths: Record<string, number> = {};
         let mounted = 0;
         const isComponent = (f: F) => f.tag === 0 || f.tag === 11 || f.tag === 14 || f.tag === 15 || f.tag === 1;
         const stack: Array<[F, boolean, string[]]> = [[root.current as F, false, []]];
@@ -3802,12 +3803,18 @@ function diagCommitHook() {
               }
               if (fiber.alternate === null) mounted += 1;
               if (!ancestorWorked && fiber.alternate !== null) {
-                const hooks: number[] = [];
+                const hooks: Array<number | string> = [];
                 type H = { memoizedState: unknown; next: H | null };
                 let a = (fiber as unknown as { memoizedState: H | null }).memoizedState;
                 let b = (fiber.alternate as unknown as { memoizedState: H | null }).memoizedState;
                 for (let i = 0; a !== null && b !== null && i < 80; i += 1, a = a.next, b = b.next) {
-                  if (a.memoizedState !== b.memoizedState) hooks.push(i);
+                  const av = a.memoizedState as { create?: unknown } | null;
+                  if (av !== null && typeof av === "object" && "create" in av) continue;
+                  if (a.memoizedState !== b.memoizedState) {
+                    const v = a.memoizedState as Record<string, unknown> | null;
+                    const desc = v === null || typeof v !== "object" ? String(v).slice(0, 40) : Array.isArray(v) ? "arr" + v.length : Object.keys(v).slice(0, 6).join("/");
+                    hooks.push(`${i}:${desc}`);
+                  }
                 }
                 const propsChanged = Object.keys(fiber.memoizedProps ?? {}).filter(
                   key => fiber.alternate?.memoizedProps?.[key] !== fiber.memoizedProps?.[key]
@@ -3824,6 +3831,13 @@ function diagCommitHook() {
               }
               const before = fiber.alternate?.memoizedProps;
               const after = fiber.memoizedProps;
+              if (ancestorWorked && chain.length < 40 && before && after && fiber.tag !== 14 && fiber.tag !== 15) {
+                const keys = Object.keys(after).filter(key => key !== "children" && before[key] !== after[key]);
+                if (keys.length > 0) {
+                  const entry = `${name.slice(0, 50)} <= ${chain.slice(-1).map(n => n.slice(0, 50)).join("")}#${keys.slice(0, 8).join(",")}`;
+                  propPaths[entry] = (propPaths[entry] ?? 0) + 1;
+                }
+              }
               if ((fiber.tag === 14 || fiber.tag === 15) && before && after) {
                 for (const key of Object.keys(after)) {
                   if (before[key] !== after[key]) {
@@ -3839,7 +3853,7 @@ function diagCommitHook() {
             if (((child.flags | child.subtreeFlags) & 1) !== 0) stack.push([child, worked, nextChain]);
           }
         }
-        commits.push({ at: started, walkMs: performance.now() - started, rendered, mounted, names, changed, roots });
+        commits.push({ at: started, walkMs: performance.now() - started, rendered, mounted, names, changed, roots, propPaths: rendered > 120 ? propPaths : {} });
       },
     });
   }
