@@ -1365,7 +1365,10 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 				}
 				wg.Wait()
 				probe := streams - 1
+				release := redact.RegisterRequiredSecret(fmt.Sprintf("unrelated-listing-secret-%d-%d", streams, change))
+				t.Cleanup(release)
 				cached, err := service.StreamProjection(t.Context(), binds[probe].BindID, peers[probe], "")
+				release()
 				if err != nil || len(cached.Tools) != 1 || !json.Valid(cached.Tools[0].Descriptor.InputSchema) {
 					t.Fatalf("cached peer response = %#v, error = %v", cached, err)
 				}
@@ -1582,6 +1585,50 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		if calls := f.listings(); calls != 2 {
 			t.Fatalf("wakes after the listing window listed %d times, want one rotation", calls)
 		}
+	})
+
+	// Invariant: a new listing window cannot inherit or extend a shared flight from an older window.
+	// Owner: hosted shared projections; canonical suite: hosted projection generations.
+	t.Run("Should keep a shared flight within its original listing window", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			f := newHostedListingShareFixture(t)
+			follower := f.bind(t, "sess-follower", "ws-shared")
+			started, resume := make(chan struct{}), make(chan struct{})
+			f.provider.decorate = func(views []tools.Descriptor, scope tools.Scope) {
+				views[0].Description = fmt.Sprint("revision ", f.revision.Load())
+				if scope.SessionID == "sess-full" {
+					close(started)
+					<-resume
+				}
+			}
+			type projectionResult struct {
+				response HostedProjectionResponse
+				err      error
+			}
+			read := func(bindID string, done chan<- projectionResult) {
+				response, err := f.service.StreamProjection(t.Context(), bindID, f.peer, "")
+				done <- projectionResult{response, err}
+			}
+			leaderDone := make(chan projectionResult, 1)
+			go read(f.full, leaderDone)
+			<-started
+			f.revision.Store(1)
+			f.advance(f.service.StreamRefreshInterval())
+			followerDone := make(chan projectionResult, 1)
+			go read(follower, followerDone)
+			synctest.Wait()
+			close(resume)
+			if leader := <-leaderDone; leader.err != nil {
+				t.Fatal(leader.err)
+			}
+			current := <-followerDone
+			if current.err != nil || len(current.response.Tools) != 2 ||
+				current.response.Tools[0].Descriptor.Description != "revision 1" {
+				t.Fatalf("projection in the new listing window = %#v, %v", current.response, current.err)
+			}
+			f.wake(t, follower, "revision 1")
+		})
 	})
 
 	for _, cached := range []bool{false, true} {
@@ -2057,6 +2104,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 				t.Fatalf("concurrent projection did not reach generation lookup: %v", ctx.Err())
 			}
 		}
+		t.Cleanup(redact.RegisterRequiredSecret("unrelated-secret-during-authoritative-projection"))
 		releaseGenerationOnce()
 		select {
 		case <-listStarted:

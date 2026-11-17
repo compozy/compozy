@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"time"
 
-	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -156,7 +155,7 @@ func (s *HostedService) boundedUnversionedProjection(
 	for attempt := 0; ; attempt++ {
 		var listingCtx context.Context
 		var err error
-		listingCtx, builtAt = s.withProjectionListings(ctx, fence)
+		listingCtx, builtAt = s.withProjectionListings(ctx, fence.epoch)
 		response, err = buildHostedProjection(listingCtx, registry, record)
 		if err != nil {
 			return HostedProjectionResponse{}, err
@@ -182,7 +181,7 @@ func (s *HostedService) boundedUnversionedProjection(
 }
 
 func (s *HostedService) projectionFence() hostedProjectionFence {
-	fence := hostedProjectionFence{redaction: redact.SecretFingerprint()}
+	fence := hostedProjectionFence{redaction: projectionRedactionRevision(s.currentRegistry())}
 	if s.projectionEpoch != nil {
 		fence.epoch = s.projectionEpoch()
 	}
@@ -221,8 +220,7 @@ func (c *hostedProjectionCache) loadUnversioned(
 	c.mu.RLock()
 	entry, ok := c.unversioned[bindID]
 	c.mu.RUnlock()
-	if !ok || entry.fence != fence || now.Sub(entry.builtAt) >= refresh || now.Before(entry.builtAt) ||
-		fence.redaction != redact.SecretFingerprint() {
+	if !ok || entry.fence != fence || now.Sub(entry.builtAt) >= refresh || now.Before(entry.builtAt) {
 		return HostedProjectionResponse{}, false
 	}
 	return entry.response, true

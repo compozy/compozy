@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 
-	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -38,7 +37,7 @@ func (s *HostedService) bootstrapProjection(
 		return s.projection(ctx, record)
 	}
 	for range hostedProjectionGenerationRetries {
-		redaction := redact.SecretFingerprint()
+		redaction := projectionRedactionRevision(registry)
 		generation, known := s.bootstrapProjectionGeneration(ctx, record)
 		views, err := bootstrap.BootstrapSessionProjection(ctx, record.scope())
 		if err != nil {
@@ -50,13 +49,13 @@ func (s *HostedService) bootstrapProjection(
 		if known {
 			after, stillKnown = s.bootstrapProjectionGeneration(ctx, record)
 		}
-		if redaction != redact.SecretFingerprint() {
+		if redaction != projectionRedactionRevision(registry) {
 			continue
 		}
 		if !stillKnown || after != generation {
 			return response, nil
 		}
-		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation, redaction: redaction}
+		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
 		if !s.finishProjectionGeneration(key, record, response, true) {
 			return HostedProjectionResponse{}, ErrHostedBindNotFound
 		}

@@ -2,12 +2,15 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"reflect"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/compozy/compozy/internal/redact"
 )
 
 type projectionListingsKey struct{}
@@ -28,6 +31,7 @@ type projectionListingKey struct {
 // projectionListing is immutable once done closes; readers clone descriptors before mutating them.
 type projectionListing struct {
 	done        chan struct{}
+	redaction   [sha256.Size]byte
 	descriptors []Descriptor
 	err         error
 	complete    bool
@@ -55,6 +59,16 @@ func EnsureProjectionListings(ctx context.Context) context.Context {
 	return WithProjectionListings(ctx, NewProjectionListings())
 }
 
+// ProjectionRedactionRevision reports the registry's live MCP redaction dependency.
+func (r *RuntimeRegistry) ProjectionRedactionRevision() [sha256.Size]byte {
+	for _, provider := range r.providers {
+		if _, mcp := provider.(*MCPProvider); mcp {
+			return redact.SecretFingerprint()
+		}
+	}
+	return [sha256.Size]byte{}
+}
+
 // listProvider returns sorted, validated descriptors that callers must clone before mutating.
 func (r *RuntimeRegistry) listProvider(
 	ctx context.Context,
@@ -73,7 +87,12 @@ func (r *RuntimeRegistry) listProvider(
 		descriptors, _, err := r.listValidatedProvider(ctx, provider, key, scope)
 		return descriptors, err
 	}
-	return listings.load(ctx, key, func() ([]Descriptor, bool, error) {
+	var redaction [sha256.Size]byte
+	// MCP descriptor normalization uses the live secret registry.
+	if _, mcp := provider.(*MCPProvider); mcp {
+		redaction = redact.SecretFingerprint()
+	}
+	return listings.load(ctx, key, redaction, func() ([]Descriptor, bool, error) {
 		return r.listValidatedProvider(ctx, provider, key, scope)
 	})
 }
@@ -83,12 +102,14 @@ func (r *RuntimeRegistry) listProvider(
 func (l *ProjectionListings) load(
 	ctx context.Context,
 	key projectionListingKey,
+	redaction [sha256.Size]byte,
 	list func() ([]Descriptor, bool, error),
 ) ([]Descriptor, error) {
 	l.mu.Lock()
 	entry, joined := l.entries[key]
-	if !joined {
-		entry = &projectionListing{done: make(chan struct{})}
+	if !joined || entry.redaction != redaction {
+		joined = false
+		entry = &projectionListing{done: make(chan struct{}), redaction: redaction}
 		l.entries[key] = entry
 	}
 	l.mu.Unlock()
@@ -116,7 +137,9 @@ func (l *ProjectionListings) lead(
 	defer func() {
 		if entry.err != nil || !entry.complete {
 			l.mu.Lock()
-			delete(l.entries, key)
+			if l.entries[key] == entry {
+				delete(l.entries, key)
+			}
 			l.mu.Unlock()
 		}
 		close(entry.done)

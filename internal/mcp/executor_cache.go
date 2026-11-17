@@ -15,7 +15,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
-	"github.com/compozy/compozy/internal/redact"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -173,7 +172,6 @@ func (e *CallExecutor) ProjectionGeneration(
 	defer e.toolCache.mu.Unlock()
 	e.pruneToolProjectionStatesLocked(now)
 	var generation strings.Builder
-	fmt.Fprintf(&generation, "redaction:%x;", redact.SecretFingerprint())
 	for _, key := range keys {
 		state, ok := e.toolCache.projectionStates[key]
 		if !ok {

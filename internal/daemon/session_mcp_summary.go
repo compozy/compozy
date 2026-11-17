@@ -98,11 +98,11 @@ func (r *sessionMCPReadModel) summaryInputs(
 ) (string, error) {
 	info, err := storedSessionStatus(ctx, r.state.sessions, id)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("daemon: read session %q status for MCP summary: %w", id, err)
 	}
 	fingerprint, err := r.summaryScopeInputs(ctx, info, fence)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("daemon: read session %q scope for MCP summary: %w", id, err)
 	}
 	return local + fingerprint, nil
 }

@@ -139,6 +139,42 @@ The workload calls the stores directly and does not exercise the daemon
 projection changes. The cause of the failed threshold remains unverified.
 [SQLite acceptance log](https://github.com/compozy/compozy/actions/runs/44175674353/job/134366239707).
 
+## Third review round
+
+- A shared projection uses the listing window that started its flight. A peer
+  in a new window starts a separate flight, and a slower older flight cannot
+  overwrite the newer snapshot. The regression returned the old description
+  on the previous code and the current description after the repair.
+- The MCP provider's authoritative generation includes the redaction
+  fingerprint. Only MCP provider listings depend on it within a shared window.
+  Registering an unrelated secret now preserves single-flight reuse for stable
+  providers. Both hosted redaction regressions still refresh metadata without
+  another upstream listing.
+- The hosted projection and credential suites passed 12 repetitions with eight
+  parallel tests. Focused tests and golangci-lint v2.15.0 passed for daemon, MCP
+  and tools. The four daemon integration scenarios above passed in 31.892 s.
+  The CLI/daemon build and test-shape check passed.
+
+All three public-transport journeys passed. The `deny_tools` edit took
+0.662 s. Project approval showed the tools without a restart. The restricted
+child continued to see alpha alone. The profile used 14 live runtimes, 215
+detail reads and 16 upstream `tools/list` calls per server, including setup
+and warm-up. Both labs passed the strict audit and targeted teardown. The
+binary SHA-256 was `cdacffb738519cff791182e7b3322510e0a354cdccc5d75f38b56efd88950555`.
+
+| Metric | Round 3 CPU 1 | Round 3 CPU 2 | Target | Result |
+| --- | --- | --- | --- | --- |
+| Total CPU per 20 s | 1.67 s | 2.18 s | ≤4 s | Met |
+| `ResolveAgentConfig` cumulative | 0.01 s (0.60%) | 0.01 s (0.46%) | ≤2% | Met |
+| `syscall.rawsyscalln` flat | 0.49 s (29.34%) | 0.67 s (30.73%) | ≤8% | Miss |
+| `EffectiveMCPAuthority` cumulative | 0.18 s (10.78%) | 0.15 s (6.88%) | ≤5% | Miss |
+| `ProjectionVisibility` cumulative | 0.14 s (8.38%) | 0.09 s (4.13%) | ≤2% | Miss |
+| Hosted stream cumulative | 0.23 s (13.77%) | 0.14 s (6.42%) | ≤5% | Miss |
+| `ListSessionMCP` cumulative | 0 sampled | 0 sampled | ≤3% | Met |
+| `Manager.Status` cumulative | 0.04 s (2.40%) | 0.02 s (0.92%) | ≤3% | Met |
+| GC background worker and assist | 0.04 s (2.40%) | 0.13 s (5.96%) | ≤8% | Met |
+| Sampled allocation rate per run | 45.87 MB/s | Same run | ≤60 MB/s | Met |
+
 ## Final status
 
 Targeted runtime QA passed. CPU and allocation met their absolute targets.

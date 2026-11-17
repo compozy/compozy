@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/compozy/compozy/internal/profiling"
-	"github.com/compozy/compozy/internal/redact"
 
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -27,14 +26,13 @@ type hostedProjectionCache struct {
 type hostedProjectionBuilder func(context.Context, tools.Registry, *hostedBindRecord) (HostedProjectionResponse, error)
 
 type hostedProjectionCacheEntry struct {
-	key      hostedProjectionFlightKey
-	response HostedProjectionResponse
+	generation string
+	response   HostedProjectionResponse
 }
 
 type hostedProjectionFlightKey struct {
 	bindID     string
 	generation string
-	redaction  [sha256.Size]byte
 }
 
 type hostedProjectionFlight struct {
@@ -66,23 +64,20 @@ func (s *HostedService) projectionForGeneration(
 
 	scope := record.scope()
 	for range hostedProjectionGenerationRetries {
-		redaction := redact.SecretFingerprint()
+		// The authoritative MCP provider generation already includes its redaction input.
 		generation, known := s.projectionGeneration(ctx, scope)
 		if !known {
 			return projectionWithStableRedaction(ctx, registry, record, unversioned)
 		}
-		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation, redaction: redaction}
+		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
 		if cached, ok := s.projectionCache.load(key); ok {
-			if redaction == redact.SecretFingerprint() {
-				return cached, nil
-			}
-			continue
+			return cached, nil
 		}
 
 		flight, leader := s.projectionCache.begin(key)
 		if !leader {
 			response, retry, err := waitHostedProjectionFlight(ctx, flight)
-			if retry || (err == nil && redaction != redact.SecretFingerprint()) {
+			if retry {
 				continue
 			}
 			return response, err
@@ -94,7 +89,7 @@ func (s *HostedService) projectionForGeneration(
 			return HostedProjectionResponse{}, err
 		}
 		after, stillKnown := s.projectionGeneration(ctx, scope)
-		stable := stillKnown && after == generation && redaction == redact.SecretFingerprint()
+		stable := stillKnown && after == generation
 		stored := s.finishProjectionGeneration(key, record, response, stable)
 		if stable {
 			if stored {
@@ -110,13 +105,20 @@ func projectionWithStableRedaction(
 	ctx context.Context, registry tools.Registry, record *hostedBindRecord, build hostedProjectionBuilder,
 ) (HostedProjectionResponse, error) {
 	for range hostedProjectionGenerationRetries {
-		redaction := redact.SecretFingerprint()
+		redaction := projectionRedactionRevision(registry)
 		response, err := build(ctx, registry, record)
-		if err != nil || redaction == redact.SecretFingerprint() {
+		if err != nil || redaction == projectionRedactionRevision(registry) {
 			return response, err
 		}
 	}
 	return HostedProjectionResponse{}, ErrHostedProjectionChanged
+}
+
+func projectionRedactionRevision(registry tools.Registry) [sha256.Size]byte {
+	if guarded, ok := registry.(interface{ ProjectionRedactionRevision() [sha256.Size]byte }); ok {
+		return guarded.ProjectionRedactionRevision()
+	}
+	return [sha256.Size]byte{}
 }
 
 func (s *HostedService) finishProjectionGeneration(
@@ -181,7 +183,7 @@ func (c *hostedProjectionCache) load(key hostedProjectionFlightKey) (HostedProje
 	c.mu.RLock()
 	entry, ok := c.entries[key.bindID]
 	c.mu.RUnlock()
-	if !ok || entry.key != key {
+	if !ok || entry.generation != key.generation {
 		return HostedProjectionResponse{}, false
 	}
 	return entry.response, true
@@ -191,7 +193,7 @@ func (c *hostedProjectionCache) begin(key hostedProjectionFlightKey) (*hostedPro
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// A builder can publish between the caller's cache lookup and acquiring this lock.
-	if entry, ok := c.entries[key.bindID]; ok && entry.key == key {
+	if entry, ok := c.entries[key.bindID]; ok && entry.generation == key.generation {
 		flight := &hostedProjectionFlight{done: make(chan struct{}), response: entry.response}
 		close(flight.done)
 		return flight, false
@@ -215,8 +217,8 @@ func (c *hostedProjectionCache) finish(
 	flight := c.flights[key]
 	if store {
 		c.entries[key.bindID] = hostedProjectionCacheEntry{
-			key:      key,
-			response: response,
+			generation: key.generation,
+			response:   response,
 		}
 	}
 	if flight != nil {
