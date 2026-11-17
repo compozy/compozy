@@ -1877,12 +1877,15 @@ encodes the name as `mcp__<server>__raw__x<base32>`. Both forms use the original
 the MCP server. A selector such as `mcp__datadog__*` matches both forms. A tool-name prefix such
 as `mcp__datadog__raw_*` matches ordinary tool names beginning with `raw_`.
 
-CompozyOS skips entries that cannot fit within the 64-character ID limit. Streamable HTTP at
-protocol version 2026-07-28 also skips names that cannot be sent unchanged in the `Mcp-Name` header,
-such as names with leading or trailing spaces. If two entries share a canonical ID, neither can
-be called through it. The server's tool count excludes skipped and ambiguous entries. Other tools
-remain available according to their policy. Run `compozy mcp check <name> -o json` and inspect
-`runtime_status.diagnostic` for examples.
+CompozyOS skips entries that cannot fit within the 64-character ID limit. The server name and
+base32 expansion determine the available space. For a server named `datadog`, the encoded form
+fits up to 27 bytes of the original tool name.
+
+Streamable HTTP at protocol version 2026-07-28 also skips names that cannot be sent unchanged in
+the `Mcp-Name` header, such as names with leading or trailing spaces. If two entries share a
+canonical ID, neither can be called through it. The server's tool count excludes skipped and
+ambiguous entries. Other tools remain available according to their policy. Run
+`compozy mcp check <name> -o json` and inspect `runtime_status.diagnostic` for examples.
 
 ## `[providers.<name>]`
 

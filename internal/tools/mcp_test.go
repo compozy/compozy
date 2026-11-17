@@ -104,6 +104,13 @@ func TestShouldCanonicalizeMCPToolIDs(t *testing.T) {
 			wantErr:    true,
 			wantReason: ReasonIDTooLong,
 		},
+		{
+			name:       "Should reject an encoded name that would exceed the ID limit",
+			server:     "datadog",
+			tool:       "_" + strings.Repeat("x", 27),
+			wantErr:    true,
+			wantReason: ReasonIDTooLong,
+		},
 	}
 
 	for _, tt := range tests {

@@ -281,8 +281,7 @@ func Canonicalize(rawServer, rawTool string) (ToolID, error) {
 	}
 	// A fourth segment keeps encoded names disjoint from every previously assigned tool ID.
 	prefix := mcpNamespace + "__" + server + "__" + mcpRawToolSegment + "__x"
-	if len(rawTool) > maxSegmentedIDLength ||
-		len(prefix)+mcpRawToolEncoding.EncodedLen(len(rawTool)) > maxSegmentedIDLength {
+	if len(prefix)+mcpRawToolEncoding.EncodedLen(len(rawTool)) > maxSegmentedIDLength {
 		return "", mcpToolIDTooLong()
 	}
 	return validateMCPToolID(prefix + mcpRawToolEncoding.EncodeToString([]byte(rawTool)))
