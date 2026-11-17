@@ -1,11 +1,10 @@
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Browser, Locator, Page, TestInfo } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
@@ -3550,8 +3549,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   if (!extraTasksID) throw new Error("performance fixture must open the second tasks window");
   perfWindowIDs.set("tasks#2", extraTasksID);
 
-  // TEMPORARY DIAGNOSTIC (#1736): records which components performed work in each React commit.
-  await appPage.addInitScript(diagCommitHook);
   await appPage.addInitScript(() => {
     const perf = {
       snapshotResponseEnd: null as number | null,
@@ -3648,7 +3645,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
     await installSwitchProbe(appPage);
-    await appPage.evaluate(() => Reflect.set(window, "__diagRecord", true));
     const start = Date.now();
     while (Date.now() - start < 3000) {
       const target = targets[switchCount % targets.length];
@@ -3657,7 +3653,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     switchProbe = await readSwitchProbe(appPage);
     longTasks = switchProbe.tasks.map(task => task.duration);
-    await captureSwitchCommits(appPage, testInfo, switchProbe);
   } finally {
     await switchInput.detach();
   }
@@ -3698,12 +3693,8 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     const measuredCount = warmCount - 1;
     await Promise.all(peers.map(peer => installPeerConvergenceProbe(peer, measuredCount)));
-    await Promise.all(peers.map(peer => peer.evaluate(() => Reflect.set(window, "__diagRecord", true))));
     await moveWindowFromCLI(runtime, workspace.id, marketplaceID, loopsID, "right");
     const peerProbes = await Promise.all(peers.map(readPeerConvergenceProbe));
-    for (const [index, peer] of peers.entries()) {
-      await captureCommits(peer, testInfo, `peer-${index === 0 ? "A" : "B"}-commits.json`, peerProbes[index]);
-    }
     const peerLongTasks = peerProbes.map(probe => probe.tasks.map(task => task.duration));
     peerAttribution = peerProbes.flatMap((probe, index) =>
       attributePeerLongTasks(probe, index === 0 ? "A" : "B")
@@ -3743,143 +3734,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   expect(worstFrame).toBeLessThanOrEqual(50);
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
-
-/** TEMPORARY DIAGNOSTIC (#1736): page-side React commit recorder, idle until `__diagRecord`. */
-function diagCommitHook() {
-    const commits: unknown[] = [];
-    Reflect.set(window, "__diagCommits", commits);
-    const label = (type: unknown): string => {
-      if (typeof type === "string") return "";
-      if (type === null || type === undefined) return "";
-      const fn =
-        typeof type === "function"
-          ? type
-          : ((type as { render?: unknown; type?: unknown }).render ??
-            (type as { type?: unknown }).type);
-      if (typeof fn !== "function") return "?";
-      const source = Function.prototype.toString.call(fn).slice(0, 60).replace(/\s+/g, " ");
-      return `${fn.name}|${source}`;
-    };
-    Reflect.set(window, "__REACT_DEVTOOLS_GLOBAL_HOOK__", {
-      supportsFiber: true,
-      renderers: new Map(),
-      inject: () => 1,
-      onScheduleFiberRoot: () => {},
-      onCommitFiberUnmount: () => {},
-      onPostCommitFiberRoot: () => {},
-      checkDCE: () => {},
-      onCommitFiberRoot: (_id: unknown, root: { current: unknown }) => {
-        if (Reflect.get(window, "__diagRecord") !== true) return;
-        const started = performance.now();
-        const names: Record<string, number> = {};
-        const changed: Record<string, number> = {};
-        let rendered = 0;
-        type F = {
-          flags: number;
-          subtreeFlags: number;
-          child: F | null;
-          sibling: F | null;
-          type: unknown;
-          tag: number;
-          memoizedProps: Record<string, unknown> | null;
-          alternate: F | null;
-        };
-        const roots: Record<string, number> = {};
-        const propPaths: Record<string, number> = {};
-        let mounted = 0;
-        const isComponent = (f: F) => f.tag === 0 || f.tag === 11 || f.tag === 14 || f.tag === 15 || f.tag === 1;
-        const stack: Array<[F, boolean, string[]]> = [[root.current as F, false, []]];
-        while (stack.length > 0) {
-          const [fiber, ancestorWorked, chain] = stack.pop()!;
-          let worked = ancestorWorked;
-          let nextChain = chain;
-          if (isComponent(fiber)) {
-            const name = label(fiber.type);
-            worked = (fiber.flags & 1) !== 0;
-            if (worked) {
-              if (name !== "") {
-                rendered += 1;
-                names[name] = (names[name] ?? 0) + 1;
-              }
-              if (fiber.alternate === null) mounted += 1;
-              if (!ancestorWorked && fiber.alternate !== null) {
-                const hooks: Array<number | string> = [];
-                type H = { memoizedState: unknown; next: H | null };
-                let a = (fiber as unknown as { memoizedState: H | null }).memoizedState;
-                let b = (fiber.alternate as unknown as { memoizedState: H | null }).memoizedState;
-                let lastKey = "";
-                for (let i = 0; a !== null && b !== null && i < 80; i += 1, a = a.next, b = b.next) {
-                  const av = a.memoizedState as { create?: unknown } | null;
-                  const obs = av as { options?: { queryKey?: unknown }; getCurrentResult?: unknown } | null;
-                  if (obs !== null && typeof obs === "object" && typeof obs.getCurrentResult === "function") {
-                    try { lastKey = JSON.stringify(obs.options?.queryKey ?? null).slice(0, 120); } catch { lastKey = "?"; }
-                  }
-                  if (av !== null && typeof av === "object" && "create" in av) continue;
-                  if (a.memoizedState !== b.memoizedState) {
-                    const v = a.memoizedState as Record<string, unknown> | null;
-                    const w = b.memoizedState as Record<string, unknown> | null;
-                    let desc = v === null || typeof v !== "object" ? String(v).slice(0, 40) : Array.isArray(v) ? "arr" + v.length : Object.keys(v).slice(0, 6).join("/");
-                    if (v !== null && typeof v === "object" && "fetchStatus" in v && w !== null && typeof w === "object") {
-                      desc = `query ${lastKey} changed:${Object.keys(v).filter(k => v[k] !== w[k]).join(",")} fs:${String(w.fetchStatus)}->${String(v.fetchStatus)}`;
-                    }
-                    hooks.push(`${i}:${desc}`);
-                  }
-                }
-                const propsChanged = Object.keys(fiber.memoizedProps ?? {}).filter(
-                  key => fiber.alternate?.memoizedProps?.[key] !== fiber.memoizedProps?.[key]
-                );
-                const ctx: string[] = [];
-                type D = { firstContext: { context: { displayName?: string; _currentValue: unknown }; memoizedValue: unknown; next: unknown } | null };
-                let dep = (fiber as unknown as { dependencies: D | null }).dependencies?.firstContext ?? null;
-                for (let i = 0; dep !== null && i < 20; i += 1) {
-                  ctx.push(String(dep.context.displayName ?? "ctx") + (dep.memoizedValue !== (fiber.alternate as unknown as { dependencies: D | null }).dependencies?.firstContext?.memoizedValue ? "*" : ""));
-                  dep = dep.next as typeof dep;
-                }
-                const key = `${name.slice(0, 60)} <= ${chain.slice(-3).map(n => n.slice(0, 50)).join(" < ")} hooks[${hooks.join(",")}] props[${propsChanged.join(",")}]`;
-                roots[key] = (roots[key] ?? 0) + 1;
-              }
-              const before = fiber.alternate?.memoizedProps;
-              const after = fiber.memoizedProps;
-              if (ancestorWorked && chain.length < 40 && before && after && fiber.tag !== 14 && fiber.tag !== 15) {
-                const keys = Object.keys(after).filter(key => key !== "children" && before[key] !== after[key]);
-                if (keys.length > 0) {
-                  const entry = `${name.slice(0, 50)} <= ${chain.slice(-1).map(n => n.slice(0, 50)).join("")}#${keys.slice(0, 8).join(",")}`;
-                  propPaths[entry] = (propPaths[entry] ?? 0) + 1;
-                }
-              }
-              if ((fiber.tag === 14 || fiber.tag === 15) && before && after) {
-                for (const key of Object.keys(after)) {
-                  if (before[key] !== after[key]) {
-                    const entry = `${name.slice(0, 50)}#${key}`;
-                    changed[entry] = (changed[entry] ?? 0) + 1;
-                  }
-                }
-              }
-            }
-            if (name !== "") nextChain = [...chain.slice(-4), name];
-          }
-          for (let child = fiber.child; child !== null; child = child.sibling) {
-            if (((child.flags | child.subtreeFlags) & 1) !== 0) stack.push([child, worked, nextChain]);
-          }
-        }
-        commits.push({ at: started, walkMs: performance.now() - started, rendered, mounted, names, changed, roots, propPaths: rendered > 120 ? propPaths : {} });
-      },
-    });
-  }
-
-async function captureSwitchCommits(page: Page, testInfo: TestInfo, probe: SwitchProbeRecords) {
-  await captureCommits(page, testInfo, "switch-commits.json", probe);
-}
-
-async function captureCommits(page: Page, testInfo: TestInfo, file: string, probe: unknown) {
-  const directory = testInfo.outputPath("diagnostic-profiles");
-  await mkdir(directory, { recursive: true });
-  const commits = await page.evaluate(() => {
-    Reflect.set(window, "__diagRecord", false);
-    return Reflect.get(window, "__diagCommits") as unknown;
-  });
-  await writeFile(path.join(directory, file), JSON.stringify({ commits, probe }));
-}
 
 /** A long animation frame over 50ms, with its slowest scripts. */
 interface LongFrameRecord {
@@ -4092,7 +3946,6 @@ async function prepareProjectShell(page: Page, runtime: BrowserRuntime): Promise
 
 async function openPeerPage(browser: Browser, runtime: BrowserRuntime): Promise<Page> {
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-  await context.addInitScript(diagCommitHook);
   const page = await context.newPage();
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(page);
