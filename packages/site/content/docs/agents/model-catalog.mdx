@@ -46,7 +46,14 @@ metadata but never prove account-level availability.
 Providers with a safe live adapter register `provider_live:<id>` sources. Claude, Codex,
 and Google Antigravity (`agy`) inspect a short-lived ACP session and preserve the exact model and configuration options it advertises.
 Cursor instead runs `cursor-agent models`, groups its transport aliases into logical model IDs, and
-stores the valid Reasoning, Fast, and Thinking combinations without exposing those aliases. The first
+stores the valid Reasoning, Fast, and Thinking combinations without exposing those aliases. When
+no default effort is declared, discovery prefers normal, non-Thinking bindings, then non-Thinking
+Fast, normal Thinking, and Fast Thinking bindings. In the first available mode, a bare transport
+keeps the provider's unspecified effort; otherwise discovery publishes the lowest supported effort
+in this order: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`.
+A declared default keeps precedence. The picker and runtime use this same catalog default;
+an explicitly unsupported effort or effort/Fast/Thinking combination is still rejected.
+The rule never enables Fast or Thinking automatically. The first
 catalog read with no recorded status bootstraps these sources before returning; later reads use persisted
 rows and refresh them in the background. A failed attempt is recorded as source status and never replaces
 the last successful rows with an empty catalog.

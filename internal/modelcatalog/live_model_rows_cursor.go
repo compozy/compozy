@@ -261,6 +261,26 @@ func cursorDefaultReasoningEffort(
 		}
 		return cloneModelRowPointer(variant.reasoningEffort)
 	}
+	for _, mode := range []struct{ fast, thinking bool }{
+		{false, false}, {true, false}, {false, true}, {true, true},
+	} {
+		var lowest *ReasoningEffort
+		for _, variant := range variants {
+			if variant.fast != mode.fast || variant.thinking != mode.thinking {
+				continue
+			}
+			// A bare transport already represents the provider's unspecified effort.
+			if variant.reasoningEffort == nil {
+				return nil
+			}
+			if lowest == nil || compareReasoningEfforts(*variant.reasoningEffort, *lowest) < 0 {
+				lowest = variant.reasoningEffort
+			}
+		}
+		if lowest != nil {
+			return cloneModelRowPointer(lowest)
+		}
+	}
 	return nil
 }
 

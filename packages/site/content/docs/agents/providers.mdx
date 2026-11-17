@@ -381,7 +381,10 @@ change is limited to `hidden`, `featured`, `deprecated`, a default reasoning eff
 
 Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, Agy, and Copilot
 inspect a short-lived ACP session. Agy publishes the exact advertised model IDs and model-specific reasoning levels; unobserved pricing, context, and speed stay unknown. Its `thinking_level` option drives the session picker's reasoning slider without adding effort suffixes to model IDs; see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
-logical model IDs, and keeps the alias bindings private. OpenCode probes the selected
+logical model IDs, and keeps the alias bindings private. Models without a declared default effort
+prefer the lowest supported normal, non-Thinking effort when no bare normal transport exists; see the
+[selection rule](/docs/agents/model-catalog). The selector displays that catalog default before
+applying the model selection. OpenCode probes the selected
 installation with `--version`, then lists v1 models with `models --verbose` or v2 models through
 `opencode api --standalone`, using the workspace-scoped `model.list` operation from
 [OpenCode's API](https://opencode.ai/v2/docs/api/). The inherited launch prefers an

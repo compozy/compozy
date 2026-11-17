@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { deriveActiveSessionOptions } from "../lib/derive-active-session-options";
+import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
 import type { ProviderModelPayload } from "../types";
 
 // Invariant: session option defaults come from the typed public descriptor and
@@ -83,6 +84,26 @@ const codexCatalog: ProviderModelPayload[] = [
 ];
 
 describe("deriveActiveSessionOptions", () => {
+  it("Should show the Cursor default resolved by discovery from supported bindings", () => {
+    const model: ProviderModelPayload = {
+      ...codexCatalog[0]!,
+      provider_id: "cursor",
+      model_id: "gemini-3.8-flash",
+      reasoning_efforts: ["low", "high"],
+      default_reasoning_effort: "low",
+      configurations: [
+        { reasoning_effort: "high", fast: false },
+        { reasoning_effort: "low", fast: false },
+        { reasoning_effort: "low", fast: true },
+      ],
+    };
+    const result = deriveActiveSessionOptions({ catalog: [model], selectedModel: model.model_id });
+    const selectorModel = toRuntimeModelOptions([model])[0]!;
+    expect(selectorModel.default_effort).toBe("low");
+    expect(result.defaultReasoning).toBe(selectorModel.default_effort);
+    expect(result.reasoningOptions.map(option => option.value)).toEqual(["low", "high"]);
+  });
+
   it("Should derive catalog model options when no ACP config option is present", () => {
     const result = deriveActiveSessionOptions({
       catalog: codexCatalog,
