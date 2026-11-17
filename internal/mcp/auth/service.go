@@ -42,6 +42,7 @@ type Service struct {
 	logger            *slog.Logger
 	refreshBackoff    time.Duration
 	refreshBackoffMax time.Duration
+	refreshTimeout    time.Duration
 }
 
 // NewService constructs an MCP auth service.
@@ -59,6 +60,7 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		logger:            slog.Default(),
 		refreshBackoff:    time.Second,
 		refreshBackoffMax: time.Minute,
+		refreshTimeout:    30 * time.Second,
 		clientMetadataURL: compozyconfig.DefaultMCPClientMetadataURL,
 		now: func() time.Time {
 			return time.Now().UTC()

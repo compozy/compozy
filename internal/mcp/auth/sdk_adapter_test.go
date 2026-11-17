@@ -1266,10 +1266,13 @@ func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 	}{
 		{code: "invalid_grant", status: 400, definitive: true},
 		{code: "revoked", status: 400, definitive: true},
-		{code: "invalid_request", status: 400, definitive: true},
-		{code: "invalid_scope", status: 400, definitive: true},
-		{code: "unsupported_grant_type", status: 400, definitive: true},
-		{status: 400, definitive: true},
+		{code: "invalid_client", status: 401, definitive: true},
+		{code: "unauthorized_client", status: 400, definitive: true},
+		{code: "invalid_request", status: 400},
+		{code: "invalid_scope", status: 400},
+		{code: "unsupported_grant_type", status: 400},
+		{status: 400},
+		{status: 401},
 		{code: "temporarily_unavailable", status: 400},
 		{code: "sensitive-refresh-token", status: 400},
 		{status: 403},
@@ -1335,9 +1338,21 @@ func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 					t.Fatalf("rejected token remains: %v", err)
 				}
 			} else {
-				if refreshErr == nil {
-					t.Fatal("transient rejection succeeded")
+				assertRejection := func(err error) {
+					t.Helper()
+					endpoint, ok := errors.AsType[*tokenEndpointError](err)
+					cause := test.code
+					switch cause {
+					case "":
+						cause = "invalid_response"
+					case "sensitive-refresh-token":
+						cause = "token_endpoint"
+					}
+					if !ok || endpoint.status != test.status || endpoint.cause != cause {
+						t.Fatalf("transient rejection = %v, want HTTP %d (%s)", err, test.status, cause)
+					}
 				}
+				assertRejection(refreshErr)
 				assertAdapterTokenUnchanged(t, store, token)
 				if _, err := service.Refresh(t.Context(), cfg); !errors.Is(err, ErrRefreshBackoff) {
 					t.Fatalf("retry before backoff = %v", err)
@@ -1346,9 +1361,8 @@ func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 					t.Fatal("retry contacted token endpoint during backoff")
 				}
 				now = now.Add(2 * time.Second)
-				if _, err := service.Refresh(t.Context(), cfg); err == nil {
-					t.Fatal("second transient attempt succeeded")
-				}
+				_, retryErr := service.Refresh(t.Context(), cfg)
+				assertRejection(retryErr)
 				if !strings.Contains(logs.String(), `"attempt":2`) {
 					t.Fatal("retry attempt count missing")
 				}
@@ -1373,6 +1387,32 @@ func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should bound renewal with its configured timeout and back off", func(t *testing.T) {
+		t.Parallel()
+		release := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/token" {
+				writeOAuthMetadataResponse(t, w, r, false)
+				return
+			}
+			<-release
+		}))
+		t.Cleanup(func() { close(release); server.Close() })
+		store := &adapterTestStore{}
+		service, cfg := newPreRegisteredTestService(t, store, server, WithRefreshTimeout(50*time.Millisecond))
+		token := managerBoundToken(t, cfg, "expired")
+		token.RefreshToken = "refresh"
+		if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Refresh(t.Context(), cfg); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("timed renewal = %v, want deadline exceeded", err)
+		}
+		assertAdapterTokenUnchanged(t, store, token)
+		if _, err := service.Refresh(t.Context(), cfg); !errors.Is(err, ErrRefreshBackoff) {
+			t.Fatalf("retry after timeout = %v, want backoff", err)
+		}
+	})
 	t.Run("Should share one refresh across concurrent services and cancel a waiter", func(t *testing.T) {
 		t.Parallel()
 		started, release := make(chan struct{}), make(chan struct{})
@@ -1440,6 +1480,9 @@ func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal(ctx.Err())
 			}
+		}
+		if _, err := second.Refresh(ctx, cfg); err != nil {
+			t.Fatalf("refresh after concurrent renewal = %v", err)
 		}
 		if requests.Load() != 1 {
 			t.Fatalf("refresh requests = %d, want 1", requests.Load())

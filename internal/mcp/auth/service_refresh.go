@@ -39,10 +39,7 @@ func definitiveRefreshFailure(err error) bool {
 		return false
 	}
 	switch endpoint.cause {
-	case "invalid_response":
-		return endpoint.status == 400 || endpoint.status == 401
-	case "invalid_grant", "revoked", "invalid_client", "unauthorized_client", "invalid_request", "invalid_scope",
-		"unsupported_grant_type":
+	case "invalid_grant", "revoked", "invalid_client", "unauthorized_client":
 		return true
 	default:
 		return false
@@ -82,6 +79,15 @@ func WithRefreshBackoff(base, maximum time.Duration) ServiceOption {
 	return func(s *Service) {
 		if base > 0 && maximum >= base {
 			s.refreshBackoff, s.refreshBackoffMax = base, maximum
+		}
+	}
+}
+
+// WithRefreshTimeout bounds a started renewal; nonpositive values keep the default.
+func WithRefreshTimeout(timeout time.Duration) ServiceOption {
+	return func(s *Service) {
+		if timeout > 0 {
+			s.refreshTimeout = timeout
 		}
 	}
 }
@@ -130,7 +136,7 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 		return Status{}, ctx.Err()
 	}
 	// Once renewal starts, persist a rotated refresh token even if the requesting discovery times out.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.refreshTimeout)
 	defer cancel()
 	generation, err := s.generation.Snapshot(cfg.Target)
 	if err != nil {
