@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -158,6 +160,16 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 				}
 				if _, _, err := refresh.hostedRefreshConfig(t.Context(), state.Config); err == nil {
 					t.Fatal("refresh accepted an invalid persisted client")
+				}
+				local.token = TokenRecord{
+					Target: state.Config.Target, DefinitionFingerprint: store.registration.DefinitionFingerprint,
+					Issuer: store.registration.Issuer, ClientID: store.registration.ClientID,
+					Scopes: []string{"tools.read"}, AccessToken: "expired", RefreshToken: "refresh",
+					ExpiresAt: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+				}
+				status, err := refresh.Status(t.Context(), state.Config)
+				if err != nil || status.Refreshable {
+					t.Fatalf("invalid registration remained refreshable: %+v, %v", status, err)
 				}
 				requests := fixture.Requests()
 				if len(requests.Registration) != 1 || len(requests.Token) != 0 {
@@ -1247,6 +1259,170 @@ func TestOAuthRefreshCannotReinsertTokenAfterLogout(t *testing.T) {
 
 func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 	t.Parallel()
+	for _, code := range []string{"invalid_grant", "revoked", "invalid_request", "invalid_scope", "unsupported_grant_type", "", "temporarily_unavailable", "sensitive-refresh-token"} {
+		t.Run("Should classify refresh rejection and redact diagnostics for "+code, func(t *testing.T) {
+			t.Parallel()
+			var requests atomic.Int32
+			var recovered atomic.Bool
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/token" {
+					writeOAuthMetadataResponse(t, w, r, false)
+					return
+				}
+				requests.Add(1)
+				if recovered.Load() {
+					writeManagerTestResponse(
+						t,
+						w,
+						`{"access_token":"recovered-access","expires_in":3600,"token_type":"Bearer"}`,
+					)
+					return
+				}
+				w.WriteHeader(http.StatusBadRequest)
+				writeManagerTestResponse(
+					t,
+					w,
+					fmt.Sprintf(
+						`{"error":%q,"error_description":"sensitive-access-token sensitive-refresh-token"}`,
+						code,
+					),
+				)
+			}))
+			t.Cleanup(server.Close)
+			now := time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)
+			var logs bytes.Buffer
+			store := &adapterTestStore{}
+			service, cfg := newPreRegisteredTestService(t, store, server,
+				WithNow(func() time.Time { return now }), WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))))
+			token := managerBoundToken(t, cfg, "sensitive-access-token")
+			token.RefreshToken, token.ExpiresAt = "sensitive-refresh-token", now
+			if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+				t.Fatal(err)
+			}
+			before, err := service.Status(t.Context(), cfg)
+			if err != nil || before.Status != StatusExpired || !before.Refreshable || !before.TokenPresent {
+				t.Fatalf("expired refreshable status = %+v, %v", before, err)
+			}
+			status, refreshErr := service.Refresh(t.Context(), cfg)
+			definitive := code != "temporarily_unavailable" && code != "sensitive-refresh-token"
+			if definitive {
+				if refreshErr != nil || status.Status != StatusNeedsLogin || status.Refreshable || status.TokenPresent {
+					t.Fatalf("definitive rejection status = %+v, %v", status, refreshErr)
+				}
+				if _, err := store.GetMCPAuthToken(t.Context(), cfg.Target); !errors.Is(err, ErrTokenNotFound) {
+					t.Fatalf("rejected token remains: %v", err)
+				}
+			} else {
+				if refreshErr == nil {
+					t.Fatal("transient rejection succeeded")
+				}
+				assertAdapterTokenUnchanged(t, store, token)
+				if _, err := service.Refresh(t.Context(), cfg); !errors.Is(err, ErrRefreshBackoff) {
+					t.Fatalf("retry before backoff = %v", err)
+				}
+				if requests.Load() != 1 {
+					t.Fatal("retry contacted token endpoint during backoff")
+				}
+				now = now.Add(2 * time.Second)
+				if _, err := service.Refresh(t.Context(), cfg); err == nil {
+					t.Fatal("second transient attempt succeeded")
+				}
+				if !strings.Contains(logs.String(), `"attempt":2`) {
+					t.Fatal("retry attempt count missing")
+				}
+				recovered.Store(true)
+				now = now.Add(time.Minute)
+				status, err = service.Refresh(t.Context(), cfg)
+				if err != nil || status.Status != StatusAuthenticated {
+					t.Fatalf("recovery = %+v, %v", status, err)
+				}
+			}
+			var logged map[string]any
+			if err := json.NewDecoder(strings.NewReader(logs.String())).Decode(&logged); err != nil {
+				t.Fatal(err)
+			}
+			if logged["server"] != cfg.Target.ServerName || logged["attempt"] != float64(1) ||
+				logged["cause_class"] == "" {
+				t.Fatalf("missing diagnostic fields: %+v", logged)
+			}
+			if strings.Contains(logs.String(), token.AccessToken) ||
+				strings.Contains(logs.String(), token.RefreshToken) {
+				t.Fatal("refresh logs leaked token material")
+			}
+		})
+	}
+	t.Run("Should share one refresh across concurrent services and cancel a waiter", func(t *testing.T) {
+		t.Parallel()
+		started, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		var requests atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/token" {
+				writeOAuthMetadataResponse(t, w, r, false)
+				return
+			}
+			if requests.Add(1) == 1 {
+				close(started)
+			}
+			select {
+			case <-release:
+			case <-r.Context().Done():
+				return
+			}
+			writeManagerTestResponse(t, w, `{"access_token":"renewed","expires_in":3600,"token_type":"Bearer"}`)
+		}))
+		t.Cleanup(func() { unblock(); server.Close() })
+		store := &observedRefreshStore{TokenStore: &adapterTestStore{}, reads: make(chan struct{}, 32)}
+		generation := NewMutationGeneration()
+		first, cfg := newPreRegisteredTestService(t, store, server, WithMutationGeneration(generation))
+		second, _ := newPreRegisteredTestService(t, store, server, WithMutationGeneration(generation))
+		token := managerBoundToken(t, cfg, "expired")
+		token.RefreshToken = "refresh"
+		if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		owner, cancelOwner := context.WithCancel(ctx)
+		defer cancelOwner()
+		results := make(chan error, 8)
+		go func() { _, err := first.Refresh(owner, cfg); results <- err }()
+		select {
+		case <-started:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		for range 7 {
+			go func() { _, err := second.Refresh(ctx, cfg); results <- err }()
+		}
+		for range 9 {
+			select {
+			case <-store.reads:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+		}
+		canceled, stop := context.WithCancel(ctx)
+		stop()
+		if _, err := second.Refresh(canceled, cfg); !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled waiter = %v", err)
+		}
+		cancelOwner()
+		unblock()
+		for range 8 {
+			select {
+			case err := <-results:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+		}
+		if requests.Load() != 1 {
+			t.Fatalf("refresh requests = %d, want 1", requests.Load())
+		}
+	})
 	t.Run("Should preserve the existing token without returning OAuth secrets", func(t *testing.T) {
 		t.Parallel()
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -1303,6 +1479,20 @@ func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 		}
 		assertAdapterTokenUnchanged(t, store, existing)
 	})
+}
+
+type observedRefreshStore struct {
+	TokenStore
+	reads chan struct{}
+}
+
+func (s *observedRefreshStore) GetMCPAuthToken(ctx context.Context, target Target) (TokenRecord, error) {
+	token, err := s.TokenStore.GetMCPAuthToken(ctx, target)
+	select {
+	case s.reads <- struct{}{}:
+	default:
+	}
+	return token, err
 }
 
 func TestNormalizeRegistrationClientURI(t *testing.T) {

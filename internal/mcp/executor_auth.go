@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -46,6 +47,11 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedS
 			)
 		}
 		if refreshed.Status == string(mcpauth.StatusAuthenticated) {
+			if e.authRecovery != nil {
+				if err := e.authRecovery(ctx, resolved); err != nil {
+					slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", server.Name)
+				}
+			}
 			return nil
 		}
 		reason, ok := toolspkg.MCPAuthStatusReason(refreshed)

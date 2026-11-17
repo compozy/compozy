@@ -24,6 +24,9 @@ func (d *Daemon) newDaemonMCPToolProvider(
 	}
 	resolver := newDaemonMCPServerResolver(state)
 	options := []mcppkg.CallExecutorOption{
+		mcppkg.WithAuthRecovery(func(ctx context.Context, resolved *mcppkg.ResolvedServer) error {
+			return recoverResolvedMCPAuthentication(ctx, state, resolved)
+		}),
 		mcppkg.WithDefinitionDigestKey(digestKey),
 		mcppkg.WithConsentCheck(
 			func(ctx context.Context, source toolspkg.SourceRef, resolved mcppkg.ResolvedServer) error {

@@ -299,6 +299,14 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 }
 
 func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
+	// Invariant: successful login and call-time renewal clear only the server's auth-related dead mark.
+	// Owner: daemon OAuth/reliability composition; canonical suite: operator-loopback auth, real SQLite/HTTP.
+	for _, manual := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should recover durable auth failures with manual exchange %t", manual), func(t *testing.T) {
+			t.Parallel()
+			testSettingsMCPAuthRecovery(t, manual)
+		})
+	}
 	t.Run("Should render template inputs through OAuth begin status and callback", func(t *testing.T) {
 		t.Parallel()
 
@@ -398,6 +406,107 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 			t.Fatalf("authorization metadata requests = %d, want 1", got)
 		}
 	})
+}
+
+func testSettingsMCPAuthRecovery(t *testing.T, manual bool) {
+	t.Helper()
+	ctx := t.Context()
+	fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026), mcpfixture.OAuthConfig{})
+	db := openDaemonTestGlobalDB(t)
+	now := time.Now().UTC()
+	for _, id := range []string{"ws-auth-recovery", "ws-other"} {
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID: id, Name: id, RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	generation := mcpauth.NewMutationGeneration()
+	manager, err := newSettingsMCPAuthManagerWithAuthorization(db, nil, db, nil,
+		compozyconfig.MCPOAuthConfig{}, nil, generation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	surface := &settingsRuntimeSurface{
+		digestKey: []byte("test installation key"), mcpAuthStore: db, mcpAuthManager: manager,
+		mcpAuthGeneration: generation, deadEntities: deadentity.New(db, deadentity.WithPermanentFailureThreshold(1)),
+	}
+	target := mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "ws-auth-recovery", ServerName: "fixture"}
+	server := compozyconfig.MCPServer{Name: target.ServerName, Transport: "http", URL: fixture.Endpoints.MCPURL,
+		Auth: compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+			IssuerURL: fixture.Endpoints.IssuerURL, ClientID: "fixture-client"}}
+	key, tracked, err := surface.settingsMCPDeadEntityKey(ctx, target, server.Name)
+	if err != nil || !tracked {
+		t.Fatalf("dead entity key: %v, tracked=%t", err, tracked)
+	}
+	other := key
+	other.WorkspaceID = "ws-other"
+	mark := func(key store.DeadEntityKey, reason string) {
+		t.Helper()
+		if err := surface.deadEntities.RecordFailure(ctx, key, deadentity.FailurePermanent, reason); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertDead := func(key store.DeadEntityKey, want bool) {
+		t.Helper()
+		status, err := surface.deadEntities.Status(ctx, key)
+		if err != nil || status.Dead != want {
+			t.Fatalf("dead status=%+v, err=%v, want dead=%t", status, err, want)
+		}
+	}
+	mark(key, "mcp_auth_expired")
+	mark(other, "mcp_auth_expired")
+	login := func() {
+		t.Helper()
+		begin, err := surface.MCPAuthBegin(ctx, target, server, "http://127.0.0.1:2123/api/mcp/oauth/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		callback := begin.CallbackURL + "?state=" + url.QueryEscape(
+			begin.State,
+		) + "&code=" + mcpfixture.AuthorizationCode
+		var status mcpauth.Status
+		if manual {
+			status, err = surface.MCPAuthExchange(ctx, target, server, mcpauth.ExchangeInput{RedirectURL: callback})
+		} else {
+			status, err = surface.MCPAuthCompleteCallback(ctx, target, server, callback)
+		}
+		if err != nil || status.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("login status=%+v, %v", status, err)
+		}
+	}
+	login()
+	assertDead(key, false)
+	assertDead(other, true)
+	mark(key, "connection refused")
+	login()
+	assertDead(key, true)
+	if err := surface.deadEntities.RecordSuccess(ctx, key); err != nil {
+		t.Fatal(err)
+	}
+	mark(key, "mcp auth refresh failed")
+	token, err := db.GetMCPAuthToken(ctx, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token.ExpiresAt = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	if err := db.SaveMCPAuthToken(ctx, token); err != nil {
+		t.Fatal(err)
+	}
+	executor, err := surface.newMCPProbeExecutor(target, server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+	if tools, err := executor.ListTools(ctx, source); err != nil || len(tools) == 0 {
+		t.Fatalf("real discovery across expiry: %d tools, %v", len(tools), err)
+	}
+	assertDead(key, false)
+	assertDead(other, true)
+	requests := fixture.Requests().Token
+	if len(requests) != 3 || requests[2].Get("grant_type") != "refresh_token" {
+		t.Fatal("expected two sign-ins followed by one call-time refresh")
+	}
 }
 
 func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T) {

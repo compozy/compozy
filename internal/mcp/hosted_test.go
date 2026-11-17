@@ -16,6 +16,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -1081,6 +1082,94 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
+	// Invariant: expiry with a refresh path retains hosted/proxy tools; sign-in required withdraws them.
+	// Owner: hosted projection and proxy reconciliation; canonical suite: projection generation cache.
+	t.Run(
+		"Should retain refreshable tools through transient failure and withdraw rejected credentials",
+		func(t *testing.T) {
+			t.Parallel()
+			remote := newTestMCPHTTPServer(newFakeSDKServer(nil))
+			t.Cleanup(remote.Close)
+			auth := &fakeAuthService{status: mcpauth.Status{Status: mcpauth.StatusAuthenticated, TokenPresent: true}}
+			executor := newTestMCPExecutor(t, authEnabledServer("echo", "http", remote.URL), withAuthService(auth))
+			source := tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
+			provider, err := tools.NewMCPProvider(
+				tools.MCPSourceListerFunc(func(context.Context) ([]tools.SourceRef, error) {
+					return []tools.SourceRef{source}, nil
+				}),
+				executor,
+				executor,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy := tools.DefaultPolicyInputs()
+			policy.ExternalDefault = tools.ExternalDefaultEnabled
+			policy.SystemPermissionMode = tools.PermissionModeApproveAll
+			registry, err := tools.NewRegistry(
+				tools.WithProviders(provider),
+				tools.WithPolicyInputs(policy, tools.ToolsetCatalog{}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			executable := hostedTestExecutable(t, "compozy")
+			service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, nil)
+			epoch := NewProjectionEpoch()
+			service.projectionEpoch = epoch.Current
+			peer := hostedTestPeer(executable)
+			launch, err := service.Launch(
+				t.Context(),
+				HostedLaunchRequest{SessionID: "sess-refreshable", EagerTools: true},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.ArmLaunch(t.Context(), "sess-refreshable"); err != nil {
+				t.Fatal(err)
+			}
+			bound, err := service.Bind(t.Context(), HostedBindRequest{
+				SessionID: "sess-refreshable", Nonce: hostedLaunchNonce(t, launch.Args),
+			}, peer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(bound.Tools) != 1 {
+				t.Fatalf("initial tools = %d", len(bound.Tools))
+			}
+			if _, err := service.StreamProjection(t.Context(), bound.BindID, peer, bound.Digest); err != nil {
+				t.Fatal(err)
+			}
+			proxy := newHostedProxyTestServer()
+			client := &hostedProxyClientStub{}
+			registered := reconcileHostedTools(proxy, client, bound.BindID, nil, bound.Tools)
+			auth.mu.Lock()
+			auth.status = mcpauth.Status{Status: mcpauth.StatusExpired, TokenPresent: true, Refreshable: true}
+			auth.refreshErr = errors.New("temporary OAuth network failure")
+			auth.mu.Unlock()
+			epoch.Advance()
+			retained, err := service.StreamProjection(t.Context(), bound.BindID, peer, "")
+			if err != nil || retained.Catalog.Digest != bound.Catalog.Digest || len(retained.Tools) != 1 {
+				t.Fatalf("refreshable projection = %+v, %v", retained, err)
+			}
+			registered = reconcileHostedTools(proxy, client, bound.BindID, registered, retained.Tools)
+			if len(listHostedProxyTools(t, proxy)) != 1 {
+				t.Fatal("proxy withdrew a refreshable tool")
+			}
+			auth.mu.Lock()
+			auth.status = mcpauth.Status{Status: mcpauth.StatusNeedsLogin}
+			auth.mu.Unlock()
+			epoch.Advance()
+			withdrawn, err := service.StreamProjection(t.Context(), bound.BindID, peer, "")
+			if err != nil || len(withdrawn.Tools) != 0 || withdrawn.Digest == bound.Digest {
+				t.Fatalf("rejected projection = %+v, %v", withdrawn, err)
+			}
+			reconcileHostedTools(proxy, client, bound.BindID, registered, withdrawn.Tools)
+			if len(listHostedProxyTools(t, proxy)) != 0 {
+				t.Fatal("proxy retained a tool that needs sign-in")
+			}
+		},
+	)
 
 	t.Run("Should not cache a deferred bootstrap as a complete catalog generation", func(t *testing.T) {
 		t.Parallel()

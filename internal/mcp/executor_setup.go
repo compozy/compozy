@@ -30,6 +30,7 @@ type CallExecutor struct {
 	digestKey      []byte
 	consent        func(context.Context, toolspkg.SourceRef, ResolvedServer) error
 	authNetwork    func(context.Context, mcpauth.ServerConfig) error
+	authRecovery   func(context.Context, *ResolvedServer) error
 	servers        ServerResolver
 	tokenStore     mcpauth.TokenStore
 	auth           authService
@@ -217,4 +218,9 @@ func NewMCPCallExecutor(
 // WithAuthNetworkAuthorization guards continued OAuth network activity.
 func WithAuthNetworkAuthorization(check func(context.Context, mcpauth.ServerConfig) error) CallExecutorOption {
 	return func(e *CallExecutor) { e.authNetwork = check }
+}
+
+// WithAuthRecovery clears authentication-related runtime failures after renewal.
+func WithAuthRecovery(onRecovery func(context.Context, *ResolvedServer) error) CallExecutorOption {
+	return func(e *CallExecutor) { e.authRecovery = onRecovery }
 }

@@ -42,3 +42,10 @@ Steps:
 Pass: steps 5–8 hold without stopping, resuming, forking or recreating the session.
 
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
+
+QA impact 2026-11-17 (#1785): repeat the open-session flow with an OAuth echo fixture. Cross access
+token expiry with a usable refresh token; the hosted catalog digest and proxy tools stay present,
+and the next call renews and succeeds without reloading or signing in. A temporary renewal failure
+keeps the catalog present while the call reports temporary unavailability. A definitive refresh
+rejection withdraws the tools from that same proxy; sign-in restores them. Expiry without a refresh
+token, missing credentials, revoked consent and session-budget exclusions must remain hidden.
