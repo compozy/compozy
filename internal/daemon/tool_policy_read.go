@@ -16,6 +16,7 @@ import (
 
 type toolPolicyReadKey struct{}
 type toolPolicyRead struct {
+	fence       sessionMCPReadFence
 	mu          sync.Mutex
 	workspaces  map[toolPolicyWorkspaceKey]toolPolicyWorkspace
 	authorityMu sync.Mutex
@@ -42,11 +43,24 @@ type toolPolicyWorkspace struct {
 	err      error
 }
 
-func (r *nativeToolPolicyResolver) PolicyReadContext(ctx context.Context) context.Context {
-	if ctx.Value(toolPolicyReadKey{}) != nil {
+func (r *nativeToolPolicyResolver) PolicyReadContext(ctx context.Context, fresh bool) context.Context {
+	if !fresh && ctx.Value(toolPolicyReadKey{}) != nil {
 		return ctx
 	}
-	return context.WithValue(withMCPOwnerRead(ctx), toolPolicyReadKey{}, &toolPolicyRead{
+	if fresh {
+		ctx = newMCPOwnerRead(ctx)
+		if mcpAuthorityRead(ctx) {
+			ctx = context.WithValue(ctx, mcpAuthorityReadKey{}, make(mcpAuthorityReadCache))
+		}
+	} else {
+		ctx = withMCPOwnerRead(ctx)
+	}
+	var fence sessionMCPReadFence
+	if r.readFence != nil {
+		fence = r.readFence()
+	}
+	return context.WithValue(ctx, toolPolicyReadKey{}, &toolPolicyRead{
+		fence:      fence,
 		workspaces: make(map[toolPolicyWorkspaceKey]toolPolicyWorkspace),
 	})
 }

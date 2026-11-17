@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -36,24 +37,32 @@ func (s *HostedService) bootstrapProjection(
 	if !ok {
 		return s.projection(ctx, record)
 	}
-	generation, known := s.bootstrapProjectionGeneration(ctx, record)
-	views, err := bootstrap.BootstrapSessionProjection(ctx, record.scope())
-	if err != nil {
-		return HostedProjectionResponse{}, err
+	for range hostedProjectionGenerationRetries {
+		redaction := redact.SecretFingerprint()
+		generation, known := s.bootstrapProjectionGeneration(ctx, record)
+		views, err := bootstrap.BootstrapSessionProjection(ctx, record.scope())
+		if err != nil {
+			return HostedProjectionResponse{}, err
+		}
+		response := hostedProjectionResponse(views, record.digestMemo)
+		var after string
+		var stillKnown bool
+		if known {
+			after, stillKnown = s.bootstrapProjectionGeneration(ctx, record)
+		}
+		if redaction != redact.SecretFingerprint() {
+			continue
+		}
+		if !stillKnown || after != generation {
+			return response, nil
+		}
+		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation, redaction: redaction}
+		if !s.finishProjectionGeneration(key, record, response, true) {
+			return HostedProjectionResponse{}, ErrHostedBindNotFound
+		}
+		return cloneHostedProjectionResponse(response), nil
 	}
-	response := hostedProjectionResponse(views, record.digestMemo)
-	if !known {
-		return response, nil
-	}
-	after, stillKnown := s.bootstrapProjectionGeneration(ctx, record)
-	if !stillKnown || after != generation {
-		return response, nil
-	}
-	key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
-	if !s.finishProjectionGeneration(key, record, response, true) {
-		return HostedProjectionResponse{}, ErrHostedBindNotFound
-	}
-	return cloneHostedProjectionResponse(response), nil
+	return HostedProjectionResponse{}, ErrHostedProjectionChanged
 }
 
 func (s *HostedService) bootstrapProjectionGeneration(

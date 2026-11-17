@@ -23,6 +23,10 @@ func withMCPOwnerRead(ctx context.Context) context.Context {
 	if ctx.Value(mcpOwnerReadKey{}) != nil {
 		return ctx
 	}
+	return newMCPOwnerRead(ctx)
+}
+
+func newMCPOwnerRead(ctx context.Context) context.Context {
 	return context.WithValue(ctx, mcpOwnerReadKey{}, &mcpOwnerRead{
 		profiles: make(map[mcpOwnerProfileKey]mcpOwnerProfile),
 	})

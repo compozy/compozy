@@ -11731,7 +11731,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx := resolver.PolicyReadContext(t.Context())
+		ctx := resolver.PolicyReadContext(t.Context(), false)
 		info := &session.Info{ID: "pending", Type: session.SessionTypeSpawned,
 			Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn,
 				PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionList}}}
@@ -13373,6 +13373,7 @@ type nativeToolPolicyAgentResolverStub struct {
 }
 
 func (r *nativeToolPolicyAgentResolverStub) ResolvePolicyAgent(
+	_ context.Context,
 	name string,
 	_ *workspacepkg.ResolvedAgentConfig,
 ) (compozyconfig.AgentDef, error) {

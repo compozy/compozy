@@ -18,7 +18,7 @@ func isAuthoredAgentRecord(record resources.Record[compozyconfig.AgentDef]) bool
 		record.Owner.Normalize() == managedDraftOwner(actor, nil)
 }
 
-func (s *agentCatalogSnapshot) captureAuthoredAgent(target string) error {
+func (s *agentCatalogSnapshot) captureAuthoredAgent(ctx context.Context, target string) error {
 	if !s.liveAuthored {
 		return nil
 	}
@@ -40,7 +40,7 @@ func (s *agentCatalogSnapshot) captureAuthoredAgent(target string) error {
 		if err != nil {
 			return fmt.Errorf("daemon: create policy agent codec: %w", err)
 		}
-		spec, encoded, err := validateAndEncodeAgent(context.Background(), codec, scope, agent)
+		spec, encoded, err := validateAndEncodeAgent(ctx, codec, scope, agent)
 		if err != nil {
 			return fmt.Errorf("daemon: encode policy agent %q: %w", target, err)
 		}

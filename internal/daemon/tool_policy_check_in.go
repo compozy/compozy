@@ -76,7 +76,7 @@ func (r *nativeToolPolicyResolver) applyCheckInAuthority(
 	cfg *compozyconfig.Config,
 	repo checkInPolicyStore,
 ) error {
-	agent, err := r.resolveAgent(info.AgentName, workspace)
+	agent, err := r.resolveAgent(ctx, info.AgentName, workspace)
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (r *nativeToolPolicyResolver) applyAgentMCPReadAuthority(
 	workspace *workspacepkg.ResolvedAgentConfig,
 	cfg *compozyconfig.Config,
 ) error {
-	agent, err := r.resolveAgent(info.AgentName, workspace)
+	agent, err := r.resolveAgent(ctx, info.AgentName, workspace)
 	if err != nil {
 		return err
 	}

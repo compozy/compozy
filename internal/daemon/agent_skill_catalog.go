@@ -57,11 +57,12 @@ func (c *resourceAgentCatalog) ResolveAgent(
 
 // ResolvePolicyAgent preserves agent precedence without requiring a workspace skill inventory.
 func (c *resourceAgentCatalog) ResolvePolicyAgent(
+	ctx context.Context,
 	name string,
 	resolved *workspacepkg.ResolvedAgentConfig,
 ) (compozyconfig.AgentDef, error) {
 	snapshot := agentCatalogPolicySnapshot(resolved)
-	if err := snapshot.captureAuthoredAgent(strings.TrimSpace(name)); err != nil {
+	if err := snapshot.captureAuthoredAgent(ctx, strings.TrimSpace(name)); err != nil {
 		return compozyconfig.AgentDef{}, err
 	}
 	return c.resolveAgent(name, snapshot)

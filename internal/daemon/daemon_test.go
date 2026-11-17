@@ -6495,7 +6495,7 @@ func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			agent, err := policy.ResolvePolicyAgent("observed", &current)
+			agent, err := policy.ResolvePolicyAgent(t.Context(), "observed", &current)
 			if err != nil || !slices.Contains(agent.DenyTools, "compozy__tool_search") {
 				t.Fatalf("current policy while publication is blocked = %+v, %v", agent, err)
 			}

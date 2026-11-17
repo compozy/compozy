@@ -50,7 +50,7 @@ func TestResourceAgentCatalogLookupReturnsDefensiveCopy(t *testing.T) {
 			t.Fatalf("ResolveAgent(second).Tools[0] = %q, want %q", got, want)
 		}
 		policyContext := &workspacepkg.ResolvedAgentConfig{Workspace: resolved.Workspace}
-		policyAgent, err := dependency.ResolvePolicyAgent("coder", policyContext)
+		policyAgent, err := dependency.ResolvePolicyAgent(t.Context(), "coder", policyContext)
 		if err != nil {
 			t.Fatalf("ResolvePolicyAgent() error = %v", err)
 		}
@@ -61,7 +61,7 @@ func TestResourceAgentCatalogLookupReturnsDefensiveCopy(t *testing.T) {
 		}
 		updated[0].Spec.Tools = []string{toolspkg.ToolIDSkillView.String()}
 		catalog.Replace(2, updated)
-		policyAgent, err = dependency.ResolvePolicyAgent("coder", policyContext)
+		policyAgent, err = dependency.ResolvePolicyAgent(t.Context(), "coder", policyContext)
 		if err != nil {
 			t.Fatalf("ResolvePolicyAgent(updated) error = %v", err)
 		}
@@ -122,7 +122,7 @@ func TestResourceAgentCatalogPolicyResolution(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ResolveAgent() error = %v", err)
 			}
-			got, err := dependency.ResolvePolicyAgent(" coder ", policy)
+			got, err := dependency.ResolvePolicyAgent(t.Context(), " coder ", policy)
 			if err != nil {
 				t.Fatalf("ResolvePolicyAgent() error = %v", err)
 			}
@@ -187,7 +187,7 @@ func TestResourceAgentCatalogPolicyResolution(t *testing.T) {
 			if !tc.remove {
 				resolved.Agents = []compozyconfig.AgentDef{current}
 			}
-			got, err := agentCatalogDependency(catalog).ResolvePolicyAgent("live-coder", resolved)
+			got, err := agentCatalogDependency(catalog).ResolvePolicyAgent(t.Context(), "live-coder", resolved)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -212,7 +212,7 @@ func TestResourceAgentCatalogPolicyResolution(t *testing.T) {
 						fullContext, policyContext = full, policy
 					}
 					want, wantErr := resolver.ResolveAgent(name, fullContext)
-					got, gotErr := resolver.ResolvePolicyAgent(name, policyContext)
+					got, gotErr := resolver.ResolvePolicyAgent(t.Context(), name, policyContext)
 					if wantErr != nil {
 						if gotErr == nil || gotErr.Error() != wantErr.Error() ||
 							errors.Is(

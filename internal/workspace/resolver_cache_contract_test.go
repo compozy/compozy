@@ -819,6 +819,12 @@ func TestWorkspaceContractAgentConfigDependencyPoll(t *testing.T) {
 			!slices.Equal(agent.DenyTools, []string{"compozy__tool_search"}) {
 			t.Fatalf("policy at bound = %+v", agent)
 		}
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+			t.Fatalf("policy poll = %v, %v; want changed", changed, err)
+		}
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || changed {
+			t.Fatalf("unchanged policy poll = %v, %v; want unchanged", changed, err)
+		}
 		writeFile(
 			t,
 			filepath.Join(agentDir, compozyconfig.MCPJSONName),

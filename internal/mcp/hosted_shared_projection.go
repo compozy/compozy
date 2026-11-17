@@ -16,7 +16,7 @@ type hostedVisibilityKey struct {
 
 type hostedSharedFlightKey struct {
 	hostedVisibilityKey
-	epoch uint64
+	fence hostedProjectionFence
 }
 
 type hostedSharedProjectionCache struct {
@@ -34,13 +34,13 @@ func (s *HostedService) sharedStreamProjection(
 		if err := ctx.Err(); err != nil {
 			return HostedProjectionResponse{}, true, err
 		}
-		epoch := s.currentProjectionEpoch()
-		listingCtx, builtAt := s.withProjectionListings(registry.ReadContext(tools.WithImmutableProjection(ctx)), epoch)
+		fence := s.projectionFence()
+		listingCtx, builtAt := s.withProjectionListings(registry.ReadContext(tools.WithImmutableProjection(ctx)), fence)
 		class, known := registry.ProjectionVisibility(listingCtx, record.scope())
 		if !known {
 			return HostedProjectionResponse{}, false, nil
 		}
-		key := hostedSharedFlightKey{hostedVisibilityKey{registry, class}, epoch}
+		key := hostedSharedFlightKey{hostedVisibilityKey{registry, class}, fence}
 		matchCtx := ctx
 		if s.projectionEpoch != nil {
 			// Class and build share one availability snapshot; the epoch fences all versioned inputs.
@@ -51,7 +51,7 @@ func (s *HostedService) sharedStreamProjection(
 			if !s.sharedProjectionMatches(matchCtx, record, key) {
 				continue
 			}
-			return s.checkedSharedProjection(ctx, record, *cached, epoch, builtAt)
+			return s.checkedSharedProjection(ctx, record, *cached, fence, builtAt)
 		}
 		if !leader {
 			response, retry, err := waitHostedProjectionFlight(ctx, flight)
@@ -64,7 +64,7 @@ func (s *HostedService) sharedStreamProjection(
 			if retry || !s.sharedProjectionMatches(matchCtx, record, key) {
 				continue
 			}
-			return s.checkedSharedProjection(ctx, record, response, epoch, builtAt)
+			return s.checkedSharedProjection(ctx, record, response, fence, builtAt)
 		}
 		response, err := buildHostedProjection(listingCtx, registry, record)
 		if err == nil {
@@ -85,7 +85,7 @@ func (s *HostedService) sharedStreamProjection(
 			return HostedProjectionResponse{}, true, ErrHostedBindNotFound
 		}
 		if stable {
-			return s.checkedSharedProjection(ctx, record, response, epoch, builtAt)
+			return s.checkedSharedProjection(ctx, record, response, fence, builtAt)
 		}
 	}
 	// Churning inputs keep the existing uncached path rather than publishing an uncertain class.
@@ -98,23 +98,23 @@ func (s *HostedService) sharedProjectionMatches(
 	key hostedSharedFlightKey,
 ) bool {
 	class, known := key.registry.ProjectionVisibility(ctx, record.scope())
-	return known && class == key.class && s.currentProjectionEpoch() == key.epoch
+	return known && class == key.class && s.projectionFence() == key.fence
 }
 
 func (s *HostedService) checkedSharedProjection(
 	ctx context.Context,
 	record *hostedBindRecord,
 	response HostedProjectionResponse,
-	epoch uint64, builtAt time.Time,
+	fence hostedProjectionFence, builtAt time.Time,
 ) (HostedProjectionResponse, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return HostedProjectionResponse{}, true, err
 	}
 	s.mu.Lock()
 	owned := s.ownsBindRecord(record)
-	if owned && s.projectionEpoch != nil && s.currentProjectionEpoch() == epoch {
+	if owned && s.projectionEpoch != nil && s.projectionFence() == fence {
 		s.projectionCache.storeUnversioned(record.bindID, hostedUnversionedProjection{
-			epoch: epoch, builtAt: builtAt, response: response,
+			fence: fence, builtAt: builtAt, response: response,
 		})
 	}
 	s.mu.Unlock()
@@ -136,7 +136,7 @@ func (c *hostedSharedProjectionCache) begin(
 		c.flights = make(map[hostedSharedFlightKey]*hostedProjectionFlight)
 	}
 	for class, entry := range c.entries {
-		if entry.epoch != key.epoch || now.Before(entry.builtAt) || now.Sub(entry.builtAt) >= refresh {
+		if entry.fence != key.fence || now.Before(entry.builtAt) || now.Sub(entry.builtAt) >= refresh {
 			delete(c.entries, class)
 		}
 	}
@@ -162,7 +162,7 @@ func (c *hostedSharedProjectionCache) finish(
 	defer c.mu.Unlock()
 	if stable && owned {
 		c.entries[key.hostedVisibilityKey] = hostedUnversionedProjection{
-			epoch: key.epoch, builtAt: now, response: response,
+			fence: key.fence, builtAt: now, response: response,
 		}
 	}
 	flight := c.flights[key]
@@ -177,10 +177,10 @@ func (c *hostedSharedProjectionCache) clear() {
 	c.mu.Unlock()
 }
 
-// hostedProjectionListings rotates the provider listing share per epoch and refresh window.
+// hostedProjectionListings rotates provider listings when their inputs or refresh window change.
 type hostedProjectionListings struct {
 	mu        sync.Mutex
-	epoch     uint64
+	fence     hostedProjectionFence
 	startedAt time.Time
 	listings  *tools.ProjectionListings
 }
@@ -188,24 +188,27 @@ type hostedProjectionListings struct {
 // withProjectionListings shares provider listings among unversioned builds of the same epoch. It
 // returns the share's start as the build's freshness origin: a projection cached from a shared
 // listing expires with that listing's window, so staleness stays within one refresh window.
-func (s *HostedService) withProjectionListings(ctx context.Context, epoch uint64) (context.Context, time.Time) {
-	listings, startedAt := s.projectionListings.current(epoch, s.now(), s.StreamRefreshInterval())
+func (s *HostedService) withProjectionListings(
+	ctx context.Context,
+	fence hostedProjectionFence,
+) (context.Context, time.Time) {
+	listings, startedAt := s.projectionListings.current(fence, s.now(), s.StreamRefreshInterval())
 	return tools.WithProjectionListings(ctx, listings), startedAt
 }
 
 func (l *hostedProjectionListings) current(
-	epoch uint64,
+	fence hostedProjectionFence,
 	now time.Time,
 	refresh time.Duration,
 ) (*tools.ProjectionListings, time.Time) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.listings != nil && epoch < l.epoch {
+	if l.listings != nil && fence.epoch < l.fence.epoch {
 		// A build that read an older epoch is discarded by its own epoch check; keep it private.
 		return tools.NewProjectionListings(), now
 	}
-	if l.listings == nil || epoch != l.epoch || now.Before(l.startedAt) || now.Sub(l.startedAt) >= refresh {
-		l.listings, l.epoch, l.startedAt = tools.NewProjectionListings(), epoch, now
+	if l.listings == nil || fence != l.fence || now.Before(l.startedAt) || now.Sub(l.startedAt) >= refresh {
+		l.listings, l.fence, l.startedAt = tools.NewProjectionListings(), fence, now
 	}
 	return l.listings, l.startedAt
 }

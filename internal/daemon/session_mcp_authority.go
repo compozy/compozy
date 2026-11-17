@@ -21,7 +21,7 @@ func (r *nativeToolPolicyResolver) EffectiveMCPAuthority(
 	ctx context.Context,
 	id string,
 ) (store.SessionPermissionPolicy, error) {
-	ctx = r.PolicyReadContext(ctx)
+	ctx = r.PolicyReadContext(ctx, false)
 	read, ok := ctx.Value(toolPolicyReadKey{}).(*toolPolicyRead)
 	if !ok {
 		return r.resolveEffectiveMCPAuthority(ctx, id)
@@ -78,7 +78,7 @@ func (r *nativeToolPolicyResolver) resolveEffectiveMCPAuthority(
 	}
 	inputs := base.inputs
 	if scope.AgentName != "" && !mcpAuthorityRead(ctx) {
-		if err := r.applyAgentToolPolicy(&inputs, scope.AgentName, base.workspace, base.cfg); err != nil {
+		if err := r.applyAgentToolPolicy(ctx, &inputs, scope.AgentName, base.workspace, base.cfg); err != nil {
 			// Existing delegated sessions retain their stored ceiling if the agent was removed.
 			if info.Lineage == nil || !errors.Is(err, workspace.ErrAgentNotAvailable) {
 				return store.SessionPermissionPolicy{}, err

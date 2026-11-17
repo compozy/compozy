@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -541,9 +542,9 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		t.Parallel()
 		first, second := validDescriptor(), validDescriptor()
 		second.ID = "compozy__second"
-		registry, err := NewRegistry(WithProviders(
-			providerWithDescriptors(first.Source, first), providerWithDescriptors(second.Source, second),
-		))
+		firstProvider := providerWithDescriptors(first.Source, first)
+		secondProvider := providerWithDescriptors(second.Source, second)
+		registry, err := NewRegistry(WithProviders(firstProvider, secondProvider))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -558,6 +559,18 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		fresh, err := registry.ExternalProjectionFingerprint(t.Context(), Scope{})
 		if err != nil || afterSibling != fresh {
 			t.Fatalf("fingerprint after sibling = %q, fresh = %q, error=%v", afterSibling, fresh, err)
+		}
+		secondProvider.handles[second.ID].(*registryTestHandle).availability = Unavailable(ReasonDependencyMissing)
+		changed, err := registry.ExternalProjectionFingerprint(t.Context(), Scope{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		const width = 2 * sha256.Size
+		if len(fresh) != 2*width || len(changed) != len(fresh) {
+			t.Fatalf("fingerprint lengths = %d and %d; want %d", len(fresh), len(changed), 2*width)
+		}
+		if changed[:width] != fresh[:width] || changed[width:] == fresh[width:] {
+			t.Fatal("the availability change must update only the second provider's fingerprint")
 		}
 	})
 	// Invariant: sibling views share policy/index/availability, while returned schemas remain caller-owned.

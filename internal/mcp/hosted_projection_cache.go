@@ -2,10 +2,12 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
 	"maps"
 	"sync"
 
 	"github.com/compozy/compozy/internal/profiling"
+	"github.com/compozy/compozy/internal/redact"
 
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -25,13 +27,14 @@ type hostedProjectionCache struct {
 type hostedProjectionBuilder func(context.Context, tools.Registry, *hostedBindRecord) (HostedProjectionResponse, error)
 
 type hostedProjectionCacheEntry struct {
-	generation string
-	response   HostedProjectionResponse
+	key      hostedProjectionFlightKey
+	response HostedProjectionResponse
 }
 
 type hostedProjectionFlightKey struct {
 	bindID     string
 	generation string
+	redaction  [sha256.Size]byte
 }
 
 type hostedProjectionFlight struct {
@@ -58,24 +61,28 @@ func (s *HostedService) projectionForGeneration(
 	unversioned hostedProjectionBuilder,
 ) (HostedProjectionResponse, error) {
 	if s.projectionGeneration == nil {
-		return unversioned(ctx, registry, record)
+		return projectionWithStableRedaction(ctx, registry, record, unversioned)
 	}
 
 	scope := record.scope()
 	for range hostedProjectionGenerationRetries {
+		redaction := redact.SecretFingerprint()
 		generation, known := s.projectionGeneration(ctx, scope)
 		if !known {
-			return unversioned(ctx, registry, record)
+			return projectionWithStableRedaction(ctx, registry, record, unversioned)
 		}
-		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
+		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation, redaction: redaction}
 		if cached, ok := s.projectionCache.load(key); ok {
-			return cached, nil
+			if redaction == redact.SecretFingerprint() {
+				return cached, nil
+			}
+			continue
 		}
 
 		flight, leader := s.projectionCache.begin(key)
 		if !leader {
 			response, retry, err := waitHostedProjectionFlight(ctx, flight)
-			if retry {
+			if retry || (err == nil && redaction != redact.SecretFingerprint()) {
 				continue
 			}
 			return response, err
@@ -87,7 +94,7 @@ func (s *HostedService) projectionForGeneration(
 			return HostedProjectionResponse{}, err
 		}
 		after, stillKnown := s.projectionGeneration(ctx, scope)
-		stable := stillKnown && after == generation
+		stable := stillKnown && after == generation && redaction == redact.SecretFingerprint()
 		stored := s.finishProjectionGeneration(key, record, response, stable)
 		if stable {
 			if stored {
@@ -96,7 +103,20 @@ func (s *HostedService) projectionForGeneration(
 			return HostedProjectionResponse{}, ErrHostedBindNotFound
 		}
 	}
-	return buildHostedProjection(ctx, registry, record)
+	return projectionWithStableRedaction(ctx, registry, record, buildHostedProjection)
+}
+
+func projectionWithStableRedaction(
+	ctx context.Context, registry tools.Registry, record *hostedBindRecord, build hostedProjectionBuilder,
+) (HostedProjectionResponse, error) {
+	for range hostedProjectionGenerationRetries {
+		redaction := redact.SecretFingerprint()
+		response, err := build(ctx, registry, record)
+		if err != nil || redaction == redact.SecretFingerprint() {
+			return response, err
+		}
+	}
+	return HostedProjectionResponse{}, ErrHostedProjectionChanged
 }
 
 func (s *HostedService) finishProjectionGeneration(
@@ -161,7 +181,7 @@ func (c *hostedProjectionCache) load(key hostedProjectionFlightKey) (HostedProje
 	c.mu.RLock()
 	entry, ok := c.entries[key.bindID]
 	c.mu.RUnlock()
-	if !ok || entry.generation != key.generation {
+	if !ok || entry.key != key {
 		return HostedProjectionResponse{}, false
 	}
 	return entry.response, true
@@ -171,7 +191,7 @@ func (c *hostedProjectionCache) begin(key hostedProjectionFlightKey) (*hostedPro
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// A builder can publish between the caller's cache lookup and acquiring this lock.
-	if entry, ok := c.entries[key.bindID]; ok && entry.generation == key.generation {
+	if entry, ok := c.entries[key.bindID]; ok && entry.key == key {
 		flight := &hostedProjectionFlight{done: make(chan struct{}), response: entry.response}
 		close(flight.done)
 		return flight, false
@@ -195,8 +215,8 @@ func (c *hostedProjectionCache) finish(
 	flight := c.flights[key]
 	if store {
 		c.entries[key.bindID] = hostedProjectionCacheEntry{
-			generation: key.generation,
-			response:   response,
+			key:      key,
+			response: response,
 		}
 	}
 	if flight != nil {

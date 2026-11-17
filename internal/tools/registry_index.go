@@ -225,24 +225,26 @@ type policyResolutionCache struct {
 
 // ReadContext shares policy and indexes only for one logical read; mutations require a new context.
 func (r *RuntimeRegistry) ReadContext(ctx context.Context) context.Context {
-	ctx = withPolicyResolutionCache(ctx)
-	if resolver, ok := r.policyResolver.(interface {
-		PolicyReadContext(context.Context) context.Context
-	}); ok {
-		ctx = resolver.PolicyReadContext(ctx)
-	}
-	return ctx
+	return r.readContext(ctx, false)
 }
 
-func withPolicyResolutionCache(ctx context.Context) context.Context {
-	if ctx.Value(policyResolutionKey{}) != nil {
-		return ctx
+// FreshReadContext starts a new read without inheriting any policy, index, or listing memo.
+func (r *RuntimeRegistry) FreshReadContext(ctx context.Context) context.Context {
+	return r.readContext(WithProjectionListings(ctx, NewProjectionListings()), true)
+}
+
+func (r *RuntimeRegistry) readContext(ctx context.Context, fresh bool) context.Context {
+	if fresh || ctx.Value(policyResolutionKey{}) == nil {
+		ctx = context.WithValue(ctx, policyResolutionKey{}, &policyResolutionCache{
+			values: make(map[policyResolutionScope]policyResolution),
+		})
 	}
-	return context.WithValue(
-		ctx,
-		policyResolutionKey{},
-		&policyResolutionCache{values: map[policyResolutionScope]policyResolution{}},
-	)
+	if resolver, ok := r.policyResolver.(interface {
+		PolicyReadContext(context.Context, bool) context.Context
+	}); ok {
+		ctx = resolver.PolicyReadContext(ctx, fresh)
+	}
+	return ctx
 }
 
 type policyResolutionScope struct {

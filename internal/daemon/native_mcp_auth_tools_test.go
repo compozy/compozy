@@ -1701,6 +1701,102 @@ func TestSessionMCPReadModel(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: status cannot seed a stale summary after an authored policy withdrawal.
+	// Owner: daemon summary read model; canonical suite: session MCP reads.
+	t.Run("Should use current agent policy after status warms the shared context", func(t *testing.T) {
+		t.Parallel()
+		model, manager, _, _ := newSessionMCPReadFixture(t)
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultEnabled
+		cfg.MCPServers = []compozyconfig.MCPServer{
+			{Name: "linear", Command: "fixture"},
+			{Name: "sentry", Command: "fixture"},
+		}
+		workspace := workspacepkg.Workspace{ID: "ws-auth", Name: "project", RootDir: t.TempDir()}
+		workspaceStore := openDaemonTestGlobalDB(t)
+		if err := workspaceStore.InsertWorkspace(t.Context(), workspace); err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := workspacepkg.NewResolver(
+			workspaceStore,
+			workspacepkg.WithHomePaths(home),
+			workspacepkg.WithProfileConfigLoader(
+				func(string, string) (compozyconfig.Config, error) { return cfg, nil },
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		agentFile := filepath.Join(home.AgentsDir, "coder", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(agentFile), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeAgent := func(policy string) {
+			t.Helper()
+			data := []byte("---\nname: coder\nprovider: codex\n" + policy + "---\n\nYou are coder.\n")
+			if err := os.WriteFile(agentFile, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		writeAgent("")
+		model.state.cfg = cfg
+		model.state.workspaceResolver = resolver
+		model.state.profiles, err = profilepkg.NewManager(
+			profilepkg.WithStore(workspaceStore),
+			profilepkg.WithHomePaths(home),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		authority, err := newNativeToolPolicyResolverForBoot(model.state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		model.authority = authority
+		provider, ok := model.state.mcpToolProvider.(*toolspkg.MCPProvider)
+		if !ok {
+			t.Fatal("fixture has no MCP provider")
+		}
+		model.registry, err = toolspkg.NewRegistry(
+			toolspkg.WithProviders(provider),
+			toolspkg.WithPolicyInputResolver(authority, toolspkg.ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		authority.scopeTools = model.registry.PolicyProjection
+		ctx := model.registry.ReadContext(
+			toolspkg.EnsureProjectionListings(toolspkg.WithCachedMCPProjection(t.Context())),
+		)
+		info, err := manager.Status(ctx, "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := session.PopulateEffectiveMCPAuthority(ctx, authority, info); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(info.Lineage.EffectiveMCPServers, []string{"linear", "sentry"}) {
+			t.Fatalf("status authority = %v", info.Lineage.EffectiveMCPServers)
+		}
+		warm, err := model.SessionMCPSummary(ctx, info.ID)
+		if err != nil || warm == nil || warm.Usable != 2 {
+			t.Fatalf("summary before policy withdrawal = %+v, %v", warm, err)
+		}
+		writeAgent("deny_tools: [mcp__linear__echo]\n")
+		resolver.Invalidate(workspace.ID)
+		current, err := model.SessionMCPSummary(ctx, info.ID)
+		if err != nil || current == nil || current.Usable != 1 {
+			t.Errorf("summary on the shared status context = %+v, %v, want one usable server", current, err)
+		}
+		reads := manager.reads
+		current, err = model.SessionMCPSummary(t.Context(), info.ID)
+		if err != nil || current == nil || current.Usable != 1 || manager.reads != reads {
+			t.Errorf("cached summary = %+v, %v, reads = %d, want one usable server and %d reads",
+				current, err, manager.reads, reads)
+		}
+	})
 	// Invariant: detail-only snapshots stay warm while read and leave the cache after inactivity or deletion.
 	// Owner: daemon summary cache; canonical suite: session MCP reads.
 	t.Run(

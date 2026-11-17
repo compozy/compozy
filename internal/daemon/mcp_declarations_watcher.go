@@ -86,10 +86,7 @@ func (d *Daemon) bootMCPDeclarationWatcher(ctx context.Context, state *bootState
 	if syncer, ok := state.toolMCPResources.(*toolMCPSourceSyncer); ok {
 		syncer.declarationWatch = &watcher
 	}
-	interval := state.cfg.Skills.PollInterval
-	if interval <= 0 {
-		interval = 3 * time.Second
-	}
+	interval := state.cfg.Skills.EffectivePollInterval()
 	if policyComplete, ok := worker.Begin(); ok {
 		go func() {
 			defer policyComplete()

@@ -2,8 +2,10 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
 	"time"
 
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -17,9 +19,14 @@ const HostedProjectionFallbackRefresh = 3 * time.Second
 const hostedUnversionedStreamRefresh = HostedProjectionFallbackRefresh
 
 type hostedUnversionedProjection struct {
-	epoch    uint64
+	fence    hostedProjectionFence
 	builtAt  time.Time
 	response HostedProjectionResponse
+}
+
+type hostedProjectionFence struct {
+	epoch     uint64
+	redaction [sha256.Size]byte
 }
 
 // HostedProjectionChanges carries signals closed when a bound projection may have changed.
@@ -61,7 +68,7 @@ func (s *HostedService) StreamSnapshot(
 		return HostedProjectionResponse{}, err
 	}
 	if cached, ok := s.projectionCache.loadUnversioned(
-		record.bindID, s.currentProjectionEpoch(), s.now(), s.StreamRefreshInterval(),
+		record.bindID, s.projectionFence(), s.now(), s.StreamRefreshInterval(),
 	); ok {
 		return cloneHostedProjectionResponse(cached), nil
 	}
@@ -95,7 +102,7 @@ func (s *HostedService) StreamProjection(
 	// A fresh unversioned entry exists only after the generation was unknown; serving it first
 	// skips repeating that lookup inside the refresh window.
 	if cached, ok := s.projectionCache.loadUnversioned(
-		record.bindID, s.currentProjectionEpoch(), s.now(), s.StreamRefreshInterval(),
+		record.bindID, s.projectionFence(), s.now(), s.StreamRefreshInterval(),
 	); ok {
 		s.acknowledgeHostedBind(record)
 		return hostedStreamProjectionAfter(cached, lastDigest), nil
@@ -138,9 +145,9 @@ func (s *HostedService) boundedUnversionedProjection(
 			return response, err
 		}
 	}
-	epoch := s.currentProjectionEpoch()
+	fence := s.projectionFence()
 	if cached, ok := s.projectionCache.loadUnversioned(
-		record.bindID, epoch, s.now(), s.StreamRefreshInterval(),
+		record.bindID, fence, s.now(), s.StreamRefreshInterval(),
 	); ok {
 		return cached, nil
 	}
@@ -149,37 +156,37 @@ func (s *HostedService) boundedUnversionedProjection(
 	for attempt := 0; ; attempt++ {
 		var listingCtx context.Context
 		var err error
-		listingCtx, builtAt = s.withProjectionListings(ctx, epoch)
+		listingCtx, builtAt = s.withProjectionListings(ctx, fence)
 		response, err = buildHostedProjection(listingCtx, registry, record)
 		if err != nil {
 			return HostedProjectionResponse{}, err
 		}
-		// An epoch advance during the build may have invalidated the listed views.
-		after := s.currentProjectionEpoch()
-		if after == epoch {
+		after := s.projectionFence()
+		if after == fence {
 			break
 		}
 		if attempt+1 >= hostedProjectionGenerationRetries {
 			// Keep the fresher build but leave it uncached so the next read rebuilds.
 			return response, nil
 		}
-		epoch = after
+		fence = after
 	}
 	s.mu.Lock()
 	if s.ownsBindRecord(record) {
 		s.projectionCache.storeUnversioned(record.bindID, hostedUnversionedProjection{
-			epoch: epoch, builtAt: builtAt, response: response,
+			fence: fence, builtAt: builtAt, response: response,
 		})
 	}
 	s.mu.Unlock()
 	return response, nil
 }
 
-func (s *HostedService) currentProjectionEpoch() uint64 {
-	if s.projectionEpoch == nil {
-		return 0
+func (s *HostedService) projectionFence() hostedProjectionFence {
+	fence := hostedProjectionFence{redaction: redact.SecretFingerprint()}
+	if s.projectionEpoch != nil {
+		fence.epoch = s.projectionEpoch()
 	}
-	return s.projectionEpoch()
+	return fence
 }
 
 // ownsBindRecord reports whether record is still the active bind; callers hold s.mu.
@@ -203,18 +210,19 @@ func (s *HostedService) releaseProjectionCaches(bindIDs []string) {
 	s.bindReleases.notify(nil)
 }
 
-// loadUnversioned returns the shared snapshot built for the same bind and epoch inside the
+// loadUnversioned returns the shared snapshot built for the same bind and fence inside the
 // refresh window. Run identity is not a key: session tool availability does not depend on it.
 func (c *hostedProjectionCache) loadUnversioned(
 	bindID string,
-	epoch uint64,
+	fence hostedProjectionFence,
 	now time.Time,
 	refresh time.Duration,
 ) (HostedProjectionResponse, bool) {
 	c.mu.RLock()
 	entry, ok := c.unversioned[bindID]
 	c.mu.RUnlock()
-	if !ok || entry.epoch != epoch || now.Sub(entry.builtAt) >= refresh || now.Before(entry.builtAt) {
+	if !ok || entry.fence != fence || now.Sub(entry.builtAt) >= refresh || now.Before(entry.builtAt) ||
+		fence.redaction != redact.SecretFingerprint() {
 		return HostedProjectionResponse{}, false
 	}
 	return entry.response, true

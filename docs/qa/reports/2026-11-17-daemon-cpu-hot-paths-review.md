@@ -88,6 +88,57 @@ paired load after transcript writes reached 2.055 s in a trial with a
 exercises the stores directly. This round leaves the SQLite workload and
 acceptance policy intact and relies on CI for a fresh result.
 
+## Second review round
+
+- The registry replaces its policy, index and listing memos when a session
+  summary inherits a status context from an older revision. The summary and
+  external scope caches use the revision captured at the start. Each cache
+  checks the live revision before saving. The regression changes `deny_tools`
+  after loading status authority through a real workspace resolver. The same
+  context and the next fresh read both show one usable server instead of two.
+- Hosted projections track the secret-redaction fingerprint, including
+  authoritative generations and shared stream listings. The regression
+  registers a secret after discovery and verifies that the projection redacts
+  it while reusing the upstream tool listing.
+- Authored agent validation now receives the caller context. The skills
+  polling default also owns the MCP summary expiry. The provider fingerprint
+  test changes a sibling's availability, and the workspace test consumes the
+  policy edit before verifying sidecar creation independently.
+- Focused `go test -p 2` and golangci-lint v2.15.0 passed for config, daemon,
+  MCP, tools and workspace. The four daemon integration scenarios above
+  passed in 33.001 s. The CLI/daemon build passed and the test-shape checker
+  reported no new diagnostics.
+
+The current binary repeated all three transport journeys. A `deny_tools` edit
+took effect in 0.656 s. Project approval exposed tools without restarting the
+session. A child restricted to alpha kept beta and gamma hidden. Independent
+HTTP reads confirmed each result. The profile used 14 live runtimes, 214 detail
+reads and the same loopback MCP workload. Each upstream server received 17
+listing requests including setup and warm-up. Both labs passed the strict audit
+and targeted teardown. The binary SHA-256 was
+`c705d66040f065d910ee349fd1a71fac39a2ff241cbca7843917b0e9fa5afff9`.
+
+| Metric | Round 2 CPU 1 | Round 2 CPU 2 | Target | Result |
+| --- | --- | --- | --- | --- |
+| Total CPU per 20 s | 1.73 s | 2.11 s | ≤4 s | Met |
+| `ResolveAgentConfig` cumulative | 0.05 s (2.89%) | 0.02 s (0.95%) | ≤2% | Miss in capture 1 |
+| `syscall.rawsyscalln` flat | 0.49 s (28.32%) | 0.63 s (29.86%) | ≤8% | Miss |
+| `EffectiveMCPAuthority` cumulative | 0.14 s (8.09%) | 0.09 s (4.27%) | ≤5% | Miss in capture 1 |
+| `ProjectionVisibility` cumulative | 0.31 s (17.92%) | 0.17 s (8.06%) | ≤2% | Miss |
+| Hosted stream cumulative | 0.35 s (20.23%) | 0.18 s (8.53%) | ≤5% | Miss |
+| `ListSessionMCP` cumulative | 0 sampled | 0 sampled | ≤3% | Met |
+| `Manager.Status` cumulative | 0.04 s (2.31%) | 0.01 s (0.47%) | ≤3% | Met |
+| GC background worker and assist | 0.05 s (2.89%) | 0.06 s (2.84%) | ≤8% | Met |
+| Sampled allocation rate per run | 46.57 MB/s | Same run | ≤60 MB/s | Met |
+
+GitHub's second SQLite acceptance run preserved 830,020 rows and met all
+throughput floors. It recorded zero head operation failures. One incomplete
+baseline pair applied the 1 s absolute limit and the head write reached
+1.028 s. The warning criteria independently rejected one telemetry hold.
+The workload calls the stores directly and does not exercise the daemon
+projection changes. The cause of the failed threshold remains unverified.
+[SQLite acceptance log](https://github.com/compozy/compozy/actions/runs/44175674353/job/134366239707).
+
 ## Final status
 
 Targeted runtime QA passed. CPU and allocation met their absolute targets.

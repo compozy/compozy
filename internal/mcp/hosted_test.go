@@ -16,8 +16,11 @@ import (
 	"testing/synctest"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/tools"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestHostedServiceBindNonceLifecycle(t *testing.T) {
@@ -1082,6 +1085,98 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
+	// Invariant: a redaction change renews hosted metadata without rediscovering an unchanged listing.
+	// Owner: hosted projection cache; canonical suite: hosted projection generations.
+	for _, tc := range []struct {
+		name      string
+		versioned bool
+	}{
+		{name: "Should refresh authoritative metadata when a value must be redacted", versioned: true},
+		{name: "Should refresh shared stream metadata when a value must be redacted"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			label := fmt.Sprintf("hosted-projection-late-redaction-%t", tc.versioned)
+			schema := json.RawMessage(`{"type":"object"}`)
+			server := newFakeSDKServerWithSchemas(nil, schema, nil, "Hosted "+label, "", nil)
+			var lists atomic.Int32
+			server.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+				return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+					if method == mcpToolsListMethod {
+						lists.Add(1)
+					}
+					return next(ctx, method, request)
+				}
+			})
+			remote := newTestMCPHTTPServer(server)
+			t.Cleanup(remote.Close)
+			executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+				Name: "echo", Transport: compozyconfig.MCPServerTransportHTTP, URL: remote.URL,
+			}, WithToolListFloor(time.Minute))
+			source := tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
+			provider, err := tools.NewMCPProvider(
+				tools.MCPSourceListerFunc(func(context.Context) ([]tools.SourceRef, error) {
+					return []tools.SourceRef{source}, nil
+				}),
+				executor, nil,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy := tools.DefaultPolicyInputs()
+			policy.ExternalDefault = tools.ExternalDefaultEnabled
+			policy.SystemPermissionMode = tools.PermissionModeApproveAll
+			registry, err := tools.NewRegistry(
+				tools.WithProviders(provider),
+				tools.WithPolicyInputs(policy, tools.ToolsetCatalog{}),
+				tools.WithProjectionGeneration(func(context.Context, tools.Scope) (string, bool) {
+					return "stable-policy", true
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			executable := hostedTestExecutable(t, "compozy")
+			var generation HostedProjectionGeneration
+			if tc.versioned {
+				generation = registry.ProjectionGeneration
+			}
+			service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, generation)
+			epoch := NewProjectionEpoch()
+			service.projectionEpoch = epoch.Current
+			peer := hostedTestPeer(executable)
+			bind := hostedTestBind(t, service, "sess-redaction-change", peer)
+			project := func(lastDigest string) (HostedProjectionResponse, error) {
+				if tc.versioned {
+					return service.Projection(t.Context(), bind.BindID, peer)
+				}
+				return service.StreamProjection(t.Context(), bind.BindID, peer, lastDigest)
+			}
+			initial, err := project("")
+			if err != nil || len(initial.Tools) != 1 ||
+				!strings.Contains(initial.Tools[0].Descriptor.Description, label) {
+				t.Fatalf("initial hosted projection did not expose the unclassified fixture: %v", err)
+			}
+			warm, err := project("")
+			if err != nil || warm.Digest != initial.Digest {
+				t.Fatalf("unchanged hosted projection did not retain its digest: %v", err)
+			}
+			baseline := lists.Load()
+			if baseline != 1 {
+				t.Fatalf("initial tools/list calls = %d, want 1", baseline)
+			}
+
+			t.Cleanup(redact.RegisterRequiredSecret(label))
+			current, err := project(initial.Digest)
+			if err != nil || current.Digest == initial.Digest || len(current.Tools) != 1 ||
+				strings.Contains(current.Tools[0].Descriptor.Description, label) {
+				t.Fatalf("hosted projection did not publish the redacted tool: %v", err)
+			}
+			if got := lists.Load(); got != baseline {
+				t.Fatalf("tools/list calls = %d, want cached listing count %d", got, baseline)
+			}
+		})
+	}
 	// Invariant: expiry with a refresh path retains hosted/proxy tools; sign-in required withdraws them.
 	// Owner: hosted projection and proxy reconciliation; canonical suite: projection generation cache.
 	t.Run(
