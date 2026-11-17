@@ -994,9 +994,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
-    # Manual and opt-in PR runs validate the lane before it lands. This job is
-    # deliberately outside the combined merge gate and Release publish graph.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && needs.changes.outputs.heavy == 'true')
+    # Informational on explicitly opted-in PRs; deliberately outside both merge
+    # aggregators and Release publication dependencies. Never retry a failed census.
+    if: github.event_name == 'schedule' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:full'))
+    concurrency:
+      group: e2e-perf-tracking-issue
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
@@ -1014,7 +1021,15 @@ jobs:
           COMPOZY_E2E_PERF: "1"
       - name: Judge the median against the unchanged 50 ms budget
         if: always()
-        run: go run github.com/magefile/mage@v1.17.2 testPerfCensus .tmp/playwright/playwright-web.json
+        run: |
+          mkdir -p .tmp/playwright
+          go run github.com/magefile/mage@v1.17.2 testPerfCensus .tmp/playwright/playwright-web.json 2>&1 | tee .tmp/playwright/perf-judgment.txt
+      - name: Update the performance tracking issue on failure
+        if: failure() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPOZY_FLAKE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash .github/scripts/perf-census-issue.sh .tmp/playwright/perf-judgment.txt
       - name: Retain every performance sample
         if: always()
         uses: actions/upload-artifact@v7

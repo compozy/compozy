@@ -34,9 +34,12 @@ from structured artifacts, without downloading job logs. Local runs do not retry
 
 E2E-023 runs in the separate nightly performance census, with five complete, unretried
 samples and the unchanged 50 ms switch/peer budget applied to each metric's median.
+It also runs on PRs explicitly labeled `ci:full`, where its result is informational:
+it is outside both merge-gating aggregators and is not a required check. A rejected
+census creates or updates one performance tracking issue and retains the raw samples;
+passing a later run does not automatically close that investigation.
 The 500 ms restore assertion and functional assertions still apply to every sample.
-Opt-in PR (`ci:full`) and manual CI runs also exercise this lane; it is outside the
-combined merge gate and Release publishing dependencies. Run its focused local equivalent
+It also stays outside Release publishing dependencies. Run its focused local equivalent
 with `COMPOZY_E2E_PERF=1 make test-e2e-web` when local E2E execution is authorized.
 
 ## Commit messages

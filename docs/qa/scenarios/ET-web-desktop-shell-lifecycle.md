@@ -18,7 +18,9 @@ overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-we
 
 qa-impact: 2026-11-16 CI flakiness decisions relocate E2E-023 to the nightly performance
 census. Five independent, unretried eleven-tab runs retain every envelope; both the
-switch and peer median must be <=50 ms. Each run still asserts restore <500 ms and
+switch and peer median must be <=50 ms. The lane runs nightly or on explicit
+ci:full PRs, is informational outside merge-gating aggregators, and updates one
+performance tracking issue on rejection. Each run still asserts restore <500 ms and
 functional convergence. A missing/failed sample fails the census with an annotation.
 The census analysis counted 24 intermittent performance failures (51–73 ms), so five
 samples and the median tolerate isolated spikes while failing a majority breach;
