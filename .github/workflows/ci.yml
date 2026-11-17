@@ -997,13 +997,8 @@ jobs:
     # Informational on explicitly opted-in PRs; deliberately outside both merge
     # aggregators and Release publication dependencies. Never retry a failed census.
     if: github.event_name == 'schedule' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:full'))
-    concurrency:
-      group: e2e-perf-tracking-issue
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      issues: write
-      id-token: write
+    outputs:
+      rejected: ${{ steps.judge.outcome == 'failure' }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
@@ -1020,16 +1015,14 @@ jobs:
           CI: "true"
           COMPOZY_E2E_PERF: "1"
       - name: Judge the median against the unchanged 50 ms budget
-        if: always()
+        id: judge
+        # Provisioning/build failures produce no report and belong to their own
+        # failing step. Incomplete or functionally failed reports still get judged.
+        if: always() && hashFiles('.tmp/playwright/playwright-web.json') != ''
+        shell: bash
         run: |
           mkdir -p .tmp/playwright
           go run github.com/magefile/mage@v1.17.2 testPerfCensus .tmp/playwright/playwright-web.json 2>&1 | tee .tmp/playwright/perf-judgment.txt
-      - name: Update the performance tracking issue on failure
-        if: failure() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          COMPOZY_FLAKE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: bash .github/scripts/perf-census-issue.sh .tmp/playwright/perf-judgment.txt
       - name: Retain every performance sample
         if: always()
         uses: actions/upload-artifact@v7
@@ -1038,6 +1031,31 @@ jobs:
           path: .tmp/playwright
           if-no-files-found: error
           retention-days: 14
+
+  e2e-perf-issue:
+    name: Update performance census tracking issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: e2e-perf
+    if: always() && !cancelled() && needs.e2e-perf.outputs.rejected == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    # Serialize the small issue update only; every independent census can run.
+    concurrency:
+      group: e2e-perf-tracking-issue
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: e2e-perf-census
+          path: .tmp/playwright
+      - name: Update the performance tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPOZY_FLAKE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash .github/scripts/perf-census-issue.sh .tmp/playwright/perf-judgment.txt
 
   flake-census:
     name: Collect recovered test flakes

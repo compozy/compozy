@@ -25,8 +25,8 @@ functional convergence. A missing/failed sample fails the census with an annotat
 The census analysis counted 24 intermittent performance failures (51–73 ms), so five
 samples and the median tolerate isolated spikes while failing a majority breach;
 this is not evidence of a production root cause or per-frame headroom. The ordinary
-merge/release browser lanes exclude `@perf`; manual and heavy opt-in PR CI exercise
-the dedicated census. Validation receipts belong to the delivery PR; no local E2E
+merge/release browser lanes exclude `@perf`; nightly and explicit `ci:full` PRs
+exercise the dedicated census. Validation receipts belong to the delivery PR; no local E2E
 walk is claimed under the overloaded-host restriction.
 
 qa-impact: 2026-11-15 accepted window-manager commands retain workspace authorization and

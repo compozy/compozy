@@ -100,8 +100,8 @@ fails the job. A failed test that skips or disappears on retry also fails report
 passing retry counts as recovery. The daily Go test census deduplicates the receipts into one rolling
 seven-day issue; inspect that evidence instead of silently rerunning jobs.
 
-E2E-023 lives in a separate nightly performance census (also exercised on manual and
-heavy opt-in PR runs), outside the combined merge gate and Release publish graph.
+E2E-023 lives in a separate nightly performance census, also exercised on PRs
+explicitly labeled `ci:full`, outside both merge gates and the Release publish graph.
 Five unretried executions retain every raw envelope; the switch and peer medians must
 each stay at or below 50 ms. Every sample retains the 500 ms restore and functional
 assertions. Missing, failed or retried samples fail the census. This is a statistical
