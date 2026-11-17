@@ -1085,12 +1085,21 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
-	// Invariant: secret changes during a read preserve the bind and omit any unsafe external metadata.
+	// Invariant: secret changes preserve safe hosted reads without caching a projection built across revisions.
 	// Owner: hosted projection; canonical suite: hosted projection generations.
-	for _, eager := range []bool{false, true} {
-		t.Run(fmt.Sprintf("Should preserve a bind during redaction changes with eager=%t", eager), func(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		eager     bool
+		versioned bool
+	}{
+		{name: "Should preserve a deferred bind during redaction changes without a known generation"},
+		{name: "Should preserve an eager bind during redaction changes without a known generation", eager: true},
+		{name: "Should preserve a deferred bind during redaction changes with a known generation", versioned: true},
+		{name: "Should preserve an eager bind during redaction changes with a known generation", eager: true, versioned: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			fixture := fmt.Sprintf("synthetic-metadata-redaction-%t", eager)
+			fixture := fmt.Sprintf("synthetic-metadata-redaction-%t-%t", tc.eager, tc.versioned)
 			release := redact.RegisterRequiredSecret(fixture)
 			t.Cleanup(func() { release() })
 			safe := hostedToolView("mcp__echo__safe")
@@ -1106,12 +1115,18 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 				},
 			}}
 			executable := hostedTestExecutable(t, "compozy")
-			service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, nil)
+			var generation HostedProjectionGeneration
+			if tc.versioned {
+				generation = func(context.Context, tools.Scope) (string, bool) {
+					return fmt.Sprintf("%x", redact.SecretFingerprint()), true
+				}
+			}
+			service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, generation)
 			epoch := NewProjectionEpoch()
 			service.projectionEpoch = epoch.Current
 			peer := hostedTestPeer(executable)
 			const id = "sess-redaction-change"
-			launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: id, EagerTools: eager})
+			launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: id, EagerTools: tc.eager})
 			if err != nil {
 				t.Fatal(err)
 			}
