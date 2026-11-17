@@ -120,8 +120,8 @@ func WithTimeout(timeout time.Duration) CallExecutorOption {
 	}
 }
 
-// WithToolListFloor bounds ordinary discovery frequency; explicit checks always bypass it.
-func WithToolListFloor(interval time.Duration) CallExecutorOption {
+// withToolListFloor bounds ordinary discovery frequency for test fixtures.
+func withToolListFloor(interval time.Duration) CallExecutorOption {
 	return func(executor *CallExecutor) {
 		if interval > 0 {
 			executor.toolListFloor = interval

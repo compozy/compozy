@@ -1,6 +1,6 @@
 # Daemon CPU hot paths — review remediation validation
 
-This pass covers the first review round on PR #1802 for issue #1794. It uses the
+This report covers review remediation on PR #1802 for issue #1794. It uses the
 same isolated workload and public transports as the [initial run](2026-11-17-daemon-cpu-hot-paths.md).
 The workload uses scripted ACP runtimes, loopback MCP servers and equivalent Web
 detail traffic through HTTP. Browser UX and live-provider accounts are outside
@@ -175,9 +175,80 @@ binary SHA-256 was `cdacffb738519cff791182e7b3322510e0a354cdccc5d75f38b56efd8895
 | GC background worker and assist | 0.04 s (2.40%) | 0.13 s (5.96%) | ≤8% | Met |
 | Sampled allocation rate per run | 45.87 MB/s | Same run | ≤60 MB/s | Met |
 
+## Fourth review round
+
+- A secret registered again after its last release gets a new fingerprint. An
+  unrelated temporary registration leaves the fingerprint unchanged after that
+  registration ends. Exact binary redaction uses an immutable snapshot.
+- When the active revision changes during a hosted projection build, bind and
+  stream reads filter MCP metadata against a fresh snapshot and leave the result
+  uncached for that revision. The regression covers eager bind and deferred
+  bootstrap, followed by a stream read. Safe tools remain visible in all three
+  paths.
+- The provider validation cache has an internal capacity option with a default of
+  128. The MCP listing floor option is package-private. The watcher test verifies
+  that the live policy applies while the published catalog still has the old
+  definition.
+- Focused tests and golangci-lint v2.15.0 passed for daemon, MCP, redaction and
+  tools. The hosted projection and credential suites passed 12 repetitions
+  with eight parallel tests. The four daemon integrations above passed in
+  37.073 s. The CLI and daemon build and whitespace check passed.
+
+All three transport journeys passed. The authored policy withdrew the tool in
+0.543 s, project approval exposed tools without a restart, and the restricted
+child saw alpha alone. The standard profile used 14 live runtimes and 218
+detail reads over 40.639 s. Each server received 17 `tools/list` requests
+including setup and warm-up. The lab binary SHA-256 was
+`d4046e8d2a715b05e4bbc1bcf7aee24599439387f0f7d123c401c673f7ad1e60`.
+
+| Metric | Round 4 CPU 1 | Round 4 CPU 2 | Target | Result |
+| --- | --- | --- | --- | --- |
+| Total CPU per 20 s | 1.89 s | 3.06 s | ≤4 s | Met |
+| `ResolveAgentConfig` cumulative | 0.08 s (4.23%) | 0.02 s (0.65%) | ≤2% | Miss in capture 1 |
+| `syscall.rawsyscalln` flat | 0.74 s (39.15%) | 0.87 s (28.43%) | ≤8% | Miss |
+| `EffectiveMCPAuthority` cumulative | 0.13 s (6.88%) | 0.22 s (7.19%) | ≤5% | Miss |
+| `ProjectionVisibility` cumulative | 0.20 s (10.58%) | 0.13 s (4.25%) | ≤2% | Miss |
+| Hosted stream cumulative | 0.26 s (13.76%) | 0.14 s (4.58%) | ≤5% | Miss in capture 1 |
+| `ListSessionMCP` cumulative | 0 sampled | 0 sampled | ≤3% | Met |
+| `Manager.Status` cumulative | 0.09 s (4.76%) | 0.05 s (1.63%) | ≤3% | Miss in capture 1 |
+| GC background worker and assist | 0.05 s (2.65%) | 0.10 s (3.27%) | ≤8% | Met |
+| Sampled allocation rate per run | 45.49 MB/s | Same run | ≤60 MB/s | Met |
+
+The credentialed comparison repeated the workload on the baseline and Round 4
+with two loopback MCP servers requiring Vault-backed headers. Each run also
+made 45 explicit server checks during capture. The baseline completed 191
+detail reads and made 236/235 upstream `tools/list` requests. Round 4 completed
+217 detail reads and made 41/40 listings. Both runs authenticated every request
+and had zero errors. All four labs passed strict audit and targeted teardown.
+
+| Metric | Credentialed base CPU 1 | Credentialed base CPU 2 | Credentialed Round 4 CPU 1 | Credentialed Round 4 CPU 2 |
+| --- | --- | --- | --- | --- |
+| Total CPU per 20 s | 11.55 s | 11.86 s | 2.31 s | 2.59 s |
+| Hosted stream cumulative | 2.37 s (20.52%) | 2.72 s (22.93%) | 0.15 s (6.49%) | 0.17 s (6.56%) |
+| Sampled allocation rate per run | 435.72 MB/s | Same run | 56.33 MB/s | Same run |
+
+The normal registry stops the authoritative generation check when a provider
+reports an unknown generation. Neither credentialed capture sampled
+`projectionSourceKey` or `captureAuthoredAgent`. The first Round 4 credentialed
+capture sampled 0.01 s (0.43%) in `renderHTTPServer`. This workload exercises
+Vault-backed request rendering through the real daemon and loopback transports.
+
+Focused microbenchmarks measured the paths directly. Median key construction
+took 1.04 µs for HTTP and 2.66 µs for stdio, or 17.94 µs and 18.08 µs with one
+Vault reference, respectively. The benchmark used a temporary SQLite vault and
+the configured file key provider. Server definitions came from a fixture, and
+the measurement excluded transport setup and network calls. Resolving one
+authored policy against five definitions and a stale catalog took 7.46 µs
+and 57 allocations. These are medians of three 200 ms Go benchmark repetitions.
+The generation check keeps live credential lookup so rotation changes the
+identity immediately. Authored policy validation keeps the publisher's
+canonical spec and identity for precedence decisions.
+
 ## Final status
 
 Targeted runtime QA passed. CPU and allocation met their absolute targets.
-The table preserves each percentage miss. Issue #1797 tracks the four
-residual hotspots already identified for separate work. Delivery remains
-subject to CI and review on the pushed head.
+The tables retain every percentage miss. Issue #1797 tracks the four residual
+hotspots identified for separate work. The first standard Round 4 capture also
+missed the `ResolveAgentConfig` and `Manager.Status` shares. Both stayed below
+0.1 s in that capture and met their share targets in the second capture and
+both credentialed captures.

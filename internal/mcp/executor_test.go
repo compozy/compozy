@@ -1674,7 +1674,7 @@ func TestMCPToolListCache(t *testing.T) {
 		executor := newTestMCPExecutor(
 			t,
 			compozyconfig.MCPServer{Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL},
-			WithToolListFloor(5*time.Second),
+			withToolListFloor(5*time.Second),
 		)
 		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
 		started := time.Now()

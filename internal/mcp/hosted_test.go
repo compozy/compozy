@@ -1085,6 +1085,55 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
+	// Invariant: secret changes during a read preserve the bind and omit any unsafe external metadata.
+	// Owner: hosted projection; canonical suite: hosted projection generations.
+	for _, eager := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve a bind during redaction changes with eager=%t", eager), func(t *testing.T) {
+			t.Parallel()
+			fixture := fmt.Sprintf("synthetic-metadata-redaction-%t", eager)
+			release := redact.RegisterRequiredSecret(fixture)
+			t.Cleanup(func() { release() })
+			safe := hostedToolView("mcp__echo__safe")
+			safe.Descriptor.Source = tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo"}
+			unsafe := hostedToolView("mcp__echo__unsafe")
+			unsafe.Descriptor.Source = safe.Descriptor.Source
+			unsafe.Descriptor.Description = fixture
+			registry := hostedRedactionRegistry{&hostedRegistryStub{
+				views: []tools.ToolView{safe, unsafe},
+				onListed: func() {
+					release()
+					release = redact.RegisterRequiredSecret(fixture)
+				},
+			}}
+			executable := hostedTestExecutable(t, "compozy")
+			service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, nil)
+			epoch := NewProjectionEpoch()
+			service.projectionEpoch = epoch.Current
+			peer := hostedTestPeer(executable)
+			const id = "sess-redaction-change"
+			launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: id, EagerTools: eager})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.ArmLaunch(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
+			bind, err := service.Bind(t.Context(), HostedBindRequest{
+				SessionID: id, Nonce: hostedLaunchNonce(t, launch.Args),
+			}, peer)
+			if err != nil || !slices.Equal(hostedToolIDs(bind.Tools), []string{"mcp__echo__safe"}) {
+				t.Fatalf("bind tools = %v, error = %v", hostedToolIDs(bind.Tools), err)
+			}
+			projection, err := service.StreamSnapshot(t.Context(), bind.BindID, peer)
+			if err != nil || projection.Digest != bind.Digest || projection.Catalog.Servers["echo"] != 1 {
+				t.Fatalf("stream did not retain the safe projection: %v", err)
+			}
+			if count := service.projectionCacheSize(); count != 0 {
+				t.Fatalf("cached %d projections from changing redaction inputs", count)
+			}
+		})
+	}
+
 	// Invariant: a redaction change renews hosted metadata without rediscovering an unchanged listing.
 	// Owner: hosted projection cache; canonical suite: hosted projection generations.
 	for _, tc := range []struct {
@@ -1112,7 +1161,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			t.Cleanup(remote.Close)
 			executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
 				Name: "echo", Transport: compozyconfig.MCPServerTransportHTTP, URL: remote.URL,
-			}, WithToolListFloor(time.Minute))
+			}, withToolListFloor(time.Minute))
 			source := tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
 			provider, err := tools.NewMCPProvider(
 				tools.MCPSourceListerFunc(func(context.Context) ([]tools.SourceRef, error) {
@@ -3005,6 +3054,12 @@ type hostedRegistryStub struct {
 	releaseList    <-chan struct{}
 	// onListed runs after List captured its views, simulating an invalidation during a build.
 	onListed func()
+}
+
+type hostedRedactionRegistry struct{ *hostedRegistryStub }
+
+func (hostedRedactionRegistry) ProjectionRedactionRevision() [sha256.Size]byte {
+	return redact.SecretFingerprint()
 }
 
 var _ tools.Registry = (*hostedRegistryStub)(nil)

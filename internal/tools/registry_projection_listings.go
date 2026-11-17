@@ -15,6 +15,17 @@ import (
 
 type projectionListingsKey struct{}
 
+const defaultProjectionValidationCacheCapacity = 128
+
+// WithProjectionValidationCacheCapacity sets the positive cache limit in place of the default of 128 entries.
+func WithProjectionValidationCacheCapacity(capacity int) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		if capacity > 0 {
+			registry.validatedListings.capacity = capacity
+		}
+	}
+}
+
 // ProjectionListings shares validated provider listings among projection passes attached to it.
 // It never expires entries: its owner bounds freshness by replacing the instance.
 type ProjectionListings struct {
@@ -182,7 +193,7 @@ func (r *RuntimeRegistry) listValidatedProvider(
 		}
 	}
 	if complete {
-		if validated.entries == nil || len(validated.entries) >= 128 {
+		if validated.entries == nil || len(validated.entries) >= validated.capacity {
 			validated.entries = make(map[projectionListingKey][]Descriptor)
 		}
 		immutable := make([]Descriptor, len(descriptors))
@@ -196,6 +207,7 @@ func (r *RuntimeRegistry) listValidatedProvider(
 }
 
 type validatedProviderListings struct {
-	mu      sync.Mutex
-	entries map[projectionListingKey][]Descriptor
+	mu       sync.Mutex
+	entries  map[projectionListingKey][]Descriptor
+	capacity int
 }

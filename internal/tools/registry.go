@@ -43,7 +43,8 @@ var _ Registry = (*RuntimeRegistry)(nil)
 // NewRegistry validates providers and returns a deterministic registry.
 func NewRegistry(opts ...RegistryOption) (*RuntimeRegistry, error) {
 	registry := &RuntimeRegistry{
-		policyInputs: DefaultPolicyInputs(),
+		policyInputs:      DefaultPolicyInputs(),
+		validatedListings: validatedProviderListings{capacity: defaultProjectionValidationCacheCapacity},
 	}
 	for _, opt := range opts {
 		opt(registry)

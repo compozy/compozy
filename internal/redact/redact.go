@@ -38,6 +38,10 @@ func Args(args []string) []string {
 }
 
 func exactRedactString(value string) string {
+	return exactRedactStringWithSecrets(value, dynamicSecrets.valuesSnapshot())
+}
+
+func exactRedactStringWithSecrets(value string, secrets []string) string {
 	if value == "" {
 		return ""
 	}
@@ -55,10 +59,14 @@ func exactRedactString(value string) string {
 	}
 	redacted = shellFlagPattern.ReplaceAllStringFunc(redacted, redactShellFlag)
 	redacted = secretReferencePattern.ReplaceAllString(redacted, Marker)
-	for _, secret := range dynamicSecrets.valuesSnapshot() {
-		redacted = replaceSecretOutsideMarkers(redacted, secret)
+	return replaceRegisteredSecrets(redacted, secrets)
+}
+
+func replaceRegisteredSecrets(value string, secrets []string) string {
+	for _, secret := range secrets {
+		value = replaceSecretOutsideMarkers(value, secret)
 	}
-	return redacted
+	return value
 }
 
 func replaceSecretOutsideMarkers(value string, secret string) string {

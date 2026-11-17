@@ -6409,9 +6409,9 @@ args = ["-c", "printf '{}'"]
 
 func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 	t.Parallel()
-	// Invariant: authored policy takes effect at the bound while publication is blocked.
+	// Invariant: observed authored policy takes effect within its bound when publication has not caught up.
 	// Owner: daemon policy observer; canonical suite: boot resource watchers.
-	t.Run("Should enforce agent policy independently of blocked resource publication", func(t *testing.T) {
+	t.Run("Should enforce policy before updated agent resources are published", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			home := testHomePaths(t)
@@ -6466,20 +6466,7 @@ func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 			var workers sync.WaitGroup
 			defer func() { cancel(); workers.Wait() }()
 
-			started := make(chan struct{})
-			markStarted := sync.OnceFunc(func() { close(started) })
-			publisher := agentSkillPublisherFunc(func(ctx context.Context) error {
-				markStarted()
-				<-ctx.Done()
-				return ctx.Err()
-			})
-			workers.Go(func() {
-				if err := publisher.Sync(ctx); !errors.Is(err, context.Canceled) {
-					t.Errorf("blocked publisher returned %v; want cancellation", err)
-				}
-			})
-			<-started
-			state := &bootState{cfg: cfg, workspaceResolver: resolver, agentSkillResources: publisher}
+			state := &bootState{cfg: cfg, workspaceResolver: resolver}
 			workers.Go(func() { runAgentConfigWatcher(ctx, state, agentConfigPollInterval) })
 			writeDaemonFile(
 				t,
@@ -6497,7 +6484,7 @@ func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 			}
 			agent, err := policy.ResolvePolicyAgent(t.Context(), "observed", &current)
 			if err != nil || !slices.Contains(agent.DenyTools, "compozy__tool_search") {
-				t.Fatalf("current policy while publication is blocked = %+v, %v", agent, err)
+				t.Fatalf("current policy with stale published resources = %+v, %v", agent, err)
 			}
 		})
 	})

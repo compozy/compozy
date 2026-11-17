@@ -36,32 +36,29 @@ func (s *HostedService) bootstrapProjection(
 	if !ok {
 		return s.projection(ctx, record)
 	}
-	for range hostedProjectionGenerationRetries {
-		redaction := projectionRedactionRevision(registry)
-		generation, known := s.bootstrapProjectionGeneration(ctx, record)
-		views, err := bootstrap.BootstrapSessionProjection(ctx, record.scope())
-		if err != nil {
-			return HostedProjectionResponse{}, err
-		}
-		response := hostedProjectionResponse(views, record.digestMemo)
-		var after string
-		var stillKnown bool
-		if known {
-			after, stillKnown = s.bootstrapProjectionGeneration(ctx, record)
-		}
-		if redaction != projectionRedactionRevision(registry) {
-			continue
-		}
-		if !stillKnown || after != generation {
-			return response, nil
-		}
-		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
-		if !s.finishProjectionGeneration(key, record, response, true) {
-			return HostedProjectionResponse{}, ErrHostedBindNotFound
-		}
-		return cloneHostedProjectionResponse(response), nil
+	redaction := projectionRedactionRevision(registry)
+	generation, known := s.bootstrapProjectionGeneration(ctx, record)
+	views, err := bootstrap.BootstrapSessionProjection(ctx, record.scope())
+	if err != nil {
+		return HostedProjectionResponse{}, err
 	}
-	return HostedProjectionResponse{}, ErrHostedProjectionChanged
+	response := hostedProjectionResponse(views, record.digestMemo)
+	var after string
+	var stillKnown bool
+	if known {
+		after, stillKnown = s.bootstrapProjectionGeneration(ctx, record)
+	}
+	if redaction != projectionRedactionRevision(registry) {
+		return filterUnsafeMCPMetadata(response, record), nil
+	}
+	if !stillKnown || after != generation {
+		return response, nil
+	}
+	key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
+	if !s.finishProjectionGeneration(key, record, response, true) {
+		return HostedProjectionResponse{}, ErrHostedBindNotFound
+	}
+	return cloneHostedProjectionResponse(response), nil
 }
 
 func (s *HostedService) bootstrapProjectionGeneration(
