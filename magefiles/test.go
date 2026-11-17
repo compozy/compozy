@@ -53,11 +53,11 @@ func Test() error {
 	if !runSDK {
 		return nil
 	}
-	return TestSDKGo()
+	return TestSDKGo(ctx)
 }
 
 // TestSDKGo runs the separate SDK module with the same bounded retry policy.
-func TestSDKGo() error {
+func TestSDKGo(ctx context.Context) error {
 	jsonDir, err := ensureGoTestJSONFileDir()
 	if err != nil {
 		return err
@@ -66,9 +66,8 @@ func TestSDKGo() error {
 	if jsonDir != "" {
 		jsonPath = filepath.Join(jsonDir, "gotest-sdk.json")
 	}
-	testArgs := goSDKTestArgs(os.Getenv(goTestUncachedEnvVar) == "1")
-	args := append(gotestsumJSONArgs(jsonPath, "./..."), testArgs[1:len(testArgs)-1]...)
-	return runGotestsumInDir(context.Background(), "sdk/go", nil, args...)
+	args := append(gotestsumJSONArgs(jsonPath, "./..."), goSDKTestFlags(os.Getenv(goTestUncachedEnvVar) == "1")...)
+	return runGotestsumInDir(ctx, "sdk/go", nil, args...)
 }
 
 func ensureGoTestJSONFileDir() (string, error) {
@@ -89,7 +88,8 @@ func ensureGoTestJSONFileDir() (string, error) {
 func gotestsumRunnerArgs() []string {
 	args := []string{"--format", "pkgname"}
 	if os.Getenv("CI") != "" {
-		args = append(args, "--rerun-fails=1", "--rerun-fails-max-failures=5")
+		args = append(args, fmt.Sprintf("--rerun-fails=%d", goTestRetryCount),
+			fmt.Sprintf("--rerun-fails-max-failures=%d", goTestRetryFailureCap))
 	}
 	return args
 }
@@ -107,6 +107,8 @@ func gotestsumInvocationArgs(jsonFileDir string, invocationIndex int, packages .
 		packages...)
 }
 
+// gotestsumJSONArgs keeps packages in --packages so reruns can reconstruct the
+// command when go test flags follow --. An optional --jsonfile precedes packages.
 func gotestsumJSONArgs(path string, packages ...string) []string {
 	args := gotestsumRunnerArgs()
 	if path != "" {

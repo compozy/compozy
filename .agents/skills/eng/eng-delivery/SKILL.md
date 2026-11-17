@@ -96,7 +96,7 @@ integration timeouts; invocation wall time includes compilation and setup.
 CI Go test runners retry failed tests once with a five-failure cap; Playwright retries
 once in CI only. Every recovery must have a `FLAKY` annotation and a structured receipt
 (test, job/shard, run, SHA, test attempt and workflow attempt). A second failure still
-fails the job. A failed test that skips its retry also fails reporting; only a
+fails the job. A failed test that skips or disappears on retry also fails reporting; only a
 passing retry counts as recovery. The daily Go test census deduplicates the receipts into one rolling
 seven-day issue; inspect that evidence instead of silently rerunning jobs.
 

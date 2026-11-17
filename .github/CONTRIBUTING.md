@@ -28,7 +28,7 @@ make web-dev    # run the web UI locally
 
 CI retries failed Go tests once (at most five failures per invocation) and failed Playwright
 scenarios once. A recovery emits a `FLAKY` annotation and a JSON receipt; a second failure
-still fails the job. A failed test that skips its retry also fails reporting; only a
+still fails the job. A failed test that skips or disappears on retry also fails reporting; only a
 passing retry counts as recovery. The daily Go test census updates one rolling seven-day flake ledger
 from structured artifacts, without downloading job logs. Local runs do not retry.
 

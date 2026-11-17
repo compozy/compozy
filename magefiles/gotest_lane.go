@@ -29,6 +29,8 @@ const (
 	goSplitTestPackage       = "github.com/compozy/compozy/internal/store/globaldb"
 	goAllPackagesPattern     = "./..."
 	goUnitTestParallelism    = 4
+	goTestRetryCount         = 1
+	goTestRetryFailureCap    = 5
 	moderncCheckptrFlag      = "modernc.org/...=-d=checkptr=0"
 )
 
@@ -58,12 +60,12 @@ func goTestSafetyArgs(fullCheckptr, uncached bool) []string {
 	return args
 }
 
-func goSDKTestArgs(uncached bool) []string {
-	args := []string{"test", "-race", "-parallel=4"}
+func goSDKTestFlags(uncached bool) []string {
+	args := []string{"-race", "-parallel=4"}
 	if uncached {
 		args = append(args, "-count=1")
 	}
-	return append(args, "./...")
+	return args
 }
 
 // ambientRuntimeStateEnvVars are the runtime identity vars a QA lab or dev

@@ -33,7 +33,7 @@ func TestPerfCensus(path string) (err error) {
 	}
 	samples, err := report.perfSamples()
 	if err != nil {
-		return err
+		return fmt.Errorf("judge performance report %q: %w", path, err)
 	}
 	switches, peers := []float64{}, []float64{}
 	for _, sample := range samples {
@@ -70,10 +70,10 @@ func (report playwrightCensus) perfSamples() ([]perfCensusEnvelope, error) {
 		if !strings.Contains(spec.Title, "E2E-023: the 11-tab envelope") {
 			continue
 		}
-		for _, test := range spec.Tests {
+		for index, test := range spec.Tests {
 			sample, err := test.perfSample()
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("performance sample %d in %q (%s): %w", index+1, spec.Title, spec.File, err)
 			}
 			samples = append(samples, sample)
 		}
@@ -108,12 +108,18 @@ func (test playwrightCensusTest) perfSample() (perfCensusEnvelope, error) {
 }
 
 func (attachment playwrightCensusAttachment) perfEnvelope() (perfCensusEnvelope, error) {
-	data, err := base64.StdEncoding.DecodeString(attachment.Body)
+	var data []byte
+	var err error
 	if attachment.Path != "" {
 		data, err = os.ReadFile(attachment.Path)
-	}
-	if err != nil {
-		return perfCensusEnvelope{}, err
+		if err != nil {
+			return perfCensusEnvelope{}, fmt.Errorf("read performance attachment %q: %w", attachment.Path, err)
+		}
+	} else {
+		data, err = base64.StdEncoding.DecodeString(attachment.Body)
+		if err != nil {
+			return perfCensusEnvelope{}, fmt.Errorf("decode base64 attachment %q: %w", attachment.Name, err)
+		}
 	}
 	// Pointers distinguish missing measurements from a measured zero (no long tasks).
 	var envelope struct {
@@ -121,7 +127,12 @@ func (attachment playwrightCensusAttachment) perfEnvelope() (perfCensusEnvelope,
 		Peer   *float64 `json:"worstPeerConvergenceTaskMs"`
 	}
 	if err := json.Unmarshal(data, &envelope); err != nil {
-		return perfCensusEnvelope{}, err
+		return perfCensusEnvelope{}, fmt.Errorf(
+			"decode performance attachment %q (%s): %w",
+			attachment.Name,
+			attachment.Path,
+			err,
+		)
 	}
 	if envelope.Switch == nil || envelope.Peer == nil {
 		return perfCensusEnvelope{}, fmt.Errorf("missing performance measurements")

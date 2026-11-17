@@ -394,16 +394,39 @@ func TestFlakeReceipts(t *testing.T) {
 {"Package":"other","Test":"TestFlaky/sub","Action":"pass"}
 {"Package":"p","Action":"fail"}`
 		got, err := readGoFlakes(strings.NewReader(input))
-		if err == nil || !strings.Contains(err.Error(), "TestSkipped skipped after failure") {
+		if err == nil || !strings.Contains(err.Error(), "TestSkipped ended with skip after failure") {
 			t.Fatalf("skipped retry was not rejected: %v", err)
 		}
 		if len(got) != 1 || got[0].Test != "p#TestFlaky/sub" || got[0].Attempt != 2 {
 			t.Fatalf("flakes = %+v", got)
 		}
-		if _, err := readGoFlakes(strings.NewReader("broken JSON")); err == nil {
-			t.Fatal("malformed receipt accepted")
+	})
+	t.Run("Should identify the malformed Go receipt line", func(t *testing.T) {
+		t.Parallel()
+		if _, err := readGoFlakes(strings.NewReader("{}\nbroken JSON")); err == nil ||
+			!strings.Contains(err.Error(), "decode gotest event at line 2") {
+			t.Fatalf("expected malformed event at line 2, got %v", err)
 		}
 	})
+	t.Run(
+		"Should reject a failed leaf missing from the retry without reporting its parent as recovered",
+		func(t *testing.T) {
+			t.Parallel()
+			input := `{"Package":"p","Test":"TestParent/leaf","Action":"fail"}
+{"Package":"p","Test":"TestParent","Action":"fail"}
+{"Package":"p","Test":"TestParent","Action":"pass"}
+{"Package":"p","Test":"TestRecovered","Action":"fail"}
+{"Package":"p","Test":"TestRecovered","Action":"pass"}`
+			got, err := readGoFlakes(strings.NewReader(input))
+			if err == nil ||
+				!strings.Contains(err.Error(), "p#TestParent/leaf ended with fail after failure; retry must pass") {
+				t.Fatalf("expected missing leaf rejection, got %v", err)
+			}
+			if len(got) != 1 || got[0].Test != "p#TestRecovered" || got[0].Attempt != 2 {
+				t.Fatalf("genuine recovery lost or parent misclassified: %+v", got)
+			}
+		},
+	)
 	t.Run("Should attribute a recovered nested subtest once without conflating other packages", func(t *testing.T) {
 		t.Parallel()
 		var input strings.Builder
@@ -490,16 +513,25 @@ func TestPerfCensusSamples(t *testing.T) {
 		if err != nil || len(samples) != 5 || samples[0].Peer != 73 {
 			t.Fatalf("samples=%+v err=%v", samples, err)
 		}
-		for _, broken := range []string{
-			strings.Replace(input, `"retry":0`, `"retry":1`, 1),
-			strings.Replace(input, `"status":"passed"`, `"status":"failed"`, 1),
-			strings.Replace(input, `"perf-envelope"`, `"missing"`, 1),
-			strings.Replace(input, `,"tests":[`+testJSON+`,`, `,"tests":[`, 1),
-			strings.Replace(input, sample, base64.StdEncoding.EncodeToString([]byte(`{}`)), 1),
+		for _, tc := range []struct {
+			name      string
+			input     string
+			wantError string
+		}{
+			{"Should reject a retried sample", strings.Replace(input, `"retry":0`, `"retry":1`, 1), "without retries"},
+			{"Should reject a failed sample", strings.Replace(input, `"status":"passed"`, `"status":"failed"`, 1), "must pass its functional assertions"},
+			{"Should reject a missing envelope", strings.Replace(input, `"perf-envelope"`, `"missing"`, 1), "missing performance envelope"},
+			{"Should reject an incomplete sample count", strings.Replace(input, `,"tests":[`+testJSON+`,`, `,"tests":[`, 1), "got 4 performance samples, require 5"},
+			{"Should reject missing measurements", strings.Replace(input, sample, base64.StdEncoding.EncodeToString([]byte(`{}`)), 1), "missing performance measurements"},
 		} {
-			if _, err := decode(broken).perfSamples(); err == nil {
-				t.Fatalf("invalid samples accepted: %s", broken)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				if _, err := decode(
+					tc.input,
+				).perfSamples(); err == nil ||
+					!strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("expected %q, got %v", tc.wantError, err)
+				}
+			})
 		}
 	})
 }
@@ -509,10 +541,10 @@ func TestPerfCensusJudgment(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		values    []float64
-		wantError bool
+		wantError string
 	}{
-		{"Should tolerate an isolated spike while retaining the 50ms median budget", []float64{0, 50, 0, 73, 0}, false},
-		{"Should fail a majority breach of the unchanged budget", []float64{0, 51, 51, 73, 0}, true},
+		{"Should tolerate an isolated spike while retaining the 50ms median budget", []float64{0, 50, 0, 73, 0}, ""},
+		{"Should fail a majority breach of the unchanged budget", []float64{0, 51, 51, 73, 0}, "median switch=51ms peer=51ms exceeds 50ms"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -546,8 +578,12 @@ func TestPerfCensusJudgment(t *testing.T) {
 			if err := os.WriteFile(file, data, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			if err := TestPerfCensus(file); (err != nil) != tc.wantError {
-				t.Fatalf("judgment=%v wantError=%v", err, tc.wantError)
+			err = TestPerfCensus(file)
+			if tc.wantError == "" && err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantError != "" && (err == nil || !strings.Contains(err.Error(), tc.wantError)) {
+				t.Fatalf("judgment=%v wantError=%q", err, tc.wantError)
 			}
 		})
 	}

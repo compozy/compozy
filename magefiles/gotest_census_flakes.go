@@ -75,8 +75,8 @@ func (report playwrightCensus) specs() []playwrightCensusSpec {
 }
 
 // TestFlakes converts the existing test receipts to a small, log-free JSON artifact.
-// Workflows run it with always(); a skipped retry is rejected rather than
-// silently accepting gotestsum's successful exit without a passing test.
+// Workflows run it with always(); every previously failed test must finally
+// pass, even if gotestsum exits successfully after a skip or missing subtest.
 func TestFlakes(receiptDir, output string) error {
 	flakes := []flakeReceipt{}
 	var receiptErrors []error
@@ -146,10 +146,12 @@ func readGoFlakes(reader io.Reader) ([]flakeReceipt, error) {
 	outcomes := map[string]outcome{}
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
+	line := 0
 	for scanner.Scan() {
+		line++
 		var event gotestsumEvent
 		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decode gotest event at line %d: %w", line, err)
 		}
 		if event.Test == "" || (event.Action != "pass" && event.Action != "fail" && event.Action != "skip") {
 			continue
@@ -162,23 +164,27 @@ func readGoFlakes(reader io.Reader) ([]flakeReceipt, error) {
 		outcomes[key] = result
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read gotest event after line %d: %w", line, err)
 	}
 	flakes := []flakeReceipt{}
 	var retryErrors []error
 	for name, result := range outcomes {
-		if result.failed && result.last == "skip" {
-			retryErrors = append(retryErrors, fmt.Errorf("%s skipped after failure; retry must pass", name))
+		if result.failed && result.last != "pass" {
+			retryErrors = append(
+				retryErrors,
+				fmt.Errorf("%s ended with %s after failure; retry must pass", name, result.last),
+			)
 		}
 		if result.failed && result.last == "pass" {
 			flakes = append(flakes, flakeReceipt{Suite: "go", Test: name, Attempt: result.attempt})
 		}
 	}
 	// Go repeats ancestor outcomes when rerunning a subtest. Attribute the
-	// recovery to its deepest recovered test instead of inflating the ledger.
+	// recovery to its deepest failed test; an unresolved leaf cannot recover
+	// merely because its ancestor passes.
 	flakes = slices.DeleteFunc(flakes, func(parent flakeReceipt) bool {
 		for name, result := range outcomes {
-			if result.failed && result.last == "pass" && strings.HasPrefix(name, parent.Test+"/") {
+			if result.failed && strings.HasPrefix(name, parent.Test+"/") {
 				return true
 			}
 		}
@@ -191,10 +197,12 @@ func readPlaywrightCensus(path string) (playwrightCensus, error) {
 	var report playwrightCensus
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return report, err
+		return report, fmt.Errorf("read playwright report %q: %w", path, err)
 	}
-	err = json.Unmarshal(data, &report)
-	return report, err
+	if err := json.Unmarshal(data, &report); err != nil {
+		return report, fmt.Errorf("decode playwright report %q: %w", path, err)
+	}
+	return report, nil
 }
 
 func (report playwrightCensus) flakes() []flakeReceipt {
