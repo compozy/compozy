@@ -3807,12 +3807,21 @@ function diagCommitHook() {
                 type H = { memoizedState: unknown; next: H | null };
                 let a = (fiber as unknown as { memoizedState: H | null }).memoizedState;
                 let b = (fiber.alternate as unknown as { memoizedState: H | null }).memoizedState;
+                let lastKey = "";
                 for (let i = 0; a !== null && b !== null && i < 80; i += 1, a = a.next, b = b.next) {
                   const av = a.memoizedState as { create?: unknown } | null;
+                  const obs = av as { options?: { queryKey?: unknown }; getCurrentResult?: unknown } | null;
+                  if (obs !== null && typeof obs === "object" && typeof obs.getCurrentResult === "function") {
+                    try { lastKey = JSON.stringify(obs.options?.queryKey ?? null).slice(0, 120); } catch { lastKey = "?"; }
+                  }
                   if (av !== null && typeof av === "object" && "create" in av) continue;
                   if (a.memoizedState !== b.memoizedState) {
                     const v = a.memoizedState as Record<string, unknown> | null;
-                    const desc = v === null || typeof v !== "object" ? String(v).slice(0, 40) : Array.isArray(v) ? "arr" + v.length : Object.keys(v).slice(0, 6).join("/");
+                    const w = b.memoizedState as Record<string, unknown> | null;
+                    let desc = v === null || typeof v !== "object" ? String(v).slice(0, 40) : Array.isArray(v) ? "arr" + v.length : Object.keys(v).slice(0, 6).join("/");
+                    if (v !== null && typeof v === "object" && "fetchStatus" in v && w !== null && typeof w === "object") {
+                      desc = `query ${lastKey} changed:${Object.keys(v).filter(k => v[k] !== w[k]).join(",")} fs:${String(w.fetchStatus)}->${String(v.fetchStatus)}`;
+                    }
                     hooks.push(`${i}:${desc}`);
                   }
                 }
