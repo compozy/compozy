@@ -23,6 +23,7 @@ import (
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -37,6 +38,9 @@ type restartLabSession struct {
 	Failure                      *store.SessionFailure
 	Partial, Finished            bool
 	Continuations                int
+	ShutdownWakes                int
+	FollowUps                    int
+	MonitorActive                bool
 	Badge                        string
 	PublicReads                  int
 }
@@ -90,6 +94,12 @@ func TestDaemonRestartContinuesSessions(t *testing.T) {
 					} else if got.Continuations != 1 || !got.Finished {
 						t.Fatalf("restart did not finish exactly once: %#v", got)
 					}
+					if i == 0 && mode != "stop" && got.ShutdownWakes != 1 {
+						t.Fatalf("child shutdown wake was lost or duplicated: %#v", got)
+					}
+					if i == 2 && mode != "stop" && (got.FollowUps != 1 || (phase == "second" && !got.MonitorActive)) {
+						t.Fatalf("spawned worker lost queued work or its monitor: %#v", got)
+					}
 				}
 				stopRestartLabDaemon(t, next)
 				records, err := acpmock.ReadDiagnostics(
@@ -133,6 +143,10 @@ func restartLabFixture(t *testing.T, root string) {
 					{Kind: acpmock.StepKindAssistant, Text: "Restart work finished."},
 				},
 			},
+			{Name: "child-wake", Match: acpmock.TurnMatch{UserTextContains: "Session wake: child session"},
+				Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "Child status inspected."}}},
+			{Name: "follow-up", Match: acpmock.TurnMatch{UserText: "queued follow-up"},
+				Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "Queued work finished."}}},
 		},
 	}}}
 	data, err := json.Marshal(fixture)
@@ -285,14 +299,24 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 	phase := os.Getenv("COMPOZY_RESTART_PHASE")
 	if phase == "first" {
 		workspace := resolveDaemonWorkspace(t, d.workspaceResolver, filepath.Join(root, "project"))
+		var ids []string
 		for i := range 3 {
-			active, err := d.sessions.Create(t.Context(), new(session.CreateOpts{
-				AgentName: "restart-lab", Workspace: workspace.ID, Type: session.SessionTypeUser,
-				DesiredSessionID: fmt.Sprintf("sess-restart-lab-%d", i),
-			}))
+			var active *session.Session
+			if i == 2 {
+				active, err = d.sessions.(nativeSessionSpawner).Spawn(t.Context(), &session.SpawnOpts{
+					ParentSessionID: ids[0], AgentName: "restart-lab", TTL: time.Hour,
+					AutoStopOnParent: true, NotifyCreator: true,
+				})
+			} else {
+				active, err = d.sessions.Create(t.Context(), new(session.CreateOpts{
+					AgentName: "restart-lab", Workspace: workspace.ID, Type: session.SessionTypeUser,
+					DesiredSessionID: fmt.Sprintf("sess-restart-lab-%d", i),
+				}))
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
+			ids = append(ids, active.ID)
 			stream, err := d.sessions.Prompt(t.Context(), active.ID, "restart lab work")
 			if err != nil {
 				t.Fatal(err)
@@ -301,6 +325,27 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 				for range stream {
 				}
 			}()
+			if i == 2 {
+				if _, err := d.sessionMonitors.Create(t.Context(), monitorpkg.Spec{
+					SessionID: active.ID, ProfileID: active.ProfileID, WorkspaceID: workspace.ID,
+					Kind: monitorpkg.KindTimer, Delay: time.Hour, Description: "Inspect worker progress",
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := d.sessions.SendPrompt(t.Context(), active.ID, session.SendPromptOpts{
+					Message: "queued follow-up", Mode: session.BusyInputModeQueue,
+					MessageID: "worker-follow-up", IdempotencyKey: "worker-follow-up",
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		data, err := json.Marshal(ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "session-ids.json"), data, 0o600); err != nil {
+			t.Fatal(err)
 		}
 	}
 	report := awaitRestartLabReport(t, d, phase)
@@ -327,6 +372,14 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 
 func awaitRestartLabReport(t *testing.T, d *Daemon, phase string) []restartLabSession {
 	t.Helper()
+	data, err := os.ReadFile(filepath.Join(os.Getenv("COMPOZY_RESTART_LAB"), "session-ids.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	if err := json.Unmarshal(data, &ids); err != nil {
+		t.Fatal(err)
+	}
 	deadline := time.NewTimer(20 * time.Second)
 	defer deadline.Stop()
 	ticker := time.NewTicker(25 * time.Millisecond)
@@ -334,8 +387,7 @@ func awaitRestartLabReport(t *testing.T, d *Daemon, phase string) []restartLabSe
 	for {
 		var report []restartLabSession
 		ready := true
-		for i := range 3 {
-			id := fmt.Sprintf("sess-restart-lab-%d", i)
+		for _, id := range ids {
 			info, err := d.sessions.Status(t.Context(), id)
 			if err != nil {
 				t.Fatal(err)
@@ -351,6 +403,9 @@ func awaitRestartLabReport(t *testing.T, d *Daemon, phase string) []restartLabSe
 				StopReason: string(info.StopReason),
 				Detail:     info.StopDetail, Transition: string(info.RuntimeTransition), Failure: info.Failure,
 			}
+			for _, watch := range d.sessionMonitors.List(id) {
+				item.MonitorActive = item.MonitorActive || watch.Status == monitorpkg.StatusActive
+			}
 			for _, row := range rows {
 				if row.Type == events.SessionRestartResumed {
 					item.Continuations++
@@ -362,6 +417,14 @@ func awaitRestartLabReport(t *testing.T, d *Daemon, phase string) []restartLabSe
 				if event.Type == acp.EventTypeAgentMessage {
 					item.Partial = item.Partial || strings.Contains(event.Text, "Partial work preserved.")
 					item.Finished = item.Finished || strings.Contains(event.Text, "Restart work finished.")
+					if event.Text == "Queued work finished." {
+						item.FollowUps++
+					}
+				}
+				if event.Type == acp.EventTypeSyntheticReentry && event.Synthetic != nil &&
+					event.Synthetic.Reason == string(session.SpawnWakeReasonStopped) &&
+					strings.Contains(event.Synthetic.Summary, "Daemon shutdown") {
+					item.ShutdownWakes++
 				}
 			}
 			prompting := d.sessions.(sessionPromptStateReader).IsPrompting(id)

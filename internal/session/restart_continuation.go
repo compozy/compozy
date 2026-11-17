@@ -20,12 +20,20 @@ func (m *Manager) ResumeInterruptedSessions(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return runRestartResumes(ctx, planRestartResumes(infos), restartResumeConcurrency,
+	parents := m.restartWaitingParents(infos)
+	if err := runRestartResumes(ctx, planRestartResumes(infos), restartResumeConcurrency,
 		func(ctx context.Context, id string) {
-			if _, err := m.ResumeInterruptedSession(ctx, id); err != nil && ctx.Err() == nil {
+			resumed, err := m.ResumeInterruptedSession(ctx, id)
+			if err == nil && !resumed && parents[id] {
+				err = m.ResumeWaitingSession(ctx, id)
+			}
+			if err != nil && ctx.Err() == nil {
 				m.logger.WarnContext(ctx, "session: restart continuation unavailable", "session_id", id, "error", err)
 			}
-		})
+		}); err != nil {
+		return err
+	}
+	return m.recoverSpawnShutdownWakes(ctx, infos)
 }
 
 // ResumeInterruptedSession consumes a durable interruption through the existing prompt admission owner.
@@ -37,6 +45,10 @@ func (m *Manager) ResumeInterruptedSession(ctx context.Context, id string) (bool
 	meta, err := m.readMetaWithContext(ctx, id)
 	if err != nil {
 		return false, err
+	}
+	if normalizeSessionType(Type(meta.SessionType)) == SessionTypeSpawned {
+		m.spawnMu.Lock()
+		defer m.spawnMu.Unlock()
 	}
 	checkpoint, found, err := m.pendingRestartCheckpoint(ctx, &meta)
 	if err != nil || !found {

@@ -3,6 +3,8 @@ package spec
 import (
 	"slices"
 
+	"github.com/compozy/compozy/internal/admission"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -70,6 +72,7 @@ func toolReasonCodeValues() []string {
 
 func toolErrorCodeValues() []string {
 	values := []string{
+		admission.StartingCode,
 		string(tools.ErrorCodeNotFound),
 		string(tools.ErrorCodeConflict),
 		string(tools.ErrorCodeSessionBusy),

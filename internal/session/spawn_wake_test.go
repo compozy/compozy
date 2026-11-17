@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -154,6 +155,80 @@ func TestSpawnWakeReasonForBadge(t *testing.T) {
 
 func TestManagerDispatchSpawnWake(t *testing.T) {
 	t.Parallel()
+	// Invariant: a shutdown wake is deferred and derived after manager replacement with a durable
+	// identity; boot never revives a deliberately stopped parent. Owner: spawn wake recovery.
+	for _, parentStopped := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should recover shutdown wake with explicit parent stop %t", parentStopped),
+			func(t *testing.T) {
+				db := openManagerInputQueueStore(t)
+				notifier := &recordingSpawnWakeNotifier{}
+				opts := []Option{WithSessionCatalog(db), WithSessionInputQueueStore(db),
+					WithSessionPromptAdmissionStore(db), WithSpawnWakeNotifier(notifier),
+					WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond})}
+				h := newHarness(t, opts...)
+				registerManagerInputQueueWorkspace(t, db, h)
+				parent := createSession(t, h)
+				stream, err := h.manager.Prompt(t.Context(), parent.ID, "wait for the child")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, stream)
+				child, err := h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+					AgentName: "coder", TTL: time.Hour, NotifyCreator: true, AutoStopOnParent: true})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.StopWithCause(t.Context(), child.ID, CauseShutdown, "daemon restart"); err != nil {
+					t.Fatal(err)
+				}
+				cause := CauseShutdown
+				if parentStopped {
+					cause = CauseUserRequested
+				}
+				if err := h.manager.StopWithCause(t.Context(), parent.ID, cause, ""); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.Shutdown(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if _, wakes := notifier.calls(); len(wakes) != 0 {
+					t.Fatal("shutdown delivered before recovery")
+				}
+				h.manager = newManagerWithHarness(t, h, opts...)
+				t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+				notifier.err = ErrSpawnWakeRetryable
+				for attempt := range 3 {
+					if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					if attempt == 0 {
+						notifier.mu.Lock()
+						notifier.err = nil
+						notifier.mu.Unlock()
+					}
+				}
+				parents, wakes := notifier.calls()
+				wantCalls := 2
+				if parentStopped {
+					wantCalls = 0
+				}
+				if len(wakes) != wantCalls {
+					t.Fatalf("shutdown wakes = %d, want %d", len(wakes), wantCalls)
+				}
+				for i, wake := range wakes {
+					if parents[i] != parent.ID || wake.WakeEventID != wakes[0].WakeEventID ||
+						wake.Reason != SpawnWakeReasonStopped || !strings.Contains(wake.Detail, "Daemon shutdown") {
+						t.Fatalf("recovered shutdown identity changed: %+v", wake)
+					}
+				}
+				_, live := h.manager.Get(parent.ID)
+				if live == parentStopped {
+					t.Fatalf("parent live = %t after explicit stop %t", live, parentStopped)
+				}
+			},
+		)
+	}
 	// The manager owns reservations: pre-dispatch failures can retry, while
 	// admitted or uncertain outcomes must retain duplicate suppression.
 	for _, test := range []struct {

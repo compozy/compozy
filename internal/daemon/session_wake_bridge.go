@@ -71,7 +71,7 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 	}
 	complete, admitted := bridge.workers.Begin()
 	if !admitted {
-		return errors.New("daemon: session wake bridge is stopping")
+		return fmt.Errorf("%w: daemon session wake bridge is stopping", session.ErrSpawnWakeRetryable)
 	}
 	deliveryCtx := context.WithoutCancel(ctx)
 	sessions := bridge.resolve()
@@ -155,7 +155,7 @@ func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 		child += " (" + event.ChildAgentName + ")"
 	}
 	lines := []string{
-		"Session wake: child session " + child + " is " + string(event.Badge) + ".",
+		"Session wake: child session " + child + " reported " + string(event.Badge) + ".",
 		"Reason: " + string(event.Reason) + ".",
 		sessionWakeAction(event),
 	}

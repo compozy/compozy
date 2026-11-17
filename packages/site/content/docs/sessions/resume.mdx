@@ -36,6 +36,15 @@ an exhausted retry budget. A completed turn is never continued again. The defaul
 recovery attempts in five minutes; inspect the session before sending a fresh prompt after a pause.
 Subagents and Loops retain their existing recovery owners and apply the same restart safety checks.
 
+Workers created with `compozy__session_spawn` also continue interrupted work and recover their
+monitors. Their TTL, spawn limits, archive state, and `auto_stop_on_parent` still apply. An expired
+worker or one whose required parent cannot resume stays stopped. With `notify_creator`, a shutdown
+stop notice is recovered from the child's durable stop event and admitted to the parent once.
+The notice describes the shutdown; inspect the child's current status before intervening.
+
+During boot recovery, new prompts receive HTTP `503` with code `daemon_starting` and
+`retryable: true`. Retry with the same message identity after the daemon is ready.
+
 `compozy daemon stop` and explicit session stops cancel work and never schedule automatic
 continuation. Use `compozy daemon restart` to preserve restart intent. You can opt out in `config.toml`:
 

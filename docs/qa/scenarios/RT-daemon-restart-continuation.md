@@ -32,11 +32,31 @@ overlaps: RT-daemon-drain-admission; RT-subagent-restart
    default and trigger four interruptions inside five minutes: the fourth is paused by the breaker.
 7. Explicitly stop a session and then stop the daemon. Start again: neither automatically resumes.
    A turn that finishes during the grace period also receives no continuation.
+8. Repeat with a `session_spawn` worker and its parent, with a monitor owned by the worker.
+   The interrupted worker continues once after its parent, and its monitor remains recoverable.
+   Controls with an expired TTL, an archived or explicitly stopped worker, a stopped auto-stop
+   parent, or an exhausted spawn budget stay stopped. A delegated subagent uses its own recovery
+   path and receives no second continuation from the ordinary resume pool.
+9. With `notify_creator`, stop a child during daemon shutdown after the wake bridge has quiesced.
+   Boot again: the parent receives one stopped notice tied to the durable child stop receipt.
+   Repeat recovery: that same notice costs no additional turn. An explicitly stopped parent stays stopped.
+10. While HTTP/UDS serves during boot recovery, send a prompt. Expect `503`, code
+    `daemon_starting`, `retryable: true`, and retry guidance. Retry the same message identity after
+    readiness. An operator drain retains its existing draining refusal.
 
 The canonical composition-root test is `TestDaemonRestartContinuesSessions` in
 `internal/daemon/restart_integration_test.go`; qualification, durable attempt limits and admission
 identities belong to the session manager resume suite. Focused integration evidence does not by
 itself certify all Web/CLI interaction branches above.
+
+Targeted automated verification 2026-11-16 (#1778):
+`GOMAXPROCS=2 go test -p 2 -tags integration ./internal/daemon -run '^(TestDaemonRestartContinuesSessions|TestSubagentCleanRestartDaemonIntegration)$' -count=1 -timeout=180s -v`
+passed in disposable homes with real daemon and provider-fixture processes. Restart and crash
+preserved the spawned worker's queued input and monitor, resumed its interrupted turn once,
+and delivered one shutdown notice to its parent across replacement and a third boot.
+Explicit daemon stop remained stopped, and delegated recovery kept its existing owner.
+Focused session qualification and admission/transport suites also passed for the controls in
+steps 8–10. The full persona/Web/CLI journey remains untested.
 
 Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
 canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted

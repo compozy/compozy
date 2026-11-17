@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/admission"
+
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/agentidentity"
@@ -3357,6 +3359,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		// #1326: launches on a disabled provider return their own tool error code.
 		if addToolErrorCode(baseline, string(tools.ErrorCodeProviderDisabled)) == 0 {
 			t.Fatal("approved provider_disabled tool error: no historical tool error enums found")
+		}
+		// #1778: boot admission adds a retryable code without changing draining errors.
+		if addToolErrorCode(baseline, admission.StartingCode) == 0 {
+			t.Fatal("approved daemon_starting tool error: no historical tool error enums found")
 		}
 		// otel-telemetry-export: status reports per-signal OpenTelemetry export health.
 		addOTelStatusSchema(t, baseline)

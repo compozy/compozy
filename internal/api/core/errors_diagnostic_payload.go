@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/admission"
+
 	"github.com/compozy/compozy/internal/heartbeat/source"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -23,6 +25,10 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if errors.Is(err, admission.ErrStarting) {
+		payload.Code, payload.Error, payload.Retryable = admission.StartingCode, admission.ErrStarting.Error(), true
+		return payload
+	}
 	if refusal, ok := errors.AsType[*session.MCPReloadError](err); ok {
 		payload.Code = session.MCPReloadFailedCode
 		payload.Retryable = true

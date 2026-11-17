@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -1331,6 +1332,15 @@ func nativeTestSessionManager(workspaceID string, profileIDs ...string) *apitest
 // TestDaemonNativeTools exercises native tool dispatch, authorization, and resource ownership through the daemon registry.
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve retryable boot rejection for session prompts", func(t *testing.T) {
+		t.Parallel()
+		err := nativeSessionOrchestrationError(toolspkg.ToolIDSessionPrompt, admission.ErrStarting)
+		refusal, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || string(refusal.Code) != admission.StartingCode || !refusal.Retryable ||
+			refusal.HTTPStatus != http.StatusServiceUnavailable || refusal.Message != admission.ErrStarting.Error() {
+			t.Fatalf("native prompt error = %+v", err)
+		}
+	})
 
 	t.Run("Should bound default tool search results with continuation metadata", func(t *testing.T) {
 		t.Parallel()

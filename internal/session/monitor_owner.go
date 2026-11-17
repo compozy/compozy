@@ -74,8 +74,12 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 	if err != nil {
 		return err
 	}
-	if normalizeSessionType(Type(meta.SessionType)) != SessionTypeUser {
+	if !restartResumeOwns(normalizeSessionType(Type(meta.SessionType)), meta.Lineage) {
 		return &MonitorOwnerIneligibleError{Reason: "session_type"}
+	}
+	if normalizeSessionType(Type(meta.SessionType)) == SessionTypeSpawned {
+		m.spawnMu.Lock()
+		defer m.spawnMu.Unlock()
 	}
 	if sessionMetaStopReason(&meta) != store.StopShutdown {
 		return ErrMonitorOwnerStopped

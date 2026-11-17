@@ -43,6 +43,10 @@ Use `compozy drain -o json` (or `POST /api/drain` over HTTP/UDS) to close daemon
 
 Confirm drain through `.daemon.status == "draining"` in `compozy status -o json` or the informational `daemon_draining` item in `compozy doctor -o json`. Use `compozy undrain -o json` or `POST /api/undrain` to restore `{"state":"active"}`. Drain is in-memory, applies across every workspace, and clears on daemon restart.
 
+While the daemon is starting, new prompts return `503` with code `daemon_starting`,
+`retryable: true`, and `daemon starting, retry when ready`. Wait for readiness before retrying
+the same message identity. This is distinct from an operator drain, whose existing refusal stays unchanged.
+
 ## Session Lifecycle
 
 CompozyOS sessions are daemon-owned runtimes. Common states:
@@ -89,6 +93,18 @@ A normal prompt to an eligible stopped public session restarts its ACP process, 
 history, and submits the new prompt against the same session ID. Concurrent prompts share one
 restart. Attach, queue management, steer, interrupt, and other control operations never trigger this
 restart.
+
+For `compozy__session_prompt`, omit `mode` to deliberately reopen an eligible stopped session.
+Explicit `queue`, `steer`, or `interrupt` returns `session_not_promptable` while it is stopped.
+Inspect `stop_reason` first; a daemon interruption and an explicit user stop are different decisions.
+
+After a restart, eligible `session_spawn` workers with interrupted turns continue automatically,
+after their parents. Expired, archived, explicitly stopped workers, exhausted spawn budgets, and
+workers whose `auto_stop_on_parent` parent is no longer live stay stopped. Delegated subagents keep
+their own recovery owner. Worker monitors follow the same restart eligibility rules as user-session
+monitors. With `notify_creator`, a child stop recorded during shutdown is recovered from its durable
+stop receipt and admitted once to an eligible parent; the notice describes the shutdown edge, so
+read current child status before intervening.
 
 If ACP disconnects during a prompt, CompozyOS keeps every persisted event and automatically tries to
 replace the runtime three times with 1, 2, and 4 second delays. Session status reports

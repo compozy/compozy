@@ -516,6 +516,30 @@ func TestErrorPayloadForError(t *testing.T) {
 // Owner: core error mapping; canonical suite: core errors (UT-024b).
 func TestMCPReloadAdmissionErrorContract(t *testing.T) {
 	t.Parallel()
+	t.Run("Should expose boot admission as retryable across HTTP and native tools", func(t *testing.T) {
+		t.Parallel()
+		failure := fmt.Errorf("prompt admission: %w", admission.ErrStarting)
+		if got := StatusForSessionError(failure); got != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, want 503", got)
+		}
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		RespondError(ctx, http.StatusInternalServerError, failure, true)
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if recorder.Code != http.StatusServiceUnavailable || payload.Code != admission.StartingCode ||
+			!payload.Retryable || payload.Error != admission.ErrStarting.Error() {
+			t.Fatalf("HTTP status=%d payload=%+v", recorder.Code, payload)
+		}
+		native := NativeToolError("compozy__session_prompt", failure)
+		result := ToolErrorResponseForError(native, StatusForToolError(native), true)
+		if string(result.Error.Code) != admission.StartingCode || !result.Error.Retryable ||
+			StatusForToolError(native) != http.StatusServiceUnavailable {
+			t.Fatalf("native boot error = %+v, %v", result, native)
+		}
+	})
 	t.Run("Should expose an authoritative retryable conflict without masking the provider cause", func(t *testing.T) {
 		t.Parallel()
 		failure := &session.MCPReloadError{

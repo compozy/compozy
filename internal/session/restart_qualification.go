@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -56,10 +57,58 @@ func (m *Manager) restartSkipReason(
 	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID); err != nil {
 		return "archived", nil
 	}
+	if reason, err := m.restartSpawnSkipReason(ctx, meta); err != nil || reason != "" {
+		return reason, err
+	}
 	if reason, err := m.restartRuntimeSkipReason(ctx, meta, checkpoint, &workspace); err != nil || reason != "" {
 		return reason, err
 	}
 	return m.restartLimitReason(ctx, meta, cfg)
+}
+
+func (m *Manager) restartSpawnSkipReason(ctx context.Context, meta *store.SessionMeta) (string, error) {
+	if normalizeSessionType(Type(meta.SessionType)) != SessionTypeSpawned {
+		return "", nil
+	}
+	if !restartResumeOwns(SessionTypeSpawned, meta.Lineage) {
+		// Delegated children enter through their service's recovery owner, which enforces
+		// their turn lifetime instead of the long-lived worker TTL and spawn budget.
+		return "", nil
+	}
+	lineage := meta.Lineage
+	if lineage.TTLExpiresAt == nil || !lineage.TTLExpiresAt.After(m.now()) {
+		return "expired", nil
+	}
+	parent, err := m.Status(ctx, lineage.ParentSessionID)
+	if err != nil && !errors.Is(err, ErrSessionNotFound) {
+		return "", err
+	}
+	if lineage.AutoStopOnParent && (parent == nil ||
+		(parent.State != StateActive && parent.State != StateStarting)) {
+		return "parent_stopped", nil
+	}
+	var governance spawnGovernance
+	if parent == nil {
+		// Independent workers retain their accepted bounds even after the parent is removed.
+		parent = &Info{ID: lineage.ParentSessionID, Lineage: &store.SessionLineage{SpawnBudget: lineage.SpawnBudget}}
+		governance = spawnGovernance{rootID: lineage.RootSessionID, depth: max(0, lineage.SpawnDepth-1)}
+	} else {
+		governance, err = m.spawnGovernanceForParent(ctx, parent)
+		if err != nil {
+			return "", err
+		}
+	}
+	budget := store.EffectiveSessionSpawnBudget(store.NormalizeSessionLineage(parent.ID, parent.Lineage).SpawnBudget)
+	if governance.depth+1 > budget.MaxDepth {
+		return "spawn_budget", nil
+	}
+	if err := m.validateSpawnCaps(ctx, parent, governance, budget, meta.WorkspaceID); err != nil {
+		if errors.Is(err, ErrSpawnLimitExceeded) {
+			return "spawn_budget", nil
+		}
+		return "", err
+	}
+	return "", nil
 }
 
 // restartFailureRequiresOperator reports whether a failure retained on an interrupted session

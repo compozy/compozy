@@ -93,6 +93,16 @@ func TestSessionWakeBridge(t *testing.T) {
 				t.Fatal(wakeErr)
 			}
 		}
+		if err := bridge.shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		bridge, err = newSessionWakeBridge(t.Context(), func() sessionWakeSessionManager { return manager }, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := bridge.WakeSpawnCreator(t.Context(), "parent", event); err != nil {
+			t.Fatal(err)
+		}
 		manager.mu.Lock()
 		calls, messageID := manager.promptCalls, manager.promptOpts.MessageID
 		manager.mu.Unlock()
@@ -315,7 +325,7 @@ func TestSessionWakeBridge(t *testing.T) {
 			"parent-1",
 			validSessionWakeEvent(),
 		); err == nil ||
-			!strings.Contains(err.Error(), "stopping") {
+			!strings.Contains(err.Error(), "stopping") || !errors.Is(err, session.ErrSpawnWakeRetryable) {
 			t.Fatalf("WakeSpawnCreator() error = %v, want stopping rejection", err)
 		}
 	})

@@ -167,7 +167,7 @@ func statusForSessionError(err error) int {
 	switch {
 	case errors.Is(err, context.Canceled):
 		return statusClientClosedRequest
-	case errors.Is(err, admission.ErrDraining):
+	case errors.Is(err, admission.ErrDraining), errors.Is(err, admission.ErrStarting):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, session.ErrSessionMessageRateLimited):
 		return http.StatusTooManyRequests
