@@ -134,6 +134,33 @@ describe("global profile selection", () => {
     );
   });
 
+  it("Should enter the remembered choice again when the view clears after an unwatched reread [#1736]", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    renderHook(() => useActiveProfileView(), { wrapper });
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" })
+    );
+    let answer: (selection: { scope: "global"; profile: string }) => void = () => undefined;
+    vi.mocked(fetchProfileSelection).mockImplementationOnce(
+      () => new Promise(resolve => (answer = resolve))
+    );
+    let reread: Promise<void> = Promise.resolve();
+    act(() => {
+      reread = queryClient.refetchQueries({ queryKey: ["profiles", "selection", "global"] });
+    });
+
+    // The reread lands while the view is held, so it never wakes the hook; then the view clears.
+    await act(async () => {
+      answer({ scope: "global", profile: "marketing" });
+      await reread;
+    });
+    act(() => resetProfileViews());
+
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" })
+    );
+  });
+
   it("Should not wake the caller for a reread that leaves the entered choice unchanged [#1736]", async () => {
     const { queryClient, wrapper } = createWrapper();
     let renders = 0;

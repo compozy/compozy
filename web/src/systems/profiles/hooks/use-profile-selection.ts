@@ -61,12 +61,14 @@ export function useActiveProfileView(enabled = true): ProfileView {
   const local = useSelector(profileViewStore, state => state.context.view);
   const rememberedProfile = remembered.data?.profile;
   const remembering = remembered.isFetching;
+  const viewHeld = local !== null;
 
   useEffect(() => {
-    // A cached, invalidated choice is not the settled default for this client.
-    if (!enabled || remembering || rememberedProfile === undefined) return;
+    // A cached, invalidated choice is not the settled default for this client. A cleared view
+    // enters again: a reread that started while it was held never woke this hook.
+    if (!enabled || viewHeld || remembering || rememberedProfile === undefined) return;
     enterProfileView({ kind: "profile", profile: rememberedProfile });
-  }, [enabled, rememberedProfile, remembering]);
+  }, [enabled, viewHeld, rememberedProfile, remembering]);
 
   if (local) return local;
   return { kind: "profile", profile: rememberedProfile ?? PERMANENT_PROFILE };
