@@ -79,3 +79,12 @@ instance allowlist. A failed full hosted projection must fail readiness instead 
 QA impact 2026-11-14 (MCP hot activation spec): `auth/begin` gains an optional `definition_digest`. For a workspace record waiting for approval: without it `409 mcp_server_waiting_approval` and no network request; with the current digest the approval is recorded, then sign-in begins; with a stale digest `409 mcp_approval_definition_changed`. Retained OAuth clients and redirects recheck consent. Passive auth status stays readable. Re-walk begin/exchange on a waiting project server.
 
 QA impact 2026-11-14 review fixes: sign out after revoking project approval. Local credentials and pending auth state must be removed while approval is waiting, with no request to the MCP/OAuth server. The focused daemon auth suite exercises the real token store and a request-counting HTTP fixture; it does not replace the full live-provider walk.
+
+QA impact 2026-11-17 (#1785): in an isolated home with a local OAuth authority, expire a stored
+access token while retaining a usable refresh token. Status remains `expired`, `token_present=true`,
+`refreshable=true`; discovery/call renews it without sign-in. Concurrent calls share one refresh.
+Return `invalid_grant` or `revoked`: require `needs_login`, no stored token and withdrawn tools.
+Return a transient error: credentials and advertised tools remain; requests during retry backoff
+send no additional OAuth traffic, and a later successful attempt recovers. Capture refresh logs
+with server, cause class and attempt count, and verify access/refresh tokens, codes, verifiers and
+client secrets are absent. An expired dynamic-client secret is not a usable refresh path.

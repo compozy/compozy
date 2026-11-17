@@ -247,6 +247,15 @@ repair requires `authenticated` plus `token_present=true`. Reads project `env_ke
 `preserve_headers: true`; reads expose only `headers_configured`. Preserve other exact-target fields with `preserve_env` or
 `preserve_secrets`; renames and target changes require replacement.
 
+An `expired` OAuth status with `token_present=true` and `refreshable=true` keeps MCP tools
+advertised: discovery or a call renews the token. Do not request manual sign-in solely for this
+combination. Refreshes share one in-flight attempt per credential target and use jittered retry
+backoff (about 1 s, doubling to at most 60 s). Transient failures retain the credentials and listed
+tools; definitive rejection (`invalid_grant`, revoked credentials) clears the token and reports
+`needs_login`. Expiry without a usable refresh path remains blocked. Successful sign-in or renewal
+clears that server's authentication-related dead mark without clearing health-only failures.
+`mcp.auth.refresh_failed` logs contain server, cause class, and attempt count, never credentials.
+
 Extension source search is separate: `compozy extension search <query> [--sources curated,github]
 [--limit N] [--cursor <opaque>]` and native `compozy__extensions_search` page
 `GET /api/extensions/search`, tagging rows with `source`, `tier`, `integrity`, and `digest_matched`

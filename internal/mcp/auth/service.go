@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -38,6 +39,10 @@ type Service struct {
 	generation        *MutationGeneration
 	secretResolver    SecretRefResolver
 	clientMetadataURL string
+	logger            *slog.Logger
+	refreshBackoff    time.Duration
+	refreshBackoffMax time.Duration
+	refreshTimeout    time.Duration
 }
 
 // NewService constructs an MCP auth service.
@@ -52,6 +57,10 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		secureClient:      operatorClient,
 		catalogClient:     securehttp.NewClient(),
 		generation:        NewMutationGeneration(),
+		logger:            slog.Default(),
+		refreshBackoff:    time.Second,
+		refreshBackoffMax: time.Minute,
+		refreshTimeout:    30 * time.Second,
 		clientMetadataURL: compozyconfig.DefaultMCPClientMetadataURL,
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -268,13 +277,10 @@ func (s *Service) postForm(
 		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: decode token response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return tokenEndpointResponse{}, fmt.Errorf(
-			"mcp auth: token endpoint rejected request with HTTP %d",
-			resp.StatusCode,
-		)
+		return tokenEndpointResponse{}, newTokenEndpointError(resp.StatusCode, payload.Error)
 	}
 	if strings.TrimSpace(payload.Error) != "" {
-		return tokenEndpointResponse{}, errors.New("mcp auth: token endpoint returned an error")
+		return tokenEndpointResponse{}, newTokenEndpointError(resp.StatusCode, payload.Error)
 	}
 	return payload, nil
 }

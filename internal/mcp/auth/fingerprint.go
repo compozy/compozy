@@ -88,11 +88,18 @@ func (s *Service) tokenMatchesServerDefinition(
 	token TokenRecord,
 	cfg ServerConfig,
 ) (bool, error) {
+	matches, _, err := s.tokenBinding(ctx, token, cfg)
+	return matches, err
+}
+
+func (s *Service) tokenBinding(
+	ctx context.Context, token TokenRecord, cfg ServerConfig,
+) (bool, *ClientRegistration, error) {
 	if !tokenMatchesFingerprint(token, cfg) {
-		return false, nil
+		return false, nil, nil
 	}
 	if !scopesCover(token.Scopes, cfg.Scopes) {
-		return false, nil
+		return false, nil, nil
 	}
 	if cfg.registrationStrategy() == RegistrationPreRegistered {
 		issuer := strings.TrimSpace(cfg.IssuerURL)
@@ -101,19 +108,19 @@ func (s *Service) tokenMatchesServerDefinition(
 			issuer = strings.TrimSpace(token.Issuer)
 		}
 		return issuer != "" && issuersEqual(token.Issuer, issuer) &&
-			strings.TrimSpace(token.ClientID) == strings.TrimSpace(cfg.ClientID), nil
+			strings.TrimSpace(token.ClientID) == strings.TrimSpace(cfg.ClientID), nil, nil
 	}
 	if s.registrations == nil {
-		return false, errors.New(
+		return false, nil, errors.New(
 			"mcp auth: registration store is required to validate token binding",
 		)
 	}
 	registration, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrRegistrationNotFound) {
-			return false, nil
+			return false, nil, nil
 		}
-		return false, fmt.Errorf("mcp auth: load registration for token binding: %w", err)
+		return false, nil, fmt.Errorf("mcp auth: load registration for token binding: %w", err)
 	}
 	return registration.DefinitionFingerprint == token.DefinitionFingerprint &&
 		issuersEqual(registration.Issuer, token.Issuer) &&
@@ -123,7 +130,7 @@ func (s *Service) tokenMatchesServerDefinition(
 		) == firstNonEmpty(
 			cfg.ResourceURL,
 			cfg.RemoteURL,
-		), nil
+		), &registration, nil
 }
 
 func scopesCover(granted []string, required []string) bool {

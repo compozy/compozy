@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -123,7 +124,13 @@ func (s *settingsRuntimeSurface) MCPAuthExchange(
 	if err != nil {
 		return mcpauth.Status{}, err
 	}
-	return s.mcpAuthManager.Exchange(ctx, cfg, input)
+	status, err := s.mcpAuthManager.Exchange(ctx, cfg, input)
+	if err == nil && status.Status == mcpauth.StatusAuthenticated {
+		if recoveryErr := s.recoverMCPAuthentication(ctx, target, server); recoveryErr != nil {
+			slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", target.ServerName)
+		}
+	}
+	return status, err
 }
 
 func (s *settingsRuntimeSurface) MCPAuthCallbackTarget(callbackURL string) (mcpauth.Target, error) {
@@ -146,7 +153,13 @@ func (s *settingsRuntimeSurface) MCPAuthCompleteCallback(
 	if err != nil {
 		return mcpauth.Status{}, err
 	}
-	return s.mcpAuthManager.ExchangeCallback(ctx, cfg, callbackURL)
+	status, err := s.mcpAuthManager.ExchangeCallback(ctx, cfg, callbackURL)
+	if err == nil && status.Status == mcpauth.StatusAuthenticated {
+		if recoveryErr := s.recoverMCPAuthentication(ctx, target, server); recoveryErr != nil {
+			slog.WarnContext(ctx, "mcp.auth.recovery_failed", "server", target.ServerName)
+		}
+	}
+	return status, err
 }
 
 func (s *settingsRuntimeSurface) MCPAuthInvalidate(target mcpauth.Target) error {

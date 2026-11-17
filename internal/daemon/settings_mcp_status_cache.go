@@ -180,7 +180,7 @@ func (s *settingsRuntimeSurface) mcpStatusKey(
 		return key, err
 	}
 	if s.mcpAuthGeneration != nil {
-		key.authGeneration, err = s.mcpAuthGeneration.Snapshot(target)
+		key.authGeneration, err = s.mcpAuthGeneration.Revision(target)
 		if err != nil {
 			return key, err
 		}
