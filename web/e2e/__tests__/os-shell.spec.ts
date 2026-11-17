@@ -5,7 +5,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Browser, CDPSession, Locator, Page, TestInfo } from "@playwright/test";
+import type { Browser, Locator, Page, TestInfo } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
@@ -3550,6 +3550,54 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   if (!extraTasksID) throw new Error("performance fixture must open the second tasks window");
   perfWindowIDs.set("tasks#2", extraTasksID);
 
+  // TEMPORARY DIAGNOSTIC (#1736): records which components performed work in each React commit.
+  await appPage.addInitScript(() => {
+    const commits: Array<{ at: number; walkMs: number; rendered: number; names: Record<string, number> }> = [];
+    Reflect.set(window, "__diagCommits", commits);
+    const label = (type: unknown): string => {
+      if (typeof type === "string") return "";
+      if (type === null || type === undefined) return "";
+      const fn =
+        typeof type === "function"
+          ? type
+          : ((type as { render?: unknown; type?: unknown }).render ??
+            (type as { type?: unknown }).type);
+      if (typeof fn !== "function") return "?";
+      const source = Function.prototype.toString.call(fn).slice(0, 60).replace(/\s+/g, " ");
+      return `${fn.name}|${source}`;
+    };
+    Reflect.set(window, "__REACT_DEVTOOLS_GLOBAL_HOOK__", {
+      supportsFiber: true,
+      renderers: new Map(),
+      inject: () => 1,
+      onScheduleFiberRoot: () => {},
+      onCommitFiberUnmount: () => {},
+      onPostCommitFiberRoot: () => {},
+      checkDCE: () => {},
+      onCommitFiberRoot: (_id: unknown, root: { current: unknown }) => {
+        if (Reflect.get(window, "__diagRecord") !== true) return;
+        const started = performance.now();
+        const names: Record<string, number> = {};
+        let rendered = 0;
+        type F = { flags: number; subtreeFlags: number; child: F | null; sibling: F | null; type: unknown; tag: number };
+        const stack: F[] = [root.current as F];
+        while (stack.length > 0) {
+          const fiber = stack.pop()!;
+          if ((fiber.flags & 1) !== 0 && (fiber.tag === 0 || fiber.tag === 11 || fiber.tag === 14 || fiber.tag === 15 || fiber.tag === 1)) {
+            const name = label(fiber.type);
+            if (name !== "") {
+              rendered += 1;
+              names[name] = (names[name] ?? 0) + 1;
+            }
+          }
+          for (let child = fiber.child; child !== null; child = child.sibling) {
+            if (((child.flags | child.subtreeFlags) & 1) !== 0) stack.push(child);
+          }
+        }
+        commits.push({ at: started, walkMs: performance.now() - started, rendered, names });
+      },
+    });
+  });
   await appPage.addInitScript(() => {
     const perf = {
       snapshotResponseEnd: null as number | null,
@@ -3645,11 +3693,8 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   try {
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
-    await switchInput.send("Performance.enable");
-    await switchInput.send("Profiler.enable");
-    await switchInput.send("Profiler.setSamplingInterval", { interval: 250 });
-    await switchInput.send("Profiler.start");
     await installSwitchProbe(appPage);
+    await appPage.evaluate(() => Reflect.set(window, "__diagRecord", true));
     const start = Date.now();
     while (Date.now() - start < 3000) {
       const target = targets[switchCount % targets.length];
@@ -3658,7 +3703,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     switchProbe = await readSwitchProbe(appPage);
     longTasks = switchProbe.tasks.map(task => task.duration);
-    await captureSwitchProfile(switchInput, testInfo, switchProbe);
+    await captureSwitchCommits(appPage, testInfo, switchProbe);
   } finally {
     await switchInput.detach();
   }
@@ -3741,27 +3786,14 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
 
-async function captureSwitchProfile(
-  profiler: CDPSession,
-  testInfo: TestInfo,
-  probe: SwitchProbeRecords
-) {
+async function captureSwitchCommits(page: Page, testInfo: TestInfo, probe: SwitchProbeRecords) {
   const directory = testInfo.outputPath("diagnostic-profiles");
   await mkdir(directory, { recursive: true });
-  const { profile } = await profiler.send("Profiler.stop");
-  const { metrics } = await profiler.send("Performance.getMetrics");
-  await writeFile(path.join(directory, "switch.cpuprofile"), JSON.stringify(profile));
-  await writeFile(path.join(directory, "switch-timeline.json"), JSON.stringify({ metrics, probe }));
-  await profiler.send("Debugger.enable");
-  const scriptIds = new Set(
-    profile.nodes
-      .filter(node => (node.hitCount ?? 0) > 0 && node.callFrame.url.includes("/assets/"))
-      .map(node => node.callFrame.scriptId)
-  );
-  for (const scriptId of scriptIds) {
-    const { scriptSource } = await profiler.send("Debugger.getScriptSource", { scriptId });
-    await writeFile(path.join(directory, `switch-script-${scriptId}.js`), scriptSource);
-  }
+  const commits = await page.evaluate(() => {
+    Reflect.set(window, "__diagRecord", false);
+    return Reflect.get(window, "__diagCommits") as unknown;
+  });
+  await writeFile(path.join(directory, "switch-commits.json"), JSON.stringify({ commits, probe }));
 }
 
 /** A long animation frame over 50ms, with its slowest scripts. */
