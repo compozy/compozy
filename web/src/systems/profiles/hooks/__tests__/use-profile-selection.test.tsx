@@ -379,7 +379,10 @@ describe("global profile selection", () => {
     vi.mocked(fetchProfileSelection).mockImplementation(
       () => new Promise(resolve => answers.push(resolve))
     );
-    vi.mocked(putProfileSelection).mockRejectedValue(new Error("daemon unavailable"));
+    let failWrite: (error: Error) => void = () => undefined;
+    vi.mocked(putProfileSelection).mockImplementationOnce(
+      () => new Promise((_resolve, reject) => (failWrite = reject))
+    );
     const { result } = renderHook(
       () => ({ view: useActiveProfileView(), switchProfile: useSwitchProfile() }),
       { wrapper }
@@ -394,8 +397,10 @@ describe("global profile selection", () => {
     });
     // The boot read lands while the switch is shown, caching the choice from before the write.
     await act(async () => answers[0]!({ scope: "global", profile: "marketing" }));
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "open-design" });
 
     await act(async () => {
+      failWrite(new Error("daemon unavailable"));
       await write;
     });
     expect(localProfileView()).toBeNull();
