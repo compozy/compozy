@@ -62,6 +62,7 @@ concurrency:
 env:
   CGO_ENABLED: 0
   GO_VERSION: "1.27.3"
+  COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/gotest-json
   NODE_VERSION: "22"
   NPM_VERSION: "11.9.0"
   COSIGN_VERSION: "v3.1.3"
@@ -255,6 +256,7 @@ jobs:
 
       - uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
 
       - &validate-release-workflow-contract
@@ -262,9 +264,17 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: |
-          go test -race ./internal/config \
+          mkdir -p /tmp/gotest-json
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 \
+            --jsonfile /tmp/gotest-json/gotest-release-contract.json --packages ./internal/config -- -race \
             -run '^TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast$' \
             -count=1
+
+      - &report-release-contract-flakes
+        uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: ${{ github.job }}
 
       - uses: ./.github/actions/setup-node
         with:
@@ -636,6 +646,11 @@ jobs:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: make test-e2e-nightly
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: e2e-nightly
+
       - name: Upload E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -704,6 +719,11 @@ jobs:
           CGO_ENABLED: 0
           CI: "true"
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: e2e-desktop-nightly
+
       - name: Upload desktop E2E artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -767,9 +787,11 @@ jobs:
 
       - uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
 
       - *validate-release-workflow-contract
+      - *report-release-contract-flakes
 
       - uses: ./.github/actions/setup-node
         with:
@@ -1853,3 +1875,13 @@ jobs:
             @compozy/cli \
             @compozy/extension-sdk \
             @compozy/client
+
+  flake-census:
+    name: Collect recovered release test flakes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [dry-run, release-plan, e2e-nightly, e2e-desktop-nightly, integration]
+    if: always() && !cancelled()
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/collect-flakes

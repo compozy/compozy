@@ -73,9 +73,9 @@ func TestGoTestSafetyArgs(t *testing.T) {
 
 	t.Run("Should bypass the SDK result cache in the audit lane", func(t *testing.T) {
 		t.Parallel()
-		want := []string{"test", "-race", "-parallel=4", "-count=1", "./..."}
-		if got := goSDKTestArgs(true); !slices.Equal(got, want) {
-			t.Fatalf("goSDKTestArgs(true) = %v, want %v", got, want)
+		want := []string{"-race", "-parallel=4", "-count=1"}
+		if got := goSDKTestFlags(true); !slices.Equal(got, want) {
+			t.Fatalf("goSDKTestFlags(true) = %v, want %v", got, want)
 		}
 	})
 }

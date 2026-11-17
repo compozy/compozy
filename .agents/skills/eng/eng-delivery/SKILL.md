@@ -93,6 +93,20 @@ successful CI/Release runs, including opt-in and release PRs, and preserves miss
 observations. Compare actual shard wall times and runner-minutes before reducing
 integration timeouts; invocation wall time includes compilation and setup.
 
+CI Go test runners retry failed tests once with a five-failure cap; Playwright retries
+once in CI only. Every recovery must have a `FLAKY` annotation and a structured receipt
+(test, job/shard, run, SHA, test attempt and workflow attempt). A second failure still
+fails the job. A failed test that skips or disappears on retry also fails reporting; only a
+passing retry counts as recovery. The daily Go test census deduplicates the receipts into one rolling
+seven-day issue; inspect that evidence instead of silently rerunning jobs.
+
+E2E-023 lives in a separate nightly performance census, also exercised on PRs
+explicitly labeled `ci:full`, outside both merge gates and the Release publish graph.
+Five unretried executions retain every raw envelope; the switch and peer medians must
+each stay at or below 50 ms. Every sample retains the 500 ms restore and functional
+assertions. Missing, failed or retried samples fail the census. This is a statistical
+performance signal, not proof that every frame stays below 50 ms.
+
 Diagnose finished failures while other jobs run. Wait through a monitor, never a shell loop. A watch command can exit non-zero on a network error, so read the real conclusion with `gh run view`.
 
 ## Reviewers

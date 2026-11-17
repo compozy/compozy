@@ -11,6 +11,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -373,4 +376,237 @@ func TestIntegrationObservationIdentity(t *testing.T) {
 			t.Fatalf("failed shard timings lost: %+v / %+v", observed.packages, observed.splitTests)
 		}
 	})
+}
+
+// Invariant: only fail-then-pass receipts count as flakes, persistent failures
+// stay failures, and duplicate shard downloads do not inflate the rolling ledger.
+// Owner: Mage census; canonical suite: gotest_census_test.go.
+func TestFlakeReceipts(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report recovered Go tests and reject a skipped retry", func(t *testing.T) {
+		t.Parallel()
+		input := `{"Package":"p","Test":"TestFlaky/sub","Action":"fail"}
+{"Package":"p","Test":"TestFlaky/sub","Action":"pass"}
+{"Package":"p","Test":"TestBroken","Action":"fail"}
+{"Package":"p","Test":"TestBroken","Action":"fail"}
+{"Package":"p","Test":"TestSkipped","Action":"fail"}
+{"Package":"p","Test":"TestSkipped","Action":"skip"}
+{"Package":"other","Test":"TestFlaky/sub","Action":"pass"}
+{"Package":"p","Action":"fail"}`
+		got, err := readGoFlakes(strings.NewReader(input))
+		if err == nil || !strings.Contains(err.Error(), "TestSkipped ended with skip after failure") {
+			t.Fatalf("skipped retry was not rejected: %v", err)
+		}
+		if len(got) != 1 || got[0].Test != "p#TestFlaky/sub" || got[0].Attempt != 2 {
+			t.Fatalf("flakes = %+v", got)
+		}
+	})
+	t.Run("Should identify the malformed Go receipt line", func(t *testing.T) {
+		t.Parallel()
+		if _, err := readGoFlakes(strings.NewReader("{}\nbroken JSON")); err == nil ||
+			!strings.Contains(err.Error(), "decode gotest event at line 2") {
+			t.Fatalf("expected malformed event at line 2, got %v", err)
+		}
+	})
+	t.Run(
+		"Should reject a failed leaf missing from the retry without reporting its parent as recovered",
+		func(t *testing.T) {
+			t.Parallel()
+			input := `{"Package":"p","Test":"TestParent/leaf","Action":"fail"}
+{"Package":"p","Test":"TestParent","Action":"fail"}
+{"Package":"p","Test":"TestParent","Action":"pass"}
+{"Package":"p","Test":"TestRecovered","Action":"fail"}
+{"Package":"p","Test":"TestRecovered","Action":"pass"}`
+			got, err := readGoFlakes(strings.NewReader(input))
+			if err == nil ||
+				!strings.Contains(err.Error(), "p#TestParent/leaf ended with fail after failure; retry must pass") {
+				t.Fatalf("expected missing leaf rejection, got %v", err)
+			}
+			if len(got) != 1 || got[0].Test != "p#TestRecovered" || got[0].Attempt != 2 {
+				t.Fatalf("genuine recovery lost or parent misclassified: %+v", got)
+			}
+		},
+	)
+	t.Run("Should attribute a recovered nested subtest once without conflating other packages", func(t *testing.T) {
+		t.Parallel()
+		var input strings.Builder
+		for _, test := range []string{"TestParent", "TestParent/sub", "TestParent/sub/leaf", "TestParent/other"} {
+			for _, action := range []string{"fail", "pass"} {
+				fmt.Fprintf(&input, `{"Package":"p","Test":%q,"Action":%q}`+"\n", test, action)
+			}
+		}
+		input.WriteString(`{"Package":"other","Test":"TestParent","Action":"fail"}` + "\n")
+		input.WriteString(`{"Package":"other","Test":"TestParent","Action":"pass"}` + "\n")
+		got, err := readGoFlakes(strings.NewReader(input.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		names := make([]string, 0, len(got))
+		for _, receipt := range got {
+			names = append(names, receipt.Test)
+		}
+		slices.Sort(names)
+		want := []string{"other#TestParent", "p#TestParent/other", "p#TestParent/sub/leaf"}
+		if !slices.Equal(names, want) {
+			t.Fatalf("recovered tests=%v want=%v", names, want)
+		}
+	})
+	t.Run("Should classify Playwright retries by outcome rather than attempt count", func(t *testing.T) {
+		t.Parallel()
+		var report playwrightCensus
+		input := `{"suites":[{"suites":[{"specs":[{"file":"os.spec.ts","title":"tabs","tests":[
+{"expectedStatus":"passed","projectName":"chromium","results":[{"status":"timedOut","retry":0},{"status":"passed","retry":1}]},
+{"expectedStatus":"passed","results":[{"status":"failed","retry":0},{"status":"failed","retry":1}]},
+{"expectedStatus":"failed","results":[{"status":"passed","retry":0},{"status":"failed","retry":1}]},
+{"expectedStatus":"passed","results":[{"status":"passed","retry":0}]}
+]}]}]}]}`
+		if err := json.Unmarshal([]byte(input), &report); err != nil {
+			t.Fatal(err)
+		}
+		got, err := report.flakes()
+		if err == nil || !strings.Contains(err.Error(), "ended with failed after failure; retry must pass") {
+			t.Fatalf("expected persistent Playwright failure, got %v", err)
+		}
+		if len(got) != 1 || got[0].Attempt != 2 || got[0].Test != "os.spec.ts#tabs [chromium]" {
+			t.Fatalf("flakes = %+v", got)
+		}
+	})
+	t.Run("Should preserve equal Playwright leaf titles under different suites", func(t *testing.T) {
+		t.Parallel()
+		var report playwrightCensus
+		input := `{"suites":[{"title":"os.spec.ts","suites":[
+{"title":"create","specs":[{"file":"os.spec.ts","title":"Should save","tests":[{"expectedStatus":"passed","projectName":"chromium","results":[{"status":"failed","retry":0},{"status":"passed","retry":1}]}]}]},
+{"title":"edit","specs":[{"file":"os.spec.ts","title":"Should save","tests":[{"expectedStatus":"passed","projectName":"chromium","results":[{"status":"failed","retry":0},{"status":"passed","retry":1}]}]}]}
+]}]}`
+		if err := json.Unmarshal([]byte(input), &report); err != nil {
+			t.Fatal(err)
+		}
+		got, err := report.flakes()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 2 || got[0].Test != "os.spec.ts#os.spec.ts / create / Should save [chromium]" ||
+			got[1].Test != "os.spec.ts#os.spec.ts / edit / Should save [chromium]" {
+			t.Fatalf("suite identities lost: %+v", got)
+		}
+	})
+	t.Run("Should deduplicate the same receipt while retaining distinct runs and jobs", func(t *testing.T) {
+		t.Parallel()
+		receipt := flakeReceipt{
+			Suite:      "go",
+			Test:       "p#TestFlaky",
+			Job:        "shard-1",
+			Run:        "42",
+			SHA:        "abc",
+			Attempt:    2,
+			RunAttempt: "1",
+		}
+		other := receipt
+		other.Job = "shard-2"
+		next := receipt
+		next.Run = "43"
+		body := renderFlakeCensus([]flakeReceipt{receipt, receipt, other, next}, "compozy/compozy")
+		if !strings.Contains(body, "| go / p#TestFlaky | 3 |") || !strings.Contains(body, "actions/runs/43") {
+			t.Fatal(body)
+		}
+	})
+}
+
+// Invariant: five complete, unretried E2E-023 samples are required; the 50 ms
+// assertion moves to their medians without discarding a measured outlier.
+func TestPerfCensusSamples(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain all five measurements and reject missing or retried samples", func(t *testing.T) {
+		t.Parallel()
+		sample := base64.StdEncoding.EncodeToString([]byte(`{"worstSwitchFrameMs":0,"worstPeerConvergenceTaskMs":73}`))
+		testJSON := `{"expectedStatus":"passed","results":[{"status":"passed","retry":0,"attachments":[{"name":"perf-envelope","body":"` + sample + `"}]}]}`
+		decode := func(input string) playwrightCensus {
+			var report playwrightCensus
+			if err := json.Unmarshal([]byte(input), &report); err != nil {
+				t.Fatal(err)
+			}
+			return report
+		}
+		input := `{"suites":[{"specs":[{"title":"E2E-023: the 11-tab envelope @perf","tests":[` + strings.Join(
+			[]string{testJSON, testJSON, testJSON, testJSON, testJSON},
+			",",
+		) + `]}]}]}`
+		samples, err := decode(input).perfSamples()
+		if err != nil || len(samples) != 5 || samples[0].Peer != 73 {
+			t.Fatalf("samples=%+v err=%v", samples, err)
+		}
+		for _, tc := range []struct {
+			name      string
+			input     string
+			wantError string
+		}{
+			{"Should reject a retried sample", strings.Replace(input, `"retry":0`, `"retry":1`, 1), "without retries"},
+			{"Should reject a failed sample", strings.Replace(input, `"status":"passed"`, `"status":"failed"`, 1), "must pass its functional assertions"},
+			{"Should reject a missing envelope", strings.Replace(input, `"perf-envelope"`, `"missing"`, 1), "missing performance envelope"},
+			{"Should reject an incomplete sample count", strings.Replace(input, `,"tests":[`+testJSON+`,`, `,"tests":[`, 1), "got 4 performance samples, require 5"},
+			{"Should reject missing measurements", strings.Replace(input, sample, base64.StdEncoding.EncodeToString([]byte(`{}`)), 1), "missing performance measurements"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				if _, err := decode(
+					tc.input,
+				).perfSamples(); err == nil ||
+					!strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("expected %q, got %v", tc.wantError, err)
+				}
+			})
+		}
+	})
+}
+
+func TestPerfCensusJudgment(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		values    []float64
+		wantError string
+	}{
+		{"Should tolerate an isolated spike while retaining the 50ms median budget", []float64{0, 50, 0, 73, 0}, ""},
+		{"Should fail a majority breach of the unchanged budget", []float64{0, 51, 51, 73, 0}, "median switch=51ms peer=51ms exceeds 50ms"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			report := playwrightCensus{
+				Suites: []playwrightCensusSuite{
+					{Specs: []playwrightCensusSpec{{Title: "E2E-023: the 11-tab envelope @perf"}}},
+				},
+			}
+			for _, value := range tc.values {
+				envelope, err := json.Marshal(perfCensusEnvelope{Switch: value, Peer: value})
+				if err != nil {
+					t.Fatal(err)
+				}
+				report.Suites[0].Specs[0].Tests = append(report.Suites[0].Specs[0].Tests, playwrightCensusTest{
+					ExpectedStatus: "passed",
+					Results: []playwrightCensusResult{
+						{
+							Status: "passed",
+							Attachments: []playwrightCensusAttachment{
+								{Name: "perf-envelope", Body: base64.StdEncoding.EncodeToString(envelope)},
+							},
+						},
+					},
+				})
+			}
+			data, err := json.Marshal(report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			file := filepath.Join(t.TempDir(), "playwright-perf.json")
+			if err := os.WriteFile(file, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			err = TestPerfCensus(file)
+			if tc.wantError == "" && err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantError != "" && (err == nil || !strings.Contains(err.Error(), tc.wantError)) {
+				t.Fatalf("judgment=%v wantError=%q", err, tc.wantError)
+			}
+		})
+	}
 }

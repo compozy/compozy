@@ -80,6 +80,11 @@ jobs:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: make test-integration
 
+      - uses: ./.github/actions/report-flakes
+        if: always()
+        with:
+          job: integration-${{ matrix.group }}-${{ matrix.shard_index }}
+
       - name: Upload integration timing and failure artifacts
         if: always()
         uses: actions/upload-artifact@v7
