@@ -6326,6 +6326,36 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		},
 	)
 
+	// Invariant: automatic completion wakes wait for the main turn boundary.
+	// Owner: session queue delivery; canonical suite: TestManagerAgentQueueDelivery.
+	t.Run("Should keep automatic child completion queued during a long main turn", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+		wake, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, SyntheticPromptOpts{
+			MessageID: "child-completed", Message: "child report",
+			Metadata: acp.PromptSyntheticMeta{Kind: SpawnWakeKindChildSettled,
+				ChildSessionID: "child", Reason: "completed", WakeEventID: "child-completed", Badge: "done"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "promotion pass settled", func() bool { return !f.sess.inputPromotionActive.Load() })
+		f.advance(2 * time.Minute)
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		waitForCondition(t, "promotion pass settled", func() bool { return !f.sess.inputPromotionActive.Load() })
+		select {
+		case text := <-f.steered:
+			t.Fatalf("automatic completion interrupted the main turn: %q", text)
+		default:
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, wake.ID)
+		if err != nil || entry.Status != store.SessionInputQueueStatusQueued ||
+			entry.Mode != store.SessionInputQueueModeQueue {
+			t.Fatalf("child completion = %#v, %v; want queued for the next turn", entry, err)
+		}
+		drain(t, f)
+	})
+
 	t.Run("Should inject a coalesced monitor wake into a long turn as a daemon wake", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})

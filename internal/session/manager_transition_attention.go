@@ -94,6 +94,12 @@ func (m *Manager) publishLifecycleAttentionTransitionWakeLocked(
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, after))
 	from, to := BadgeForInfo(before), BadgeForInfo(after)
 	if from == to {
+		if provenanceWakeCandidate(after) && after.State == StateStopped && before.State != StateStopped {
+			return func() { m.retryChildSettleWake(ctx, after) }
+		}
+		if deliverCompletedWake && completedTurnID != "" && (to == BadgeIdle || to == BadgeDone) {
+			return func() { m.retryChildSettleWakeForTurn(ctx, after, completedTurnID) }
+		}
 		return nil
 	}
 	if from == BadgeWaiting || to == BadgeWaiting {
@@ -118,7 +124,7 @@ func (m *Manager) publishLifecycleAttentionTransitionWakeLocked(
 		m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
 	}
 	m.dispatchSessionAttentionChanged(ctx, after, event)
-	if !deliverCompletedWake && to == BadgeDone {
+	if !deliverCompletedWake && (to == BadgeDone || to == BadgeIdle) {
 		return nil
 	}
 	return func() { m.dispatchSpawnWakeForTurn(ctx, after, to, completedTurnID) }

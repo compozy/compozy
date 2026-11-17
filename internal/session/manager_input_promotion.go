@@ -110,7 +110,8 @@ func promotableQueuedInput(entry *store.SessionInputQueueEntry) bool {
 		if entry.SyntheticPrompt != nil {
 			meta, err := syntheticPromptMeta(entry.SyntheticPrompt)
 			eligible = eligible || err == nil && meta != nil &&
-				(meta.Kind == acp.PromptSyntheticKindSessionReply || isSpawnWakeMeta(meta))
+				(meta.Kind == acp.PromptSyntheticKindSessionReply ||
+					isSpawnWakeMeta(meta) && meta.Kind != SpawnWakeKindChildSettled)
 		}
 	}
 	return eligible &&

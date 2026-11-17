@@ -14,12 +14,14 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/heartbeat"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
@@ -45,10 +47,10 @@ func (stub *sessionWakeManagerStub) Status(ctx context.Context, _ string) (*sess
 	return stub.status, stub.statusErr
 }
 
-func (stub *sessionWakeManagerStub) SyntheticWakeAdmitted(_ context.Context, _, messageID string) (bool, error) {
+func (stub *sessionWakeManagerStub) SyntheticWakeAdmitted(_ context.Context, id, messageID string) (bool, error) {
 	stub.mu.Lock()
 	defer stub.mu.Unlock()
-	return stub.admitted[messageID], stub.ledgerErr
+	return stub.admitted[messageID] || stub.admitted[id+":"+messageID], stub.ledgerErr
 }
 
 func (stub *sessionWakeManagerStub) PromptSynthetic(
@@ -70,6 +72,194 @@ func (stub *sessionWakeManagerStub) PromptSynthetic(
 
 func TestSessionWakeBridge(t *testing.T) {
 	t.Parallel()
+	// Invariant: rotation cannot replay an admitted wake when its coverage append failed.
+	// Owner: daemon admission deduplication; canonical session wake bridge suite.
+	t.Run("Should retain the predecessor admission when retrying after rotation", func(t *testing.T) {
+		t.Parallel()
+		manager := &sessionWakeManagerStub{admitted: map[string]bool{"predecessor:wake-child": true}}
+		admitted, err := childWakeAdmitted(t.Context(), manager, "successor", "wake-child", "predecessor")
+		if err != nil || !admitted {
+			t.Fatalf("rotated wake admitted=%v err=%v, want predecessor receipt retained", admitted, err)
+		}
+	})
+	// Invariant: a pending child result follows its instance's current main after rotation.
+	// Owner: daemon wake routing; canonical session wake bridge suite, real SQLite and ACP.
+	t.Run("Should deliver a pending child stop to the successor main through real ACP", func(t *testing.T) {
+		t.Parallel()
+		h := newHeartbeatSourceRuntime(t, false, false)
+		bridge, err := newSessionWakeBridge(
+			t.Context(),
+			func() sessionWakeSessionManager { return nil },
+			discardLogger(),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bridge.instances = h.db.Instances()
+		t.Cleanup(func() {
+			if err := bridge.shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		session.WithSpawnWakeNotifier(bridge)(h.manager)
+		main := h.instance.MainSessionID
+		child, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: h.instance.AgentName,
+			Workspace: h.instance.WorkspaceID, Lineage: &store.SessionLineage{
+				Kind: store.LineageKindProvenance, ParentSessionID: main}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), child.ID, session.CauseCompleted, "final report"); err != nil {
+			t.Fatal(err)
+		}
+		successor, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: h.instance.AgentName,
+			Workspace: h.instance.WorkspaceID, InstanceID: h.instance.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.PublishInstanceRotation(t.Context(), main, func() error {
+			return h.db.Instances().PublishRotation(t.Context(), agentinstance.RotationPublication{
+				InstanceID: h.instance.ID, PredecessorID: main, SuccessorID: successor.ID,
+			})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), main, session.CauseCompleted, "rotated"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.instance.WorkspaceID, main); err != nil {
+			t.Fatal(err)
+		}
+		bridge.resolve = func() sessionWakeSessionManager { return h.manager }
+		for range 2 {
+			if err := h.manager.Supervise(t.Context(), time.Now()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		waitForConditionWithin(t, "successor reviewed the pending child result", 15*time.Second, func() bool {
+			rows, err := h.manager.Events(
+				t.Context(),
+				successor.ID,
+				store.EventQuery{Type: acp.EventTypeAgentMessage, Limit: 10},
+			)
+			return err == nil && len(rows) == 1
+		})
+		if err := bridge.shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := h.manager.Events(
+			t.Context(),
+			successor.ID,
+			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 10},
+		)
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("successor wake turns=%d err=%v, want one", len(rows), err)
+		}
+	})
+
+	// Invariant: provenance settlement reaches an instance main through real SQLite,
+	// queue admission, wake bridge and ACP subprocesses, independently of triage.
+	// Owner: daemon composition; canonical session wake bridge suite.
+	t.Run("Should run one main turn for each settled provenance child through real ACP", func(t *testing.T) {
+		t.Parallel()
+		h := newHeartbeatSourceRuntime(t, false, false)
+		bridge, err := newSessionWakeBridge(
+			t.Context(),
+			func() sessionWakeSessionManager { return h.manager },
+			discardLogger(),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := bridge.shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		session.WithSpawnWakeNotifier(bridge)(h.manager)
+		main := h.instance.MainSessionID
+		childWakes := make(map[string]int)
+		for _, outcome := range []string{"completed", "stopped", "failed"} {
+			child, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: h.instance.AgentName,
+				Workspace: h.instance.WorkspaceID, Lineage: &store.SessionLineage{
+					Kind: store.LineageKindProvenance, ParentSessionID: main}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			childWakes[child.ID] = 0
+			if outcome == "completed" {
+				result, err := h.manager.SendPrompt(t.Context(), child.ID, session.SendPromptOpts{
+					Message:   "Perform a proactive check.",
+					MessageID: "child-assignment", IdempotencyKey: "child-assignment",
+					Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: main,
+						WorkspaceID: h.instance.WorkspaceID, AgentName: h.instance.AgentName, Hop: 1},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result.Events != nil {
+					for range result.Events {
+					}
+				}
+				waitForConditionWithin(t, "the admitted child assignment settled", 15*time.Second, func() bool {
+					info, err := h.manager.Status(t.Context(), child.ID)
+					return err == nil && info.LastSettledRevision > 0 &&
+						(info.Liveness == nil || info.Liveness.Activity == nil || info.Liveness.Activity.TurnID == "")
+				})
+			} else {
+				cause := session.CauseCompleted
+				if outcome == "failed" {
+					cause = session.CauseFailed
+				}
+				if err := h.manager.StopWithCause(t.Context(), child.ID, cause, "final report"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := h.manager.Supervise(t.Context(), time.Now()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		waitForConditionWithin(t, "three child reports reviewed by the main", 15*time.Second, func() bool {
+			rows, err := h.manager.Events(
+				t.Context(),
+				main,
+				store.EventQuery{Type: acp.EventTypeAgentMessage, Limit: 10},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return len(rows) == 3
+		})
+		if err := h.manager.Supervise(t.Context(), time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if err := bridge.shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := h.manager.Events(
+			t.Context(),
+			main,
+			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 10},
+		)
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("main turns=%d err=%v, want three", len(rows), err)
+		}
+		for _, row := range rows {
+			event, err := transcript.UnmarshalAgentEvent(row.Content)
+			if err != nil || event.Synthetic == nil || event.Synthetic.Kind != session.SpawnWakeKindChildSettled {
+				t.Fatalf("main wake=%+v err=%v", event, err)
+			}
+			if _, ok := childWakes[event.Synthetic.ChildSessionID]; !ok {
+				t.Fatalf("wake names an unexpected child: %+v", event.Synthetic)
+			}
+			childWakes[event.Synthetic.ChildSessionID]++
+		}
+		for childID, count := range childWakes {
+			if count != 1 {
+				t.Fatalf("child %s received %d wakes, want one", childID, count)
+			}
+		}
+	})
 
 	t.Run("Should suppress admitted attention revisions but deliver new child information", func(t *testing.T) {
 		t.Parallel()

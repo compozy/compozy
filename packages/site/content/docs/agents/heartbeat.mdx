@@ -304,6 +304,24 @@ none has a time, an active monitor can still supply its description without
 an invented timestamp. `next_wake_at` remains the check schedule. The `now`
 field is empty unless the main session is working.
 
+A child created with `session_create` by an always-on main wakes that main when it
+finishes a turn with no active prompt or queued input, stops, or fails. Delivery
+uses the session lifecycle directly, so an unchanged Heartbeat digest or a pending
+triage proposal cannot delay it. The wake queues behind an active main turn.
+Transient delivery failures retry on the mechanical scheduler's 15-second cadence;
+restart recovery reuses the same child revision without spending a second turn.
+A session monitor or reply watch covering that completion supplies the wake instead.
+Canceling that monitor after it covered the completion does not replay the automatic wake.
+Archived or explicitly stopped children do not generate this automatic wake.
+Ordinary creators and governed children with `notify_creator: false` keep their
+existing behavior. Instance pauses continue to hold autonomous input.
+Enrollment starts when the main creates the child; adopting a chat or upgrading
+does not replay historical child results. Clearing or rewinding a child conversation
+does not count as a completed assignment.
+Pending delivery follows the current main after rotation, and waits while the main
+is stopped or in Later. An interrupted child that cannot resume after restart
+reports its stopped state to the main.
+
 Always-on mains and their descendants receive daemon-composed doctrine about
 authorization, bounded follow-ups, daemon monitors, refusal handling, delegation,
 and durable context. Session identity and ancestry select it, not the agent name

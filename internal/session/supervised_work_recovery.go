@@ -29,7 +29,7 @@ func (m *Manager) recoverSupervisedWork(ctx context.Context, info *Info, turnID 
 	if turnID == "" {
 		return errors.Join(ErrRecoveryPersistence, errors.New("session: supervised stop has no durable turn"))
 	}
-	if err := recoverWork(ctx, info, "session-stop:"+turnID); err != nil {
+	if err := recoverWork(ctx, info, sessionStopEventID(turnID)); err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)
 	}
 	return nil

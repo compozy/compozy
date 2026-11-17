@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -18,14 +19,25 @@ type sessionWakeSessionManager interface {
 
 type sessionWakeSessionResolver func() sessionWakeSessionManager
 
+type sessionWakeInstanceReader interface {
+	Get(context.Context, string) (agentinstance.Instance, error)
+}
+
 type sessionWakeBridge struct {
-	drainCtx context.Context
-	resolve  sessionWakeSessionResolver
-	logger   *slog.Logger
-	workers  *ownedWorkerGroup
+	drainCtx  context.Context
+	resolve   sessionWakeSessionResolver
+	logger    *slog.Logger
+	workers   *ownedWorkerGroup
+	instances sessionWakeInstanceReader
 }
 
 var _ session.SpawnWakeNotifier = (*sessionWakeBridge)(nil)
+
+func (bridge *sessionWakeBridge) configureInstances(state *bootState) {
+	if provider, ok := state.registry.(instanceRepositoryProvider); ok {
+		bridge.instances = provider.Instances()
+	}
+}
 
 func newSessionWakeBridge(
 	ctx context.Context,
@@ -79,8 +91,9 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 		complete()
 		return session.ErrSpawnWakeSessionNotLive
 	}
-	creator, err := sessions.Status(deliveryCtx, creatorID)
-	if err != nil || creator == nil || creator.State != session.StateActive {
+	originalCreatorID := creatorID
+	creatorID, creator, err := bridge.creatorForWake(deliveryCtx, sessions, creatorID, normalized.Automatic)
+	if err != nil || !sessionWakeCreatorLive(creator, normalized.Automatic) {
 		complete()
 		if err != nil && !errors.Is(err, session.ErrSessionNotFound) &&
 			!errors.Is(err, session.ErrSessionNotActive) {
@@ -95,6 +108,7 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 		sessions,
 		creatorID,
 		normalized.WakeEventID,
+		originalCreatorID,
 	)
 	if ledgerErr != nil {
 		complete()
@@ -133,10 +147,42 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 	return nil
 }
 
+func sessionWakeCreatorLive(creator *session.Info, automatic bool) bool {
+	return creator != nil && creator.State == session.StateActive &&
+		(!automatic || creator.Later == nil && creator.ArchivedAt == nil)
+}
+
+func (bridge *sessionWakeBridge) creatorForWake(
+	ctx context.Context, sessions sessionWakeSessionManager, id string, automatic bool,
+) (string, *session.Info, error) {
+	creator, err := sessions.Status(ctx, id)
+	if err != nil || creator == nil || !automatic || creator.InstanceID == "" || bridge.instances == nil {
+		return id, creator, err
+	}
+	instance, err := bridge.instances.Get(ctx, creator.InstanceID)
+	if err != nil {
+		return id, nil, err
+	}
+	if instance.ArchivedAt != nil || instance.ProfileID != creator.ProfileID ||
+		instance.WorkspaceID != creator.WorkspaceID || instance.MainSessionID == "" {
+		return id, nil, session.ErrSpawnWakeSessionNotLive
+	}
+	if instance.MainSessionID == id {
+		return id, creator, nil
+	}
+	current, err := sessions.Status(ctx, instance.MainSessionID)
+	if err == nil && current != nil && (current.InstanceID != creator.InstanceID ||
+		current.WorkspaceID != creator.WorkspaceID || current.ProfileID != creator.ProfileID ||
+		current.ArchivedAt != nil || current.Later != nil) {
+		return id, nil, session.ErrSpawnWakeSessionNotLive
+	}
+	return instance.MainSessionID, current, err
+}
+
 func childWakeAdmitted(
 	ctx context.Context,
 	sessions sessionWakeSessionManager,
-	creatorID, wakeID string,
+	creatorID, wakeID, originalCreatorID string,
 ) (bool, error) {
 	ledger, ok := sessions.(monitorWakeLedger)
 	if !ok {
@@ -145,6 +191,9 @@ func childWakeAdmitted(
 	admitted, err := ledger.SyntheticWakeAdmitted(ctx, creatorID, wakeID)
 	if err != nil {
 		return false, fmt.Errorf("daemon: read child wake admission for %q: %w", creatorID, err)
+	}
+	if !admitted && originalCreatorID != creatorID {
+		return ledger.SyntheticWakeAdmitted(ctx, originalCreatorID, wakeID)
 	}
 	return admitted, nil
 }
@@ -176,6 +225,9 @@ func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 }
 
 func sessionWakeKind(event session.SpawnWakeEvent) string {
+	if event.Automatic {
+		return session.SpawnWakeKindChildSettled
+	}
 	if event.EndedEarly {
 		return session.SpawnWakeKindEndedEarly
 	}

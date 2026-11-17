@@ -113,6 +113,58 @@ func assertNoChildWork(t *testing.T, agent string, typ session.Type, lineage sto
 
 func TestSessionWorkSourcesMonitors(t *testing.T) {
 	t.Parallel()
+	// Invariant: an idle monitor covers done as well as terminal targets, including
+	// an already admitted outcome. Owner: daemon monitor adapter; same canonical suite.
+	for _, badge := range []session.Badge{session.BadgeDone, session.BadgeIdle, session.BadgeStopped, session.BadgeFailed} {
+		t.Run("Should cover a settled child reported as "+string(badge), func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				now := time.Now()
+				child := &session.Info{ID: "child", WorkspaceID: "ws", ProfileID: store.DefaultProfileID,
+					State: session.StateActive, LastSettledRevision: 2, AttentionChangedAt: &now}
+				switch badge {
+				case session.BadgeIdle:
+					child.LastSeenRevision = 2
+				case session.BadgeStopped:
+					child.State, child.StopReason = session.StateStopped, store.StopCompleted
+				case session.BadgeFailed:
+					child.State = session.StateStopped
+					child.Failure = &store.SessionFailure{Kind: store.FailureProcess}
+				}
+				targets := &monitorTargetManagerStub{
+					reads: map[string]int{},
+					infos: map[string]*session.Info{"child": child},
+				}
+				service, err := monitor.NewService(t.Context(), nil, retryMonitorWaker{},
+					monitor.WithSessionTargets(monitorSessionTargets{sessions: func() any { return targets }}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := service.Shutdown(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				if _, err := service.Create(
+					t.Context(),
+					monitor.Spec{WorkspaceID: "ws", ProfileID: store.DefaultProfileID,
+						SessionID: "creator", Kind: monitor.KindSession, Description: "collect final report",
+						Targets: []string{"child"}, States: []string{monitor.TargetStateIdle}},
+				); err != nil {
+					t.Fatal(err)
+				}
+				synctest.Wait()
+				items := service.List("creator")
+				if len(items) != 1 || items[0].Status != monitor.StatusDelivering {
+					t.Fatalf("monitors=%+v, want one delivering outcome", items)
+				}
+				sources := sessionWorkSources{state: &bootState{sessionMonitors: service}}
+				if !sources.creatorMonitorCovers("creator", child, badge) {
+					t.Fatal("a matching monitor outcome did not cover the settled child")
+				}
+			})
+		})
+	}
 	// Owner: daemon monitor adapter; only the creator's covering session watch replaces its alarm.
 	t.Run("Should suppress only alarms covered by the creator session monitor", func(t *testing.T) {
 		t.Parallel()

@@ -145,6 +145,7 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	childWakePending           sync.Map
 	checkInToolsDisabled       bool
 	mcpAuthority               MCPAuthorityResolver
 	instanceCeiling            InstanceCeilingReader

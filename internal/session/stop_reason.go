@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -100,6 +101,16 @@ func (m *Manager) stopWithCauseReceipt(ctx context.Context, id string, cause Sto
 func (m *Manager) guardedStopWithCauseReceipt(
 	ctx context.Context, id string, cause StopCause, detail string, guard stopGuard, onCommitted func(),
 ) (bool, error) {
+	var coverageErr error
+	if cause == CauseClearConversation || cause == CauseConversationRewind {
+		notify := onCommitted
+		onCommitted = func() {
+			coverageErr = m.suppressConversationStopWake(ctx, id, cause)
+			if notify != nil {
+				notify()
+			}
+		}
+	}
 	previousRun := m.finalizedStopRun(id)
 	run, err := m.requestGuardedSessionStop(ctx, id, cause, detail, guard, onCommitted)
 	if err != nil || run == nil {
@@ -119,7 +130,7 @@ func (m *Manager) guardedStopWithCauseReceipt(
 			err = service.OnChildSettled(ctx, id)
 		}
 	}
-	return true, err
+	return true, errors.Join(err, coverageErr)
 }
 
 func (m *Manager) finalizedStopRun(id string) *sessionStopRun {

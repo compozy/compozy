@@ -37,6 +37,7 @@ func (m *Manager) Supervise(ctx context.Context, now time.Time) error {
 			errs = append(errs, fmt.Errorf("supervise session %s: %w", target.ID, err))
 		}
 	}
+	m.retryChildSettleWakes(ctx)
 	return errors.Join(errs...)
 }
 

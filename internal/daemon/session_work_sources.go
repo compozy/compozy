@@ -281,8 +281,10 @@ func (s sessionWorkSources) creatorMonitorCovers(creatorID string, child *sessio
 		return false
 	}
 	for _, item := range s.state.sessionMonitors.List(creatorID) {
+		state := settledMonitorState(string(badge))
+		terminal := badge == session.BadgeStopped || badge == session.BadgeFailed
 		if item.Kind != monitor.KindSession || !slices.Contains(item.TargetSessionIDs, child.ID) ||
-			!slices.Contains(item.States, string(badge)) {
+			(!terminal && !slices.Contains(item.States, state)) {
 			continue
 		}
 		switch item.Status {
@@ -293,7 +295,7 @@ func (s sessionWorkSources) creatorMonitorCovers(creatorID string, child *sessio
 				continue
 			}
 			if slices.ContainsFunc(item.Targets, func(target monitor.TargetStatus) bool {
-				if target.SessionID != child.ID || !target.Matched || target.State != string(badge) {
+				if target.SessionID != child.ID || !target.Matched || (settledMonitorState(target.State) != state) {
 					return false
 				}
 				if target.OccurrenceID != "" {
@@ -306,4 +308,12 @@ func (s sessionWorkSources) creatorMonitorCovers(creatorID string, child *sessio
 		}
 	}
 	return false
+}
+
+// Session watches select idle for both idle and unseen completed targets.
+func settledMonitorState(state string) string {
+	if state == string(session.BadgeDone) {
+		return string(session.BadgeIdle)
+	}
+	return state
 }

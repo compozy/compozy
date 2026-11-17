@@ -1061,6 +1061,10 @@ func newHeartbeatSourceRuntime(
 			},
 		},
 	}}
+	fixture.Agents[0].Turns = append(fixture.Agents[0].Turns, acpmock.TurnFixture{
+		Name: "child-settle-wake", Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceSynthetic},
+		Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "Reviewed the child final report."}},
+	})
 	if blocked {
 		fixture.Agents[0].Turns[0].Steps = []acpmock.Step{
 			{

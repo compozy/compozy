@@ -151,6 +151,11 @@ func (m *Manager) persistAcceptedStart(ctx context.Context, spec *sessionStartSp
 	if spec.deriveReceipt != nil {
 		return m.persistSessionMetadataOnly(session)
 	}
+	if spec.startAction == sessionStartActionCreate {
+		if err := m.registerChildSettleWake(ctx, session.Info()); err != nil {
+			return err
+		}
+	}
 	return m.persistSessionLifecycleState(ctx, session, true)
 }
 
