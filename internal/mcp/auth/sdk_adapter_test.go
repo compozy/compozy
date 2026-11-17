@@ -141,6 +141,7 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 			name        string
 			change      func(*ClientRegistration)
 			refreshable bool
+			wantErr     error
 			wantError   string
 		}{
 			{
@@ -149,9 +150,9 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 				refreshable: true,
 			},
 			{
-				name:      "Should reject a missing client",
-				change:    func(r *ClientRegistration) { r.ClientID = "" },
-				wantError: ErrRegistrationNotFound.Error(),
+				name:    "Should reject a missing client",
+				change:  func(r *ClientRegistration) { r.ClientID = "" },
+				wantErr: ErrRegistrationNotFound,
 			},
 			{
 				name:      "Should reject a changed definition",
@@ -189,11 +190,16 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 					t.Fatal(err)
 				}
 				_, _, err = refresh.hostedRefreshConfig(t.Context(), state.Config)
-				if registration.wantError != "" {
+				switch {
+				case registration.wantErr != nil:
+					if !errors.Is(err, registration.wantErr) {
+						t.Fatalf("registration error = %v, want %v", err, registration.wantErr)
+					}
+				case registration.wantError != "":
 					if err == nil || !strings.Contains(err.Error(), registration.wantError) {
 						t.Fatalf("registration error = %v, want %q", err, registration.wantError)
 					}
-				} else if err != nil {
+				case err != nil:
 					t.Fatalf("reusable registration error = %v", err)
 				}
 				local.token = TokenRecord{
@@ -1412,8 +1418,9 @@ func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 			if err := json.NewDecoder(strings.NewReader(logs.String())).Decode(&logged); err != nil {
 				t.Fatal(err)
 			}
+			causeClass, ok := logged["cause_class"].(string)
 			if logged["server"] != cfg.Target.ServerName || logged["attempt"] != float64(1) ||
-				logged["cause_class"] == "" {
+				!ok || causeClass == "" {
 				t.Fatalf("missing diagnostic fields: %+v", logged)
 			}
 			if strings.Contains(logs.String(), token.AccessToken) ||
