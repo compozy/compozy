@@ -527,24 +527,3 @@ func TestPerfCensusJudgment(t *testing.T) {
 		})
 	}
 }
-
-// Temporary CI-only probe required by the dispatch. Removed after retaining a
-// real FLAKY annotation and JSON artifact, before independent review.
-func TestFlakeProbe(t *testing.T) {
-	t.Run("Should recover on the single permitted retry", func(t *testing.T) {
-		if os.Getenv("GITHUB_ACTIONS") != "true" {
-			return
-		}
-		marker := filepath.Join(os.Getenv("RUNNER_TEMP"), "compozy-flake-probe-"+os.Getenv("GITHUB_JOB"))
-		file, err := os.OpenFile(marker, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if err == nil {
-			if err := file.Close(); err != nil {
-				t.Fatal(err)
-			}
-			t.Fatal("intentional first-attempt failure: verify FLAKY annotation and artifact")
-		}
-		if !os.IsExist(err) {
-			t.Fatal(err)
-		}
-	})
-}
