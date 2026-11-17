@@ -51,16 +51,6 @@ function persistFailureMessage(error: unknown): string {
   return "Couldn't save";
 }
 
-function registerFileAliases(
-  files: Map<string, File>,
-  pendingID: string,
-  uploadedID: string,
-  file: File
-): void {
-  files.set(pendingID, file);
-  files.set(uploadedID, file);
-}
-
 export class SessionAttachmentAdapter implements AttachmentAdapter {
   /**
    * Wildcard lets the daemon apply its configured admission policy consistently
@@ -170,11 +160,13 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
     this.uploadedFiles.delete(attachment.id);
     if (attachment.file) {
       releaseComposerDraftFile(attachment.file);
-      registerFileAliases(this.sentFiles, attachment.id, uploaded.id, attachment.file);
+      this.sentFiles.set(attachment.id, attachment.file);
     }
+    // The tile keeps its own id: the daemon id is content-addressed, so two tiles
+    // holding the same bytes would collide as message attachment keys (#1798).
+    // The daemon reference travels in the data part below.
     return {
       ...attachment,
-      id: uploaded.id,
       contentType: uploaded.mime_type,
       status: { type: "complete" },
       content: [
