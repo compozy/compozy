@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -319,6 +320,15 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 	t.Run("Should register foreign session monitors and redact retained results after revocation", func(t *testing.T) {
 		t.Parallel()
 		sessions := sessionsFor(workspaceaccess.ModeApproveAll)
+		var revoked atomic.Bool
+		status := sessions.StatusFn
+		sessions.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if info != nil && id == actorScope.SessionID && revoked.Load() {
+				info.EffectivePermissions = string(workspaceaccess.ModeDenyAll)
+			}
+			return info, err
+		}
 		policy := newPolicy(t, sessions)
 		service, err := monitorpkg.NewService(t.Context(), nil, retryMonitorWaker{},
 			monitorpkg.WithSessionTargets(monitorSessionTargets{sessions: func() any { return sessions }}))
@@ -363,14 +373,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		if err != nil || strings.Contains(visible.Targets[0].Name, seededSecret) {
 			t.Fatalf("visible = %#v, %v", visible, err)
 		}
-		status := sessions.StatusFn
-		sessions.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
-			info, err := status(ctx, id)
-			if info != nil && id == actorScope.SessionID {
-				info.EffectivePermissions = string(workspaceaccess.ModeDenyAll)
-			}
-			return info, err
-		}
+		revoked.Store(true)
 		visible, err = n.visibleMonitor(t.Context(), actorScope.SessionID, mon)
 		if err != nil || visible.Reason != "access_denied" || visible.Targets[0].Name != "" ||
 			visible.Targets[0].Matched || visible.Targets[0].State != monitorpkg.TargetStateUnknown {
