@@ -6,7 +6,8 @@
 // whatever the shell shows (issue #1183). A switch moves the remembered choice the aggregate acts as
 // at once, so X → Y → All never acts as X while the persist and reread are in flight (issue #1194).
 // Leaving All profiles keeps it for a reload after a failure only when the daemon refused the write
-// (issue #1436). Once a view is entered, a reread that leaves the choice unchanged wakes no caller (#1736).
+// (issue #1436). A cached choice is entered only once its reread lands; once a view is entered, a
+// reread that leaves the choice unchanged wakes no caller (#1736).
 // Owning layer: useActiveProfileView / useSwitchProfile / useProfileReadScope.
 // Boundary IN: the real profile view and active workspace stores.
 // Boundary OUT: profile HTTP adapters (mocked I/O).
@@ -109,6 +110,28 @@ describe("global profile selection", () => {
     expect(result.current.aggregate).toBe(true);
     expect(result.current.scopeLabel).toBeNull();
     await waitFor(() => expect(result.current.destinationOwner?.name).toBe("marketing"));
+  });
+
+  it("Should enter a cached choice only once its reread lands, even when the answer is unchanged [#1736]", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    queryClient.setQueryData(["profiles", "selection", "global"], {
+      scope: "global",
+      profile: "marketing",
+    });
+    let answer: (selection: { scope: "global"; profile: string }) => void = () => undefined;
+    vi.mocked(fetchProfileSelection).mockImplementationOnce(
+      () => new Promise(resolve => (answer = resolve))
+    );
+
+    renderHook(() => useActiveProfileView(), { wrapper });
+    await act(() => new Promise(resolve => setTimeout(resolve, 20)));
+    expect(localProfileView()).toBeNull();
+
+    await act(async () => answer({ scope: "global", profile: "marketing" }));
+
+    await waitFor(() =>
+      expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" })
+    );
   });
 
   it("Should not wake the caller for a reread that leaves the entered choice unchanged [#1736]", async () => {
