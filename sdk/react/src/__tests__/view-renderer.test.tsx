@@ -282,8 +282,8 @@ describe("ViewRenderer", () => {
       publish: published,
       scheduleFrame: callback => scheduled.push(callback),
     });
-    const entered = Promise.withResolvers<void>();
-    const release = Promise.withResolvers<void>();
+    const entered = deferred();
+    const release = deferred();
     const first = renderer.open(
       <CanceledPublishView
         waitForRelease={() => {
@@ -318,6 +318,15 @@ describe("ViewRenderer", () => {
     expect(recovered.payload.sections?.[0]?.rows[0]?.title).toBe("Recovered");
   });
 });
+
+// sdk/react targets ES2022, so Promise.withResolvers (ES2024) is not in its lib.
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(settle => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
 
 function NotesBrowser() {
   return (
