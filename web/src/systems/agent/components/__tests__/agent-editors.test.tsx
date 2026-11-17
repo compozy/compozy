@@ -608,14 +608,17 @@ describe("Heartbeat", () => {
     ]);
     renderEditor(<AgentCheckInsEditor {...props()} />);
 
-    const rows = await screen.findAllByTestId("check-in-source-row");
-    expect(rows.map(row => row.textContent)).toEqual([
-      expect.stringContaining("Not checked yet"),
-      expect.stringContaining("Checked 2 min ago · 1 new"),
-      expect.stringContaining("Couldn't check: GitHub sign-in expired"),
-      expect.stringContaining("Scripts are turned off"),
-      expect.stringContaining("Extension forge-github is off"),
-    ]);
+    // The file's sources render before the instance read lands; the outcomes come from that read.
+    await waitFor(() =>
+      expect(screen.getAllByTestId("check-in-source-row").map(row => row.textContent)).toEqual([
+        expect.stringContaining("Not checked yet"),
+        expect.stringContaining("Checked 2 min ago · 1 new"),
+        expect.stringContaining("Couldn't check: GitHub sign-in expired"),
+        expect.stringContaining("Scripts are turned off"),
+        expect.stringContaining("Extension forge-github is off"),
+      ])
+    );
+    const rows = screen.getAllByTestId("check-in-source-row");
     expect(rows[1]).toHaveTextContent("compozy/compozy");
     expect(rows[0]).not.toHaveTextContent("Checked");
   });
