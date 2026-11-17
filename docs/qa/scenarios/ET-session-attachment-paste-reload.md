@@ -70,4 +70,9 @@ attachment uploads delayed 2.5 s in the browser). The mock agent does not accept
 send was walked with one text file pasted twice; the duplicate `att_` id and the crash path are
 the same for images. Before the fix the send threw `Duplicate key att_… in useResources` and the
 window fell to "Session couldn't open"; after it the prompt carried both references, the composer
-emptied, and the agent answered.
+emptied, and the agent answered. Before: two image tiles loading
+(https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1798/425f620ed08a/01-before-image-01-pasted-loading.png) and the crashed window
+(https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1798/425f620ed08a/02-before-file-03-after-send.png). After: two tiles loading
+(https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1798/425f620ed08a/03-after-file-01-pasted-loading.png) and the answered send
+(https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1798/425f620ed08a/04-after-file-03-after-send.png). An image send still needs a walk with an image-capable
+provider.

@@ -1979,9 +1979,10 @@ describe("SessionChatRuntimeProvider", () => {
   });
 
   // Invariant (issue #1798): the daemon addresses uploads by content, so two composer tiles
-  // holding the same image resolve to one attachment id. Sending them while an upload is
-  // still loading never registers that id twice as message attachment keys; each tile stays
-  // one attachment the prompt carries, matching the gallery's repeated-image convention.
+  // holding the same image resolve to one attachment id. Pasting it again while the first
+  // upload is in flight, then sending, never registers that id twice as message attachment
+  // keys; each tile stays one attachment the prompt carries, matching the gallery's
+  // repeated-image convention.
   // Owning layer: SessionAttachmentAdapter through the runtime provider. Canonical suite: this file.
   it("Should send the same image pasted twice while uploading without colliding attachment keys", async () => {
     const uploadGate = createDeferred<void>();
