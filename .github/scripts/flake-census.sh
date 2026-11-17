@@ -2,7 +2,7 @@
 # Daily, artifact-only census. No job log downloads or whole-job reruns.
 set -euo pipefail
 root=$(mktemp -d)
-cutoff=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+cutoff=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-7d +%Y-%m-%dT%H:%M:%SZ)
 mkdir -p "$root/receipts"
 # Name filtering keeps API use proportional to recovered-flake runs, not all
 # CI jobs/artifacts. Artifact metadata contains the producing repository IDs.
@@ -28,8 +28,12 @@ if [[ -z "$issue" ]]; then
   gh issue create --title "$title" --type Bug --body-file "$root/body.md"
 else
   # Own only the dedicated census issue; never overwrite the historical umbrella.
-  gh issue view "$issue" --json body --jq .body > "$root/existing.md"
+  gh issue view "$issue" --json body,state > "$root/existing.json"
+  jq -r .body "$root/existing.json" > "$root/existing.md"
   grep -q '^<!-- compozy-flake-census -->' "$root/existing.md"
+  if [[ -s "$root/artifacts" ]] && [[ "$(jq -r .state "$root/existing.json")" == "CLOSED" ]]; then
+    gh issue reopen "$issue"
+  fi
   if ! cmp -s "$root/existing.md" "$root/body.md"; then
     gh issue edit "$issue" --body-file "$root/body.md"
   fi

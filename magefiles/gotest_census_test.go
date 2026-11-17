@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -382,7 +383,7 @@ func TestIntegrationObservationIdentity(t *testing.T) {
 // Owner: Mage census; canonical suite: gotest_census_test.go.
 func TestFlakeReceipts(t *testing.T) {
 	t.Parallel()
-	t.Run("Should report recovered Go tests without classifying persistent failures or skips", func(t *testing.T) {
+	t.Run("Should report recovered Go tests and reject a skipped retry", func(t *testing.T) {
 		t.Parallel()
 		input := `{"Package":"p","Test":"TestFlaky/sub","Action":"fail"}
 {"Package":"p","Test":"TestFlaky/sub","Action":"pass"}
@@ -393,14 +394,38 @@ func TestFlakeReceipts(t *testing.T) {
 {"Package":"other","Test":"TestFlaky/sub","Action":"pass"}
 {"Package":"p","Action":"fail"}`
 		got, err := readGoFlakes(strings.NewReader(input))
-		if err != nil {
-			t.Fatal(err)
+		if err == nil || !strings.Contains(err.Error(), "TestSkipped skipped after failure") {
+			t.Fatalf("skipped retry was not rejected: %v", err)
 		}
 		if len(got) != 1 || got[0].Test != "p#TestFlaky/sub" || got[0].Attempt != 2 {
 			t.Fatalf("flakes = %+v", got)
 		}
 		if _, err := readGoFlakes(strings.NewReader("broken JSON")); err == nil {
 			t.Fatal("malformed receipt accepted")
+		}
+	})
+	t.Run("Should attribute a recovered nested subtest once without conflating other packages", func(t *testing.T) {
+		t.Parallel()
+		var input strings.Builder
+		for _, test := range []string{"TestParent", "TestParent/sub", "TestParent/sub/leaf", "TestParent/other"} {
+			for _, action := range []string{"fail", "pass"} {
+				fmt.Fprintf(&input, `{"Package":"p","Test":%q,"Action":%q}`+"\n", test, action)
+			}
+		}
+		input.WriteString(`{"Package":"other","Test":"TestParent","Action":"fail"}` + "\n")
+		input.WriteString(`{"Package":"other","Test":"TestParent","Action":"pass"}` + "\n")
+		got, err := readGoFlakes(strings.NewReader(input.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		names := make([]string, 0, len(got))
+		for _, receipt := range got {
+			names = append(names, receipt.Test)
+		}
+		slices.Sort(names)
+		want := []string{"other#TestParent", "p#TestParent/other", "p#TestParent/sub/leaf"}
+		if !slices.Equal(names, want) {
+			t.Fatalf("recovered tests=%v want=%v", names, want)
 		}
 	})
 	t.Run("Should classify Playwright retries by outcome rather than attempt count", func(t *testing.T) {

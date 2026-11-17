@@ -75,9 +75,11 @@ func (report playwrightCensus) specs() []playwrightCensusSpec {
 }
 
 // TestFlakes converts the existing test receipts to a small, log-free JSON artifact.
-// It never changes the test runner's exit status: workflows run it with always().
+// Workflows run it with always(); a skipped retry is rejected rather than
+// silently accepting gotestsum's successful exit without a passing test.
 func TestFlakes(receiptDir, output string) error {
 	flakes := []flakeReceipt{}
+	var receiptErrors []error
 	err := filepath.WalkDir(receiptDir, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -99,19 +101,23 @@ func TestFlakes(receiptDir, output string) error {
 		default:
 			return nil
 		}
-		if err != nil {
-			return fmt.Errorf("read test receipt %s: %w", path, err)
-		}
 		flakes = append(flakes, found...)
+		if err != nil {
+			receiptErrors = append(receiptErrors, fmt.Errorf("read test receipt %s: %w", path, err))
+		}
 		return nil
 	})
+	err = errors.Join(append(receiptErrors, err)...)
 	if err != nil {
-		return err
+		fmt.Printf("::error title=Test retry did not recover::%s\n", escapeFlakeAnnotation(err.Error()))
 	}
 	for index := range flakes {
 		flakes[index].Job = os.Getenv("COMPOZY_FLAKE_JOB")
 		flakes[index].Run = os.Getenv("GITHUB_RUN_ID")
-		flakes[index].SHA = os.Getenv("GITHUB_SHA")
+		flakes[index].SHA = os.Getenv("COMPOZY_FLAKE_SHA")
+		if flakes[index].SHA == "" {
+			flakes[index].SHA = os.Getenv("GITHUB_SHA")
+		}
 		flakes[index].RunAttempt = os.Getenv("GITHUB_RUN_ATTEMPT")
 		fmt.Printf(
 			"::warning title=FLAKY::%s passed on attempt %d\n",
@@ -119,7 +125,7 @@ func TestFlakes(receiptDir, output string) error {
 			flakes[index].Attempt,
 		)
 	}
-	return writeFlakeReceipts(output, flakes)
+	return errors.Join(err, writeFlakeReceipts(output, flakes))
 }
 
 func readGoFlakeFile(path string) (flakes []flakeReceipt, err error) {
@@ -159,12 +165,26 @@ func readGoFlakes(reader io.Reader) ([]flakeReceipt, error) {
 		return nil, err
 	}
 	flakes := []flakeReceipt{}
+	var retryErrors []error
 	for name, result := range outcomes {
+		if result.failed && result.last == "skip" {
+			retryErrors = append(retryErrors, fmt.Errorf("%s skipped after failure; retry must pass", name))
+		}
 		if result.failed && result.last == "pass" {
 			flakes = append(flakes, flakeReceipt{Suite: "go", Test: name, Attempt: result.attempt})
 		}
 	}
-	return flakes, nil
+	// Go repeats ancestor outcomes when rerunning a subtest. Attribute the
+	// recovery to its deepest recovered test instead of inflating the ledger.
+	flakes = slices.DeleteFunc(flakes, func(parent flakeReceipt) bool {
+		for name, result := range outcomes {
+			if result.failed && result.last == "pass" && strings.HasPrefix(name, parent.Test+"/") {
+				return true
+			}
+		}
+		return false
+	})
+	return flakes, errors.Join(retryErrors...)
 }
 
 func readPlaywrightCensus(path string) (playwrightCensus, error) {

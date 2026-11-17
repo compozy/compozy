@@ -256,6 +256,7 @@ jobs:
 
       - uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
 
       - &validate-release-workflow-contract
@@ -264,7 +265,7 @@ jobs:
           CGO_ENABLED: "1"
         run: |
           mkdir -p /tmp/gotest-json
-          go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=1 --rerun-fails-max-failures=5 \
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 \
             --jsonfile /tmp/gotest-json/gotest-release-contract.json --packages ./internal/config -- -race \
             -run '^TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast$' \
             -count=1
@@ -786,6 +787,7 @@ jobs:
 
       - uses: ./.github/actions/setup-go
         with:
+          install-gotestsum: "true"
           go-version: ${{ env.GO_VERSION }}
 
       - *validate-release-workflow-contract

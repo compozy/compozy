@@ -12,6 +12,7 @@ runs:
       shell: bash
       env:
         COMPOZY_FLAKE_JOB: ${{ inputs.job }}
+        COMPOZY_FLAKE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       run: |
         mkdir -p .tmp/test-receipts
         # Keep Go receipts and Playwright's two JSON reporters in one bounded tree.
@@ -23,7 +24,7 @@ runs:
         done
         go run github.com/magefile/mage@v1.17.2 testFlakes .tmp/test-receipts .tmp/flake-report/flakes.json
     - uses: actions/upload-artifact@v7
-      if: steps.report.outputs.count != '0' && steps.report.outcome == 'success'
+      if: always() && steps.report.outputs.count != '' && steps.report.outputs.count != '0'
       with:
         name: flake-report-${{ inputs.job }}-${{ github.run_attempt }}
         path: .tmp/flake-report/flakes.json

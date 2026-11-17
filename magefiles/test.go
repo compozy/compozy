@@ -76,6 +76,10 @@ func ensureGoTestJSONFileDir() (string, error) {
 	if dir == "" {
 		return "", nil
 	}
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve gotestsum JSON dir: %w", err)
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create gotestsum JSON dir %q: %w", dir, err)
 	}

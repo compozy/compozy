@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -73,11 +74,12 @@ func TestGoTestRetryPolicy(t *testing.T) {
 // not parallel: report provenance is read from process environment via t.Setenv.
 
 func TestFlakeReport(t *testing.T) {
-	t.Run("Should persist the recovered test and exact workflow provenance", func(t *testing.T) {
+	t.Run("Should retain recoveries and provenance even when another retry skips", func(t *testing.T) {
 		root := t.TempDir()
 		t.Setenv("COMPOZY_FLAKE_JOB", "integration-other-0")
 		t.Setenv("GITHUB_RUN_ID", "42")
-		t.Setenv("GITHUB_SHA", "abc")
+		t.Setenv("GITHUB_SHA", "merge-sha")
+		t.Setenv("COMPOZY_FLAKE_SHA", "abc")
 		t.Setenv("GITHUB_RUN_ATTEMPT", "1")
 		t.Setenv("GITHUB_OUTPUT", filepath.Join(root, "output"))
 		if err := os.WriteFile(filepath.Join(root, "output"), nil, 0o600); err != nil {
@@ -90,8 +92,11 @@ func TestFlakeReport(t *testing.T) {
 			`{"Package":"p","Test":"TestRecovered","Action":"fail"}`+"\n"+`{"Package":"p","Test":"TestRecovered","Action":"pass"}`+"\n",
 		)
 		target := filepath.Join(root, "receipt", "flakes.json")
-		if err := TestFlakes(root, target); err != nil {
-			t.Fatal(err)
+		writeTestFile(t, root, "gotest-skipped.json",
+			`{"Package":"p","Test":"TestSkipped","Action":"fail"}`+"\n"+
+				`{"Package":"p","Test":"TestSkipped","Action":"skip"}`+"\n")
+		if err := TestFlakes(root, target); err == nil || !strings.Contains(err.Error(), "retry must pass") {
+			t.Fatalf("skipped retry should reject the report: %v", err)
 		}
 		receipts, err := loadFlakeReceipts(filepath.Dir(target))
 		if err != nil {
@@ -115,6 +120,25 @@ func TestFlakeReport(t *testing.T) {
 		}
 		if string(output) != "count=1\n" {
 			t.Fatalf("output=%s", output)
+		}
+	})
+}
+
+// Invariant: receipt paths remain rooted in the checkout even when the runner
+// changes into sdk/go. Owner: Mage lane environment; canonical suite: this file.
+func TestGoTestReceiptDirectory(t *testing.T) {
+	t.Run("Should resolve a relative receipt directory before running another module", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		t.Setenv(goTestJSONFileDirEnvVar, "receipts")
+		dir, err := ensureGoTestJSONFileDir()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !filepath.IsAbs(dir) {
+			t.Fatalf("receipt directory must be absolute: %q", dir)
+		}
+		if _, err := os.Stat(dir); err != nil {
+			t.Fatal(err)
 		}
 	})
 }
