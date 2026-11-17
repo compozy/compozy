@@ -6,13 +6,13 @@ persona: Ada
 journey: J-15
 expected: With the official Antigravity CLI on PATH (command agy, argument acp), no [providers.agy] block, and operator-selected approve-all for execution, explicit local login reuses the CLI's shared sign-in and updates the daemon's sign-in verdict, a remote probe reports readiness, and the first prompt persists under agy with an advertised logical model and its own thought_level effort (Hydrogen xhigh on the verified fixture). Narrower host policies refuse native execution before launch without widening permissions. A standalone-only installation is missing_cli with no fallback, logged-out or missing-CLI states give actionable guidance, and nothing triggers automatic login. Under approve-all, provider-native file tools complete individually during the turn; gateway-routed edits in Ask before changes wait for operator approval.
 entry_points: compozy provider auth login agy; compozy provider list; compozy provider auth status agy --remote; compozy session new --agent agy-example
-qa_status: blocked-verify
+qa_status: pass
 bug_ids: "#1881"
 fix_status: fixed
 retest_status: pending
 fix_commits:
 evidence: internal/daemon/agy_acp_entry_integration_test.go
-last_report: docs/qa/reports/2026-11-16-agy-native-acp.md
+last_report: docs/qa/reports/2026-11-17-agy-native-acp-consented.md
 overlaps: MS-web-provider-auth-gate; RT-provider-full-access-mode; ET-048
 ---
 
@@ -89,9 +89,23 @@ The final live rewalk returned HTTP 422 with `approve-reads` unchanged, runtime 
 processes, and fresh target `agy-denied-before-launch-7434.txt` absent. The earlier failed targets
 remained present. This is safe refusal, not native read-only support. The original failure record
 is retained; its lab receipts and the final refusal receipt were lost in the subsequent environment
-restart, so independently auditable acceptance remains `blocked-verify`.
+restart, so that historical run alone remains unauditable. The 2026-11-17 rewalk recorded a fresh
+refusal receipt in the linked report.
 
 ## Native CLI re-baseline — 2026-11-16 (scoped walks observed; final audit blocked)
+
+Consented re-walk 2026-11-17: native CLI 1.5.9 reused the existing sign-in, acknowledged
+Hydrogen/xhigh, persisted the reply, and refused unsupported `max` without reducing effort.
+The hosted workspace-info call and authorized write passed independent public-history/filesystem
+checks. A fresh `approve-reads` session refused before launch, stayed unbound with no processes,
+and left its forbidden target absent. Actual running work was observed before cancellation;
+verified quiescence, empty explicit cleanup, and a usable follow-up were recorded.
+Round 2 closed the remaining authentication leg: a separate clean HOME completed real
+provider-owned Google consent through the native CLI's documented headless login, the product
+probe reported `authenticated`, and `compozy provider auth login` reused the store without a
+second consent. A second pending login was interrupted with `SIGINT`, stayed `needs_login`, and
+left no process. Persistent receipts and the complete acceptance boundary are in the linked
+2026-11-17 report.
 
 The built-in now launches the official Antigravity CLI as `agy acp`, so the 1.4.0 standalone-server
 receipts above are historical evidence for a superseded runtime, not native-CLI acceptance. The
@@ -105,10 +119,11 @@ provider-private option override keeps its bytes and fails validation rather tha
 The owning lab observed native login reuse, Hydrogen/xhigh acknowledgement, unsupported-max
 rejection, hosted `compozy__workspace_info`, an allowed write, cancellation with a usable follow-up,
 explicit detached-task cleanup, headed Settings and keyboard picker operation, and clean-HOME
-`needs_login` without consent. A separately consented login/cancellation and non-Linux execution
-remain unverified. The 2026-11-17 environment restart removed the lab before strict audit and
-teardown; the dated report preserves observations and the evidence-loss boundary. Peer tests
-still fake only the external CLI and never establish Google-account acceptance.
+`needs_login` without consent. That historical run left a separately consented login/cancellation
+unverified and lost its receipts in the environment restart; the 2026-11-17 round-2 addendum
+closed the consent/cancellation gap with persistent receipts. Non-Linux execution remains an
+operator exclusion. Peer tests still fake only the external CLI and never establish
+Google-account acceptance.
 
 ## Preserved ambiguous mode on upgrade — 2026-11-16 (Q2; observed before evidence loss)
 
@@ -138,6 +153,15 @@ Subsequent stop/resume retained that new native ID and logged successful `sessio
 The full-history read-back comparison remained unfinished; raw receipts were lost on restart.
 Owning cases remain IT-002 and E2E-002. No E2E pass, private-history import, or automatic deletion
 of unknown-provenance mode is claimed.
+
+Consented re-walk 2026-11-17: the genuine baseline `1141d864` conversation passed refusal,
+runtime-clear refusal, explicit runtime confirmation, new-ID transcript replay, and subsequent
+same-ID native restoration on `48aee1ed`. Structured comparisons kept all prior agent-message
+events unchanged through refusal and present after replay, together with the logical identity
+and creation time. The original marker was recovered after both replay and restoration.
+Durable source receipts and `native-continuity-verdict.json` are linked from the current report.
+This closes the targeted real-continuity leg; the separate round-2 consent addendum closes the
+authentication leg.
 
 ## Browser management and selection (E2E-003, deterministic peer)
 

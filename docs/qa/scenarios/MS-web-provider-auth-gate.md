@@ -12,7 +12,7 @@ fix_status:
 retest_status: blocked-verify
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-04;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-11-16-agy-native-acp.md
+last_report: docs/qa/reports/2026-11-17-agy-native-acp-consented.md
 overlaps: MS-provider-detail-modal; MS-web-settings-providers-redesign; MS-web-entity-modal-shell
 ---
 
@@ -73,6 +73,19 @@ no credential inputs, including at 375 px. Remote readiness reused existing CLI 
 local probe returned `needs_login` without consent. A fresh Google consent/cancellation was not
 performed. The environment restart removed the lab receipts before final audit; see
 `docs/qa/reports/2026-11-16-agy-native-acp.md` for the scoped observations and acceptance blocker.
+
+## Consented native CLI re-walk
+
+QA 2026-11-17 (consented native re-walk): real Settings inspection passed in headed Chromium.
+Enter opened the Antigravity card; Configure retained `oauth-personal`, named the available
+`agy` app, and mounted no credential-slot/value controls. At 375 px the method remained reachable
+without inspector-body horizontal overflow. No provider edit was saved.
+Round 2 completed the provider-owned authentication boundary in a separate clean HOME:
+real Google consent through the native CLI's documented headless login, product probe
+`authenticated`, and `compozy provider auth login` reusing the store without a second consent.
+A genuinely pending login was interrupted and stayed `needs_login`. This closes the AGY
+native-CLI branch, not the unrelated bound-secret/rotation branches.
+See `docs/qa/reports/2026-11-17-agy-native-acp-consented.md` and its persistent screenshot receipts.
 
 ## Harness switches preserve authentication ownership
 

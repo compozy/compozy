@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: blocked-verify
 fix_commits: issue #1473
 evidence: internal/config/provider_test.go;internal/config/provider_agy_test.go;internal/acp/types_test.go;internal/session/manager_start_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-11-10-issue-1473-full-access.md
-last_report: docs/qa/reports/2026-11-16-agy-native-acp.md
+last_report: docs/qa/reports/2026-11-17-agy-native-acp-consented.md
 overlaps: RT-cursor-agent-mode
 ---
 
@@ -63,6 +63,14 @@ detached-task termination were verified as separate operations. See
 `docs/qa/reports/2026-11-16-agy-native-acp.md`; its raw lab evidence was lost on environment restart
 before the strict audit/teardown. These observations do not establish a full scenario pass.
 The historical Codex/Claude branches remain previously verified; retired-key upgrade is untested.
+
+QA 2026-11-17 (AGY-only consented re-walk): independent durable receipts confirm native
+`approve-all` acknowledged `auto`, completed an authorized write and hosted workspace-info read,
+and subsequently remained usable after canceling observed active work. A fresh `approve-reads`
+session refused before launch with unchanged permissions, no processes, and no forbidden file.
+This is refusal, not a claim that `plan` enforces read-only behavior. Explicit cleanup found no
+remaining task. See the current report and `native-authority-cancellation-verdict.json`.
+No Codex/Claude/retired-key or whole-scenario PASS is claimed by this targeted run.
 
 ## Providers without a unique mode option
 
