@@ -23,21 +23,32 @@ type sessionMCPReadModel struct {
 	registry  *toolspkg.RuntimeRegistry
 	mu        sync.Mutex
 	summaries map[string]session.MCPSummary
+	snapshots map[string]sessionMCPSummarySnapshot
+	scopes    map[string]sessionMCPScopeSnapshot
+	refreshMu sync.Mutex
 }
 
 var _ session.MCPReader = (*sessionMCPReadModel)(nil)
 
 func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (session.MCP, error) {
-	ctx = toolspkg.WithProjectionListings(toolspkg.WithCachedMCPProjection(ctx), toolspkg.NewProjectionListings())
-	info, err := r.state.sessions.Status(ctx, id)
+	ctx = toolspkg.EnsureProjectionListings(toolspkg.WithCachedMCPProjection(ctx))
+	ctx = r.registry.ReadContext(toolspkg.WithImmutableProjection(ctx))
+	info, err := storedSessionStatus(ctx, r.state.sessions, id)
 	if err != nil {
 		return session.MCP{}, err
 	}
+	ctx = session.WithMCPAuthoritySession(ctx, info)
 	collection, err := r.sessionMCPCollection(ctx, info)
 	if err != nil {
 		return session.MCP{}, err
 	}
-	authority, err := r.authority.EffectiveMCPAuthority(ctx, id)
+	authorityCtx := ctx
+	if reader, ok := r.authority.(interface {
+		MCPAuthorityReadContext(context.Context) context.Context
+	}); ok {
+		authorityCtx = reader.MCPAuthorityReadContext(ctx)
+	}
+	authority, err := r.authority.EffectiveMCPAuthority(authorityCtx, id)
 	if err != nil {
 		return session.MCP{}, err
 	}
@@ -215,44 +226,6 @@ func setSessionMCPPreview(row *session.MCPServerRow, item *settingspkg.MCPServer
 		endpoint.Fragment = ""
 		row.URL = diagnosticspkg.Redact(endpoint.String())
 	}
-}
-
-// refresh debounces summary notifications at the declaration watcher's existing cadence.
-func (r *sessionMCPReadModel) refresh(ctx context.Context) error {
-	manager, ok := r.state.sessions.(interface {
-		BoundMCPSessionIDs() []string
-		RecordMCPChanged(context.Context, string, session.MCPSummary) error
-	})
-	if !ok {
-		return nil
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	active := map[string]bool{}
-	var errs []error
-	for _, id := range manager.BoundMCPSessionIDs() {
-		active[id] = true
-		result, err := r.ListSessionMCP(ctx, id)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		previous, exists := r.summaries[id]
-		if exists && previous == result.MCPSummary {
-			continue
-		}
-		if err := manager.RecordMCPChanged(ctx, id, result.MCPSummary); err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		r.summaries[id] = result.MCPSummary
-	}
-	for id := range r.summaries {
-		if !active[id] {
-			delete(r.summaries, id)
-		}
-	}
-	return errors.Join(errs...)
 }
 
 func bindSessionMCPReader(

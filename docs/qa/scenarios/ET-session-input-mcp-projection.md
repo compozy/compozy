@@ -33,3 +33,7 @@ native registry read showing that no `compozy__*` IDs were added by the Host API
 QA 2026-08-09: the official Go MCP SDK initialized the current-source `compozy mcp serve`, discovered
 all four session-input tools, created and independently read session `sess-535e26a44ff986b5`, and
 confirmed 248 native tools with zero `compozy_host__` IDs in a fresh isolated lab.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+A hosted poll reuses its bind projection until the epoch changes or the existing three-second fallback expires. Fallback still rechecks native availability without a generation; shared publication retains the class/epoch fence and clones at ownership boundaries. The targeted runtime walk covers deny edits, approval and a narrowed child.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

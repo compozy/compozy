@@ -35,18 +35,23 @@ func (s *HostedService) sharedStreamProjection(
 			return HostedProjectionResponse{}, true, err
 		}
 		epoch := s.currentProjectionEpoch()
-		listingCtx, builtAt := s.withProjectionListings(ctx, epoch)
+		listingCtx, builtAt := s.withProjectionListings(registry.ReadContext(tools.WithImmutableProjection(ctx)), epoch)
 		class, known := registry.ProjectionVisibility(listingCtx, record.scope())
 		if !known {
 			return HostedProjectionResponse{}, false, nil
 		}
 		key := hostedSharedFlightKey{hostedVisibilityKey{registry, class}, epoch}
+		matchCtx := ctx
+		if s.projectionEpoch != nil {
+			// Class and build share one availability snapshot; the epoch fences all versioned inputs.
+			matchCtx = listingCtx
+		}
 		cached, flight, leader := s.sharedProjections.begin(key, s.now(), s.StreamRefreshInterval())
 		if cached != nil {
-			if !s.sharedProjectionMatches(listingCtx, record, key) {
+			if !s.sharedProjectionMatches(matchCtx, record, key) {
 				continue
 			}
-			return s.checkedSharedProjection(ctx, record, *cached)
+			return s.checkedSharedProjection(ctx, record, *cached, epoch, builtAt)
 		}
 		if !leader {
 			response, retry, err := waitHostedProjectionFlight(ctx, flight)
@@ -56,10 +61,10 @@ func (s *HostedService) sharedStreamProjection(
 			if err != nil {
 				return HostedProjectionResponse{}, true, err
 			}
-			if retry || !s.sharedProjectionMatches(listingCtx, record, key) {
+			if retry || !s.sharedProjectionMatches(matchCtx, record, key) {
 				continue
 			}
-			return s.checkedSharedProjection(ctx, record, response)
+			return s.checkedSharedProjection(ctx, record, response, epoch, builtAt)
 		}
 		response, err := buildHostedProjection(listingCtx, registry, record)
 		if err == nil {
@@ -67,7 +72,7 @@ func (s *HostedService) sharedStreamProjection(
 		}
 		stable := false
 		if err == nil {
-			stable = s.sharedProjectionMatches(listingCtx, record, key)
+			stable = s.sharedProjectionMatches(matchCtx, record, key)
 		}
 		s.mu.Lock()
 		owned := s.ownsBindRecord(record)
@@ -80,7 +85,7 @@ func (s *HostedService) sharedStreamProjection(
 			return HostedProjectionResponse{}, true, ErrHostedBindNotFound
 		}
 		if stable {
-			return s.checkedSharedProjection(ctx, record, response)
+			return s.checkedSharedProjection(ctx, record, response, epoch, builtAt)
 		}
 	}
 	// Churning inputs keep the existing uncached path rather than publishing an uncertain class.
@@ -100,12 +105,18 @@ func (s *HostedService) checkedSharedProjection(
 	ctx context.Context,
 	record *hostedBindRecord,
 	response HostedProjectionResponse,
+	epoch uint64, builtAt time.Time,
 ) (HostedProjectionResponse, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return HostedProjectionResponse{}, true, err
 	}
 	s.mu.Lock()
 	owned := s.ownsBindRecord(record)
+	if owned && s.projectionEpoch != nil && s.currentProjectionEpoch() == epoch {
+		s.projectionCache.storeUnversioned(record.bindID, hostedUnversionedProjection{
+			epoch: epoch, builtAt: builtAt, response: response,
+		})
+	}
 	s.mu.Unlock()
 	if !owned {
 		return HostedProjectionResponse{}, true, ErrHostedBindNotFound

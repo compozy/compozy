@@ -149,7 +149,7 @@ func (n *daemonNativeTools) nativeCurrentProfileIdentity(
 		if n.deps.Sessions == nil {
 			return "", "", "", errors.New("daemon: session profile lookup is unavailable")
 		}
-		info, statusErr := n.deps.Sessions.Status(ctx, sessionID)
+		info, statusErr := storedSessionStatus(ctx, n.deps.Sessions, sessionID)
 		if statusErr != nil {
 			return "", "", "", statusErr
 		}

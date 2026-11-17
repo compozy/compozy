@@ -77,7 +77,7 @@ func (s *daemonLoopAPIService) visibleSessionGoalProjection(
 	if s.sessionStatus == nil {
 		return "", goalpkg.SessionProjection{}, false, errors.New("daemon: session status reader is unavailable")
 	}
-	info, err := s.sessionStatus.Status(ctx, targetSessionID)
+	info, err := storedSessionStatus(ctx, s.sessionStatus, targetSessionID)
 	if err != nil {
 		return "", goalpkg.SessionProjection{}, false, fmt.Errorf(
 			"daemon: read Goal session status %q: %w", targetSessionID, err,

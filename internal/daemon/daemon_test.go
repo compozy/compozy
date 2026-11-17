@@ -25,6 +25,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	opendesign "github.com/compozy/compozy/extensions/open-design"
@@ -6408,6 +6409,81 @@ args = ["-c", "printf '{}'"]
 
 func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 	t.Parallel()
+	t.Run("Should publish agent policy edits and retry independently of declaration refresh", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			home := testHomePaths(t)
+			cfg := compozyconfig.DefaultWithHome(home)
+			cfg.Skills.PollInterval = time.Hour
+			root := t.TempDir()
+			registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
+				"ws_policy_watch": {ID: "ws_policy_watch", Name: "repo", RootDir: root},
+			}}
+			resolver, err := workspacepkg.NewResolver(registry,
+				workspacepkg.WithHomePaths(home), workspacepkg.WithSnapshotTTL(agentConfigMaxStaleness),
+				workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(home.AgentsDir, "observed", "AGENT.md")
+			writeDaemonFile(t, path, "---\nname: observed\nprovider: codex\n---\nOriginal.\n")
+			if err := watchPublishedAgentConfigs(t.Context(), resolver, registry, nil); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			attempts := 0
+			published := make(chan bool, 2)
+			state := &bootState{cfg: cfg, workspaceResolver: resolver,
+				agentSkillResources: agentSkillPublisherFunc(func(ctx context.Context) error {
+					attempts++
+					if attempts == 1 {
+						return errors.New("publication temporarily unavailable")
+					}
+					resolved, err := resolver.ResolveAgentConfig(ctx, "ws_policy_watch", "")
+					if err != nil {
+						return err
+					}
+					for _, agent := range resolved.Agents {
+						if agent.Name == "observed" {
+							published <- slices.Contains(agent.DenyTools, "compozy__tool_search")
+						}
+					}
+					return nil
+				}),
+			}
+			watcher := &mcpDeclarationWatcher{
+				paths: func(context.Context) ([]string, error) { return nil, nil },
+				sync:  func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() },
+			}
+			go runMCPDeclarationWatcher(ctx, state, watcher, cfg.Skills.PollInterval)
+			go runAgentConfigWatcher(ctx, state)
+			synctest.Wait()
+			writeDaemonFile(t, path,
+				"---\nname: observed\nprovider: codex\ndeny_tools: [compozy__tool_search]\n---\nRestricted.\n")
+			time.Sleep(agentConfigPollInterval)
+			synctest.Wait()
+			if attempts != 1 {
+				t.Fatalf("publication attempts after edit = %d, want 1", attempts)
+			}
+			time.Sleep(agentConfigPollInterval)
+			synctest.Wait()
+			select {
+			case denied := <-published:
+				if !denied {
+					t.Fatal("published policy did not contain the edited deny_tools")
+				}
+			default:
+				t.Fatal("failed publication was not retried within the bound")
+			}
+			time.Sleep(agentConfigPollInterval)
+			synctest.Wait()
+			if attempts != 2 {
+				t.Fatalf("unchanged policy republished: attempts=%d, want 2", attempts)
+			}
+		})
+	})
 
 	t.Run("Should reject personal profile roots inside a workspace before watching skills", func(t *testing.T) {
 		t.Parallel()

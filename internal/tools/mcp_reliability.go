@@ -185,16 +185,11 @@ func (p *MCPProvider) discoverySucceeded(
 	reliabilityState *mcpReliabilityState,
 	discovered []MCPToolDescriptor,
 ) ([]Descriptor, bool, error) {
-	descriptors := make([]Descriptor, 0, len(discovered))
-	for i := range discovered {
-		descriptor, err := mcpRegistryDescriptor(source, discovered[i])
-		if err != nil {
-			return nil, false, wrapField(err, fmt.Sprintf("mcp_tools[%d]", i))
-		}
-		descriptors = append(descriptors, descriptor)
+	descriptors, err := p.normalizeDiscovery(source, discovered)
+	if err != nil {
+		return nil, false, err
 	}
 	p.discoveryFailures.Delete(source)
-	p.discovered.Store(source, cloneDescriptors(descriptors))
 	if tracked && p.reliability != nil {
 		if err := p.reliability.service.RecordSuccess(ctx, key); err != nil {
 			return nil, false, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)

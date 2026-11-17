@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"slices"
@@ -19,6 +20,40 @@ var _ session.MCPAuthorityResolver = (*nativeToolPolicyResolver)(nil)
 func (r *nativeToolPolicyResolver) EffectiveMCPAuthority(
 	ctx context.Context,
 	id string,
+) (store.SessionPermissionPolicy, error) {
+	ctx = r.PolicyReadContext(ctx)
+	read, ok := ctx.Value(toolPolicyReadKey{}).(*toolPolicyRead)
+	if !ok {
+		return r.resolveEffectiveMCPAuthority(ctx, id)
+	}
+	key := toolPolicyAuthorityKey{resolver: r, id: id, read: mcpAuthorityRead(ctx)}
+	if info := session.MCPAuthoritySession(ctx, id); info != nil {
+		// Synthetic spawn/start/adoption rows may share an ID but carry different ceilings.
+		row, err := json.Marshal(struct {
+			Profile, Workspace, Agent string
+			Type                      session.Type
+			Lineage                   *store.SessionLineage
+		}{info.ProfileID, info.WorkspaceID, info.AgentName, info.Type, info.Lineage})
+		if err != nil {
+			return store.SessionPermissionPolicy{}, err
+		}
+		key.row = string(row)
+	}
+	read.authorityMu.Lock()
+	defer read.authorityMu.Unlock()
+	if cached, ok := read.authorities[key]; ok {
+		return store.NormalizeSessionPermissionPolicy(cached.policy), cached.err
+	}
+	policy, err := r.resolveEffectiveMCPAuthority(ctx, id)
+	if read.authorities == nil {
+		read.authorities = make(map[toolPolicyAuthorityKey]toolPolicyAuthority)
+	}
+	read.authorities[key] = toolPolicyAuthority{policy, err}
+	return store.NormalizeSessionPermissionPolicy(policy), err
+}
+
+func (r *nativeToolPolicyResolver) resolveEffectiveMCPAuthority(
+	ctx context.Context, id string,
 ) (store.SessionPermissionPolicy, error) {
 	info := session.MCPAuthoritySession(ctx, id)
 	if info == nil {

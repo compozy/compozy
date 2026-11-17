@@ -2,6 +2,7 @@ package redact
 
 import (
 	"cmp"
+	"crypto/sha256"
 	"slices"
 	"strings"
 	"sync"
@@ -24,8 +25,9 @@ type dynamicSecretRegistry struct {
 // secretSnapshot pairs the registered secrets with their reversible encodings,
 // derived once per change because redaction reads them for every string.
 type secretSnapshot struct {
-	values    []string
-	encodings []string
+	fingerprint [sha256.Size]byte
+	values      []string
+	encodings   []string
 }
 
 func newDynamicSecretRegistry() *dynamicSecretRegistry {
@@ -97,7 +99,10 @@ func (r *dynamicSecretRegistry) storeSnapshotLocked() {
 	slices.SortFunc(secrets, func(a, b string) int {
 		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
 	})
-	r.snapshot.Store(&secretSnapshot{values: secrets, encodings: secretEncodings(secrets)})
+	r.snapshot.Store(&secretSnapshot{
+		values: secrets, encodings: secretEncodings(secrets),
+		fingerprint: sha256.Sum256([]byte(strings.Join(secrets, "\x00"))),
+	})
 }
 
 func (r *dynamicSecretRegistry) valuesSnapshot() []string {
@@ -107,3 +112,6 @@ func (r *dynamicSecretRegistry) valuesSnapshot() []string {
 func (r *dynamicSecretRegistry) encodingsSnapshot() []string {
 	return r.snapshot.Load().encodings
 }
+
+// SecretFingerprint identifies the effective registered secret set without exposing it.
+func SecretFingerprint() [sha256.Size]byte { return dynamicSecrets.snapshot.Load().fingerprint }

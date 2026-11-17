@@ -18,6 +18,7 @@ import (
 	skillspkg "github.com/compozy/compozy/internal/skills"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (d *Daemon) newAgentSkillPublisher(
@@ -156,6 +157,9 @@ func daemonAgentSkillDeclarationProvider(
 		if invalidator, ok := workspaceResolver.(interface{ InvalidateAll() }); ok {
 			invalidator.InvalidateAll()
 		}
+		if err := watchPublishedAgentConfigs(ctx, workspaceResolver, registry, profileCatalog); err != nil {
+			return agentSkillDeclarations{}, err
+		}
 		desired := agentSkillDeclarations{}
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		globalAgents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths, "")
@@ -222,6 +226,42 @@ func daemonAgentSkillDeclarationProvider(
 
 		return desired, nil
 	}
+}
+
+func watchPublishedAgentConfigs(
+	ctx context.Context,
+	resolver workspacepkg.RuntimeResolver,
+	registry workspaceRegistryReader,
+	profiles extensionProfileCatalog,
+) error {
+	watcher, ok := resolver.(interface {
+		WatchAgentConfigs(context.Context, []workspacepkg.AgentConfigScope) error
+	})
+	if !ok {
+		return nil
+	}
+	names, err := activeResourceProfileNames(ctx, profiles)
+	if err != nil {
+		return err
+	}
+	refs := []string{workspaceaccess.UserSelector}
+	if registry != nil {
+		workspaces, err := registry.ListWorkspaces(ctx)
+		if err != nil {
+			return err
+		}
+		for _, workspace := range workspaces {
+			refs = append(refs, workspace.ID)
+		}
+	}
+	scopes := make([]workspacepkg.AgentConfigScope, 0, len(refs)*(len(names)+1))
+	for _, ref := range refs {
+		scopes = append(scopes, workspacepkg.AgentConfigScope{WorkspaceRef: ref})
+		for _, name := range names {
+			scopes = append(scopes, workspacepkg.AgentConfigScope{WorkspaceRef: ref, ProfileName: name})
+		}
+	}
+	return watcher.WatchAgentConfigs(ctx, scopes)
 }
 
 func extensionAgentSkillDeclarationProvider(

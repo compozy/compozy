@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -63,13 +64,17 @@ func (r *RuntimeRegistry) listProvider(
 ) ([]Descriptor, error) {
 	listings, shared := ctx.Value(projectionListingsKey{}).(*ProjectionListings)
 	scoped, declared := provider.(ProjectionScopeProvider)
+	providerScope := scope
+	if declared {
+		providerScope = scoped.ProjectionScope(scope)
+	}
+	key := projectionListingKey{registry: r, providerIndex: providerIndex, scope: providerScope}
 	if !shared || !declared {
-		descriptors, _, err := listValidatedProvider(ctx, provider, scope)
+		descriptors, _, err := r.listValidatedProvider(ctx, provider, key, scope)
 		return descriptors, err
 	}
-	key := projectionListingKey{registry: r, providerIndex: providerIndex, scope: scoped.ProjectionScope(scope)}
 	return listings.load(ctx, key, func() ([]Descriptor, bool, error) {
-		return listValidatedProvider(ctx, provider, scope)
+		return r.listValidatedProvider(ctx, provider, key, scope)
 	})
 }
 
@@ -122,7 +127,9 @@ func (l *ProjectionListings) lead(
 
 var errProjectionListingAbandoned = errors.New("tools: projection listing abandoned")
 
-func listValidatedProvider(ctx context.Context, provider Provider, scope Scope) ([]Descriptor, bool, error) {
+func (r *RuntimeRegistry) listValidatedProvider(
+	ctx context.Context, provider Provider, key projectionListingKey, scope Scope,
+) ([]Descriptor, bool, error) {
 	var descriptors []Descriptor
 	var err error
 	complete := true
@@ -139,10 +146,33 @@ func listValidatedProvider(ctx context.Context, provider Provider, scope Scope) 
 	slices.SortFunc(descriptors, func(a Descriptor, b Descriptor) int {
 		return strings.Compare(a.ID.String(), b.ID.String())
 	})
+	validated := &r.validatedListings
+	validated.mu.Lock()
+	defer validated.mu.Unlock()
+	// Exact Go-value equality avoids re-parsing schemas while retaining non-JSON policy metadata.
+	if previous, ok := validated.entries[key]; ok && reflect.DeepEqual(previous, descriptors) {
+		return previous, complete, nil
+	}
 	for i := range descriptors {
 		if err := descriptors[i].Validate(); err != nil {
 			return nil, false, indexValidationError(descriptors[i].ID, err)
 		}
 	}
+	if complete {
+		if validated.entries == nil || len(validated.entries) >= 128 {
+			validated.entries = make(map[projectionListingKey][]Descriptor)
+		}
+		immutable := make([]Descriptor, len(descriptors))
+		for i := range descriptors {
+			immutable[i] = cloneDescriptor(descriptors[i])
+		}
+		validated.entries[key] = immutable
+		return immutable, true, nil
+	}
 	return descriptors, complete, nil
+}
+
+type validatedProviderListings struct {
+	mu      sync.Mutex
+	entries map[projectionListingKey][]Descriptor
 }

@@ -43,6 +43,7 @@ type Resolver struct {
 	snapshotTTL         time.Duration
 	idGenerator         idGenerator
 	changeHook          ChangeHook
+	invalidationHook    func()
 	operatorHomeDir     string
 
 	registrationMu        sync.Mutex
@@ -52,6 +53,8 @@ type Resolver struct {
 	cache                 map[string]*cachedEntry
 	snapshotsHeld         bool
 	agentConfigCache      map[string]*cachedAgentConfig
+	agentConfigObserved   map[string]*agentConfigObservation
+	agentConfigWatched    map[string]struct{}
 	agentConfigGeneration uint64
 	skillsConfigCache     map[string]*cachedSkillsConfig
 }
@@ -93,10 +96,12 @@ func NewResolver(store Store, opts ...Option) (*Resolver, error) {
 		snapshotTTL:         resolvedOpts.snapshotTTL,
 		idGenerator:         resolvedOpts.idGenerator,
 		changeHook:          resolvedOpts.changeHook,
+		invalidationHook:    resolvedOpts.invalidationHook,
 		operatorHomeDir:     resolvedOpts.operatorHomeDir,
 		unregister:          newUnregisterCoordinator(),
 		cache:               make(map[string]*cachedEntry),
 		agentConfigCache:    make(map[string]*cachedAgentConfig),
+		agentConfigObserved: make(map[string]*agentConfigObservation),
 		skillsConfigCache:   make(map[string]*cachedSkillsConfig),
 	}, nil
 }
@@ -382,6 +387,9 @@ func (r *Resolver) Invalidate(workspaceID string) {
 	}
 	r.deleteSkillsConfigLocked(trimmedID)
 	r.mu.Unlock()
+	if r.invalidationHook != nil {
+		r.invalidationHook()
+	}
 }
 
 // InvalidateAll clears every cached runtime snapshot after a global dependency changes.
@@ -395,6 +403,9 @@ func (r *Resolver) InvalidateAll() {
 	clear(r.agentConfigCache)
 	clear(r.skillsConfigCache)
 	r.mu.Unlock()
+	if r.invalidationHook != nil {
+		r.invalidationHook()
+	}
 }
 
 func (r *Resolver) notifyChangeHook(ctx context.Context, operation string, workspaceID string) error {

@@ -13,7 +13,7 @@ import (
 )
 
 func (h *BaseHandlers) GetSessionMCP(c *gin.Context) {
-	c.Request = c.Request.WithContext(tools.WithCachedMCPProjection(c.Request.Context()))
+	c.Request = c.Request.WithContext(h.toolReadContext(c.Request.Context()))
 	_, id, _, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
 		return
@@ -44,7 +44,19 @@ func (h *BaseHandlers) withSessionMCPSummary(ctx context.Context, payload *contr
 	if !ok {
 		return nil
 	}
-	result, err := reader.ListSessionMCP(tools.WithCachedMCPProjection(ctx), payload.ID)
+	var summary *session.MCPSummary
+	var err error
+	if cached, ok := h.Sessions.(interface {
+		SessionMCPSummary(context.Context, string) (*session.MCPSummary, error)
+	}); ok {
+		summary, err = cached.SessionMCPSummary(ctx, payload.ID)
+	} else {
+		var result session.MCP
+		result, err = reader.ListSessionMCP(tools.WithCachedMCPProjection(ctx), payload.ID)
+		if len(result.CompozyServers)+len(result.RuntimeServers.Servers) > 0 {
+			summary = &result.MCPSummary
+		}
+	}
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
@@ -55,8 +67,16 @@ func (h *BaseHandlers) withSessionMCPSummary(ctx context.Context, payload *contr
 		}
 		return nil
 	}
-	if len(result.CompozyServers)+len(result.RuntimeServers.Servers) > 0 {
-		payload.MCPSummary = &result.MCPSummary
-	}
+	payload.MCPSummary = summary
 	return nil
+}
+
+func (h *BaseHandlers) toolReadContext(ctx context.Context) context.Context {
+	ctx = tools.EnsureProjectionListings(tools.WithCachedMCPProjection(ctx))
+	if reader, ok := h.Tools.(interface {
+		ReadContext(context.Context) context.Context
+	}); ok {
+		return reader.ReadContext(ctx)
+	}
+	return ctx
 }

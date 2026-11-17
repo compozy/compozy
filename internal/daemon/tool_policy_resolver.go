@@ -118,6 +118,7 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if r == nil || r.cfg == nil {
 		return toolspkg.PolicyInputs{}, errors.New("daemon: native tool policy resolver is not configured")
 	}
+	ctx = r.PolicyReadContext(ctx)
 	resolvedScope := normalizeToolPolicyScope(scope)
 	info, err := r.sessionInfo(ctx, resolvedScope.SessionID)
 	if err != nil {
@@ -308,40 +309,6 @@ func (r *nativeToolPolicyResolver) sessionInfo(
 		return nil, nil
 	}
 	return nil, fmt.Errorf("daemon: resolve session tool policy %q: %w", sessionID, err)
-}
-
-// resolveWorkspaceConfig loads policy inputs without skill discovery and retains the session profile identity.
-func (r *nativeToolPolicyResolver) resolveWorkspaceConfig(
-	ctx context.Context,
-	scope toolspkg.Scope,
-) (*workspacepkg.ResolvedAgentConfig, *compozyconfig.Config, error) {
-	cfg := r.cfg
-	workspaceID := strings.TrimSpace(scope.WorkspaceID)
-	if workspaceID == "" {
-		if r.workspaceResolver == nil {
-			return nil, cfg, nil
-		}
-		workspaceID = workspaceaccess.UserSelector
-	}
-	if r.workspaceResolver == nil {
-		return nil, cfg, nil
-	}
-	profileName := ""
-	if scope.ProfileID != "" {
-		var profileErr error
-		profileName, profileErr = resolvePromptSkillsProfileName(ctx, r.profileNames, scope.ProfileID)
-		if profileErr != nil {
-			return nil, nil, fmt.Errorf("daemon: resolve tool policy profile %q: %w", scope.ProfileID, profileErr)
-		}
-	}
-	resolved, err := r.workspaceResolver.ResolveAgentConfig(ctx, workspaceID, profileName)
-	if err != nil {
-		return nil, nil, fmt.Errorf("daemon: resolve workspace tool policy %q: %w", workspaceID, err)
-	}
-	if scope.ProfileID != "" {
-		resolved.ProfileID = scope.ProfileID
-	}
-	return &resolved, &resolved.Config, nil
 }
 
 // applyAgentToolPolicy applies resolved agent restrictions and an explicitly configured permission mode.

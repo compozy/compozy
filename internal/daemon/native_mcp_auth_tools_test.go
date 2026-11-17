@@ -14,7 +14,9 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/runtimemcp"
@@ -557,6 +559,40 @@ func (p *nativeMCPAuthStatusProvider) Status(
 
 func TestRuntimeMCPInventory(t *testing.T) {
 	t.Parallel()
+	// Invariant: cache expiry alone does not publish an inventory change; file edits still do.
+	// Owner: daemon runtime inventory; canonical suite: runtime MCP inventory.
+	t.Run("Should retain the revision across an unchanged TTL refresh", func(t *testing.T) {
+		t.Parallel()
+		inventory := newTestRuntimeMCPInventory(t)
+		now := time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC)
+		inventory.now = func() time.Time { return now }
+		root := t.TempDir()
+		request := runtimemcp.Request{
+			Runtime: "claude", Context: runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")},
+		}
+		if _, err := inventory.List(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		revision := inventory.Revision()
+		now = now.Add(runtimeMCPCacheTTL + time.Second)
+		inventory.Poll()
+		if inventory.Revision() != revision {
+			t.Fatal("expiry published an inventory change")
+		}
+		if _, err := inventory.List(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		if inventory.Revision() != revision {
+			t.Fatal("unchanged refresh published an inventory change")
+		}
+		if err := os.WriteFile(filepath.Join(root, ".claude.json"), []byte(`{"mcpServers":{}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		inventory.Poll()
+		if inventory.Revision() <= revision {
+			t.Fatal("file creation did not publish an inventory change")
+		}
+	})
 
 	t.Run("Should reject construction without a digest key provider", func(t *testing.T) {
 		t.Parallel()
@@ -1512,8 +1548,8 @@ func TestSessionMCPReadModel(t *testing.T) {
 		if err := model.refresh(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if len(manager.changes) != 1 {
-			t.Fatalf("unchanged notifications=%+v", manager.changes)
+		if len(manager.changes) != 1 || manager.reads != 1 {
+			t.Fatalf("unchanged notifications=%+v, projection reads=%d", manager.changes, manager.reads)
 		}
 		manager.runtime.Pending = true
 		manager.runtime.Pending = false // Intermediate state is coalesced before the next cadence.
@@ -1534,6 +1570,43 @@ func TestSessionMCPReadModel(t *testing.T) {
 		}
 		if len(manager.changes) != 2 || manager.changes[1].Usable != 0 || manager.changes[1].Attention != 1 {
 			t.Fatalf("auth notifications=%+v", manager.changes)
+		}
+	})
+	// Invariant: runtime activation and authority fences invalidate otherwise equal summaries.
+	// Owner: daemon summary read model; canonical suite: session MCP reads.
+	t.Run("Should refresh summaries after pending reload, lineage and epoch changes", func(t *testing.T) {
+		t.Parallel()
+		model, manager, _, _ := newSessionMCPReadFixture(t)
+		info, err := manager.Status(t.Context(), "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager.SessionManager = &apitest.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return info, nil
+			},
+		}
+		model.state.toolProjectionEpoch = mcppkg.NewProjectionEpoch()
+		for index, change := range []func(){
+			func() {},
+			func() { manager.runtime.Pending = true },
+			func() { info.EffectivePermissions = "deny-all" },
+			func() { info.Lineage = &store.SessionLineage{ParentSessionID: "parent"} },
+			func() { model.state.toolProjectionEpoch.Advance() },
+		} {
+			change()
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if manager.reads != index+1 {
+				t.Fatalf("projection reads after change %d = %d", index, manager.reads)
+			}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if manager.reads != index+1 {
+				t.Fatal("unchanged summary rebuilt")
+			}
 		}
 	})
 	// Invariant: explicit session ids cannot cross the trusted workspace/profile; owner: native adapter.
@@ -1575,6 +1648,7 @@ type sessionMCPManagerStub struct {
 	runtime session.MCPRuntimeSnapshot
 	reader  session.MCPReader
 	changes []session.MCPSummary
+	reads   int
 }
 
 var _ session.MCPReader = (*sessionMCPManagerStub)(nil)
@@ -1590,7 +1664,12 @@ func (s *sessionMCPManagerStub) MCPReadSnapshot(
 	string,
 	toolspkg.AdvertisedCatalog,
 ) (session.MCPRuntimeSnapshot, error) {
+	s.reads++
 	return s.runtime, nil
+}
+func (s *sessionMCPManagerStub) MCPReadIdentity(string) (string, error) {
+	data, err := json.Marshal(s.runtime)
+	return string(data), err
 }
 func (s *sessionMCPManagerStub) ListSessionMCP(ctx context.Context, id string) (session.MCP, error) {
 	return s.reader.ListSessionMCP(ctx, id)

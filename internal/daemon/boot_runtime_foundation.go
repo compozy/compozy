@@ -132,6 +132,9 @@ func (d *Daemon) bootRegistryState(
 	return nil
 }
 
+const agentConfigMaxStaleness = time.Second
+const agentConfigPollInterval = agentConfigMaxStaleness / 2
+
 func (d *Daemon) newBootWorkspaceResolver(state *bootState, registry Registry) (*workspacepkg.Resolver, error) {
 	getenv := d.getenv
 	if getenv == nil {
@@ -148,7 +151,12 @@ func (d *Daemon) newBootWorkspaceResolver(state *bootState, registry Registry) (
 		return nil, fmt.Errorf("daemon: resolve operator home: %w", err)
 	}
 	resolverOptions := []workspacepkg.Option{
-		workspacepkg.WithSnapshotTTL(time.Second),
+		workspacepkg.WithSnapshotTTL(agentConfigMaxStaleness),
+		workspacepkg.WithInvalidationHook(func() {
+			if state.toolProjectionEpoch != nil {
+				state.toolProjectionEpoch.Advance()
+			}
+		}),
 		workspacepkg.WithHomePaths(d.homePaths),
 		workspacepkg.WithOperatorHomeDir(operatorHome),
 		workspacepkg.WithLogger(state.logger),

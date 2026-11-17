@@ -186,11 +186,11 @@ func mcpExtensionBindingOwner(
 		if !ok || state == nil || state.profiles == nil {
 			return "", "", errors.New("daemon: workspace-profile MCP resource requires profile catalog")
 		}
-		profile, err := state.profiles.GetByName(ctx, profileName)
+		profileID, err := mcpOwnerProfileID(ctx, state, profileName)
 		if err != nil {
 			return "", "", fmt.Errorf("daemon: resolve MCP resource profile %q: %w", profileName, err)
 		}
-		return strings.TrimSpace(profile.ID), strings.TrimSpace(workspaceID), nil
+		return strings.TrimSpace(profileID), strings.TrimSpace(workspaceID), nil
 	case resources.ResourceScopeKindWorkspace:
 		return store.DefaultProfileID, normalized.ID, nil
 	case resources.ResourceScopeKindUser:
@@ -264,6 +264,7 @@ func mcpAuthTargetForResource(
 }
 
 func daemonMCPSources(ctx context.Context, state *bootState) ([]toolspkg.SourceRef, error) {
+	ctx = withMCPOwnerRead(ctx)
 	if state == nil {
 		return nil, nil
 	}
@@ -337,11 +338,11 @@ func mcpResourceProjectionOwner(
 		if !ok || state == nil || state.profiles == nil {
 			return "", "", errors.New("daemon: workspace-profile MCP resource requires profile catalog")
 		}
-		profile, err := state.profiles.GetByName(ctx, profileName)
+		profileID, err := mcpOwnerProfileID(ctx, state, profileName)
 		if err != nil {
 			return "", "", fmt.Errorf("daemon: resolve MCP resource profile %q: %w", profileName, err)
 		}
-		return strings.TrimSpace(profile.ID), strings.TrimSpace(workspaceID), nil
+		return strings.TrimSpace(profileID), strings.TrimSpace(workspaceID), nil
 	default:
 		return "", "", fmt.Errorf("daemon: unsupported MCP resource scope %q", normalized.Kind)
 	}

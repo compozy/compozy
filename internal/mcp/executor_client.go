@@ -35,25 +35,17 @@ func (e *CallExecutor) openClient(
 	resolved *ResolvedServer,
 	authorizationHeader string,
 ) (*managedMCPClient, error) {
-	server := resolved.Server
-	if server.EffectiveTransport() == compozyconfig.MCPServerTransportHTTP {
-		rendered, secrets, err := server.RenderInputs(
-			func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
-		)
-		if err != nil {
-			return nil, err
-		}
-		if err := mcppolicy.ValidateRemoteURL(rendered.URL); err != nil {
-			return nil, errors.New("mcp: invalid rendered endpoint")
-		}
-		for _, secret := range secrets {
-			registerMCPRequestSecret(ctx, secret)
-		}
-		server = rendered
-		renderedResolved := *resolved
-		renderedResolved.Server = server
-		resolved = &renderedResolved
+	rendered := *resolved
+	if err := e.renderHTTPServer(ctx, &rendered); err != nil {
+		return nil, err
 	}
+	return e.openRenderedClient(ctx, &rendered, authorizationHeader)
+}
+
+func (e *CallExecutor) openRenderedClient(
+	ctx context.Context, resolved *ResolvedServer, authorizationHeader string,
+) (*managedMCPClient, error) {
+	server := resolved.Server
 	transport := server.EffectiveTransport()
 	switch transport {
 	case compozyconfig.MCPServerTransportStdio:
@@ -91,6 +83,26 @@ func (e *CallExecutor) openClient(
 			"unsupported mcp transport",
 		)
 	}
+}
+
+func (e *CallExecutor) renderHTTPServer(ctx context.Context, resolved *ResolvedServer) error {
+	if resolved.Server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
+		return nil
+	}
+	rendered, secrets, err := resolved.Server.RenderInputs(
+		func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
+	)
+	if err != nil {
+		return err
+	}
+	if err := mcppolicy.ValidateRemoteURL(rendered.URL); err != nil {
+		return errors.New("mcp: invalid rendered endpoint")
+	}
+	for _, secret := range secrets {
+		registerMCPRequestSecret(ctx, secret)
+	}
+	resolved.Server = rendered
+	return nil
 }
 
 func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.ClientSession, error) {

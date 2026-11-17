@@ -54,6 +54,11 @@ func PopulateEffectiveMCPAuthority(ctx context.Context, resolver MCPAuthorityRes
 	if info == nil || resolver == nil {
 		return nil
 	}
+	if reader, ok := resolver.(interface {
+		MCPAuthorityReadContext(context.Context) context.Context
+	}); ok {
+		ctx = reader.MCPAuthorityReadContext(ctx)
+	}
 	policy, err := resolver.EffectiveMCPAuthority(WithMCPAuthoritySession(ctx, info), info.ID)
 	if err != nil {
 		return err
@@ -63,7 +68,8 @@ func PopulateEffectiveMCPAuthority(ctx context.Context, resolver MCPAuthorityRes
 	return nil
 }
 
-func (m *Manager) mcpAuthorityReadContext(ctx context.Context) context.Context {
+// MCPAuthorityReadContext omits concrete tool enumeration from display-only authority reads.
+func (m *Manager) MCPAuthorityReadContext(ctx context.Context) context.Context {
 	if resolver, ok := m.mcpAuthority.(interface {
 		MCPAuthorityReadContext(context.Context) context.Context
 	}); ok {
@@ -88,7 +94,7 @@ func (m *Manager) decorateMCPAuthority(ctx context.Context, info *Info) {
 // profile and workspace, no per-session MCP discovery. Archived sessions cannot run, so
 // a listing leaves their servers empty; Status and the session detail resolve them.
 func (m *Manager) decorateMCPAuthorities(ctx context.Context, infos []*Info, rows sessionInventory) {
-	ctx = m.mcpAuthorityReadContext(ctx)
+	ctx = m.MCPAuthorityReadContext(ctx)
 	for _, info := range infos {
 		if info == nil {
 			continue

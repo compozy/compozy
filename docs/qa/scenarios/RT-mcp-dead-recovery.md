@@ -61,3 +61,7 @@ health-only dead marks keep the ordinary probe schedule. Confirm an identical se
 workspace/profile keeps its mark. Never use the operator's real OAuth credentials for this walk.
 Focused daemon tests cover real SQLite and a local OAuth/MCP fixture; the broader Web/provider
 scenario retains its existing QA verdict until that walk is performed.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+Ordinary discovery shares unchanged listings for at least three seconds. Explicit checks and due dead-entity probes still force real discovery; failure retention and recovery must remain observable without restart. The existing daemon sidecar integration suite is the transport canary for this change.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

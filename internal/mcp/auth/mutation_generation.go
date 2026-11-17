@@ -2,6 +2,7 @@ package auth
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,8 +15,9 @@ func WithMutationGeneration(generation *MutationGeneration) ServiceOption {
 
 // MutationGeneration coordinates durable token mutations across Service instances.
 type MutationGeneration struct {
-	mu      sync.Mutex
-	targets map[string]*targetMutationGeneration
+	revision atomic.Uint64
+	mu       sync.Mutex
+	targets  map[string]*targetMutationGeneration
 }
 
 type targetMutationGeneration struct {
@@ -65,6 +67,7 @@ func (g *MutationGeneration) Advance(target Target) (uint64, error) {
 	defer generation.mu.Unlock()
 	generation.value++
 	generation.revision++
+	g.revision.Add(1)
 	return generation.value, nil
 }
 
@@ -87,6 +90,7 @@ func (g *MutationGeneration) CommitIfCurrent(
 		return false, err
 	}
 	generation.revision++
+	g.revision.Add(1)
 	return true, nil
 }
 
@@ -111,6 +115,7 @@ func (g *MutationGeneration) CommitAndAdvanceIfCurrent(
 	}
 	generation.value++
 	generation.revision++
+	g.revision.Add(1)
 	return true, nil
 }
 
@@ -133,4 +138,12 @@ func (g *MutationGeneration) forTarget(target Target) (*targetMutationGeneration
 	generation := &targetMutationGeneration{refreshGate: make(chan struct{}, 1)}
 	g.targets[key] = generation
 	return generation, nil
+}
+
+// GlobalRevision changes on any committed credential mutation across normalized targets.
+func (g *MutationGeneration) GlobalRevision() uint64 {
+	if g == nil {
+		return 0
+	}
+	return g.revision.Load()
 }

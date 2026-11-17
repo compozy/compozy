@@ -100,6 +100,7 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 		if err != nil {
 			return runtimemcp.Inventory{}, err
 		}
+		changed := !ok || !sameRuntimeMCPStamps(cached.stamps, after) || !slices.Equal(cached.paths, paths)
 		cached = runtimeMCPCacheEntry{
 			readContext: string(contextData), inventory: inventory, paths: paths,
 			stamps: after, expires: s.now().Add(runtimeMCPCacheTTL),
@@ -109,7 +110,9 @@ func (s *runtimeMCPInventory) List(ctx context.Context, req runtimemcp.Request) 
 		}
 		s.mu.Lock()
 		s.evict(s.now())
-		s.revision++
+		if changed {
+			s.revision++
+		}
 		cached.revision = s.revision
 		s.cache[key] = cached
 		s.mu.Unlock()
@@ -141,13 +144,15 @@ func (s *runtimeMCPInventory) Poll() {
 	entries := maps.Clone(s.cache)
 	s.mu.Unlock()
 	for key, entry := range entries {
-		expired := !s.now().Before(entry.expires)
-		if !expired && sameRuntimeMCPStamps(entry.stamps, captureRuntimeMCPFiles(entry.paths)) {
+		if sameRuntimeMCPStamps(entry.stamps, captureRuntimeMCPFiles(entry.paths)) {
 			continue
 		}
 		s.mu.Lock()
 		if current, ok := s.cache[key]; ok && current.revision == entry.revision {
 			// Retain the last activation identity if the next read is transiently unreadable.
+			if !current.expires.IsZero() {
+				s.revision++
+			}
 			current.expires = time.Time{}
 			s.cache[key] = current
 		}
@@ -262,3 +267,9 @@ func (s *runtimeMCPInventory) Resolve(
 }
 
 var _ settingspkg.RuntimeMCPResolver = (*runtimeMCPInventory)(nil)
+
+func (s *runtimeMCPInventory) Revision() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.revision
+}

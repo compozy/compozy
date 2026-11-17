@@ -108,3 +108,7 @@ the button (Settings variant: no "Open in Settings"), with the runtime diagnosti
 server said". Check again posts the exact-scope check, replaces the row in the list cache with the
 returned item; a server that works closes the panel and its row reads its new status, one that still
 fails keeps the panel open with "Still not working after the check."
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+HTTP detail summaries reuse the daemon read model with the same payload. Auth and runtime revisions fence reuse; unsignaled external health is revalidated at the configured poll cadence. The targeted run exercises HTTP payloads and hosted transport; it does not claim this complete browser matrix.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

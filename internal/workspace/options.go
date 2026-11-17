@@ -45,7 +45,13 @@ type resolverOptions struct {
 	snapshotTTL         time.Duration
 	idGenerator         idGenerator
 	changeHook          ChangeHook
+	invalidationHook    func()
 	operatorHomeDir     string
+}
+
+// WithInvalidationHook observes explicit snapshot invalidation after the resolver lock is released.
+func WithInvalidationHook(hook func()) Option {
+	return func(opts *resolverOptions) { opts.invalidationHook = hook }
 }
 
 // WithHomePaths overrides the global Compozy home layout used for agent and skill discovery.

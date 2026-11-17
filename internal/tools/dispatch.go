@@ -23,7 +23,9 @@ func (r *RuntimeRegistry) dispatch(
 	scope Scope,
 	req CallRequest,
 ) (result ToolResult, callErr error) {
-	ctx = withPolicyResolutionCache(ctx)
+	ctx, _ = withCallScopeAccess(ctx)
+	handlerCtx := ctx
+	ctx = r.ReadContext(ctx)
 	inputs, err := r.policyInputsFor(ctx, scope)
 	audit := &checkInDispatch{
 		recorder:   r.checkInRecorder,
@@ -45,7 +47,6 @@ func (r *RuntimeRegistry) dispatch(
 	}
 	started := time.Now().UTC()
 	// The record exists before normalization so a cross-workspace admission there marks it.
-	ctx, _ = withCallScopeAccess(ctx)
 	if err := contextErr(ctx, req.ToolID); err != nil {
 		return ToolResult{}, err
 	}
@@ -71,14 +72,23 @@ func (r *RuntimeRegistry) dispatch(
 		}
 		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, ToolCallFailed)
 	}
-	profiling.Do(ctx, func(ctx context.Context) {
-		result, err = r.executeDispatchTarget(ctx, scope, req, &target, started)
+	// These synchronous catalog readers consume the admitted snapshot. Mutation handlers keep
+	// the original context so synthetic rows and post-mutation reads cannot reuse stale authority.
+	if target.descriptor.Source.Kind == SourceBuiltin && AccessOf(target.descriptor) == AccessRead {
+		switch target.descriptor.ID {
+		case ToolIDToolList, ToolIDToolSearch, ToolIDToolInfo:
+			handlerCtx = ctx
+		}
+	}
+	profiling.Do(handlerCtx, func(handlerCtx context.Context) {
+		result, err = r.executeDispatchTarget(ctx, handlerCtx, scope, req, &target, started)
 	}, "tool", string(target.descriptor.ID), "session_id", scope.SessionID)
 	return result, err
 }
 
 func (r *RuntimeRegistry) executeDispatchTarget(
 	ctx context.Context,
+	handlerCtx context.Context,
 	scope Scope,
 	req CallRequest,
 	target *dispatchTarget,
@@ -157,11 +167,12 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	if err := r.requestApproval(ctx, scope, target, &patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
-	return r.invokeDispatchTarget(ctx, scope, patchedReq, target, started)
+	return r.invokeDispatchTarget(ctx, handlerCtx, scope, patchedReq, target, started)
 }
 
 func (r *RuntimeRegistry) invokeDispatchTarget(
 	ctx context.Context,
+	handlerCtx context.Context,
 	scope Scope,
 	patchedReq CallRequest,
 	target *dispatchTarget,
@@ -177,7 +188,13 @@ func (r *RuntimeRegistry) invokeDispatchTarget(
 	handlerReq := patchedReq
 	patchedReq.View, handlerReq.Input = resolveResultView(target.descriptor, patchedReq.Input)
 	handlerReq.View = patchedReq.View
-	providerResult, err := target.handle.Call(ctx, handlerReq)
+	// A backend may mutate before returning an error; denied and read-only native calls do not invalidate.
+	if r.projectionInvalidator != nil &&
+		(target.descriptor.Source.Kind != SourceBuiltin || AccessOf(target.descriptor) != AccessRead) {
+		defer r.projectionInvalidator()
+	}
+	// Admission snapshots must not escape into handlers that mutate and then read again.
+	providerResult, err := target.handle.Call(handlerCtx, handlerReq)
 	if target.audit != nil {
 		target.audit.semanticError = bytes.Equal(providerResult.Metadata["is_error"], []byte("true"))
 	}

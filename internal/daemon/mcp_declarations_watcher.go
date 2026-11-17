@@ -90,39 +90,85 @@ func (d *Daemon) bootMCPDeclarationWatcher(ctx context.Context, state *bootState
 	if interval <= 0 {
 		interval = 3 * time.Second
 	}
+	if policyComplete, ok := worker.Begin(); ok {
+		go func() {
+			defer policyComplete()
+			runAgentConfigWatcher(workerCtx, state)
+		}()
+	}
 	go func() {
 		defer complete()
 		defer cancel()
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		delay := interval
-		for {
-			if state.runtimeMCPInventory != nil {
-				state.runtimeMCPInventory.Poll()
-			}
-			if err := watcher.poll(workerCtx); err != nil && workerCtx.Err() == nil && state.logger != nil {
-				// Parsing errors can contain config values; keep the warning secret-free.
-				state.logger.WarnContext(workerCtx, "daemon: MCP declaration refresh deferred")
-				delay = min(max(delay*2, interval), time.Minute)
-			} else {
-				delay = interval
-			}
-			if state.sessionMCPReadModel != nil {
-				if err := state.sessionMCPReadModel.refresh(
-					workerCtx,
-				); err != nil && workerCtx.Err() == nil &&
-					state.logger != nil {
-					state.logger.DebugContext(workerCtx, "daemon: session MCP summary refresh deferred")
-				}
-			}
-			ticker.Reset(delay)
-			select {
-			case <-workerCtx.Done():
-				return
-			case <-ticker.C:
+		runMCPDeclarationWatcher(workerCtx, state, &watcher, interval)
+	}()
+}
+
+func runMCPDeclarationWatcher(
+	ctx context.Context, state *bootState, watcher *mcpDeclarationWatcher, interval time.Duration,
+) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	delay := interval
+	refresh := func() {
+		if state.runtimeMCPInventory != nil {
+			state.runtimeMCPInventory.Poll()
+		}
+		if err := watcher.poll(ctx); err != nil && ctx.Err() == nil && state.logger != nil {
+			// Parsing errors can contain config values; keep the warning secret-free.
+			state.logger.WarnContext(ctx, "daemon: MCP declaration refresh deferred")
+			delay = min(max(delay*2, interval), time.Minute)
+		} else {
+			delay = interval
+		}
+		if state.sessionMCPReadModel != nil {
+			if err := state.sessionMCPReadModel.refresh(
+				ctx,
+			); err != nil && ctx.Err() == nil &&
+				state.logger != nil {
+				state.logger.DebugContext(ctx, "daemon: session MCP summary refresh deferred")
 			}
 		}
-	}()
+		ticker.Reset(delay)
+	}
+	refresh()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			refresh()
+		}
+	}
+}
+
+// Keep the bounded stat observer independent of slow MCP discovery. The declaration worker
+// owns and joins it, and the configured skills watcher retains its public cadence.
+func runAgentConfigWatcher(ctx context.Context, state *bootState) {
+	ticker := time.NewTicker(agentConfigPollInterval)
+	defer ticker.Stop()
+	agentSyncPending := false
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			changed, err := state.workspaceResolver.PollAgentConfig(ctx)
+			agentSyncPending = agentSyncPending || changed
+			if err == nil && agentSyncPending && state.agentSkillResources != nil {
+				// Policy selects published agent records before workspace fallbacks. Publish edits
+				// on change at the policy bound, retaining the configurable skill poll cadence.
+				syncErr := state.agentSkillResources.Sync(ctx)
+				err = errors.Join(err, syncErr)
+				if syncErr == nil {
+					agentSyncPending = false
+					state.workspaceResolver.InvalidateAll()
+				}
+			}
+			if err != nil && ctx.Err() == nil && state.logger != nil {
+				state.logger.DebugContext(ctx, "daemon: agent policy refresh deferred")
+			}
+		}
+	}
 }
 
 func mcpDeclarationPaths(
