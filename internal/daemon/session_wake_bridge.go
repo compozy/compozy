@@ -148,7 +148,8 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 }
 
 func sessionWakeCreatorLive(creator *session.Info, automatic bool) bool {
-	return creator != nil && creator.State == session.StateActive && (!automatic || creator.Later == nil)
+	return creator != nil && creator.State == session.StateActive &&
+		(!automatic || creator.Later == nil && creator.ArchivedAt == nil)
 }
 
 func (bridge *sessionWakeBridge) creatorForWake(

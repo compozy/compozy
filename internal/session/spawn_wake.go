@@ -62,6 +62,8 @@ type SpawnWakeEvent struct {
 	// FinalAnswer is the child's last answer, carried only when its turn ended early.
 	FinalAnswer string `json:"final_answer,omitempty"`
 	WakeEventID string `json:"wake_event_id"`
+	// completedTurnID fences reply-watch coverage to the selected durable receipt.
+	completedTurnID string
 }
 
 // SpawnWakeNotifier delivers a child-session wake to its creator.
@@ -72,15 +74,16 @@ type SpawnWakeNotifier interface {
 // Normalize returns canonical, redacted, bounded wake data.
 func (event SpawnWakeEvent) Normalize() SpawnWakeEvent {
 	return SpawnWakeEvent{
-		Automatic:      event.Automatic,
-		ChildSessionID: strings.TrimSpace(event.ChildSessionID),
-		ChildAgentName: strings.TrimSpace(event.ChildAgentName),
-		Reason:         SpawnWakeReason(strings.ToLower(strings.TrimSpace(string(event.Reason)))),
-		Badge:          Badge(strings.ToLower(strings.TrimSpace(string(event.Badge)))),
-		Detail:         SanitizeSpawnWakeText(event.Detail),
-		EndedEarly:     event.EndedEarly,
-		FinalAnswer:    sanitizeSpawnWakeAnswer(event.FinalAnswer),
-		WakeEventID:    strings.TrimSpace(event.WakeEventID),
+		Automatic:       event.Automatic,
+		ChildSessionID:  strings.TrimSpace(event.ChildSessionID),
+		ChildAgentName:  strings.TrimSpace(event.ChildAgentName),
+		Reason:          SpawnWakeReason(strings.ToLower(strings.TrimSpace(string(event.Reason)))),
+		Badge:           Badge(strings.ToLower(strings.TrimSpace(string(event.Badge)))),
+		Detail:          SanitizeSpawnWakeText(event.Detail),
+		EndedEarly:      event.EndedEarly,
+		FinalAnswer:     sanitizeSpawnWakeAnswer(event.FinalAnswer),
+		WakeEventID:     strings.TrimSpace(event.WakeEventID),
+		completedTurnID: event.completedTurnID,
 	}
 }
 
@@ -199,6 +202,7 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 		return
 	}
 	if event.Reason == SpawnWakeReasonCompleted &&
+		(!event.Automatic || event.completedTurnID == completedTurnID) &&
 		m.creatorAwaitsChildReply(ctx, creatorSessionID, event.ChildSessionID, completedTurnID) {
 		if err := m.recordChildWakeCoverage(ctx, creatorSessionID, event); err != nil {
 			m.releaseSpawnWakeEvent(event.WakeEventID)

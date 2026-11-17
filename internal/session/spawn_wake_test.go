@@ -533,6 +533,61 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 // Owner: session lifecycle; canonical suite: spawn_wake_test.go.
 func TestAlwaysOnChildSettleWake(t *testing.T) {
 	t.Parallel()
+	// Invariant: a same-badge completion survives lookup failure and an older reply watch.
+	// Owner: session lifecycle receipt selection; canonical child-settle suite.
+	for _, interleaving := range []string{"a failed lookup", "an older reply watch"} {
+		t.Run("Should deliver a same-badge completion after "+interleaving, func(t *testing.T) {
+			t.Parallel()
+			h, parent, notifier := newAlwaysOnWakeHarness(t)
+			child := createAlwaysOnWakeChild(t, h, parent.ID)
+			stream, err := h.manager.Prompt(t.Context(), child.ID, "first assignment")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, stream)
+			before := child.Info()
+			for _, kind := range []string{acp.EventTypeUserMessage, acp.EventTypeDone} {
+				event := h.manager.normalizeEvent(child, "new-completion", acp.AgentEvent{
+					Type: kind, TurnID: "new-completion", Timestamp: h.manager.now(),
+				}).WithEventID(kind + ":new-completion")
+				if err := h.manager.recordEvent(t.Context(), child, event); err != nil {
+					t.Fatal(err)
+				}
+			}
+			after := *before
+			after.AttentionRevision++
+			after.LastSettledRevision++
+			catalog := h.manager.sessionCatalog
+			defer func() { h.manager.sessionCatalog = catalog }()
+			completedTurnID := "new-completion"
+			if interleaving == "a failed lookup" {
+				h.manager.sessionCatalog = &flakySpawnWakeCatalog{
+					SessionCatalog: catalog, childID: parent.ID, failInstanceRead: true,
+				}
+			} else {
+				completedTurnID = "older-completion"
+				h.manager.replyWatches = &replyWatchService{manager: h.manager,
+					store: &pendingReplyWatchStore{pending: []store.ReplyWatch{{
+						ID: "old-reply", SenderSessionID: parent.ID, TargetSessionID: child.ID,
+						TurnID: completedTurnID,
+					}}}}
+				defer func() { h.manager.replyWatches = nil }()
+			}
+			wake := h.manager.publishLifecycleAttentionTransitionWakeLocked(
+				t.Context(), before, &after, true, completedTurnID,
+			)
+			if wake == nil {
+				t.Fatal("same-badge completion did not schedule delivery")
+			}
+			wake()
+			h.manager.sessionCatalog = catalog
+			h.manager.retryChildSettleWakes(t.Context())
+			_, wakes := notifier.calls()
+			if len(wakes) != 2 || wakes[0].WakeEventID == wakes[1].WakeEventID {
+				t.Fatalf("wakes=%+v, want each completion delivered once", wakes)
+			}
+		})
+	}
 	for _, outcome := range []string{"completed", "stopped", "failed", "seen"} {
 		t.Run("Should wake once when a provenance child is "+outcome, func(t *testing.T) {
 			t.Parallel()
@@ -894,19 +949,41 @@ func TestAlwaysOnChildSettleWake(t *testing.T) {
 	t.Run("Should retry transient delivery and wake for three children independently", func(t *testing.T) {
 		t.Parallel()
 		h, parent, notifier := newAlwaysOnWakeHarness(t)
+		var attemptsMu sync.Mutex
+		attempts := make(map[string]int)
+		notifier.deliver = func(_ context.Context, _ string, event SpawnWakeEvent) error {
+			attemptsMu.Lock()
+			defer attemptsMu.Unlock()
+			attempts[event.ChildSessionID]++
+			if attempts[event.ChildSessionID] == 1 {
+				return ErrSpawnWakeRetryable
+			}
+			return nil
+		}
+		childIDs := make([]string, 0, 3)
 		for range 3 {
 			child := createAlwaysOnWakeChild(t, h, parent.ID)
-			notifier.err = ErrSpawnWakeRetryable
+			childIDs = append(childIDs, child.ID)
 			if err := h.manager.StopWithCause(t.Context(), child.ID, CauseCompleted, "final report"); err != nil {
 				t.Fatal(err)
 			}
-			notifier.err = nil
-			h.manager.retryChildSettleWakes(t.Context())
-			h.manager.retryChildSettleWakes(t.Context())
 		}
+		waitForCondition(t, "each child's failed delivery retried", func() bool {
+			h.manager.retryChildSettleWakes(t.Context())
+			_, wakes := notifier.calls()
+			return len(wakes) == 6
+		})
+		h.manager.retryChildSettleWakes(t.Context())
 		_, wakes := notifier.calls()
 		if len(wakes) != 6 {
 			t.Fatalf("wakes=%+v, want one failed attempt and one delivery per child", wakes)
+		}
+		attemptsMu.Lock()
+		defer attemptsMu.Unlock()
+		for _, childID := range childIDs {
+			if attempts[childID] != 2 {
+				t.Fatalf("child %s had %d attempts, want one failure and one delivery", childID, attempts[childID])
+			}
 		}
 	})
 	t.Run("Should preserve badge-edge completion semantics for an ordinary creator", func(t *testing.T) {
@@ -1892,9 +1969,23 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 // flakySpawnWakeCatalog fails only the first child read at the durable I/O boundary.
 type flakySpawnWakeCatalog struct {
 	store.SessionCatalog
-	mu      sync.Mutex
-	childID string
-	calls   int
+	mu               sync.Mutex
+	childID          string
+	calls            int
+	failInstanceRead bool
+}
+
+func (c *flakySpawnWakeCatalog) SessionInstanceID(ctx context.Context, id string) (string, error) {
+	if c.failInstanceRead && id == c.childID {
+		c.mu.Lock()
+		c.calls++
+		fail := c.calls == 1
+		c.mu.Unlock()
+		if fail {
+			return "", errors.New("temporary instance binding read failure")
+		}
+	}
+	return c.SessionCatalog.SessionInstanceID(ctx, id)
 }
 
 func (c *flakySpawnWakeCatalog) ListSessions(

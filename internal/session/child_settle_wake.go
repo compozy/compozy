@@ -10,7 +10,12 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-const childWakeCoveredEvent = "session.child_wake.covered"
+const (
+	childWakeCoveredEvent    = "session.child_wake.covered"
+	childWakeRegisteredEvent = "session.child_wake.registered"
+)
+
+func childWatchEventID(childID string) string { return "child-watch:" + childID }
 
 var errChildStopReceiptMissing = errors.New("session: child stop receipt is not available")
 
@@ -29,8 +34,8 @@ func (m *Manager) registerChildSettleWake(ctx context.Context, info *Info) error
 		return nil
 	}
 	_, _, err = m.appendDurableSessionEvent(ctx, parent.ID, store.SessionEvent{
-		ID: "child-watch:" + info.ID, SessionID: parent.ID, TurnID: info.ID,
-		AgentName: "daemon", Type: "session.child_wake.registered", Timestamp: m.now(), Content: `{}`,
+		ID: childWatchEventID(info.ID), SessionID: parent.ID, TurnID: info.ID,
+		AgentName: "daemon", Type: childWakeRegisteredEvent, Timestamp: m.now(), Content: `{}`,
 	})
 	return err
 }
@@ -51,15 +56,17 @@ func (m *Manager) automaticChildWake(ctx context.Context, info *Info) (bool, err
 	if err != nil {
 		return false, err
 	}
+	// Enrollment and coverage belong to the original parent, including an archived
+	// predecessor. The bridge resolves and checks the instance's current main.
 	eligible := parent.InstanceID != "" &&
 		parent.WorkspaceID == info.WorkspaceID && parent.ProfileID == info.ProfileID &&
-		parent.ArchivedAt == nil && info.ArchivedAt == nil && info.Later == nil &&
+		info.ArchivedAt == nil && info.Later == nil &&
 		info.StopReason != store.StopUserCanceled && info.StopCause != CauseClearConversation &&
 		info.StopCause != CauseConversationRewind
 	if !eligible {
 		return false, nil
 	}
-	rows, err := m.Events(ctx, parent.ID, store.EventQuery{ID: "child-watch:" + info.ID, Limit: 1})
+	rows, err := m.Events(ctx, parent.ID, store.EventQuery{ID: childWatchEventID(info.ID), Limit: 1})
 	return len(rows) > 0, err
 }
 
@@ -125,25 +132,27 @@ func (m *Manager) childCompletionReceipt(ctx context.Context, id string) ([]stor
 	return rows, nil
 }
 
-func (m *Manager) automaticChildWakeID(ctx context.Context, info *Info, reason SpawnWakeReason) (string, error) {
+func (m *Manager) automaticChildWakeID(
+	ctx context.Context, info *Info, reason SpawnWakeReason,
+) (id, completedTurnID string, err error) {
 	if reason == SpawnWakeReasonCompleted {
 		rows, err := m.childCompletionReceipt(ctx, info.ID)
 		if err != nil || len(rows) == 0 {
-			return "", err
+			return "", "", err
 		}
-		return fmt.Sprintf("session-wake:%s:completed:%s", info.ID, rows[0].ID), nil
+		return fmt.Sprintf("session-wake:%s:completed:%s", info.ID, rows[0].ID), rows[0].TurnID, nil
 	}
 	// A stop receipt is stable across presence changes and distinguishes a later stop
 	// after resume. Query only after finalization releases the child's recorder.
 	rows, err := m.Events(ctx, info.ID, store.EventQuery{Type: EventTypeSessionStopped, Limit: 1,
 		Archive: store.EventArchiveUnarchived})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if len(rows) == 0 {
-		return "", errChildStopReceiptMissing
+		return "", "", errChildStopReceiptMissing
 	}
-	return automaticStoppedWakeID(info.ID, rows[0].ID, reason), nil
+	return automaticStoppedWakeID(info.ID, rows[0].ID, reason), "", nil
 }
 
 func automaticStoppedWakeID(id, receipt string, reason SpawnWakeReason) string {
@@ -172,7 +181,7 @@ func (m *Manager) suppressConversationStopWake(ctx context.Context, id string, c
 		return err
 	}
 	return m.recordChildWakeCoverage(ctx, info.Lineage.ParentSessionID, SpawnWakeEvent{
-		Automatic: true, WakeEventID: automaticStoppedWakeID(id, "session-stop:"+turnID, SpawnWakeReasonStopped),
+		Automatic: true, WakeEventID: automaticStoppedWakeID(id, sessionStopEventID(turnID), SpawnWakeReasonStopped),
 	})
 }
 
@@ -197,7 +206,7 @@ func (m *Manager) prepareCreatorWake(ctx context.Context, info *Info, badge Badg
 	}
 	event.Automatic = automatic
 	if automatic {
-		event.WakeEventID, err = m.automaticChildWakeID(ctx, info, reason)
+		event.WakeEventID, event.completedTurnID, err = m.automaticChildWakeID(ctx, info, reason)
 		if err != nil {
 			if errors.Is(err, errChildStopReceiptMissing) {
 				m.childWakePending.Delete(info.ID)
@@ -304,7 +313,7 @@ func (m *Manager) validateAutomaticChildWake(
 	if err := m.validateChildWakeCreator(ctx, info.Lineage.ParentSessionID, creatorID); err != nil {
 		return err
 	}
-	id, err := m.automaticChildWakeID(ctx, info, SpawnWakeReason(meta.Reason))
+	id, _, err := m.automaticChildWakeID(ctx, info, SpawnWakeReason(meta.Reason))
 	if errors.Is(err, errChildStopReceiptMissing) {
 		return fmt.Errorf("%w: stop receipt no longer exists", errSpawnWakeStale)
 	}
@@ -357,6 +366,9 @@ func (m *Manager) retryChildSettleWake(ctx context.Context, info *Info) {
 }
 
 func (m *Manager) retryChildSettleWakeForTurn(ctx context.Context, info *Info, completedTurnID string) {
+	if provenanceWakeCandidate(info) {
+		m.childWakePending.Store(info.ID, struct{}{})
+	}
 	eligible, err := m.automaticChildWake(ctx, info)
 	if err != nil {
 		m.logger.WarnContext(ctx, "session: resolve pending child wake", "session_id", info.ID, "error", err)
@@ -372,7 +384,7 @@ func (m *Manager) retryChildSettleWakeForTurn(ctx context.Context, info *Info, c
 func (m *Manager) recoverChildSettleWakes(ctx context.Context, infos []*Info) {
 	mains := make(map[string]bool)
 	for _, info := range infos {
-		if info.InstanceID != "" && info.ArchivedAt == nil {
+		if info.InstanceID != "" {
 			mains[info.ID] = true
 		}
 	}

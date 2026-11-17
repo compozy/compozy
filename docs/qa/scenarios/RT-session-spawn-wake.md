@@ -348,5 +348,9 @@ a completion; subsequent new work must still wake once. Automatic completions
 stay queued through long main turns instead of being promoted to steering.
 Stop an interrupted child at daemon restart and refuse its continuation; its
 main must receive one stopped wake. Hold delivery through a main rotation and
-require one turn on the successor. A declined conversation reset must not
-suppress a subsequent real stop.
+archive the predecessor and require one turn on the successor. A declined
+conversation reset must not suppress a subsequent real stop. Complete another
+turn while the child's done badge stays unchanged: a transient eligibility lookup
+failure must retry, and a reply watch on an older turn must not cover the newer
+completion. Retry injection must fail the first notifier attempt for each child,
+independently of whether the stop caller or process watcher finalizes it.

@@ -154,6 +154,10 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 					t.Fatal(err)
 				}
 				synctest.Wait()
+				items := service.List("creator")
+				if len(items) != 1 || items[0].Status != monitor.StatusDelivering {
+					t.Fatalf("monitors=%+v, want one delivering outcome", items)
+				}
 				sources := sessionWorkSources{state: &bootState{sessionMonitors: service}}
 				if !sources.creatorMonitorCovers("creator", child, badge) {
 					t.Fatal("a matching monitor outcome did not cover the settled child")

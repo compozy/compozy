@@ -127,6 +127,9 @@ func TestSessionWakeBridge(t *testing.T) {
 		if err := h.manager.StopWithCause(t.Context(), main, session.CauseCompleted, "rotated"); err != nil {
 			t.Fatal(err)
 		}
+		if _, err := h.manager.Archive(t.Context(), h.instance.WorkspaceID, main); err != nil {
+			t.Fatal(err)
+		}
 		bridge.resolve = func() sessionWakeSessionManager { return h.manager }
 		for range 2 {
 			if err := h.manager.Supervise(t.Context(), time.Now()); err != nil {
@@ -175,6 +178,7 @@ func TestSessionWakeBridge(t *testing.T) {
 		})
 		session.WithSpawnWakeNotifier(bridge)(h.manager)
 		main := h.instance.MainSessionID
+		childWakes := make(map[string]int)
 		for _, outcome := range []string{"completed", "stopped", "failed"} {
 			child, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: h.instance.AgentName,
 				Workspace: h.instance.WorkspaceID, Lineage: &store.SessionLineage{
@@ -182,6 +186,7 @@ func TestSessionWakeBridge(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			childWakes[child.ID] = 0
 			if outcome == "completed" {
 				result, err := h.manager.SendPrompt(t.Context(), child.ID, session.SendPromptOpts{
 					Message:   "Perform a proactive check.",
@@ -243,6 +248,15 @@ func TestSessionWakeBridge(t *testing.T) {
 			event, err := transcript.UnmarshalAgentEvent(row.Content)
 			if err != nil || event.Synthetic == nil || event.Synthetic.Kind != session.SpawnWakeKindChildSettled {
 				t.Fatalf("main wake=%+v err=%v", event, err)
+			}
+			if _, ok := childWakes[event.Synthetic.ChildSessionID]; !ok {
+				t.Fatalf("wake names an unexpected child: %+v", event.Synthetic)
+			}
+			childWakes[event.Synthetic.ChildSessionID]++
+		}
+		for childID, count := range childWakes {
+			if count != 1 {
+				t.Fatalf("child %s received %d wakes, want one", childID, count)
 			}
 		}
 	})

@@ -6339,8 +6339,10 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		waitForCondition(t, "promotion pass settled", func() bool { return !f.sess.inputPromotionActive.Load() })
 		f.advance(2 * time.Minute)
 		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		waitForCondition(t, "promotion pass settled", func() bool { return !f.sess.inputPromotionActive.Load() })
 		select {
 		case text := <-f.steered:
 			t.Fatalf("automatic completion interrupted the main turn: %q", text)
