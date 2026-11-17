@@ -4,15 +4,15 @@ area: RT
 title: Full access runs the ACP provider in its unrestricted mode
 persona: Ada
 journey: J-15
-expected: With effective approve-all permissions alone, new Codex sessions select agent-full-access, new Claude Code sessions select bypassPermissions, agy negotiates its advertised unrestricted mode (auto on the verified CLI, never an injected yolo), and Copilot selects allow_all=on; under auto, Codex keeps its reviewer mode. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes during start and later runtime changes while explicit unrestricted session selections are refused; providers without a mapping keep their own approve-all negotiation. A config that still carries the retired permissions.provider_full_access key starts normally: the key is ignored, removed from writable config files after a backup, and permissions.mode remains the canonical control.
+expected: With effective approve-all permissions alone, new Codex sessions select agent-full-access, new Claude Code sessions select bypassPermissions, agy negotiates its advertised unrestricted mode (auto on the verified CLI, never an injected yolo), and Copilot selects allow_all=on; under auto, Codex keeps its reviewer mode. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes during start and later runtime changes while explicit unrestricted session selections are refused; providers without a mapping keep their own approve-all negotiation. Native agy acp refuses all narrower host policies before launch without widening them. A config that still carries the retired permissions.provider_full_access key starts normally: the key is ignored, removed from writable config files after a backup, and permissions.mode remains the canonical control.
 entry_points: config.toml permissions; compozy agent info; compozy session prompt; Loop run-agent
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status: fixed
-retest_status: untested
+retest_status: blocked-verify
 fix_commits: issue #1473
 evidence: internal/config/provider_test.go;internal/config/provider_agy_test.go;internal/acp/types_test.go;internal/session/manager_start_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-11-10-issue-1473-full-access.md
-last_report: docs/qa/reports/2026-11-10-issue-1473-full-access.md
+last_report: docs/qa/reports/2026-11-16-agy-native-acp.md
 overlaps: RT-cursor-agent-mode
 ---
 
@@ -51,11 +51,18 @@ CLI. See the dated run report and its isolated lab receipts.
 With effective `approve-all`, a new `agy` session selects a mode the CLI actually advertises: the
 verified 1.5.9 runtime lists `default`, `accept-edits`, `auto`, and `plan`, so approve-all negotiates
 `auto` and no `yolo` selection or permission-bypass launch argument is injected. An explicit narrower
-agent mode wins, and narrower session permissions keep a compatible advertised mode with host
-approval decisions. `agy` is never added to generic automatic mode candidates. Unit ownership is
-UT-004 (config negotiation cases); the live `agy` walk is unexecuted and the historical
-Codex/Claude branches remain previously verified;
-this scenario is untested for the retired-key upgrade behavior.
+agent mode wins under that host policy. Native `agy acp` refuses all narrower host policies before
+launch because live default and acknowledged plan both bypassed host write approval. Authored
+standalone/custom commands retain their own approval behavior. `agy` is never added to generic
+automatic mode candidates. Unit ownership is UT-002; `TestAgyACPBuiltInEntry` covers effective-command
+refusal and retained legacy metadata/transcript through the real ACP driver.
+
+The 2026-11-16 live walk observed `auto`, an allowed write and hosted native read, then final HTTP 422
+refusal with an absent fresh target and unchanged `approve-reads`. Turn cancellation and explicit
+detached-task termination were verified as separate operations. See
+`docs/qa/reports/2026-11-16-agy-native-acp.md`; its raw lab evidence was lost on environment restart
+before the strict audit/teardown. These observations do not establish a full scenario pass.
+The historical Codex/Claude branches remain previously verified; retired-key upgrade is untested.
 
 ## Providers without a unique mode option
 

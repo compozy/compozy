@@ -2363,6 +2363,10 @@ guidance. Runtime-clear is not confirmation. The existing transcript replay avoi
 native session ID; unverified AGY routes also replay safely. Live native default and plan both bypassed
 host write approval, so advertised mode names cannot establish constrained-policy safety; the native
 execution boundary must refuse policies it cannot enforce, without silently granting approve-all.
+Replay markers distinguish an absent verifiable binding (`native_route_unverified`) from a removed
+configured route (`accepted_route_missing`), without changing the event shape or historical rows.
+Local review `9f12f850e` co-ships those distinct assertions and real daemon-boundary coverage for
+resolved-command refusal and lossless legacy-resume refusal; no new runtime surface is introduced.
 Authored standalone/custom routes and promptless inspection retain their separate behavior.
 No user data, public keys, routes, DTOs, tool IDs, hooks,
 extension contracts, or schema change. Command/home-scoped discovery, readiness, host authority,
@@ -2370,6 +2374,9 @@ and default MCP transport remain unchanged; inventory recognizes `agy`. Existing
 site documentation, official skill references, QA scenarios, and
 `.release-notes/agy-native-acp.md` co-ship the native CLI and upgrade guidance. Verification and
 external acceptance limits are recorded in `docs/qa/reports/2026-11-16-agy-native-acp.md`.
+The final live refusal, replay and later native restoration were observed on `8d501bba2`; the
+2026-11-17 environment restart removed the lab before strict audit, sanitization and verified
+teardown. Those missing receipts remain an acceptance blocker, not an inferred PASS.
 
 Owner: PR #773. The additive `agy` built-in launches the supplied `agy_acp_server`, uses
 protocol-owned native login, and discovers exact model/configuration options through ACP. Provider

@@ -9,10 +9,10 @@ entry_points: web Settings window → Providers → New provider / provider card
 qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: blocked-verify
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-04;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-11-05-usage-backoff-signin-boot.md
+last_report: docs/qa/reports/2026-11-16-agy-native-acp.md
 overlaps: MS-provider-detail-modal; MS-web-settings-providers-redesign; MS-web-entity-modal-shell
 ---
 
@@ -67,6 +67,12 @@ QA impact 2026-11-16: the built-in now launches the Antigravity CLI as `agy acp`
 fixture and login descriptor basename use `agy`; no credential controls were added or removed. The
 2026-10-16 browser receipt covers the same surfaces under the superseded server name, and the
 re-based deterministic browser walk remains CI-owned and was not executed for this change.
+
+QA 2026-11-16 (native CLI, headed Chromium): Settings exposed provider-owned authentication and
+no credential inputs, including at 375 px. Remote readiness reused existing CLI login; a clean-HOME
+local probe returned `needs_login` without consent. A fresh Google consent/cancellation was not
+performed. The environment restart removed the lab receipts before final audit; see
+`docs/qa/reports/2026-11-16-agy-native-acp.md` for the scoped observations and acceptance blocker.
 
 ## Harness switches preserve authentication ownership
 

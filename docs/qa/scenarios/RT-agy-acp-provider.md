@@ -4,7 +4,7 @@ area: RT
 title: Google Antigravity login, prompts, and file tools
 persona: Ada
 journey: J-15
-expected: With the official Antigravity CLI on PATH (command agy, argument acp) and no [providers.agy] block, explicit local login reuses the CLI's shared sign-in and updates the daemon's sign-in verdict, a remote probe reports readiness, and the first prompt persists under agy with an advertised logical model and its own thought_level effort (Hydrogen xhigh on the verified fixture). A standalone-only installation is missing_cli with no fallback, logged-out or missing-CLI states give actionable guidance, and nothing triggers automatic login. Under approve-all, provider-native file tools complete individually during the turn; gateway-routed edits in Ask before changes wait for operator approval (native narrow policies refuse pre-launch).
+expected: With the official Antigravity CLI on PATH (command agy, argument acp), no [providers.agy] block, and operator-selected approve-all for execution, explicit local login reuses the CLI's shared sign-in and updates the daemon's sign-in verdict, a remote probe reports readiness, and the first prompt persists under agy with an advertised logical model and its own thought_level effort (Hydrogen xhigh on the verified fixture). Narrower host policies refuse native execution before launch without widening permissions. A standalone-only installation is missing_cli with no fallback, logged-out or missing-CLI states give actionable guidance, and nothing triggers automatic login. Under approve-all, provider-native file tools complete individually during the turn; gateway-routed edits in Ask before changes wait for operator approval.
 entry_points: compozy provider auth login agy; compozy provider list; compozy provider auth status agy --remote; compozy session new --agent agy-example
 qa_status: blocked-verify
 bug_ids: "#1881"
@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pending
 fix_commits:
 evidence: internal/daemon/agy_acp_entry_integration_test.go
-last_report: docs/qa/reports/2026-10-19-agy-reasoning-selector.md
+last_report: docs/qa/reports/2026-11-16-agy-native-acp.md
 overlaps: MS-web-provider-auth-gate; RT-provider-full-access-mode; ET-048
 ---
 
@@ -25,7 +25,7 @@ story: As an operator with a Google Antigravity account I sign in once explicitl
 3. With the provider logged out, run `compozy provider auth status agy --remote -o json` (and `compozy provider auth status agy -o json`): `state` is `needs_login`. No browser or terminal prompt appears. Run `compozy provider models list agy --refresh --all -o json` and confirm that the failed live source names `agy` in its login hint.
 4. Run `compozy provider auth login agy --timeout 5m -o json`: exit 0, `state` is `authenticated`. Repeat the login: no second consent request appears. For headless/SSH setup, Google's `agy acp --login` is the operator alternative; it is never a background probe.
 5. Run `compozy provider list -o json` directly after login (`auth_status.state` is `authenticated`; once live catalog refresh completes, the composer picker shows the advertised models and Settings shows the provider as ready) and verify `compozy provider auth status agy --remote -o json` reports `state: authenticated`.
-6. Create a session with an `agy-example` agent (`provider: agy`, no model) and send one prompt. Session reads identify provider `agy` and the exact accepted logical model; the provider-default model is used, never a fabricated default.
+6. In the operator-owned lab, explicitly select `approve-all` and create a session with an `agy-example` agent (`provider: agy`, no model). Send one prompt. Session reads identify provider `agy` and the exact accepted logical model; the provider-default model is used, never a fabricated default. A narrower host policy is refused before launch, not changed automatically.
 7. Remove or rename the `agy` executable and repeat step 3: `state` is `missing_cli` with an `install_cli` recommendation naming only `agy`. Leaving only a standalone `.par` on PATH keeps `missing_cli`; it is never launched as a fallback.
 8. Keep the standalone server's login but remove the CLI sign-in: `state` is `needs_login`, both token stores remain untouched, and only explicit CLI login repairs it.
 
@@ -74,7 +74,7 @@ lab: `native-readonly-verdict.json`, `native-readonly-response.json`, and
 `native-readonly-bound.json`. The CLI does not route that write through the host, so an advertised
 `plan` mode is not an enforcement boundary, and the earlier read-only-mode claim was wrong.
 
-Replacement contract (final rewalk still outstanding):
+Replacement contract (final rejection rewalk observed on `8d501bba2`):
 
 1. Start a native `agy acp` session at `deny-all`, `approve-reads`, `approve-edits`, or `auto`:
    startup refuses before any prompt, no prompt text is sent, no tool call runs, and the session and
@@ -85,11 +85,13 @@ Replacement contract (final rewalk still outstanding):
 4. The refusal is never a silent widening, and an agent is never advised to raise its own policy;
    the operator chooses a trusted runtime and policy for constrained work.
 
-This section stays a failure record. It is repaired only once a recorded rejection rewalk shows the
-refused start with no created target; peer or unit coverage with an absent target belongs to that
-final change and does not replace the live walk.
+The final live rewalk returned HTTP 422 with `approve-reads` unchanged, runtime `unbound`, no
+processes, and fresh target `agy-denied-before-launch-7434.txt` absent. The earlier failed targets
+remained present. This is safe refusal, not native read-only support. The original failure record
+is retained; its lab receipts and the final refusal receipt were lost in the subsequent environment
+restart, so independently auditable acceptance remains `blocked-verify`.
 
-## Native CLI re-baseline — 2026-11-16 (contract updated; walk unexecuted)
+## Native CLI re-baseline — 2026-11-16 (scoped walks observed; final audit blocked)
 
 The built-in now launches the official Antigravity CLI as `agy acp`, so the 1.4.0 standalone-server
 receipts above are historical evidence for a superseded runtime, not native-CLI acceptance. The
@@ -100,11 +102,15 @@ route changed continues from its retained transcript through the existing replay
 native-history import, and neither Google token store is copied or deleted. An explicit command or
 provider-private option override keeps its bytes and fails validation rather than being converted.
 
-No clean consent, paid prompt, upgraded-session replay, or browser walk was executed for this
-re-baseline. `qa_status` is `blocked-verify` until the owning lab runs the steps above; the
-provider-backed integration peer fakes only the external CLI and is never account evidence.
+The owning lab observed native login reuse, Hydrogen/xhigh acknowledgement, unsupported-max
+rejection, hosted `compozy__workspace_info`, an allowed write, cancellation with a usable follow-up,
+explicit detached-task cleanup, headed Settings and keyboard picker operation, and clean-HOME
+`needs_login` without consent. A separately consented login/cancellation and non-Linux execution
+remain unverified. The 2026-11-17 environment restart removed the lab before strict audit and
+teardown; the dated report preserves observations and the evidence-loss boundary. Peer tests
+still fake only the external CLI and never establish Google-account acceptance.
 
-## Preserved ambiguous mode on upgrade — 2026-11-16 (Q2; walk unexecuted)
+## Preserved ambiguous mode on upgrade — 2026-11-16 (Q2; observed before evidence loss)
 
 Released first-prompt and `CreateOpts` records can lack a selected runtime while the effective ACP
 mode lives in both runtime meta and the immutable creation profile, so an automatic mode and an
@@ -125,8 +131,13 @@ drop it:
 5. A session whose accepted route still matches an authored standalone command resumes on that route
    instead of replaying.
 
-Owning cases: IT-002 and E2E-002. This walk was not executed here; no E2E pass is claimed, and no
-unknown-provenance mode is reported as automatically removed.
+The genuine old-runtime session retained its options/binding/creation identity through HTTP 422
+refusal and runtime-clear refusal. Complete runtime-set then permitted transcript replay under
+the same logical ID into a new native ID, with the original continuity marker recovered.
+Subsequent stop/resume retained that new native ID and logged successful `session_load`.
+The full-history read-back comparison remained unfinished; raw receipts were lost on restart.
+Owning cases remain IT-002 and E2E-002. No E2E pass, private-history import, or automatic deletion
+of unknown-provenance mode is claimed.
 
 ## Browser management and selection (E2E-003, deterministic peer)
 
