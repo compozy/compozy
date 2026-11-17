@@ -480,6 +480,16 @@ function commandSnapshot(workspaceId: string): NonNullable<OsDesktopRuntimeStore
   return { workspaceId } as NonNullable<OsDesktopRuntimeStore["snapshot"]>;
 }
 
+/** The empty New Tab window a destination pick replaces. */
+function newTabWindowFixture(): OsWindow {
+  return windowFixture({
+    app: "new-tab",
+    id: "window:new-tab",
+    route: { pathname: "/new-tab", search: {} },
+    tabId: "tab:new-tab",
+  });
+}
+
 function desktopFixture(
   windows: Record<string, OsWindow>,
   focusedId: string | null
@@ -910,7 +920,7 @@ describe("useOsPaletteRoot", () => {
 
   it("Should hand the empty tab's place to the picked session [UT-080]", async () => {
     paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
-    paletteMocks.desktop = desktopFixture({}, null);
+    paletteMocks.desktop = desktopFixture({ "window:new-tab": newTabWindowFixture() }, null);
     const { result } = renderRoot();
 
     await act(async () => {
@@ -935,10 +945,34 @@ describe("useOsPaletteRoot", () => {
     expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
   });
 
-  it("Should hand the empty tab's place to a fresh app instance [UT-080]", async () => {
+  it("Should open the pick unanchored once the daemon dropped the destination tab (#1799)", async () => {
+    // Another client filled the empty desktop first, so the daemon removed its New Tab.
     paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
     paletteMocks.desktop = desktopFixture(
       { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      "window:tasks"
+    );
+    const { result } = renderRoot();
+    const command = PALETTE_REGISTRY.byId.get("app.open.terminal");
+    if (command === undefined) throw new Error("Expected the Terminal command fixture.");
+
+    await act(async () => {
+      result.current.runCommand(command);
+    });
+
+    expect(paletteMocks.paletteIntentCleared).toHaveBeenCalledOnce();
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({ app: "terminal" });
+    await act(async () => {});
+    expect(paletteMocks.closeWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should hand the empty tab's place to a fresh app instance [UT-080]", async () => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
+    paletteMocks.desktop = desktopFixture(
+      {
+        "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }),
+        "window:new-tab": newTabWindowFixture(),
+      },
       "window:new-tab"
     );
     const { result } = renderRoot();
@@ -960,7 +994,10 @@ describe("useOsPaletteRoot", () => {
   it("Should open Terminal through userOpen and not land a session", async () => {
     paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
     paletteMocks.desktop = desktopFixture(
-      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      {
+        "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }),
+        "window:new-tab": newTabWindowFixture(),
+      },
       "window:new-tab"
     );
     const { result } = renderRoot();
@@ -983,7 +1020,10 @@ describe("useOsPaletteRoot", () => {
   it("Should open the Automations editor with the chosen start [UT-112, IT-020]", async () => {
     paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
     paletteMocks.desktop = desktopFixture(
-      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      {
+        "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }),
+        "window:new-tab": newTabWindowFixture(),
+      },
       "window:new-tab"
     );
     const { result } = renderRoot();

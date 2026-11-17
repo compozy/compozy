@@ -1,5 +1,7 @@
 package windowmanager
 
+import "slices"
+
 const (
 	newTabApp  = "new-tab"
 	newTabPath = "/new-tab"
@@ -58,7 +60,8 @@ func emptyDesktopPlaceholders(s *Snapshot) map[DesktopID][]WindowID {
 // dropSupersededPlaceholders removes the New Tab placeholders of a desktop that was empty before
 // this command and now holds real content, whether the content landed as a tab or split beside
 // one: a placeholder only stands in for an empty desktop, so the first real window replaces it
-// (#1799). A New Tab this command opened itself is not a stand-in and stays.
+// (#1799). Every New Tab of that empty desktop goes, an explicit ⌘T one included; a New Tab opened
+// beside real tabs, or by this same command, is not a stand-in and stays.
 func (r *reducer) dropSupersededPlaceholders(s *Snapshot, emptyBefore map[DesktopID][]WindowID) {
 	for i := range s.Desktops {
 		d := &s.Desktops[i]
@@ -73,11 +76,25 @@ func (r *reducer) dropSupersededPlaceholders(s *Snapshot, emptyBefore map[Deskto
 			}
 			removeWindow(s, id)
 			delete(s.Windows, id)
+			unpinTab(d, w.TabID)
 			r.changes.window(id)
 			r.changes.tab(w.TabID)
 			r.changes.desktop(d.ID)
 		}
 	}
+}
+
+// unpinTab moves a pinned tab that outlived its placeholder (a real window split into it) out of
+// the pinned range: the pin belonged to the placeholder, not to the window that replaced it.
+func unpinTab(d *Desktop, id TabID) {
+	index := tabHoldingID(d.Tabs, id)
+	if index < 0 || !d.Tabs[index].Pinned {
+		return
+	}
+	tab := d.Tabs[index]
+	d.Tabs = slices.Delete(d.Tabs, index, index+1)
+	tab.Pinned = false
+	insertTab(d, tab, 0)
 }
 
 // DefaultSnapshot is the stable empty-workspace topology before the first commit.

@@ -1245,6 +1245,50 @@ func TestTabsAndSplits(t *testing.T) {
 			t.Fatalf("reopen beside placeholder = %+v", r.Snapshot)
 		}
 	})
+	t.Run("Should replace every New Tab of an empty desktop and keep undo exact (#1799)", func(t *testing.T) {
+		t.Parallel()
+		e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		executeTestCommand(t, e.manager, "workspace-a", nil, PinWindowCommand{
+			WindowID: "win-newtab-desktop-default", Pinned: true,
+		})
+		executeTestCommand(t, e.manager, "workspace-a", nil, OpenWindowCommand{Window: WindowSpec{
+			ID: "blank", App: newTabApp, Route: testRoute(newTabPath), DesktopID: "desktop-default",
+		}})
+		before := mustSnapshot(t, e.manager, "workspace-a")
+		r := executeTestCommand(t, e.manager, "workspace-a", nil, OpenWindowCommand{Window: WindowSpec{
+			ID: "session", App: "Test", Route: testRoute("/session"), DesktopID: "desktop-default",
+			StackTargetWindowID: new(WindowID("win-newtab-desktop-default")), InsertTiled: true,
+		}})
+		d := r.Snapshot.Desktops[0]
+		if len(d.Tabs) != 1 || len(r.Snapshot.Windows) != 1 || d.Tabs[0].Root.Kind != NodeKindLeaf || d.Tabs[0].Pinned {
+			t.Fatalf("open onto two New Tabs = %+v", r.Snapshot)
+		}
+		r = executeTestCommand(t, e.manager, "workspace-a", nil, OpenWindowCommand{Window: WindowSpec{
+			ID: "split", App: "Test", Route: testRoute("/split"), DesktopID: "desktop-default", InsertTiled: true,
+		}})
+		if len(r.Snapshot.Desktops[0].Tabs) != 1 || tabFor(t, r.Snapshot, "split").Root.Kind != NodeKindSplit {
+			t.Fatalf("tiled open beside real content = %+v", r.Snapshot)
+		}
+		executeTestCommand(t, e.manager, "workspace-a", nil, UndoLayoutCommand{})
+		undone := executeTestCommand(t, e.manager, "workspace-a", nil, UndoLayoutCommand{}).Snapshot
+		if !reflect.DeepEqual(undone.Desktops, before.Desktops) || !reflect.DeepEqual(undone.Windows, before.Windows) {
+			t.Fatalf("undo = %+v, want %+v", undone, before)
+		}
+	})
+	t.Run("Should unpin the tab a tiled window inherits from a pinned New Tab (#1799)", func(t *testing.T) {
+		t.Parallel()
+		e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		executeTestCommand(t, e.manager, "workspace-a", nil, PinWindowCommand{
+			WindowID: "win-newtab-desktop-default", Pinned: true,
+		})
+		r := executeTestCommand(t, e.manager, "workspace-a", nil, OpenWindowCommand{Window: WindowSpec{
+			ID: "session", App: "Test", Route: testRoute("/session"), DesktopID: "desktop-default", InsertTiled: true,
+		}})
+		tab := tabFor(t, r.Snapshot, "session")
+		if len(r.Snapshot.Desktops[0].Tabs) != 1 || tab.Pinned || tab.Root.Kind != NodeKindLeaf {
+			t.Fatalf("tiled open onto a pinned New Tab = %+v", r.Snapshot)
+		}
+	})
 	t.Run("Should close a New Tab beside a real tab and leave the real tab untouched (#1799)", func(t *testing.T) {
 		t.Parallel()
 		e := newTestEnvironment(t, DefaultConfig(), "workspace-a")

@@ -49,6 +49,12 @@ export function useOsPaletteLandingActions({
   }) => {
     if (destinationWindowId === null) return;
     windowManagerStore.trigger.paletteIntentCleared();
+    // The daemon drops an empty desktop's New Tab once real content lands there (#1799): a
+    // destination tab already gone opens the pick unanchored, with nothing left to close.
+    if (manager.getState().windows[destinationWindowId] === undefined) {
+      void coordinator.userOpen(target);
+      return;
+    }
     void coordinator.userOpen({ ...target, afterWindowId: destinationWindowId }).then(openedId => {
       if (openedId !== null) void manager.closeWindow(destinationWindowId);
     });
