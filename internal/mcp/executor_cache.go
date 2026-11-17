@@ -61,7 +61,7 @@ func (e *CallExecutor) finishToolList(key string) {
 }
 
 func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh bool,
-	source toolspkg.SourceRef, authorizationHeader string, descriptors []toolspkg.MCPToolDescriptor, ttlMs int,
+	source toolspkg.SourceRef, authorizationHeader string, discovery ToolDiscovery, ttlMs int,
 ) error {
 	e.toolCache.publicationMu.Lock()
 	defer e.toolCache.publicationMu.Unlock()
@@ -74,13 +74,13 @@ func (e *CallExecutor) publishToolList(key string, attempt mcpListAttempt, fresh
 		e.toolCache.attempts[key] = current
 	}
 	now := time.Now()
-	e.cacheTools(key, descriptors, ttlMs, now)
-	return e.recordToolProjection(source, authorizationHeader, descriptors, ttlMs, now)
+	e.cacheTools(key, discovery, ttlMs, now)
+	return e.recordToolProjection(source, authorizationHeader, discovery.Descriptors, ttlMs, now)
 }
 
 type mcpToolListCacheEntry struct {
-	descriptors []toolspkg.MCPToolDescriptor
-	expiresAt   time.Time
+	discovery ToolDiscovery
+	expiresAt time.Time
 }
 
 type mcpToolProjectionState struct {
@@ -89,19 +89,21 @@ type mcpToolProjectionState struct {
 	expiresAt   time.Time
 }
 
-func (e *CallExecutor) cachedTools(key string, now time.Time) ([]toolspkg.MCPToolDescriptor, bool) {
+func (e *CallExecutor) cachedTools(key string, now time.Time) (ToolDiscovery, bool) {
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
 	e.pruneToolProjectionStatesLocked(now)
 	entry, ok := e.toolCache.entries[key]
 	if !ok || !now.Before(entry.expiresAt) {
 		delete(e.toolCache.entries, key)
-		return nil, false
+		return ToolDiscovery{}, false
 	}
-	return cloneMCPToolDescriptors(entry.descriptors), true
+	discovery := entry.discovery
+	discovery.Descriptors = cloneMCPToolDescriptors(discovery.Descriptors)
+	return discovery, true
 }
 
-func (e *CallExecutor) cacheTools(key string, descriptors []toolspkg.MCPToolDescriptor, ttlMs int, now time.Time) {
+func (e *CallExecutor) cacheTools(key string, discovery ToolDiscovery, ttlMs int, now time.Time) {
 	if ttlMs <= 0 {
 		// An uncacheable answer still supersedes what an earlier listing cached for this key.
 		e.toolCache.mu.Lock()
@@ -117,9 +119,10 @@ func (e *CallExecutor) cacheTools(key string, descriptors []toolspkg.MCPToolDesc
 	maps.DeleteFunc(e.toolCache.entries, func(_ string, entry mcpToolListCacheEntry) bool {
 		return !now.Before(entry.expiresAt)
 	})
+	discovery.Descriptors = cloneMCPToolDescriptors(discovery.Descriptors)
 	e.toolCache.entries[key] = mcpToolListCacheEntry{
-		descriptors: cloneMCPToolDescriptors(descriptors),
-		expiresAt:   now.Add(time.Duration(ttlMs) * time.Millisecond),
+		discovery: discovery,
+		expiresAt: now.Add(time.Duration(ttlMs) * time.Millisecond),
 	}
 	e.toolCache.mu.Unlock()
 }
@@ -305,24 +308,23 @@ func (e *CallExecutor) cachedPooledStdioTools(
 	ctx context.Context,
 	resolved *ResolvedServer,
 	authorizationHeader string,
-) ([]toolspkg.MCPToolDescriptor, string, bool) {
+) (ToolDiscovery, bool) {
 	if e.stdioPool == nil || resolved.Server.EffectiveTransport() != compozyconfig.MCPServerTransportStdio {
-		return nil, "", false
+		return ToolDiscovery{}, false
 	}
 	spec, err := e.resolveMCPStdioSpec(ctx, resolved.Server, resolved.Target)
 	if err != nil {
-		return nil, "", false
+		return ToolDiscovery{}, false
 	}
 	protocolVersion, ok := e.stdioPool.knownProtocol(spec)
 	if !ok {
-		return nil, "", false
+		return ToolDiscovery{}, false
 	}
 	key, err := e.toolCacheKey(ctx, resolved, protocolVersion, authorizationHeader)
 	if err != nil {
-		return nil, "", false
+		return ToolDiscovery{}, false
 	}
-	descriptors, ok := e.cachedTools(key, time.Now())
-	return descriptors, protocolVersion, ok
+	return e.cachedTools(key, time.Now())
 }
 
 func negotiatedProtocolVersion(session *mcpsdk.ClientSession) string {

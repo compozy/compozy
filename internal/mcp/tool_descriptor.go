@@ -26,7 +26,7 @@ func (e *CallExecutor) descriptorFromTool(
 	if err != nil {
 		return toolspkg.MCPToolDescriptor{}, err
 	}
-	owner, err := mcpOwner(id)
+	owner, err := toolspkg.MCPToolOwner(id)
 	if err != nil {
 		return toolspkg.MCPToolDescriptor{}, err
 	}
@@ -42,7 +42,7 @@ func (e *CallExecutor) descriptorFromTool(
 		Kind:            toolspkg.SourceMCP,
 		Owner:           owner,
 		RawServerName:   server.EffectiveRuntimeName(),
-		RawToolName:     strings.TrimSpace(tool.Name),
+		RawToolName:     tool.Name,
 		ResourceID:      source.ResourceID,
 		ResourceVersion: source.ResourceVersion,
 		WorkspaceID:     source.WorkspaceID,
@@ -71,7 +71,7 @@ func (e *CallExecutor) descriptorFromTool(
 	}
 	descriptor := toolspkg.MCPToolDescriptor{
 		ID:                     id,
-		RawName:                strings.TrimSpace(tool.Name),
+		RawName:                tool.Name,
 		Title:                  mcpToolTitle(tool),
 		FriendlyVerb:           friendlyVerb,
 		Preview:                preview,

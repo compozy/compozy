@@ -185,12 +185,12 @@ func (e *EffectivePolicyEvaluator) sessionAllowsMCP(d Descriptor) bool {
 	if !e.inputs.Session.MCPByServer {
 		return false
 	}
-	owner, err := mcpOwnerFromID(d.ID)
+	owner, err := MCPToolOwner(d.ID)
 	if err != nil {
 		return false
 	}
 	for id := range e.sessionAllowed {
-		narrowed, err := mcpOwnerFromID(id)
+		narrowed, err := MCPToolOwner(id)
 		if err == nil && narrowed == owner {
 			return false
 		}

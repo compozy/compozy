@@ -73,7 +73,7 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 		return s.recordMCPProbeFailure(ctx, key, tracked, deadentity.FailurePermanent, status)
 	}
 
-	tools, protocolVersion, err := executor.ListToolsWithProtocol(ctx, toolspkg.SourceRef{
+	discovery, err := executor.DiscoverTools(ctx, toolspkg.SourceRef{
 		Kind:          toolspkg.SourceMCP,
 		Owner:         server.EffectiveRuntimeName(),
 		RawServerName: server.EffectiveRuntimeName(),
@@ -98,7 +98,9 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 			return settingspkg.MCPServerRuntimeStatus{}, fmt.Errorf("daemon: record MCP runtime recovery: %w", err)
 		}
 	}
-	return readyMCPRuntimeStatus(len(tools), protocolVersion), nil
+	status = readyMCPRuntimeStatus(discovery.ToolCount, discovery.ProtocolVersion)
+	status.Diagnostic = discovery.Diagnostic
+	return status, nil
 }
 
 func (s *settingsRuntimeSurface) newMCPProbeExecutor(

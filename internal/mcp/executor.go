@@ -25,24 +25,24 @@ func (e *CallExecutor) ListTools(
 	ctx context.Context,
 	source toolspkg.SourceRef,
 ) ([]toolspkg.MCPToolDescriptor, error) {
-	descriptors, _, err := e.ListToolsWithProtocol(ctx, source)
-	return descriptors, err
+	discovery, err := e.DiscoverTools(ctx, source)
+	return discovery.Descriptors, err
 }
 
-// ListToolsWithProtocol discovers tools and returns the protocol version negotiated with the server.
-func (e *CallExecutor) ListToolsWithProtocol(
+// DiscoverTools lists tools with the negotiated protocol and any nonfatal diagnostics.
+func (e *CallExecutor) DiscoverTools(
 	ctx context.Context,
 	source toolspkg.SourceRef,
-) (descriptors []toolspkg.MCPToolDescriptor, protocolVersion string, err error) {
+) (discovery ToolDiscovery, err error) {
 	if e == nil {
-		return nil, "", toolspkg.NewValidationError(
+		return ToolDiscovery{}, toolspkg.NewValidationError(
 			"executor",
 			toolspkg.ReasonDependencyMissing,
 			"mcp executor is required",
 		)
 	}
 	if ctx == nil {
-		return nil, "", toolspkg.NewToolError(
+		return ToolDiscovery{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeCanceled,
 			"",
 			"mcp call context is required",
@@ -59,11 +59,11 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	}()
 	resolved, err := e.resolveServer(ctx, source, "")
 	if err != nil {
-		return nil, "", err
+		return ToolDiscovery{}, err
 	}
 	if e.consent != nil {
 		if err := e.consent(ctx, source, resolved); err != nil {
-			return nil, "", err
+			return ToolDiscovery{}, err
 		}
 	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
@@ -82,34 +82,33 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	}()
 	if err := e.ensureAuthorized(ctx, &resolved); err != nil {
 		runtimeHealthErr = err
-		return nil, "", err
+		return ToolDiscovery{}, err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, &resolved)
-	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(
+	if cached, ok := e.cachedPooledStdioTools(
 		ctx,
 		&resolved,
 		authorizationHeader,
 	); ok &&
 		!toolspkg.FreshMCPDiscovery(ctx) {
 		servedFromCache = true
-		return cached, cachedProtocol, nil
+		return cached, nil
 	}
 	client, err := e.openClient(ctx, &resolved, authorizationHeader)
 	if err != nil {
 		runtimeHealthErr = err
-		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
+		return ToolDiscovery{}, normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
 	defer func() {
 		err = joinMCPClientCleanup(err, client)
 	}()
-	protocolVersion = negotiatedProtocolVersion(client.session)
-	descriptors, runtimeHealthErr, err = e.listToolsFromClient(
-		ctx, client, source, &resolved, protocolVersion, authorizationHeader,
+	discovery, runtimeHealthErr, err = e.listToolsFromClient(
+		ctx, client, source, &resolved, negotiatedProtocolVersion(client.session), authorizationHeader,
 	)
 	if err != nil {
-		return nil, "", err
+		return ToolDiscovery{}, err
 	}
-	return descriptors, protocolVersion, nil
+	return discovery, nil
 }
 
 // listToolsFromClient answers discovery over an open client, preferring a cached projection. The
@@ -121,29 +120,30 @@ func (e *CallExecutor) listToolsFromClient(
 	resolved *ResolvedServer,
 	protocolVersion string,
 	authorizationHeader string,
-) (descriptors []toolspkg.MCPToolDescriptor, healthErr error, err error) {
+) (ToolDiscovery, error, error) {
 	cacheKey, err := e.toolCacheKey(ctx, resolved, protocolVersion, authorizationHeader)
 	if err != nil {
-		return nil, nil, err
+		return ToolDiscovery{}, nil, err
 	}
-	if descriptors, ok := e.cachedTools(cacheKey, time.Now()); ok && !toolspkg.FreshMCPDiscovery(ctx) {
-		return descriptors, nil, nil
+	if cached, ok := e.cachedTools(cacheKey, time.Now()); ok && !toolspkg.FreshMCPDiscovery(ctx) {
+		return cached, nil, nil
 	}
 	fresh := toolspkg.FreshMCPDiscovery(ctx)
 	attempt := e.beginToolList(cacheKey, fresh)
 	defer e.finishToolList(cacheKey)
 	tools, ttlMs, err := listMCPTools(ctx, client.session)
 	if err != nil {
-		return nil, err, normalizeMCPErrorWithContext(ctx, "", err, true)
+		return ToolDiscovery{}, err, normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
-	descriptors, err = e.descriptorsFromTools(source, resolved, tools)
+	discovery, err := e.descriptorsFromTools(source, resolved, tools)
 	if err != nil {
-		return nil, err, err
+		return ToolDiscovery{}, err, err
 	}
-	if err := e.publishToolList(cacheKey, attempt, fresh, source, authorizationHeader, descriptors, ttlMs); err != nil {
-		return nil, nil, err
+	discovery.ProtocolVersion = protocolVersion
+	if err := e.publishToolList(cacheKey, attempt, fresh, source, authorizationHeader, discovery, ttlMs); err != nil {
+		return ToolDiscovery{}, nil, err
 	}
-	return descriptors, nil, nil
+	return discovery, nil, nil
 }
 
 // CallTool invokes one configured MCP tool.
@@ -211,7 +211,7 @@ func (e *CallExecutor) CallTool(
 		return toolspkg.ToolResult{}, err
 	}
 	mcpResult, err := client.session.CallTool(ctx, &mcpsdk.CallToolParams{
-		Name:      strings.TrimSpace(req.RawToolName),
+		Name:      req.RawToolName,
 		Arguments: arguments,
 	})
 	if err != nil {
@@ -411,23 +411,8 @@ func mcpServerMatches(server compozyconfig.MCPServer, target string) bool {
 	if err != nil {
 		return false
 	}
-	owner, err := mcpOwner(id)
+	owner, err := toolspkg.MCPToolOwner(id)
 	return err == nil && owner == target
-}
-
-func mcpOwner(id toolspkg.ToolID) (string, error) {
-	segments, err := id.Segments()
-	if err != nil {
-		return "", err
-	}
-	if len(segments) != 3 {
-		return "", toolspkg.NewValidationError(
-			"tool_id",
-			toolspkg.ReasonIDInvalidFormat,
-			"mcp tool id must contain namespace server and tool segments",
-		)
-	}
-	return segments[1], nil
 }
 
 func cloneMCPServer(server compozyconfig.MCPServer) compozyconfig.MCPServer {

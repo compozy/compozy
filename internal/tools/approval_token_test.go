@@ -9,6 +9,34 @@ import (
 func TestApprovalTokenStore(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should bind a legacy MCP approval to the same tool after name normalization", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+		store := NewApprovalTokenStore(time.Minute, WithApprovalTokenClock(func() time.Time { return now }))
+		scope := Scope{Operator: true, ProfileID: "profile-a", SessionID: "sess-1", WorkspaceID: "ws-1"}
+		grant, err := store.CreateToolApproval(t.Context(), scope, ApprovalTokenRequest{
+			ToolID: "mcp__github__search_tool",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := Canonicalize("github", "_search_tool")
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacy, err := Canonicalize("github", "Search.Tool")
+		if err != nil {
+			t.Fatal(err)
+		}
+		call := CallRequest{ToolID: encoded, ApprovalToken: grant.ApprovalToken}
+		requireToolReason(t, store.ConsumeToolApproval(t.Context(), scope, call), ReasonApprovalTokenMismatch)
+		call.ToolID = legacy
+		if err := store.ConsumeToolApproval(t.Context(), scope, call); err != nil {
+			t.Fatalf("approval for legacy tool = %v, want accepted", err)
+		}
+	})
+
 	t.Run("Should mint consume and reject replay", func(t *testing.T) {
 		t.Parallel()
 

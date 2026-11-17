@@ -1868,6 +1868,20 @@ may run one recovery probe; a successful probe clears the mark without restartin
 Doctor reads the durable mark without starting that probe. Recovery is automatic, so there is no
 manual clear or revive command.
 
+### MCP tool IDs
+
+Use the ID returned by `compozy tool search` in tool approvals, `tools`, and `deny_tools`.
+Existing names keep their `mcp__<server>__<tool>` IDs, including names that lowercase or map dots
+and hyphens to underscores. When a name such as `_dd_gff` cannot form a canonical segment, CompozyOS
+encodes the name as `mcp__<server>__raw__x<base32>`. Both forms use the original name when calling
+the MCP server. A selector such as `mcp__datadog__*` matches both forms. A tool-name prefix such
+as `mcp__datadog__raw_*` matches ordinary tool names beginning with `raw_`.
+
+Entries that cannot fit within the 64-character ID limit are skipped. If two entries share a
+canonical ID, neither can be called through it. The server's tool count excludes those entries.
+Other tools remain available according to their policy. Run `compozy mcp check <name> -o json` and
+inspect `runtime_status.diagnostic` for examples of skipped or ambiguous entries.
+
 ## `[providers.<name>]`
 
 Provider keys override built-ins with the same name or create a custom provider. Built-ins are
