@@ -14,7 +14,7 @@ Run from `packages/brand`, or through Turborepo from the repo root
 | `dev`                        | Dev server on http://localhost:4620                                                                                                                       |
 | `build`                      | Prerenders every route to `.output/public`, then `scripts/assert-build-output.ts` checks it                                                               |
 | `preview`                    | Serves the build on http://localhost:4620 (unknown URLs answer 404 with the not-found page)                                                               |
-| `typecheck`                  | Native `tsc --noEmit`                                                                                                                                     |
+| `typecheck`                  | `tsrs --noEmit`                                                                                                                                           |
 | `lint`                       | `oxfmt --check` and `oxlint --deny-warnings`                                                                                                              |
 | `test`                       | Vitest: chapter and kit registry, status badge, asset budget, srcset, export guards                                                                       |
 | `export:kit`                 | Every `/kit/<id>` → `$BRAND_EXPORT_DIR/kit/<id>.png` (+ `.pdf` for print, `digital/` copies); `--only a,b`, `--set field=value`                           |

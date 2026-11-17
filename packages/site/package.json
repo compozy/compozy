@@ -19,7 +19,7 @@
         "start": "next start",
         "lint": "bunx oxfmt --check && bunx oxlint --deny-warnings",
         "test": "vitest run",
-        "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit"
+        "typecheck": "tsrs --noEmit"
     },
     "dependencies": {
         "@compozy/ui": "workspace:*",

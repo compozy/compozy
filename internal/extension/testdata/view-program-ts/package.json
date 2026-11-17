@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "build": "bun build src/index.tsx --target=node --outfile=dist/index.js",
-        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "typecheck": "tsrs --noEmit -p tsconfig.json",
         "start": "node dist/index.js"
     },
     "dependencies": {
@@ -15,8 +15,7 @@
     },
     "devDependencies": {
         "@types/node": "26.6.5",
-        "@types/react": "19.3.0",
-        "typescript": "7.0.2"
+        "@types/react": "19.3.0"
     },
     "engines": {
         "node": ">=22"

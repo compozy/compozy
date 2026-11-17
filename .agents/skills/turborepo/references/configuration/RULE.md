@@ -29,7 +29,7 @@ Package tasks enable parallelization, individual caching, and filtering. Define 
     "build": "next build",
     "lint": "eslint .",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsrs --noEmit"
   }
 }
 
@@ -39,7 +39,7 @@ Package tasks enable parallelization, individual caching, and filtering. Define 
     "build": "tsc",
     "lint": "eslint .",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsrs --noEmit"
   }
 }
 ```
