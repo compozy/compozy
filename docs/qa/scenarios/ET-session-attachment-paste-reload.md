@@ -53,3 +53,21 @@ with three uploads total, and the removal and send checks above held.
 QA impact 2026-10-23 (merge train): deleting a session after switching away must release its
 retained unsent files and upload handles. Verify the deleted draft cannot restore attachments;
 other sessions' drafts remain available. Covered in the existing session deletion hook suite.
+
+## Same image pasted twice while it loads — #1798
+
+The daemon names uploads by content, so pasting one screenshot twice gives both tiles
+the same `att_<sha256>` reference. In a session composer, paste one image, paste it again
+before the first preview finishes loading, and send once both tiles are ready. The
+session window must not fall into the window error boundary, and the console must not
+log `Duplicate key att_… in useResources`. The composer keeps one tile per paste, as for
+any repeated file, and empties after the send. The sent message shows both images, and
+the prompt carries the reference once per tile. A single paste sends one attachment that
+opens in the preview.
+
+Walked 2026-11-17 against an isolated daemon serving the built web bundle (acpmock agent,
+attachment uploads delayed 2.5 s in the browser). The mock agent does not accept images, so the
+send was walked with one text file pasted twice; the duplicate `att_` id and the crash path are
+the same for images. Before the fix the send threw `Duplicate key att_… in useResources` and the
+window fell to "Session couldn't open"; after it the prompt carried both references, the composer
+emptied, and the agent answered.
