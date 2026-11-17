@@ -96,9 +96,13 @@ real-session journey and authenticated HTTP monitor suite passed again after the
 
 Additional review coverage for #1779: list a readable task whose active run and blocking
 dependency belong to a denied workspace. Its list and child summaries must omit the run,
-current-run ID, dependency reference/count and dependency blocked reasons; their derived status
-must use readable relations. Inspecting the denied run directly must refuse access before
-returning diagnostics. Operator reads retain the complete relations. Monitor registration
+current-run ID, dependency reference/count and dependency blocked reasons. Their status must
+match the canonical task state even when a hidden relation keeps it running or blocked.
+The public catalog must hide denied execution details while preserving the selected task page,
+canonical status, ordering, totals, facets and cursor. Catalog child/dependency counts remain
+task-owned aggregates; expanded task views count only readable relations. Inspecting the denied
+run directly must refuse access, and task inspection must also hide that run, bound session,
+run-associated events and dependency references. Operator reads retain the complete relations. Monitor registration
 also owns its captured target scopes: mutating input, create, list, reused or cancel snapshots
 must not alter later authorization ownership.
 
@@ -107,3 +111,10 @@ before their fixes and passed afterward. Monitor scope mutation likewise failed 
 and passed across create/list/reuse/cancel snapshots afterward. Existing real SQLite task
 summary and monitor persistence suites passed; the permission-intent migration suite retained
 its authority/idempotency checks through schema 205. Race validation remains assigned to CI.
+
+QA result for the public-read closure: the real SQLite catalog regression reproduced denied
+execution disclosure through both User `global` and `all` reads, then passed with pagination
+and aggregate metadata unchanged. Task inspection reproduced the alternate-path disclosure,
+then passed with denied runs, sessions, events and dependencies hidden. Task list and child
+summaries preserve canonical running/blocked state and count only readable children. The
+existing SQLite catalog authority, summary parity and expanded-read suites passed again.

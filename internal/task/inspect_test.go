@@ -65,6 +65,69 @@ func (r inspectReaderForTest) GetSchedulerPauseState(context.Context) (InspectSc
 
 func TestInspectTaskDiagnostics(t *testing.T) {
 	t.Parallel()
+	// Invariant: task inspection cannot reveal relations denied by direct run/task reads.
+	// Owner: task service inspection; canonical suite: TestInspectTaskDiagnostics.
+	t.Run("Should redact denied run diagnostics without changing canonical task state", func(t *testing.T) {
+		t.Parallel()
+		reader := inspectReaderForTest{
+			sessions: []storepkg.SessionInfo{{ID: "sess-private", WorkspaceID: "ws-private", State: "active"}},
+			events: []storepkg.EventSummary{
+				{
+					ID:        "private-event",
+					TaskID:    "task-inspect",
+					RunID:     "run-private",
+					SessionID: "sess-private",
+					Summary:   "Private run",
+				},
+				{ID: "task-event", TaskID: "task-inspect", Summary: "Task updated"},
+			},
+		}
+		manager, _ := newInspectManagerForTest(t, reader)
+		store := manager.store.(*inMemoryManagerStore)
+		seedInspectTaskRun(t, store, inspectSeed{
+			TaskID: "task-inspect", RunID: "run-private", Status: TaskRunStatusRunning,
+			SessionID: "sess-private", ClaimTokenHash: "sha256:abcdef1234567890",
+		})
+		run := store.runs["run-private"]
+		run.WorkspaceID = "ws-private"
+		store.runs[run.ID] = run
+		privateTask, err := manager.CreateTask(t.Context(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-private",
+			Title:       "Private blocker",
+		}, validActorContext())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.AddDependency(t.Context(), AddDependency{
+			TaskID: "task-inspect", DependsOnTaskID: privateTask.ID, Kind: DependencyKindBlocks,
+		}, validActorContext()); err != nil {
+			t.Fatal(err)
+		}
+		view, err := manager.InspectTask(t.Context(), "task-inspect",
+			agentSessionActorContextForWorkspace("sess-inspect", "ws-inspect"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if view.CurrentRun != nil || view.BoundSession != nil || len(view.RecentRuns) != 0 ||
+			view.Task.ActiveRun != nil || view.Task.CurrentRunID != "" || len(view.Task.Dependencies) != 0 ||
+			view.Task.DependencyCount != 0 || view.Task.BlockedReasons != nil {
+			t.Fatalf("InspectTask() exposed denied relations: %#v", view)
+		}
+		if view.Task.Status != TaskStatusInProgress || len(view.RecentEvents) != 1 ||
+			view.RecentEvents[0].ID != "task-event" {
+			t.Fatalf("InspectTask() = %#v, want canonical status and only task-owned events", view)
+		}
+		operatorView, err := manager.InspectTask(t.Context(), "task-inspect", validActorContext())
+		if err != nil || operatorView.CurrentRun == nil || operatorView.BoundSession == nil ||
+			len(
+				operatorView.RecentRuns,
+			) != 1 || len(operatorView.RecentEvents) != 2 || len(operatorView.Task.Dependencies) != 1 {
+			t.Fatalf("InspectTask(operator) = %#v, %v, want full authorized relations", operatorView, err)
+		}
+	})
+
 	// Invariant: inspecting a run requires access to its execution workspace as well as its task.
 	// Owner: task service reads; canonical suite: TestInspectTaskDiagnostics.
 	for _, workspaceID := range []string{"", "ws-inspect", "ws-private"} {

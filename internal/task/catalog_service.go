@@ -2,7 +2,9 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -35,10 +37,51 @@ func (m *Service) ListTaskCatalog(
 	if !ok {
 		return CatalogPage{}, fmt.Errorf("task: catalog reader is not configured")
 	}
-	return reader.ListTaskCatalog(ctx, query)
+	page, err := reader.ListTaskCatalog(ctx, query)
+	if err != nil {
+		return CatalogPage{}, err
+	}
+	if !canBypassTaskReadAuthorization(actor) {
+		for i := range page.Tasks {
+			if err := m.filterCatalogRunRelations(ctx, actor, &page.Tasks[i]); err != nil {
+				return CatalogPage{}, err
+			}
+		}
+	}
+	return page, nil
 }
 
 var _ CatalogManager = (*Service)(nil)
+
+func (m *Service) filterCatalogRunRelations(ctx context.Context, actor ActorContext, summary *Summary) error {
+	record := taskRecordFromSummary(summary)
+	runIDs := []string{summary.CurrentRunID}
+	if summary.ActiveRun != nil {
+		runIDs = append(runIDs, summary.ActiveRun.ID)
+	}
+	for _, runID := range slices.Compact(runIDs) {
+		if strings.TrimSpace(runID) == "" {
+			continue
+		}
+		run, err := m.store.GetTaskRun(ctx, runID)
+		if err == nil {
+			err = m.runReadAuthorizer.AuthorizeRunRead(ctx, actor, run, &record)
+		}
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, ErrTaskRunNotFound) && !errors.Is(err, ErrPermissionDenied) {
+			return err
+		}
+		if summary.CurrentRunID == runID {
+			summary.CurrentRunID = ""
+		}
+		if summary.ActiveRun != nil && summary.ActiveRun.ID == runID {
+			summary.ActiveRun = nil
+		}
+	}
+	return nil
+}
 
 // authorizeTaskCatalogAggregate admits a non-operator All projects read through the
 // workspace-access policy: the unrestricted grant or the session's permission mode.

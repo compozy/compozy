@@ -7685,7 +7685,7 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 	t.Parallel()
 	// Invariant: readable tasks expose only authorized run and dependency relations.
 	// Owner: task service reads; canonical suite: TestManagerTaskResourceAuthorityFencesWorkspaces.
-	t.Run("Should filter denied relations before enriching task lists and child summaries", func(t *testing.T) {
+	t.Run("Should hide denied relations while preserving canonical task state", func(t *testing.T) {
 		t.Parallel()
 		store := newInMemoryManagerStore()
 		manager := newTaskManagerForTest(t, store)
@@ -7721,6 +7721,17 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		record := store.tasks[child.ID]
 		record.CurrentRunID = run.ID
 		store.tasks[child.ID] = record
+		grandchild, err := manager.CreateChildTask(t.Context(), child.ID, CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-a",
+			Title:       "Private grandchild",
+		}, operator)
+		if err != nil {
+			t.Fatal(err)
+		}
+		grandchild.WorkspaceID = "ws-b"
+		store.tasks[grandchild.ID] = *grandchild
 		agent := agentSessionActorContextForWorkspace("sess-a", "ws-a")
 		rows, err := manager.ListTasks(t.Context(), Query{ParentTaskID: parent.ID}, agent)
 		if err != nil || len(rows) != 1 {
@@ -7729,6 +7740,10 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		view, err := manager.GetTask(t.Context(), parent.ID, agent)
 		if err != nil || len(view.Children) != 1 {
 			t.Fatalf("GetTask(parent) = %#v, %v", view, err)
+		}
+		childView, err := manager.GetTask(t.Context(), child.ID, agent)
+		if err != nil || childView.Summary.Status != TaskStatusInProgress || childView.Summary.ChildCount != 0 {
+			t.Fatalf("GetTask(child) = %#v, %v, want canonical running state without private children", childView, err)
 		}
 		for _, test := range []struct {
 			name string
@@ -7740,8 +7755,15 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				item := test.item
 				if item.ActiveRun != nil || item.CurrentRunID != "" || len(item.Dependencies) != 0 ||
-					item.DependencyCount != 0 || item.BlockedReasons != nil || item.Status != TaskStatusReady {
+					item.DependencyCount != 0 || item.BlockedReasons != nil || item.ChildCount != 0 {
 					t.Fatalf("summary exposed denied relations: %#v", item)
+				}
+				if item.Status != childView.Summary.Status {
+					t.Fatalf(
+						"summary status = %q, want canonical GetTask status %q",
+						item.Status,
+						childView.Summary.Status,
+					)
 				}
 			})
 		}
@@ -7749,6 +7771,18 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		if err != nil || len(operatorRows) != 1 || operatorRows[0].ActiveRun == nil ||
 			len(operatorRows[0].Dependencies) != 1 || operatorRows[0].Status != TaskStatusInProgress {
 			t.Fatalf("authorized ListTasks() = %#v, %v", operatorRows, err)
+		}
+		delete(store.runs, run.ID)
+		record.CurrentRunID = ""
+		store.tasks[child.ID] = record
+		blocked, err := manager.ListTasks(t.Context(), Query{ParentTaskID: parent.ID}, agent)
+		if err != nil || len(blocked) != 1 || blocked[0].Status != TaskStatusBlocked ||
+			blocked[0].DependencyCount != 0 || len(blocked[0].Dependencies) != 0 || blocked[0].BlockedReasons != nil {
+			t.Fatalf(
+				"ListTasks(blocked) = %#v, %v, want canonical blocked state without private dependency details",
+				blocked,
+				err,
+			)
 		}
 	})
 

@@ -120,6 +120,12 @@ workspace's records; it never falls back to the caller's inventory. The selected
 the read scope. Native `global` and `all` reads follow workspace access policy. `all_profiles` task
 rows are authorized as reads; global and cross-profile writes retain their grant requirements.
 
+Readable tasks retain their canonical status even when a run or dependency is hidden by access
+policy. Catalogs omit denied execution details and current-run IDs while preserving task order,
+totals, facets and cursors. Catalog child/dependency counts are task-owned aggregates; expanded
+task views count only readable relations. Task/run inspection applies the same execution-workspace
+checks and hides denied run diagnostics, bound sessions, events and dependency references.
+
 CLI `task publish`, `task start`, `task approve`, `task reject`, pause/resume/cancel, block/unblock,
 block listing and task recovery use the selected profile. The same selection applies to task
 update/delete, dependencies, run enqueue/start/attach/complete/fail/cancel/recover, fan-out,
