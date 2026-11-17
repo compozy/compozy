@@ -1010,6 +1010,7 @@ jobs:
           install-playwright: "true"
       - *install-terminal-scenario-shell
       - name: Collect five complete performance samples without retries
+        id: samples
         run: make test-e2e-web
         env:
           CI: "true"
@@ -1017,8 +1018,9 @@ jobs:
       - name: Judge the median against the unchanged 50 ms budget
         id: judge
         # Provisioning/build failures produce no report and belong to their own
-        # failing step. Incomplete or functionally failed reports still get judged.
-        if: always() && hashFiles('.tmp/playwright/playwright-web.json') != ''
+        # failing step. A successful collection must produce a judgeable report;
+        # incomplete or functionally failed reports still get judged.
+        if: always() && (steps.samples.outcome == 'success' || hashFiles('.tmp/playwright/playwright-web.json') != '')
         shell: bash
         run: |
           mkdir -p .tmp/playwright
