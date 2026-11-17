@@ -293,9 +293,13 @@ func TestNativeAgyACPCommand(t *testing.T) {
 		"agy.cmd acp",
 	}
 	for _, command := range native {
-		if !IsNativeAgyACPCommand(command) {
-			t.Fatalf("IsNativeAgyACPCommand(%q) = false, want the native CLI launch", command)
-		}
+		t.Run("Should recognize native command "+command, func(t *testing.T) {
+			t.Parallel()
+
+			if !IsNativeAgyACPCommand(command) {
+				t.Fatalf("IsNativeAgyACPCommand(%q) = false, want the native CLI launch", command)
+			}
+		})
 	}
 	for _, command := range []string{
 		"",
@@ -308,8 +312,12 @@ func TestNativeAgyACPCommand(t *testing.T) {
 		"env AGY_HOME=/tmp agy acp",
 		"bash -c 'agy acp'",
 	} {
-		if IsNativeAgyACPCommand(command) {
-			t.Fatalf("IsNativeAgyACPCommand(%q) = true, want a non-native launch", command)
-		}
+		t.Run("Should ignore non-native command "+command, func(t *testing.T) {
+			t.Parallel()
+
+			if IsNativeAgyACPCommand(command) {
+				t.Fatalf("IsNativeAgyACPCommand(%q) = true, want a non-native launch", command)
+			}
+		})
 	}
 }

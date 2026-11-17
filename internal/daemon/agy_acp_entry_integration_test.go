@@ -3,8 +3,10 @@
 package daemon
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -16,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/providerauth"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -36,6 +39,23 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(fixture.binDir, "agy_acp_server.par")); !os.IsNotExist(err) {
 			t.Fatalf("standalone server is reachable on the fixture PATH: %v", err)
+		}
+	})
+
+	t.Run("Should refuse a constrained resolved built-in before launching the CLI", func(t *testing.T) {
+		isolated := setupAgyEntryFixture(t)
+		manager, workspace := newAgyEntryManager(t, isolated)
+		_, err := manager.Create(testutil.Context(t), new(session.CreateOpts{
+			AgentName: "coder", Workspace: workspace.ID, Provider: "agy",
+			Permissions: compozyconfig.PermissionModeApproveReads,
+		}))
+		if !errors.Is(err, acp.ErrNativeAgyToolPolicyUnsupported) {
+			t.Fatalf("Create() error = %v, want the native policy refusal", err)
+		}
+		for _, name := range []string{"argv.log", "peer.log"} {
+			if _, err := os.Stat(filepath.Join(isolated.stateDir, name)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("%s exists (%v), want no CLI launch or probe", name, err)
+			}
 		}
 	})
 
@@ -93,38 +113,7 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 	t.Run("Should select Hydrogen xhigh before prompting", func(t *testing.T) {
 		t.Setenv(agyEntryPhaseKey, agyEntryPhaseSession)
 		setAgyEntryAuthed(t, fixture.stateDir, true)
-		daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, fixture.homePaths, &fixture.cfg)
-		t.Cleanup(func() {
-			if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
-				t.Errorf("Shutdown() error = %v", err)
-			}
-		})
-		workspaceRoot := filepath.Join(fixture.homePaths.HomeDir, "workspace")
-		if err := compozyconfig.EnsureHomeLayout(fixture.homePaths); err != nil {
-			t.Fatalf("EnsureHomeLayout() error = %v", err)
-		}
-		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
-			t.Fatalf("os.MkdirAll() error = %v", err)
-		}
-		resolvedWorkspace := workspacepkg.ResolvedWorkspace{
-			ID:      "ws-agy-entry",
-			RootDir: workspaceRoot,
-			Name:    "workspace",
-			Config:  fixture.cfg,
-			Agents: []compozyconfig.AgentDef{{
-				Name:     "coder",
-				Provider: "agy",
-				Prompt:   "You are a coding assistant.",
-			}},
-		}
-		driver := session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(daemonInstance.providerPreStarter)))
-		manager := newHarnessIntegrationManager(
-			t,
-			fixture.homePaths,
-			capturedDeps,
-			resolvedWorkspace,
-			driver,
-		)
+		manager, resolvedWorkspace := newAgyEntryManager(t, fixture)
 		created, err := manager.Create(testutil.Context(t), new(session.CreateOpts{
 			AgentName:       "coder",
 			Name:            "agy entry session",
@@ -205,6 +194,105 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 			t.Fatalf("effective runtime = %#v, want the acknowledged Hydrogen xhigh selection", effective)
 		}
 	})
+
+	t.Run("Should retain a legacy session when its native replacement cannot enforce the policy", func(t *testing.T) {
+		isolated := setupAgyEntryFixture(t)
+		t.Setenv(agyEntryPhaseKey, agyEntryPhaseSession)
+		setAgyEntryAuthed(t, isolated.stateDir, true)
+		shim, err := os.ReadFile(filepath.Join(isolated.binDir, "agy"))
+		if err != nil {
+			t.Fatalf("read CLI shim error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(isolated.binDir, "agy_acp_server.par"), shim, 0o755); err != nil {
+			t.Fatalf("write legacy command shim error = %v", err)
+		}
+		manager, workspace := newAgyEntryManager(t, isolated)
+		created, err := manager.Create(testutil.Context(t), new(session.CreateOpts{
+			AgentName: "coder", Workspace: workspace.ID, Provider: "agy",
+			Model: agyEntryHydrogenID, ReasoningEffort: agyEntryXHighEffort,
+			Permissions: compozyconfig.PermissionModeApproveReads,
+			Command:     "agy_acp_server.par acp",
+		}))
+		if err != nil {
+			t.Fatalf("Create(legacy command) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+		events, err := manager.Prompt(testutil.Context(t), created.ID, "retained legacy conversation")
+		if err != nil {
+			t.Fatalf("Prompt(legacy command) error = %v", err)
+		}
+		drainHarnessIntegrationEvents(events)
+		if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Stop(legacy command) error = %v", err)
+		}
+		metaPath := store.SessionMetaFile(filepath.Join(isolated.homePaths.SessionsDir, created.ID))
+		before, err := store.ReadSessionMeta(metaPath)
+		if err != nil {
+			t.Fatalf("ReadSessionMeta(before) error = %v", err)
+		}
+		before.SetACPOptions([]store.SessionACPOptionSelection{{ID: "mode", ValueID: "yolo"}})
+		if err := store.WriteSessionMeta(metaPath, &before); err != nil {
+			t.Fatalf("WriteSessionMeta(legacy options) error = %v", err)
+		}
+		query := store.EventQuery{Limit: 1000}
+		beforeEvents, err := manager.Events(testutil.Context(t), created.ID, query)
+		if err != nil {
+			t.Fatalf("Events(before) error = %v", err)
+		}
+		beforeArgv := readAgyEntryLog(t, isolated.stateDir, "argv.log")
+		beforePeer := readAgyEntryLog(t, isolated.stateDir, "peer.log")
+		_, err = manager.Resume(testutil.Context(t), created.ID)
+		if !errors.Is(err, acp.ErrNativeAgyToolPolicyUnsupported) {
+			t.Fatalf("Resume() error = %v, want the native policy refusal", err)
+		}
+		after, err := store.ReadSessionMeta(metaPath)
+		if err != nil {
+			t.Fatalf("ReadSessionMeta(after) error = %v", err)
+		}
+		before.UpdatedAt = after.UpdatedAt
+		if !reflect.DeepEqual(before, after) {
+			t.Fatal("refused resume changed retained metadata, route, native ID, options, or creation identity")
+		}
+		afterEvents, err := manager.Events(testutil.Context(t), created.ID, query)
+		if err != nil {
+			t.Fatalf("Events(after) error = %v", err)
+		}
+		if len(beforeEvents) == 0 || len(afterEvents) < len(beforeEvents) ||
+			!reflect.DeepEqual(beforeEvents, afterEvents[:len(beforeEvents)]) {
+			t.Fatal("refused resume changed the retained transcript")
+		}
+		if !slices.Equal(beforeArgv, readAgyEntryLog(t, isolated.stateDir, "argv.log")) ||
+			!slices.Equal(beforePeer, readAgyEntryLog(t, isolated.stateDir, "peer.log")) {
+			t.Fatal("refused resume launched the replacement CLI")
+		}
+	})
+}
+
+func newAgyEntryManager(t *testing.T, fixture *agyEntryFixture) (*session.Manager, workspacepkg.ResolvedWorkspace) {
+	t.Helper()
+	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, fixture.homePaths, &fixture.cfg)
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
+	})
+	workspaceRoot := filepath.Join(fixture.homePaths.HomeDir, "workspace")
+	if err := compozyconfig.EnsureHomeLayout(fixture.homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+	workspace := workspacepkg.ResolvedWorkspace{
+		ID: "ws-agy-entry", RootDir: workspaceRoot, Name: "workspace", Config: fixture.cfg,
+		Agents: []compozyconfig.AgentDef{{Name: "coder", Provider: "agy", Prompt: "You are a coding assistant."}},
+	}
+	driver := session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(daemonInstance.providerPreStarter)))
+	return newHarnessIntegrationManager(t, fixture.homePaths, capturedDeps, workspace, driver), workspace
 }
 
 // TestAgyACPBuiltInEntryMissingCLI proves a standalone-only installation is not

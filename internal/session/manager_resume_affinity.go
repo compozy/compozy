@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	acceptedRouteMissingReason = "accepted_route_missing"
+	acceptedRouteMissingReason  = "accepted_route_missing"
+	unverifiedNativeRouteReason = "native_route_unverified"
 	// agyProviderName scopes the unverified-native-id repair to the Antigravity route.
 	agyProviderName = "agy"
 )
@@ -77,7 +78,7 @@ func (m *Manager) applyResumeRouteAffinity(
 	default:
 		applyResumeRuntimeOptions(spec)
 	}
-	clearResumeNativeRoute(spec)
+	clearResumeNativeRoute(spec, acceptedRouteMissingReason)
 }
 
 // applyUnverifiedNativeRoute keeps a pre-upgrade AGY record without accepted-route metadata on
@@ -93,7 +94,7 @@ func (m *Manager) applyUnverifiedNativeRoute(spec *sessionStartSpec) {
 		"provider", agyProviderName,
 	)
 	applyResumeRuntimeOptions(spec)
-	clearResumeNativeRoute(spec)
+	clearResumeNativeRoute(spec, unverifiedNativeRouteReason)
 }
 
 // applyResumeRuntimeOptions reconstructs ACP options only on the AGY route and only from a
@@ -129,13 +130,13 @@ func resumeSelectionAppliesToProvider(selectedProvider, provider string) bool {
 	return selected == "" || selected == compozyconfig.CanonicalProviderName(provider)
 }
 
-func clearResumeNativeRoute(spec *sessionStartSpec) {
+func clearResumeNativeRoute(spec *sessionStartSpec, reason string) {
 	if strings.TrimSpace(spec.acpSessionID) == "" {
 		return
 	}
 	spec.acpSessionID = ""
 	spec.resumeReplay = true
-	spec.resumeReplayReason = acceptedRouteMissingReason
+	spec.resumeReplayReason = reason
 }
 
 func (m *Manager) fallbackRouteMatchesAcceptedRoute(

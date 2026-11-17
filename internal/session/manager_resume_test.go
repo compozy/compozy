@@ -2826,8 +2826,8 @@ func TestResumeRouteChangeRebuildsEffectiveOptions(t *testing.T) {
 		}
 		assertTranscriptMessage(t, h.manager, created.ID, "keep the legacy transcript")
 		marker := requireTranscriptMarker(t, h.manager, created.ID, transcript.MarkerSessionRecovered)
-		if got := marker.Evidence["fallback_reason"]; got != acceptedRouteMissingReason {
-			t.Fatalf("context rebuilt reason = %v, want %s", got, acceptedRouteMissingReason)
+		if got := marker.Evidence["fallback_reason"]; got != unverifiedNativeRouteReason {
+			t.Fatalf("context rebuilt reason = %v, want %s", got, unverifiedNativeRouteReason)
 		}
 	})
 
