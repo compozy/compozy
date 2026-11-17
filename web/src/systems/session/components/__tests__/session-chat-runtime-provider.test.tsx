@@ -1990,7 +1990,22 @@ describe("SessionChatRuntimeProvider", () => {
     attachmentUploadResponse = async () => {
       uploadCount += 1;
       await uploadGate.promise;
-      return uploadedAttachmentResponse("shot.png", "a");
+      return jsonResponse(
+        {
+          attachment: {
+            bytes: 4,
+            created_at: "2026-08-15T00:00:00Z",
+            height: 10,
+            id: `att_${"a".repeat(64)}`,
+            kind: "image",
+            mime_type: "image/png",
+            name: "shot.png",
+            sha256: "a".repeat(64),
+            width: 16,
+          },
+        },
+        { status: 201 }
+      );
     };
     const user = userEvent.setup();
     renderSessionThread();
@@ -2013,8 +2028,9 @@ describe("SessionChatRuntimeProvider", () => {
       getPathname(input as RequestInfo | URL).endsWith("/prompt")
     );
     const body = JSON.parse(String((promptRequest?.[1] as RequestInit | undefined)?.body)) as {
-      attachments?: { id: string }[];
+      attachments?: { id: string; kind: string }[];
     };
+    expect(body.attachments?.map(attachment => attachment.kind)).toEqual(["image", "image"]);
     expect(body.attachments?.map(attachment => attachment.id)).toEqual([
       `att_${"a".repeat(64)}`,
       `att_${"a".repeat(64)}`,
