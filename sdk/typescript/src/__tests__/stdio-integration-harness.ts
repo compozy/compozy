@@ -221,7 +221,9 @@ export async function withExtensionProcess<T>(
           const diagnostics = { child, label, stderrLines };
           if (stdinError) {
             return Promise.reject(
-              new Error(`stdin write failed ${formatDiagnostics(diagnostics)}: ${stdinError.message}`)
+              new Error(
+                `stdin write failed ${formatDiagnostics(diagnostics)}: ${stdinError.message}`
+              )
             );
           }
           return stdout.next(diagnostics);
