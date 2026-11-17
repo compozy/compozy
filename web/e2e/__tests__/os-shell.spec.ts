@@ -1,11 +1,10 @@
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Browser, Locator, Page, TestInfo } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
@@ -3550,8 +3549,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   if (!extraTasksID) throw new Error("performance fixture must open the second tasks window");
   perfWindowIDs.set("tasks#2", extraTasksID);
 
-  // TEMPORARY DIAGNOSTIC (#1736): records which components performed work in each React commit.
-  await appPage.addInitScript(diagCommitHook);
   await appPage.addInitScript(() => {
     const perf = {
       snapshotResponseEnd: null as number | null,
@@ -3648,7 +3645,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
     await installSwitchProbe(appPage);
-    await appPage.evaluate(() => Reflect.set(window, "__diagRecord", true));
     const start = Date.now();
     while (Date.now() - start < 3000) {
       const target = targets[switchCount % targets.length];
@@ -3657,7 +3653,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     switchProbe = await readSwitchProbe(appPage);
     longTasks = switchProbe.tasks.map(task => task.duration);
-    await captureSwitchCommits(appPage, testInfo, switchProbe);
   } finally {
     await switchInput.detach();
   }
@@ -3698,12 +3693,8 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     }
     const measuredCount = warmCount - 1;
     await Promise.all(peers.map(peer => installPeerConvergenceProbe(peer, measuredCount)));
-    await Promise.all(peers.map(peer => peer.evaluate(() => Reflect.set(window, "__diagRecord", true))));
     await moveWindowFromCLI(runtime, workspace.id, marketplaceID, loopsID, "right");
     const peerProbes = await Promise.all(peers.map(readPeerConvergenceProbe));
-    for (const [index, peer] of peers.entries()) {
-      await captureCommits(peer, testInfo, `peer-${index === 0 ? "A" : "B"}-commits.json`, peerProbes[index]);
-    }
     const peerLongTasks = peerProbes.map(probe => probe.tasks.map(task => task.duration));
     peerAttribution = peerProbes.flatMap((probe, index) =>
       attributePeerLongTasks(probe, index === 0 ? "A" : "B")
@@ -3743,89 +3734,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   expect(worstFrame).toBeLessThanOrEqual(50);
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
-
-/** TEMPORARY DIAGNOSTIC (#1736): page-side React commit recorder, idle until `__diagRecord`. */
-function diagCommitHook() {
-    const commits: unknown[] = [];
-    Reflect.set(window, "__diagCommits", commits);
-    const label = (type: unknown): string => {
-      if (typeof type === "string") return "";
-      if (type === null || type === undefined) return "";
-      const fn =
-        typeof type === "function"
-          ? type
-          : ((type as { render?: unknown; type?: unknown }).render ??
-            (type as { type?: unknown }).type);
-      if (typeof fn !== "function") return "?";
-      const source = Function.prototype.toString.call(fn).slice(0, 60).replace(/\s+/g, " ");
-      return `${fn.name}|${source}`;
-    };
-    Reflect.set(window, "__REACT_DEVTOOLS_GLOBAL_HOOK__", {
-      supportsFiber: true,
-      renderers: new Map(),
-      inject: () => 1,
-      onScheduleFiberRoot: () => {},
-      onCommitFiberUnmount: () => {},
-      onPostCommitFiberRoot: () => {},
-      checkDCE: () => {},
-      onCommitFiberRoot: (_id: unknown, root: { current: unknown }) => {
-        if (Reflect.get(window, "__diagRecord") !== true) return;
-        const started = performance.now();
-        const names: Record<string, number> = {};
-        const changed: Record<string, number> = {};
-        let rendered = 0;
-        type F = {
-          flags: number;
-          subtreeFlags: number;
-          child: F | null;
-          sibling: F | null;
-          type: unknown;
-          tag: number;
-          memoizedProps: Record<string, unknown> | null;
-          alternate: F | null;
-        };
-        const stack: F[] = [root.current as F];
-        while (stack.length > 0) {
-          const fiber = stack.pop()!;
-          if ((fiber.flags & 1) !== 0 && (fiber.tag === 0 || fiber.tag === 11 || fiber.tag === 14 || fiber.tag === 15 || fiber.tag === 1)) {
-            const name = label(fiber.type);
-            if (name !== "") {
-              rendered += 1;
-              names[name] = (names[name] ?? 0) + 1;
-            }
-            const before = fiber.alternate?.memoizedProps;
-            const after = fiber.memoizedProps;
-            if ((fiber.tag === 14 || fiber.tag === 15) && before && after) {
-              for (const key of Object.keys(after)) {
-                if (before[key] !== after[key]) {
-                  const entry = `${name.slice(0, 50)}#${key}`;
-                  changed[entry] = (changed[entry] ?? 0) + 1;
-                }
-              }
-            }
-          }
-          for (let child = fiber.child; child !== null; child = child.sibling) {
-            if (((child.flags | child.subtreeFlags) & 1) !== 0) stack.push(child);
-          }
-        }
-        commits.push({ at: started, walkMs: performance.now() - started, rendered, names, changed });
-      },
-    });
-  }
-
-async function captureSwitchCommits(page: Page, testInfo: TestInfo, probe: SwitchProbeRecords) {
-  await captureCommits(page, testInfo, "switch-commits.json", probe);
-}
-
-async function captureCommits(page: Page, testInfo: TestInfo, file: string, probe: unknown) {
-  const directory = testInfo.outputPath("diagnostic-profiles");
-  await mkdir(directory, { recursive: true });
-  const commits = await page.evaluate(() => {
-    Reflect.set(window, "__diagRecord", false);
-    return Reflect.get(window, "__diagCommits") as unknown;
-  });
-  await writeFile(path.join(directory, file), JSON.stringify({ commits, probe }));
-}
 
 /** A long animation frame over 50ms, with its slowest scripts. */
 interface LongFrameRecord {
@@ -4038,7 +3946,6 @@ async function prepareProjectShell(page: Page, runtime: BrowserRuntime): Promise
 
 async function openPeerPage(browser: Browser, runtime: BrowserRuntime): Promise<Page> {
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-  await context.addInitScript(diagCommitHook);
   const page = await context.newPage();
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(page);
