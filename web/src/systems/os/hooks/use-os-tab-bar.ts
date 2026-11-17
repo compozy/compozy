@@ -108,12 +108,32 @@ export function tabSessionIds(windows: Iterable<Pick<OsWindow, "app" | "instance
   return [...ids];
 }
 
+/** The same sessions under the same ids, each by identity. */
+function sameSessionMap(
+  left: ReadonlyMap<string, SessionPayload>,
+  right: ReadonlyMap<string, SessionPayload>
+): boolean {
+  if (left.size !== right.size) return false;
+  for (const [id, session] of right) if (left.get(id) !== session) return false;
+  return true;
+}
+
 /**
  * Live sessions by id, read only while some tab holds a session window. The list is its first
  * page, so an open session older than it reads its own detail (the read its window shares) once
- * the list has answered or cannot, never while the list is still loading (#1709).
+ * the list has answered or cannot, never while the list is still loading (#1709). The lookup keeps
+ * its identity while it holds the same sessions: every tab takes it, so a new one on each render
+ * would re-render every tab, its menu and its tooltip on a switch that changes two (#1736).
  */
 export function useTabSessions(sessionIds: readonly string[]): ReadonlyMap<string, SessionPayload> {
+  const byId = useSessionsById(sessionIds);
+  const [kept, setKept] = useState(byId);
+  if (sameSessionMap(kept, byId)) return kept;
+  setKept(byId);
+  return byId;
+}
+
+function useSessionsById(sessionIds: readonly string[]): ReadonlyMap<string, SessionPayload> {
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const listEnabled = sessionIds.length > 0 && runtimeWorkspaceId !== null;
   const sessions = useSessions(runtimeWorkspaceId, { enabled: listEnabled });
