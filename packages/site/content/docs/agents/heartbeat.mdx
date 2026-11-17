@@ -16,12 +16,11 @@ liveness, not task ownership, not a scheduler, and not a durable work queue.
   creates, claims, completes, fails, releases, or renews `task_runs`.
 
 <OperatorNote>
-  Four runtime concepts share the word "heartbeat". Keep them separate before
-  writing `HEARTBEAT.md`: task-run lease heartbeat (owned by `task_runs` +
-  `ClaimNextRun`), session activity heartbeat (owned by
-  `[session.supervision]`), session health (metadata-only daemon state), and
-  authored wake policy (`HEARTBEAT.md` + `[agents.heartbeat]`). Authored policy
-  never overrides any of the other three.
+  Four runtime concepts share the word "heartbeat". Keep them separate before writing
+  `HEARTBEAT.md`: task-run lease heartbeat (owned by `task_runs` + `ClaimNextRun`), session activity
+  heartbeat (owned by `[session.supervision]`), session health (metadata-only daemon state), and
+  authored wake policy (`HEARTBEAT.md` + `[agents.heartbeat]`). Authored policy never overrides any
+  of the other three.
 </OperatorNote>
 
 ## Where HEARTBEAT.md lives
