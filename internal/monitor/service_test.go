@@ -3546,6 +3546,45 @@ func wokenTargets(t *testing.T, waker *recordingWaker, want int) []Notification 
 }
 
 func TestServiceSessionMonitorConditions(t *testing.T) {
+	// Invariant: caller-owned slices cannot change captured target ownership after registration.
+	// Owner: monitor service; canonical suite: TestServiceSessionMonitorConditions.
+	t.Run("Should retain immutable target scopes across input and returned snapshots", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			service := newTargetService(
+				t,
+				newFakeTargets(map[string]string{"sess-a": "running"}),
+				&recordingWaker{},
+				nil,
+			)
+			spec := sessionSpec("sess-o", "sess-a")
+			want := TargetScope{SessionID: "sess-a", WorkspaceID: "ws-private", ProfileID: "p-private"}
+			spec.TargetScopes = []TargetScope{want}
+			created, err := service.Create(t.Context(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			spec.TargetScopes[0].WorkspaceID = "mutated-input"
+			created.TargetScopes[0].ProfileID = "mutated-created"
+			listed := onlyMonitor(t, service, "sess-o")
+			if !slices.Equal(listed.TargetScopes, []TargetScope{want}) {
+				t.Fatalf("retained scopes = %+v", listed.TargetScopes)
+			}
+			listed.TargetScopes[0].WorkspaceID = "mutated-list"
+			reused, err := service.Create(t.Context(), sessionSpec("sess-o", "sess-a"))
+			if err != nil || !reused.Reused || !slices.Equal(reused.TargetScopes, []TargetScope{want}) {
+				t.Fatalf("reused scopes = %+v, %v", reused, err)
+			}
+			reused.TargetScopes[0].ProfileID = "mutated-reused"
+			canceled, err := service.Cancel("sess-o", created.ID)
+			if err != nil || !slices.Equal(canceled.TargetScopes, []TargetScope{want}) {
+				t.Fatalf("canceled scopes = %+v, %v", canceled, err)
+			}
+			canceled.TargetScopes[0].WorkspaceID = "mutated-canceled"
+			if got := onlyMonitor(t, service, "sess-o"); !slices.Equal(got.TargetScopes, []TargetScope{want}) {
+				t.Fatalf("retained canceled scopes = %+v", got.TargetScopes)
+			}
+		})
+	})
 	t.Run("Should wake once with every target state after all targets settle", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			targets := newFakeTargets(map[string]string{"sess-a": "running", "sess-b": "running"})

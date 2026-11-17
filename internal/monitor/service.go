@@ -247,7 +247,7 @@ func (s *Service) reuse(spec Spec) (Monitor, bool) {
 	reused := existing.state
 	reused.Reused = true
 	s.logLifecycle("monitor.reused", reused, "registered")
-	return reused, true
+	return reused.observable(), true
 }
 
 func (s *Service) startLocked(item *entry, spec Spec, watch Watch, now time.Time) (Monitor, error) {
@@ -262,7 +262,7 @@ func (s *Service) startLocked(item *entry, spec Spec, watch Watch, now time.Time
 		reused := existing.state
 		reused.Reused = true
 		s.logLifecycle("monitor.reused", reused, "registered")
-		return reused, nil
+		return reused.observable(), nil
 	}
 	if err := s.admitLocked(item); err != nil {
 		return Monitor{}, err
@@ -280,7 +280,7 @@ func (s *Service) startLocked(item *entry, spec Spec, watch Watch, now time.Time
 		defer cancel()
 		s.run(runCtx, item, created, spec, watch)
 	})
-	return created, nil
+	return created.observable(), nil
 }
 
 // List returns the session's monitors, active first, newest first within each group.

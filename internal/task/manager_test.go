@@ -3110,6 +3110,9 @@ func (s *inMemoryManagerStore) GetTaskEventRecord(
 	_ context.Context,
 	eventID string,
 ) (EventRecord, error) {
+	// Lease rollback and heartbeat publication can overlap in the coordinator tests.
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	trimmedEventID := strings.TrimSpace(eventID)
 	sequence, ok := s.eventSequenceByID[trimmedEventID]
 	if !ok {
@@ -7680,6 +7683,74 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 
 func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 	t.Parallel()
+	// Invariant: readable tasks expose only authorized run and dependency relations.
+	// Owner: task service reads; canonical suite: TestManagerTaskResourceAuthorityFencesWorkspaces.
+	t.Run("Should filter denied relations before enriching task lists and child summaries", func(t *testing.T) {
+		t.Parallel()
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		operator := validActorContext()
+		parent, err := manager.CreateTask(t.Context(), CreateTask{
+			ProfileID: storepkg.DefaultProfileID, Scope: ScopeWorkspace, WorkspaceID: "ws-a", Title: "Parent",
+		}, operator)
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := manager.CreateChildTask(t.Context(), parent.ID, CreateTask{
+			ProfileID: storepkg.DefaultProfileID, Scope: ScopeWorkspace, WorkspaceID: "ws-a", Title: "Readable child",
+		}, operator)
+		if err != nil {
+			t.Fatal(err)
+		}
+		foreign, err := manager.CreateTask(t.Context(), CreateTask{
+			ProfileID: storepkg.DefaultProfileID, Scope: ScopeWorkspace, WorkspaceID: "ws-b", Title: "Private blocker",
+		}, operator)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.AddDependency(t.Context(), AddDependency{
+			TaskID: child.ID, DependsOnTaskID: foreign.ID, Kind: DependencyKindBlocks,
+		}, operator); err != nil {
+			t.Fatal(err)
+		}
+		run := Run{ID: "run-private", TaskID: child.ID, WorkspaceID: "ws-b", SessionID: "sess-private",
+			Status: TaskRunStatusRunning, Attempt: 1, QueuedAt: manager.now(), StartedAt: manager.now()}
+		if err := store.CreateTaskRun(t.Context(), run); err != nil {
+			t.Fatal(err)
+		}
+		record := store.tasks[child.ID]
+		record.CurrentRunID = run.ID
+		store.tasks[child.ID] = record
+		agent := agentSessionActorContextForWorkspace("sess-a", "ws-a")
+		rows, err := manager.ListTasks(t.Context(), Query{ParentTaskID: parent.ID}, agent)
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("ListTasks() = %#v, %v", rows, err)
+		}
+		view, err := manager.GetTask(t.Context(), parent.ID, agent)
+		if err != nil || len(view.Children) != 1 {
+			t.Fatalf("GetTask(parent) = %#v, %v", view, err)
+		}
+		for _, test := range []struct {
+			name string
+			item Summary
+		}{
+			{"Should redact the list summary", rows[0]},
+			{"Should redact the child summary", view.Children[0]},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				item := test.item
+				if item.ActiveRun != nil || item.CurrentRunID != "" || len(item.Dependencies) != 0 ||
+					item.DependencyCount != 0 || item.BlockedReasons != nil || item.Status != TaskStatusReady {
+					t.Fatalf("summary exposed denied relations: %#v", item)
+				}
+			})
+		}
+		operatorRows, err := manager.ListTasks(t.Context(), Query{ParentTaskID: parent.ID}, operator)
+		if err != nil || len(operatorRows) != 1 || operatorRows[0].ActiveRun == nil ||
+			len(operatorRows[0].Dependencies) != 1 || operatorRows[0].Status != TaskStatusInProgress {
+			t.Fatalf("authorized ListTasks() = %#v, %v", operatorRows, err)
+		}
+	})
 
 	t.Run("Should expose own-workspace tasks without leaking User or foreign tasks", func(t *testing.T) {
 		t.Parallel()

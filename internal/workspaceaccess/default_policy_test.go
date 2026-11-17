@@ -782,17 +782,23 @@ func TestPermissionModeReach(t *testing.T) {
 		req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
 		req.ReadOnly = true
 		for _, tc := range []struct {
+			name    string
 			mode    Mode
 			grant   string
 			allowed bool
 		}{
-			{ModeApproveAll, "", true}, {ModeDenyAll, "", false}, {ModeDenyAll, Unrestricted, true}, {ModeDenyAll, "", false},
+			{"Should allow approve-all", ModeApproveAll, "", true},
+			{"Should deny after a mode downgrade", ModeDenyAll, "", false},
+			{"Should allow an unrestricted grant", ModeDenyAll, Unrestricted, true},
+			{"Should deny after grant revocation", ModeDenyAll, "", false},
 		} {
-			facts.Mode, facts.WorkspaceAccess = tc.mode, tc.grant
-			got, err := policy.Authorize(t.Context(), req)
-			if err != nil || got.Allowed != tc.allowed {
-				t.Fatalf("Authorize(%s, %q) = %#v, %v", tc.mode, tc.grant, got, err)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				facts.Mode, facts.WorkspaceAccess = tc.mode, tc.grant
+				got, err := policy.Authorize(t.Context(), req)
+				if err != nil || got.Allowed != tc.allowed {
+					t.Fatalf("Authorize(%s, %q) = %#v, %v", tc.mode, tc.grant, got, err)
+				}
+			})
 		}
 	})
 	otherProfile := ScopeTarget(testWorkspaceB, "p2")

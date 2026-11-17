@@ -1536,7 +1536,7 @@ UPDATE sessions SET created_at='2026-11-01T00:00:00.500Z' WHERE id='same-second'
 				t.Fatal(err)
 			}
 			status, err := store.Status(ctx, db, stream)
-			if err != nil || status.Version != 204 {
+			if err != nil || status.Version != 205 {
 				t.Fatalf("upgraded status=%+v err=%v", status, err)
 			}
 			before := map[string]string{}

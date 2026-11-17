@@ -27,11 +27,10 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 
-	children, err := m.listTaskSummaries(ctx, Query{ReadScope: actor.ReadScope, ParentTaskID: trimmedID})
+	children, err := m.listTaskSummaries(ctx, Query{ReadScope: actor.ReadScope, ParentTaskID: trimmedID}, actor)
 	if err != nil {
 		return nil, err
 	}
-	children = m.filterAuthorizedTaskSummaries(ctx, actor, children)
 	dependencies, err := m.store.ListDependencies(ctx, trimmedID)
 	if err != nil {
 		return nil, err
@@ -301,31 +300,19 @@ func (m *Service) ListTasks(
 	if actor.ReadScope != (store.ReadScope{}) {
 		query.ReadScope = actor.ReadScope
 	}
-	summaries, err := m.listTaskSummaries(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	if canBypassTaskReadAuthorization(actor) {
-		return summaries, nil
-	}
-	visible := make([]Summary, 0, len(summaries))
-	for idx := range summaries {
-		if err := m.authorizeTaskResource(ctx, actor, taskRecordFromSummary(&summaries[idx])); err == nil {
-			visible = append(visible, summaries[idx])
-		}
-	}
-	return visible, nil
+	return m.listTaskSummaries(ctx, query, actor)
 }
 
-func (m *Service) listTaskSummaries(ctx context.Context, query Query) ([]Summary, error) {
+func (m *Service) listTaskSummaries(ctx context.Context, query Query, actor ActorContext) ([]Summary, error) {
 	summaries, err := m.store.ListTasks(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
+	summaries = m.filterAuthorizedTaskSummaries(ctx, actor, summaries)
 	enriched := make([]Summary, 0, len(summaries))
 	for idx := range summaries {
-		item, err := m.enrichTaskSummary(ctx, &summaries[idx])
+		item, err := m.enrichTaskSummary(ctx, &summaries[idx], actor)
 		if err != nil {
 			return nil, err
 		}
@@ -334,7 +321,7 @@ func (m *Service) listTaskSummaries(ctx context.Context, query Query) ([]Summary
 	return enriched, nil
 }
 
-func (m *Service) enrichTaskSummary(ctx context.Context, summary *Summary) (Summary, error) {
+func (m *Service) enrichTaskSummary(ctx context.Context, summary *Summary, actor ActorContext) (Summary, error) {
 	childCount, err := m.store.CountDirectChildren(ctx, summary.ID)
 	if err != nil {
 		return Summary{}, err
@@ -343,7 +330,16 @@ func (m *Service) enrichTaskSummary(ctx context.Context, summary *Summary) (Summ
 	if err != nil {
 		return Summary{}, err
 	}
+	dependencies, err = m.filterAuthorizedDependencies(ctx, actor, dependencies)
+	if err != nil {
+		return Summary{}, err
+	}
 	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: summary.ID})
+	if err != nil {
+		return Summary{}, err
+	}
+	record := taskRecordFromSummary(summary)
+	runs, err = m.filterAuthorizedRuns(ctx, actor, record, runs)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -351,9 +347,16 @@ func (m *Service) enrichTaskSummary(ctx context.Context, summary *Summary) (Summ
 	if err != nil {
 		return Summary{}, err
 	}
+	events, err = m.filterAuthorizedEvents(ctx, actor, record, events)
+	if err != nil {
+		return Summary{}, err
+	}
+	if !containsRunID(runs, record.CurrentRunID) {
+		record.CurrentRunID = ""
+	}
 	return m.enrichTaskSummaryFromState(
 		ctx,
-		taskRecordFromSummary(summary),
+		record,
 		childCount,
 		dependencies,
 		runs,

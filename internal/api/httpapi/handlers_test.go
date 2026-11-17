@@ -4307,19 +4307,28 @@ func TestSessionMonitorHandlers(t *testing.T) {
 		engine := newTestRouter(t, handlers)
 		base := "/api/workspaces/ws-workspace/sessions/sess-owner/monitors"
 		headers := map[string]string{agentidentity.HeaderSessionID: "sess-viewer", agentidentity.HeaderAgent: "coder"}
-		for _, allow := range []bool{false, true} {
-			allowed = allow
-			for _, method := range []string{http.MethodGet, http.MethodPost} {
+		for _, test := range []struct {
+			name   string
+			allow  bool
+			method string
+		}{
+			{"Should redact denied targets when listing", false, http.MethodGet},
+			{"Should redact denied targets when canceling", false, http.MethodPost},
+			{"Should retain allowed targets when listing", true, http.MethodGet},
+			{"Should retain allowed targets when canceling", true, http.MethodPost},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				allowed = test.allow
 				path := base
-				if method == http.MethodPost {
+				if test.method == http.MethodPost {
 					path += "/mon-retained/cancel"
 				}
-				response := performRequestWithHeaders(t, engine, method, path, nil, headers)
+				response := performRequestWithHeaders(t, engine, test.method, path, nil, headers)
 				if response.Code != http.StatusOK {
-					t.Fatalf("%s status=%d body=%s", method, response.Code, response.Body.String())
+					t.Fatalf("%s status=%d body=%s", test.method, response.Code, response.Body.String())
 				}
 				body := response.Body.String()
-				if allow {
+				if test.allow {
 					if !strings.Contains(body, "foreign work") || !strings.Contains(body, `"state":"stopped"`) {
 						t.Fatalf("authorized target missing: %s", body)
 					}
@@ -4331,7 +4340,7 @@ func TestSessionMonitorHandlers(t *testing.T) {
 					) || !strings.Contains(body, `"state":"unknown"`) {
 					t.Fatalf("retained target escaped revocation: %s", body)
 				}
-			}
+			})
 		}
 		allowed = false
 		operator := performRequest(t, engine, http.MethodGet, base, nil)

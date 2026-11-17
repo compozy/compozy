@@ -18270,17 +18270,19 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 			{toolspkg.ToolIDAgentMemoryRemove, `{"match":"note"}`},
 			{toolspkg.ToolIDAgentMemorySearch, `{"query":"note"}`},
 		} {
-			_, err := registry.Call(
-				t.Context(),
-				scope,
-				toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
-			)
-			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
-			detail, ok := errors.AsType[*toolspkg.ToolError](err)
-			if !ok || !strings.Contains(detail.PublicMessage, "owning always-on-agent main session") ||
-				strings.Contains(detail.PublicMessage, "approve-all") {
-				t.Fatalf("memory refusal = %v", err)
-			}
+			t.Run("Should deny "+string(item.id)+" outside the owning main session", func(t *testing.T) {
+				_, err := registry.Call(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
+				)
+				requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+				detail, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || !strings.Contains(detail.PublicMessage, "owning always-on-agent main session") ||
+					strings.Contains(detail.PublicMessage, "approve-all") {
+					t.Fatalf("memory refusal = %v", err)
+				}
+			})
 		}
 		caller.caller.InstanceID = "instance-memory"
 		if _, err := registry.Call(

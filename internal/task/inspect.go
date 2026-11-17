@@ -50,7 +50,7 @@ func (m *Service) InspectRun(ctx context.Context, runID string, actor ActorConte
 	if err != nil {
 		return nil, err
 	}
-	if err := m.authorizeTaskResource(ctx, actor, taskRecord); err != nil {
+	if err := m.authorizeRunResource(ctx, actor, run, taskRecord); err != nil {
 		return nil, err
 	}
 	return m.inspectTaskRecord(ctx, taskRecord, InspectTargetRun, run.ID)

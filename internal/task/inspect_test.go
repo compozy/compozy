@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -64,6 +65,31 @@ func (r inspectReaderForTest) GetSchedulerPauseState(context.Context) (InspectSc
 
 func TestInspectTaskDiagnostics(t *testing.T) {
 	t.Parallel()
+	// Invariant: inspecting a run requires access to its execution workspace as well as its task.
+	// Owner: task service reads; canonical suite: TestInspectTaskDiagnostics.
+	for _, workspaceID := range []string{"", "ws-inspect", "ws-private"} {
+		t.Run("Should enforce run inspection authority for workspace "+workspaceID, func(t *testing.T) {
+			t.Parallel()
+			manager, _ := newInspectManagerForTest(t, inspectReaderForTest{})
+			store := manager.store.(*inMemoryManagerStore)
+			seedInspectTaskRun(t, store, inspectSeed{
+				TaskID: "task-inspect", RunID: "run-inspect", Status: TaskRunStatusRunning,
+				SessionID: "sess-private", ClaimTokenHash: "sha256:abcdef1234567890",
+			})
+			run := store.runs["run-inspect"]
+			run.WorkspaceID = workspaceID
+			store.runs[run.ID] = run
+			view, err := manager.InspectRun(t.Context(), run.ID,
+				agentSessionActorContextForWorkspace("sess-inspect", "ws-inspect"))
+			if workspaceID == "ws-private" {
+				if !errors.Is(err, ErrPermissionDenied) || view != nil {
+					t.Fatalf("InspectRun(denied workspace) = %#v, %v", view, err)
+				}
+			} else if err != nil || view.CurrentRun == nil || view.CurrentRun.RunID != run.ID {
+				t.Fatalf("InspectRun(authorized workspace) = %#v, %v", view, err)
+			}
+		})
+	}
 
 	t.Run("Should emit stuck diagnostic for stale claimed heartbeat", func(t *testing.T) {
 		t.Parallel()

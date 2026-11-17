@@ -208,17 +208,19 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		scope.ProfileID = "p-x"
 		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDSessionProcessesList, toolspkg.ToolIDSessionProcessesTerminate} {
 			for _, target := range []string{"sess-own", "sess-sibling", "sess-peer"} {
-				_, _, err := n.nativeOrchestrationTarget(t.Context(), scope, id, target, false)
-				if target == "sess-own" {
-					if err != nil {
-						t.Fatal(err)
+				t.Run("Should enforce local process scope for "+string(id)+" targeting "+target, func(t *testing.T) {
+					_, _, err := n.nativeOrchestrationTarget(t.Context(), scope, id, target, false)
+					if target == "sess-own" {
+						if err != nil {
+							t.Fatal(err)
+						}
+						return
 					}
-					continue
-				}
-				if err == nil || !strings.Contains(err.Error(), "workspace") ||
-					strings.Contains(err.Error(), "approve-all") {
-					t.Fatalf("local process target %s: %v", target, err)
-				}
+					if err == nil || !strings.Contains(err.Error(), "workspace") ||
+						strings.Contains(err.Error(), "approve-all") {
+						t.Fatalf("local process target %s: %v", target, err)
+					}
+				})
 			}
 		}
 	})
@@ -274,12 +276,14 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 			{toolspkg.ToolIDSessionClarifyAnswer, `,"request_id":"question","choice":1`},
 			{toolspkg.ToolIDSessionPromptCancel, ""}, {toolspkg.ToolIDSessionCompact, ""},
 		} {
-			before := called
-			result, err := registry.Call(t.Context(), actorScope, toolspkg.CallRequest{ToolID: call.id,
-				Input: json.RawMessage(`{"session_id":"sess-sibling"` + call.extra + `}`)})
-			if err != nil || called != before+1 || len(result.Structured) == 0 {
-				t.Fatalf("Call(%s) = %s, %v; handler calls = %d", call.id, result.Structured, err, called-before)
-			}
+			t.Run("Should dispatch "+string(call.id)+" to its authorized owner", func(t *testing.T) {
+				before := called
+				result, err := registry.Call(t.Context(), actorScope, toolspkg.CallRequest{ToolID: call.id,
+					Input: json.RawMessage(`{"session_id":"sess-sibling"` + call.extra + `}`)})
+				if err != nil || called != before+1 || len(result.Structured) == 0 {
+					t.Fatalf("Call(%s) = %s, %v; handler calls = %d", call.id, result.Structured, err, called-before)
+				}
+			})
 		}
 	})
 	t.Run("Should authorize global reads while retaining grants for global definition writes", func(t *testing.T) {
@@ -287,34 +291,36 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		sessions := sessionsFor(workspaceaccess.ModeApproveAll)
 		binder := newNativeWorkspaceInputBinder(nativeTestWorkspaceService(t), sessions, newPolicy(t, sessions), nil)
 		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDTaskList, toolspkg.ToolIDAgentCreate, toolspkg.ToolIDExtensionsInstall} {
-			var descriptor toolspkg.Descriptor
-			for _, item := range builtintools.NativeDescriptors() {
-				if item.ID == id {
-					descriptor = item
-					break
+			t.Run("Should authorize the global scope for "+string(id), func(t *testing.T) {
+				var descriptor toolspkg.Descriptor
+				for _, item := range builtintools.NativeDescriptors() {
+					if item.ID == id {
+						descriptor = item
+						break
+					}
 				}
-			}
-			input, err := binder.BindCallInput(
-				t.Context(),
-				actorScope,
-				descriptor,
-				json.RawMessage(`{"scope":"global"}`),
-			)
-			if descriptor.ReadOnly {
-				if err == nil {
-					err = binder.AuthorizeCallInput(
-						t.Context(),
-						actorScope,
-						descriptor,
-						toolspkg.CallRequest{ToolID: id, Input: input},
-					)
+				input, err := binder.BindCallInput(
+					t.Context(),
+					actorScope,
+					descriptor,
+					json.RawMessage(`{"scope":"global"}`),
+				)
+				if descriptor.ReadOnly {
+					if err == nil {
+						err = binder.AuthorizeCallInput(
+							t.Context(),
+							actorScope,
+							descriptor,
+							toolspkg.CallRequest{ToolID: id, Input: input},
+						)
+					}
+					if err != nil {
+						t.Fatalf("global read %s: %v", id, err)
+					}
+				} else if err == nil || !strings.Contains(err.Error(), "workspace_access: unrestricted") {
+					t.Fatalf("global write %s: %v", id, err)
 				}
-				if err != nil {
-					t.Fatalf("global read %s: %v", id, err)
-				}
-			} else if err == nil || !strings.Contains(err.Error(), "workspace_access: unrestricted") {
-				t.Fatalf("global write %s: %v", id, err)
-			}
+			})
 		}
 	})
 	t.Run("Should register foreign session monitors and redact retained results after revocation", func(t *testing.T) {
@@ -385,7 +391,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 	t.Run("Should retain Always allow monitor grants and keep Allow once call scoped", func(t *testing.T) {
 		t.Parallel()
 		for _, choice := range []acpsdk.PermissionOptionId{workspaceAccessAllowAlwaysID, workspaceAccessAllowOnceID} {
-			t.Run(string(choice), func(t *testing.T) {
+			t.Run("Should apply "+string(choice)+" monitor consent", func(t *testing.T) {
 				t.Parallel()
 				sessions := sessionsFor(workspaceaccess.ModeAuto)
 				policy := newPolicy(t, sessions)
@@ -539,26 +545,28 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 			Sessions: sessions, Tasks: tasks, Workspaces: nativeTestWorkspaceService(t),
 		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
 		for _, requested := range []string{"global", "all"} {
-			result, err := registry.Call(t.Context(), actorScope, toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDTaskList,
-				Input:  json.RawMessage(`{"scope":"` + requested + `","include_drafts":true}`),
+			t.Run("Should preserve task catalog scope "+requested, func(t *testing.T) {
+				result, err := registry.Call(t.Context(), actorScope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTaskList,
+					Input:  json.RawMessage(`{"scope":"` + requested + `","include_drafts":true}`),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload contract.TasksResponse
+				if err := json.Unmarshal(result.Structured, &payload); err != nil {
+					t.Fatal(err)
+				}
+				want := 1
+				if requested == "all" {
+					want = 2
+					requireNativeStructuredContains(t, result, []byte(project.ID))
+				}
+				if len(payload.Tasks) != want || payload.Page.Total != want {
+					t.Fatalf("task catalog %s = %#v", requested, payload)
+				}
+				requireNativeStructuredContains(t, result, []byte(global.ID))
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var payload contract.TasksResponse
-			if err := json.Unmarshal(result.Structured, &payload); err != nil {
-				t.Fatal(err)
-			}
-			want := 1
-			if requested == "all" {
-				want = 2
-				requireNativeStructuredContains(t, result, []byte(project.ID))
-			}
-			if len(payload.Tasks) != want || payload.Page.Total != want {
-				t.Fatalf("task catalog %s = %#v", requested, payload)
-			}
-			requireNativeStructuredContains(t, result, []byte(global.ID))
 		}
 	})
 	authorize := func(

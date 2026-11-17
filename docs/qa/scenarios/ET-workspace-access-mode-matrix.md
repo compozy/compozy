@@ -93,3 +93,17 @@ and target-scope round trip; `TestServiceSessionMonitorsAcrossRestart` owns reco
 QA result for the review follow-up: prompt grants/revocation, deleted-target full/compact wakes,
 restart ownership, SQLite scope backfill and reopen passed in those owning suites. The isolated
 real-session journey and authenticated HTTP monitor suite passed again after the repair.
+
+Additional review coverage for #1779: list a readable task whose active run and blocking
+dependency belong to a denied workspace. Its list and child summaries must omit the run,
+current-run ID, dependency reference/count and dependency blocked reasons; their derived status
+must use readable relations. Inspecting the denied run directly must refuse access before
+returning diagnostics. Operator reads retain the complete relations. Monitor registration
+also owns its captured target scopes: mutating input, create, list, reused or cancel snapshots
+must not alter later authorization ownership.
+
+QA result for additional review coverage: task relation and run inspection regressions failed
+before their fixes and passed afterward. Monitor scope mutation likewise failed before copying
+and passed across create/list/reuse/cancel snapshots afterward. Existing real SQLite task
+summary and monitor persistence suites passed; the permission-intent migration suite retained
+its authority/idempotency checks through schema 205. Race validation remains assigned to CI.

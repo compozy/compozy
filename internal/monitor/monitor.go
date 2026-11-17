@@ -10,6 +10,7 @@ package monitor
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -199,6 +200,7 @@ type Outcome struct {
 }
 
 func normalizeSpec(spec Spec) (Spec, error) {
+	spec.TargetScopes = slices.Clone(spec.TargetScopes)
 	spec.WorkspaceID = strings.TrimSpace(spec.WorkspaceID)
 	spec.ProfileID = strings.TrimSpace(spec.ProfileID)
 	spec.SessionID = strings.TrimSpace(spec.SessionID)
@@ -301,8 +303,9 @@ func invalid(message string) error {
 // InvalidSpec reports a refused monitor request whose static message guides the caller to correct it.
 func InvalidSpec(message string) error { return invalid(message) }
 
-// observable hides the legacy cancellation timestamp retained for durable history pruning.
+// observable snapshots private ownership and hides the legacy cancellation timestamp.
 func (m Monitor) observable() Monitor {
+	m.TargetScopes = slices.Clone(m.TargetScopes)
 	if m.Status == StatusCanceled {
 		m.FiredAt = time.Time{}
 	}
