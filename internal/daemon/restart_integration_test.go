@@ -54,6 +54,7 @@ type restartLabProcess struct {
 // Invariant: real daemon replacement preserves three in-flight conversations, resumes each once,
 // reaps their old processes, and never continues explicit stops. Fresh HTTP/UDS reads retain the
 // transcript and never project failed. Owner: composition-root restart suite.
+// Idle worker monitors also survive replacement with their required idle parent, without replay.
 func TestDaemonRestartContinuesSessions(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("subprocess signal scenario requires Unix")
@@ -65,7 +66,7 @@ func TestDaemonRestartContinuesSessions(t *testing.T) {
 			restartLabFixture(t, root)
 			first, original := startRestartLabDaemon(t, root, driver, mode, "first")
 			t.Logf("before interruption: %+v", original)
-			if len(original) != 3 {
+			if len(original) != 5 {
 				t.Fatalf("initial sessions = %#v", original)
 			}
 			if mode == "crash" {
@@ -86,6 +87,14 @@ func TestDaemonRestartContinuesSessions(t *testing.T) {
 					want := original[i]
 					if got.ID != want.ID || got.ACPID != want.ACPID || !got.Partial {
 						t.Fatalf("lost conversation: original=%#v restored=%#v", want, got)
+					}
+					if i >= 3 {
+						wantLive := phase == "second" && mode != "stop"
+						if got.Continuations != 0 || got.Finished || (got.State == "active") != wantLive ||
+							(i == 4 && got.MonitorActive != wantLive) {
+							t.Fatalf("idle monitor lineage lost or replayed: %#v", got)
+						}
+						continue
 					}
 					if mode == "stop" {
 						if got.Continuations != 0 || got.Finished || got.StopReason != string(store.StopUserCanceled) {
@@ -131,6 +140,8 @@ func restartLabFixture(t *testing.T, root string) {
 	fixture := acpmock.Fixture{Version: acpmock.FixtureVersion, Agents: []acpmock.AgentFixture{{
 		Name: "restart-lab", Provider: acpmock.ProviderName, Permissions: "approve-all",
 		Turns: []acpmock.TurnFixture{
+			{Name: "idle", Match: acpmock.TurnMatch{UserText: "idle restart lab work"},
+				Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "Partial work preserved."}}},
 			{Name: "in-flight", Match: acpmock.TurnMatch{UserText: "restart lab work"}, Steps: []acpmock.Step{
 				{Kind: acpmock.StepKindAssistant, Text: "Partial work preserved."},
 				{Kind: acpmock.StepKindDriverControl, DriverControl: &acpmock.DriverControlStep{
@@ -300,12 +311,16 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 	if phase == "first" {
 		workspace := resolveDaemonWorkspace(t, d.workspaceResolver, filepath.Join(root, "project"))
 		var ids []string
-		for i := range 3 {
+		for i := range 5 {
 			var active *session.Session
-			if i == 2 {
+			if i == 2 || i == 4 {
+				parentIndex := 0
+				if i == 4 {
+					parentIndex = 3
+				}
 				active, err = d.sessions.(nativeSessionSpawner).Spawn(t.Context(), &session.SpawnOpts{
-					ParentSessionID: ids[0], AgentName: "restart-lab", TTL: time.Hour,
-					AutoStopOnParent: true, NotifyCreator: true,
+					ParentSessionID: ids[parentIndex], AgentName: "restart-lab", TTL: time.Hour,
+					AutoStopOnParent: true, NotifyCreator: i == 2,
 				})
 			} else {
 				active, err = d.sessions.Create(t.Context(), new(session.CreateOpts{
@@ -317,7 +332,11 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 				t.Fatal(err)
 			}
 			ids = append(ids, active.ID)
-			stream, err := d.sessions.Prompt(t.Context(), active.ID, "restart lab work")
+			message := "restart lab work"
+			if i >= 3 {
+				message = "idle restart lab work"
+			}
+			stream, err := d.sessions.Prompt(t.Context(), active.ID, message)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -325,13 +344,15 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 				for range stream {
 				}
 			}()
-			if i == 2 {
+			if i == 2 || i == 4 {
 				if _, err := d.sessionMonitors.Create(t.Context(), monitorpkg.Spec{
 					SessionID: active.ID, ProfileID: active.ProfileID, WorkspaceID: workspace.ID,
 					Kind: monitorpkg.KindTimer, Delay: time.Hour, Description: "Inspect worker progress",
 				}); err != nil {
 					t.Fatal(err)
 				}
+			}
+			if i == 2 {
 				if _, err := d.sessions.SendPrompt(t.Context(), active.ID, session.SendPromptOpts{
 					Message: "queued follow-up", Mode: session.BusyInputModeQueue,
 					MessageID: "worker-follow-up", IdempotencyKey: "worker-follow-up",
@@ -393,7 +414,7 @@ func awaitRestartLabReport(t *testing.T, d *Daemon, phase string) []restartLabSe
 	for {
 		var report []restartLabSession
 		ready := true
-		for _, id := range ids {
+		for index, id := range ids {
 			info, err := d.sessions.Status(t.Context(), id)
 			if err != nil {
 				t.Fatal(err)
@@ -434,8 +455,8 @@ func awaitRestartLabReport(t *testing.T, d *Daemon, phase string) []restartLabSe
 				}
 			}
 			prompting := d.sessions.(sessionPromptStateReader).IsPrompting(id)
-			if !item.Partial ||
-				(phase != "first" && info.State == session.StateActive && (!item.Finished || prompting)) {
+			if !item.Partial || (index >= 3 && prompting) ||
+				(index < 3 && phase != "first" && info.State == session.StateActive && (!item.Finished || prompting)) {
 				ready = false
 			}
 			report = append(report, item)

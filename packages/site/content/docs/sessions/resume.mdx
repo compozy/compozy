@@ -47,8 +47,9 @@ notices, and an unreadable child receipt is logged without blocking the other se
 An always-on instance's idle main also reopens its saved binding after restart, even with no
 queued input. Its completed turn is not replayed. A refused recovery records its cause in the
 daemon log and, when a saved binding is available, the session's restart history. Worker recovery
-reopens an ordinary idle parent only when an interrupted auto-stop worker or an undelivered
-shutdown notice needs it. Recovered monitors and reply watches retain their own wake rules.
+reopens an ordinary idle parent only when an interrupted auto-stop worker, a recovered worker
+monitor or an undelivered shutdown notice needs it. The parent and worker still pass the saved
+binding and restart eligibility checks. Reply watches retain their own wake rules.
 
 During boot recovery, new prompts receive HTTP `503` with code `daemon_starting` and
 `retryable: true`. Retry with the same message identity after the daemon is ready. Continue/fork

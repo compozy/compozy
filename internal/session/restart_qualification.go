@@ -57,13 +57,13 @@ func (m *Manager) restartSkipReason(
 	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID); err != nil {
 		return "archived", nil
 	}
-	if reason, err := m.restartSpawnSkipReason(ctx, meta); err != nil || reason != "" {
-		return reason, err
-	}
 	if reason, err := m.restartRuntimeSkipReason(ctx, meta, checkpoint, &workspace); err != nil || reason != "" {
 		return reason, err
 	}
-	return m.restartLimitReason(ctx, meta, cfg)
+	if reason, err := m.restartLimitReason(ctx, meta, cfg); err != nil || reason != "" {
+		return reason, err
+	}
+	return m.restartSpawnSkipReason(ctx, meta)
 }
 
 func (m *Manager) restartSpawnSkipReason(ctx context.Context, meta *store.SessionMeta) (string, error) {
@@ -83,10 +83,7 @@ func (m *Manager) restartSpawnSkipReason(ctx context.Context, meta *store.Sessio
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
 		return "", err
 	}
-	if lineage.AutoStopOnParent && (parent == nil ||
-		(parent.State != StateActive && parent.State != StateStarting)) {
-		return "parent_stopped", nil
-	}
+	parentStopped := parent == nil || (parent.State != StateActive && parent.State != StateStarting)
 	var governance spawnGovernance
 	if parent == nil {
 		// Independent workers retain their accepted bounds even after the parent is removed.
@@ -107,6 +104,11 @@ func (m *Manager) restartSpawnSkipReason(ctx context.Context, meta *store.Sessio
 			return "spawn_budget", nil
 		}
 		return "", err
+	}
+	// Report a stopped parent only after every other check, so monitor recovery can safely
+	// reopen a required shutdown-stopped parent without reviving one for an ineligible child.
+	if lineage.AutoStopOnParent && parentStopped {
+		return "parent_stopped", nil
 	}
 	return "", nil
 }

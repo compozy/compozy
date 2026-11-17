@@ -77,12 +77,17 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 	if !restartResumeOwns(normalizeSessionType(Type(meta.SessionType)), meta.Lineage) {
 		return &MonitorOwnerIneligibleError{Reason: "session_type"}
 	}
-	if normalizeSessionType(Type(meta.SessionType)) == SessionTypeSpawned {
-		m.spawnMu.Lock()
-		defer m.spawnMu.Unlock()
-	}
 	if sessionMetaStopReason(&meta) != store.StopShutdown {
 		return ErrMonitorOwnerStopped
+	}
+	if normalizeSessionType(Type(meta.SessionType)) == SessionTypeSpawned {
+		// A recovered monitor is pending work even when neither owner nor parent had an
+		// interrupted turn. Resume the required parent before taking the shared spawn lock.
+		if err := m.resumeMonitorOwnerParent(ctx, &meta, checkpoint); err != nil {
+			return err
+		}
+		m.spawnMu.Lock()
+		defer m.spawnMu.Unlock()
 	}
 	reason, err := m.restartSkipReason(ctx, &meta, checkpoint)
 	if err != nil {
@@ -105,6 +110,35 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 	m.restartInputsHeld.Delete(id)
 	m.dispatchResumedInputs(ctx, id)
 	return nil
+}
+
+func (m *Manager) resumeMonitorOwnerParent(
+	ctx context.Context, meta *store.SessionMeta, checkpoint store.SessionRestartCheckpoint,
+) error {
+	if meta.Lineage == nil || !meta.Lineage.AutoStopOnParent {
+		return nil
+	}
+	parent, err := m.Status(ctx, meta.Lineage.ParentSessionID)
+	if errors.Is(err, ErrSessionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if parent.State != StateStopped || parent.StopReason != store.StopShutdown {
+		return nil
+	}
+	reason, err := m.restartSkipReason(ctx, meta, checkpoint)
+	if err != nil {
+		return err
+	}
+	if reason != "parent_stopped" {
+		if reason != "" {
+			return &MonitorOwnerIneligibleError{Reason: reason}
+		}
+		return nil
+	}
+	return m.resumeRestartWaitingSession(ctx, parent.ID)
 }
 
 func monitorOwnerBindingMatches(active *Session, checkpoint store.SessionRestartCheckpoint) error {

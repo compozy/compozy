@@ -112,8 +112,10 @@ An idle always-on instance main also reopens its saved binding after restart wit
 its completed turn or requiring queued input. Recovery refusals include their cause in the daemon
 log and, when a saved binding exists, a `session.restart_skipped` event. An ordinary idle session
 with no interrupted turn logs `no_pending_interruption`. Worker recovery reopens its saved binding
-only for an interrupted auto-stop worker or an undelivered child shutdown notice; an idle worker
-alone does not reopen its parent. Recovered monitors and reply watches retain their own wake rules.
+only for an interrupted auto-stop worker, a recovered worker monitor or an undelivered child
+shutdown notice; an idle worker alone does not reopen its parent. Monitor recovery checks both
+saved bindings and restart eligibility before reopening a shutdown-stopped parent. Reply watches
+retain their own wake rules.
 
 If ACP disconnects during a prompt, CompozyOS keeps every persisted event and automatically tries to
 replace the runtime three times with 1, 2, and 4 second delays. Session status reports

@@ -757,11 +757,17 @@ func TestResumeMonitorOwner(t *testing.T) {
 		spawned      bool
 		expired      bool
 		parentStop   bool
+		idleParent   bool
 		wantResume   bool
 		wantErr      string
 	}{
 		{name: "Should readmit an idle owner interrupted by a restart", cause: CauseShutdown, wantResume: true},
 		{name: "Should readmit a spawned monitor owner after restart", cause: CauseShutdown, spawned: true, wantResume: true},
+		{name: "Should reopen an idle shutdown parent for its worker monitor", cause: CauseShutdown, spawned: true, idleParent: true, wantResume: true},
+		{name: "Should leave an idle parent stopped for an expired monitor owner", cause: CauseShutdown, spawned: true, idleParent: true, expired: true, wantErr: "expired"},
+		{name: "Should leave an idle parent stopped for a changed monitor policy", cause: CauseShutdown, spawned: true, idleParent: true, changed: "policy", wantErr: "permissions_changed"},
+		{name: "Should leave an idle parent stopped for a changed monitor route", cause: CauseShutdown, spawned: true, idleParent: true, changed: "route", wantErr: "route_changed"},
+		{name: "Should leave an idle parent stopped for an explicitly stopped monitor owner", cause: CauseUserRequested, spawned: true, idleParent: true, wantErr: ErrMonitorOwnerStopped.Error()},
 		{name: "Should keep an explicitly stopped spawned monitor owner stopped", cause: CauseUserRequested, spawned: true, wantErr: ErrMonitorOwnerStopped.Error()},
 		{name: "Should refuse an expired spawned monitor owner", cause: CauseShutdown, spawned: true, expired: true, wantErr: "expired"},
 		{name: "Should refuse a spawned monitor owner whose parent stopped", cause: CauseShutdown, spawned: true, parentStop: true, wantErr: "parent_stopped"},
@@ -793,6 +799,13 @@ func TestResumeMonitorOwner(t *testing.T) {
 			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
 			if tc.spawned {
 				parent := target
+				if tc.idleParent {
+					stream, err := h.manager.Prompt(t.Context(), parent.ID, "wait for worker progress")
+					if err != nil {
+						t.Fatal(err)
+					}
+					collectEvents(t, stream)
+				}
 				target, err = h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
 					AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true})
 				if err != nil {
@@ -831,6 +844,20 @@ func TestResumeMonitorOwner(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			if tc.idleParent {
+				if err := h.manager.StopWithCause(t.Context(), target.Info().Lineage.ParentSessionID,
+					CauseShutdown, "daemon restart"); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.Shutdown(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				h.manager = newManagerWithHarness(t, h,
+					WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
+				if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if tc.disabled || tc.changed != "" {
 				h.resolver.mu.Lock()
 				for key, workspace := range h.resolver.byRef {
@@ -866,6 +893,9 @@ func TestResumeMonitorOwner(t *testing.T) {
 				}
 				wantStarts := 2
 				if tc.spawned {
+					wantStarts++
+				}
+				if tc.idleParent {
 					wantStarts++
 				}
 				if len(h.driver.startCalls) != wantStarts {

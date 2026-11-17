@@ -34,13 +34,15 @@ overlaps: RT-daemon-drain-admission; RT-subagent-restart
    A turn that finishes during the grace period also receives no continuation.
 8. Repeat with a `session_spawn` worker and its parent, with a monitor owned by the worker.
    The interrupted worker continues once after its parent, and its monitor remains recoverable.
+   Repeat with both worker and parent idle and only the worker owning a monitor: the monitor
+   reopens their eligible saved bindings without replaying either completed turn.
    Controls with an expired TTL, an archived or explicitly stopped worker, a stopped auto-stop
    parent, or an exhausted spawn budget stay stopped. A delegated subagent uses its own recovery
    path and receives no second continuation from the ordinary resume pool.
 9. With `notify_creator`, stop a child during daemon shutdown after the wake bridge has quiesced.
    Boot again: the parent receives one stopped notice tied to the durable child stop receipt.
    Repeat recovery: that same notice costs no additional turn and does not reopen an idle parent.
-   An idle worker without a continuation or undelivered notice does not reopen its idle parent.
+   An idle worker without a continuation, recovered monitor or undelivered notice does not reopen its idle parent.
    Archived or expired children do not replay shutdown notices. One unreadable child receipt logs
    its cause while recovery continues for other children. An explicitly stopped parent stays stopped.
 10. While HTTP/UDS serves during boot recovery, send a prompt. Expect `503`, code
@@ -79,6 +81,12 @@ expired or unreadable child receipts. The isolated real restart/crash/stop suite
 waiting for prompt drains before its unchanged public-state assertions. The deferred-fire scheduler
 suite passed with boot admission retaining the scheduled fire. Continue/fork error tests retained
 their stable admission code and retryable HTTP/native payloads.
+
+The final isolated real-process restart/crash/stop suite passed with five sessions (43.04s):
+three interrupted conversations plus an idle parent and idle auto-stop worker. Only the idle
+worker owned a monitor, and `notify_creator` was disabled for that pair. Both saved bindings
+reopened, the monitor stayed active, and neither completed turn received a continuation. Public
+HTTP/UDS reads agreed; explicit stops still prevented every resume.
 
 Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
 canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted
