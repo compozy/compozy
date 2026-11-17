@@ -145,7 +145,7 @@ func scheduledAdmissionInterrupted(ctx context.Context, req DispatchRequest, err
 		return false
 	}
 	return req.Kind == DispatchKindSchedule && req.ReservedRun != nil &&
-		(errors.Is(err, admission.ErrDraining) || errors.Is(err, context.Canceled) ||
+		(errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting) || errors.Is(err, context.Canceled) ||
 			errors.Is(err, context.DeadlineExceeded))
 }
 

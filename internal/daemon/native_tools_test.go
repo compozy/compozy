@@ -9969,6 +9969,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
 		requireNativeDerivePartial(t, err, `"code":"session_not_found"`)
+		bootErr := nativeDeriveToolError(toolspkg.ToolIDSessionContinue,
+			core.DeriveFailure(admission.ErrStarting, session.DeriveResult{}))
+		requireNativeDerivePartial(t, bootErr, `"code":"new_work_admission_unavailable"`)
+		requireNativeDerivePartial(t, bootErr, `"retryable":true`)
+		requireNativeDeriveMessage(t, bootErr, admission.ErrStarting.Error())
 		if continueSubmitCalls != 1 {
 			t.Fatalf("ContinueSession calls = %d, want 1 after a foreign-workspace source", continueSubmitCalls)
 		}

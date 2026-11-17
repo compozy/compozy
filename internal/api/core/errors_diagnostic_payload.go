@@ -27,6 +27,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	payload := contract.ErrorPayload{Error: message}
 	if errors.Is(err, admission.ErrStarting) {
 		payload.Code, payload.Error, payload.Retryable = admission.StartingCode, admission.ErrStarting.Error(), true
+		if code := DeriveErrorCode(err); code != "" {
+			payload.Code = code
+		}
 		return payload
 	}
 	if refusal, ok := errors.AsType[*session.MCPReloadError](err); ok {

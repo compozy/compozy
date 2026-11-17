@@ -20,7 +20,7 @@ func (m *Manager) ResumeInterruptedSessions(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	waiting := m.restartWaitingSessions(infos)
+	waiting := m.restartWaitingSessions(ctx, infos)
 	if err := runRestartResumes(ctx, planRestartResumes(infos), restartResumeConcurrency,
 		func(ctx context.Context, id string) {
 			resumed, err := m.ResumeInterruptedSession(ctx, id)

@@ -39,10 +39,14 @@ overlaps: RT-daemon-drain-admission; RT-subagent-restart
    path and receives no second continuation from the ordinary resume pool.
 9. With `notify_creator`, stop a child during daemon shutdown after the wake bridge has quiesced.
    Boot again: the parent receives one stopped notice tied to the durable child stop receipt.
-   Repeat recovery: that same notice costs no additional turn. An explicitly stopped parent stays stopped.
+   Repeat recovery: that same notice costs no additional turn and does not reopen an idle parent.
+   An idle worker without a continuation or undelivered notice does not reopen its idle parent.
+   Archived or expired children do not replay shutdown notices. One unreadable child receipt logs
+   its cause while recovery continues for other children. An explicitly stopped parent stays stopped.
 10. While HTTP/UDS serves during boot recovery, send a prompt. Expect `503`, code
     `daemon_starting`, `retryable: true`, and retry guidance. Retry the same message identity after
-    readiness. An operator drain retains its existing draining refusal.
+    readiness. An operator drain retains its existing draining refusal. Continue/fork preserve their
+    existing `new_work_admission_unavailable` code while adding the retryable boot guidance.
 11. Restart with an always-on instance main whose last turn finished and whose input queue is empty.
     Its saved binding reopens after HTTP/UDS starts, without replaying the completed prompt.
     Disable automatic continuation and repeat: the main remains stopped with a refusal cause in
@@ -68,6 +72,13 @@ a separate workspace both resumed only after listeners started. Two provider loa
 total prompts proved that the idle main's completed work was not replayed. The focused
 `TestResumeInterruptedSession` cases also passed for explicit stops, opt-out diagnostics and
 preventing an already blocked interruption from using the idle recovery path.
+
+Review repairs passed the canonical session wake suite, including repeated recovery without
+reopening an already notified idle parent, an idle worker without continuation, and archived,
+expired or unreadable child receipts. The isolated real restart/crash/stop suite passed again after
+waiting for prompt drains before its unchanged public-state assertions. The deferred-fire scheduler
+suite passed with boot admission retaining the scheduled fire. Continue/fork error tests retained
+their stable admission code and retryable HTTP/native payloads.
 
 Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
 canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted

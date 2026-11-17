@@ -105,12 +105,15 @@ workers whose `auto_stop_on_parent` parent is no longer live stay stopped. Deleg
 their own recovery owner. Worker monitors follow the same restart eligibility rules as user-session
 monitors. With `notify_creator`, a child stop recorded during shutdown is recovered from its durable
 stop receipt and admitted once to an eligible parent; the notice describes the shutdown edge, so
-read current child status before intervening.
+read current child status before intervening. Already admitted notices never reopen an idle parent.
+An unreadable child receipt is logged with its cause without blocking other sessions' recovery.
 
 An idle always-on instance main also reopens its saved binding after restart without repeating
 its completed turn or requiring queued input. Recovery refusals include their cause in the daemon
 log and, when a saved binding exists, a `session.restart_skipped` event. An ordinary idle session
-with no interrupted turn remains stopped, with log reason `no_pending_interruption`.
+with no interrupted turn logs `no_pending_interruption`. Worker recovery reopens its saved binding
+only for an interrupted auto-stop worker or an undelivered child shutdown notice; an idle worker
+alone does not reopen its parent. Recovered monitors and reply watches retain their own wake rules.
 
 If ACP disconnects during a prompt, CompozyOS keeps every persisted event and automatically tries to
 replace the runtime three times with 1, 2, and 4 second delays. Session status reports
@@ -1574,8 +1577,9 @@ the existing session events surfaces. Interrupted metadata uses `stop_reason: "s
 an invented `process_exit` failure. Confirmed agent failures remain failures. The Web timeline shows
 the interruption and resumption; CLI, HTTP/UDS and native reads share the same persisted state.
 
-A session that was idle when the restart began has no interrupted turn, so boot leaves it
-`stopped` with `stop_reason: "shutdown"`. Prompt it with `compozy__session_prompt` (or
+A session that was idle when the restart began has no interrupted turn. Unless it is an instance
+main or needed for an interrupted worker, an eligible wake, or an undelivered child shutdown notice,
+boot leaves it `stopped` with `stop_reason: "shutdown"`. Prompt it with `compozy__session_prompt` (or
 `compozy session prompt`) to resume the same session in place with its history and parent; reach for
 `session continue` only to change agent or runtime, since it creates a new session.
 

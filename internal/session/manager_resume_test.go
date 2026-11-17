@@ -122,6 +122,44 @@ func TestResumeInterruptedSession(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should leave an idle parent stopped when its idle worker has no continuation", func(t *testing.T) {
+		db := openManagerInputQueueStore(t)
+		opts := []Option{WithSessionCatalog(db), WithSessionInputQueueStore(db),
+			WithSessionPromptAdmissionStore(db)}
+		h := newHarness(t, opts...)
+		registerManagerInputQueueWorkspace(t, db, h)
+		parent := createSession(t, h)
+		stream, err := h.manager.Prompt(t.Context(), parent.ID, "finished work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		child, err := h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+			AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), child.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.StopWithCause(t.Context(), parent.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		h.manager = newManagerWithHarness(t, h, opts...)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		starts := len(h.driver.startCalls)
+		for range 2 {
+			if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(h.driver.startCalls) != starts {
+				t.Fatal("idle worker reopened a parent without pending work")
+			}
+		}
+	})
 	for _, tc := range []struct {
 		name        string
 		restart     bool

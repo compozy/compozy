@@ -380,8 +380,14 @@ func awaitRestartLabReport(t *testing.T, d *Daemon, phase string) []restartLabSe
 	if err := json.Unmarshal(data, &ids); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.NewTimer(20 * time.Second)
-	defer deadline.Stop()
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	if phase != "first" {
+		// Child completion can admit another parent wake between otherwise idle status reads.
+		if err := d.sessions.(*session.Manager).WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -439,7 +445,7 @@ func awaitRestartLabReport(t *testing.T, d *Daemon, phase string) []restartLabSe
 		}
 		select {
 		case <-ticker.C:
-		case <-deadline.C:
+		case <-ctx.Done():
 			t.Fatalf("restart work did not settle: %#v", report)
 		}
 	}

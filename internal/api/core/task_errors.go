@@ -30,7 +30,7 @@ func StatusForTaskError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
-	case errors.Is(err, admission.ErrDraining):
+	case errors.Is(err, admission.ErrDraining), errors.Is(err, admission.ErrStarting):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, workspacepkg.ErrWorkspaceReserved),
 		errors.Is(err, taskpkg.ErrCatalogCursorInvalid),

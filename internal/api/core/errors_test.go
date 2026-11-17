@@ -100,6 +100,11 @@ func TestTaskErrorHelpers(t *testing.T) {
 		want int
 	}{
 		{name: "nil", err: nil, want: http.StatusOK},
+		{
+			name: "Should map boot admission to a retryable service status",
+			err:  admission.ErrStarting,
+			want: http.StatusServiceUnavailable,
+		},
 		{name: "invalid scope", err: taskpkg.ErrInvalidScopeBinding, want: http.StatusBadRequest},
 		{name: "immutable field", err: taskpkg.ErrImmutableField, want: http.StatusBadRequest},
 		{name: "run missing", err: taskpkg.ErrTaskRunNotFound, want: http.StatusNotFound},
@@ -516,6 +521,27 @@ func TestErrorPayloadForError(t *testing.T) {
 // Owner: core error mapping; canonical suite: core errors (UT-024b).
 func TestMCPReloadAdmissionErrorContract(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve the derive admission code during boot", func(t *testing.T) {
+		t.Parallel()
+		failure := deriveFailure(admission.ErrStarting, "")
+		payload := DeriveErrorPayload(failure)
+		if payload.Code != deriveCodeAdmissionUnavailable || !payload.Retryable {
+			t.Fatalf("derive boot refusal = %+v", payload)
+		}
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		handlers := &BaseHandlers{MaskInternalErrors: true}
+		handlers.respondDeriveError(ctx, http.StatusInternalServerError, failure)
+		if recorder.Code != http.StatusServiceUnavailable {
+			t.Fatalf("derive boot HTTP status = %d", recorder.Code)
+		}
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Code != deriveCodeAdmissionUnavailable || !payload.Retryable {
+			t.Fatalf("derive boot HTTP payload = %+v", payload)
+		}
+	})
 	t.Run("Should expose boot admission as retryable across HTTP and native tools", func(t *testing.T) {
 		t.Parallel()
 		failure := fmt.Errorf("prompt admission: %w", admission.ErrStarting)

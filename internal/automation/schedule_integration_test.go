@@ -532,7 +532,7 @@ func TestSchedulerIntegrationDeferredFire(t *testing.T) {
 	for _, scenario := range []string{
 		"one-shot restart", "recurring restart", "schedule replacement", "past replacement", "gate release",
 		"draining restart", "cancelled restart", "deadline restart", "recurring draining restart",
-		"cron zone restart", "legacy cron restart",
+		"cron zone restart", "legacy cron restart", "starting restart",
 	} {
 		t.Run("Should preserve fire ownership on "+scenario, func(t *testing.T) {
 			t.Parallel()
@@ -551,6 +551,7 @@ func TestSchedulerIntegrationDeferredFire(t *testing.T) {
 			clock := clockwork.NewFakeClockAt(base)
 			started, release := make(chan struct{}, 1), make(chan struct{})
 			admissionErr := map[string]error{
+				"starting restart": admission.ErrStarting,
 				"draining restart": admission.ErrDraining, "cancelled restart": context.Canceled,
 				"deadline restart": context.DeadlineExceeded, "recurring draining restart": admission.ErrDraining,
 			}[scenario]

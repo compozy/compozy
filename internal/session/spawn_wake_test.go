@@ -155,6 +155,55 @@ func TestSpawnWakeReasonForBadge(t *testing.T) {
 
 func TestManagerDispatchSpawnWake(t *testing.T) {
 	t.Parallel()
+	for _, unavailable := range []string{"unreadable", "archived", "expired"} {
+		t.Run("Should recover other shutdown wakes when one child is "+unavailable, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			notifier := &recordingSpawnWakeNotifier{}
+			h := newHarness(t, WithSpawnWakeNotifier(notifier), WithLogger(slog.New(slog.NewTextHandler(&logs, nil))))
+			parent := createSession(t, h)
+			var infos []*Info
+			for range 2 {
+				child, err := h.manager.Spawn(t.Context(), &SpawnOpts{ParentSessionID: parent.ID,
+					AgentName: "coder", TTL: time.Hour, NotifyCreator: true})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.manager.StopWithCause(t.Context(), child.ID, CauseShutdown, "daemon restart"); err != nil {
+					t.Fatal(err)
+				}
+				info, err := h.manager.Status(t.Context(), child.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				infos = append(infos, info)
+			}
+			switch unavailable {
+			case "archived":
+				infos[0].ArchivedAt = new(h.manager.now())
+			case "expired":
+				infos[0].Lineage.TTLExpiresAt = new(h.manager.now().Add(-time.Second))
+			}
+			open := h.manager.openQueryStore
+			h.manager.openQueryStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventReadCloser, error) {
+				if unavailable == "unreadable" && owner.SessionID == infos[0].ID {
+					return nil, errors.New("child transcript unavailable")
+				}
+				return open(ctx, owner, path)
+			}
+			if err := h.manager.recoverSpawnShutdownWakes(t.Context(), infos); err != nil {
+				t.Fatal(err)
+			}
+			_, wakes := notifier.calls()
+			if len(wakes) != 1 || wakes[0].ChildSessionID != infos[1].ID {
+				t.Fatalf("recovered wakes = %+v, want only the readable child", wakes)
+			}
+			if unavailable == "unreadable" && (!strings.Contains(logs.String(), infos[0].ID) ||
+				!strings.Contains(logs.String(), "child transcript unavailable")) {
+				t.Fatalf("failed child recovery has no diagnostic: %s", logs.String())
+			}
+		})
+	}
 	// Invariant: a shutdown wake is deferred and derived after manager replacement with a durable
 	// identity; boot never revives a deliberately stopped parent. Owner: spawn wake recovery.
 	for _, parentStopped := range []bool{false, true} {
@@ -205,6 +254,20 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 					if attempt == 0 {
 						notifier.mu.Lock()
 						notifier.err = nil
+						notifier.deliver = func(ctx context.Context, id string, wake SpawnWakeEvent) error {
+							stream, err := h.manager.PromptSynthetic(ctx, id, SyntheticPromptOpts{
+								MessageID: wake.WakeEventID, Message: "inspect the stopped child",
+								Metadata: acp.PromptSyntheticMeta{
+									ChildSessionID: wake.ChildSessionID, ChildAgentName: wake.ChildAgentName,
+									Badge: string(wake.Badge), Reason: string(wake.Reason),
+									Summary: wake.Detail, WakeEventID: wake.WakeEventID,
+								},
+							})
+							if err == nil {
+								drainPromptSource(stream)
+							}
+							return err
+						}
 						notifier.mu.Unlock()
 					}
 				}
@@ -225,6 +288,27 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 				_, live := h.manager.Get(parent.ID)
 				if live == parentStopped {
 					t.Fatalf("parent live = %t after explicit stop %t", live, parentStopped)
+				}
+				if !parentStopped {
+					if err := h.manager.StopWithCause(
+						t.Context(),
+						parent.ID,
+						CauseShutdown,
+						"next restart",
+					); err != nil {
+						t.Fatal(err)
+					}
+					if err := h.manager.Shutdown(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					h.manager = newManagerWithHarness(t, h, opts...)
+					starts := len(h.driver.startCalls)
+					if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					if len(h.driver.startCalls) != starts {
+						t.Fatal("an already admitted shutdown wake reopened its idle parent")
+					}
 				}
 			},
 		)

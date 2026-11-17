@@ -64,38 +64,51 @@ func (m *Manager) recoverSpawnShutdownWakes(ctx context.Context, infos []*Info) 
 	}
 	for _, info := range infos {
 		if info == nil || info.StopReason != store.StopShutdown || info.Lineage == nil ||
-			!info.Lineage.NotifyCreator || info.Type == SessionTypeTriage {
+			!info.Lineage.NotifyCreator || info.Type == SessionTypeTriage || info.ArchivedAt != nil ||
+			(info.Lineage.TTLExpiresAt != nil && !info.Lineage.TTLExpiresAt.After(m.now())) {
 			continue
 		}
-		wakeID, err := m.spawnShutdownWakeID(ctx, info.ID)
-		if err != nil {
-			return err
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
-		if wakeID == "" {
-			continue
+		if err := m.recoverSpawnShutdownWake(ctx, info); err != nil && ctx.Err() == nil {
+			m.logger.WarnContext(ctx, "session: shutdown wake recovery unavailable", "session_id", info.ID,
+				"parent_session_id", info.Lineage.ParentSessionID, "error", err)
 		}
-		parentID := info.Lineage.ParentSessionID
-		parent, err := m.Status(ctx, parentID)
-		if err != nil || parent.State != StateActive {
-			// A shutdown-stopped idle parent can reopen only through its captured binding.
-			if err != nil || parent.StopReason != store.StopShutdown {
-				continue
-			}
-			if err := m.resumeRestartWaitingSession(ctx, parentID); err != nil {
-				m.logger.WarnContext(
-					ctx,
-					"session: shutdown wake parent unavailable",
-					"session_id",
-					parentID,
-					"error",
-					err,
-				)
-				continue
-			}
-		}
-		stopped := *info
-		stopped.State, stopped.StopReason = StateStopped, store.StopShutdown
-		m.dispatchSpawnWake(ctx, &stopped, BadgeStopped)
 	}
+	return ctx.Err()
+}
+
+func (m *Manager) recoverSpawnShutdownWake(ctx context.Context, info *Info) error {
+	wakeID, err := m.spawnShutdownWakeID(ctx, info.ID)
+	if err != nil || wakeID == "" {
+		return err
+	}
+	parentID := info.Lineage.ParentSessionID
+	admitted, err := m.SyntheticWakeAdmitted(ctx, parentID, wakeID)
+	if err != nil {
+		return fmt.Errorf("read shutdown wake admission: %w", err)
+	}
+	if admitted {
+		return nil
+	}
+	parent, err := m.Status(ctx, parentID)
+	if errors.Is(err, ErrSessionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read shutdown wake parent: %w", err)
+	}
+	if parent.State != StateActive {
+		if parent.State != StateStopped || parent.StopReason != store.StopShutdown {
+			return nil
+		}
+		if err := m.resumeRestartWaitingSession(ctx, parentID); err != nil {
+			return fmt.Errorf("resume shutdown wake parent: %w", err)
+		}
+	}
+	stopped := *info
+	stopped.State, stopped.StopReason = StateStopped, store.StopShutdown
+	m.dispatchSpawnWake(ctx, &stopped, BadgeStopped)
 	return nil
 }

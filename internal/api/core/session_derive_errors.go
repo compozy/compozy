@@ -158,7 +158,7 @@ func deriveBoundaryCode(err error) string {
 		return code
 	}
 	switch {
-	case errors.Is(err, admission.ErrDraining):
+	case errors.Is(err, admission.ErrDraining), errors.Is(err, admission.ErrStarting):
 		return deriveCodeAdmissionUnavailable
 	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, store.ErrSessionNotFound),
 		errors.Is(err, errWorkspaceScopedResourceNotFound):

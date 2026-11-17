@@ -71,7 +71,7 @@ func restartResumeOwns(sessionType Type, lineage *store.SessionLineage) bool {
 
 // Idle instance mains and required worker parents reopen their captured binding without
 // continuing a completed turn. Other idle sessions remain stopped.
-func (m *Manager) restartWaitingSessions(infos []*Info) map[string]bool {
+func (m *Manager) restartWaitingSessions(ctx context.Context, infos []*Info) map[string]bool {
 	waiting := make(map[string]bool)
 	for _, info := range infos {
 		if info != nil && info.Type == SessionTypeUser && info.InstanceID != "" &&
@@ -81,7 +81,15 @@ func (m *Manager) restartWaitingSessions(infos []*Info) map[string]bool {
 		if info != nil && info.Type == SessionTypeSpawned && restartResumeOwns(info.Type, info.Lineage) &&
 			info.StopReason == store.StopShutdown && info.Lineage.AutoStopOnParent && info.ArchivedAt == nil &&
 			info.Lineage.TTLExpiresAt != nil && info.Lineage.TTLExpiresAt.After(m.now()) {
-			waiting[info.Lineage.ParentSessionID] = true
+			pending, err := m.HasPendingRestart(ctx, info.ID)
+			if err != nil {
+				m.logger.WarnContext(ctx, "session: worker restart checkpoint unavailable", "session_id", info.ID,
+					"parent_session_id", info.Lineage.ParentSessionID, "error", err)
+				continue
+			}
+			if pending {
+				waiting[info.Lineage.ParentSessionID] = true
+			}
 		}
 	}
 	return waiting
