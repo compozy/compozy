@@ -6,7 +6,7 @@
 // and directional focus only reaches windows on screen in the active tab. A view-only close takes a window off the desk without
 // the operator close guard and never races a close that guard is confirming (#1194).
 // Owning layer: the Query cache → runtime projection and runtime → command boundaries.
-import { createEventRecorder } from "@/test/event-recorder";
+import { createDeferred, createEventRecorder } from "@/test/event-recorder";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { useAtom } from "@xstate/store-react";
@@ -466,7 +466,7 @@ describe("WindowManagerRuntime", () => {
       deadlines.push(controller);
       return controller.signal;
     });
-    const requestStarted = Promise.withResolvers<void>();
+    const requestStarted = createDeferred<void>();
     // A request stalled in the browser's connection pool settles only when its signal aborts.
     vi.mocked(executeWindowManagerCommand).mockImplementation(
       (_workspace, _profile, _client, _revision, _command, signal) =>
@@ -1025,7 +1025,7 @@ describe("WindowManagerRuntime", () => {
     it("Should tell the coordinator about a directional focus whose stream view arrived before its answer [R10-01]", async () => {
       const { answers, waitForCommand } = deferCommandAnswers();
       const runtime = startSplitRuntime();
-      const heldViewAdopted = Promise.withResolvers<void>();
+      const heldViewAdopted = createDeferred<void>();
       const reported = vi.fn(() => heldViewAdopted.resolve());
       runtime.onHeldClientAdopted(reported);
 
@@ -2630,7 +2630,7 @@ describe("WindowManagerRuntime", () => {
       ]);
       queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
       queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
-      const requestStarted = Promise.withResolvers<void>();
+      const requestStarted = createDeferred<void>();
       vi.mocked(executeWindowManagerCommand).mockImplementation(async () => {
         requestStarted.resolve();
         return {

@@ -19,6 +19,7 @@ import { sessionKeys } from "../../lib/query-keys";
 import type { SessionCatalogPageResponse, SessionPayload } from "../../types";
 import { useSessionFolders } from "../use-session-folders";
 import { useWorkspaceLayout } from "../use-workspace-layout";
+import { createDeferred } from "@/test/event-recorder";
 
 const folder = {
   id: "sfold-a",
@@ -227,9 +228,9 @@ describe("useSessionFolders", () => {
   it("Should send rapid layout writes one at a time in action order", async () => {
     const { result, writes } = setup(200);
     await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
-    const firstResponse = Promise.withResolvers<Response>();
-    const firstStarted = Promise.withResolvers<void>();
-    const secondStarted = Promise.withResolvers<void>();
+    const firstResponse = createDeferred<Response>();
+    const firstStarted = createDeferred<void>();
+    const secondStarted = createDeferred<void>();
     const fetchMock = vi.mocked(globalThis.fetch);
     const settled = fetchMock.getMockImplementation()!;
     fetchMock.mockImplementation(async input => {

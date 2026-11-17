@@ -188,6 +188,7 @@ import {
   type RestoredClientFocusInput,
 } from "../use-restored-client-focus";
 import { useWindowScopePruning } from "../use-window-scope-pruning";
+import { createDeferred } from "@/test/event-recorder";
 
 function wrapper() {
   const queryClient = new QueryClient({
@@ -532,7 +533,7 @@ describe("useProfileSwitchWindowSweep", () => {
     sessionOwners.set("s_xray", "p_xray");
     const { shell, userClose } = fakeShell(true);
     vi.useFakeTimers();
-    const closeAttempted = Promise.withResolvers<void>();
+    const closeAttempted = createDeferred<void>();
     userClose.mockImplementation(async () => {
       closeAttempted.resolve();
       return false;
@@ -554,7 +555,7 @@ describe("useProfileSwitchWindowSweep", () => {
     sessionOwners.set("s_xray", "p_xray");
     const { shell, userClose } = fakeShell(true);
     vi.useFakeTimers();
-    const closeAttempted = Promise.withResolvers<void>();
+    const closeAttempted = createDeferred<void>();
     userClose.mockImplementation(async () => {
       closeAttempted.resolve();
       return false;
@@ -644,7 +645,7 @@ describe("useProfileSwitchWindowSweep", () => {
     startOn("xray");
     const { shell, userClose } = fakeShell(true);
     vi.useFakeTimers();
-    const closeAttempted = Promise.withResolvers<void>();
+    const closeAttempted = createDeferred<void>();
     userClose.mockImplementation(async () => {
       closeAttempted.resolve();
       return false;

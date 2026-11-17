@@ -1,7 +1,7 @@
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createEventRecorder } from "@/test/event-recorder";
+import { createDeferred, createEventRecorder } from "@/test/event-recorder";
 
 import { TerminalProtocolClient } from "../terminal-protocol-client";
 import { TERMINAL_CLIENT_OP, TERMINAL_MAX_INPUT_BYTES, TERMINAL_SERVER_OP } from "../terminal-wire";
@@ -59,7 +59,7 @@ function buildClient(
   const sockets = createFakeSocketFactory();
   const sink = createFakeSink({ autoParse: options.autoParse });
   const statuses: string[] = [];
-  const closed = Promise.withResolvers<void>();
+  const closed = createDeferred<void>();
   const inputEnabledEvents = createEventRecorder<boolean>();
   const inputEnabled = inputEnabledEvents.events;
   const presence: number[] = [];

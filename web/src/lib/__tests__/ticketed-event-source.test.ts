@@ -4,7 +4,7 @@
 // Boundary OUT: domain payload reduction, owned by each stream consumer suite.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createEventRecorder } from "@/test/event-recorder";
+import { createDeferred, createEventRecorder } from "@/test/event-recorder";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
@@ -449,7 +449,7 @@ describe("ticketed event source", () => {
 
     const source = createStreamEventSource("/api/tasks/t1/stream");
     const errors: Event[] = [];
-    const failed = Promise.withResolvers<void>();
+    const failed = createDeferred<void>();
     source.onerror = event => {
       errors.push(event);
       failed.resolve();

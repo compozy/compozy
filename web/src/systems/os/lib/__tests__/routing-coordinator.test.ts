@@ -19,6 +19,7 @@ import { RoutingCoordinator, type OsRouterPort } from "../routing-coordinator";
 import { RoutingEntryLedger } from "../routing-entry-ledger";
 import { routeReplacesWindowContent } from "../window-navigation-guard";
 import type { WindowManagerClientView } from "../window-manager-types";
+import { createDeferred } from "@/test/event-recorder";
 
 function route(pathname: string, search: Record<string, unknown> = {}): OsWindowRoute {
   return { pathname, search };
@@ -748,7 +749,7 @@ describe("RoutingCoordinator", () => {
 
     // Back to an earlier window's entry.
     request.mockClear();
-    const requested = Promise.withResolvers<void>();
+    const requested = createDeferred<void>();
     request.mockImplementationOnce((...args) => {
       const outcome = originalRequest.apply(coordinator.keyboardFocus, args);
       requested.resolve();
@@ -818,7 +819,7 @@ describe("RoutingCoordinator", () => {
     coordinator.reportRouteMatch(tasks.route, history.current());
     const originalRequest = coordinator.keyboardFocus.request;
     const request = vi.spyOn(coordinator.keyboardFocus, "request");
-    const requested = Promise.withResolvers<void>();
+    const requested = createDeferred<void>();
     request.mockImplementationOnce((...args) => {
       const outcome = originalRequest.apply(coordinator.keyboardFocus, args);
       requested.resolve();

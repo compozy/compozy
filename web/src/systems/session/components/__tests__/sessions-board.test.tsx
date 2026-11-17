@@ -1077,7 +1077,9 @@ describe("SessionsBoard selection", () => {
     );
     await user.click(screen.getByTestId("sessions-board-column-select-working"));
     vi.useFakeTimers();
-    onTestFinished(() => vi.useRealTimers());
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     expect(selectedCount()).toHaveTextContent("2 selected");
 
     // Working re-read first: the card is in no column while Done is still reading. The bar
@@ -1114,7 +1116,9 @@ describe("SessionsBoard selection", () => {
     const { rerender } = renderSelectable(present);
     await user.click(screen.getByTestId("sessions-board-column-select-working"));
     vi.useFakeTimers();
-    onTestFinished(() => vi.useRealTimers());
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
 
     // Missing after a confirming re-read: it leaves the selection.
     rerender(absent);
@@ -1142,7 +1146,9 @@ describe("SessionsBoard selection", () => {
     const { rerender } = renderSelectable(board({ working: { sessions: [kept], count: 1 } }));
     await user.click(screen.getByTestId("session-board-card-select-kept"));
     vi.useFakeTimers();
-    onTestFinished(() => vi.useRealTimers());
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
 
     // The re-read returns, but a column failed: nothing confirms the card is gone.
     rerender(board({ working: { failure: "refresh" } }));
@@ -1158,7 +1164,9 @@ describe("SessionsBoard selection", () => {
     const { rerender } = renderSelectable(board({ working: { sessions: [kept], count: 1 } }));
     await user.click(screen.getByTestId("session-board-card-select-kept"));
     vi.useFakeTimers();
-    onTestFinished(() => vi.useRealTimers());
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
 
     rerender({ ...board(), columns: [], lanes: [], lanesLoading: true, groupBy: "project" });
     await act(async () => {});

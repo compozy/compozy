@@ -11,6 +11,7 @@ import {
 } from "@/lib/gateway-stream-auth";
 import { apiClient } from "@/lib/api-client";
 import { observeGatewayAccess } from "@/lib/gateway-access-signal";
+import { createDeferred } from "@/test/event-recorder";
 
 function ticketResponse(ticket: string): Response {
   return new Response(JSON.stringify({ ticket, expires_at: "2026-08-07T00:00:00Z" }), {
@@ -92,8 +93,8 @@ describe("gateway stream auth", () => {
   });
 
   it("Should abort one discovery waiter without canceling the other connection", async () => {
-    const started = Promise.withResolvers<Request>();
-    const response = Promise.withResolvers<Response>();
+    const started = createDeferred<Request>();
+    const response = createDeferred<Response>();
     const fetchMock = vi.fn((request: Request) => {
       started.resolve(request);
       return response.promise;
@@ -115,8 +116,8 @@ describe("gateway stream auth", () => {
 
   it("Should cancel abandoned discovery and ignore its late result before retrying", async () => {
     const getStatus = vi.spyOn(apiClient, "GET");
-    const started = Promise.withResolvers<Request>();
-    const response = Promise.withResolvers<Response>();
+    const started = createDeferred<Request>();
+    const response = createDeferred<Response>();
     const fetchMock = vi
       .fn()
       .mockImplementationOnce((request: Request) => {
@@ -130,7 +131,7 @@ describe("gateway stream auth", () => {
     const request = await started.promise;
     const abandonedRead = getStatus.mock.results[0];
     if (abandonedRead?.type !== "return") throw new Error("Expected a pending status read");
-    const settled = Promise.withResolvers<void>();
+    const settled = createDeferred<void>();
     // This reaction follows discovery's await of the same HTTP operation.
     void abandonedRead.value.then(() => settled.resolve(), settled.reject);
     expect(fetchMock).toHaveBeenCalledTimes(1);

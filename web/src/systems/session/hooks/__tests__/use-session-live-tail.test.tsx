@@ -1,4 +1,4 @@
-import { createEventRecorder } from "@/test/event-recorder";
+import { createDeferred, createEventRecorder } from "@/test/event-recorder";
 // Suite: useSessionLiveTail
 // Invariants: the infinite transcript cache owns cursor/fences, preserves loaded history, and
 // retains readonly array identity while the exact message sequence is unchanged; burst intake is
@@ -394,7 +394,7 @@ describe("useSessionLiveTail", () => {
     vi.mocked(fetchSession)
       .mockResolvedValueOnce(sessionWithState("active"))
       .mockResolvedValue(sessionWithState("stopped"));
-    const recoveryStarted = Promise.withResolvers<void>();
+    const recoveryStarted = createDeferred<void>();
     let recoveryResolved = false;
     let abortedBeforeResolution = false;
     let resolveRecovery: ((response: NormalizedSessionTranscriptResponse) => void) | undefined;
@@ -1793,7 +1793,7 @@ describe("useSessionLiveTail", () => {
     expect(result.current.transport.failure?.attempts).toBe(MAX_RECONNECT_ATTEMPTS);
     expect(fetchSessionTranscript).not.toHaveBeenCalled();
 
-    const retryRead = Promise.withResolvers<void>();
+    const retryRead = createDeferred<void>();
     vi.mocked(fetchSessionTranscript).mockImplementationOnce(async () => {
       retryRead.resolve();
       return transcriptResponse([]);

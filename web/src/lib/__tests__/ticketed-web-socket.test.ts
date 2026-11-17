@@ -5,7 +5,7 @@
 // Owning layer: the shared browser stream transport.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createEventRecorder } from "@/test/event-recorder";
+import { createDeferred, createEventRecorder } from "@/test/event-recorder";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { createStreamWebSocket } from "@/lib/ticketed-web-socket";
@@ -148,7 +148,7 @@ describe("ticketed web socket", () => {
     const socket = createStreamWebSocket(STREAM_PATH);
     const closes: CloseEvent[] = [];
     const errors: Event[] = [];
-    const closed = Promise.withResolvers<void>();
+    const closed = createDeferred<void>();
     socket.onclose = event => {
       closes.push(event);
       closed.resolve();

@@ -41,6 +41,7 @@ import {
   settingsUpdateBothAvailableFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
 import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
+import { createDeferred } from "@/test/event-recorder";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleAgent = "os-shell-agent";
@@ -4796,8 +4797,8 @@ test("E2E-021 / E2E-022: the menubar Update pill updates CompozyOS in one activa
 
   let updatePayload: unknown = settingsUpdateBothAvailableFixture;
   const applyRequests: string[][] = [];
-  const keyboardApply = Promise.withResolvers<void>();
-  const pointerApply = Promise.withResolvers<void>();
+  const keyboardApply = createDeferred<void>();
+  const pointerApply = createDeferred<void>();
   await appPage.route("**/api/settings/update", async route => {
     await route.fulfill({ json: updatePayload });
   });

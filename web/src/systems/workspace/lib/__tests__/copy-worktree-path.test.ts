@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { copyWorktreePath } from "../copy-worktree-path";
+import { createDeferred } from "@/test/event-recorder";
 
 const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
@@ -37,7 +38,7 @@ describe("copyWorktreePath", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     installClipboard(writeText);
 
-    const copied = Promise.withResolvers<void>();
+    const copied = createDeferred<void>();
     toastMocks.success.mockImplementationOnce(() => copied.resolve());
     copyWorktreePath("/workspace/feature");
     await copied.promise;
@@ -58,7 +59,7 @@ describe("copyWorktreePath", () => {
   it("Should report an asynchronous clipboard rejection", async () => {
     installClipboard(vi.fn().mockRejectedValue(new Error("permission denied")));
 
-    const failed = Promise.withResolvers<void>();
+    const failed = createDeferred<void>();
     toastMocks.error.mockImplementationOnce(() => failed.resolve());
     copyWorktreePath("/workspace/feature");
     await failed.promise;

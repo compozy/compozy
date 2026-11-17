@@ -13,16 +13,7 @@ vi.mock("../../adapters/session-attachment-api", async importOriginal => ({
 
 import type { SessionAttachment } from "../../types";
 import { SessionAttachmentAdapter } from "../use-session-attachment-adapter";
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, reject, resolve };
-}
+import { createDeferred } from "@/test/event-recorder";
 
 function pngFile(): File {
   return new File([Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)], "race.png", {
@@ -53,7 +44,7 @@ describe("SessionAttachmentAdapter upload removal", () => {
   it.each([false, true])(
     "Should remove an uploading tile before next generator read=%s",
     async beforeNextRead => {
-      const upload = deferred<SessionAttachment>();
+      const upload = createDeferred<SessionAttachment>();
       attachmentApiMocks.uploadSessionAttachment.mockReturnValue(upload.promise);
       attachmentApiMocks.deleteSessionAttachment.mockResolvedValue(undefined);
       const adapter = new SessionAttachmentAdapter({ workspaceId: "ws-a", sessionId: "sess-a" });
@@ -106,8 +97,8 @@ describe("SessionAttachmentAdapter upload removal", () => {
   );
 
   it("Should not resurrect a failed tile after its in-flight upload is removed", async () => {
-    const upload = deferred<SessionAttachment>();
-    const started = Promise.withResolvers<void>();
+    const upload = createDeferred<SessionAttachment>();
+    const started = createDeferred<void>();
     attachmentApiMocks.uploadSessionAttachment.mockImplementation(() => {
       started.resolve();
       return upload.promise;

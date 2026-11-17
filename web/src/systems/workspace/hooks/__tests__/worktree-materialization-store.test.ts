@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { buildWorktreeFixture } from "../../mocks/worktree-fixtures";
 import type { WorktreePayload } from "../../types";
 import { worktreeMaterializationLogic } from "../worktree-materialization-store";
+import { createDeferred } from "@/test/event-recorder";
 
 function pendingWorktree(id: string): WorktreePayload {
   return buildWorktreeFixture({
@@ -44,7 +45,7 @@ describe("worktreeMaterializationLogic", () => {
           resolveCreate = resolve;
         })
     );
-    const canceled = Promise.withResolvers<void>();
+    const canceled = createDeferred<void>();
     const cancel = vi.fn(async () => canceled.resolve());
 
     store.trigger.startRequested({ name: "payments-retry", execute: create, cancel });
