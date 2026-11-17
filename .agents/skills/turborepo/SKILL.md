@@ -555,10 +555,10 @@ Common outputs by framework:
 
 **TypeScript `--noEmit` can still produce cache files:**
 
-When `incremental: true` in tsconfig.json, `tsrs --noEmit` writes `.tsbuildinfo` files even without emitting JS. Check the tsconfig before assuming no outputs:
+When `incremental: true` in tsconfig.json, `tsc --noEmit` writes `.tsbuildinfo` files even without emitting JS. Check the tsconfig before assuming no outputs:
 
 ```json
-// If tsconfig has incremental: true, tsrs --noEmit produces cache files
+// If tsconfig has incremental: true, tsc --noEmit produces cache files
 {
   "tasks": {
     "typecheck": {
@@ -572,7 +572,7 @@ To determine correct outputs for TypeScript tasks:
 
 1. Check if `incremental` or `composite` is enabled in tsconfig
 2. Check `tsBuildInfoFile` for custom cache location (default: alongside `outDir` or in project root)
-3. If no incremental mode, `tsrs --noEmit` produces no files
+3. If no incremental mode, `tsc --noEmit` produces no files
 
 ### `^build` vs `build` Confusion
 
