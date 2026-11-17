@@ -1,0 +1,26 @@
+name: Collect workflow flake census
+description: Consolidate only structured flake receipts for the scheduled census
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: flake-report-*
+        path: /tmp/flake-shards
+    - uses: ./.github/actions/setup-go
+      with:
+        build-cache: "false"
+    - name: Merge flake receipts
+      id: merge
+      shell: bash
+      run: |
+        mkdir -p /tmp/flake-shards
+        go run github.com/magefile/mage@v1.17.2 testFlakeMerge /tmp/flake-shards /tmp/flake-census/flakes.json
+    - uses: actions/upload-artifact@v7
+      if: steps.merge.outputs.count != '0'
+      with:
+        name: flake-census
+        overwrite: true
+        path: /tmp/flake-census/flakes.json
+        retention-days: 14
+        if-no-files-found: error

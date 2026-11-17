@@ -54,13 +54,21 @@ func Test() error {
 	if !runSDK {
 		return nil
 	}
-	return runRaceEnabledCommandInDir(
-		ctx,
-		"sdk/go",
-		nil,
-		"go",
-		goSDKTestArgs(os.Getenv(goTestUncachedEnvVar) == "1")...,
-	)
+	return TestSDKGo()
+}
+
+// TestSDKGo runs the separate SDK module with the same bounded retry policy.
+func TestSDKGo() error {
+	jsonDir, err := ensureGoTestJSONFileDir()
+	if err != nil {
+		return err
+	}
+	jsonPath := ""
+	if jsonDir != "" {
+		jsonPath = filepath.Join(jsonDir, "gotest-sdk.json")
+	}
+	args := append(gotestsumJSONArgs(jsonPath), goSDKTestArgs(os.Getenv(goTestUncachedEnvVar) == "1")[1:]...)
+	return runGotestsumInDir(context.Background(), "sdk/go", nil, args...)
 }
 
 func ensureGoTestJSONFileDir() (string, error) {
@@ -74,20 +82,31 @@ func ensureGoTestJSONFileDir() (string, error) {
 	return dir, nil
 }
 
-func gotestsumInvocationArgs(jsonFileDir string, invocationIndex int) []string {
+func gotestsumRunnerArgs() []string {
 	args := []string{"--format", "pkgname"}
+	if os.Getenv("CI") != "" {
+		args = append(args, "--rerun-fails=1", "--rerun-fails-max-failures=5")
+	}
+	return args
+}
+
+func gotestsumInvocationArgs(jsonFileDir string, invocationIndex int) []string {
 	if jsonFileDir == "" {
-		return append(args, "--")
+		return gotestsumJSONArgs("")
 	}
 	stamp := strings.TrimSpace(os.Getenv(goTestShardIndexEnvVar))
 	if stamp == "" {
 		stamp = "all"
 	}
-	return append(args,
-		"--jsonfile",
-		filepath.Join(jsonFileDir, fmt.Sprintf("gotest-shard%s-%d.json", stamp, invocationIndex)),
-		"--",
-	)
+	return gotestsumJSONArgs(filepath.Join(jsonFileDir, fmt.Sprintf("gotest-shard%s-%d.json", stamp, invocationIndex)))
+}
+
+func gotestsumJSONArgs(path string) []string {
+	args := gotestsumRunnerArgs()
+	if path != "" {
+		args = append(args, "--jsonfile", path)
+	}
+	return append(args, "--")
 }
 
 func shouldRunSDKGoTests(shardIndex, shardTotal string) (bool, error) {
@@ -154,10 +173,17 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 	}
 	// Keep evidence after the test process exits; CI uploads this existing E2E prefix.
 	fmt.Printf("E2E artifacts: %s\n", artifactDir)
-	args := []string{
-		"--format",
-		"pkgname",
-		"--",
+	jsonDir, err := ensureGoTestJSONFileDir()
+	if err != nil {
+		return err
+	}
+	// Each runtime suite has its own receipt; never overwrite an earlier suite.
+	jsonPath := ""
+	if jsonDir != "" {
+		jsonPath = filepath.Join(jsonDir, "gotest-"+filepath.Base(artifactDir)+".json")
+	}
+	args := gotestsumJSONArgs(jsonPath)
+	args = append(args,
 		"-race",
 		"-p",
 		goIntegrationPackageLimit,
@@ -170,7 +196,7 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 		artifactDir,
 		"-tags",
 		"integration",
-	}
+	)
 	if strings.TrimSpace(suite.Run) != "" {
 		args = append(args, "-run", suite.Run)
 	}
@@ -179,9 +205,19 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 }
 
 func runGotestsum(ctx context.Context, env map[string]string, args ...string) error {
+	return runGotestsumInDir(ctx, ".", env, args...)
+}
+
+func runGotestsumInDir(ctx context.Context, dir string, env map[string]string, args ...string) error {
 	if hasPinnedTool("gotestsum", gotestsumVersion, "--version") {
-		return runRaceEnabledCommand(ctx, env, "gotestsum", args...)
+		if dir == "." {
+			return runRaceEnabledCommand(ctx, env, "gotestsum", args...)
+		}
+		return runRaceEnabledCommandInDir(ctx, dir, env, "gotestsum", args...)
 	}
 	goArgs := append([]string{"run", "gotest.tools/gotestsum@" + gotestsumVersion}, args...)
-	return runRaceEnabledGoCommand(ctx, env, goArgs...)
+	if dir == "." {
+		return runRaceEnabledGoCommand(ctx, env, goArgs...)
+	}
+	return runRaceEnabledCommandInDir(ctx, dir, env, "go", goArgs...)
 }

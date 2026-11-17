@@ -4,6 +4,7 @@ import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
+const perfCensus = process.env.COMPOZY_E2E_PERF === "1";
 const sharedTmpDir = path.resolve(rootDir, "..", ".tmp", "playwright");
 
 // CI fans the suite out across jobs via COMPOZY_E2E_WEB_SHARD ("2/4"). A
@@ -30,7 +31,14 @@ export default defineConfig({
   testMatch: ["**/*.spec.ts"],
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  retries: 0,
+  retries: perfCensus ? 0 : process.env.CI ? 1 : 0,
+  repeatEach: perfCensus ? 5 : 1,
+  grep: perfCensus ? /@perf/ : undefined,
+  grepInvert: perfCensus
+    ? undefined
+    : process.env.COMPOZY_E2E_NIGHTLY_REPORT === "1"
+      ? /@perf/
+      : /@nightly|@perf/,
   workers: 1,
   shard: parseShard(process.env.COMPOZY_E2E_WEB_SHARD),
   timeout: 90_000,
@@ -40,6 +48,17 @@ export default defineConfig({
   outputDir: path.join(sharedTmpDir, "test-results"),
   reporter: [
     ["list"],
+    [
+      "json",
+      {
+        outputFile: path.join(
+          sharedTmpDir,
+          process.env.COMPOZY_E2E_NIGHTLY_REPORT === "1"
+            ? "playwright-nightly.json"
+            : "playwright-web.json"
+        ),
+      },
+    ],
     ["html", { open: "never", outputFolder: path.join(sharedTmpDir, "report") }],
   ],
   use: {

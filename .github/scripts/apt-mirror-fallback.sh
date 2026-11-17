@@ -8,6 +8,12 @@ set -euo pipefail
 
 [[ "$(uname -s)" == "Linux" ]] || exit 0
 
+# apt retries failed network acquisitions (including fonts/system libraries),
+# without repeating package configuration or an entire E2E job.
+sudo tee /etc/apt/apt.conf.d/80compozy-fetch-retries >/dev/null <<'EOF'
+Acquire::Retries "3";
+EOF
+
 resolves() { getent hosts "$1" >/dev/null 2>&1; }
 
 if resolves azure.archive.ubuntu.com && resolves security.ubuntu.com; then

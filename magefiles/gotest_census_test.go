@@ -11,6 +11,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -371,6 +373,178 @@ func TestIntegrationObservationIdentity(t *testing.T) {
 		observed.recordEvent(gotestsumEvent{Action: "fail", Package: goSplitTestPackage, Test: "TestSame", Elapsed: 5})
 		if observed.packages[goSplitTestPackage] != 12 || observed.splitTests[goSplitTestPackage+"#TestSame"] != 5 {
 			t.Fatalf("failed shard timings lost: %+v / %+v", observed.packages, observed.splitTests)
+		}
+	})
+}
+
+// Invariant: only fail-then-pass receipts count as flakes, persistent failures
+// stay failures, and duplicate shard downloads do not inflate the rolling ledger.
+// Owner: Mage census; canonical suite: gotest_census_test.go.
+func TestFlakeReceipts(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report recovered Go tests without classifying persistent failures or skips", func(t *testing.T) {
+		t.Parallel()
+		input := `{"Package":"p","Test":"TestFlaky/sub","Action":"fail"}
+{"Package":"p","Test":"TestFlaky/sub","Action":"pass"}
+{"Package":"p","Test":"TestBroken","Action":"fail"}
+{"Package":"p","Test":"TestBroken","Action":"fail"}
+{"Package":"p","Test":"TestSkipped","Action":"fail"}
+{"Package":"p","Test":"TestSkipped","Action":"skip"}
+{"Package":"other","Test":"TestFlaky/sub","Action":"pass"}
+{"Package":"p","Action":"fail"}`
+		got, err := readGoFlakes(strings.NewReader(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0].Test != "p#TestFlaky/sub" || got[0].Attempt != 2 {
+			t.Fatalf("flakes = %+v", got)
+		}
+		if _, err := readGoFlakes(strings.NewReader("broken JSON")); err == nil {
+			t.Fatal("malformed receipt accepted")
+		}
+	})
+	t.Run("Should classify Playwright retries by outcome rather than attempt count", func(t *testing.T) {
+		t.Parallel()
+		var report playwrightCensus
+		input := `{"suites":[{"suites":[{"specs":[{"file":"os.spec.ts","title":"tabs","tests":[
+{"expectedStatus":"passed","projectName":"chromium","results":[{"status":"timedOut","retry":0},{"status":"passed","retry":1}]},
+{"expectedStatus":"passed","results":[{"status":"failed","retry":0},{"status":"failed","retry":1}]},
+{"expectedStatus":"failed","results":[{"status":"passed","retry":0},{"status":"failed","retry":1}]},
+{"expectedStatus":"passed","results":[{"status":"passed","retry":0}]}
+]}]}]}]}`
+		if err := json.Unmarshal([]byte(input), &report); err != nil {
+			t.Fatal(err)
+		}
+		got := report.flakes()
+		if len(got) != 1 || got[0].Attempt != 2 || got[0].Test != "os.spec.ts#tabs [chromium]" {
+			t.Fatalf("flakes = %+v", got)
+		}
+	})
+	t.Run("Should deduplicate the same receipt while retaining distinct runs and jobs", func(t *testing.T) {
+		t.Parallel()
+		receipt := flakeReceipt{
+			Suite:      "go",
+			Test:       "p#TestFlaky",
+			Job:        "shard-1",
+			Run:        "42",
+			SHA:        "abc",
+			Attempt:    2,
+			RunAttempt: "1",
+		}
+		other := receipt
+		other.Job = "shard-2"
+		next := receipt
+		next.Run = "43"
+		body := renderFlakeCensus([]flakeReceipt{receipt, receipt, other, next}, "compozy/compozy")
+		if !strings.Contains(body, "| go / p#TestFlaky | 3 |") || !strings.Contains(body, "actions/runs/43") {
+			t.Fatal(body)
+		}
+	})
+}
+
+// Invariant: five complete, unretried E2E-023 samples are required; the 50 ms
+// assertion moves to their medians without discarding a measured outlier.
+func TestPerfCensusSamples(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain all five measurements and reject missing or retried samples", func(t *testing.T) {
+		t.Parallel()
+		sample := base64.StdEncoding.EncodeToString([]byte(`{"worstSwitchFrameMs":0,"worstPeerConvergenceTaskMs":73}`))
+		testJSON := `{"expectedStatus":"passed","results":[{"status":"passed","retry":0,"attachments":[{"name":"perf-envelope","body":"` + sample + `"}]}]}`
+		decode := func(input string) playwrightCensus {
+			var report playwrightCensus
+			if err := json.Unmarshal([]byte(input), &report); err != nil {
+				t.Fatal(err)
+			}
+			return report
+		}
+		input := `{"suites":[{"specs":[{"title":"E2E-023: the 11-tab envelope @perf","tests":[` + strings.Join(
+			[]string{testJSON, testJSON, testJSON, testJSON, testJSON},
+			",",
+		) + `]}]}]}`
+		samples, err := decode(input).perfSamples()
+		if err != nil || len(samples) != 5 || samples[0].Peer != 73 {
+			t.Fatalf("samples=%+v err=%v", samples, err)
+		}
+		for _, broken := range []string{
+			strings.Replace(input, `"retry":0`, `"retry":1`, 1),
+			strings.Replace(input, `"status":"passed"`, `"status":"failed"`, 1),
+			strings.Replace(input, `"perf-envelope"`, `"missing"`, 1),
+			strings.Replace(input, `,"tests":[`+testJSON+`,`, `,"tests":[`, 1),
+			strings.Replace(input, sample, base64.StdEncoding.EncodeToString([]byte(`{}`)), 1),
+		} {
+			if _, err := decode(broken).perfSamples(); err == nil {
+				t.Fatalf("invalid samples accepted: %s", broken)
+			}
+		}
+	})
+}
+
+func TestPerfCensusJudgment(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		values    []float64
+		wantError bool
+	}{
+		{"Should tolerate an isolated spike while retaining the 50ms median budget", []float64{0, 50, 0, 73, 0}, false},
+		{"Should fail a majority breach of the unchanged budget", []float64{0, 51, 51, 73, 0}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			report := playwrightCensus{
+				Suites: []playwrightCensusSuite{
+					{Specs: []playwrightCensusSpec{{Title: "E2E-023: the 11-tab envelope @perf"}}},
+				},
+			}
+			for _, value := range tc.values {
+				envelope, err := json.Marshal(perfCensusEnvelope{Switch: value, Peer: value})
+				if err != nil {
+					t.Fatal(err)
+				}
+				report.Suites[0].Specs[0].Tests = append(report.Suites[0].Specs[0].Tests, playwrightCensusTest{
+					ExpectedStatus: "passed",
+					Results: []playwrightCensusResult{
+						{
+							Status: "passed",
+							Attachments: []playwrightCensusAttachment{
+								{Name: "perf-envelope", Body: base64.StdEncoding.EncodeToString(envelope)},
+							},
+						},
+					},
+				})
+			}
+			data, err := json.Marshal(report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			file := filepath.Join(t.TempDir(), "playwright-perf.json")
+			if err := os.WriteFile(file, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := TestPerfCensus(file); (err != nil) != tc.wantError {
+				t.Fatalf("judgment=%v wantError=%v", err, tc.wantError)
+			}
+		})
+	}
+}
+
+// Temporary CI-only probe required by the dispatch. Removed after retaining a
+// real FLAKY annotation and JSON artifact, before independent review.
+func TestFlakeProbe(t *testing.T) {
+	t.Run("Should recover on the single permitted retry", func(t *testing.T) {
+		if os.Getenv("GITHUB_ACTIONS") != "true" {
+			return
+		}
+		marker := filepath.Join(os.Getenv("RUNNER_TEMP"), "compozy-flake-probe-"+os.Getenv("GITHUB_JOB"))
+		file, err := os.OpenFile(marker, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err == nil {
+			if err := file.Close(); err != nil {
+				t.Fatal(err)
+			}
+			t.Fatal("intentional first-attempt failure: verify FLAKY annotation and artifact")
+		}
+		if !os.IsExist(err) {
+			t.Fatal(err)
 		}
 	})
 }

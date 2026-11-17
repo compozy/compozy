@@ -8,7 +8,10 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"testing"
 )
@@ -38,4 +41,72 @@ func TestGoUnitTestPackageLimit(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: CI retries only failed tests once and caps the rerun set at five;
+// local invocations remain single-attempt. Owner: Mage test lane policy.
+func TestGoTestRetryPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name, ci string
+		want     []string
+	}{
+		{"Should leave local execution single-attempt", "", []string{"--format", "pkgname"}},
+		{"Should expose one bounded test retry in CI", "true", []string{"--format", "pkgname", "--rerun-fails=1", "--rerun-fails-max-failures=5"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("CI", tc.ci)
+			if got := gotestsumRunnerArgs(); !slices.Equal(got, tc.want) {
+				t.Fatalf("args=%v want=%v", got, tc.want)
+			}
+		})
+	}
+}
+
+// not parallel: report provenance is read from process environment via t.Setenv.
+
+func TestFlakeReport(t *testing.T) {
+	t.Run("Should persist the recovered test and exact workflow provenance", func(t *testing.T) {
+		root := t.TempDir()
+		t.Setenv("COMPOZY_FLAKE_JOB", "integration-other-0")
+		t.Setenv("GITHUB_RUN_ID", "42")
+		t.Setenv("GITHUB_SHA", "abc")
+		t.Setenv("GITHUB_RUN_ATTEMPT", "1")
+		t.Setenv("GITHUB_OUTPUT", filepath.Join(root, "output"))
+		if err := os.WriteFile(filepath.Join(root, "output"), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		writeTestFile(
+			t,
+			root,
+			"gotest-shard0.json",
+			`{"Package":"p","Test":"TestRecovered","Action":"fail"}`+"\n"+`{"Package":"p","Test":"TestRecovered","Action":"pass"}`+"\n",
+		)
+		target := filepath.Join(root, "receipt", "flakes.json")
+		if err := TestFlakes(root, target); err != nil {
+			t.Fatal(err)
+		}
+		receipts, err := loadFlakeReceipts(filepath.Dir(target))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := flakeReceipt{
+			Suite:      "go",
+			Test:       "p#TestRecovered",
+			Job:        "integration-other-0",
+			Run:        "42",
+			SHA:        "abc",
+			Attempt:    2,
+			RunAttempt: "1",
+		}
+		if len(receipts) != 1 || receipts[0] != want {
+			t.Fatalf("receipts=%+v", receipts)
+		}
+		output, err := os.ReadFile(filepath.Join(root, "output"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(output) != "count=1\n" {
+			t.Fatalf("output=%s", output)
+		}
+	})
 }
