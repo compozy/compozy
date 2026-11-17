@@ -141,15 +141,40 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 			name        string
 			change      func(*ClientRegistration)
 			refreshable bool
+			wantError   string
 		}{
-			{"Should keep a reusable client refreshable", func(*ClientRegistration) {}, true},
-			{"Should reject a missing client", func(r *ClientRegistration) { r.ClientID = "" }, false},
-			{"Should reject a changed definition", func(r *ClientRegistration) { r.DefinitionFingerprint = "changed" }, false},
-			{"Should reject a changed issuer", func(r *ClientRegistration) { r.Issuer = "https://other.example" }, false},
-			{"Should reject insufficient scopes", func(r *ClientRegistration) { r.Scopes = nil }, false},
-			{"Should reject an expired client secret", func(r *ClientRegistration) {
-				r.ClientSecretExpiresAt = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-			}, false},
+			{
+				name:        "Should keep a reusable client refreshable",
+				change:      func(*ClientRegistration) {},
+				refreshable: true,
+			},
+			{
+				name:      "Should reject a missing client",
+				change:    func(r *ClientRegistration) { r.ClientID = "" },
+				wantError: ErrRegistrationNotFound.Error(),
+			},
+			{
+				name:      "Should reject a changed definition",
+				change:    func(r *ClientRegistration) { r.DefinitionFingerprint = "changed" },
+				wantError: "stored registration is no longer valid",
+			},
+			{
+				name:      "Should reject a changed issuer",
+				change:    func(r *ClientRegistration) { r.Issuer = "https://other.example" },
+				wantError: "stored registration is no longer valid",
+			},
+			{
+				name:      "Should reject insufficient scopes",
+				change:    func(r *ClientRegistration) { r.Scopes = nil },
+				wantError: "stored registration is no longer valid",
+			},
+			{
+				name: "Should reject an expired client secret",
+				change: func(r *ClientRegistration) {
+					r.ClientSecretExpiresAt = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+				},
+				wantError: "stored registration is no longer valid",
+			},
 		} {
 			t.Run(registration.name, func(t *testing.T) {
 				t.Parallel()
@@ -163,11 +188,13 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, _, err := refresh.hostedRefreshConfig(
-					t.Context(),
-					state.Config,
-				); (err == nil) != registration.refreshable {
-					t.Fatalf("registration refreshable = %v, error = %v", registration.refreshable, err)
+				_, _, err = refresh.hostedRefreshConfig(t.Context(), state.Config)
+				if registration.wantError != "" {
+					if err == nil || !strings.Contains(err.Error(), registration.wantError) {
+						t.Fatalf("registration error = %v, want %q", err, registration.wantError)
+					}
+				} else if err != nil {
+					t.Fatalf("reusable registration error = %v", err)
 				}
 				local.token = TokenRecord{
 					Target: state.Config.Target, DefinitionFingerprint: store.registration.DefinitionFingerprint,
