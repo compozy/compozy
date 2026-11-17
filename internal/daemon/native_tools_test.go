@@ -1495,7 +1495,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			if err == nil && id == "sess-foreign" {
 				info.ProfileID = "profile-other"
 			}
-			if err == nil {
+			if err == nil && id != "sess-1" {
 				info.State = session.StateStarting
 			}
 			return info, err
@@ -18238,15 +18238,27 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 			t.Fatal(err)
 		}
 		caller.caller.InstanceID = ""
-		_, err = registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDAgentMemoryAdd,
-				Input:  json.RawMessage(`{"text":"unauthorized"}`),
-			},
-		)
-		requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+		for _, item := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDAgentMemoryAdd, `{"text":"unauthorized"}`},
+			{toolspkg.ToolIDAgentMemoryReplace, `{"match":"note","text":"unauthorized"}`},
+			{toolspkg.ToolIDAgentMemoryRemove, `{"match":"note"}`},
+			{toolspkg.ToolIDAgentMemorySearch, `{"query":"note"}`},
+		} {
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
+			)
+			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+			detail, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || !strings.Contains(detail.PublicMessage, "owning always-on-agent main session") ||
+				strings.Contains(detail.PublicMessage, "approve-all") {
+				t.Fatalf("memory refusal = %v", err)
+			}
+		}
 		caller.caller.InstanceID = "instance-memory"
 		if _, err := registry.Call(
 			t.Context(),

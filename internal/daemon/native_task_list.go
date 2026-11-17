@@ -48,9 +48,14 @@ func (n *daemonNativeTools) taskList(
 	core.ApplyTaskLoopCatalogFilters(&query, input.IncludeLoop, input.LoopRunID)
 	query.ReadScope = actor.ReadScope
 	if strings.TrimSpace(scope.WorkspaceID) != "" {
-		workspaceID := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
-		query.Scope = taskpkg.CatalogScopeWorkspace
-		query.WorkspaceID = workspaceID
+		if query.Scope == "" {
+			query.Scope = taskpkg.CatalogScopeWorkspace
+		}
+		if query.Scope.Normalize() == taskpkg.CatalogScopeGlobal {
+			query.WorkspaceID = ""
+		} else {
+			query.WorkspaceID = nativeCallerWorkspaceInput(input.WorkspaceID, scope)
+		}
 	}
 	page, err := n.deps.Tasks.ListTaskCatalog(ctx, query, actor)
 	if err != nil {

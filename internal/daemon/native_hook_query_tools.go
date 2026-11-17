@@ -126,7 +126,8 @@ func (n *daemonNativeTools) hooksRuns(
 		return toolspkg.ToolResult{}, err
 	}
 	if !readScope.Matches(info.ProfileID) {
-		return toolspkg.ToolResult{}, nativeWorkspaceAccessDeniedError(req.ToolID)
+		return toolspkg.ToolResult{}, toolspkg.NewWorkspaceAccessDeniedError(req.ToolID,
+			"this operation requires a session in the selected profile")
 	}
 	runs, err := n.deps.Observer.QueryHookRuns(ctx, query)
 	if err != nil {

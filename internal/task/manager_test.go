@@ -7896,10 +7896,11 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 }
 
 type recordingTaskWorkspaceAccessPolicy struct {
-	decision workspaceaccess.Decision
-	err      error
-	calls    int
-	last     workspaceaccess.Request
+	readOnlyRequired bool
+	decision         workspaceaccess.Decision
+	err              error
+	calls            int
+	last             workspaceaccess.Request
 }
 
 func (p *recordingTaskWorkspaceAccessPolicy) Authorize(
@@ -7908,7 +7909,46 @@ func (p *recordingTaskWorkspaceAccessPolicy) Authorize(
 ) (workspaceaccess.Decision, error) {
 	p.calls++
 	p.last = req
+	if p.readOnlyRequired {
+		return workspaceaccess.Decision{Allowed: req.ReadOnly}, nil
+	}
 	return p.decision, p.err
+}
+
+func TestManagerCrossProfileReadClassification(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep all-profile task rows readable without authorizing writes", func(t *testing.T) {
+		t.Parallel()
+		policy := &recordingTaskWorkspaceAccessPolicy{readOnlyRequired: true}
+		manager := newTaskManagerForTestWithOptions(t, newInMemoryManagerStore(), WithWorkspaceAccessPolicy(policy))
+		record, err := manager.CreateTask(t.Context(), CreateTask{
+			ProfileID: "profile-other", Scope: ScopeWorkspace, WorkspaceID: "ws-a", Title: "Foreign task",
+		}, validActorContext())
+		if err != nil {
+			t.Fatal(err)
+		}
+		actor := agentSessionActorContextForWorkspace("sess-a", "ws-a")
+		actor.ReadScope = storepkg.ReadScope{AllProfiles: true}
+		rows, err := manager.ListTasks(t.Context(), Query{}, actor)
+		if err != nil || len(rows) != 1 || rows[0].ID != record.ID {
+			t.Fatalf("ListTasks() = %#v, %v, want the foreign task", rows, err)
+		}
+		if _, err := manager.GetTask(t.Context(), record.ID, actor); err != nil {
+			t.Fatal(err)
+		}
+		title := "Unauthorized edit"
+		if _, err := manager.UpdateTask(
+			t.Context(),
+			record.ID,
+			Patch{Title: &title},
+			actor,
+		); !errors.Is(
+			err,
+			ErrPermissionDenied,
+		) {
+			t.Fatalf("UpdateTask() = %v, want write denied", err)
+		}
+	})
 }
 
 func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {

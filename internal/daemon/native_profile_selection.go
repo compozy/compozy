@@ -129,7 +129,10 @@ func (n *daemonNativeTools) authorizeNativeProfileSwitch(
 	selection nativeProfileSelectionInput,
 	targetProfile string,
 ) error {
-	if descriptor.ExecutionMetadata().ReservedWorkspacePartition || n.deps.WorkspaceAccess == nil {
+	if descriptor.ExecutionMetadata().ReservedWorkspacePartition {
+		return toolspkg.NewWorkspaceAccessDeniedError(req.ToolID, "this desktop partition is operator-only")
+	}
+	if n.deps.WorkspaceAccess == nil {
 		return nativeWorkspaceAccessDeniedError(req.ToolID)
 	}
 	targetWorkspace := scope.WorkspaceID

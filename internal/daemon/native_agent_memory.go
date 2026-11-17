@@ -50,17 +50,17 @@ func (n *daemonNativeTools) agentMemoryCaller(
 	}
 	if info == nil || info.ProfileID == "" || info.ProfileID != scope.ProfileID || info.AgentName != scope.AgentName ||
 		info.WorkspaceID != scope.WorkspaceID {
-		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+		return agentmemory.Key{}, "", nativeAgentMemoryDeniedError(id)
 	}
 	if n.deps.AgentInstances == nil {
-		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+		return agentmemory.Key{}, "", nativeAgentMemoryDeniedError(id)
 	}
 	instances := n.deps.AgentInstances()
 	if instances == nil {
-		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+		return agentmemory.Key{}, "", nativeAgentMemoryDeniedError(id)
 	}
 	if err := instances.Authority.AuthorizeMemory(ctx, info.ID, info.AgentName, info.ProfileID); err != nil {
-		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+		return agentmemory.Key{}, "", nativeAgentMemoryDeniedError(id)
 	}
 	resolved, err := n.nativeSkillWorkspace(ctx, info.ProfileID, info.WorkspaceID)
 	if err != nil {
@@ -76,7 +76,8 @@ func (n *daemonNativeTools) agentMemoryCaller(
 			continue
 		}
 		if entry.Def.EffectiveKind() != compozyconfig.AgentKindAlwaysOn {
-			return agentmemory.Key{}, "", nativeInputError(id, errors.New("agent_not_always_on"))
+			return agentmemory.Key{}, "", nativeInputError(id,
+				errors.New("agent_not_always_on: memory requires the owning always-on-agent main session"))
 		}
 		if entry.MemoryOrigin == "" {
 			return agentmemory.Key{}, "", nativeUnavailableError(id, "agent memory identity unavailable")
@@ -92,6 +93,10 @@ func (n *daemonNativeTools) agentMemoryCaller(
 		}, source, nil
 	}
 	return agentmemory.Key{}, "", nativeUnavailableError(id, "agent definition unavailable")
+}
+
+func nativeAgentMemoryDeniedError(id toolspkg.ToolID) error {
+	return toolspkg.NewWorkspaceAccessDeniedError(id, "agent memory requires the owning always-on-agent main session")
 }
 
 func (n *daemonNativeTools) agentMemoryCall(

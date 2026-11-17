@@ -15,9 +15,7 @@ import (
 
 const nativeSessionTargetInputKey = "session_id"
 
-// nativeSessionTargetID returns the top-level target session a session tool names. A schema
-// without both session_id and workspace has no session target the boundary resolves, and
-// session_describe always describes the calling session.
+// nativeSessionTargetID identifies session targets whose owner the dispatch boundary authorizes.
 func nativeSessionTargetID(
 	id toolspkg.ToolID,
 	schema map[string]json.RawMessage,
@@ -30,7 +28,7 @@ func nativeSessionTargetID(
 	if _, ok := properties[nativeSessionTargetInputKey]; !ok {
 		return ""
 	}
-	if _, ok := properties[nativeWorkspaceInputKey]; !ok {
+	if _, ok := properties[nativeWorkspaceInputKey]; !ok && !nativePolicyOrchestrationTool(id) {
 		return ""
 	}
 	value, ok := nativeWorkspaceInputValue(payload[nativeSessionTargetInputKey])
@@ -38,6 +36,20 @@ func nativeSessionTargetID(
 		return ""
 	}
 	return strings.TrimSpace(value)
+}
+
+func nativePolicyOrchestrationTool(id toolspkg.ToolID) bool {
+	switch id {
+	case toolspkg.ToolIDSessionWait, toolspkg.ToolIDSessionStop, toolspkg.ToolIDSessionApprove,
+		toolspkg.ToolIDSessionClarifyAnswer, toolspkg.ToolIDSessionPromptCancel, toolspkg.ToolIDSessionCompact:
+		return true
+	default:
+		return false
+	}
+}
+
+func nativePolicySessionTargetTool(id toolspkg.ToolID) bool {
+	return nativePolicyOrchestrationTool(id) || id == toolspkg.ToolIDMonitorCreate
 }
 
 // nativeSessionTarget is a target session resolved by id. A nil info means no visible session
@@ -218,4 +230,30 @@ func markNativeCrossing(ctx context.Context, decision workspaceaccess.Decision) 
 	if decision.Allowed && decision.Source != workspaceaccess.SourceSameWorkspace {
 		toolspkg.MarkOutsideCallerScope(ctx)
 	}
+}
+
+func (b *nativeWorkspaceInputBinder) authorizeSessionMonitorInput(
+	ctx context.Context, scope toolspkg.Scope, descriptor toolspkg.Descriptor, call toolspkg.CallRequest,
+) error {
+	var input nativeMonitorCreateInput
+	if err := json.Unmarshal(call.Input, &input); err != nil {
+		return nativeInputError(descriptor.ID, err)
+	}
+	if input.Kind != "session" {
+		return nil
+	}
+	actor, profileID, err := b.nativeWorkspaceAccessActor(ctx, scope)
+	if err != nil {
+		return errors.Join(nativeWorkspaceAccessDeniedError(descriptor.ID), err)
+	}
+	// Registering an owner's watch only reads the target sessions.
+	descriptor.ReadOnly = true
+	for _, target := range input.TargetSessionIDs {
+		if _, err := b.authorizeNativeSessionTarget(ctx, scope, descriptor, call, nativeSessionTargetRequest{
+			actor: actor, actorProfileID: profileID, sessionID: strings.TrimSpace(target),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

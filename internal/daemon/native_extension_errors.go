@@ -12,6 +12,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -107,6 +108,10 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
 			toolspkg.ReasonExtensionValidationFailed,
 		)
+	case errors.Is(err, taskpkg.ErrPermissionDenied):
+		return toolspkg.NewWorkspaceAccessDeniedError(id,
+			"extension changes require the caller's workspace and profile; global installations and replacing "+
+				"code shared outside that scope require the operator")
 	case errors.Is(err, extensionpkg.ErrExtensionWorkspaceDenied):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeDenied,

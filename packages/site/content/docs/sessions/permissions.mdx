@@ -186,6 +186,19 @@ A session tool called with only a `session_id`, such as `compozy__session_status
 against the workspace and profile of that session, not the caller's. You don't need to pass
 `workspace` to read a session somewhere else.
 
+The same target-based check applies to `session_wait`, `session_stop`, `session_approve`,
+`session_clarify_answer`, `session_prompt_cancel`, and `session_compact`. A session monitor checks
+each target as a read when it is registered, then rechecks before returning retained results or
+delivering a wake. If access is revoked, the target's name and observed state are hidden and the
+result reports `access_denied`.
+
+Process diagnostics (`session_processes_*`), terminals, and pull request monitors stay in the
+caller's workspace and profile. Reparenting uses the selected workspace and the caller's profile;
+both sessions must share that scope. Moving a session to another profile still needs the
+unrestricted grant. Global definition writes, workspace folder changes, and cleanup across all
+workspaces also retain their unrestricted or operator requirement. Agent memory requires
+the owning always-on agent's main session; a permission mode cannot grant that identity.
+
 ### Redaction outside the agent's own scope
 
 When an agent reads something outside its own workspace or profile, CompozyOS redacts secrets in
@@ -218,7 +231,7 @@ a session that is denied gets the same answer whether the session it asked for e
 boundaries keep this hint:
 
 ```text
-cross-workspace access is denied by this session's permission mode; ask the operator to set the agent's permissions.mode to approve-all, or approve the prompt when asked
+access could not be authorized for the caller workspace and profile; ask the operator to inspect the session identity and workspace access policy
 ```
 
 ### The cross-workspace prompt

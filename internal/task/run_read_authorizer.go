@@ -22,6 +22,7 @@ func (a taskRunReadAuthorizer) AuthorizeRunRead(
 	run Run,
 	taskRecord *Task,
 ) error {
+	actor.readOnly = true
 	if taskRecord != nil {
 		if err := a.tasks.AuthorizeTask(ctx, actor, *taskRecord); err != nil {
 			return ErrTaskRunNotFound

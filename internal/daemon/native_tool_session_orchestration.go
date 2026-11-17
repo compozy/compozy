@@ -192,6 +192,16 @@ func (n *daemonNativeTools) nativeOrchestrationTarget(
 	if denySelf && target == strings.TrimSpace(scope.SessionID) {
 		return "", nil, nativeSelfTargetError(id)
 	}
+	if toolspkg.SessionTargetAuthorized(ctx, target) || (scope.Operator && nativePolicySessionTargetTool(id)) {
+		info, err := n.deps.Sessions.Status(ctx, target)
+		if err != nil {
+			return "", nil, nativeSessionOrchestrationError(id, err)
+		}
+		if info == nil || info.Type == session.SessionTypeTriage {
+			return "", nil, nativeSessionOrchestrationError(id, session.ErrSessionNotFound)
+		}
+		return target, info, nil
+	}
 	resolved, err := n.nativeResolvedWorkspace(ctx, id, "", scope)
 	if err != nil {
 		return "", nil, err
@@ -206,6 +216,10 @@ func (n *daemonNativeTools) nativeOrchestrationTarget(
 			return "", nil, err
 		}
 		return "", nil, nativeSessionOrchestrationError(id, err)
+	}
+	if !scope.Operator && info.ProfileID != scope.ProfileID {
+		return "", nil, toolspkg.NewWorkspaceAccessDeniedError(id,
+			"this operation requires a session in the caller's workspace and profile")
 	}
 	return target, info, nil
 }

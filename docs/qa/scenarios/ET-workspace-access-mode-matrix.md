@@ -54,3 +54,31 @@ deny-all axis and no target. Audit events carry target kind `unresolved` for the
 
 
 QA result 2026-11-03 (#1169): targeted isolated acpmock walk over hosted MCP and HTTP passed for the journeys above; Web and live providers were not walked. Evidence: `docs/qa/evidence/2026-11-03-issue-1169/verification-report.md`.
+
+QA impact 2026-11-16 (#1779): extend the native matrix to `session_wait`, `session_stop`,
+`session_approve`, `session_clarify_answer`, `session_prompt_cancel`, `session_compact` and
+`monitor_create kind=session`. Verify same scope, same-profile foreign workspace under approve-all,
+default-mode consent, deny-all, cross-profile reads versus mutations, unrestricted, and operator.
+A monitor registered while access is allowed must hide a revoked target's name/state/match in both
+full and compact wakes and native/agent-authenticated HTTP/UDS retained results (`access_denied`,
+`unknown`, false). Seed a secret in the foreign name and verify redaction. `scope=global/all` task
+reads and `all_profiles` retain
+policy-readable rows; global definition and cross-profile writes remain denied without the grant.
+Process tools stay in the caller workspace/profile, reparenting keeps source and parent together,
+and moving profiles still requires target write authority. PR monitors and terminals remain local.
+Agent-memory refusals identify the owning always-on main session requirement. Workspace folders and
+cleanup across all workspaces retain the operator/unrestricted barrier.
+
+Focused executable verification is owned by `TestNativeSessionTargetAccess`,
+`TestPermissionModeReach`, `TestManagerCrossProfileReadClassification`, `TestMonitorSessionWaker`,
+`TestSessionMonitorHandlers`,
+and the isolated SQLite/real-session-manager journey in `TestWorkspaceAccessIntegration`.
+The existing broader skipped QA status is unchanged; these checks do not claim a browser/provider walk.
+
+QA result 2026-11-16 (#1779): the focused policy, native dispatch, task read/mutation, and monitor
+wake suites passed. `GOMAXPROCS=2 go test -p 2 -tags integration ./internal/daemon -run
+'^TestWorkspaceAccessIntegration$' -count=1 -timeout=120s` passed with real session managers,
+isolated homes and SQLite catalogs: an approve-all owner registered a foreign-workspace monitor,
+waited for the target, stopped it, and received the stopped-state wake. The HTTP/UDS monitor suite
+also passed authenticated retained-target revocation, viewer authorization and operator reads.
+No live daemon was used.

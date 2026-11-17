@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -331,6 +332,7 @@ func validSessionWakeEvent() session.SpawnWakeEvent {
 }
 
 type monitorWakeManagerStub struct {
+	statusFn    func(context.Context, string) (*session.Info, error)
 	status      *session.Info
 	statusErr   error
 	enqueueErr  error
@@ -341,7 +343,10 @@ type monitorWakeManagerStub struct {
 	opts        session.SyntheticPromptOpts
 }
 
-func (stub *monitorWakeManagerStub) Status(context.Context, string) (*session.Info, error) {
+func (stub *monitorWakeManagerStub) Status(ctx context.Context, id string) (*session.Info, error) {
+	if stub.statusFn != nil {
+		return stub.statusFn(ctx, id)
+	}
 	return stub.status, stub.statusErr
 }
 
@@ -623,8 +628,8 @@ func TestMonitorSessionTargets(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer stop()
-		if stub.scope.WorkspaceID != "ws-1" || !stub.scope.ReadScope.AllProfiles {
-			t.Fatalf("scope = %+v, want the workspace across profiles", stub.scope)
+		if !stub.scope.AllWorkspaces || !stub.scope.ReadScope.AllProfiles {
+			t.Fatalf("scope = %+v, want target change signals across workspaces and profiles", stub.scope)
 		}
 		stub.events <- session.CatalogEvent{SessionID: "sess-other"}
 		stub.events <- session.CatalogEvent{SessionID: "sess-a"}
@@ -640,6 +645,54 @@ func TestMonitorSessionTargets(t *testing.T) {
 
 func TestMonitorSessionWaker(t *testing.T) {
 	t.Parallel()
+	t.Run("Should redact foreign names and withhold states after access is revoked", func(t *testing.T) {
+		t.Parallel()
+		const secret = "sk-proj-AbCdEf0123456789xyzQRS"
+		owner := &session.Info{ID: "sess-owner", WorkspaceID: "ws-own", ProfileID: "p-own", State: session.StateActive}
+		manager := &monitorWakeManagerStub{statusFn: func(_ context.Context, id string) (*session.Info, error) {
+			if id == owner.ID {
+				return owner, nil
+			}
+			return &session.Info{ID: id, WorkspaceID: "ws-other", ProfileID: "p-other", Name: secret}, nil
+		}}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		waker := &monitorSessionWaker{
+			sessions:        func() monitorSessionManager { return manager },
+			workspaceAccess: func() workspaceaccess.Policy { return policy },
+		}
+		wake := monitorpkg.Notification{
+			Monitor: monitorpkg.Monitor{
+				ID:        "mon-test",
+				SessionID: owner.ID,
+				Kind:      monitorpkg.KindSession,
+				Until:     "all",
+			},
+			Outcome: monitorpkg.Outcome{Reason: monitorpkg.ReasonConditionMet, Targets: []monitorpkg.TargetStatus{
+				{SessionID: "sess-target", Name: "Deploy " + secret, State: "idle", Matched: true},
+			}},
+		}
+		if err := waker.WakeSession(t.Context(), wake); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(manager.opts.Message, secret) || !strings.Contains(manager.opts.Message, "REDACTED") {
+			t.Fatalf("wake exposed a secret: %s", manager.opts.Message)
+		}
+		if !policy.last.ReadOnly {
+			t.Fatal("watch target must be authorized as a read")
+		}
+		policy.decision.Allowed = false
+		if err := waker.WakeSession(t.Context(), wake); err != nil {
+			t.Fatal(err)
+		}
+		for _, message := range []string{manager.opts.Message, manager.opts.Coalesce.CompactText} {
+			if strings.Contains(message, "Deploy") || strings.Contains(message, "<state>idle") ||
+				strings.Contains(message, "reached the condition") ||
+				!strings.Contains(message, "access_denied") ||
+				!strings.Contains(message, "<state>unknown") {
+				t.Fatalf("revoked wake leaked target data: %s", message)
+			}
+		}
+	})
 
 	fired := monitorpkg.Notification{
 		Monitor: monitorpkg.Monitor{

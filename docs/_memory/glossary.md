@@ -190,6 +190,18 @@ An agent session reaching a scope other than its own: another [workspace](#works
 
 **Reads reach every profile and All projects (#1169).** Owner decision 2026-11-03 reverses the part of User Scope Work ADR-003 that kept the profile axis and aggregates out of the permission mode: the same mode table applies to reads of another profile and to [All projects](#all-projects) aggregate reads. Writes to another profile, and writes through an aggregate route, still need the [unrestricted grant](#unrestricted-grant). A native session tool named by `session_id` alone is authorized against that session's own workspace and profile; a denied caller gets the same answer whether or not the session exists. Results an agent reads outside its own workspace or profile are secret-redacted at the native dispatch boundary.
 
+**Orchestration and monitors (#1779).** `session_wait`, `session_stop`, `session_approve`,
+`session_clarify_answer`, `session_prompt_cancel`, and `session_compact` authorize the named session's
+workspace and profile through that policy. Session monitors authorize each target as a read at
+registration and recheck before wake delivery and native or authenticated HTTP/UDS monitor results. A later denial hides the
+target's name, state, and match with `unknown` and reports `access_denied`; foreign names are
+secret-redacted. Process tools remain local to the caller workspace/profile. Reparenting preserves
+one workspace and the source profile; profile moves additionally require authorization for the target
+profile write. Pull-request monitors and native terminals use the caller workspace/profile.
+`scope=global/all` reads follow policy; global definition writes retain their unrestricted barrier.
+Extension installation still requires the caller workspace/profile, with global/shared changes
+reserved for the operator. `agent_memory_*` requires the owning always-on-agent main session.
+
 **Operator-authored grant.** User Scope Work ADR-003 supersedes Cross-workspace access ADR-007 §1 only for the [unrestricted grant](#unrestricted-grant) (`workspace_access: unrestricted` in AGENT.md). The effective session grant precedes the permission-mode crossing rules and permits project, User, and profile aggregate access. It does not bypass tool policy or permit global/foreign-profile desktop access. No grants table, `[workspace_access]` config section, or grant-management toolset exists.
 
 The grant is immutable for a session. Creation intersects the target definition with the authenticated creator ceiling; deferred tasks, automations, and Loops persist that ceiling. Agent edits to executable definitions can only narrow it. Legacy records have an empty ceiling. Marketplace and extension definitions cannot supply the grant.

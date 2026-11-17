@@ -22,6 +22,7 @@ const (
 
 // InspectTask returns a deterministic read-only snapshot for one task id.
 func (m *Service) InspectTask(ctx context.Context, taskID string, actor ActorContext) (*InspectView, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -40,6 +41,7 @@ func (m *Service) InspectTask(ctx context.Context, taskID string, actor ActorCon
 
 // InspectRun returns a deterministic read-only snapshot rooted at one run id.
 func (m *Service) InspectRun(ctx context.Context, runID string, actor ActorContext) (*InspectView, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}

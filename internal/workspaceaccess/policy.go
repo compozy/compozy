@@ -2,9 +2,9 @@ package workspaceaccess
 
 import "context"
 
-// DenialHint is the canonical operator guidance returned by workspace-access seams.
-const DenialHint = "cross-workspace access is denied by this session's permission mode; " +
-	"ask the operator to set the agent's permissions.mode to approve-all, or approve the prompt when asked"
+// DenialHint covers failures without a policy decision. Known denials use DenialMessage.
+const DenialHint = "access could not be authorized for the caller workspace and profile; " +
+	"ask the operator to inspect the session identity and workspace access policy"
 
 // ActorKind identifies the trusted runtime origin of an access request.
 type ActorKind string

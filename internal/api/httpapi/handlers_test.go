@@ -22,6 +22,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
@@ -39,6 +40,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -4257,8 +4259,86 @@ func (s retainedProcessProfileService) ListIdentities(context.Context) ([]profil
 
 // Session monitors are operator-visible: the session payload reports active
 // monitors, and the operator lists and cancels them without waking the session.
+type retainedHandlerMonitor struct{ monitor monitorpkg.Monitor }
+
+func (s retainedHandlerMonitor) List(string) []monitorpkg.Monitor {
+	return []monitorpkg.Monitor{s.monitor}
+}
+
+func (s retainedHandlerMonitor) Cancel(string, string) (monitorpkg.Monitor, error) {
+	return s.monitor, nil
+}
+
+func (retainedHandlerMonitor) ActiveCounts([]string) map[string]int { return nil }
+
 func TestSessionMonitorHandlers(t *testing.T) {
 	t.Parallel()
+	// Invariant: authenticated HTTP/UDS reads and cancel responses recheck retained foreign targets.
+	// Owning layer: shared monitor handlers; canonical suite: TestSessionMonitorHandlers.
+	t.Run("Should recheck retained session monitor targets for authenticated viewers", func(t *testing.T) {
+		t.Parallel()
+		manager := &stubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			workspaceID := "ws-workspace"
+			if id == "sess-foreign" {
+				workspaceID = "ws-foreign"
+			}
+			return &session.Info{ID: id, AgentName: "coder", WorkspaceID: workspaceID,
+				ProfileID: store.DefaultProfileID, State: session.StateActive}, nil
+		}}
+		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+		handlers.SessionMonitors = retainedHandlerMonitor{monitor: monitorpkg.Monitor{
+			ID: "mon-retained", SessionID: "sess-owner", Kind: monitorpkg.KindSession,
+			Reason: monitorpkg.ReasonConditionMet, Status: monitorpkg.StatusFired,
+			Targets: []monitorpkg.TargetStatus{{SessionID: "sess-foreign", Name: "foreign work",
+				State: monitorpkg.TargetStateStopped, Matched: true, OccurrenceID: "occ-foreign"}},
+		}}
+		allowed := false
+		handlers.WorkspaceAccess = apitestutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				if req.Target.WorkspaceID == "ws-foreign" {
+					if req.Actor.SessionID != "sess-viewer" || !req.ReadOnly {
+						t.Fatalf("retained target request = %#v, want viewer read authority", req)
+					}
+					return workspaceaccess.Decision{Allowed: allowed}, nil
+				}
+				return workspaceaccess.Decision{Allowed: true}, nil
+			},
+		}
+		engine := newTestRouter(t, handlers)
+		base := "/api/workspaces/ws-workspace/sessions/sess-owner/monitors"
+		headers := map[string]string{agentidentity.HeaderSessionID: "sess-viewer", agentidentity.HeaderAgent: "coder"}
+		for _, allow := range []bool{false, true} {
+			allowed = allow
+			for _, method := range []string{http.MethodGet, http.MethodPost} {
+				path := base
+				if method == http.MethodPost {
+					path += "/mon-retained/cancel"
+				}
+				response := performRequestWithHeaders(t, engine, method, path, nil, headers)
+				if response.Code != http.StatusOK {
+					t.Fatalf("%s status=%d body=%s", method, response.Code, response.Body.String())
+				}
+				body := response.Body.String()
+				if allow {
+					if !strings.Contains(body, "foreign work") || !strings.Contains(body, `"state":"stopped"`) {
+						t.Fatalf("authorized target missing: %s", body)
+					}
+				} else if strings.Contains(body, "foreign work") || strings.Contains(body, "occ-foreign") ||
+					strings.Contains(body, `"state":"stopped"`) || strings.Contains(body, `"matched":true`) ||
+					!strings.Contains(
+						body,
+						`"reason":"access_denied"`,
+					) || !strings.Contains(body, `"state":"unknown"`) {
+					t.Fatalf("retained target escaped revocation: %s", body)
+				}
+			}
+		}
+		allowed = false
+		operator := performRequest(t, engine, http.MethodGet, base, nil)
+		if operator.Code != http.StatusOK || !strings.Contains(operator.Body.String(), "foreign work") {
+			t.Fatalf("operator retained read: status=%d body=%s", operator.Code, operator.Body.String())
+		}
+	})
 	monitors, err := monitorpkg.NewService(t.Context(), nil, discardMonitorWaker{})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)

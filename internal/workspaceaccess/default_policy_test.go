@@ -769,6 +769,32 @@ func TestUnrestrictedGrant(t *testing.T) {
 
 func TestPermissionModeReach(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reevaluate permission downgrades and grant revocation on retained reads", func(t *testing.T) {
+		t.Parallel()
+		facts := SessionFacts{Mode: ModeApproveAll, WorkspaceID: testWorkspaceA, ProfileID: "p1"}
+		policy := newPolicyForTest(
+			t,
+			factsSourceFunc(func(context.Context, string) (SessionFacts, error) { return facts, nil }),
+			&consentCacheStub{consent: ConsentAllow, ok: true},
+			&auditEmitterSpy{},
+			slog.Default(),
+		)
+		req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
+		req.ReadOnly = true
+		for _, tc := range []struct {
+			mode    Mode
+			grant   string
+			allowed bool
+		}{
+			{ModeApproveAll, "", true}, {ModeDenyAll, "", false}, {ModeDenyAll, Unrestricted, true}, {ModeDenyAll, "", false},
+		} {
+			facts.Mode, facts.WorkspaceAccess = tc.mode, tc.grant
+			got, err := policy.Authorize(t.Context(), req)
+			if err != nil || got.Allowed != tc.allowed {
+				t.Fatalf("Authorize(%s, %q) = %#v, %v", tc.mode, tc.grant, got, err)
+			}
+		}
+	})
 	otherProfile := ScopeTarget(testWorkspaceB, "p2")
 	sameWorkspaceOtherProfile := ScopeTarget(testWorkspaceA, "p2")
 	userOtherProfile := ScopeTarget("", "p2")

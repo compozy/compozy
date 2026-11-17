@@ -175,7 +175,9 @@ func (n *daemonNativeTools) sessionCleanupRequest(
 			return request, err
 		}
 		if !allowed {
-			return request, nativeWorkspaceAccessDeniedError(id)
+			return request, nativeWorkspaceAccessDecisionError(
+				id, workspaceaccess.Decision{Denial: workspaceaccess.DenialNeedsGrant},
+			)
 		}
 		request.Scope.AllWorkspaces = true
 	} else {
@@ -221,14 +223,18 @@ func (n *daemonNativeTools) requireSessionCleanupRunScope(
 		return nil
 	}
 	if run.Scope.AllWorkspaces || input.AllWorkspaces {
-		return nativeWorkspaceAccessDeniedError(id)
+		return nativeWorkspaceAccessDecisionError(
+			id,
+			workspaceaccess.Decision{Denial: workspaceaccess.DenialNeedsGrant},
+		)
 	}
 	workspaceID, err := n.sessionCleanupWorkspaceID(ctx, scope, id, input.Workspace)
 	if err != nil {
 		return err
 	}
 	if workspaceID != run.Scope.WorkspaceID {
-		return nativeWorkspaceAccessDeniedError(id)
+		return toolspkg.NewWorkspaceAccessDeniedError(id,
+			"select the cleanup run's workspace, or ask the operator for workspace_access: unrestricted")
 	}
 	return nil
 }

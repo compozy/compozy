@@ -12,6 +12,7 @@ import (
 
 // GetTask returns one expanded task view after enforcing read authority.
 func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*View, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -121,6 +122,7 @@ func (m *Service) ListTaskRuns(
 	query RunQuery,
 	actor ActorContext,
 ) ([]Run, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -292,6 +294,7 @@ func (m *Service) ListTasks(
 	query Query,
 	actor ActorContext,
 ) ([]Summary, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}

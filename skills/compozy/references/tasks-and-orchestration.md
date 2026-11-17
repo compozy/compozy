@@ -116,8 +116,9 @@ Other filters cover scope/workspace, canonical status, priority, draft inclusion
 
 A bound session inherits its own workspace when the native task catalog target is omitted.
 An explicit foreign workspace must pass the shared workspace-access policy and then selects that
-workspace's records; it never falls back to the caller's inventory. The acting profile still owns
-the read scope. Native `global` and `all` scope remain operator-only for bound sessions.
+workspace's records; it never falls back to the caller's inventory. The selected profile lens owns
+the read scope. Native `global` and `all` reads follow workspace access policy. `all_profiles` task
+rows are authorized as reads; global and cross-profile writes retain their grant requirements.
 
 CLI `task publish`, `task start`, `task approve`, `task reject`, pause/resume/cancel, block/unblock,
 block listing and task recovery use the selected profile. The same selection applies to task

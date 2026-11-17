@@ -143,6 +143,7 @@ func (m *Service) SchedulerBacklog(
 	query SchedulerBacklogQuery,
 	actor ActorContext,
 ) (SchedulerBacklog, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return SchedulerBacklog{}, err
 	}
