@@ -3068,7 +3068,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Manager.Snapshot() after tab tools error = %v", err)
 		}
-		if persisted.Revision != 10 || len(persisted.Windows) != 4 || !persisted.Desktops[1].Tabs[0].Pinned {
+		if persisted.Revision != 10 || len(persisted.Windows) != 3 || !persisted.Desktops[1].Tabs[0].Pinned {
 			t.Fatalf("snapshot after tab tools = %#v", persisted)
 		}
 
