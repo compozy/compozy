@@ -1978,6 +1978,67 @@ describe("SessionChatRuntimeProvider", () => {
     );
   });
 
+  // Invariant (issue #1798): the daemon addresses uploads by content, so two composer tiles
+  // holding the same image resolve to one attachment id. Pasting it again while the first
+  // upload is in flight, then sending, never registers that id twice as message attachment
+  // keys; each tile stays one attachment the prompt carries, matching the gallery's
+  // repeated-image convention.
+  // Owning layer: SessionAttachmentAdapter through the runtime provider. Canonical suite: this file.
+  it("Should send the same image pasted twice while uploading without colliding attachment keys", async () => {
+    const uploadGate = createDeferred<void>();
+    let uploadCount = 0;
+    attachmentUploadResponse = async () => {
+      uploadCount += 1;
+      await uploadGate.promise;
+      return jsonResponse(
+        {
+          attachment: {
+            bytes: 4,
+            created_at: "2026-08-15T00:00:00Z",
+            height: 10,
+            id: `att_${"a".repeat(64)}`,
+            kind: "image",
+            mime_type: "image/png",
+            name: "shot.png",
+            sha256: "a".repeat(64),
+            width: 16,
+          },
+        },
+        { status: 201 }
+      );
+    };
+    const user = userEvent.setup();
+    renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Same screenshot twice");
+    const screenshot = () => new File(["shot"], "shot.png", { type: "image/png" });
+    act(() => {
+      void requireComposerAui().composer.addAttachment(screenshot());
+      void requireComposerAui().composer.addAttachment(screenshot());
+    });
+    await waitFor(() => expect(uploadCount).toBe(2));
+    uploadGate.resolve();
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(2));
+    await waitFor(() => expect(screen.getByTestId("composer-send-button")).toBeEnabled());
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    const promptRequest = fetchMock.mock.calls.find(([input]) =>
+      getPathname(input as RequestInfo | URL).endsWith("/prompt")
+    );
+    const body = JSON.parse(String((promptRequest?.[1] as RequestInit | undefined)?.body)) as {
+      attachments?: { id: string; kind: string }[];
+    };
+    expect(body.attachments?.map(attachment => attachment.kind)).toEqual(["image", "image"]);
+    expect(body.attachments?.map(attachment => attachment.id)).toEqual([
+      `att_${"a".repeat(64)}`,
+      `att_${"a".repeat(64)}`,
+    ]);
+    await waitFor(() => expect(composerText()).toBe(""));
+    expect(screen.getByTestId("composer-input")).toBeInTheDocument();
+  });
+
   // Invariant (issue #815): a prompt's draft is consumed only by the daemon's
   // acceptance. A runtime torn down mid-POST (navigation, a profile switch)
   // neither aborts the admission nor drops the draft: a refusal names its

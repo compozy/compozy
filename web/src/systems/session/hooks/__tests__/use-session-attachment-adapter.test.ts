@@ -11,6 +11,7 @@ vi.mock("../../adapters/session-attachment-api", async importOriginal => ({
   uploadSessionAttachment: attachmentApiMocks.uploadSessionAttachment,
 }));
 
+import { attachmentsFromPromptMessageParts } from "../../lib/attachment-kinds";
 import type { SessionAttachment } from "../../types";
 import { SessionAttachmentAdapter } from "../use-session-attachment-adapter";
 
@@ -100,7 +101,10 @@ describe("SessionAttachmentAdapter upload removal", () => {
       if (ready.done || duplicateReady.done) throw new Error("upload did not become ready");
       await adapter.remove(ready.value);
       const sent = await other.send(duplicateReady.value);
-      expect(sent.id).toBe(uploadedAttachment().id);
+      expect(sent.id).toBe(duplicateReady.value.id);
+      expect(attachmentsFromPromptMessageParts(sent.content).map(ref => ref.id)).toEqual([
+        uploadedAttachment().id,
+      ]);
       expect(available).toBe(true);
     }
   );
