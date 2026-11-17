@@ -1259,8 +1259,31 @@ func TestOAuthRefreshCannotReinsertTokenAfterLogout(t *testing.T) {
 
 func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 	t.Parallel()
-	for _, code := range []string{"invalid_grant", "revoked", "invalid_request", "invalid_scope", "unsupported_grant_type", "", "temporarily_unavailable", "sensitive-refresh-token"} {
-		t.Run("Should classify refresh rejection and redact diagnostics for "+code, func(t *testing.T) {
+	for _, test := range []struct {
+		code       string
+		status     int
+		definitive bool
+	}{
+		{code: "invalid_grant", status: 400, definitive: true},
+		{code: "revoked", status: 400, definitive: true},
+		{code: "invalid_request", status: 400, definitive: true},
+		{code: "invalid_scope", status: 400, definitive: true},
+		{code: "unsupported_grant_type", status: 400, definitive: true},
+		{status: 400, definitive: true},
+		{code: "temporarily_unavailable", status: 400},
+		{code: "sensitive-refresh-token", status: 400},
+		{status: 403},
+		{status: 408},
+		{status: 409},
+		{code: "invalid_grant", status: 429},
+		{code: "invalid_grant", status: 503},
+	} {
+		name := fmt.Sprintf(
+			"Should classify HTTP %d refresh rejection and redact diagnostics for %s",
+			test.status,
+			test.code,
+		)
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			var requests atomic.Int32
 			var recovered atomic.Bool
@@ -1278,13 +1301,13 @@ func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 					)
 					return
 				}
-				w.WriteHeader(http.StatusBadRequest)
+				w.WriteHeader(test.status)
 				writeManagerTestResponse(
 					t,
 					w,
 					fmt.Sprintf(
 						`{"error":%q,"error_description":"sensitive-access-token sensitive-refresh-token"}`,
-						code,
+						test.code,
 					),
 				)
 			}))
@@ -1304,8 +1327,7 @@ func TestOAuthFailuresPreserveTokensAndRedactSecrets(t *testing.T) {
 				t.Fatalf("expired refreshable status = %+v, %v", before, err)
 			}
 			status, refreshErr := service.Refresh(t.Context(), cfg)
-			definitive := code != "temporarily_unavailable" && code != "sensitive-refresh-token"
-			if definitive {
+			if test.definitive {
 				if refreshErr != nil || status.Status != StatusNeedsLogin || status.Refreshable || status.TokenPresent {
 					t.Fatalf("definitive rejection status = %+v, %v", status, refreshErr)
 				}
