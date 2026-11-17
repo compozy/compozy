@@ -113,7 +113,7 @@ Diagnose finished failures while other jobs run. Wait through a monitor, never a
 
 ## Reviewers
 
-CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commits, a third after a heavy second round, or the fallback below. Every review thread must be resolved. Inspect Greptile and React Doctor results and address actionable findings as they arrive; other pending or red checks do not block merging. Elapsed time or silence proves no CodeRabbit coverage. Do not install or configure a reviewer.
+CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commits, a third after a heavy second round, or the fallback below. Every review thread must be resolved. Inspect Greptile and React Doctor results and address actionable findings as they arrive. Other pending or red checks do not block merging in absent mode; queue/fallback mode also requires both successful aggregates. Elapsed time or silence proves no CodeRabbit coverage. Do not install or configure a reviewer.
 
 - Every push restarts CI and the reviewers, so remediation works in rounds: one push per round, never one per finding.
 - CodeRabbit allows 8 reviews per hour across the repository, so parallel PRs stall on it. Do not request a re-review of an unchanged head.
@@ -124,7 +124,7 @@ CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commi
   3. Fix or answer every finding like any other reviewer's.
   4. Dismiss a stale CodeRabbit `CHANGES_REQUESTED` review with a message linking that comment.
 
-  Inspect Greptile, React Doctor and CI results and report non-green checks; only `PR body` blocks the merge-gate criterion.
+  Inspect Greptile, React Doctor and CI results and report non-green checks. In absent mode only `PR body` blocks the CI criterion; queue/fallback mode also requires both successful aggregates.
 
 A round starts as soon as a reviewer posts findings or a check fails on the current head; do not wait for the rest of CI to finish first, because the fix push restarts CI anyway. Fold in every finding already posted, push once, then inspect CI and satisfy the review criterion on that new head. Collect every page of reviews, inline threads and PR comments, including collapsed sections and the CodeRabbit "Follow-up" and "outside diff" notes that exist only in review bodies, and address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines. Green CI on a head without the required CodeRabbit rounds or fallback is not delivered.
 

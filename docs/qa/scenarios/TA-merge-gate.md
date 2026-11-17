@@ -28,6 +28,10 @@ Hand off from a same-workspace session and confirm each result names the failed 
 3. In absent mode, other pending/failing CI does not block the review/body criterion; report
    non-green checks after landing. In true/false mode, pending, failed, cancelled or missing
    aggregates refuse the handoff. A variable/rules mismatch always refuses without mutation.
+   For an autonomous check-in candidate awaiting aggregates, confirm a pull-request monitor
+   is registered. Let CI finish without changing the head, reviews, comments or source digest;
+   the monitor wake re-verifies and merges/enqueues only after every condition passes.
+   Failed checks, a changed head or a closed PR cancel this wait without auto-merge.
 4. A message without an exact head is refused.
 5. A merge conflict goes to a child session, and the PR needs a fresh handoff after repair.
 6. A blocking branch rule reports a refusal without `--admin` or changing settings. `--auto`
