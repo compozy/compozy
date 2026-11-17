@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.4 - 2026-11-17
+
+### Bug Fixes
+
+- Authorize session orchestration through workspace policy (#1782)
+- Resume spawned workers and idle mains after daemon restart (#1783)
+
+### Features
+
+- Redesign MCP connection popovers, panels and dialogs (#1773)
+
 ## 0.7.3 - 2026-11-16
 
 ### Bug Fixes
@@ -1688,6 +1699,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.7.4]: https://github.com/compozy/compozy/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/compozy/compozy/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/compozy/compozy/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/compozy/compozy/compare/v0.7.0...v0.7.1
