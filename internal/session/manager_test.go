@@ -860,6 +860,60 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
+	t.Run("Should launch Cursor without an explicit effort", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, output, want string
+			speed              speedpkg.Speed
+		}{
+			{name: "Should select the supported normal default", output: cursorDefaultCatalogOutput, speed: speedpkg.SpeedNormal, want: "gemini-3.8-flash-low"},
+			{name: "Should select the supported Fast default", output: cursorDefaultCatalogOutput, speed: speedpkg.SpeedFast, want: "gemini-3.8-flash-low-fast"},
+			{name: "Should preserve a bare Fast transport beside an effort-specific normal transport", output: "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-fast - Gemini Flash Fast", speed: speedpkg.SpeedFast, want: "gemini-3.8-flash-fast"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				models := cursorCatalogModels(t, tc.output)
+				h := newHarness(t, WithModelCatalog(modelCatalogStub{models: models}))
+				session, err := h.manager.Create(
+					t.Context(),
+					new(
+						CreateOpts{
+							AgentName: "coder",
+							Provider:  "cursor",
+							Model:     "gemini-3.8-flash",
+							Speed:     tc.speed,
+							Workspace: h.workspaceID,
+						},
+					),
+				)
+				if err != nil {
+					t.Fatalf("Create() error = %v", err)
+				}
+				t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+				if got := h.driver.startCalls[0].LaunchModelID; got != tc.want {
+					t.Fatalf("LaunchModelID = %q, want %q", got, tc.want)
+				}
+			})
+		}
+		models := cursorCatalogModels(t, cursorDefaultCatalogOutput)
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: models}))
+		_, err := h.manager.Create(
+			t.Context(),
+			new(
+				CreateOpts{
+					AgentName:       "coder",
+					Provider:        "cursor",
+					Model:           "gemini-3.8-flash",
+					ReasoningEffort: "ultra",
+					Workspace:       h.workspaceID,
+				},
+			),
+		)
+		if !errors.Is(err, ErrInvalidRuntimeOverride) || !strings.Contains(err.Error(), `reasoning "ultra"`) {
+			t.Fatalf("Create(unsupported effort) = %v, want invalid override naming ultra", err)
+		}
+	})
+
 	t.Run("Should classify an unsupported Cursor combination as invalid input", func(t *testing.T) {
 		t.Parallel()
 		model := modelcatalog.Model{
@@ -2128,4 +2182,43 @@ func TestManagerProcessActivity(t *testing.T) {
 			t.Fatalf("empty manager demand = %v, %v", live, busy)
 		}
 	})
+}
+
+// cursorCatalogExecutor replaces only the provider command I/O boundary.
+type cursorCatalogExecutor string
+
+var _ modelcatalog.DiscoveryCommandExecutor = cursorCatalogExecutor("")
+
+func (output cursorCatalogExecutor) RunDiscoveryCommand(
+	context.Context,
+	modelcatalog.DiscoveryCommandRequest,
+) (modelcatalog.DiscoveryCommandResult, error) {
+	return modelcatalog.DiscoveryCommandResult{
+		Stdout: string(output),
+	}, nil
+}
+
+const cursorDefaultCatalogOutput = "gemini-3.8-flash-high - Gemini Flash High\ngemini-3.8-flash-low - Gemini Flash Low\ngemini-3.8-flash-low-fast - Gemini Flash Low Fast\ngemini-3.8-flash-high-fast - Gemini Flash High Fast"
+
+func cursorCatalogModels(t *testing.T, output string) []modelcatalog.Model {
+	t.Helper()
+	source, err := modelcatalog.NewLiveProviderSource(
+		"cursor",
+		compozyconfig.BuiltinProviders()["cursor"],
+		&modelcatalog.LiveProviderSourcesConfig{
+			BaseEnv: []string{
+				"HOME=" + t.TempDir(),
+			},
+			WorkingDir:      t.TempDir(),
+			CommandExecutor: cursorCatalogExecutor(output),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := source.ListModels(t.Context(), modelcatalog.ListOptions{ProviderID: "cursor"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return modelcatalog.MergeRows(rows, modelcatalog.MergeOptions{})
 }
