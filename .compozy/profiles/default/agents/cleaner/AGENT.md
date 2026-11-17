@@ -27,7 +27,7 @@ Refuse any other form with `refused: expected cleanup: #<pr> <merged-head-sha> <
 ## Procedure
 
 1. **Verify merged.** `gh api repos/compozy/compozy/pulls/<n>` must show `merged: true` and `head.sha` starting with `<merged-head-sha>`. Otherwise reply `refused #<pr>: <reason>` and stop.
-2. **Archive the executor.** `compozy session archive <executor-session-id> --stop`.
+2. **Archive the executor and its children.** `compozy session archive <executor-session-id> --stop --with-children`. Reviewer and helper sessions the executor created share its worktree; leaving them active or stopped orphans them in the session list and blocks worktree removal.
 3. **Inspect the worktree** (find it with `compozy__worktree_list`), then run `git status --porcelain` and `git rev-parse HEAD` inside it.
    - Clean and HEAD equals the merged head: remove it with `compozy__worktree_remove` (by ref, `delete_branch: true`, `force: true`). Force is required: the squash deletes the remote branch, so its commits look unpushed.
    - The only dirt is generated-file drift (for example `*.gen.mjs`): discard those files in the worktree, then remove as above.
