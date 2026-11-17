@@ -6,7 +6,7 @@
 // section's own skeleton while its code loads, and keeps the page on screen while the next
 // section's code loads. A section that fails to render shows its own error inside the section
 // area; the nav keeps working and another section still opens. Owner: Settings window navigation.
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -15,7 +15,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext } from "../../../contexts/os-shell-context";
 import { RoutingCoordinator } from "../../../lib/routing-coordinator";
@@ -253,6 +253,15 @@ describe("Settings window search shortcut", () => {
 });
 
 describe("Settings window section area", () => {
+  beforeAll(async () => {
+    // Warm module evaluation without rendering the lazy sections or preloading Hooks.
+    await Promise.all([
+      import("../appearance-settings-pane"),
+      import("@/routes/_app/settings/-terminal-settings-page"),
+      import("@/routes/_app/settings/-mcp-settings-page"),
+    ]);
+  }, 30_000);
+
   it("Should show the section's own skeleton, not a spinner, while its code loads", async () => {
     await renderSettingsWindow("/settings/hooks");
 
@@ -281,7 +290,8 @@ describe("Settings window section area", () => {
     expect(outlet).toContainElement(wallpaper);
     expect(outlet.querySelector('[data-slot="skeleton"]')).toBeNull();
 
-    await waitFor(() => expect(outlet).not.toContainElement(wallpaper), { timeout: 20_000 });
+    await act(async () => vi.dynamicImportSettled());
+    expect(outlet).not.toContainElement(wallpaper);
     expect(outlet).not.toHaveAttribute("aria-busy");
   });
 
@@ -291,7 +301,8 @@ describe("Settings window section area", () => {
     const { queryClient, snapshotKey } = await renderSettingsWindow("/settings/mcp");
     const outlet = screen.getByTestId("settings-shell-outlet");
 
-    const failure = await screen.findByRole("alert", {}, { timeout: 20_000 });
+    await act(async () => vi.dynamicImportSettled());
+    const failure = screen.getByRole("alert");
     expect(outlet).toContainElement(failure);
     expect(failure).toHaveTextContent("MCP servers couldn't open");
     expect(screen.getByTestId("settings-section-appearance")).toBeInTheDocument();
@@ -303,9 +314,8 @@ describe("Settings window section area", () => {
       );
     });
 
-    expect(
-      await screen.findByRole("radiogroup", { name: "Wallpaper" }, { timeout: 20_000 })
-    ).toBeInTheDocument();
+    await act(async () => vi.dynamicImportSettled());
+    expect(screen.getByRole("radiogroup", { name: "Wallpaper" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });

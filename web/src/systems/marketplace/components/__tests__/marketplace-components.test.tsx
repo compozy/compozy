@@ -549,7 +549,11 @@ describe("Marketplace page and cards", () => {
       fireEvent.change(screen.getByRole("searchbox", { name: "Search extensions" }), {
         target: { value: "sentry" },
       });
-      fireEvent.click(screen.getByTestId("marketplace-kind-mcps"));
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const clicked = user.click(screen.getByTestId("marketplace-kind-mcps"));
+      // Flush Testing Library's post-event zero-delay task under Vitest's clock.
+      await vi.advanceTimersByTimeAsync(1);
+      await clicked;
       await vi.waitFor(() =>
         expect(router.state.location.search).toEqual({ kind: "mcps", q: "sentry" })
       );

@@ -2598,7 +2598,11 @@ describe("Nested child runs", () => {
     try {
       vi.useFakeTimers();
       const step = screen.getByTestId("loop-run-step-fix_batch");
-      fireEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const clicked = user.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      // Flush Testing Library's post-event zero-delay task under Vitest's clock.
+      await vi.advanceTimersByTimeAsync(1);
+      await clicked;
       await vi.waitFor(() =>
         expect(
           within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")

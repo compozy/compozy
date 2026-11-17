@@ -1,4 +1,3 @@
-import { setImmediate as nextTurn } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -10,6 +9,7 @@ import {
   GatewayStreamAuthError,
   resetGatewayStreamAuth,
 } from "@/lib/gateway-stream-auth";
+import { apiClient } from "@/lib/api-client";
 import { observeGatewayAccess } from "@/lib/gateway-access-signal";
 
 function ticketResponse(ticket: string): Response {
@@ -114,6 +114,7 @@ describe("gateway stream auth", () => {
   });
 
   it("Should cancel abandoned discovery and ignore its late result before retrying", async () => {
+    const getStatus = vi.spyOn(apiClient, "GET");
     const started = Promise.withResolvers<Request>();
     const response = Promise.withResolvers<Response>();
     const fetchMock = vi
@@ -127,6 +128,11 @@ describe("gateway stream auth", () => {
     const controller = new AbortController();
     const canceled = acquireStreamTicket(controller.signal);
     const request = await started.promise;
+    const abandonedRead = getStatus.mock.results[0];
+    if (abandonedRead?.type !== "return") throw new Error("Expected a pending status read");
+    const settled = Promise.withResolvers<void>();
+    // This reaction follows discovery's await of the same HTTP operation.
+    void abandonedRead.value.then(() => settled.resolve(), settled.reject);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const rejected = expect(canceled).rejects.toMatchObject({ name: "AbortError" });
 
@@ -135,8 +141,7 @@ describe("gateway stream auth", () => {
     expect(request.signal.aborted).toBe(true);
     await expect(acquireStreamTicket()).resolves.toBeNull();
     response.resolve(listenerResponse("private"));
-    // Give the released HTTP response its continuation before checking the cached mode.
-    await nextTurn();
+    await settled.promise;
     expect(gatewayStreamAuthMode()).toBe("local");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
