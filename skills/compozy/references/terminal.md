@@ -250,3 +250,10 @@ and does not support structured output. `list`, `get`, `journal`, and `input-req
 `--all-profiles`; an agent session needs approve-all or an unrestricted grant for it, and is otherwise
 refused with `profile_selection_conflict`. Interactions and mutations stay single-profile. Grant administration stays under `compozy tool approvals`; there is no second terminal
 policy store.
+
+## Native caller scope
+
+`compozy__terminal_*` and `monitor_create` with `kind=terminal` use the caller's workspace and
+profile. They have no cross-workspace selector; `approve-all` and an unrestricted grant do not
+rebind a terminal ID. Pull-request monitors likewise resolve the repository from the caller
+workspace. Run work in a session bound to the intended workspace to use these capabilities there.

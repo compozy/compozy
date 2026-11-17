@@ -39,6 +39,10 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 	if err != nil {
 		return err
 	}
+	targetScopes, err := json.Marshal(mon.TargetScopes)
+	if err != nil {
+		return fmt.Errorf("store: encode session monitor %s target scopes: %w", mon.ID, err)
+	}
 	params := sqlcgen.UpsertSessionMonitorParams{
 		ID: mon.ID, SessionID: mon.SessionID, WorkspaceID: record.WorkspaceID, ProfileID: record.ProfileID,
 		Kind: string(mon.Kind), Description: mon.Description, TerminalID: mon.TerminalID, Until: mon.Until,
@@ -48,7 +52,7 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 		FiredAt:    firedAt, Reason: mon.Reason, ExitCode: exitCode, OwnerBinding: record.OwnerBinding,
 		OwnerCheckFailedAt: checkFailedAt, Version: record.Version, Branch: mon.Branch, RepoKey: record.RepoKey,
 		PrCursor: record.Cursor, FireCount: int64(mon.FireCount), LastFiredAt: lastFiredAt,
-		TargetSessionIds: targetSessionIDs, States: states, Targets: targets,
+		TargetSessionIds: targetSessionIDs, States: states, Targets: targets, TargetScopes: string(targetScopes),
 	}
 	return store.ExecuteWriteOperation(
 		ctx,
@@ -212,6 +216,12 @@ func decodeMonitorTargets(row sqlcgen.SessionMonitor, mon *monitor.Monitor) erro
 	}
 	if err := json.Unmarshal([]byte(row.Targets), &mon.Targets); err != nil {
 		return fmt.Errorf("store: parse session monitor %s targets: %w", row.ID, err)
+	}
+	if err := json.Unmarshal([]byte(row.TargetScopes), &mon.TargetScopes); err != nil {
+		return fmt.Errorf("store: parse session monitor %s target_scopes: %w", row.ID, err)
+	}
+	if len(mon.TargetScopes) == 0 {
+		mon.TargetScopes = nil
 	}
 	if len(mon.Targets) == 0 {
 		mon.Targets = nil

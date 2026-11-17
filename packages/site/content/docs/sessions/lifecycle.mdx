@@ -785,7 +785,8 @@ curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/st
 outcome, including the unverified attention branch. An already stopped session returns 200 without
 starting another operation. Closing the requesting client does not abandon an accepted stop.
 The governed native tool `compozy__session_stop` accepts the same `wait` choice and outcome fields.
-Its existing approval and same-workspace, non-self target rules still apply.
+Its approval and non-self target rules still apply. The target's workspace and profile are checked
+through the [workspace access policy](/docs/sessions/permissions#cross-workspace-access).
 
 For compatibility through v0.4, HTTP/UDS requests that omit `wait` retain synchronous 204 responses
 with a migration warning. Native calls that omit `wait` retain the previous synchronous result and

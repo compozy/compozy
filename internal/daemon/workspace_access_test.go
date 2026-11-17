@@ -3,19 +3,27 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -120,6 +128,447 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		}
 		return policy
 	}
+	t.Run("Should apply the policy matrix to id-only orchestration targets", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDSessionWait, toolspkg.ToolIDSessionStop, toolspkg.ToolIDSessionApprove,
+			toolspkg.ToolIDSessionClarifyAnswer, toolspkg.ToolIDSessionPromptCancel, toolspkg.ToolIDSessionCompact,
+			toolspkg.ToolIDMonitorCreate,
+		} {
+			t.Run("Should authorize "+string(id), func(t *testing.T) {
+				t.Parallel()
+				for _, tc := range []struct {
+					name, target, hint string
+					mode               workspaceaccess.Mode
+					grant, operator    bool
+				}{
+					{name: "Should allow own scope", target: "sess-own", mode: workspaceaccess.ModeDenyAll},
+					{name: "Should allow same-profile approve-all", target: "sess-sibling", mode: workspaceaccess.ModeApproveAll},
+					{name: "Should require consent in the default mode", target: "sess-sibling", mode: workspaceaccess.ModeApproveReads, hint: "operator's approval"},
+					{name: "Should refuse deny-all", target: "sess-sibling", mode: workspaceaccess.ModeDenyAll, hint: "deny-all"},
+					{name: "Should require the grant for cross-profile writes", target: "sess-foreign", mode: workspaceaccess.ModeApproveAll, hint: "workspace_access: unrestricted"},
+					{name: "Should allow unrestricted", target: "sess-foreign", mode: workspaceaccess.ModeDenyAll, grant: true},
+					{name: "Should allow the operator", target: "sess-foreign", operator: true},
+				} {
+					t.Run(tc.name, func(t *testing.T) {
+						t.Parallel()
+						sessions := sessionsFor(tc.mode)
+						status := sessions.StatusFn
+						sessions.StatusFn = func(ctx context.Context, target string) (*session.Info, error) {
+							info, err := status(ctx, target)
+							if info != nil && target == "sess-actor" && tc.grant {
+								info.EffectiveWorkspaceAccess = workspaceaccess.Unrestricted
+							}
+							return info, err
+						}
+						descriptor := statusDescriptor
+						descriptor.ID, descriptor.ReadOnly = id, id == toolspkg.ToolIDSessionWait
+						descriptor.InputSchema = json.RawMessage(
+							`{"type":"object","properties":{"session_id":{"type":"string"}}}`,
+						)
+						scope := actorScope
+						scope.Operator = tc.operator
+						binder := newNativeWorkspaceInputBinder(
+							nativeTestWorkspaceService(t),
+							sessions,
+							newPolicy(t, sessions),
+							nil,
+						)
+						input := `{"session_id":"` + tc.target + `"}`
+						if id == toolspkg.ToolIDMonitorCreate {
+							input = `{"kind":"session","target_session_ids":["` + tc.target + `"]}`
+						}
+						err := binder.AuthorizeCallInput(t.Context(), scope, descriptor, toolspkg.CallRequest{
+							ToolID: id, Input: json.RawMessage(input),
+						})
+						hint := tc.hint
+						if (descriptor.ReadOnly || id == toolspkg.ToolIDMonitorCreate) &&
+							hint == "workspace_access: unrestricted" {
+							hint = ""
+						}
+						if hint == "" {
+							if err != nil {
+								t.Fatal(err)
+							}
+						} else if err == nil || !strings.Contains(err.Error(), hint) {
+							t.Fatalf("authorization = %v, want %q", err, hint)
+						}
+					})
+				}
+			})
+		}
+	})
+	t.Run("Should keep process operations local independently of permission mode", func(t *testing.T) {
+		t.Parallel()
+		sessions := sessionsFor(workspaceaccess.ModeApproveAll)
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{Sessions: sessions, Workspaces: nativeTestWorkspaceService(t)},
+		}
+		scope := actorScope
+		scope.ProfileID = "p-x"
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDSessionProcessesList, toolspkg.ToolIDSessionProcessesTerminate} {
+			for _, target := range []string{"sess-own", "sess-sibling", "sess-peer"} {
+				t.Run("Should enforce local process scope for "+string(id)+" targeting "+target, func(t *testing.T) {
+					_, _, err := n.nativeOrchestrationTarget(t.Context(), scope, id, target, false)
+					if target == "sess-own" {
+						if err != nil {
+							t.Fatal(err)
+						}
+						return
+					}
+					if err == nil || !strings.Contains(err.Error(), "workspace") ||
+						strings.Contains(err.Error(), "approve-all") {
+						t.Fatalf("local process target %s: %v", target, err)
+					}
+				})
+			}
+		}
+	})
+	t.Run("Should dispatch every id-only orchestration tool to its authorized foreign owner", func(t *testing.T) {
+		t.Parallel()
+		base := sessionsFor(workspaceaccess.ModeApproveAll)
+		called := 0
+		check := func(id string) {
+			t.Helper()
+			if id != "sess-sibling" {
+				t.Fatalf("target = %q", id)
+			}
+			called++
+		}
+		base.ApproveFn = func(_ context.Context, id string, req acp.ApproveRequest) (session.ApprovalResult, error) {
+			check(id)
+			return session.ApprovalResult{Outcome: "applied", RequestID: req.RequestID}, nil
+		}
+		base.CancelPromptFn = func(_ context.Context, id string) (session.PromptCancelResult, error) {
+			check(id)
+			return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled}, nil
+		}
+		base.RequestCompactionFn = func(_ context.Context, id string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
+			check(id)
+			return session.CompactionRequestResult{SessionID: id, PromptID: "compact", Command: "compact"}, nil, nil
+		}
+		manager := &nativeOrchestrationSessionManager{
+			StubSessionManager: *base,
+			requestStopFn:      func(_ context.Context, id string, _ session.StopCause, _ string) error { check(id); return nil },
+			waitFn: func(_ context.Context, req session.WaitRequest) (session.WaitOutcome, error) {
+				check(req.SessionID)
+				return session.WaitOutcome{Outcome: session.WaitResultStateReached, State: session.BadgeIdle}, nil
+			},
+		}
+		clarify := nativeOrchestrationClarifyBroker{answerFn: func(_ context.Context, scope toolspkg.Scope, _ string,
+			_ toolspkg.ClarifyAnswerRequest) (toolspkg.ClarifyAnswerResult, error) {
+			check(scope.SessionID)
+			if scope.WorkspaceID != foreignWorkspace {
+				t.Fatalf("clarify scope = %#v", scope)
+			}
+			return toolspkg.ClarifyAnswerResult{Outcome: "answered", RequestID: "question"}, nil
+		}}
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+			Clarify: func() toolspkg.ClarifyBroker { return clarify },
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), newPolicy(t, base))
+		for _, call := range []struct {
+			id    toolspkg.ToolID
+			extra string
+		}{
+			{toolspkg.ToolIDSessionWait, ""}, {toolspkg.ToolIDSessionStop, `,"wait":false`},
+			{toolspkg.ToolIDSessionApprove, `,"request_id":"permission","decision":"allow-once"`},
+			{toolspkg.ToolIDSessionClarifyAnswer, `,"request_id":"question","choice":1`},
+			{toolspkg.ToolIDSessionPromptCancel, ""}, {toolspkg.ToolIDSessionCompact, ""},
+		} {
+			t.Run("Should dispatch "+string(call.id)+" to its authorized owner", func(t *testing.T) {
+				before := called
+				result, err := registry.Call(t.Context(), actorScope, toolspkg.CallRequest{ToolID: call.id,
+					Input: json.RawMessage(`{"session_id":"sess-sibling"` + call.extra + `}`)})
+				if err != nil || called != before+1 || len(result.Structured) == 0 {
+					t.Fatalf("Call(%s) = %s, %v; handler calls = %d", call.id, result.Structured, err, called-before)
+				}
+			})
+		}
+	})
+	t.Run("Should authorize global reads while retaining grants for global definition writes", func(t *testing.T) {
+		t.Parallel()
+		sessions := sessionsFor(workspaceaccess.ModeApproveAll)
+		binder := newNativeWorkspaceInputBinder(nativeTestWorkspaceService(t), sessions, newPolicy(t, sessions), nil)
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDTaskList, toolspkg.ToolIDAgentCreate, toolspkg.ToolIDExtensionsInstall} {
+			t.Run("Should authorize the global scope for "+string(id), func(t *testing.T) {
+				var descriptor toolspkg.Descriptor
+				for _, item := range builtintools.NativeDescriptors() {
+					if item.ID == id {
+						descriptor = item
+						break
+					}
+				}
+				input, err := binder.BindCallInput(
+					t.Context(),
+					actorScope,
+					descriptor,
+					json.RawMessage(`{"scope":"global"}`),
+				)
+				if descriptor.ReadOnly {
+					if err == nil {
+						err = binder.AuthorizeCallInput(
+							t.Context(),
+							actorScope,
+							descriptor,
+							toolspkg.CallRequest{ToolID: id, Input: input},
+						)
+					}
+					if err != nil {
+						t.Fatalf("global read %s: %v", id, err)
+					}
+				} else if err == nil || !strings.Contains(err.Error(), "workspace_access: unrestricted") {
+					t.Fatalf("global write %s: %v", id, err)
+				}
+			})
+		}
+	})
+	t.Run("Should register foreign session monitors and redact retained results after revocation", func(t *testing.T) {
+		t.Parallel()
+		sessions := sessionsFor(workspaceaccess.ModeApproveAll)
+		var revoked atomic.Bool
+		status := sessions.StatusFn
+		sessions.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if info != nil && id == actorScope.SessionID && revoked.Load() {
+				info.EffectivePermissions = string(workspaceaccess.ModeDenyAll)
+			}
+			return info, err
+		}
+		policy := newPolicy(t, sessions)
+		service, err := monitorpkg.NewService(t.Context(), nil, retryMonitorWaker{},
+			monitorpkg.WithSessionTargets(monitorSessionTargets{sessions: func() any { return sessions }}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+			Sessions: sessions, Workspaces: nativeTestWorkspaceService(t), WorkspaceAccess: policy,
+			Monitors: func() *monitorpkg.Service { return service },
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
+		created, err := registry.Call(
+			t.Context(),
+			actorScope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMonitorCreate,
+				Input: json.RawMessage(
+					`{"kind":"session","description":"watch work","target_session_ids":["sess-foreign"]}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload struct {
+			Monitor monitorpkg.Monitor `json:"monitor"`
+		}
+		if err := json.Unmarshal(created.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		mon := payload.Monitor
+		// Retained snapshots must be filtered even if a revoked watch fired before the next list.
+		mon.Targets = []monitorpkg.TargetStatus{
+			{SessionID: "sess-foreign", Name: seededSecret, State: "idle", Matched: true},
+		}
+		n := &daemonNativeTools{deps: &daemonNativeToolsDeps{Sessions: sessions, WorkspaceAccess: policy}}
+		visible, err := n.visibleMonitor(t.Context(), actorScope.SessionID, mon)
+		if err != nil || strings.Contains(visible.Targets[0].Name, seededSecret) {
+			t.Fatalf("visible = %#v, %v", visible, err)
+		}
+		revoked.Store(true)
+		visible, err = n.visibleMonitor(t.Context(), actorScope.SessionID, mon)
+		if err != nil || visible.Reason != "access_denied" || visible.Targets[0].Name != "" ||
+			visible.Targets[0].Matched || visible.Targets[0].State != monitorpkg.TargetStateUnknown {
+			t.Fatalf("revoked monitor = %#v, %v", visible, err)
+		}
+	})
+	// Invariant: prompt-approved monitor reads retain only exact saved consent, with live revocation.
+	// Owner: native authorization boundary; canonical suite: TestNativeSessionTargetAccess.
+	t.Run("Should retain Always allow monitor grants and keep Allow once call scoped", func(t *testing.T) {
+		t.Parallel()
+		for _, choice := range []acpsdk.PermissionOptionId{workspaceAccessAllowAlwaysID, workspaceAccessAllowOnceID} {
+			t.Run("Should apply "+string(choice)+" monitor consent", func(t *testing.T) {
+				t.Parallel()
+				sessions := sessionsFor(workspaceaccess.ModeAuto)
+				policy := newPolicy(t, sessions)
+				grants := &recordingApprovalGrantStore{}
+				requester := selectedPermissionRequester(choice)
+				binder := newNativeWorkspaceInputBinder(nativeTestWorkspaceService(t), sessions, policy,
+					newWorkspaceAccessPromptBridge(func() sessionPermissionRequester { return requester }, time.Second,
+						newWorkspaceAccessConsentCache(), grants, slog.New(slog.DiscardHandler)))
+				service, err := monitorpkg.NewService(t.Context(), nil, retryMonitorWaker{},
+					monitorpkg.WithSessionTargets(monitorSessionTargets{sessions: func() any { return sessions }}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+						t.Error(err)
+					}
+				})
+				deps := &daemonNativeToolsDeps{
+					Sessions:        sessions,
+					Workspaces:      nativeTestWorkspaceService(t),
+					WorkspaceAccess: policy,
+					ApprovalGrants:  grants,
+					Monitors:        func() *monitorpkg.Service { return service },
+				}
+				registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, deps,
+					toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy,
+					toolspkg.WithCallInputBinder(binder), toolspkg.WithCallInputAuthorizer(binder))
+				scope := actorScope
+				scope.ProfileID = "p-x"
+				if _, err := registry.Call(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDMonitorCreate,
+						Input: json.RawMessage(
+							`{"kind":"session","description":"watch work","target_session_ids":["sess-sibling"]}`,
+						),
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+				if len(requester.requests) != 1 {
+					t.Fatalf("prompts = %d, want one", len(requester.requests))
+				}
+				mon := service.List(scope.SessionID)[0]
+				if len(mon.TargetScopes) != 1 || mon.TargetScopes[0].WorkspaceID != foreignWorkspace ||
+					mon.TargetScopes[0].ProfileID != scope.ProfileID {
+					t.Fatalf("captured scope = %+v", mon.TargetScopes)
+				}
+				mon.Targets = []monitorpkg.TargetStatus{
+					{SessionID: "sess-sibling", Name: "deploy", State: "idle", Matched: true},
+				}
+				n := &daemonNativeTools{deps: deps}
+				check := func(wantVisible bool) {
+					t.Helper()
+					visible, err := n.visibleMonitor(t.Context(), scope.SessionID, mon)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if visible.Targets[0].Matched != wantVisible ||
+						(visible.Targets[0].State == "idle") != wantVisible {
+						t.Fatalf("visible monitor = %+v, want visible %t", visible, wantVisible)
+					}
+				}
+				check(choice == workspaceAccessAllowAlwaysID)
+				if choice != workspaceAccessAllowAlwaysID {
+					return
+				}
+				// A different tool's grant, removed grant, lookup error, or new owner cannot authorize the watch.
+				saved := grants.grants[0]
+				grants.grants[0].ToolID = toolspkg.ToolIDSessionStatus
+				check(false)
+				grants.grants = nil
+				check(false)
+				grants.grants = []toolspkg.ApprovalGrant{saved}
+				grants.lookupErr = errors.New("unavailable")
+				check(false)
+				grants.lookupErr = nil
+				original := sessions.StatusFn
+				moved := *sessions
+				moved.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+					info, err := original(ctx, id)
+					if id == "sess-sibling" && info != nil {
+						info.ProfileID = "p-y"
+					}
+					return info, err
+				}
+				deps.Sessions = &moved
+				check(false)
+				deps.Sessions = sessions
+				// Hard policy refusals dominate a saved read grant.
+				deps.WorkspaceAccess = newPolicy(t, sessionsFor(workspaceaccess.ModeDenyAll))
+				check(false)
+				consent := newWorkspaceAccessConsentCache()
+				consent.PutConsent(t.Context(), scope.SessionID, workspaceaccess.ConsentReject)
+				facts, err := newWorkspaceAccessModeSource(sessions)
+				if err != nil {
+					t.Fatal(err)
+				}
+				deps.WorkspaceAccess, err = workspaceaccess.New(workspaceaccess.Deps{Facts: facts, Consent: consent,
+					Audit: nativeSessionTargetAuditStub{}, Log: slog.New(slog.DiscardHandler)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				check(false)
+			})
+		}
+	})
+	t.Run("Should preserve authorized global and all task catalog scopes through dispatch", func(t *testing.T) {
+		t.Parallel()
+		sessions := sessionsFor(workspaceaccess.ModeApproveAll)
+		status := sessions.StatusFn
+		sessions.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if info != nil {
+				info.ProfileID = store.DefaultProfileID
+			}
+			return info, err
+		}
+		policy := newPolicy(t, sessions)
+		db := openDaemonTestGlobalDB(t)
+		now := time.Now().UTC()
+		if err := db.InsertWorkspace(t.Context(), workspacepkg.Workspace{
+			ID: homeWorkspace, Name: "catalog", RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		tasks, err := taskpkg.NewManager(taskpkg.WithStore(db), taskpkg.WithWorkspaceAccessPolicy(policy))
+		if err != nil {
+			t.Fatal(err)
+		}
+		operator, err := taskpkg.DeriveHumanActorContext("fixture", taskpkg.OriginKindCLI, "task.create")
+		if err != nil {
+			t.Fatal(err)
+		}
+		global, err := tasks.CreateTask(t.Context(), taskpkg.CreateTask{
+			ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "User work",
+		}, operator)
+		if err != nil {
+			t.Fatal(err)
+		}
+		project, err := tasks.CreateTask(t.Context(), taskpkg.CreateTask{
+			ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeWorkspace,
+			WorkspaceID: homeWorkspace, Title: "Project work",
+		}, operator)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+			Sessions: sessions, Tasks: tasks, Workspaces: nativeTestWorkspaceService(t),
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
+		for _, requested := range []string{"global", "all"} {
+			t.Run("Should preserve task catalog scope "+requested, func(t *testing.T) {
+				result, err := registry.Call(t.Context(), actorScope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTaskList,
+					Input:  json.RawMessage(`{"scope":"` + requested + `","include_drafts":true}`),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload contract.TasksResponse
+				if err := json.Unmarshal(result.Structured, &payload); err != nil {
+					t.Fatal(err)
+				}
+				want := 1
+				if requested == "all" {
+					want = 2
+					requireNativeStructuredContains(t, result, []byte(project.ID))
+				}
+				if len(payload.Tasks) != want || payload.Page.Total != want {
+					t.Fatalf("task catalog %s = %#v", requested, payload)
+				}
+				requireNativeStructuredContains(t, result, []byte(global.ID))
+			})
+		}
+	})
 	authorize := func(
 		t *testing.T,
 		binder *nativeWorkspaceInputBinder,

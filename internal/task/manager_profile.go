@@ -20,6 +20,7 @@ func (m *Service) GetExecutionProfile(
 	taskID string,
 	actor ActorContext,
 ) (ExecutionProfile, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return ExecutionProfile{}, err
 	}

@@ -22,6 +22,7 @@ const (
 
 // InspectTask returns a deterministic read-only snapshot for one task id.
 func (m *Service) InspectTask(ctx context.Context, taskID string, actor ActorContext) (*InspectView, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -35,11 +36,12 @@ func (m *Service) InspectTask(ctx context.Context, taskID string, actor ActorCon
 	if err != nil {
 		return nil, err
 	}
-	return m.inspectTaskRecord(ctx, record, InspectTargetTask, "")
+	return m.inspectTaskRecord(ctx, record, actor, InspectTargetTask, "")
 }
 
 // InspectRun returns a deterministic read-only snapshot rooted at one run id.
 func (m *Service) InspectRun(ctx context.Context, runID string, actor ActorContext) (*InspectView, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -48,20 +50,21 @@ func (m *Service) InspectRun(ctx context.Context, runID string, actor ActorConte
 	if err != nil {
 		return nil, err
 	}
-	if err := m.authorizeTaskResource(ctx, actor, taskRecord); err != nil {
+	if err := m.authorizeRunResource(ctx, actor, run, taskRecord); err != nil {
 		return nil, err
 	}
-	return m.inspectTaskRecord(ctx, taskRecord, InspectTargetRun, run.ID)
+	return m.inspectTaskRecord(ctx, taskRecord, actor, InspectTargetRun, run.ID)
 }
 
 func (m *Service) inspectTaskRecord(
 	ctx context.Context,
 	taskRecord Task,
+	actor ActorContext,
 	target InspectTarget,
 	focusedRunID string,
 ) (*InspectView, error) {
 	asOf := m.now().UTC()
-	childCount, err := m.store.CountDirectChildren(ctx, taskRecord.ID)
+	childCount, err := m.authorizedChildCount(ctx, taskRecord.ID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +87,16 @@ func (m *Service) inspectTaskRecord(
 		return nil, err
 	}
 
-	currentRun := inspectCurrentRun(runs, taskRecord.CurrentRunID, focusedRunID)
-	currentRunSummary := inspectRunSummaryPtr(currentRun, asOf)
-	recentRuns := inspectRecentRuns(runs, asOf)
+	visibleDependencies, visibleRuns, _, references, err :=
+		m.authorizedTaskViewRelations(ctx, actor, taskRecord, dependencies, runs, nil)
+	if err != nil {
+		return nil, err
+	}
+	filterTaskSummaryRelations(&summary, visibleDependencies, visibleRuns, references)
+	currentRunSummary := inspectRunSummaryPtr(
+		inspectCurrentRun(visibleRuns, taskRecord.CurrentRunID, focusedRunID),
+		asOf,
+	)
 	boundSession, sessionCatalogPresent, eligibleSessionCount, err := m.inspectSessionState(
 		ctx,
 		taskRecord,
@@ -100,7 +110,7 @@ func (m *Service) inspectTaskRecord(
 	if err != nil {
 		return nil, err
 	}
-	recentEvents, err := m.inspectRecentEvents(ctx, readScope, taskRecord.ID, focusedRunID)
+	recentEvents, err := m.inspectRecentEvents(ctx, readScope, taskRecord.ID, focusedRunID, visibleRuns)
 	if err != nil {
 		return nil, err
 	}
@@ -110,13 +120,18 @@ func (m *Service) inspectTaskRecord(
 		Task:                  summary,
 		CurrentRun:            currentRunSummary,
 		BoundSession:          boundSession,
-		RecentRuns:            recentRuns,
+		RecentRuns:            inspectRecentRuns(visibleRuns, asOf),
 		RecentEvents:          recentEvents,
 		Scheduler:             scheduler,
 		AsOf:                  asOf,
 		EligibleSessionCount:  eligibleSessionCount,
 		SessionCatalogPresent: sessionCatalogPresent,
 	}
+	setInspectDiagnostics(view)
+	return view, nil
+}
+
+func setInspectDiagnostics(view *InspectView) {
 	diagnosticSnapshot := inspectDiagnosticSnapshot{
 		Task:                  view.Task,
 		CurrentRun:            view.CurrentRun,
@@ -129,7 +144,6 @@ func (m *Service) inspectTaskRecord(
 	}
 	view.Diagnostics = detectInspectDiagnostics(&diagnosticSnapshot)
 	view.NextAction = inspectNextAction(view)
-	return view, nil
 }
 
 func (m *Service) inspectSessionState(
@@ -206,6 +220,7 @@ func (m *Service) inspectRecentEvents(
 	readScope store.ReadScope,
 	taskID string,
 	runID string,
+	visibleRuns []Run,
 ) ([]InspectEventSummary, error) {
 	if m.inspectReader == nil {
 		return nil, nil
@@ -218,7 +233,13 @@ func (m *Service) inspectRecentEvents(
 	if err != nil {
 		return nil, err
 	}
-	return inspectEventSummariesFromStore(events), nil
+	visibleEvents := make([]store.EventSummary, 0, len(events))
+	for _, event := range events {
+		if strings.TrimSpace(event.RunID) == "" || containsRunID(visibleRuns, event.RunID) {
+			visibleEvents = append(visibleEvents, event)
+		}
+	}
+	return inspectEventSummariesFromStore(visibleEvents), nil
 }
 
 func inspectCurrentRun(runs []Run, currentRunID string, focusedRunID string) *Run {

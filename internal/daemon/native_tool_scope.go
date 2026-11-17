@@ -194,10 +194,14 @@ func (n *daemonNativeTools) nativeSessionInWorkspace(
 	// authorization a User-scope session of another profile stays out of reach.
 	if err == nil && workspaceID == "" && (info.ProfileID != scope.ProfileID || scope.ProfileID == "") &&
 		!toolspkg.SessionTargetAuthorized(ctx, info.ID) {
-		return nil, nativeWorkspaceAccessDeniedError(id)
+		return nil, toolspkg.NewWorkspaceAccessDeniedError(id,
+			"this operation requires authorization for the session's User profile")
 	}
 	if errors.Is(err, errSessionOutsideWorkspace) {
-		return nil, nativeWorkspaceAccessDeniedError(id)
+		return nil, toolspkg.NewWorkspaceAccessDeniedError(
+			id,
+			"this operation requires a session in the selected workspace",
+		)
 	}
 	return info, err
 }

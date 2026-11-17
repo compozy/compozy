@@ -353,7 +353,7 @@ in-flight request fails with `session_busy`, and an agent advertising neither co
 structurally: its tool error has `code` `session_busy` or `compaction_unsupported`, the tool ID, and the
 daemon message (not a generic `tool_conflict`); over `POST /api/tools/{id}/invoke` both are `409` responses
 carrying those codes. The tool is `mutating` risk, targets one idle session in the
-caller's workspace by `session_id`, and returns the accepted receipt only; read the outcome through the
+target's workspace and profile under workspace access policy by `session_id`, and returns the accepted receipt only; read the outcome through the
 transcript item and events above. A Goal's context-compaction turn uses the same advertised command and
 reads the compaction's current terminal status the same way; an agent advertising neither goes straight to
 the Goal reseed path.
@@ -1355,7 +1355,8 @@ The web first-run wizard blocks the dashboard until this flag is set. Resetting 
 Native session tools include scoped wait, governed spawn, stop, approval, clarification answer, and
 prompt cancel. Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS management surfaces unless
 the live registry exposes a matching tool. `compozy__clarify` asks from inside the active session;
-`compozy__session_clarify_answer` answers a pending question on another same-workspace session.
+`compozy__session_clarify_answer` answers a pending question on another session authorized by
+workspace access policy; its approval authority and self-target restrictions still apply.
 
 ## Gateway Exposure and Device Authentication
 

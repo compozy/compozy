@@ -1472,7 +1472,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should watch same-workspace sessions and refuse any other target", func(t *testing.T) {
+	t.Run("Should keep monitor targets local when the workspace access policy is missing", func(t *testing.T) {
 		t.Parallel()
 		sessions := nativeTestSessionManager("ws-1")
 		targets := monitorSessionTargets{sessions: func() any { return sessions }}
@@ -1495,7 +1495,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			if err == nil && id == "sess-foreign" {
 				info.ProfileID = "profile-other"
 			}
-			if err == nil {
+			if err == nil && id != "sess-1" {
 				info.State = session.StateStarting
 			}
 			return info, err
@@ -16935,6 +16935,29 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	}
 	scope := toolspkg.Scope{WorkspaceID: workspaceID, SessionID: callerID, AgentName: "creator"}
 
+	// Invariant: a selected profile never changes or invalidates the authenticated spawn parent.
+	// Owner: native spawn boundary; canonical suite: TestDaemonNativeSessionSpawnOrchestration.
+	t.Run("Should resolve the caller parent after a permitted profile selection", func(t *testing.T) {
+		t.Parallel()
+		manager := newManager(func(opts *session.SpawnOpts) (*session.Session, error) {
+			if opts.ParentSessionID != callerID {
+				t.Fatalf("parent = %q", opts.ParentSessionID)
+			}
+			return child(opts), nil
+		})
+		manager.spawnWsFn = func(context.Context, string, string) (string, error) { return workspaceID, nil }
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{Sessions: manager, Workspaces: nativeTestWorkspaceService(t)},
+		}
+		selected := scope
+		selected.ProfileID = "selected-profile"
+		if _, err := n.sessionSpawn(t.Context(), selected, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionSpawn,
+			Input: json.RawMessage(`{"agent_name":"worker"}`),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Should bind a new worktree, inherit permissions, and send the first prompt", func(t *testing.T) {
 		t.Parallel()
 
@@ -18238,15 +18261,29 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 			t.Fatal(err)
 		}
 		caller.caller.InstanceID = ""
-		_, err = registry.Call(
-			t.Context(),
-			scope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDAgentMemoryAdd,
-				Input:  json.RawMessage(`{"text":"unauthorized"}`),
-			},
-		)
-		requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+		for _, item := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDAgentMemoryAdd, `{"text":"unauthorized"}`},
+			{toolspkg.ToolIDAgentMemoryReplace, `{"match":"note","text":"unauthorized"}`},
+			{toolspkg.ToolIDAgentMemoryRemove, `{"match":"note"}`},
+			{toolspkg.ToolIDAgentMemorySearch, `{"query":"note"}`},
+		} {
+			t.Run("Should deny "+string(item.id)+" outside the owning main session", func(t *testing.T) {
+				_, err := registry.Call(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
+				)
+				requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+				detail, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || !strings.Contains(detail.PublicMessage, "owning always-on-agent main session") ||
+					strings.Contains(detail.PublicMessage, "approve-all") {
+					t.Fatalf("memory refusal = %v", err)
+				}
+			})
+		}
 		caller.caller.InstanceID = "instance-memory"
 		if _, err := registry.Call(
 			t.Context(),

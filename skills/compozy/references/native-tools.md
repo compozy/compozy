@@ -178,7 +178,7 @@ cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `
 `still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
 regular expression `pattern`; `timeout_seconds` defaults to 1,800, caps at 21,600, and the monitor
 still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400).
-`kind="session"` watches 1 to 32 other sessions of the same workspace and profile in `target_session_ids` until `until="all"`
+`kind="session"` watches 1 to 32 other sessions authorized by workspace access policy in `target_session_ids` until `until="all"`
 (default) or `until="any"` of them reach `states`, then wakes you once with each target's state. `states`
 defaults to `idle`, `waiting-for-input`, `waiting-for-auth`, `needs-attention`, `stopped`, and `failed`,
 and also accepts `hung`. `done` counts as `idle`. Targets are read as they are now, not as a history: one
@@ -190,6 +190,12 @@ as idle. `timeout_seconds` defaults to 7,200, caps at 21,600, and the
 monitor still wakes you on timeout, up to 8 seconds late so it can read the targets once more, with the
 targets that did not settle. A state that could not be read is reported as last known and never counts. A condition that already holds
 fires at once.
+Session target registration is a read: same-profile `approve-all` works across workspaces, and
+cross-profile watches follow the read policy too. Self-targets remain refused. Access is checked again
+before delivery and monitor results, including authenticated HTTP/UDS reads and retained or replayed wakes. If access was revoked,
+the wake reports `access_denied`, replaces denied target data with `unknown`/`matched: false`, and omits
+its name. Cross-scope names are secret-redacted. Re-register after the operator restores access.
+
 `kind="pull_request"` is the wait for a pull request's checks and reviews. The daemon reads the forge about
 once a minute, with the forge extension's own credential, and runs no command or URL of yours. `branch`
 defaults to the session's branch; GitHub fork heads use `owner:branch` to select the contributor
@@ -246,6 +252,11 @@ and the owner is resumed only when restart auto-continue rules allow it. A shutd
 reason and nothing wakes the session. While an owner check is retried after a restart the monitor stays
 listed as active; deleting a non-running owner in that window cancels its monitors at the next check (within
 about 30 seconds). A transient failure is retried for at least 15 minutes from its first persisted failure.
+Prompted monitor reads honor the exact saved `monitor_create` read grant from **Always allow**.
+**Allow once** covers the current call only; wakes and later results need current authorization.
+Deny-all, a rejected session, or grant revocation still hides the target. Immutable target ownership
+survives restart and deletion, so a readable deleted target continues to report `gone`.
+
 Operators see `monitor_summary.active` on full session payloads (`compozy__session_status` with `result_view: "full"`) and can cancel monitors (no wake).
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
@@ -321,7 +332,7 @@ native calls requesting it return `invalid_request` with
 re-arms the same watch; the result reports its persisted state (`armed`, `fired`, `delivered`, or
 `abandoned`). Deleting or archiving an unconsumed target produces `unknown` immediately.
 
-`compozy__session_wait` blocks on one same-workspace session other than the caller, inside your turn.
+`compozy__session_wait` blocks on one policy-authorized session other than the caller, inside your turn.
 To end your turn and be woken when one or more sessions settle, use `compozy__monitor_create` with
 `kind="session"`. `until` accepts
 the canonical attention/lifecycle badges; omission uses the settled set, and `done` satisfies `idle`.
@@ -435,7 +446,7 @@ you. CLI and HTTP/UDS fallback for reads, cancel and delete: `compozy session su
 subagent and its child session transcript/history; provider-native rows refuse with
 `subagent_not_deletable`.
 
-`compozy__session_stop` stops another same-workspace session and is destructive/approval-gated. It is
+`compozy__session_stop` stops another policy-authorized session and is destructive/approval-gated. It is
 idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another
 session's active prompt and returns `canceled` or `nothing-in-flight` without stopping the session.
 
@@ -590,8 +601,8 @@ verified process exit is refused with `source_running`, and daemon roles such as
 `source_not_user`, `parent_ineligible`, `cycle`, `archived`, `not_detachable`, `source_running`,
 `operator_required`). The CLI fallback is
 `compozy session reparent <id> --parent <parent-id>` or `--top-level`.
-`compozy__session_move_to_profile` copies a stopped top-level user session of the caller's workspace
-and profile into `target_profile` (an active profile name) and archives the original; the copy is a
+`compozy__session_move_to_profile` copies a stopped top-level user session of the selected workspace
+and caller's profile into `target_profile` (an active profile name) and archives the original; the copy is a
 fork owned by the target profile, and a bound worktree's branch is checked out again in a new
 worktree owned by that profile. The result carries the copy as `session`, the archived `original`,
 and `worktree_id`/`branch` when a worktree moved. An agent cannot move its own session
@@ -751,11 +762,14 @@ A session tool called with a `session_id` and no `workspace` resolves the target
 
 Denied native calls return `workspace_access_denied`. The message names the axis that denied the call and what would allow it, never the target: `deny-all` mode, a missing `approve-reads` answer, a rejected answer, or a write to another profile or aggregate that needs `workspace_access: unrestricted`. Branch on the code and reason, not the text. Seams outside native tools keep this hint:
 
-    cross-workspace access is denied by this session's permission mode; ask the operator to set the agent's permissions.mode to approve-all, or approve the prompt when asked
+    access could not be authorized for the caller workspace and profile; ask the operator to inspect the session identity and workspace access policy
 
 When a native call is allowed outside the caller's own workspace and profile, the dispatch boundary redacts the result before hooks, events, and the agent see it. Every string in the result (session names, messages, tool inputs and outputs, previews, metadata) passes the shared secret redactor with its heuristics always on: known credential shapes (`Authorization`/`Bearer` values, `key=value` and `--flag value` pairs whose key names a secret, URL userinfo, `env:`/`vault:` references, CompozyOS claim and gateway tokens, registered runtime secrets), well-known provider token prefixes (`sk-`, `ghp_`, `github_pat_`, `xox*-`, `AKIA`, and others), and high-entropy mixed-case tokens of 28 or more characters become `[REDACTED]`. Fields named `*_id`, hashes, digests, and cursors stay readable. This is pattern-based: a secret with no recognizable shape or key, a short or low-entropy secret, or a secret split across fields can still pass, and errors and binary artifacts are not rewritten. Own-scope reads are unchanged. Redaction applies to native tool results; HTTP/UDS responses to agent-credentialed requests are not rewritten, because a process in the session can drop the agent headers and read as the operator (the soft boundary in `references/agent-definitions.md`).
 
 Under `approve-reads`, a call that crosses two axes, such as `all_profiles` on another workspace, asks once per axis: first `Access workspace <id>`, then `Read all profiles` or `Read profile <id>`.
+
+Session monitor targets also recheck the authenticated viewer's access and redact foreign names
+on HTTP/UDS list and cancel responses. Operator monitor reads retain the authorized operator view.
 
 Read prompts offer `allow_once` (this call), `allow_always` (remember this read scope),
 `reject_once` (this call), and `reject_session` (deny later crossings by this session). An operator
@@ -771,6 +785,27 @@ daemon memory, applies at every seam, and expires when the session stops or the 
 A prompt timeout, transport failure, or unknown answer denies and stores no answer.
 
 Granted agents may also select any active `profile` for writes, use `all_profiles` on reads, and read aggregate routes regardless of mode. Work a granted agent creates in profile P is owned by P; the acting session's tool-approval grants apply. Tool-risk approvals still follow the session's `permissions` mode. Desktop tools remain restricted to project partitions and the caller profile's `user` partition; `global`, another profile's partitions, presence leases, and notification receipts stay operator-only. The full authority matrix and the operator-only authoring rule are in `references/agent-definitions.md` (Unrestricted Workspace Access). User Scope Work ADR-003 supersedes cross-workspace ADR-007 §1 for this one operator-authored field.
+
+The id-only orchestration tools `session_wait`, `session_stop`, `session_approve`,
+`session_clarify_answer`, `session_prompt_cancel`, and `session_compact` use this target-owner policy;
+no workspace selector is needed. Domain restrictions, self-target refusals and approval authority still
+apply. Cross-profile mutations still require `workspace_access: unrestricted`.
+
+Explicit exceptions retain their own boundary: `session_processes_*` requires the caller workspace
+and profile; `session_reparent` can select an authorized workspace but keeps source and parent in that
+workspace and the caller profile. `session_move_to_profile` keeps the source in the selected workspace
+and caller profile and authorizes the target-profile write. Taking over a governed worker remains
+operator-only. Pull-request monitors use the caller's repository/workspace and terminal tools and
+terminal monitors use the caller workspace/profile; there is no cross-workspace selector for them.
+
+`scope=global` and `scope=all` reads use the same policy rather than an unconditional grant barrier.
+Task reads, including `all_profiles`, classify each row as a read; mutations still classify as writes.
+`agent_create` and `extensions_install` are writes, so their global-scope gate still needs the operator
+or unrestricted grant. Extension installation also retains its service boundary: agent changes stay
+in the caller workspace/profile and cannot replace code shared outside it; global/shared installation
+requires the operator. `workspace_folder_*` and cleanup `all_workspaces` keep their operator or
+unrestricted requirement. `agent_memory_*` requires the owning always-on-agent main session; changing
+permission mode does not confer that identity.
 
 A successful native read admitted by the separate consent gate also records `workspace.access_granted` with source `tool_consent`; the initial policy miss remains attributable.
 

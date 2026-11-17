@@ -54,3 +54,67 @@ deny-all axis and no target. Audit events carry target kind `unresolved` for the
 
 
 QA result 2026-11-03 (#1169): targeted isolated acpmock walk over hosted MCP and HTTP passed for the journeys above; Web and live providers were not walked. Evidence: `docs/qa/evidence/2026-11-03-issue-1169/verification-report.md`.
+
+QA impact 2026-11-16 (#1779): extend the native matrix to `session_wait`, `session_stop`,
+`session_approve`, `session_clarify_answer`, `session_prompt_cancel`, `session_compact` and
+`monitor_create kind=session`. Verify same scope, same-profile foreign workspace under approve-all,
+default-mode consent, deny-all, cross-profile reads versus mutations, unrestricted, and operator.
+A monitor registered while access is allowed must hide a revoked target's name/state/match in both
+full and compact wakes and native/agent-authenticated HTTP/UDS retained results (`access_denied`,
+`unknown`, false). Seed a secret in the foreign name and verify redaction. `scope=global/all` task
+reads and `all_profiles` retain
+policy-readable rows; global definition and cross-profile writes remain denied without the grant.
+Process tools stay in the caller workspace/profile, reparenting keeps source and parent together,
+and moving profiles still requires target write authority. PR monitors and terminals remain local.
+Agent-memory refusals identify the owning always-on main session requirement. Workspace folders and
+cleanup across all workspaces retain the operator/unrestricted barrier.
+
+Focused executable verification is owned by `TestNativeSessionTargetAccess`,
+`TestPermissionModeReach`, `TestManagerCrossProfileReadClassification`, `TestMonitorSessionWaker`,
+`TestSessionMonitorHandlers`,
+and the isolated SQLite/real-session-manager journey in `TestWorkspaceAccessIntegration`.
+The existing broader skipped QA status is unchanged; these checks do not claim a browser/provider walk.
+
+QA result 2026-11-16 (#1779): the focused policy, native dispatch, task read/mutation, and monitor
+wake suites passed. `GOMAXPROCS=2 go test -p 2 -tags integration ./internal/daemon -run
+'^TestWorkspaceAccessIntegration$' -count=1 -timeout=120s` passed with real session managers,
+isolated homes and SQLite catalogs: an approve-all owner registered a foreign-workspace monitor,
+waited for the target, stopped it, and received the stopped-state wake. The HTTP/UDS monitor suite
+also passed authenticated retained-target revocation, viewer authorization and operator reads.
+No live daemon was used.
+
+Review follow-up for #1779: under a prompted mode, select **Always allow** for a foreign
+session monitor, then verify later results and full/compact wakes retain readable state. Revoke
+the exact grant or switch to deny-all/session rejection and verify redaction. **Allow once**
+admits only the current call. Delete an own-scope target and verify `gone`/matched remains
+readable, including after restart. `TestGlobalDBSessionMonitors` owns the real SQLite migration
+and target-scope round trip; `TestServiceSessionMonitorsAcrossRestart` owns recovered wakes.
+
+QA result for the review follow-up: prompt grants/revocation, deleted-target full/compact wakes,
+restart ownership, SQLite scope backfill and reopen passed in those owning suites. The isolated
+real-session journey and authenticated HTTP monitor suite passed again after the repair.
+
+Additional review coverage for #1779: list a readable task whose active run and blocking
+dependency belong to a denied workspace. Its list and child summaries must omit the run,
+current-run ID, dependency reference/count and dependency blocked reasons. Their status must
+match the canonical task state even when a hidden relation keeps it running or blocked.
+The public catalog must hide denied execution details while preserving the selected task page,
+canonical status, ordering, totals, facets and cursor. Catalog child/dependency counts remain
+task-owned aggregates; expanded task views count only readable relations. Inspecting the denied
+run directly must refuse access, and task inspection must also hide that run, bound session,
+run-associated events and dependency references. Operator reads retain the complete relations. Monitor registration
+also owns its captured target scopes: mutating input, create, list, reused or cancel snapshots
+must not alter later authorization ownership.
+
+QA result for additional review coverage: task relation and run inspection regressions failed
+before their fixes and passed afterward. Monitor scope mutation likewise failed before copying
+and passed across create/list/reuse/cancel snapshots afterward. Existing real SQLite task
+summary and monitor persistence suites passed; the permission-intent migration suite retained
+its authority/idempotency checks through schema 205. Race validation remains assigned to CI.
+
+QA result for the public-read closure: the real SQLite catalog regression reproduced denied
+execution disclosure through both User `global` and `all` reads, then passed with pagination
+and aggregate metadata unchanged. Task inspection reproduced the alternate-path disclosure,
+then passed with denied runs, sessions, events and dependencies hidden. Task list and child
+summaries preserve canonical running/blocked state and count only readable children. The
+existing SQLite catalog authority, summary parity and expanded-read suites passed again.

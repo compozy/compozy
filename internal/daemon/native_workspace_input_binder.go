@@ -148,7 +148,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 	}
 	if requested == "global" && descriptor.ExecutionMetadata().ReservedWorkspacePartition {
 		if !nativeWorkspaceScopeHasOperatorAuthority(scope) {
-			return nativeWorkspaceAccessDeniedError(id)
+			return toolspkg.NewWorkspaceAccessDeniedError(id, "this desktop partition is operator-only")
 		}
 		return setNativeWorkspaceInput(payload, requested)
 	}
@@ -163,8 +163,11 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 			}
 			granted = info != nil && info.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted
 		}
-		if !hasOperatorAuthority && !granted {
-			return nativeWorkspaceAccessDeniedError(id)
+		if !hasOperatorAuthority && !granted && !descriptor.ReadOnly {
+			return nativeWorkspaceAccessDecisionError(
+				id,
+				workspaceaccess.Decision{Denial: workspaceaccess.DenialNeedsGrant},
+			)
 		}
 		return nil
 	}

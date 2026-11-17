@@ -10,6 +10,7 @@ package monitor
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -149,6 +150,8 @@ type Spec struct {
 	Delay time.Duration
 	// Targets are the sessions a session monitor watches.
 	Targets []string
+	// TargetScopes captures immutable ownership for access rechecks after a target is removed.
+	TargetScopes []TargetScope
 	// States are the target states that satisfy a session monitor. Empty selects the default set.
 	States []string
 }
@@ -177,7 +180,8 @@ type Monitor struct {
 	States           []string `json:"states,omitempty"`
 	// Targets is each target's state when a session monitor fired. It is stored with the monitor, so
 	// a wake re-delivered after a restart reports what fired it.
-	Targets []TargetStatus `json:"targets,omitempty"`
+	Targets      []TargetStatus `json:"targets,omitempty"`
+	TargetScopes []TargetScope  `json:"-"`
 	// Reused marks a Create that returned an already-active identical terminal
 	// monitor instead of registering a duplicate wake. It is not part of the wire shape.
 	Reused bool `json:"-"`
@@ -196,6 +200,7 @@ type Outcome struct {
 }
 
 func normalizeSpec(spec Spec) (Spec, error) {
+	spec.TargetScopes = slices.Clone(spec.TargetScopes)
 	spec.WorkspaceID = strings.TrimSpace(spec.WorkspaceID)
 	spec.ProfileID = strings.TrimSpace(spec.ProfileID)
 	spec.SessionID = strings.TrimSpace(spec.SessionID)
@@ -298,8 +303,9 @@ func invalid(message string) error {
 // InvalidSpec reports a refused monitor request whose static message guides the caller to correct it.
 func InvalidSpec(message string) error { return invalid(message) }
 
-// observable hides the legacy cancellation timestamp retained for durable history pruning.
+// observable snapshots private ownership and hides the legacy cancellation timestamp.
 func (m Monitor) observable() Monitor {
+	m.TargetScopes = slices.Clone(m.TargetScopes)
 	if m.Status == StatusCanceled {
 		m.FiredAt = time.Time{}
 	}

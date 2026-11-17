@@ -192,6 +192,7 @@ func (m *Service) ListTaskBlocks(
 	includeCleared bool,
 	actor ActorContext,
 ) ([]TaskBlock, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}

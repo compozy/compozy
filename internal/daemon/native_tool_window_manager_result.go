@@ -149,7 +149,7 @@ func (n *daemonNativeTools) windowManagerWorkspaceID(
 ) (windowmanager.WorkspaceID, error) {
 	if strings.TrimSpace(workspaceRef) == string(windowmanager.GlobalDesktopWorkspaceID) {
 		if !nativeWorkspaceScopeHasOperatorAuthority(scope) {
-			return "", nativeWorkspaceAccessDeniedError(id)
+			return "", toolspkg.NewWorkspaceAccessDeniedError(id, "the All projects desktop is operator-only")
 		}
 		return windowmanager.GlobalDesktopWorkspaceID, nil
 	}

@@ -188,6 +188,7 @@ func (m *Service) ResumeTask(
 
 // SchedulerStatus returns scheduler-wide pause state and live queue pressure.
 func (m *Service) SchedulerStatus(ctx context.Context, actor ActorContext) (SchedulerStatus, error) {
+	actor.readOnly = true
 	if err := requireReadAuthority(actor); err != nil {
 		return SchedulerStatus{}, err
 	}

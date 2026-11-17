@@ -1812,6 +1812,7 @@ type SessionMonitor struct {
 	TargetSessionIds   string        `json:"target_session_ids"`
 	States             string        `json:"states"`
 	Targets            string        `json:"targets"`
+	TargetScopes       string        `json:"target_scopes"`
 }
 
 type SessionPendingInteraction struct {

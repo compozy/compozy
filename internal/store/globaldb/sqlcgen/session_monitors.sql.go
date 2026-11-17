@@ -11,7 +11,7 @@ import (
 )
 
 const listSessionMonitors = `-- name: ListSessionMonitors :many
-SELECT id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms, status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version, branch, repo_key, pr_cursor, fire_count, last_fired_at, target_session_ids, states, targets FROM session_monitors ORDER BY created_at, id
+SELECT id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms, status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version, branch, repo_key, pr_cursor, fire_count, last_fired_at, target_session_ids, states, targets, target_scopes FROM session_monitors ORDER BY created_at, id
 `
 
 func (q *Queries) ListSessionMonitors(ctx context.Context) ([]SessionMonitor, error) {
@@ -51,6 +51,7 @@ func (q *Queries) ListSessionMonitors(ctx context.Context) ([]SessionMonitor, er
 			&i.TargetSessionIds,
 			&i.States,
 			&i.Targets,
+			&i.TargetScopes,
 		); err != nil {
 			return nil, err
 		}
@@ -79,8 +80,8 @@ const upsertSessionMonitor = `-- name: UpsertSessionMonitor :execrows
 INSERT INTO session_monitors (
   id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms,
   status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version,
-  branch, repo_key, pr_cursor, fire_count, last_fired_at, target_session_ids, states, targets
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  branch, repo_key, pr_cursor, fire_count, last_fired_at, target_session_ids, states, targets, target_scopes
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   status = excluded.status,
   fired_at = excluded.fired_at,
@@ -89,6 +90,7 @@ ON CONFLICT(id) DO UPDATE SET
   owner_binding = excluded.owner_binding,
   owner_check_failed_at = excluded.owner_check_failed_at,
   targets = excluded.targets,
+  target_scopes = excluded.target_scopes,
   version = excluded.version,
   pr_cursor = excluded.pr_cursor,
   fire_count = excluded.fire_count,
@@ -124,6 +126,7 @@ type UpsertSessionMonitorParams struct {
 	TargetSessionIds   string        `json:"target_session_ids"`
 	States             string        `json:"states"`
 	Targets            string        `json:"targets"`
+	TargetScopes       string        `json:"target_scopes"`
 }
 
 func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMonitorParams) (int64, error) {
@@ -155,6 +158,7 @@ func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMon
 		arg.TargetSessionIds,
 		arg.States,
 		arg.Targets,
+		arg.TargetScopes,
 	)
 	if err != nil {
 		return 0, err

@@ -64,8 +64,9 @@ func (n *daemonNativeTools) monitorCreate(
 		return toolspkg.ToolResult{}, err
 	}
 	kind := monitorpkg.Kind(strings.TrimSpace(input.Kind))
+	var targetScopes []monitorpkg.TargetScope
 	if kind == monitorpkg.KindSession {
-		err = n.authorizeMonitorTargets(ctx, scope, req.ToolID, sessionID, input.TargetSessionIDs)
+		targetScopes, err = n.authorizeMonitorTargets(ctx, scope, req.ToolID, sessionID, input.TargetSessionIDs)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
@@ -76,10 +77,14 @@ func (n *daemonNativeTools) monitorCreate(
 		TerminalID: input.TerminalID, Until: input.Until, Pattern: input.Pattern, Branch: input.Branch,
 		Timeout: time.Duration(input.TimeoutSeconds) * time.Second,
 		Delay:   time.Duration(input.DelaySeconds) * time.Second,
-		Targets: input.TargetSessionIDs, States: input.States,
+		Targets: input.TargetSessionIDs, States: input.States, TargetScopes: targetScopes,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, monitorToolError(req.ToolID, err)
+	}
+	created, err = n.visibleMonitor(ctx, sessionID, created)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	if created.Reused {
 		return structuredResult(map[string]any{monitorResultField: created}, fmt.Sprintf(
@@ -101,33 +106,27 @@ func (n *daemonNativeTools) monitorCreate(
 	return structuredResult(map[string]any{monitorResultField: created}, preview)
 }
 
-// authorizeMonitorTargets admits only other sessions of the owner's workspace and profile. A monitor
-// reports each target's name and state to anyone who can read the owner, so a target from another
-// profile would expose a session its profile reads cannot see.
+// authorizeMonitorTargets preserves dispatch admission and captures immutable target ownership.
 func (n *daemonNativeTools) authorizeMonitorTargets(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	id toolspkg.ToolID,
-	ownerID string,
-	targets []string,
-) error {
+	ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolID, ownerID string, targets []string,
+) ([]monitorpkg.TargetScope, error) {
 	if len(targets) == 0 {
-		return nil
+		return nil, nil
 	}
-	_, owner, err := n.nativeOrchestrationTarget(ctx, scope, id, ownerID, false)
-	if err != nil {
-		return err
+	if _, _, err := n.nativeOrchestrationTarget(ctx, scope, id, ownerID, false); err != nil {
+		return nil, err
 	}
+	scopes := make([]monitorpkg.TargetScope, 0, len(targets))
 	for _, target := range targets {
 		_, info, err := n.nativeOrchestrationTarget(ctx, scope, id, target, true)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if info.ProfileID != owner.ProfileID {
-			return nativeWorkspaceAccessDeniedError(id)
-		}
+		scopes = append(scopes, monitorpkg.TargetScope{
+			SessionID: info.ID, WorkspaceID: info.WorkspaceID, ProfileID: info.ProfileID,
+		})
 	}
-	return nil
+	return scopes, nil
 }
 
 func (n *daemonNativeTools) monitorList(
@@ -140,6 +139,12 @@ func (n *daemonNativeTools) monitorList(
 		return toolspkg.ToolResult{}, err
 	}
 	monitors := service.List(sessionID)
+	for i := range monitors {
+		monitors[i], err = n.visibleMonitor(ctx, sessionID, monitors[i])
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	active := 0
 	for _, item := range monitors {
 		if item.Status == monitorpkg.StatusActive {
@@ -168,6 +173,10 @@ func (n *daemonNativeTools) monitorCancel(
 	canceled, err := service.Cancel(sessionID, strings.TrimSpace(input.MonitorID))
 	if err != nil {
 		return toolspkg.ToolResult{}, monitorToolError(req.ToolID, err)
+	}
+	canceled, err = n.visibleMonitor(ctx, sessionID, canceled)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(
 		map[string]any{monitorResultField: canceled},

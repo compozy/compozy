@@ -90,7 +90,10 @@ func (n *daemonNativeTools) nativeReparentTarget(
 		targetProfile = store.DefaultProfileID
 	}
 	if targetProfile != profileID {
-		return nil, nativeWorkspaceAccessDeniedError(id)
+		return nil, toolspkg.NewWorkspaceAccessDeniedError(
+			id,
+			"this operation requires both sessions in the caller's profile",
+		)
 	}
 	return info, nil
 }

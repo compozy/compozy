@@ -7,10 +7,13 @@ import (
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/core"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type monitorSessionManager interface {
@@ -31,7 +34,9 @@ type sessionCatalogChangePublisher interface {
 // input queue and returns once it is queued: an idle session starts a turn, a
 // busy one runs it after the turn. It never reads the woken turn.
 type monitorSessionWaker struct {
-	sessions func() monitorSessionManager
+	sessions        func() monitorSessionManager
+	workspaceAccess func() workspaceaccess.Policy
+	approvalGrants  func() toolspkg.ApprovalGrantStore
 }
 
 func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification monitorpkg.Notification) error {
@@ -55,6 +60,22 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 	// A session still starting is transient and retried by the monitor service.
 	if info.State == session.StateStopping || info.State == session.StateStopped {
 		return fmt.Errorf("%w: %s is %s", monitorpkg.ErrSessionGone, sessionID, info.State)
+	}
+	if notification.Monitor.Kind == monitorpkg.KindSession {
+		var denied bool
+		notification.Monitor.Targets = notification.Outcome.Targets
+		notification.Outcome.Targets, denied = core.VisibleMonitorTargets(
+			ctx,
+			sessions,
+			w.accessPolicy(),
+			w.grantStore(),
+			info,
+			&notification.Monitor,
+			workspaceaccess.SeamTool,
+		)
+		if denied {
+			notification.Outcome.Reason = "access_denied"
+		}
 	}
 	messageID := notification.WakeMessageID()
 	// The queue only dedupes entries that are still queued or dispatching; a wake that was already sent
@@ -217,12 +238,18 @@ func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpk
 	if logger == nil {
 		logger = slog.Default()
 	}
-	waker := &monitorSessionWaker{sessions: func() monitorSessionManager {
-		if manager, ok := state.sessions.(monitorSessionManager); ok {
-			return manager
-		}
-		return nil
-	}}
+	waker := &monitorSessionWaker{
+		workspaceAccess: func() workspaceaccess.Policy { return state.accessPolicy },
+		approvalGrants: func() toolspkg.ApprovalGrantStore {
+			return state.deps.ApprovalGrants
+		},
+		sessions: func() monitorSessionManager {
+			if manager, ok := state.sessions.(monitorSessionManager); ok {
+				return manager
+			}
+			return nil
+		},
+	}
 	watcher := &monitorTerminalWatcher{terminals: func() terminalpkg.Manager {
 		if state.terminals == nil {
 			return nil

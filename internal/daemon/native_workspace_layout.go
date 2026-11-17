@@ -79,7 +79,7 @@ func (n *daemonNativeTools) requireWorkspaceLayoutAuthority(
 			return nil
 		}
 	}
-	return nativeWorkspaceAccessDeniedError(id)
+	return nativeWorkspaceAccessDecisionError(id, workspaceaccess.Decision{Denial: workspaceaccess.DenialNeedsGrant})
 }
 
 // resolveWorkspaceLayoutInput maps workspace references to registry ids;
