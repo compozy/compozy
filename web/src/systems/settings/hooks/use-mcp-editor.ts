@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import { mcpEditorLogic, type MCPEditorState } from "../stores/mcp-editor-store";
 import { deriveMCPManagementFilter } from "../lib/mcp-management-target";
+import { settingsKeys } from "../lib/query-keys";
 import {
   emptyDraft,
   toDraft,
@@ -11,10 +12,13 @@ import {
   type MCPDraft,
 } from "../lib/mcp-editor-model";
 import { SettingsApiError } from "../adapters/settings-api";
+import { useSettingsMCPServers } from "./use-settings-collections";
 import { usePutSettingsMCPServer } from "./use-settings-mutations";
 import type { MCPServerEditorProps } from "../components/mcp-server-editor";
+import type { MCPScopeChoice } from "../components/mcp-editor-fields";
 import type {
   SettingsMCPServerEntry,
+  SettingsMCPServerListFilter,
   SettingsLayeredScope,
   SettingsMCPServerTarget,
 } from "../types";
@@ -33,6 +37,11 @@ interface UseMCPEditorOptions {
   serversReady?: boolean;
   /** Why `servers` is not ready, with a retry the editor offers in place. */
   serversError?: { message: string; retry: () => void } | null;
+  /**
+   * The project a new server can be limited to ("Only <project>"): the page's project, or the
+   * open project while the page lists user-scope servers ("All projects").
+   */
+  project?: { id: string; name: string } | null;
 }
 
 function errorMessage(error: unknown): string | null {
@@ -63,6 +72,7 @@ function useMCPEditor({
   profileName,
   serversReady = true,
   serversError = null,
+  project = null,
 }: UseMCPEditorOptions) {
   const putMutation = usePutSettingsMCPServer();
   const resetPutMutation = putMutation.reset;
@@ -74,6 +84,16 @@ function useMCPEditor({
   const vaultQuery = useQuery({
     ...vaultSecretsListOptions({ namespace: "mcp" }),
     enabled: editorOpen,
+  });
+
+  const queryClient = useQueryClient();
+  const nameCheck = useMCPEditorNameCheck({
+    enabled,
+    editor,
+    createScope,
+    servers,
+    serversReady,
+    serversError,
   });
 
   const openCreate = () => {
@@ -126,7 +146,21 @@ function useMCPEditor({
     editorLogic.trigger.targetChanged({ target });
   };
 
-  const { errors, isValid } = mcpEditorValidation(editor, servers, serversReady);
+  const { errors, isValid } = mcpEditorValidation(editor, nameCheck.servers, nameCheck.ready);
+  const scopeChoice = mcpScopeChoice(editor, createScope, project, scope => {
+    const next =
+      scope === "workspace" && project
+        ? { scope, workspaceId: project.id }
+        : { scope: "user" as const };
+    if (next.scope !== createScope) {
+      void queryClient.resetQueries({
+        queryKey: settingsKeys.mcpList(otherScopeFilter(next.scope, next.workspaceId)),
+        exact: true,
+      });
+    }
+    editorLogic.trigger.scopeChanged(next);
+  });
+  const savePending = mcpSavePending(editor, nameCheck);
 
   const saveEditor = () => {
     if (editor.mode === "closed" || !isValid) return;
@@ -150,47 +184,143 @@ function useMCPEditor({
     });
   };
 
-  const vaultRefs = (vaultQuery.data ?? []).map(secret => secret.ref);
-  const vaultInventory = vaultQuery.isLoading
-    ? ({ status: "loading" } as const)
-    : vaultQuery.error
-      ? ({
-          status: "error",
-          message: errorMessage(vaultQuery.error) ?? "Vault inventory could not be loaded",
-          retry: () => void vaultQuery.refetch(),
-        } as const)
-      : ({ status: "ready", refs: vaultRefs } as const);
-
-  const editorProps: MCPServerEditorProps | null =
-    editor.mode === "closed"
-      ? null
-      : {
-          availableTargets:
-            editor.mode === "edit" ? [editor.target] : ["auto", "config", "sidecar"],
-          draft: editor.draft,
-          entry: editor.mode === "edit" ? editor.entry : null,
-          errors,
-          isSaving: editorFlow.pendingSaveAttempt !== null,
-          isValid,
-          mode: editor.mode,
-          onChange: updateDraft,
-          onClose: closeEditor,
-          onSave: saveEditor,
-          onTargetChange: setEditorTarget,
-          open: true,
-          saveError: errorMessage(putMutation.error),
-          serversError: editor.mode === "create" ? serversError : null,
-          scope: editor.scope,
-          target: editor.target,
-          vaultInventory,
-          warnings: putMutation.data?.warnings,
-        };
+  const editorProps = mcpEditorProps(editor, {
+    errors,
+    isSaving: editorFlow.pendingSaveAttempt !== null,
+    isValid,
+    onChange: updateDraft,
+    onClose: closeEditor,
+    onSave: saveEditor,
+    onTargetChange: setEditorTarget,
+    saveError: errorMessage(putMutation.error),
+    savePending,
+    serversError: nameCheck.error,
+    scopeChoice,
+    vaultInventory: mcpVaultInventory(vaultQuery),
+    warnings: putMutation.data?.warnings,
+  });
 
   return { editorProps, openCreate, openEdit };
 }
 
 export { useMCPEditor };
+
+/** The list a create in another scope checks names against. */
+function otherScopeFilter(
+  scope: SettingsLayeredScope | null,
+  workspaceId: string | undefined
+): SettingsMCPServerListFilter {
+  return scope === "workspace"
+    ? { scope: "workspace", workspace_id: workspaceId }
+    : { scope: "user" };
+}
 export type { UseMCPEditorOptions };
+
+interface MCPNameCheck {
+  servers: readonly SettingsMCPServerEntry[];
+  ready: boolean;
+  error: { message: string; retry: () => void } | null;
+}
+
+/**
+ * The list a new server's name is checked against. A new server whose chosen scope differs from
+ * the page's list is checked against that scope's own list, or a same-name server there would be
+ * overwritten by the PUT. Picking the scope drops that list's cache, so only a list read after
+ * the pick counts, never a cached one.
+ */
+function useMCPEditorNameCheck({
+  enabled,
+  editor,
+  createScope,
+  servers,
+  serversReady,
+  serversError,
+}: {
+  enabled: boolean;
+  editor: MCPEditorState;
+  createScope: SettingsLayeredScope;
+  servers: readonly SettingsMCPServerEntry[];
+  serversReady: boolean;
+  serversError: MCPNameCheck["error"];
+}): MCPNameCheck {
+  const otherScope = editor.mode === "create" && editor.scope !== createScope ? editor.scope : null;
+  const otherServers = useSettingsMCPServers(
+    otherScopeFilter(otherScope, editor.mode === "closed" ? undefined : editor.workspaceId),
+    { enabled: enabled && otherScope !== null }
+  );
+  if (!otherScope) return { servers, ready: serversReady, error: serversError };
+  return {
+    servers: otherServers.data?.mcp_servers ?? [],
+    ready:
+      otherServers.data !== undefined &&
+      otherServers.fetchStatus === "idle" &&
+      !otherServers.isError,
+    error:
+      otherServers.isError && !otherServers.isFetching
+        ? { message: otherServers.error.message, retry: () => void otherServers.refetch() }
+        : null,
+  };
+}
+
+function mcpSavePending(editor: MCPEditorState, nameCheck: MCPNameCheck): string | undefined {
+  return editor.mode === "create" && !nameCheck.ready && !nameCheck.error
+    ? "Checking which names are already taken…"
+    : undefined;
+}
+
+function mcpVaultInventory(vaultQuery: {
+  data: readonly { ref: string }[] | undefined;
+  isLoading: boolean;
+  error: unknown;
+  refetch: () => Promise<unknown>;
+}): MCPServerEditorProps["vaultInventory"] {
+  if (vaultQuery.isLoading) return { status: "loading" };
+  if (vaultQuery.error) {
+    return {
+      status: "error",
+      message: errorMessage(vaultQuery.error) ?? "Vault inventory could not be loaded",
+      retry: () => void vaultQuery.refetch(),
+    };
+  }
+  return { status: "ready", refs: (vaultQuery.data ?? []).map(secret => secret.ref) };
+}
+
+type MCPEditorHandlers = Pick<
+  MCPServerEditorProps,
+  | "errors"
+  | "isSaving"
+  | "isValid"
+  | "onChange"
+  | "onClose"
+  | "onSave"
+  | "onTargetChange"
+  | "saveError"
+  | "savePending"
+  | "serversError"
+  | "scopeChoice"
+  | "vaultInventory"
+  | "warnings"
+>;
+
+/** The open editor's props; `null` while it is closed. */
+function mcpEditorProps(
+  editor: MCPEditorState,
+  state: MCPEditorHandlers
+): MCPServerEditorProps | null {
+  if (editor.mode === "closed") return null;
+  const edit = editor.mode === "edit";
+  return {
+    ...state,
+    availableTargets: edit ? [editor.target] : ["auto", "config", "sidecar"],
+    draft: editor.draft,
+    entry: edit ? editor.entry : null,
+    mode: editor.mode,
+    open: true,
+    serversError: edit ? null : state.serversError,
+    scope: editor.scope,
+    target: editor.target,
+  };
+}
 
 function mcpEditorValidation(
   editor: MCPEditorState,
@@ -225,4 +355,29 @@ function mcpEditorValidation(
     !nameConflict &&
     (editor.mode !== "create" || serversReady);
   return { errors, isValid };
+}
+
+/**
+ * "All projects" or "Only <project>": a choice while creating from the user or project list with
+ * a project known, and a read-only fact on an existing user or project server. Profile and agent
+ * servers show neither.
+ */
+function mcpScopeChoice(
+  editor: MCPEditorState,
+  createScope: SettingsLayeredScope,
+  project: { id: string; name: string } | null,
+  onChange: (scope: "user" | "workspace") => void
+): MCPScopeChoice | undefined {
+  if (editor.mode === "closed") return undefined;
+  if (editor.mode === "create") {
+    if (createScope === "profile" || !project) return undefined;
+    return {
+      value: editor.scope === "workspace" ? "workspace" : "user",
+      projectName: project.name,
+      onChange,
+    };
+  }
+  if (editor.scope !== "user" && editor.scope !== "workspace") return undefined;
+  const projectName = project && editor.workspaceId === project.id ? project.name : "this project";
+  return { value: editor.scope, projectName, disabled: true };
 }

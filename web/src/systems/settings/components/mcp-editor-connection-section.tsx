@@ -1,16 +1,29 @@
-import { Globe, TerminalSquare } from "@compozy/ui/icons";
+import { useState } from "react";
 
-import { FormSection, ImmutableIdentity, Input, RadioCard } from "@compozy/ui";
+import {
+  Button,
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  FormSection,
+  Input,
+  KindIcon,
+  Pill,
+  RadioCardGroup,
+} from "@compozy/ui";
+import { ClipboardPaste, Globe, KeyRound, Plug, Terminal } from "@compozy/ui/icons";
 
 import type { MCPDraft, MCPDraftErrors, MCPTransport } from "../lib/mcp-editor-model";
-import type { SettingsLayeredScope, SettingsMCPServerTarget } from "../types";
+import {
+  applyParsedServer,
+  applySourceLine,
+  mcpSourceLine,
+  parseMCPServersJSON,
+  suggestMCPName,
+} from "../lib/mcp-editor-paste";
 
-import { MCPFieldLabel, MCPNameField, MCPTargetField } from "./mcp-editor-fields";
-
-/**
- * Local vs remote is the consequence-bearing choice. HTTP is the sole remote
- * transport, so a wire-level picker would imply unsupported runtime behavior.
- */
+import { MCPEditorJSONPaste } from "./mcp-editor-json-paste";
 
 /** Required fields whose errors wait until the operator has touched them. */
 export type MCPRequiredField = "name" | "command" | "url";
@@ -19,152 +32,278 @@ export interface MCPEditorConnectionSectionProps {
   draft: MCPDraft;
   errors: MCPDraftErrors;
   isCreate: boolean;
-  scope: SettingsLayeredScope;
-  target: SettingsMCPServerTarget;
-  availableTargets: SettingsMCPServerTarget[];
+  /** The transport the person picked; `null` lets the source line decide. */
+  picked: MCPTransport | null;
+  /** The name follows the source until the person types one. */
+  autoName: boolean;
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
-  onTargetChange: (target: SettingsMCPServerTarget) => void;
+  /** A card click: picks the transport and replaces the launch fields. */
+  onPick: (transport: MCPTransport) => void;
+  /** Pasted JSON already set the draft's transport; record it as picked. */
+  onAdopt: (transport: MCPTransport) => void;
+  /**
+   * While the JSON view is open and its JSON supplies no picked server, a draft filled before it
+   * opened must not be saved; `false` blocks Save, `true` clears the block.
+   */
+  onPasteSettled: (settled: boolean) => void;
   onTouch: (field: MCPRequiredField) => void;
-  onTransportChange: (transport: MCPTransport) => void;
+}
+
+function hasSource(draft: MCPDraft): boolean {
+  return mcpSourceLine(draft).trim() !== "";
 }
 
 /**
- * Simple tier: how the server runs and how it is reached.
- *
- * Switching transport replaces the launch configuration outright — `toRequest`
- * omits the other branch's fields entirely — so the choice sits above the
- * fields it governs.
+ * "How it connects": Remote server or Local program, then one source field. Until a card is
+ * picked the field takes either a URL or a command and the line decides; "Paste JSON instead"
+ * reads the `mcpServers` block from a server's docs. Switching transport replaces the launch
+ * configuration — `toRequest` omits the other branch's fields entirely.
  */
 export function MCPEditorConnectionSection({
   draft,
   errors,
   isCreate,
-  scope,
-  target,
-  availableTargets,
+  picked,
+  autoName,
   onChange,
-  onTargetChange,
+  onPick,
+  onAdopt,
+  onPasteSettled,
   onTouch,
-  onTransportChange,
 }: MCPEditorConnectionSectionProps) {
-  const isRemote = draft.transport !== "stdio";
+  const line = mcpSourceLine(draft);
+  // The field keeps what was typed ("npx " mid-word); it follows the draft only when another
+  // control (args, JSON paste, a transport switch) changes the launch fields.
+  const [text, setText] = useState(line);
+  const [syncedLine, setSyncedLine] = useState(line);
+  if (line !== syncedLine) {
+    setSyncedLine(line);
+    if (mcpSourceLine(applySourceLine(draft, text, draft.transport)) !== line) setText(line);
+  }
+  // The JSON being pasted, or `null` while the one-line source field shows.
+  const [pasting, setPasting] = useState<string | null>(null);
+
+  const shown: MCPTransport | null = picked ?? (hasSource(draft) ? draft.transport : null);
+  const isRemote = draft.transport === "http";
+  const field: MCPRequiredField = isRemote ? "url" : "command";
+  const error = isRemote ? errors.url : errors.command;
+
+  const writeLine = (next: string) => {
+    setText(next);
+    onTouch(field);
+    onChange(current => {
+      const applied = applySourceLine(current, next, picked);
+      return autoName ? { ...applied, name: suggestMCPName(applied) } : applied;
+    });
+  };
+
+  // Pasted JSON opens the JSON view; a single server fills the draft right away.
+  const pasteJSON = (pasted: string) => {
+    const parsed = parseMCPServersJSON(pasted);
+    const only = parsed.ok && parsed.servers.length === 1 ? parsed.servers[0] : null;
+    if (only) {
+      onAdopt(only.transport);
+      onChange(current => applyParsedServer(current, only, !autoName));
+    }
+    onPasteSettled(only !== null);
+    setPasting(pasted);
+  };
+  // Leaving the JSON view keeps whatever the draft holds, the earlier server included.
+  const showSource = () => {
+    onPasteSettled(true);
+    setPasting(null);
+  };
 
   return (
-    <FormSection
-      data-testid="settings-mcp-editor-connection"
-      description="Switching transport replaces the launch configuration."
-      title={isCreate ? "How does it run?" : "Connection"}
-    >
-      {isCreate ? null : (
-        <ImmutableIdentity
-          hint="The tool prefix agents see cannot change — create a new server to rename it."
-          rows={[
-            { label: "Server", mono: true, value: draft.name },
-            { label: "Scope", mono: true, value: scope },
-          ]}
-        />
-      )}
+    <FormSection data-testid="settings-mcp-editor-connection" icon={Plug} title="How it connects">
+      <MCPTransportPicker onPick={onPick} shown={shown} />
 
-      <div
-        aria-label="How it runs"
-        className="grid gap-2 sm:grid-cols-2"
-        data-testid="settings-mcp-servers-editor-transport"
-        role="radiogroup"
-      >
-        <RadioCard
-          data-testid="settings-mcp-servers-editor-transport-stdio"
-          description="Runs a program on this computer."
-          icon={TerminalSquare}
-          onSelect={() => onTransportChange("stdio")}
-          selected={!isRemote}
-          title="Local program"
-          titleClassName="min-w-0 flex-1 truncate"
+      {pasting !== null ? (
+        <MCPEditorJSONPaste
+          autoName={autoName}
+          initialText={pasting}
+          onAdopt={onAdopt}
+          onChange={onChange}
+          onDone={showSource}
+          onSelect={onPasteSettled}
         />
-        <RadioCard
-          data-testid="settings-mcp-servers-editor-transport-remote"
-          description="Connects to a server on the internet, with sign-in if it needs one."
-          icon={Globe}
-          onSelect={() => onTransportChange("http")}
-          selected={isRemote}
-          title="Remote URL"
-          titleClassName="min-w-0 flex-1 truncate"
-        />
-      </div>
-
-      {isCreate ? (
-        <MCPNameField
-          error={errors.name}
-          isCreate={isCreate}
-          name={draft.name}
-          onBlur={() => onTouch("name")}
-          onChange={name => {
-            onTouch("name");
-            onChange(current => ({ ...current, name }));
-          }}
-        />
-      ) : null}
-
-      {isRemote ? (
-        <>
-          <div>
-            <MCPFieldLabel hint="required" htmlFor="mcp-editor-url">
-              URL
-            </MCPFieldLabel>
-            <Input
-              aria-invalid={errors.url ? true : undefined}
-              className="font-mono"
-              data-testid="settings-mcp-servers-editor-url-input"
-              id="mcp-editor-url"
-              onBlur={() => onTouch("url")}
-              onChange={event => {
-                onTouch("url");
-                onChange(current => ({ ...current, url: event.target.value }));
-              }}
-              placeholder="https://mcp.linear.app/mcp"
-              value={draft.url}
-            />
-            {errors.url ? (
-              <p className="mt-1.5 text-caption text-destructive">{errors.url}</p>
-            ) : null}
-          </div>
-          {errors.remoteFields ? (
-            <p
-              className="text-caption text-destructive"
-              data-testid="settings-mcp-editor-remote-error"
-            >
-              {errors.remoteFields}
-            </p>
-          ) : null}
-        </>
       ) : (
-        <div>
-          <MCPFieldLabel hint="required" htmlFor="mcp-editor-command">
-            Command
-          </MCPFieldLabel>
-          <Input
-            aria-invalid={errors.command ? true : undefined}
-            className="font-mono"
-            data-testid="settings-mcp-servers-editor-command-input"
-            id="mcp-editor-command"
-            onBlur={() => onTouch("command")}
-            onChange={event => {
-              onTouch("command");
-              onChange(current => ({ ...current, command: event.target.value }));
-            }}
-            placeholder="npx"
-            value={draft.command}
-          />
-          {errors.command ? (
-            <p className="mt-1.5 text-caption text-destructive">{errors.command}</p>
-          ) : null}
-        </div>
+        <MCPEditorSourceField
+          error={error}
+          isCreate={isCreate}
+          isRemote={isRemote}
+          onBlur={() => onTouch(field)}
+          onLine={writeLine}
+          onPasteJSON={pasteJSON}
+          onStartPaste={() => {
+            onPasteSettled(false);
+            setPasting("");
+          }}
+          remoteError={errors.remoteFields}
+          shown={shown}
+          text={text}
+        />
       )}
 
-      <MCPTargetField
-        availableTargets={availableTargets}
-        onChange={onTargetChange}
-        target={target}
-      />
+      {hasSource(draft) ? <MCPServerPreview draft={draft} /> : null}
     </FormSection>
+  );
+}
+
+function MCPTransportPicker({
+  shown,
+  onPick,
+}: {
+  shown: MCPTransport | null;
+  onPick: (transport: MCPTransport) => void;
+}) {
+  return (
+    <RadioCardGroup
+      aria-label="How it connects"
+      className="grid-cols-2"
+      data-testid="settings-mcp-servers-editor-transport"
+      iconWellSize="lg"
+      onValueChange={value => onPick(value)}
+      options={[
+        {
+          value: "http",
+          icon: Globe,
+          title: "Remote server",
+          "data-testid": "settings-mcp-servers-editor-transport-remote",
+        },
+        {
+          value: "stdio",
+          icon: Terminal,
+          title: "Local program",
+          "data-testid": "settings-mcp-servers-editor-transport-stdio",
+        },
+      ]}
+      value={shown}
+    />
+  );
+}
+
+function sourceLabel(shown: MCPTransport | null): string {
+  if (shown === null) return "URL or command";
+  return shown === "http" ? "Server URL" : "Command";
+}
+
+function sourcePlaceholder(shown: MCPTransport | null): string {
+  if (shown === null) return "https://… or npx …";
+  return shown === "http" ? "https://…" : "npx …";
+}
+
+interface MCPEditorSourceFieldProps {
+  shown: MCPTransport | null;
+  isRemote: boolean;
+  isCreate: boolean;
+  text: string;
+  error: string | undefined;
+  remoteError: string | undefined;
+  onLine: (next: string) => void;
+  onBlur: () => void;
+  onStartPaste: () => void;
+  onPasteJSON: (pasted: string) => void;
+}
+
+/** The one-line source field: a URL or a command, with "Paste JSON instead" while creating. */
+function MCPEditorSourceField({
+  shown,
+  isRemote,
+  isCreate,
+  text,
+  error,
+  remoteError,
+  onLine,
+  onBlur,
+  onStartPaste,
+  onPasteJSON,
+}: MCPEditorSourceFieldProps) {
+  return (
+    <Field data-invalid={error ? "true" : undefined}>
+      <div className="flex items-center justify-between gap-2">
+        <FieldLabel htmlFor="mcp-editor-source">{sourceLabel(shown)}</FieldLabel>
+        {isCreate ? (
+          <Button
+            className="h-auto px-0"
+            data-testid="settings-mcp-servers-editor-paste-json"
+            onClick={onStartPaste}
+            size="xs"
+            type="button"
+            variant="link"
+          >
+            <ClipboardPaste data-icon="inline-start" />
+            Paste JSON instead
+          </Button>
+        ) : null}
+      </div>
+      <Input
+        aria-invalid={error ? true : undefined}
+        className="font-mono"
+        data-testid={
+          isRemote
+            ? "settings-mcp-servers-editor-url-input"
+            : "settings-mcp-servers-editor-command-input"
+        }
+        id="mcp-editor-source"
+        onBlur={onBlur}
+        onChange={event => onLine(event.target.value)}
+        onPaste={event => {
+          const pasted = event.clipboardData.getData("text").trim();
+          if (isCreate && pasted.startsWith("{")) {
+            event.preventDefault();
+            onPasteJSON(pasted);
+          }
+        }}
+        placeholder={sourcePlaceholder(shown)}
+        value={text}
+      />
+      {error ? <FieldError>{error}</FieldError> : null}
+      {remoteError ? (
+        <FieldError data-testid="settings-mcp-editor-remote-error">{remoteError}</FieldError>
+      ) : null}
+      {shown === null ? (
+        <FieldDescription>Copy it from the server's docs or README.</FieldDescription>
+      ) : null}
+    </Field>
+  );
+}
+
+/** What is about to be added, as the list will show it. */
+function MCPServerPreview({ draft }: { draft: MCPDraft }) {
+  const remote = draft.transport === "http";
+  const keys = draft.secretEnv.filter(entry => entry.key.trim()).length;
+  return (
+    <div
+      className="flex items-start gap-3 rounded-lg bg-sunken p-3 shadow-hairline-inset"
+      data-testid="settings-mcp-servers-editor-preview"
+    >
+      <KindIcon aria-hidden="true" icon={remote ? Globe : Terminal} size="sm" tone="well" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex min-w-0 flex-col">
+          <span className="truncate text-small-body font-medium text-fg-strong">
+            {draft.name.trim() || "Unnamed server"}
+          </span>
+          <span className="truncate font-mono text-mono-id text-faint">{mcpSourceLine(draft)}</span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {remote ? (
+            <Pill size="xs" tone="neutral">
+              <KeyRound aria-hidden="true" className="size-3 text-faint" />
+              Sign in after adding, if it asks
+            </Pill>
+          ) : keys > 0 ? (
+            <Pill size="xs" tone="neutral">
+              <KeyRound aria-hidden="true" className="size-3 text-faint" />
+              {keys === 1 ? "Needs 1 key" : `Needs ${keys} keys`}
+            </Pill>
+          ) : null}
+          <Pill size="xs" tone="neutral">
+            <Plug aria-hidden="true" className="size-3 text-faint" />
+            Tools appear once it connects
+          </Pill>
+        </div>
+      </div>
+    </div>
   );
 }

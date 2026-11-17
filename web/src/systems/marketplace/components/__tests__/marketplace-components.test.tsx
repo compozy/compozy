@@ -33,7 +33,7 @@ import {
   vi,
 } from "vitest";
 import type { ReactNode } from "react";
-import { TopbarSlotProvider, useTopbarSlotValue } from "@compozy/ui";
+import { TopbarSlotProvider, UIProvider, useTopbarSlotValue } from "@compozy/ui";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers, statusFixture } from "@/systems/status/mocks";
@@ -273,9 +273,11 @@ function setup(node?: ReactNode, path = "/marketplace") {
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   const view = render(
-    <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <UIProvider reducedMotion="never" skipAnimations>
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </UIProvider>
   );
   return { router, client, ...view };
 }
@@ -1902,8 +1904,9 @@ describe("Marketplace extension MCP controls", () => {
     const { client } = setup(undefined, "/marketplace/installed");
     const authorize = await screen.findByRole("button", { name: "Authorize github for github" });
     await waitFor(() => expect(authorize).toBeEnabled());
+    vi.spyOn(window, "open").mockReturnValue(null);
     await user.click(authorize);
-    await screen.findByRole("dialog", { name: "Authorize github" });
+    await screen.findByRole("dialog", { name: "Sign in to github" });
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(requests[0]!.searchParams.get("owner")).toBe("extension:github");
     expect(requests[0]!.searchParams.get("scope")).toBe("user");
@@ -2455,11 +2458,13 @@ describe("Category browse and row actions", () => {
       const setUp = await screen.findByRole("button", { name: `Set up ${entry.name}` });
       // The live server read has answered, so the press starts that server's sign-in in place.
       await waitFor(() => expect(clients.at(-1)!.isFetching()).toBe(0));
+      vi.spyOn(window, "open").mockReturnValue(null);
       await userEvent.click(setUp);
-      await screen.findByRole("dialog", { name: "Authorize github" });
+      // The sign-in panel opens beside Set up, with the browser already on its way.
+      await screen.findByRole("dialog", { name: "Sign in to github" });
       await waitFor(() => expect(begins).toHaveLength(1));
       expect(begins[0]!.searchParams.get("owner")).toBe("extension:github");
-      // Inventory can become Ready before the dialog observes the completed browser callback.
+      // Inventory can become Ready before the panel observes the completed browser callback.
       extensions = extensions.map(extension => ({
         ...extension,
         mcp_servers: [{ ...signInServer, status: "running" }],
@@ -2468,22 +2473,28 @@ describe("Category browse and row actions", () => {
         await client.invalidateQueries();
       });
       expect(await screen.findByTestId(`marketplace-ready-${entry.entry_id}`)).toBeVisible();
-      expect(screen.getByRole("dialog", { name: "Authorize github" })).toBeVisible();
-      expect(screen.queryByTestId("settings-page-mcp-authorize-confirmed")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("dialog", { name: "Sign in to github" })).toBeVisible()
+      );
+      expect(screen.queryByRole("dialog", { name: "Connected to github" })).not.toBeInTheDocument();
       catalog = { ...catalog, items: [], total: 0 };
       await act(async () => {
         await client.invalidateQueries();
       });
       expect(screen.queryByTestId(`marketplace-card-${entry.entry_id}`)).not.toBeInTheDocument();
-      expect(screen.getByRole("dialog", { name: "Authorize github" })).toBeVisible();
-      expect(screen.queryByTestId("settings-page-mcp-authorize-confirmed")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("dialog", { name: "Sign in to github" })).toBeVisible()
+      );
+      expect(screen.queryByRole("dialog", { name: "Connected to github" })).not.toBeInTheDocument();
       signedIn = true;
       await act(async () => {
         await client.invalidateQueries();
       });
-      expect(await screen.findByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible();
-      await userEvent.click(screen.getByTestId("settings-page-mcp-authorize-done"));
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("dialog", { name: "Connected to github" })).toBeVisible()
+      );
+      await userEvent.click(screen.getByTestId("mcp-sign-in-done"));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     }
   );
 

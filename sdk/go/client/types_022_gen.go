@@ -4,6 +4,25 @@ package client
 
 import "time"
 
+// SettingsGlobalShortcutPayload is a daemon API value.
+type SettingsGlobalShortcutPayload struct {
+	CommandID     string                       `json:"command_id"`
+	IntendedChord string                       `json:"intended_chord"`
+	ActiveChord   string                       `json:"active_chord,omitempty"`
+	Status        SettingsGlobalShortcutStatus `json:"status,omitempty"`
+	Reason        string                       `json:"reason,omitempty"`
+	SettingsURL   string                       `json:"settings_url,omitempty"`
+}
+
+// SettingsGlobalShortcutStatus is a daemon API value.
+type SettingsGlobalShortcutStatus string
+
+// SettingsHTTPPayload is a daemon API value.
+type SettingsHTTPPayload struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
+
 // SettingsHookDeclarationPayload is a daemon API value.
 type SettingsHookDeclarationPayload struct {
 	Name         string            `json:"name"`
@@ -224,6 +243,7 @@ type SettingsMCPSecretValuesPayload struct {
 
 // SettingsMCPServerItemPayload is a daemon API value.
 type SettingsMCPServerItemPayload struct {
+	DefinitionSource   string                                 `json:"definition_source,omitempty"`
 	Approval           SettingsMCPApprovalStatePayload        `json:"approval"`
 	CallableInSessions bool                                   `json:"callable_in_sessions"`
 	ReadOnlyTools      []string                               `json:"read_only_tools,omitempty"`

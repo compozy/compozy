@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// Row is a daemon API value.
+type Row struct {
+	ID          string            `json:"id"`
+	Title       string            `json:"title"`
+	Subtitle    string            `json:"subtitle,omitempty"`
+	Icon        string            `json:"icon,omitempty"`
+	Badge       *ViewBadge        `json:"badge,omitempty"`
+	Keywords    []string          `json:"keywords,omitempty"`
+	Accessories []string          `json:"accessories,omitempty"`
+	Detail      *DetailBody       `json:"detail,omitempty"`
+	Actions     []RowAction       `json:"actions,omitempty"`
+	Requires    map[string]string `json:"requires,omitempty"`
+	Fallback    string            `json:"fallback,omitempty"`
+}
+
 // RowAction is a daemon API value.
 type RowAction struct {
 	Title        string            `json:"title"`
@@ -427,19 +442,3 @@ type SchemaStreamStatus struct {
 
 // Scope is a daemon API value.
 type Scope string
-
-// SearchMatch is a daemon API value.
-type SearchMatch struct {
-	Sequence  int64  `json:"sequence"`
-	TurnID    string `json:"turn_id"`
-	Role      string `json:"role"`
-	Snippet   string `json:"snippet"`
-	PartIndex *int   `json:"part_index,omitzero"`
-	Field     string `json:"field,omitempty"`
-}
-
-// SearchResult is a daemon API value.
-type SearchResult struct {
-	Matches   []SearchMatch `json:"matches"`
-	Truncated bool          `json:"truncated"`
-}

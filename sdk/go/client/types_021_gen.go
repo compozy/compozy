@@ -4,6 +4,32 @@ package client
 
 import "time"
 
+// SessionStatusResponse is a daemon API value.
+type SessionStatusResponse struct {
+	Diagnostics         []DiagnosticItem                 `json:"diagnostics,omitempty"`
+	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
+	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
+	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
+	Verified            *bool                            `json:"verified,omitempty"`
+	Escalated           *bool                            `json:"escalated,omitempty"`
+	Attention           string                           `json:"attention,omitempty"`
+	SessionID           string                           `json:"session_id"`
+	WorkspaceID         string                           `json:"workspace_id"`
+	AgentName           string                           `json:"agent_name"`
+	State               SessionHealthState               `json:"state"`
+	Badge               Badge                            `json:"badge"`
+	Health              SessionHealthStatus              `json:"health"`
+	ActivePrompt        bool                             `json:"active_prompt"`
+	Attachable          bool                             `json:"attachable"`
+	EligibleForWake     bool                             `json:"eligible_for_wake"`
+	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
+	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
+	PendingInteractions []PendingInteractionPayload      `json:"pending_interactions"`
+	Lineage             *SessionLineagePayload           `json:"lineage,omitempty"`
+	Derivation          *SessionDerivationPayload        `json:"derivation,omitempty"`
+	UpdatedAt           time.Time                        `json:"updated_at"`
+}
+
 // SessionStopPayload is a daemon API value.
 type SessionStopPayload struct {
 	SessionID    string    `json:"session_id"`
@@ -415,23 +441,4 @@ type SettingsGeneralResponse struct {
 	Config          SettingsGeneralConfigPayload  `json:"config"`
 	Runtime         SettingsDaemonRuntimePayload  `json:"runtime"`
 	Actions         SettingsGeneralActionsPayload `json:"actions"`
-}
-
-// SettingsGlobalShortcutPayload is a daemon API value.
-type SettingsGlobalShortcutPayload struct {
-	CommandID     string                       `json:"command_id"`
-	IntendedChord string                       `json:"intended_chord"`
-	ActiveChord   string                       `json:"active_chord,omitempty"`
-	Status        SettingsGlobalShortcutStatus `json:"status,omitempty"`
-	Reason        string                       `json:"reason,omitempty"`
-	SettingsURL   string                       `json:"settings_url,omitempty"`
-}
-
-// SettingsGlobalShortcutStatus is a daemon API value.
-type SettingsGlobalShortcutStatus string
-
-// SettingsHTTPPayload is a daemon API value.
-type SettingsHTTPPayload struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
 }

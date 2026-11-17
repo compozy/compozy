@@ -89,28 +89,81 @@ func (p *MCPProvider) listSourceDescriptors(
 		}
 	}
 
+	generation := p.nextDiscoveryGeneration(source, FreshMCPDiscovery(ctx))
 	discovered, err := p.discoverSource(ctx, source, timeout)
-	if err != nil {
-		// Abort aggregate discovery only when its caller stopped. A timeout or cancellation
-		// from one executor is a source failure and must not hide healthy MCP servers.
-		if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
-			return nil, false, contextError
-		}
-		p.discoveryFailures.Store(source, struct{}{})
-		if tracked && p.reliability != nil {
-			if recordErr := p.reliability.service.RecordFailure(
-				ctx,
-				key,
-				MCPDiscoveryFailureClass(err),
-				err.Error(),
-			); recordErr != nil {
-				return nil, false, fmt.Errorf("tools: record mcp source %q failure: %w", source.Owner, recordErr)
-			}
-			return p.reliability.cached(key, reliabilityState), false, nil
-		}
-		return p.cachedSourceDescriptors(source), false, nil
+	p.discoveryMu.Lock()
+	defer p.discoveryMu.Unlock()
+	current := p.discoveryGenerations[source]
+	if current.check != generation.check || (!FreshMCPDiscovery(ctx) && current.list != generation.list) {
+		return p.cachedSourceDescriptors(source), true, nil
 	}
+	if FreshMCPDiscovery(ctx) {
+		current.list++
+		p.discoveryGenerations[source] = current
+	}
+	if err != nil {
+		return p.discoveryFailed(ctx, source, key, tracked, reliabilityState, err)
+	}
+	return p.discoverySucceeded(ctx, source, key, tracked, reliabilityState, discovered)
+}
 
+type mcpDiscoveryGeneration struct{ check, list uint64 }
+
+func (p *MCPProvider) nextDiscoveryGeneration(source SourceRef, fresh bool) mcpDiscoveryGeneration {
+	p.discoveryMu.Lock()
+	defer p.discoveryMu.Unlock()
+	if p.discoveryGenerations == nil {
+		p.discoveryGenerations = make(map[SourceRef]mcpDiscoveryGeneration)
+	}
+	generation := p.discoveryGenerations[source]
+	if fresh {
+		generation.check++
+	}
+	generation.list++
+	p.discoveryGenerations[source] = generation
+	return p.discoveryGenerations[source]
+}
+
+// discoveryFailed records a failed discovery and returns the last known descriptors. Callers hold
+// discoveryMu.
+func (p *MCPProvider) discoveryFailed(
+	ctx context.Context,
+	source SourceRef,
+	key store.DeadEntityKey,
+	tracked bool,
+	reliabilityState *mcpReliabilityState,
+	err error,
+) ([]Descriptor, bool, error) {
+	// Abort aggregate discovery only when its caller stopped. A timeout or cancellation
+	// from one executor is a source failure and must not hide healthy MCP servers.
+	if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
+		return nil, false, contextError
+	}
+	p.discoveryFailures.Store(source, struct{}{})
+	if tracked && p.reliability != nil {
+		if recordErr := p.reliability.service.RecordFailure(
+			ctx,
+			key,
+			MCPDiscoveryFailureClass(err),
+			err.Error(),
+		); recordErr != nil {
+			return nil, false, fmt.Errorf("tools: record mcp source %q failure: %w", source.Owner, recordErr)
+		}
+		return p.reliability.cached(key, reliabilityState), false, nil
+	}
+	return p.cachedSourceDescriptors(source), false, nil
+}
+
+// discoverySucceeded stores the discovered descriptors and records recovery. Callers hold
+// discoveryMu.
+func (p *MCPProvider) discoverySucceeded(
+	ctx context.Context,
+	source SourceRef,
+	key store.DeadEntityKey,
+	tracked bool,
+	reliabilityState *mcpReliabilityState,
+	discovered []MCPToolDescriptor,
+) ([]Descriptor, bool, error) {
 	descriptors := make([]Descriptor, 0, len(discovered))
 	for i := range discovered {
 		descriptor, err := mcpRegistryDescriptor(source, discovered[i])

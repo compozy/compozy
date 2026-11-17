@@ -27,7 +27,7 @@ type sessionMCPClient interface {
 }
 
 func newSessionMCPCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use: "mcp <id>", Short: "Show MCP servers available to a session",
 		Example: "  compozy session mcp sess_1234\n  compozy session mcp sess_1234 -o json",
 		Args:    exactOneNonBlankArg(),
@@ -47,6 +47,8 @@ func newSessionMCPCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionMCPBundle(result))
 		},
 	}
+	cmd.AddCommand(newSessionMCPCheckCommand(deps))
+	return cmd
 }
 
 func sessionMCPBundle(result contract.SessionMCPResponse) outputBundle {

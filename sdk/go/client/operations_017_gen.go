@@ -11,6 +11,102 @@ import (
 	"strings"
 )
 
+// GetWindowManagerSnapshot Read one workspace window-manager snapshot
+func (c *Client) GetWindowManagerSnapshot(ctx context.Context, params GetWindowManagerSnapshotParams) (*WindowManagerSnapshot, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerSnapshot
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetWorkspaceParams carries the path, query, and header parameters.
+type GetWorkspaceParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetWorkspace Get one resolved workspace with related data
+func (c *Client) GetWorkspace(ctx context.Context, params GetWorkspaceParams) (*WorkspaceDetailPayload, error) {
+	path := "/api/workspaces/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceDetailPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetWorkspaceLayoutParams carries the path, query, and header parameters.
+type GetWorkspaceLayoutParams struct {
+	Profile *string `url:"profile"`
+}
+
+// GetWorkspaceLayout Read the profile's workspace folders and manual workspace order
+func (c *Client) GetWorkspaceLayout(ctx context.Context, params GetWorkspaceLayoutParams) (*WorkspaceLayoutResponse, error) {
+	path := "/api/workspace-folders"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceLayoutResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetWorktreeExitPlanParams carries the path, query, and header parameters.
+type GetWorktreeExitPlanParams struct {
+	WorkspaceID string    `url:"workspace_id"`
+	WorktreeID  string    `url:"worktree_id"`
+	Include     *[]string `url:"include"`
+}
+
+// GetWorktreeExitPlan Read the worktree exit plan
+func (c *Client) GetWorktreeExitPlan(ctx context.Context, params GetWorktreeExitPlanParams) (*WorktreeExitPlanResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	query := url.Values{}
+	if params.Include != nil {
+		for _, value := range *params.Include {
+			query.Add("include", value)
+		}
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreeExitPlanResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetWorktreeStatusParams carries the path, query, and header parameters.
 type GetWorktreeStatusParams struct {
 	WorkspaceID string `url:"workspace_id"`
@@ -314,127 +410,4 @@ type ListAgentCatalogParams struct {
 	Cursor    *string `url:"cursor"`
 	Limit     *int    `url:"limit"`
 	Profile   *string `url:"profile"`
-}
-
-// ListAgentCatalog List a filtered agent fleet with exact session metrics
-func (c *Client) ListAgentCatalog(ctx context.Context, params ListAgentCatalogParams) (*AgentCatalogResponse, error) {
-	path := "/api/agents/catalog"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Group != nil {
-		query.Set("group", *params.Group)
-	}
-	if params.Name != nil {
-		query.Set("name", *params.Name)
-	}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.Category != nil {
-		query.Set("category", *params.Category)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentCatalogResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentHeartbeatHistoryParams carries the path, query, and header parameters.
-type ListAgentHeartbeatHistoryParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
-	Profile     *string `url:"profile"`
-}
-
-// ListAgentHeartbeatHistory List managed HEARTBEAT.md authoring revisions
-func (c *Client) ListAgentHeartbeatHistory(ctx context.Context, params ListAgentHeartbeatHistoryParams) (*HeartbeatHistoryResponse, error) {
-	path := "/api/agents/{name}/heartbeat/history"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatHistoryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentInstanceCheckInsParams carries the path, query, and header parameters.
-type ListAgentInstanceCheckInsParams struct {
-	ID          string  `url:"id"`
-	Cursor      *string `url:"cursor"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListAgentInstanceCheckIns List instance wake events
-func (c *Client) ListAgentInstanceCheckIns(ctx context.Context, params ListAgentInstanceCheckInsParams) (*AgentInstanceCheckInsResponse, error) {
-	path := "/api/agent-instances/{id}/check-ins"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceCheckInsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentInstanceReportsParams carries the path, query, and header parameters.
-type ListAgentInstanceReportsParams struct {
-	ID          string  `url:"id"`
-	State       *string `url:"state"`
-	Cursor      *string `url:"cursor"`
-	Limit       *string `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

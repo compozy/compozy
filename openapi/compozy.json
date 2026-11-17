@@ -18449,10 +18449,46 @@
         ],
         "type": "object"
       },
+      "MCPServerApproval": {
+        "properties": {
+          "definition_digest": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition_digest"
+        ],
+        "type": "object"
+      },
       "MCPServerRow": {
         "properties": {
+          "approval": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MCPServerApproval"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "callable_count": {
             "type": "integer"
+          },
+          "command": {
+            "type": "string"
           },
           "name": {
             "type": "string"
@@ -18460,14 +18496,32 @@
           "owner": {
             "type": "string"
           },
+          "profile": {
+            "type": "string"
+          },
           "reason": {
             "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/MCPServerSource"
           },
           "state": {
             "type": "string"
           },
           "tool_count": {
             "type": "integer"
+          },
+          "transport": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
           }
         },
         "required": [
@@ -18475,8 +18529,23 @@
           "name",
           "owner",
           "reason",
+          "source",
           "state",
           "tool_count"
+        ],
+        "type": "object"
+      },
+      "MCPServerSource": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
         ],
         "type": "object"
       },
@@ -33205,6 +33274,9 @@
             "type": "string"
           },
           "command": {
+            "type": "string"
+          },
+          "definition_source": {
             "type": "string"
           },
           "env_keys": {
@@ -79861,6 +79933,141 @@
         ]
       }
     },
+    "/api/settings/mcp-servers/{name}/check": {
+      "post": {
+        "operationId": "checkSettingsMCPServer",
+        "parameters": [
+          {
+            "description": "Configured MCP server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact MCP settings scope",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "enum": [
+                "user",
+                "profile",
+                "workspace"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when scope is workspace",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when scope is profile",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Definition owner: manual or extension:\u003cname\u003e; omitted owner selects manual",
+            "in": "query",
+            "name": "owner",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsMCPServerItemPayload"
+                }
+              }
+            },
+            "description": "MCP check result"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid MCP check request or disabled source"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server or workspace not found"
+          },
+          "499": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP check canceled by client"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP check runtime unavailable"
+          }
+        },
+        "summary": "Retry one scoped MCP server runtime probe",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/settings/observability": {
       "get": {
         "operationId": "getSettingsObservability",
@@ -103868,11 +104075,142 @@
             "description": "Session MCP read model unavailable"
           }
         },
-        "summary": "Read session MCP availability without discovery",
+        "summary": "Read session MCP availability without discovery; redacted definition previews appear only for waiting approval and never for app tokens",
         "tags": [
           "sessions"
         ],
         "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check": {
+      "post": {
+        "operationId": "checkSessionMCP",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Configured MCP server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Definition owner; omitted owner selects manual",
+            "in": "query",
+            "name": "owner",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMCP"
+                }
+              }
+            },
+            "description": "MCP check result"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid MCP check request or disabled source"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP server or workspace not found"
+          },
+          "499": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP check canceled by client"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "MCP check runtime unavailable"
+          }
+        },
+        "summary": "Retry discovery for one session MCP server without restarting the runtime",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"

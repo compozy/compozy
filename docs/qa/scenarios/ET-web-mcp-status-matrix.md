@@ -90,3 +90,21 @@ network traffic. After the 30-second observation window, status returned
 observe suites passed consent, identity invalidation, live overrides, archived failures
 and the ten-recent bound. The isolated lab teardown reported `TEARDOWN_ALL_CLEAN=true`.
 This focused walk does not replace the unrelated OAuth/vendor branches of the matrix.
+
+## Explicit check
+
+After integrating the MCP redesign, select Check again for one broken server after repairing it.
+`POST /api/settings/mcp-servers/{name}/check` uses the row's exact `scope`, `workspace_id`, `profile`,
+and `owner`, probes only that server, and returns its item with refreshed `runtime_status`.
+A waiting definition remains unprobed; app tokens cannot call this mutation. A successful probe
+clears a durable dead mark. Verify a colliding logical name under another owner is unaffected.
+Focused real MCP transport coverage lives in `TestSettingsRuntimeSurfaceMCPServerRuntimeStatus`;
+the integrated UI walk remains pending until the frontend slices are integrated.
+
+QA impact 2026-11-16 (MCP redesign S5): the Settings list layout is unchanged. A row whose status is
+destructive (Setup problem, Unavailable, Couldn't connect, Access denied…) and has no Sign in /
+Reauthorize repair gets a quiet "Not working ›" action. It opens "<server> isn't working" beside
+the button (Settings variant: no "Open in Settings"), with the runtime diagnostic under "What the
+server said". Check again posts the exact-scope check, replaces the row in the list cache with the
+returned item; a server that works closes the panel and its row reads its new status, one that still
+fails keeps the panel open with "Still not working after the check."

@@ -98,7 +98,7 @@ func (s *Service) BeforeProbe(ctx context.Context, key store.DeadEntityKey) (Pro
 		s.completeOperation(state, operation)
 		return ProbeDecision{Allowed: true}, nil
 	}
-	if state.nextProbe.IsZero() || !now.Before(state.nextProbe) {
+	if explicitProbeRetry(ctx, normalized) || state.nextProbe.IsZero() || !now.Before(state.nextProbe) {
 		state.nextProbe = now.Add(s.recoveryInterval)
 		decision := probeDecision(state, true, true)
 		state.mu.Unlock()

@@ -157,6 +157,12 @@ import type {
   CheckAgentInstanceData,
   CheckAgentInstanceErrors,
   CheckAgentInstanceResponses,
+  CheckSessionMCPData,
+  CheckSessionMCPErrors,
+  CheckSessionMCPResponses,
+  CheckSettingsMCPServerData,
+  CheckSettingsMCPServerErrors,
+  CheckSettingsMCPServerResponses,
   CheckSettingsUpdateData,
   CheckSettingsUpdateErrors,
   CheckSettingsUpdateResponses,
@@ -7031,6 +7037,29 @@ export class settings extends HeyApiClient {
   }
 
   /**
+   * Retry one scoped MCP server runtime probe
+   */
+  public checkSettingsMCPServer<ThrowOnError extends boolean = true>(
+    options: Options<CheckSettingsMCPServerData, ThrowOnError>
+  ): RequestResult<
+    CheckSettingsMCPServerResponses,
+    CheckSettingsMCPServerErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      CheckSettingsMCPServerResponses,
+      CheckSettingsMCPServerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/mcp-servers/{name}/check",
+      ...options,
+    });
+  }
+
+  /**
    * Read the observability settings section
    */
   public getSettingsObservability<ThrowOnError extends boolean = true>(
@@ -9345,7 +9374,7 @@ export class sessions extends HeyApiClient {
   }
 
   /**
-   * Read session MCP availability without discovery
+   * Read session MCP availability without discovery; redacted definition previews appear only for waiting approval and never for app tokens
    */
   public getSessionMCP<ThrowOnError extends boolean = true>(
     options: Options<GetSessionMCPData, ThrowOnError>
@@ -9358,6 +9387,24 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp",
+      ...options,
+    });
+  }
+
+  /**
+   * Retry discovery for one session MCP server without restarting the runtime
+   */
+  public checkSessionMCP<ThrowOnError extends boolean = true>(
+    options: Options<CheckSessionMCPData, ThrowOnError>
+  ): RequestResult<CheckSessionMCPResponses, CheckSessionMCPErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CheckSessionMCPResponses,
+      CheckSessionMCPErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check",
       ...options,
     });
   }

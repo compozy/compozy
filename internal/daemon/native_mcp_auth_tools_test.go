@@ -1195,6 +1195,154 @@ func newRuntimeMCPCopyFixture(t *testing.T, source string) runtimeMCPCopyFixture
 // Invariant: the session catalog retains blocked rows while projections remain callable-only and reads never discover. Owner: daemon MCP read model; UT-053, UT-080–082, UT-084, UT-091.
 func TestSessionMCPReadModel(t *testing.T) {
 	t.Parallel()
+	t.Run("Should expose waiting definition and exact approval target", func(t *testing.T) {
+		t.Parallel()
+		model, _, executor, settings := newSessionMCPReadFixture(t)
+		settings.servers = []settingspkg.MCPServerItem{
+			{
+				Name:             "waiting",
+				Owner:            "manual",
+				Scope:            settingspkg.ScopeProfile,
+				WorkspaceID:      "ws-auth",
+				ProfileName:      "work",
+				Transport:        "stdio",
+				Command:          "npx",
+				Args:             []string{"-y", "token=super-secret", "--token", "opaque-credential"},
+				URL:              "https://alice:password@example.test/mcp?custom=private-value",
+				DefinitionSource: "/project/.compozy/mcp.json",
+				SourceMetadata: settingspkg.SourceMetadata{
+					EffectiveSource: settingspkg.SourceRef{
+						Kind:  settingspkg.SourceKindWorkspaceMCPSidecar,
+						Scope: settingspkg.ScopeWorkspace,
+					},
+				},
+				Approval: settingspkg.MCPApprovalState{
+					State:            "waiting",
+					Reason:           "changed",
+					DefinitionDigest: "sha256:definition",
+				},
+			},
+		}
+		before := executor.discoveries
+		result, err := model.CheckSessionMCP(t.Context(), "sess-1", "waiting", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		row := result.CompozyServers[0]
+		if row.State != "waiting_approval" || row.Scope != "profile" || row.WorkspaceID != "ws-auth" ||
+			row.Profile != "work" ||
+			row.URL != "https://example.test/mcp?custom=%5Bredacted%5D" || strings.Contains(strings.Join(row.Args, " "), "super-secret") ||
+			row.Command != "npx" ||
+			len(row.Args) != 4 || row.Args[3] != "[REDACTED]" ||
+			row.Source.Path != "/project/.compozy/mcp.json" ||
+			row.Source.Kind != string(settingspkg.SourceKindWorkspaceMCPSidecar) ||
+			row.Approval == nil ||
+			row.Approval.Reason != "changed" ||
+			row.Approval.DefinitionDigest != "sha256:definition" {
+			t.Fatalf("waiting row = %+v", row)
+		}
+		if executor.discoveries != before {
+			t.Fatal("waiting definition was discovered")
+		}
+	})
+	t.Run("Should omit definition previews outside pending approval", func(t *testing.T) {
+		t.Parallel()
+		model, _, _, settings := newSessionMCPReadFixture(t)
+		for i := range settings.servers {
+			settings.servers[i].Command = "private-command"
+			settings.servers[i].Args = []string{"private-arg"}
+			settings.servers[i].URL = "https://secret.test"
+			settings.servers[i].DefinitionSource = "/private/path"
+		}
+		result, err := model.ListSessionMCP(t.Context(), "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range result.CompozyServers {
+			if row.State != "waiting_approval" &&
+				(row.Command != "" || len(row.Args) != 0 || row.URL != "" || row.Source.Path != "") {
+				t.Fatalf("leaked preview: %+v", row)
+			}
+		}
+	})
+	t.Run("Should return sign-in state without probing", func(t *testing.T) {
+		t.Parallel()
+		model, _, executor, settings := newSessionMCPReadFixture(t)
+		settings.servers[0].AuthStatus = &mcpauth.Status{Status: mcpauth.StatusNeedsLogin}
+		before := executor.discoveries
+		result, err := model.CheckSessionMCP(t.Context(), "sess-1", settings.servers[0].Name, settings.servers[0].Owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if executor.discoveries != before {
+			t.Fatal("sign-in row was probed")
+		}
+		if result.CompozyServers[0].State != "needs_sign_in" {
+			t.Fatalf("result: %+v", result)
+		}
+	})
+	t.Run("Should check only the requested owner and preserve next-message activation", func(t *testing.T) {
+		t.Parallel()
+		model, manager, executor, settings := newSessionMCPReadFixture(t)
+		settings.servers[0].Name, settings.servers[0].Owner = "docs", "extension:linear"
+		settings.servers[1].Name = "docs"
+		model.authority = sessionMCPAuthorityStub{servers: []string{"docs"}}
+		manager.runtime.Pending = true
+		manager.runtime.BoundServers = map[string]int{"sentry": 1}
+		executor.fail = true
+		failed, err := model.CheckSessionMCP(t.Context(), "sess-1", "docs", "extension:linear")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range failed.CompozyServers {
+			if row.Owner == "extension:linear" && (row.State != "failed" || row.CallableCount != 0) {
+				t.Fatalf("failed row = %+v", row)
+			}
+		}
+		executor.fail = false
+		before := executor.discoveries
+		result, err := model.CheckSessionMCP(t.Context(), "sess-1", "docs", "extension:linear")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if executor.discoveries != before+1 {
+			t.Fatalf("discovery count = %d, want %d", executor.discoveries, before+1)
+		}
+		var checked session.MCPServerRow
+		for _, row := range result.CompozyServers {
+			if row.Owner == "extension:linear" {
+				checked = row
+			}
+		}
+		if len(manager.changes) != 2 || manager.changes[1] != result.MCPSummary {
+			t.Fatalf("summary events = %+v", manager.changes)
+		}
+		if checked.State != "applies_next_message" || checked.CallableCount != 1 {
+			t.Fatalf("checked row = %+v", checked)
+		}
+		if _, err := model.CheckSessionMCP(
+			t.Context(),
+			"sess-1",
+			"docs",
+			"extension:missing",
+		); !errors.Is(
+			err,
+			settingspkg.ErrNotFound,
+		) {
+			t.Fatalf("unknown owner: %v", err)
+		}
+		if executor.discoveries != before+1 {
+			t.Fatal("unknown owner triggered discovery")
+		}
+		model.authority = sessionMCPAuthorityStub{}
+		if _, err := model.CheckSessionMCP(t.Context(), "sess-1", "docs", "extension:linear"); err != nil {
+			t.Fatal(err)
+		}
+		if executor.discoveries != before+1 {
+			t.Fatal("restricted server triggered discovery")
+		}
+	})
+
 	t.Run("Should never show a runtime server the runtime will not load as loaded", func(t *testing.T) {
 		t.Parallel()
 		server := func(enabled bool, approval string) runtimemcp.Server {
@@ -1448,12 +1596,18 @@ func (s *sessionMCPManagerStub) ListSessionMCP(ctx context.Context, id string) (
 	return s.reader.ListSessionMCP(ctx, id)
 }
 
-type sessionMCPExecutorStub struct{ discoveries int }
+type sessionMCPExecutorStub struct {
+	discoveries int
+	fail        bool
+}
 
 var _ toolspkg.MCPCallExecutor = (*sessionMCPExecutorStub)(nil)
 
 func (s *sessionMCPExecutorStub) ListTools(context.Context, toolspkg.SourceRef) ([]toolspkg.MCPToolDescriptor, error) {
 	s.discoveries++
+	if s.fail {
+		return nil, errors.New("MCP server unavailable")
+	}
 	return []toolspkg.MCPToolDescriptor{
 		{RawName: "echo", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)},
 	}, nil
@@ -1532,7 +1686,7 @@ func newSessionMCPReadFixture(
 			Inventory:    runtimemcp.Snapshot{Runtime: "claude"},
 		},
 	}
-	state := &bootState{sessions: manager}
+	state := &bootState{sessions: manager, mcpToolProvider: provider}
 	state.deps.Settings = settings
 	model := &sessionMCPReadModel{
 		state:     state,

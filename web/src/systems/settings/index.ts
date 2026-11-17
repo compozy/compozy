@@ -233,7 +233,10 @@ export {
 } from "./lib/restart-presentation";
 // Components
 export {
-  MCPAuthorizeDialog,
+  MCPAllowPanel,
+  MCPAnchoredPanel,
+  MCPIssuePanel,
+  MCPSignInPopover,
   AttentionSystemStateChip,
   attentionSystemStateNote,
   MCPSelectionStrip,
@@ -366,9 +369,10 @@ export {
   useSettingsProvider,
   useSettingsProviders,
 } from "./hooks/use-settings-collections";
-export { isMCPApprovalWaiting, mcpApprovalTarget } from "./lib/mcp-runtime-view-model";
+export { isMCPApprovalWaiting } from "./lib/mcp-runtime-view-model";
+export { mcpAllowPanelLaunch } from "./lib/mcp-allow-launch";
+export { mcpPanelAnchor, type MCPPanelAnchor } from "./lib/mcp-panel-anchor";
 export { useAllowMCPServer } from "./hooks/use-mcp-runtime-mutations";
-
 // Hooks -- mutations
 export {
   useBeginMCPAuth,

@@ -85,7 +85,12 @@ func (e *CallExecutor) ListToolsWithProtocol(
 		return nil, "", err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, &resolved)
-	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(ctx, &resolved, authorizationHeader); ok {
+	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(
+		ctx,
+		&resolved,
+		authorizationHeader,
+	); ok &&
+		!toolspkg.FreshMCPDiscovery(ctx) {
 		servedFromCache = true
 		return cached, cachedProtocol, nil
 	}
@@ -121,9 +126,12 @@ func (e *CallExecutor) listToolsFromClient(
 	if err != nil {
 		return nil, nil, err
 	}
-	if descriptors, ok := e.cachedTools(cacheKey, time.Now()); ok {
+	if descriptors, ok := e.cachedTools(cacheKey, time.Now()); ok && !toolspkg.FreshMCPDiscovery(ctx) {
 		return descriptors, nil, nil
 	}
+	fresh := toolspkg.FreshMCPDiscovery(ctx)
+	attempt := e.beginToolList(cacheKey, fresh)
+	defer e.finishToolList(cacheKey)
 	tools, ttlMs, err := listMCPTools(ctx, client.session)
 	if err != nil {
 		return nil, err, normalizeMCPErrorWithContext(ctx, "", err, true)
@@ -132,9 +140,7 @@ func (e *CallExecutor) listToolsFromClient(
 	if err != nil {
 		return nil, err, err
 	}
-	now := time.Now()
-	e.cacheTools(cacheKey, descriptors, ttlMs, now)
-	if err := e.recordToolProjection(source, authorizationHeader, descriptors, ttlMs, now); err != nil {
+	if err := e.publishToolList(cacheKey, attempt, fresh, source, authorizationHeader, descriptors, ttlMs); err != nil {
 		return nil, nil, err
 	}
 	return descriptors, nil, nil

@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// OutlineResult is a daemon API value.
+type OutlineResult struct {
+	Entries []OutlineEntry `json:"entries"`
+}
+
+// OverviewAgentSharePayload is a daemon API value.
+type OverviewAgentSharePayload struct {
+	AgentName string  `json:"agent_name"`
+	Tokens    int64   `json:"tokens"`
+	Fraction  float64 `json:"fraction"`
+}
+
 // OverviewAttentionItemPayload is a daemon API value.
 type OverviewAttentionItemPayload struct {
 	NotificationID string    `json:"notification_id,omitempty"`
@@ -433,17 +445,3 @@ type ProviderAuthStatusPayload struct {
 	Login       ProviderLoginDescriptorPayload `json:"login"`
 	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
 }
-
-// ProviderErrorDiagnostic is a daemon API value.
-type ProviderErrorDiagnostic struct {
-	Code            string                `json:"code"`
-	Provider        string                `json:"provider"`
-	NextAction      ProviderFailureAction `json:"next_action"`
-	Guidance        string                `json:"guidance"`
-	OccurrenceCount uint64                `json:"occurrence_count"`
-	FirstSeenAt     time.Time             `json:"first_seen_at"`
-	LastSeenAt      time.Time             `json:"last_seen_at"`
-}
-
-// ProviderFailureAction is a daemon API value.
-type ProviderFailureAction string

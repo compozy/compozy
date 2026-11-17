@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import {
+  checkSettingsMCPServer,
   importRuntimeMCPServer,
   putSettingsMCPApproval,
   putSettingsProvider,
@@ -9,7 +10,14 @@ import {
 import { providerDraftFromEntry, providerDraftToRequest } from "../lib/provider-draft";
 import { settingsKeys } from "../lib/query-keys";
 import { settingsProvidersListOptions } from "../lib/query-options";
-import type { RuntimeMCPImportRequest, SettingsMCPApprovalRequest } from "../types";
+import { mcpDefinitionKey } from "../lib/mcp-management-target";
+import type {
+  RuntimeMCPImportRequest,
+  SettingsMCPApprovalRequest,
+  SettingsMCPAuthFilter,
+  SettingsMCPServerCollection,
+  SettingsMCPServerEntry,
+} from "../types";
 import {
   invalidateSettingsApplyRecords,
   recordSettingsMutation,
@@ -40,6 +48,41 @@ export function useAllowMCPServer() {
   return useMutation({
     mutationFn: ({ name, body }: AllowParams) => putSettingsMCPApproval(name, body),
     onSettled: () => invalidateMCPState(queryClient),
+  });
+}
+
+interface CheckParams {
+  entry: SettingsMCPServerEntry;
+  filter: SettingsMCPAuthFilter;
+}
+
+/**
+ * Check again for one definition. The daemon answers with the item and its new runtime status;
+ * every cached list keeps its own row (identity, scope, owner and source as that lens shows it)
+ * and takes only the new status, so the row reads the answer at once. The lists then reread.
+ */
+export function useCheckMCPServer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ entry, filter }: CheckParams) => checkSettingsMCPServer(entry.name, filter),
+    onSuccess: (item, { entry }) => {
+      const key = mcpDefinitionKey(entry);
+      queryClient.setQueriesData<SettingsMCPServerCollection>(
+        { queryKey: settingsKeys.mcpLists() },
+        list => {
+          if (!list?.mcp_servers.some(server => mcpDefinitionKey(server) === key)) return list;
+          return {
+            ...list,
+            mcp_servers: list.mcp_servers.map(server =>
+              mcpDefinitionKey(server) === key
+                ? { ...server, runtime_status: item.runtime_status }
+                : server
+            ),
+          };
+        }
+      );
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.mcpLists() });
+    },
   });
 }
 

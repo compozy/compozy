@@ -34,3 +34,47 @@ export async function fetchSessionMCP(
   }
   return requireResponseData(data, response, "Failed to fetch MCP servers");
 }
+
+/** The definition a session row names: its owner (`""` for manual) picks it among same-named ones. */
+export interface SessionMCPServerTarget {
+  name: string;
+  owner: string;
+}
+
+/**
+ * Asks the daemon to try one of the session's servers again without restarting the runtime, and
+ * returns the session's refreshed MCP read.
+ */
+export async function checkSessionMCPServer(
+  workspaceId: string,
+  sessionId: string,
+  profile: string | undefined,
+  target: SessionMCPServerTarget,
+  signal?: AbortSignal
+): Promise<SessionMCPResponse> {
+  const owner = target.owner.trim();
+  const named = profile?.trim();
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check",
+    {
+      params: {
+        path: {
+          workspace_id: sessionWorkspacePath(workspaceId),
+          session_id: sessionId,
+          name: target.name,
+        },
+        query: {
+          ...(owner ? { owner } : {}),
+          ...(named ? { profile: named } : {}),
+        },
+      },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    // No session ID: the route checks the session before the server, so a 404 here names the
+    // server (removed since the row was read), not the session.
+    throwSessionRequestError(response, error, `Couldn't check ${target.name}`);
+  }
+  return requireResponseData(data, response, `Couldn't check ${target.name}`);
+}

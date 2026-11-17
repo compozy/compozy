@@ -67,7 +67,8 @@ api_identifiers='(?x:
 verbatim_quotes='(?x: \bemployee\x20of\x20the\x20week\x20is\x20going\x20to\x20be\x20Compozy\b )'
 # Published GitHub release notes are immutable history. The changelog prototype carries a snapshot of
 # them; the site itself reads them from GitHub at build time.
-history_snapshots=(--glob '!web/src/drafts/changelog/releases.json')
+# Prototype review records keep reviewer comments word for word, like the agent-kind rule allows.
+history_snapshots=(--glob '!web/src/drafts/changelog/releases.json' --glob '!web/proto/review/**')
 pattern="${api_identifiers}(*SKIP)(*F)|${verbatim_quotes}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! Network)"
 
 set +e

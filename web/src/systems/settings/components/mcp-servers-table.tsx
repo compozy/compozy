@@ -1,5 +1,5 @@
 import { Button, cn, Pill, Skeleton, SkeletonText } from "@compozy/ui";
-import { Pencil, Plug } from "@compozy/ui/icons";
+import { ChevronRight, Pencil, Plug } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { mcpDefinitionKey } from "../lib/mcp-management-target";
@@ -44,9 +44,12 @@ export interface MCPServersTableProps {
   selectedServer?: string;
   onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
-  /** Allows a project-file server waiting for approval; rows without it show no Allow. */
-  onAllow?: (entry: SettingsMCPServerEntry) => void;
+  /** Sign in / Reauthorize; `trigger` is the button the sign-in panel opens beside. */
+  onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  /** Reviews a project-file server waiting for approval; rows without it show no Allow. */
+  onAllow?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  /** Opens why a server is not working, with Check again, beside its row button. */
+  onCheck?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   /** Definition key of the row whose Allow is in flight. */
   allowingServer?: string;
   /** Per definition key: why the row waits and the last refused Allow. */
@@ -64,6 +67,7 @@ export function MCPServersTable({
   onEdit,
   onAuthorize,
   onAllow,
+  onCheck,
   allowingServer,
   approvalNotes,
   highlightedServer,
@@ -88,6 +92,7 @@ export function MCPServersTable({
             onEdit={onEdit}
             onAuthorize={onAuthorize}
             onAllow={onAllow}
+            onCheck={onCheck}
             allowing={mcpDefinitionKey(server) === allowingServer}
             approvalNote={approvalNotes?.[mcpDefinitionKey(server)]}
           />
@@ -159,6 +164,7 @@ function MCPServerRow({
   onEdit,
   onAuthorize,
   onAllow,
+  onCheck,
   allowing,
   approvalNote,
 }: {
@@ -167,8 +173,9 @@ function MCPServerRow({
   highlighted: boolean;
   onSelect: (entry: SettingsMCPServerEntry) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
-  onAllow?: (entry: SettingsMCPServerEntry) => void;
+  onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  onAllow?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  onCheck?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   allowing: boolean;
   approvalNote?: MCPApprovalNote;
 }) {
@@ -244,6 +251,7 @@ function MCPServerRow({
         onEdit={onEdit}
         onAuthorize={onAuthorize}
         onAllow={onAllow}
+        onCheck={onCheck}
       />
     </div>
   );
@@ -288,6 +296,7 @@ function MCPServerRowActions({
   onEdit,
   onAuthorize,
   onAllow,
+  onCheck,
 }: {
   server: SettingsMCPServerEntry;
   status: MCPRowStatus;
@@ -296,8 +305,9 @@ function MCPServerRowActions({
   accessibleName: string;
   rowTestId: string;
   onEdit: (entry: SettingsMCPServerEntry) => void;
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
-  onAllow?: (entry: SettingsMCPServerEntry) => void;
+  onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  onAllow?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
+  onCheck?: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
 }) {
   return (
     <div className="flex items-center justify-end gap-1.5">
@@ -308,7 +318,7 @@ function MCPServerRowActions({
           size="sm"
           aria-label={`Allow ${accessibleName}`}
           disabled={allowing}
-          onClick={() => onAllow?.(server)}
+          onClick={event => onAllow?.(server, event.currentTarget)}
           data-testid={`${rowTestId}-allow`}
         >
           Allow
@@ -319,10 +329,23 @@ function MCPServerRowActions({
           variant="neutral"
           size="sm"
           aria-label={`${status.authorizeLabel} ${accessibleName}`}
-          onClick={() => onAuthorize(server)}
+          onClick={event => onAuthorize(server, event.currentTarget)}
           data-testid={`${rowTestId}-authorize`}
         >
           {status.authorizeLabel}
+        </Button>
+      ) : onCheck && status.summary.tone === "destructive" ? (
+        <Button
+          type="button"
+          variant="quiet"
+          size="sm"
+          className="text-muted-foreground"
+          aria-label={`${accessibleName} is not working`}
+          onClick={event => onCheck(server, event.currentTarget)}
+          data-testid={`${rowTestId}-issue`}
+        >
+          Not working
+          <ChevronRight data-icon="inline-end" />
         </Button>
       ) : null}
       <Button

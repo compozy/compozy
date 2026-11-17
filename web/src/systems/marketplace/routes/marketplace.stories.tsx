@@ -6,6 +6,7 @@ import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
+  holdWindowOpen,
 } from "@/storybook/route-story-meta";
 
 import { marketplaceStoryHandlers, storyCatalog, storySources } from "./marketplace-story-data";
@@ -347,9 +348,10 @@ export const InstalledServerStatus: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** Authorize on the Installed row starts the owner-qualified login for the extension's own server. */
+/** Authorize on the Installed row opens the owner-qualified sign-in beside it. */
 export const InstalledAuthorize: Story = {
   tags: ["play-fn"],
+  beforeEach: holdWindowOpen,
   parameters: {
     ...appRouteParameters("/marketplace/installed"),
     ...marketplaceStoryHandlers({
@@ -364,7 +366,7 @@ export const InstalledAuthorize: Story = {
     const authorize = await canvas.findByTestId("marketplace-installed-authorize-github");
     await expect(authorize).toBeEnabled();
     await userEvent.click(authorize);
-    await page.findByTestId("settings-page-mcp-authorize-url");
+    await page.findByTestId("mcp-sign-in-copy-link");
   },
 };
 

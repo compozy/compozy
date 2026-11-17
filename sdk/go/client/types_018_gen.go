@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// SearchMatch is a daemon API value.
+type SearchMatch struct {
+	Sequence  int64  `json:"sequence"`
+	TurnID    string `json:"turn_id"`
+	Role      string `json:"role"`
+	Snippet   string `json:"snippet"`
+	PartIndex *int   `json:"part_index,omitzero"`
+	Field     string `json:"field,omitempty"`
+}
+
+// SearchResult is a daemon API value.
+type SearchResult struct {
+	Matches   []SearchMatch `json:"matches"`
+	Truncated bool          `json:"truncated"`
+}
+
 // Section is a daemon API value.
 type Section struct {
 	Title string `json:"title,omitempty"`
@@ -431,19 +447,4 @@ type SessionConversationRewindPayload struct {
 	MaxSequence     int64  `json:"max_sequence"`
 	DraftText       string `json:"draft_text"`
 	Replayed        bool   `json:"replayed"`
-}
-
-// SessionConversationRewindRequest is a daemon API value.
-type SessionConversationRewindRequest struct {
-	MessageID           string `json:"message_id"`
-	IdempotencyKey      string `json:"idempotency_key"`
-	ExpectedEpoch       *int64 `json:"expected_epoch"`
-	ExpectedGeneration  *int64 `json:"expected_generation"`
-	ExpectedMaxSequence *int64 `json:"expected_max_sequence"`
-}
-
-// SessionConversationRewindResponse is a daemon API value.
-type SessionConversationRewindResponse struct {
-	Session SessionPayload                   `json:"session"`
-	Rewind  SessionConversationRewindPayload `json:"rewind"`
 }

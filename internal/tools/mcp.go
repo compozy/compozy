@@ -41,8 +41,10 @@ func (f MCPSourceListerFunc) ListMCPSources(ctx context.Context) ([]SourceRef, e
 
 // MCPProvider adapts daemon-owned MCP discovery and calls into registry descriptors.
 type MCPProvider struct {
-	discovered        sync.Map // source identity -> last discovered descriptors
-	discoveryFailures sync.Map // source identity -> failed latest discovery
+	discoveryMu          sync.Mutex
+	discoveryGenerations map[SourceRef]mcpDiscoveryGeneration
+	discovered           sync.Map // source identity -> last discovered descriptors
+	discoveryFailures    sync.Map // source identity -> failed latest discovery
 
 	consent         func(context.Context, SourceRef, string) (bool, error)
 	discoveryBudget time.Duration
@@ -335,6 +337,9 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 	}
 	if mcpSource.WorkspaceID == "" {
 		mcpSource.WorkspaceID = source.WorkspaceID
+	}
+	if mcpSource.ProfileID == "" {
+		mcpSource.ProfileID = source.ProfileID
 	}
 	if mcpSource.Scope == "" {
 		mcpSource.Scope = source.Scope

@@ -22,13 +22,32 @@ type MCPSummary struct {
 	PendingReload bool `json:"pending_reload"`
 }
 
+type MCPServerSource struct {
+	Kind string `json:"kind"`
+	Path string `json:"path,omitempty"`
+}
+
+type MCPServerApproval struct {
+	Reason           string `json:"reason,omitempty"`
+	DefinitionDigest string `json:"definition_digest"`
+}
+
 type MCPServerRow struct {
-	Name          string `json:"name"`
-	Owner         string `json:"owner"`
-	State         string `json:"state"`
-	ToolCount     int    `json:"tool_count"`
-	CallableCount int    `json:"callable_count"`
-	Reason        string `json:"reason"`
+	Scope         string             `json:"scope,omitempty"`
+	WorkspaceID   string             `json:"workspace_id,omitempty"`
+	Profile       string             `json:"profile,omitempty"`
+	Transport     string             `json:"transport,omitempty"`
+	Command       string             `json:"command,omitempty"`
+	Args          []string           `json:"args,omitempty"`
+	URL           string             `json:"url,omitempty"`
+	Source        MCPServerSource    `json:"source"`
+	Approval      *MCPServerApproval `json:"approval,omitempty"`
+	Name          string             `json:"name"`
+	Owner         string             `json:"owner"`
+	State         string             `json:"state"`
+	ToolCount     int                `json:"tool_count"`
+	CallableCount int                `json:"callable_count"`
+	Reason        string             `json:"reason"`
 }
 
 type RuntimeMCPRow struct {

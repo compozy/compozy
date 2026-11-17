@@ -1234,6 +1234,11 @@ func TestMCPRequestSecretLifecycle(t *testing.T) {
 			t.Fatalf("tools/list calls = %d, want %d after provider projection", got, want)
 		}
 
+		fresh, err := executor.ListTools(toolspkg.WithFreshMCPDiscovery(t.Context()), source)
+		if err != nil || len(fresh) != 1 || listCalls.Load() != 2 {
+			t.Fatalf("fresh probe: %v, %v, calls=%d", fresh, err, listCalls.Load())
+		}
+
 		result, err := executor.CallTool(t.Context(), source, toolspkg.MCPToolCallRequest{
 			ToolID:      descriptors[0].ID,
 			RawToolName: descriptors[0].RawName,
@@ -1518,6 +1523,152 @@ func TestMCPClientCleanup(t *testing.T) {
 // Owning layer: internal/mcp unit cache.
 // Canonical suite: internal/mcp/executor_test.go.
 func TestMCPToolListCache(t *testing.T) {
+	for _, checkFirst := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should preserve fresh cache and projection when checkFirst=%v", checkFirst),
+			func(t *testing.T) {
+				t.Parallel()
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+				started, release := make(chan struct{}), make(chan struct{})
+				unblock := sync.OnceFunc(func() { close(release) })
+				var calls atomic.Int32
+				sdkServer := newFakeSDKServer(nil)
+				sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+					return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+						if method != mcpToolsListMethod {
+							return next(ctx, method, request)
+						}
+						first := calls.Add(1) == 1
+						if first {
+							close(started)
+							select {
+							case <-release:
+							case <-ctx.Done():
+								return nil, ctx.Err()
+							}
+						}
+						name := "old"
+						if first == checkFirst {
+							name = "fresh"
+						}
+						return &mcpsdk.ListToolsResult{
+							Tools: []*mcpsdk.Tool{{Name: name, InputSchema: map[string]any{"type": "object"}}},
+							TTLMs: 60_000,
+						}, nil
+					}
+				})
+				server := newTestMCPHTTPServer(sdkServer)
+				t.Cleanup(server.Close)
+				configured := compozyconfig.MCPServer{
+					Name:      "fixture",
+					Transport: compozyconfig.MCPServerTransportHTTP,
+					URL:       server.URL,
+				}
+				executor := newTestMCPExecutor(t, configured)
+				source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+				done, joined := make(chan error, 1), make(chan struct{})
+				t.Cleanup(func() {
+					unblock()
+					cancel()
+					select {
+					case <-joined:
+					case <-time.After(5 * time.Second):
+						t.Error("listing did not exit")
+					}
+				})
+				firstCtx, secondCtx := ctx, toolspkg.WithFreshMCPDiscovery(ctx)
+				if checkFirst {
+					firstCtx, secondCtx = secondCtx, firstCtx
+				}
+				go func() { defer close(joined); _, err := executor.ListTools(firstCtx, source); done <- err }()
+				select {
+				case <-started:
+				case err := <-done:
+					t.Fatalf("listing exited before request: %v", err)
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+				if _, err := executor.ListTools(secondCtx, source); err != nil {
+					t.Fatal(err)
+				}
+				generation, authoritative := executor.ProjectionGeneration(ctx, []toolspkg.SourceRef{source})
+				if !authoritative {
+					t.Fatal("missing projection")
+				}
+				unblock()
+				select {
+				case err := <-done:
+					if err != nil {
+						t.Fatal(err)
+					}
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+				cached, err := executor.ListTools(ctx, source)
+				if err != nil || len(cached) != 1 || cached[0].RawName != "fresh" {
+					t.Fatalf("cache=%+v err=%v", cached, err)
+				}
+				finalGeneration, authoritative := executor.ProjectionGeneration(ctx, []toolspkg.SourceRef{source})
+				if !authoritative || (!checkFirst && finalGeneration != generation) ||
+					(checkFirst && finalGeneration == generation) {
+					t.Fatalf(
+						"projection before=%q after=%q authoritative=%v",
+						generation,
+						finalGeneration,
+						authoritative,
+					)
+				}
+				if calls.Load() != 2 {
+					t.Fatalf("list calls=%d, want cache hit after two discoveries", calls.Load())
+				}
+			},
+		)
+	}
+
+	t.Run("Should drop the cached list when a fresh check answers without a TTL", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		sdkServer := newFakeSDKServer(nil)
+		sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method != mcpToolsListMethod {
+					return next(ctx, method, request)
+				}
+				// The first listing is cacheable; every later answer is fresh and uncacheable.
+				if calls.Add(1) == 1 {
+					return &mcpsdk.ListToolsResult{
+						Tools: []*mcpsdk.Tool{{Name: "old", InputSchema: map[string]any{"type": "object"}}},
+						TTLMs: 60_000,
+					}, nil
+				}
+				return &mcpsdk.ListToolsResult{
+					Tools: []*mcpsdk.Tool{{Name: "fresh", InputSchema: map[string]any{"type": "object"}}},
+				}, nil
+			}
+		})
+		server := newTestMCPHTTPServer(sdkServer)
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name:      "fixture",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		})
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+		ctx := t.Context()
+
+		if _, err := executor.ListTools(ctx, source); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := executor.ListTools(toolspkg.WithFreshMCPDiscovery(ctx), source); err != nil {
+			t.Fatal(err)
+		}
+		listed, err := executor.ListTools(ctx, source)
+		if err != nil || len(listed) != 1 || listed[0].RawName != "fresh" {
+			t.Fatalf("listed=%+v err=%v, want the fresh check's tools", listed, err)
+		}
+	})
+
 	t.Run("Should isolate cached descriptor schemas from caller mutation", func(t *testing.T) {
 		t.Parallel()
 

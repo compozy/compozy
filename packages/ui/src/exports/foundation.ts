@@ -5,6 +5,13 @@ export { QrCode, type QrCodeProps, type QrCodeSize } from "../components/custom/
 export { Time, type TimeMode, type TimeProps } from "../components/custom/time";
 export { Disclosure, type DisclosureProps } from "../components/custom/disclosure";
 export {
+  PopoverPanel,
+  PopoverPanelContent,
+  type PopoverPanelContentProps,
+  type PopoverPanelProps,
+  type PopoverPanelTone,
+} from "../components/custom/popover-panel";
+export {
   DirectoryPickerInput,
   type DirectoryPickerInputProps,
   type DirectoryPickerSuggestion,

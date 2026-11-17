@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -26,6 +27,14 @@ func (h *BaseHandlers) GetSessionMCP(c *gin.Context) {
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
+	}
+	if _, app := AppTokenFromContext(c.Request.Context()); app {
+		result.CompozyServers = slices.Clone(result.CompozyServers)
+		for i := range result.CompozyServers {
+			row := &result.CompozyServers[i]
+			row.Command, row.URL, row.Source.Path = "", "", ""
+			row.Args = nil
+		}
 	}
 	c.JSON(http.StatusOK, result)
 }

@@ -1,8 +1,9 @@
-import { FormSection, Switch } from "@compozy/ui";
+import { Switch } from "@compozy/ui";
 
 import type { MCPDraft } from "../lib/mcp-editor-model";
 import { SettingsFieldRow } from "./settings-field-row";
 
+/** More options for a remote server: whether it signs in with OAuth. */
 export function MCPEditorOAuthSection({
   draft,
   hasSavedOAuth,
@@ -13,15 +14,7 @@ export function MCPEditorOAuthSection({
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
 }) {
   return (
-    <FormSection
-      data-testid="settings-mcp-editor-oauth"
-      help={
-        draft.headersEndpoint
-          ? "This server has configured headers. To change its URL or headers, edit its settings file."
-          : "CompozyOS discovers sign-in requirements when you sign in. Credentials are not stored in this form."
-      }
-      title="Authorization"
-    >
+    <div className="flex flex-col gap-1.5" data-testid="settings-mcp-editor-oauth">
       <SettingsFieldRow
         label="Use OAuth"
         control={
@@ -38,6 +31,11 @@ export function MCPEditorOAuthSection({
           />
         }
       />
-    </FormSection>
+      <p className="text-form-hint text-muted-foreground">
+        {draft.headersEndpoint
+          ? "This server has configured headers. To change its URL or headers, edit its settings file."
+          : "CompozyOS finds out how it signs in when you sign in. Credentials are never stored in this form."}
+      </p>
+    </div>
   );
 }

@@ -234,6 +234,11 @@ function resolveSecretEnvBinding(entry: MCPSecretEnvEntry): SecretResolution {
   return resolved;
 }
 
+/** Whether a named secret key would save without a value, Vault ref, or kept binding. */
+export function isSecretEnvUnset(entry: MCPSecretEnvEntry): boolean {
+  return entry.key.trim() !== "" && resolveSecretEnvBinding(entry).kind === "none";
+}
+
 function collectEnv(pairs: MCPEnvPair[]): {
   values: Record<string, string>;
   preserved: string[];
@@ -270,11 +275,8 @@ export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
   if (draft.transport === "stdio") {
     const server: ServerBody = { name, transport: "stdio", command: draft.command.trim() };
     if (draft.readOnlyTools) server.read_only_tools = [...draft.readOnlyTools];
-    const args = draft.args.flatMap(arg => {
-      const trimmed = arg.trim();
-      return trimmed ? [trimmed] : [];
-    });
-    if (args.length > 0) server.args = args;
+    // Arguments go to the program exactly as written: an empty or padded value is deliberate.
+    if (draft.args.length > 0) server.args = [...draft.args];
     const env = collectEnv(draft.env);
     if (Object.keys(env.values).length > 0) server.env = env.values;
     const keptRefs: Record<string, string> = {};

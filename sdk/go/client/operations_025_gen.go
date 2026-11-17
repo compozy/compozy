@@ -9,6 +9,76 @@ import (
 	"strings"
 )
 
+// ListTaskRunReviews List reviews for one task run
+func (c *Client) ListTaskRunReviews(ctx context.Context, params ListTaskRunReviewsParams) (*TaskRunReviewsResponse, error) {
+	path := "/api/task-runs/{id}/reviews"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.ReviewerSessionID != nil {
+		query.Set("reviewer_session_id", *params.ReviewerSessionID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunReviewsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListTaskRunsParams carries the path, query, and header parameters.
+type ListTaskRunsParams struct {
+	ID          string  `url:"id"`
+	Status      *string `url:"status"`
+	SessionID   *string `url:"session_id"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListTaskRuns List runs for one task
+func (c *Client) ListTaskRuns(ctx context.Context, params ListTaskRunsParams) (*TaskRunsResponse, error) {
+	path := "/api/tasks/{id}/runs"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListTasksParams carries the path, query, and header parameters.
 type ListTasksParams struct {
 	AllWorkspaces *bool     `url:"all_workspaces"`
@@ -373,37 +443,4 @@ func (c *Client) ListWindowManagerLayoutProfiles(ctx context.Context, params Lis
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListWorkspaceSessionsParams carries the path, query, and header parameters.
-type ListWorkspaceSessionsParams struct {
-	WorkspaceID               string    `url:"workspace_id"`
-	WorkspaceIds              *[]string `url:"workspace_ids"`
-	IncludeHealth             *bool     `url:"include_health"`
-	SkipTotal                 *bool     `url:"skip_total"`
-	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
-	ExcludeFinishedAutomation *bool     `url:"exclude_finished_automation"`
-	ExcludeAutomation         *bool     `url:"exclude_automation"`
-	State                     *string   `url:"state"`
-	Type                      *string   `url:"type"`
-	Agent                     *string   `url:"agent"`
-	Subagents                 *string   `url:"subagents"`
-	Children                  *string   `url:"children"`
-	Parent                    *string   `url:"parent"`
-	Root                      *string   `url:"root"`
-	ExcludeRoot               *string   `url:"exclude_root"`
-	Worktree                  *string   `url:"worktree"`
-	Q                         *string   `url:"q"`
-	SearchFields              *string   `url:"search_fields"`
-	Resumable                 *bool     `url:"resumable"`
-	Attention                 *bool     `url:"attention"`
-	BoardColumn               *[]string `url:"board_column"`
-	Badge                     *string   `url:"badge"`
-	Archive                   *string   `url:"archive"`
-	Later                     *string   `url:"later"`
-	Sort                      *string   `url:"sort"`
-	Cursor                    *string   `url:"cursor"`
-	Limit                     *int      `url:"limit"`
-	Profile                   *string   `url:"profile"`
-	AllProfiles               *bool     `url:"all_profiles"`
 }

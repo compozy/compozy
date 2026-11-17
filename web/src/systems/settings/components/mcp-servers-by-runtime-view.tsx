@@ -46,7 +46,7 @@ export interface MCPServersByRuntimeViewProps {
   onClearQuery: () => void;
   filter: string;
   onFilterChange: (filter: string) => void;
-  onCopy: (snapshot: RuntimeMCPSnapshot, server: RuntimeMCPServer) => void;
+  onCopy: (snapshot: RuntimeMCPSnapshot, server: RuntimeMCPServer, trigger: HTMLElement) => void;
   onShowFile?: (path: string) => void;
   renderModeSwitch?: (snapshot: RuntimeMCPSnapshot) => ReactNode;
   /** Start every runtime group unfolded. */
@@ -205,6 +205,7 @@ function MCPServersByRuntimeGroups({
       {runtimes.state === "error" ? <MCPRuntimesReadError runtimes={runtimes} /> : null}
       {groups.map(snapshot => (
         <MCPRuntimeGroup
+          collapsible={filter === MCP_FILTER_ALL}
           defaultExpanded={props.expandedGroups}
           key={snapshot.runtime}
           onCopy={props.onCopy}

@@ -1,21 +1,34 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useSelector, useStore } from "@xstate/store-react";
 import { useState } from "react";
 
 import { toast } from "@compozy/ui";
 import {
   deriveMCPAuthFilter,
-  mcpApprovalTarget,
+  mcpPanelAnchor,
   SettingsApiError,
   useAllowMCPServer,
   useMCPDefinitionAuthorization,
   useSettingsMCPServers,
+  type MCPPanelAnchor,
   type SettingsMCPServerEntry,
   type SettingsMCPServerListFilter,
 } from "@/systems/settings";
 
-import type { SessionMCPServerRow } from "../adapters/session-mcp-api";
+import type {
+  SessionMCPResponse,
+  SessionMCPServerRow,
+  SessionMCPServerTarget,
+} from "../adapters/session-mcp-api";
 import { sessionKeys } from "../lib/query-keys";
-import type { SessionMCPRowAction } from "../lib/session-mcp-view";
+import {
+  sameSessionMCPServer,
+  sessionMCPCheckedRow,
+  sessionMCPServerTarget,
+  type SessionMCPRowAction,
+} from "../lib/session-mcp-view";
+import { sessionMCPChecksLogic } from "../stores/session-mcp-checks-store";
+import { invalidateSessionMCPSummary, useCheckSessionMCPServer } from "./use-session-mcp-check";
 
 const DEFINITION_CHANGED = "mcp_approval_definition_changed";
 
@@ -23,10 +36,34 @@ interface SessionMCPActionsInput {
   workspaceId: string;
   sessionId: string;
   profile: string | undefined;
-  /** Read the Settings definitions only while a row in view offers an action. */
+  /** The session's MCP read the open panel takes its row from; `null` before it answered. */
+  data: SessionMCPResponse | null;
+  /** Read the Settings definitions only while a row in view offers Sign in. */
   enabled: boolean;
-  /** No Settings definition matched the row: send the operator to Settings instead. */
+  /** No definition matched the row: send the operator to Settings instead. */
   onUnresolved: () => void;
+}
+
+type SessionMCPPanelKind = "allow" | "check";
+
+/** The panel the operator opened: which server (by name and owner) and beside which control. */
+interface OpenPanel {
+  kind: SessionMCPPanelKind;
+  target: SessionMCPServerTarget;
+  anchor: MCPPanelAnchor;
+}
+
+/**
+ * A row panel open beside the row button that started it: Review (allow) or Not working (check).
+ * `row` is the server's live row from the current read, never a copy taken when it opened.
+ */
+export interface SessionMCPRowPanel extends OpenPanel {
+  row: SessionMCPServerRow;
+}
+
+/** One key per server: names repeat across owners. */
+function serverKey(target: SessionMCPServerTarget): string {
+  return JSON.stringify([target.owner, target.name]);
 }
 
 /**
@@ -49,86 +86,194 @@ function sameDefinition(entry: SettingsMCPServerEntry, row: SessionMCPServerRow)
   return entry.name === row.name && (entry.owner ?? "") === row.owner;
 }
 
+/** The approval request a waiting row carries: its project, profile, and the digest it showed. */
+function approvalBody(row: SessionMCPServerRow) {
+  const workspaceId = row.workspace_id?.trim();
+  const digest = row.approval?.definition_digest.trim();
+  if (!workspaceId || !digest) return null;
+  const profile = row.profile?.trim();
+  return {
+    workspace_id: workspaceId,
+    ...(profile ? { profile } : {}),
+    definition_digest: digest,
+  };
+}
+
+function allowErrorMessage(row: SessionMCPServerRow, error: Error): string {
+  return error instanceof SettingsApiError && error.code === DEFINITION_CHANGED
+    ? `${row.name} changed since you looked at it. Check the new definition and allow it again.`
+    : error.message;
+}
+
+/** The server a running sign-in belongs to; `null` while none runs. */
+function signingInTarget(authorize: {
+  phase: string;
+  server?: string | null;
+  filter?: { owner?: string } | null;
+}): SessionMCPServerTarget | null {
+  if (authorize.phase === "idle" || !authorize.server) return null;
+  return { name: authorize.server, owner: authorize.filter?.owner ?? "" };
+}
+
 /**
- * Sign in and Allow from the composer's MCP popover. Both act on the Settings definition the
- * session row names (the row carries no digest or auth filter), so the matching Settings entry is
- * read while an action is on screen. Allow binds the digest that entry showed; a definition that
- * changed in between is refused and the rows reread.
+ * Sign in, Review and Not working from the composer's MCP popover. Review and Not working open a
+ * panel beside the row; Allow binds the digest the row showed (a definition that changed in
+ * between is refused and the rows reread), and Check again replaces the session's MCP read with the
+ * daemon's answer. Every answer is tied to the server it was asked for, so it never lands on a
+ * panel opened for another one since. Sign in acts on the Settings definition the row names, read
+ * while a Sign in row is on screen.
  */
 export function useSessionMCPActions({
   workspaceId,
   sessionId,
   profile,
+  data,
   enabled,
   onUnresolved,
 }: SessionMCPActionsInput) {
   const queryClient = useQueryClient();
   const definitions = useSettingsMCPServers(settingsFilter(workspaceId, profile), { enabled });
-  // The sign-in dialog outlives the popover, so its own definition poll is not tied to it.
+  // The sign-in polls its own definition while it runs, apart from the definitions read above
+  // (which only runs while a Sign in row is on screen); closing the popover cancels it.
   const authorization = useMCPDefinitionAuthorization();
   const allowMutation = useAllowMCPServer();
-  const [actingName, setActingName] = useState<string | null>(null);
+  const checkMutation = useCheckSessionMCPServer({ workspaceId, sessionId, profile });
+  const [allowingServer, setAllowingServer] = useState<SessionMCPServerTarget | null>(null);
+  const [opened, setOpened] = useState<OpenPanel | null>(null);
+  const checkStore = useStore(sessionMCPChecksLogic);
+  const checks = useSelector(checkStore, snapshot => snapshot.context.checks);
+
+  const liveRow = opened && data ? sessionMCPCheckedRow(data, opened.target) : undefined;
+  // The server left the session's read: its panel closes with it instead of showing a stale row.
+  if (opened && data && !liveRow) setOpened(null);
+  const panel: SessionMCPRowPanel | null = opened && liveRow ? { ...opened, row: liveRow } : null;
+
+  const closePanelFor = (target: SessionMCPServerTarget) => {
+    setOpened(current =>
+      current && sameSessionMCPServer(current.target, target) ? null : current
+    );
+    checkStore.trigger.stillFailingCleared({ key: serverKey(target) });
+  };
+
+  const closePanel = () => {
+    if (opened) closePanelFor(opened.target);
+  };
 
   const rereadSession = () =>
-    queryClient.invalidateQueries({ queryKey: sessionKeys.mcp(workspaceId, sessionId) });
+    Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: sessionKeys.mcp(workspaceId, sessionId),
+        exact: true,
+      }),
+      invalidateSessionMCPSummary(queryClient, workspaceId, sessionId),
+    ]);
 
-  const allow = (entry: SettingsMCPServerEntry) => {
+  const allow = (row: SessionMCPServerRow) => {
     // One Allow at a time: a second click while one is in flight is ignored, not "unresolved".
     if (allowMutation.isPending) return;
-    const target = mcpApprovalTarget(entry);
-    if (!target) {
+    const body = approvalBody(row);
+    const target = sessionMCPServerTarget(row);
+    if (!body) {
+      // Settings takes over from here, so the Review panel this Allow came from closes with it.
+      closePanelFor(target);
       onUnresolved();
       return;
     }
-    setActingName(entry.name);
+    setAllowingServer(target);
     allowMutation.mutate(
+      { name: row.name, body },
       {
-        name: entry.name,
-        body: { ...target, definition_digest: entry.approval.definition_digest },
-      },
-      {
-        onSuccess: () =>
-          toast.success(`${entry.name} allowed. This session can use it from your next message.`),
-        onError: error =>
-          toast.error(
-            error instanceof SettingsApiError && error.code === DEFINITION_CHANGED
-              ? `${entry.name} changed since you looked at it. Check the new definition and allow it again.`
-              : error.message
-          ),
+        onSuccess: () => {
+          closePanelFor(target);
+          toast.success(`${row.name} allowed. This session can use it from your next message.`);
+        },
+        onError: error => {
+          closePanelFor(target);
+          toast.error(allowErrorMessage(row, error));
+        },
         onSettled: () => {
-          setActingName(null);
+          setAllowingServer(current =>
+            current && sameSessionMCPServer(current, target) ? null : current
+          );
           void rereadSession();
         },
       }
     );
   };
 
-  const act = (row: SessionMCPServerRow, action: SessionMCPRowAction) => {
+  const check = (target: SessionMCPServerTarget) => {
+    const key = serverKey(target);
+    // Read live: a second press in the same tick must not send another check.
+    if (checkStore.getSnapshot().context.checks[key] === "checking") return;
+    checkStore.trigger.started({ key });
+    checkMutation.mutateAsync(target).then(
+      answer => {
+        if (sessionMCPCheckedRow(answer, target)?.state === "failed") {
+          checkStore.trigger.stillFailing({ key });
+          return;
+        }
+        checkStore.trigger.settled({ key });
+        closePanelFor(target);
+      },
+      (error: Error) => {
+        checkStore.trigger.settled({ key });
+        toast.error(error.message);
+      }
+    );
+  };
+
+  const signIn = (row: SessionMCPServerRow, trigger: HTMLElement) => {
     if (definitions.isPending) return;
     const entry = definitions.data?.mcp_servers.find(item => sameDefinition(item, row));
-    if (!entry) {
+    const filter = entry ? deriveMCPAuthFilter(entry) : null;
+    if (!entry || !filter) {
+      // Settings takes over from here, so a sign-in still running for another row ends with it.
+      authorization.authorize.cancel();
       onUnresolved();
       return;
     }
-    if (action === "allow") {
-      allow(entry);
-      return;
-    }
-    const filter = deriveMCPAuthFilter(entry);
-    if (!filter) {
-      onUnresolved();
-      return;
-    }
-    authorization.authorize.requestAuthorize(filter, entry);
+    authorization.authorize.requestAuthorize(filter, entry, trigger);
   };
+
+  const act = (row: SessionMCPServerRow, action: SessionMCPRowAction, trigger: HTMLElement) => {
+    if (action === "sign_in") {
+      signIn(row, trigger);
+      return;
+    }
+    const target = sessionMCPServerTarget(row);
+    // A panel opens fresh: an earlier "still not working" does not carry over.
+    checkStore.trigger.stillFailingCleared({ key: serverKey(target) });
+    setOpened({ kind: action, target, anchor: mcpPanelAnchor(trigger) });
+  };
+
+  const signingIn = signingInTarget(authorization.authorize);
+  const panelCheck = panel ? checks[serverKey(panel.target)] : undefined;
 
   return {
     act,
-    actingName,
-    /** The Settings definitions have not answered yet, so no action can resolve its target. */
+    /** The server whose Allow is in flight. */
+    actingServer: allowingServer,
+    /** The Settings definitions have not answered yet, so Sign in cannot resolve its target. */
     resolving: enabled && definitions.isPending,
     /** An Allow is in flight; every row's action waits for it. */
     allowing: allowMutation.isPending,
+    /** The server whose panel (row panel or sign-in) is open beside its row. */
+    activeServer: panel?.target ?? signingIn,
+    panel,
+    /** The open panel's own Allow is in flight. */
+    panelAllowing:
+      panel !== null &&
+      allowingServer !== null &&
+      sameSessionMCPServer(allowingServer, panel.target),
+    /** A check of the open panel's server is running. */
+    panelChecking: panelCheck === "checking",
+    /** The open panel's server answered its last check and still is not working. */
+    panelStillFailing: panelCheck === "still_failing",
+    closePanel,
+    allow,
+    check,
     authorization,
   };
 }
+
+export type SessionMCPActions = ReturnType<typeof useSessionMCPActions>;

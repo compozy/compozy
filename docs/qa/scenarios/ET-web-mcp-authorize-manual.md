@@ -4,8 +4,8 @@ area: ET
 title: MCP authorize manual completion (remote operator paste)
 persona: Iris
 journey: J-mcp-authorize-repair
-expected: Entering manual completion starts a fresh `mode=manual` PKCE session. The dialog accepts only a full redirect URL and sends it to `auth/exchange`; state and issuer mismatch burn the attempt. Success requires the refetched `authenticated && token_present`; a non-confirmed exchange leaves the dialog failed with the prior status intact. The live URL stays copyable throughout.
-entry_points: web `/settings/mcp` Sign in -> Enter redirect URL; `POST /api/settings/mcp-servers/{name}/auth/exchange`
+expected: Entering manual completion starts a fresh `mode=manual` PKCE session. The sign-in panel accepts only a full redirect URL and sends it to `auth/exchange`; state and issuer mismatch burn the attempt. Success requires the refetched `authenticated && token_present`; a non-confirmed exchange leaves the panel failed with the prior status intact. The live URL stays copyable throughout.
+entry_points: web `/settings/mcp` Sign in -> sign-in panel "Signing in on another computer?"; `POST /api/settings/mcp-servers/{name}/auth/exchange`
 qa_status: skipped
 bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
@@ -60,3 +60,9 @@ switch off and back on before saving. Save and reload must retain both the OAuth
 opaque header presence. A header-only server's switch remains disabled.
 
 QA impact 2026-11-14 (MCP hot activation spec): Manual completion on a waiting project server must carry the row's digest on begin; without it begin refuses `mcp_server_waiting_approval` before network I/O. Re-walk the manual paste branch on an approved and on a waiting project server.
+
+QA impact 2026-11-16 (MCP redesign S2): manual completion lives in the sign-in panel's folded
+"Signing in on another computer?" section. Opening it starts the fresh `mode=manual` session (no
+browser opens for it); the pasted "Address after sign-in" enables Finish sign-in only for a full
+HTTP(S) URL. After a started sign-in fails, the same field finishes it again; after a begin failure it
+stays disabled until a new manual session exists.

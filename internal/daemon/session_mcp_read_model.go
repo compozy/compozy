@@ -4,10 +4,13 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
 
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/runtimemcp"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -30,24 +33,7 @@ func (r *sessionMCPReadModel) ListSessionMCP(ctx context.Context, id string) (se
 	if err != nil {
 		return session.MCP{}, err
 	}
-	profile := daemonDefaultProfileName
-	if r.state.profiles != nil {
-		profile, err = r.state.profiles.ProfileName(ctx, info.ProfileID)
-		if err != nil {
-			return session.MCP{}, err
-		}
-	}
-	request := settingspkg.CollectionRequest{
-		Collection: settingspkg.CollectionMCPServers, Scope: settingspkg.ScopeUser,
-		WorkspaceID: info.WorkspaceID, SkipRuntimeStatus: true,
-	}
-	if info.WorkspaceID != "" {
-		request.Scope = settingspkg.ScopeWorkspace
-	}
-	if profile != "" && profile != daemonDefaultProfileName {
-		request.Scope, request.ProfileName = settingspkg.ScopeProfile, profile
-	}
-	collection, err := r.state.deps.Settings.ListCollection(ctx, request)
+	collection, err := r.sessionMCPCollection(ctx, info)
 	if err != nil {
 		return session.MCP{}, err
 	}
@@ -112,7 +98,7 @@ func composeSessionMCP(
 		switch row.State {
 		case "ready", "applies_next_message":
 			result.Usable++
-		case mcpWaitingApproval, "needs_sign_in", hookAgentEventsFailedKey:
+		case mcpWaitingApproval, mcpNeedsSignIn, hookAgentEventsFailedKey:
 			result.Attention++
 		}
 	}
@@ -164,7 +150,24 @@ func sessionMCPRow(
 	callable, diagnostics []toolspkg.ToolView,
 	runtime session.MCPRuntimeSnapshot,
 ) session.MCPServerRow {
-	row := session.MCPServerRow{Name: item.Name, Owner: item.Owner, State: "ready"}
+	source := item.SourceMetadata.EffectiveSource
+	row := session.MCPServerRow{
+		Name: item.Name, Owner: item.Owner, State: "ready",
+		Scope: string(source.Scope), WorkspaceID: source.WorkspaceID, Profile: source.ProfileName,
+		Transport: strings.TrimSpace(string(item.Transport)),
+		Source:    session.MCPServerSource{Kind: string(source.Kind)},
+	}
+	if row.Scope == "" {
+		row.Scope, row.WorkspaceID, row.Profile = string(item.Scope), item.WorkspaceID, item.ProfileName
+	}
+	if item.Approval.State == mcpApprovalWaiting {
+		row.Approval = &session.MCPServerApproval{
+			Reason:           item.Approval.Reason,
+			DefinitionDigest: item.Approval.DefinitionDigest,
+		}
+		// Consent belongs to the listing profile even when the definition is inherited.
+		row.Scope, row.WorkspaceID, row.Profile = string(item.Scope), item.WorkspaceID, item.ProfileName
+	}
 	name := item.RuntimeName
 	if name == "" {
 		name = item.Name
@@ -184,17 +187,34 @@ func sessionMCPRow(
 	switch {
 	case item.Approval.State == mcpApprovalWaiting:
 		row.State, row.Reason = mcpWaitingApproval, "Project server waiting for approval"
+		setSessionMCPPreview(&row, item)
 	case !slices.Contains(allowed, item.Name):
 		row.State, row.Reason = "not_available", "Limited by the parent session"
 	case item.AuthStatus != nil && item.AuthStatus.Status != "" &&
 		item.AuthStatus.Status != "authenticated" && item.AuthStatus.Status != "unconfigured":
-		row.State, row.Reason = "needs_sign_in", "Sign in to "+item.Name+" in CompozyOS"
+		row.State, row.Reason = mcpNeedsSignIn, "Sign in to "+item.Name+" in CompozyOS"
 	case row.CallableCount == 0:
 		row.State, row.Reason = hookAgentEventsFailedKey, "No callable tools available"
 	case runtime.Pending && (runtime.PendingServers[name] || runtime.BoundServers[name] != row.CallableCount):
 		row.State = "applies_next_message"
 	}
 	return row
+}
+
+func setSessionMCPPreview(row *session.MCPServerRow, item *settingspkg.MCPServerItem) {
+	row.Command = diagnosticspkg.Redact(item.Command)
+	row.Args = redact.Args(item.Args)
+	row.Source.Path = diagnosticspkg.Redact(item.DefinitionSource)
+	if endpoint, err := url.Parse(item.URL); err == nil {
+		endpoint.User = nil
+		query := endpoint.Query()
+		for key := range query {
+			query.Set(key, "[redacted]")
+		}
+		endpoint.RawQuery = query.Encode()
+		endpoint.Fragment = ""
+		row.URL = diagnosticspkg.Redact(endpoint.String())
+	}
 }
 
 // refresh debounces summary notifications at the declaration watcher's existing cadence.
@@ -250,4 +270,29 @@ func bindSessionMCPReader(
 	if manager, ok := state.sessions.(interface{ SetMCPReader(session.MCPReader) }); ok {
 		manager.SetMCPReader(reader)
 	}
+}
+
+func (r *sessionMCPReadModel) sessionMCPCollection(
+	ctx context.Context,
+	info *session.Info,
+) (settingspkg.CollectionEnvelope, error) {
+	var err error
+	profile := daemonDefaultProfileName
+	if r.state.profiles != nil {
+		profile, err = r.state.profiles.ProfileName(ctx, info.ProfileID)
+		if err != nil {
+			return settingspkg.CollectionEnvelope{}, err
+		}
+	}
+	request := settingspkg.CollectionRequest{
+		Collection: settingspkg.CollectionMCPServers, Scope: settingspkg.ScopeUser,
+		WorkspaceID: info.WorkspaceID, SkipRuntimeStatus: true,
+	}
+	if info.WorkspaceID != "" {
+		request.Scope = settingspkg.ScopeWorkspace
+	}
+	if profile != "" && profile != daemonDefaultProfileName {
+		request.Scope, request.ProfileName = settingspkg.ScopeProfile, profile
+	}
+	return r.state.deps.Settings.ListCollection(ctx, request)
 }

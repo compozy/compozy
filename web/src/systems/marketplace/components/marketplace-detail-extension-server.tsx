@@ -5,8 +5,8 @@ import { Button, Disclosure, PropertyRow } from "@compozy/ui";
 import {
   authorizeLabel,
   deriveMCPAuthFilter,
-  MCPAuthorizeDialog,
   MCPOverrideEditor,
+  MCPSignInPopover,
   useMCPDefinitionAuthorization,
   useMCPOverrideEditor,
   type SettingsMCPServerEntry,
@@ -98,19 +98,15 @@ function MarketplaceExtensionServerInstalledCards({
           key={serverIdentity(server)}
           liveDataEnabled={liveDataEnabled}
           missingInputs={missingInputs}
-          onAuthorize={entry => {
+          onAuthorize={(entry, trigger) => {
             const filter = deriveMCPAuthFilter(entry);
-            if (filter) authorization.authorize.requestAuthorize(filter, entry);
+            if (filter) authorization.authorize.requestAuthorize(filter, entry, trigger);
           }}
           onEdit={override.openEdit}
           server={server}
         />
       ))}
-      <MCPAuthorizeDialog
-        authorize={authorization.authorize}
-        scope={authorization.scope}
-        server={authorization.server}
-      />
+      <MCPSignInPopover authorize={authorization.authorize} server={authorization.server} />
       {override.editorProps ? <MCPOverrideEditor {...override.editorProps} /> : null}
     </>
   );
@@ -152,7 +148,7 @@ function MarketplaceExtensionServerLiveCard({
   inputs: readonly MarketplaceServerInput[];
   missingInputs: readonly string[];
   liveDataEnabled: boolean;
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
+  onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
 }) {
   const live = useMarketplaceExtensionMCPServer(server, liveDataEnabled);
@@ -332,7 +328,7 @@ function MarketplaceExtensionServerActions({
   server: MarketplaceExtensionServer;
   live: ReturnType<typeof useMarketplaceExtensionMCPServer>;
   missingInputs: readonly string[];
-  onAuthorize: (entry: SettingsMCPServerEntry) => void;
+  onAuthorize: (entry: SettingsMCPServerEntry, trigger: HTMLElement) => void;
   onEdit: (entry: SettingsMCPServerEntry) => void;
 }) {
   const entry = live.server;
@@ -350,7 +346,7 @@ function MarketplaceExtensionServerActions({
             <Button
               data-setup-target="authorize"
               data-testid={`marketplace-extension-server-authorize-${server.name}`}
-              onClick={() => onAuthorize(entry)}
+              onClick={event => onAuthorize(entry, event.currentTarget)}
               size="sm"
               type="button"
               variant="neutral"

@@ -17,6 +17,32 @@ import (
 
 func TestServicePermanentFailureRecovery(t *testing.T) {
 	t.Parallel()
+	t.Run("Should admit an explicit retry only for its entity without claiming recovery", func(t *testing.T) {
+		t.Parallel()
+		clock := newDeadEntityTestClock()
+		service := New(newRecordingDeadEntityStore(), WithClock(clock.Now), WithPermanentFailureThreshold(1))
+		key := deadEntityTestKey("ws-retry")
+		other := deadEntityTestKey("ws-other")
+		for _, candidate := range []store.DeadEntityKey{key, other} {
+			if err := service.RecordFailure(t.Context(), candidate, FailurePermanent, "offline"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		service.ForgetEntity(key)
+		ctx := WithProbeRetry(t.Context(), key)
+		retry, err := service.BeforeProbe(ctx, key)
+		if err != nil || !retry.Allowed || !retry.Dead {
+			t.Fatalf("retry = %+v, %v", retry, err)
+		}
+		denied, err := service.BeforeProbe(ctx, other)
+		if err != nil || denied.Allowed {
+			t.Fatalf("other = %+v, %v", denied, err)
+		}
+		status, err := service.Status(t.Context(), key)
+		if err != nil || !status.Dead {
+			t.Fatalf("premature recovery = %+v, %v", status, err)
+		}
+	})
 
 	t.Run("Should mark on the fifth permanent failure and admit one due recovery", func(t *testing.T) {
 		t.Parallel()

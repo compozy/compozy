@@ -2,7 +2,7 @@
 // runtime groups, approval and copy act on the daemon's runtime inventory and approval digests.
 // Owner: the MCP Settings page; no existing route suite exercises this composition.
 // Canonical suite: this file. HTTP is mocked; routing, query state, controllers and editors run normally.
-import { TopbarSlotProvider } from "@compozy/ui";
+import { Topbar, TopbarSlotProvider } from "@compozy/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -16,6 +16,7 @@ import { HttpResponse, delay, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { ProfilePin } from "@/systems/profiles";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers } from "@/systems/status/mocks";
@@ -33,7 +34,11 @@ import {
 } from "@/systems/settings/mocks/runtime-mcp-fixtures";
 import type { RuntimeMCPSnapshot } from "@/systems/settings/types";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
-import type { SettingsMCPServerEntry, SettingsMCPServerRequest } from "@/systems/settings";
+import {
+  mcpServerRowTestId,
+  type SettingsMCPServerEntry,
+  type SettingsMCPServerRequest,
+} from "@/systems/settings";
 import { MCPSettingsPage } from "../-mcp-settings-page";
 
 let definitions: SettingsMCPServerEntry[] = [];
@@ -64,16 +69,19 @@ afterEach(() => {
   server.resetHandlers();
   resetSettingsRestartStore();
 });
-function renderSettings() {
+function renderSettings({ profile }: { profile?: string } = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   clients.push(client);
   const root = createRootRoute({
     component: () => (
-      <TopbarSlotProvider>
-        <MCPSettingsPage />
-      </TopbarSlotProvider>
+      <ProfilePin profile={profile}>
+        <TopbarSlotProvider>
+          <Topbar title="Settings" />
+          <MCPSettingsPage />
+        </TopbarSlotProvider>
+      </ProfilePin>
     ),
   });
   const router = createRouter({
@@ -143,16 +151,21 @@ describe("MCP Settings page", () => {
     );
     expect(screen.queryByTestId("settings-page-mcp-selection-delete")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Edit github from github" }));
-    const dialog = await screen.findByRole("dialog", { name: "Edit configuration · github" });
-    expect(within(dialog).getByText("extension:github")).toBeVisible();
+    const dialog = await screen.findByRole("dialog", { name: "Set up github" });
+    // The package declaration is read-only and folded under Technical details.
+    await user.click(within(dialog).getByRole("button", { name: "Technical details" }));
+    const details = within(dialog).getByTestId("settings-mcp-override-editor-identity");
+    expect(within(details).getByText("The github extension")).toBeVisible();
+    expect(within(details).getByText("All projects")).toBeVisible();
+    expect(within(details).queryByText("extension:github")).toBeNull();
     expect(
       within(dialog).queryByRole("textbox", { name: /Command|Auth|Server name/ })
     ).not.toBeInTheDocument();
     await user.type(
-      within(dialog).getByRole("textbox", { name: /Endpoint/ }),
+      within(dialog).getByRole("textbox", { name: "Address" }),
       "https://override.example/mcp"
     );
-    await user.click(within(dialog).getByRole("button", { name: "Save override" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(writes).toHaveLength(1);
     expect(writes[0]!.url.pathname).toBe("/api/settings/mcp-servers/github");
@@ -168,7 +181,7 @@ describe("MCP Settings page", () => {
     });
     expect(definitions[0]).toEqual(manual);
     await user.click(screen.getByRole("button", { name: "Edit github from github" }));
-    await user.click(await screen.findByRole("button", { name: "Reset override" }));
+    await user.click(await screen.findByRole("button", { name: "Reset to extension defaults" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(resets).toHaveLength(1);
     expect(resets[0]!.searchParams.get("owner")).toBe("extension:github");
@@ -192,7 +205,8 @@ describe("MCP Settings page", () => {
     await user.click(screen.getByTestId("settings-page-mcp-scope-workspace"));
     await user.click(screen.getByRole("button", { name: "Select github" }));
     await user.click(screen.getByTestId("settings-page-mcp-selection-delete"));
-    await user.click(await screen.findByRole("button", { name: "Delete definition" }));
+    const confirm = await screen.findByRole("dialog", { name: "Remove github?" });
+    await user.click(within(confirm).getByRole("button", { name: "Remove server" }));
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Select github" })).not.toBeInTheDocument()
     );
@@ -202,6 +216,121 @@ describe("MCP Settings page", () => {
     expect(removed[0]!.searchParams.get("target")).toBe("sidecar");
     expect(removed[0]!.searchParams.get("workspace_id")).toBeNull();
     expect(screen.getByRole("button", { name: "Select github from github" })).toBeVisible();
+  });
+
+  // Invariant: a new server whose scope differs from the listed one checks its name against that
+  // scope's own list and saves to that scope, so it never overwrites a same-name server there.
+  it("Should check and save a new server in the scope picked in the editor", async () => {
+    const user = userEvent.setup();
+    const listed: string[] = [];
+    const saved: URL[] = [];
+    server.use(
+      http.get("*/api/settings/mcp-servers", ({ request }) => {
+        listed.push(new URL(request.url).searchParams.get("scope") ?? "");
+        return HttpResponse.json({
+          collection: "mcp-servers",
+          available_scopes: ["user", "workspace"],
+          scope: "user",
+          mcp_servers: definitions,
+        });
+      }),
+      http.put("*/api/settings/mcp-servers/:name", ({ request }) => {
+        saved.push(new URL(request.url));
+        return HttpResponse.json({ ...settingsAppliedMutationFixture, section: "mcp-servers" });
+      })
+    );
+    await openSettings();
+    await user.click(screen.getByTestId("settings-page-mcp-scope-workspace"));
+    await user.click(await screen.findByTestId("settings-page-mcp-create"));
+    const editor = await screen.findByRole("dialog", { name: "Add an MCP server" });
+    expect(
+      within(editor).getByTestId("settings-mcp-servers-editor-scope-workspace")
+    ).toHaveAttribute("aria-checked", "true");
+
+    await user.click(within(editor).getByRole("radio", { name: "All projects" }));
+    await user.type(within(editor).getByLabelText("Name"), "github");
+    await user.type(within(editor).getByLabelText("URL or command"), "npx server");
+    expect(
+      await within(editor).findByText('An MCP server named "github" already exists.')
+    ).toBeVisible();
+    expect(listed).toContain("user");
+
+    await user.clear(within(editor).getByLabelText("Name"));
+    await user.type(within(editor).getByLabelText("Name"), "fresh");
+    await user.click(within(editor).getByRole("button", { name: "Add server" }));
+    await waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]!.searchParams.get("scope")).toBe("user");
+    expect(saved[0]!.searchParams.get("workspace_id")).toBeNull();
+  });
+
+  // Invariant: a create in another scope checks names against a list read after the pick.
+  it("Should reread the picked scope's list and hold Save until it arrives", async () => {
+    const user = userEvent.setup();
+    const listed: string[] = [];
+    let holdUser = false;
+    let releaseUser: () => void = () => {};
+    server.use(
+      http.get("*/api/settings/mcp-servers", async ({ request }) => {
+        const scope = new URL(request.url).searchParams.get("scope") ?? "";
+        listed.push(scope);
+        if (scope === "user" && holdUser) {
+          await new Promise<void>(resolve => {
+            releaseUser = resolve;
+          });
+        }
+        return HttpResponse.json({
+          collection: "mcp-servers",
+          available_scopes: ["user", "workspace"],
+          scope,
+          mcp_servers: scope === "user" ? definitions : [],
+        });
+      })
+    );
+    await openSettings();
+    await user.click(screen.getByTestId("settings-page-mcp-scope-workspace"));
+    await user.click(await screen.findByTestId("settings-page-mcp-create"));
+    const editor = await screen.findByRole("dialog", { name: "Add an MCP server" });
+    await user.type(within(editor).getByLabelText("Name"), "github");
+    await user.type(within(editor).getByLabelText("URL or command"), "npx server");
+    const userReads = listed.filter(scope => scope === "user").length;
+
+    // The cached Personal list is not trusted: picking it reads it again, and Save waits.
+    holdUser = true;
+    await user.click(within(editor).getByRole("radio", { name: "All projects" }));
+    await waitFor(() =>
+      expect(listed.filter(scope => scope === "user").length).toBe(userReads + 1)
+    );
+    expect(within(editor).getByRole("button", { name: "Add server" })).toBeDisabled();
+    expect(within(editor).getByTestId("settings-mcp-servers-editor-hint")).toHaveTextContent(
+      "Checking which names are already taken"
+    );
+
+    releaseUser();
+    expect(
+      await within(editor).findByText('An MCP server named "github" already exists.')
+    ).toBeVisible();
+    await user.clear(within(editor).getByLabelText("Name"));
+    await user.type(within(editor).getByLabelText("Name"), "fresh");
+    expect(within(editor).getByRole("button", { name: "Add server" })).toBeEnabled();
+  });
+
+  // Invariant: removing a definition another source also defines says which copy takes over.
+  it("Should name the copy that takes over when a removed server is shadowed", async () => {
+    const user = userEvent.setup();
+    definitions[0] = {
+      ...definitions[0]!,
+      source_metadata: {
+        ...definitions[0]!.source_metadata,
+        shadowed_sources: [{ kind: "workspace-config", scope: "workspace" }],
+      },
+    };
+    await openSettings();
+    await user.click(screen.getByRole("button", { name: "Select github" }));
+    await user.click(screen.getByTestId("settings-page-mcp-selection-delete"));
+    const confirm = await screen.findByRole("dialog", { name: "Remove github?" });
+    expect(within(confirm).getByTestId("settings-mcp-servers-delete-shadowed")).toHaveTextContent(
+      "That one takes over after you remove this one."
+    );
   });
 
   describe("servers by runtime", () => {
@@ -289,7 +418,45 @@ describe("MCP Settings page", () => {
       expect(within(group).queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument();
     });
 
-    it("UT-W06: Should keep the Copy dialog open with an inline name error on a 409", async () => {
+    it("Should fold a runtime group under All and drop the fold once that runtime is picked", async () => {
+      const user = userEvent.setup();
+      serveRuntimes([claudeRuntimeMCPFixture, codexRuntimeMCPFixture]);
+      await openSettings();
+      const group = await screen.findByTestId("settings-mcp-runtime-group-codex");
+      const fold = within(group).getByTestId("settings-mcp-runtime-group-codex-fold");
+      // The fold is named by the group's heading, not a second label of its own.
+      expect(fold).toHaveAccessibleName(codexRuntimeMCPFixture.display_name);
+      expect(fold).not.toHaveAttribute("aria-label");
+      expect(fold).toHaveAttribute("aria-expanded", "true");
+      expect(within(group).getByTestId("settings-mcp-runtime-row-codex-github")).toBeVisible();
+
+      await user.click(fold);
+
+      expect(fold).toHaveAttribute("aria-expanded", "false");
+      expect(
+        within(group).queryByTestId("settings-mcp-runtime-row-codex-github")
+      ).not.toBeInTheDocument();
+      // The other runtime keeps its own fold state.
+      expect(
+        within(screen.getByTestId("settings-mcp-runtime-group-claude")).getByTestId(
+          "settings-mcp-runtime-group-claude-fold"
+        )
+      ).toHaveAttribute("aria-expanded", "true");
+
+      await user.click(
+        within(screen.getByTestId("settings-mcp-runtime-filter")).getByTestId(
+          "settings-mcp-runtime-filter-codex"
+        )
+      );
+
+      const picked = screen.getByTestId("settings-mcp-runtime-group-codex");
+      expect(
+        within(picked).queryByTestId("settings-mcp-runtime-group-codex-fold")
+      ).not.toBeInTheDocument();
+      expect(within(picked).getByTestId("settings-mcp-runtime-row-codex-github")).toBeVisible();
+    });
+
+    it("UT-W06: Should keep the Add to CompozyOS panel open with an inline name error on a 409", async () => {
       const user = userEvent.setup();
       const requests: Array<{ url: URL; body: unknown }> = [];
       serveRuntimes([claudeRuntimeMCPFixture]);
@@ -312,8 +479,9 @@ describe("MCP Settings page", () => {
       await user.click(
         await screen.findByRole("button", { name: "Copy exa from Claude Code to CompozyOS" })
       );
-      const dialog = await screen.findByTestId("settings-mcp-copy-dialog");
-      await user.click(within(dialog).getByTestId("settings-mcp-copy-submit"));
+      const dialog = await screen.findByRole("dialog", { name: "Add exa to CompozyOS" });
+      expect(within(dialog).getByRole("radio", { name: /All projects/ })).toBeChecked();
+      await user.click(within(dialog).getByTestId("mcp-copy-panel-submit"));
 
       await waitFor(() =>
         expect(within(dialog).getByRole("textbox", { name: "Name in CompozyOS" })).toHaveAttribute(
@@ -322,7 +490,8 @@ describe("MCP Settings page", () => {
         )
       );
       expect(dialog).toHaveTextContent("A CompozyOS server named exa already exists in Personal");
-      expect(screen.getByTestId("settings-mcp-copy-dialog")).toBeVisible();
+      // Still open (jsdom never runs the popover entrance, so it never reads as visible).
+      expect(screen.getByRole("dialog", { name: "Add exa to CompozyOS" })).toBeInTheDocument();
       expect(requests).toHaveLength(1);
       expect(requests[0]!.url.pathname).toBe("/api/settings/runtime-mcp-servers/claude/exa/import");
       expect(requests[0]!.body).toEqual({ scope: "user" });
@@ -356,10 +525,15 @@ describe("MCP Settings page", () => {
       await user.click(
         await screen.findByRole("button", { name: "Copy exa from Claude Code to CompozyOS" })
       );
-      const dialog = await screen.findByTestId("settings-mcp-copy-dialog");
-      await user.click(within(dialog).getByTestId("settings-mcp-copy-submit"));
+      const dialog = await screen.findByRole("dialog", { name: "Add exa to CompozyOS" });
+      await user.click(within(dialog).getByTestId("mcp-copy-panel-submit"));
 
       await waitFor(() => expect(bodies).toHaveLength(1));
+      // A source gone from its file warns inside the panel and blocks another try.
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+        "exa is no longer in .mcp.json"
+      );
+      expect(within(dialog).getByTestId("mcp-copy-panel-submit")).toBeDisabled();
       expect(bodies[0]).toEqual({ scope: "user", workspace_id: project });
     });
 
@@ -379,7 +553,7 @@ describe("MCP Settings page", () => {
       ).toBeChecked();
     });
 
-    it("Should allow a waiting project server with its digest and say so when the file changed", async () => {
+    it("Should review what a waiting project server runs, allow it with its digest, and say so when the file changed", async () => {
       const user = userEvent.setup();
       const approvals: Array<{ name: string; body: unknown }> = [];
       definitions = [
@@ -387,8 +561,10 @@ describe("MCP Settings page", () => {
           ...definitions[0]!,
           scope: "workspace",
           workspace_id: "ws-platform",
+          args: ["-y", "@modelcontextprotocol/server-github", "--root", "/work/my repo"],
           callable_in_sessions: false,
           approval: { required: true, state: "waiting", definition_digest: "sha256:seen" },
+          definition_source: "/work/platform/.mcp.json",
           source_metadata: {
             available_targets: ["workspace-config"],
             effective_source: {
@@ -417,8 +593,19 @@ describe("MCP Settings page", () => {
       expect(screen.getByText("Added by a file in this project")).toBeVisible();
 
       await user.click(allow);
+      const review = await screen.findByRole("dialog", { name: "Allow github?" });
+      expect(within(review).getByTestId("mcp-allow-panel-launch")).toHaveTextContent(
+        "npx -y @modelcontextprotocol/server-github --root '/work/my repo'"
+      );
+      expect(review).toHaveTextContent("Added by .mcp.json in this project");
+      expect(within(review).getByTestId("mcp-allow-panel-source")).toHaveTextContent(
+        "/work/platform/.mcp.json"
+      );
+      expect(approvals).toEqual([]);
+      await user.click(within(review).getByTestId("mcp-allow-panel-allow"));
 
       expect(await screen.findByText("Changed since you allowed it")).toBeVisible();
+      expect(screen.queryByRole("dialog", { name: "Allow github?" })).not.toBeInTheDocument();
       expect(screen.getByRole("alert")).toHaveTextContent("github changed since you looked at it");
       expect(approvals).toEqual([
         {
@@ -426,6 +613,170 @@ describe("MCP Settings page", () => {
           body: { workspace_id: "ws-platform", definition_digest: "sha256:seen" },
         },
       ]);
+    });
+    it("Should say why a server is not working, check it again in place, and close once it works", async () => {
+      const user = userEvent.setup();
+      const checks: URL[] = [];
+      const broken: SettingsMCPServerEntry = {
+        ...definitions[0]!,
+        runtime_status: {
+          state: "runtime_unavailable",
+          probe: "failed",
+          diagnostic: "spawn npx ENOENT",
+        } as SettingsMCPServerEntry["runtime_status"],
+      };
+      definitions = [broken];
+      const answers: SettingsMCPServerEntry[] = [
+        {
+          ...broken,
+          runtime_status: {
+            ...broken.runtime_status!,
+            diagnostic: "spawn npx ENOENT again",
+          },
+        },
+        {
+          ...broken,
+          runtime_status: {
+            ...broken.runtime_status!,
+            state: "ready",
+            probe: "succeeded",
+            tool_count: 4,
+            diagnostic: "",
+          },
+        },
+      ];
+      server.use(
+        http.post("*/api/settings/mcp-servers/:name/check", ({ request }) => {
+          checks.push(new URL(request.url));
+          const answer = answers[checks.length - 1]!;
+          // The daemon's list carries the probed status from now on.
+          definitions = [answer];
+          return HttpResponse.json(answer);
+        })
+      );
+      renderSettings();
+
+      await user.click(await screen.findByRole("button", { name: "github is not working" }));
+      const panel = await screen.findByRole("dialog", { name: "github isn't working" });
+      // The fixture is a local command, so the panel suggests checking that command.
+      expect(
+        within(panel).getByText("Make sure its command runs on this computer.")
+      ).toBeInTheDocument();
+      // Settings is where the panel lives: no "Open in Settings" link back to it.
+      expect(within(panel).queryByRole("button", { name: "Open in Settings" })).toBeNull();
+      await user.click(within(panel).getByRole("button", { name: "What the server said" }));
+      expect(await within(panel).findByText("spawn npx ENOENT")).toBeInTheDocument();
+
+      await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
+      expect(await within(panel).findByTestId("mcp-issue-panel-still")).toHaveTextContent(
+        "Still not working after the check."
+      );
+      expect(checks[0]?.pathname).toMatch(/\/api\/settings\/mcp-servers\/github\/check$/);
+      expect(checks[0]?.searchParams.get("scope")).toBe(broken.scope);
+
+      await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "github isn't working" })).toBeNull()
+      );
+      // The list took the check's answer: the row reads Ready, no repair offered.
+      expect(screen.getByTestId(`${mcpServerRowTestId(broken)}-status`)).toHaveTextContent("Ready");
+      expect(screen.queryByRole("button", { name: "github is not working" })).toBeNull();
+      expect(checks).toHaveLength(2);
+    });
+
+    it("Should keep a slow check's answer on its own server and keep the row's lens", async () => {
+      const user = userEvent.setup();
+      const failing = (name: string): SettingsMCPServerEntry => ({
+        ...definitions[0]!,
+        name,
+        runtime_status: {
+          state: "runtime_unavailable",
+          probe: "failed",
+          diagnostic: `${name} failed`,
+        } as SettingsMCPServerEntry["runtime_status"],
+      });
+      const alpha = failing("alpha");
+      const beta: SettingsMCPServerEntry = {
+        ...failing("beta"),
+        transport: "http",
+        command: undefined,
+        args: undefined,
+        url: "https://beta.example/mcp",
+      };
+      definitions = [alpha, beta];
+      const checks: URL[] = [];
+      let releaseAlpha: () => void = () => {};
+      const alphaGate = new Promise<void>(resolve => {
+        releaseAlpha = resolve;
+      });
+      server.use(
+        http.post("*/api/settings/mcp-servers/:name/check", async ({ request, params }) => {
+          checks.push(new URL(request.url));
+          if (params.name === "alpha") await alphaGate;
+          // The answer names another scope: the listed row keeps its own lens fields.
+          return HttpResponse.json({
+            ...(params.name === "alpha" ? alpha : beta),
+            scope: "workspace",
+            workspace_id: "ws-other",
+            runtime_status: {
+              state: "runtime_unavailable",
+              probe: "failed",
+              diagnostic: `${String(params.name)} still failed`,
+            },
+          });
+        })
+      );
+      renderSettings();
+
+      await user.click(await screen.findByRole("button", { name: "alpha is not working" }));
+      let panel = await screen.findByRole("dialog", { name: "alpha isn't working" });
+      await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
+      await waitFor(() => expect(checks).toHaveLength(1));
+
+      await user.click(screen.getByRole("button", { name: "beta is not working" }));
+      panel = await screen.findByRole("dialog", { name: "beta isn't working" });
+      // A remote server gets no advice about a command on this computer.
+      expect(within(panel).queryByText("Make sure its command runs on this computer.")).toBeNull();
+      // Alpha's pending check does not read as beta's.
+      expect(within(panel).getByTestId("mcp-issue-panel-check")).toBeEnabled();
+      releaseAlpha();
+      // Alpha's answer has been taken into the list cache: its check settled after onSuccess ran.
+      await waitFor(() => expect(clients.at(-1)?.isMutating()).toBe(0));
+      expect(within(panel).queryByTestId("mcp-issue-panel-still")).toBeNull();
+      await user.click(within(panel).getByRole("button", { name: "What the server said" }));
+      expect(within(panel).getByText("beta failed")).toBeInTheDocument();
+      expect(within(panel).queryByText("alpha still failed")).toBeNull();
+      // The row keeps its own identity rather than taking the answer's scope.
+      expect(screen.getByTestId(mcpServerRowTestId(alpha))).toBeInTheDocument();
+    });
+
+    it("Should check a User server in its own lens while a named profile is listed", async () => {
+      const user = userEvent.setup();
+      const checks: URL[] = [];
+      const broken: SettingsMCPServerEntry = {
+        ...definitions[0]!,
+        runtime_status: {
+          state: "runtime_unavailable",
+          probe: "failed",
+          diagnostic: "spawn npx ENOENT",
+        } as SettingsMCPServerEntry["runtime_status"],
+      };
+      definitions = [broken];
+      server.use(
+        http.post("*/api/settings/mcp-servers/:name/check", ({ request }) => {
+          checks.push(new URL(request.url));
+          return HttpResponse.json(broken);
+        })
+      );
+      renderSettings({ profile: "work" });
+
+      await user.click(await screen.findByRole("button", { name: "github is not working" }));
+      const panel = await screen.findByRole("dialog", { name: "github isn't working" });
+      await user.click(within(panel).getByTestId("mcp-issue-panel-check"));
+      await waitFor(() => expect(checks).toHaveLength(1));
+      // The daemon refuses a profile outside profile scope, so the row's own lens goes as-is.
+      expect(checks[0]?.searchParams.get("scope")).toBe("user");
+      expect(checks[0]?.searchParams.has("profile")).toBe(false);
     });
   });
 });

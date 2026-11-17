@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Cable } from "@compozy/ui/icons";
+
+import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
+import { Plug, Plus, Trash2 } from "@compozy/ui/icons";
 
 import {
   Alert,
@@ -12,12 +14,12 @@ import {
   EntityDialogBody,
   EntityDialogFooter,
   EntityDialogHeader,
-  EntityModeToolbar,
   type EntityMode,
 } from "@compozy/ui";
 
 import type { MCPDraft, MCPDraftErrors, MCPTransport } from "../lib/mcp-editor-model";
 import { withTransport } from "../lib/mcp-editor-model";
+import { mcpSourceLine } from "../lib/mcp-editor-paste";
 import type {
   SettingsLayeredScope,
   SettingsMCPServerEntry,
@@ -25,12 +27,12 @@ import type {
 } from "../types";
 
 import { MCPEditorConnectionSection, type MCPRequiredField } from "./mcp-editor-connection-section";
-import { MCPEditorOAuthSection } from "./mcp-editor-oauth-section";
-import { MCPEditorProcessSection } from "./mcp-editor-stdio-section";
-import type { MCPVaultInventory } from "./mcp-secret-binding";
-import { SettingsSourceBadge } from "./settings-source-badge";
+import { MCPNameSection, type MCPScopeChoice } from "./mcp-editor-fields";
+import { MCPEditorMoreOptions } from "./mcp-editor-more-options";
+import { MCPEditorKeysSection, type MCPVaultInventory } from "./mcp-secret-binding";
 
 export interface MCPServerEditorProps {
+  /** Host-owned fields (the agent picker's header credentials), shown after the keys. */
   children?: React.ReactNode;
   open: boolean;
   mode: "create" | "edit";
@@ -40,6 +42,8 @@ export interface MCPServerEditorProps {
   isValid: boolean;
   isSaving: boolean;
   saveError: string | null;
+  /** Why Save waits (the name check's list is still loading); shown beside the disabled Save. */
+  savePending?: string;
   /** Create only: the server list the name check needs could not load; retry keeps the draft. */
   serversError?: { message: string; retry: () => void } | null;
   warnings?: string[];
@@ -47,8 +51,11 @@ export interface MCPServerEditorProps {
   target: SettingsMCPServerTarget;
   availableTargets: SettingsMCPServerTarget[];
   entry: SettingsMCPServerEntry | null;
-  /** Runtime status line for the toolbar trailing slot. */
+  /** "All projects" or "Only <project>"; omitted where scope isn't the person's choice. */
+  scopeChoice?: MCPScopeChoice;
+  /** Runtime status line shown under More options. */
   statusLabel?: string;
+  /** `advanced` opens More options on mount. */
   initialTier?: EntityMode;
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
   onTargetChange: (target: SettingsMCPServerTarget) => void;
@@ -58,11 +65,10 @@ export interface MCPServerEditorProps {
 }
 
 /**
- * MCP server editor on the shared entity-dialog shell.
- *
- * It keeps its own `Dialog` rather than routing through `SettingsEditorDialog`:
- * the mode toolbar and the transport-dependent body are not part of that shell's
- * contract, and nesting them would produce two competing chromes.
+ * Add or edit an MCP server on the entity-dialog kit: name and where to use it, how it connects
+ * (with a preview of what is added), the keys it needs, then a framed "More options" fold that
+ * holds every advanced field. It keeps its own `Dialog` rather than `SettingsEditorDialog`
+ * because the body depends on the transport.
  */
 export function MCPServerEditor({
   children,
@@ -74,12 +80,14 @@ export function MCPServerEditor({
   isValid,
   isSaving,
   saveError,
+  savePending,
   serversError,
   warnings,
   vaultInventory,
   target,
   availableTargets,
   entry,
+  scopeChoice,
   statusLabel,
   initialTier = "simple",
   onChange,
@@ -88,15 +96,25 @@ export function MCPServerEditor({
   onSave,
   onRemove,
 }: MCPServerEditorProps) {
-  const [tier, setTier] = useState<EntityMode>(initialTier);
+  const isCreate = mode === "create";
   const [touched, setTouched] = useState<ReadonlySet<MCPRequiredField>>(() => new Set());
+  // Until the person picks Remote or Local, a new server's source line decides.
+  const [picked, setPicked] = useState<MCPTransport | null>(() =>
+    isCreate && mcpSourceLine(draft).trim() === "" ? null : draft.transport
+  );
+  // False while the JSON view is open and its JSON supplies no picked server: Save would submit
+  // whatever the draft held before it opened.
+  const [pasteSettled, setPasteSettled] = useState(true);
+  // One identity per secret row, shared by "Key it needs" and the names under More options.
+  const secretRowKeys = useLocalRowKeys(draft.secretEnv, "mcp-secret");
   if (!open) return null;
 
   const touch = (field: MCPRequiredField) => {
     setTouched(current => (current.has(field) ? current : new Set(current).add(field)));
   };
   // Switching transport clears the launch fields, so they start pristine again.
-  const changeTransport = (transport: MCPTransport) => {
+  const pick = (transport: MCPTransport) => {
+    setPicked(transport);
     if (draft.transport === transport) return;
     setTouched(current => new Set([...current].filter(field => field === "name")));
     onChange(current => withTransport(current, transport));
@@ -109,9 +127,6 @@ export function MCPServerEditor({
     url: touched.has("url") ? errors.url : undefined,
   };
 
-  const isCreate = mode === "create";
-  const isRemote = draft.transport !== "stdio";
-
   return (
     <Dialog
       open={open}
@@ -120,7 +135,7 @@ export function MCPServerEditor({
       }}
     >
       <DialogContent
-        className={`grid-rows-[auto_auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("md")}`}
+        className={`grid-rows-[auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("sm")}`}
         data-mode={mode}
         data-testid="settings-mcp-servers-editor"
         data-transport={draft.transport}
@@ -129,152 +144,152 @@ export function MCPServerEditor({
       >
         <EntityDialogHeader
           description={
-            isCreate ? (
-              <>
-                An MCP server gives agents extra{" "}
-                <b className="font-medium text-muted-foreground">tools and resources</b> — a local
-                process or a remote endpoint. Environment secrets stay write-only.
-              </>
-            ) : (
-              <>
-                Update the connection and rotate write-only environment secrets.{" "}
-                <b className="font-medium text-muted-foreground">The route identity stays fixed.</b>
-              </>
-            )
+            isCreate
+              ? "Give your agents new tools, like reading Linear issues or querying a database."
+              : "Changes reach every session on its next message."
           }
-          eyebrow="System · MCP server"
-          icon={Cable}
+          icon={Plug}
           onClose={isSaving ? undefined : onClose}
           title={
             <span data-testid="settings-mcp-servers-editor-title">
-              {isCreate ? "Add MCP server" : `Edit ${draft.name}`}
-            </span>
-          }
-        />
-
-        <EntityModeToolbar
-          mode={tier}
-          onModeChange={setTier}
-          testIdPrefix="settings-mcp-servers-editor"
-          trailing={
-            <span className="flex min-w-0 flex-wrap items-center gap-2">
-              {/* The write target is owned by the caller, so scope is reported,
-                  not chosen — but it must stay visible in both modes. */}
-              <span
-                className="font-mono text-form-label text-muted-foreground"
-                data-testid="settings-mcp-servers-editor-scope"
-              >
-                MCP server · {scope}
-              </span>
-              {statusLabel ? (
-                <span
-                  className="font-mono text-form-label text-muted-foreground"
-                  data-testid="settings-mcp-servers-editor-status"
-                >
-                  {statusLabel}
-                </span>
-              ) : null}
-              {entry ? (
-                <SettingsSourceBadge
-                  data-testid="settings-mcp-servers-editor-source"
-                  shadowed={entry.source_metadata.shadowed_sources ?? []}
-                  source={entry.source_metadata.effective_source}
-                />
-              ) : null}
+              {isCreate ? "Add an MCP server" : `Edit ${draft.name}`}
             </span>
           }
         />
 
         <EntityDialogBody className="flex flex-col" data-testid="settings-mcp-servers-editor-body">
+          <MCPNameSection
+            error={shownErrors.name}
+            isCreate={isCreate}
+            name={draft.name}
+            onBlur={() => touch("name")}
+            onChange={name => {
+              touch("name");
+              onChange(current => ({ ...current, name }));
+            }}
+            scopeChoice={scopeChoice}
+          />
           <MCPEditorConnectionSection
-            availableTargets={availableTargets}
+            autoName={isCreate && !touched.has("name")}
             draft={draft}
             errors={shownErrors}
             isCreate={isCreate}
+            onAdopt={setPicked}
+            onChange={onChange}
+            onPasteSettled={setPasteSettled}
+            onPick={pick}
+            onTouch={touch}
+            picked={picked}
+          />
+          <MCPEditorKeysSection
+            rowKeys={secretRowKeys}
+            draft={draft}
+            errors={errors}
+            onChange={onChange}
+            vaultInventory={vaultInventory}
+          />
+          {children ? <div className="mt-6 flex flex-col gap-3">{children}</div> : null}
+          <MCPEditorMoreOptions
+            availableTargets={availableTargets}
+            defaultOpen={initialTier === "advanced"}
+            draft={draft}
+            entry={entry}
+            errors={errors}
             onChange={onChange}
             onTargetChange={onTargetChange}
-            onTouch={touch}
-            onTransportChange={changeTransport}
+            projectName={scopeChoice?.projectName}
             scope={scope}
+            secretRowKeys={secretRowKeys}
+            statusLabel={statusLabel}
             target={target}
           />
-
-          {tier === "advanced" && !isRemote ? (
-            <MCPEditorProcessSection
-              draft={draft}
-              errors={errors}
-              onChange={onChange}
-              vaultInventory={vaultInventory}
-            />
-          ) : null}
-
-          {tier === "advanced" && isRemote ? (
-            <MCPEditorOAuthSection
-              draft={draft}
-              hasSavedOAuth={Boolean(entry?.auth)}
-              onChange={onChange}
-            />
-          ) : null}
-
-          {children}
-
-          {serversError ? (
-            <Alert data-testid="settings-mcp-servers-editor-servers-error" variant="destructive">
-              <AlertDescription>
-                Couldn't check existing server names. {serversError.message}
-              </AlertDescription>
-              <AlertActions>
-                <Button onClick={serversError.retry} size="xs" type="button" variant="secondary">
-                  Try again
-                </Button>
-              </AlertActions>
-            </Alert>
-          ) : null}
-          {saveError ? (
-            <Alert data-testid="settings-mcp-servers-editor-error" variant="destructive">
-              <AlertDescription>{saveError}</AlertDescription>
-            </Alert>
-          ) : null}
-          {!saveError && warnings && warnings.length > 0 ? (
-            <Alert data-testid="settings-mcp-servers-editor-warnings" variant="warning">
-              <AlertDescription>
-                <ul className="flex flex-col gap-1">
-                  {warnings.map(warning => (
-                    <li key={warning}>{warning}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          ) : null}
+          <MCPEditorAlerts saveError={saveError} serversError={serversError} warnings={warnings} />
         </EntityDialogBody>
 
         <EntityDialogFooter
           cancelDisabled={isSaving}
           cancelTestId="settings-mcp-servers-editor-cancel"
           hint={
+            savePending ??
+            (isCreate || !onRemove ? "Agents get its tools on their next message." : undefined)
+          }
+          hintTestId="settings-mcp-servers-editor-hint"
+          isSaving={isSaving}
+          leading={
             !isCreate && onRemove ? (
               <Button
+                className="-ml-2 text-destructive"
                 data-testid="settings-mcp-servers-editor-remove"
                 disabled={isSaving}
                 onClick={onRemove}
                 size="sm"
                 type="button"
-                variant="destructive"
+                variant="ghost"
               >
+                <Trash2 data-icon="inline-start" />
                 Remove server
               </Button>
-            ) : (
-              "Secret values are never returned after save — only presence."
-            )
+            ) : undefined
           }
-          isSaving={isSaving}
           onCancel={onClose}
           onPrimary={onSave}
-          primaryDisabled={!isValid || isSaving}
+          primaryDisabled={!isValid || isSaving || !pasteSettled}
+          primaryIcon={isCreate ? Plus : undefined}
           primaryLabel={isSaving ? "Saving..." : isCreate ? "Add server" : "Save changes"}
           primaryTestId="settings-mcp-servers-editor-save"
         />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function MCPEditorAlerts({
+  saveError,
+  serversError,
+  warnings,
+}: Pick<MCPServerEditorProps, "saveError" | "serversError" | "warnings">) {
+  return (
+    <>
+      {serversError ? (
+        <Alert
+          className="mt-6"
+          data-testid="settings-mcp-servers-editor-servers-error"
+          variant="destructive"
+        >
+          <AlertDescription>
+            Couldn't check existing server names. {serversError.message}
+          </AlertDescription>
+          <AlertActions>
+            <Button onClick={serversError.retry} size="xs" type="button" variant="secondary">
+              Try again
+            </Button>
+          </AlertActions>
+        </Alert>
+      ) : null}
+      {saveError ? (
+        <Alert
+          className="mt-6"
+          data-testid="settings-mcp-servers-editor-error"
+          variant="destructive"
+        >
+          <AlertDescription>{saveError}</AlertDescription>
+        </Alert>
+      ) : null}
+      {!saveError && warnings && warnings.length > 0 ? (
+        <Alert
+          className="mt-6"
+          data-testid="settings-mcp-servers-editor-warnings"
+          variant="warning"
+        >
+          <AlertDescription>
+            <ul className="flex flex-col gap-1">
+              {warnings.map(warning => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+    </>
   );
 }

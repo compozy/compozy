@@ -70,3 +70,56 @@ Steps:
 Pass: every listed state renders with its text label (never color alone).
 
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md
+
+## MCP redesign check coverage
+
+After integrating the backend and composer slices, inspect a waiting row's command/args or URL,
+`source.kind` and `source.path`, and `approval.reason`/`approval.definition_digest`. Confirm the
+approval request uses the row's scope, workspace and profile. Preview URL userinfo must be absent,
+all query values masked, and secret-bearing arguments redacted. Ready, failed, sign-in and restricted
+rows omit command/args/URL/source.path; app-token reads omit previews in every state.
+Include arguments `--token opaque-credential` and `--password "two words"`: both values must be
+redacted without changing the other argument boundaries.
+No discovery may occur while waiting or while sign-in is required.
+For an inherited signed-out server, sign-in must target its declaring scope.
+
+Break one admitted server, trigger failure, then restore it and run
+`compozy session mcp check <id> <name> --owner <owner> -o json` (or the row's Check again action).
+Only that owner-qualified server is discovered, including while its breaker is marked dead.
+A failed check retains last-known-good descriptors and records failure. A caller-canceled check
+retains the last working availability without recording a source failure; a successful check
+must perform tools/list even with a warm cache. Hold an older discovery open, complete a check, then
+release the older discovery: its result must not replace the newer check or its executor cache.
+Also start the check first, finish an ordinary discovery while it is pending, then finish the check:
+the explicit check must own the final tools and projection. Changed summaries publish
+`session.mcp_changed` so the composer dot updates without a reload.
+Repeat via `compozy mcp check <name> --scope workspace --workspace <ws> -o json`; check a non-default
+profile and verify only that profile's breaker state changes.
+The response refreshes its tools; pending activation stays `applies_next_message` until the next
+message. The agent runtime is not restarted by Check again. Repeat with a restricted server and
+confirm no discovery, and with an unknown owner and confirm 404 without discovery.
+
+Backend focused coverage: `TestSessionMCPReadModel`, `TestSessionMCPDetailAndScope`,
+`TestSessionMCPCommand`, and `TestServicePermanentFailureRecovery`. Integrated Web walk remains
+pending until the frontend slices are integrated.
+
+QA impact 2026-11-16 (MCP redesign S5): the popover is redesigned. Header: faint plug icon,
+"MCP servers", "Updates on your next message" (info dot) while a change is pending and the last
+reload did not fail, "May be out of date" after a failed reread, and a gear that opens Settings ›
+MCP servers (replaces the "Manage in Settings" footer). No "CompozyOS" section label: server rows
+sit under the header, rows that need you first. Vocabulary: ready rows show "N tools";
+`applies_next_message` shows an info dot and "Next message"; `needs_sign_in` → "Sign in";
+`waiting_approval` → "Review" (opens the "Allow <server>?" panel beside the row);
+`failed` → "Not working ›" (opens "<server> isn't working" with suggestions, "What the server
+said", "Open in Settings" and "Check again"); a narrowed child session folds its rows under
+"Off in this session (N)", each reading "Off". The runtime section is a closed-by-default row with
+the provider logo, "<runtime>'s own servers" and a count (or "Off"); opened, it lists rows plus
+"<runtime> loads these by itself. Change them in <runtime>." or, with `runtime_mcp` off, "Turned
+off for CompozyOS sessions. Turn them on in Settings." A failed reload shows the warning alert and
+no "Updates on your next message". Compare screenshots with draft
+`web/src/drafts/mcp-composer-redesign/` (states proposed, runtime-open, issue, allow, limited,
+runtime-off, reload-failed, stale, loading). Check again from the composer posts the session check
+route and the row/panel update in place; a server that still fails keeps the panel open with
+"Still not working after the check." Every way into Settings (the gear, a panel's "Open in
+Settings", an Allow or Sign in that cannot resolve its definition) closes the popover first: after
+Settings opens, no MCP popover remains on screen, detached at the top-left corner or anywhere else.

@@ -1,6 +1,6 @@
 /**
  * Settings › MCP servers inside the app shell (`_uiux.md` S1, S2): the real Settings nav and page
- * frame around the production `MCPServersByRuntimeView` and `MCPCopyToCompozyDialog`, fed with
+ * frame around the production `MCPServersByRuntimeView` and `MCPCopyPanel`, fed with
  * the system's fixtures. Marketplace › MCPs reuses the same body.
  */
 import { Plus, Settings } from "@compozy/ui/icons";
@@ -9,7 +9,6 @@ import { useState } from "react";
 import { Button, HelpTip, ListingToolbar, PillGroup, Toaster } from "@compozy/ui";
 
 import { SettingsWindowNav } from "@/systems/os/apps/settings/settings-window-nav";
-import { MCPCopyToCompozyDialog } from "@/systems/settings/components/mcp-copy-to-compozy-dialog";
 import { MCPRuntimeModeSwitchView } from "@/systems/settings/components/mcp-runtime-mode-switch-view";
 import { MCPServersByRuntimeView } from "@/systems/settings/components/mcp-servers-by-runtime-view";
 import { SettingsPageFrame } from "@/systems/settings/components/settings-page-frame";
@@ -24,7 +23,8 @@ import type { RuntimeMCPSnapshot, SettingsMCPServerEntry } from "@/systems/setti
 
 import { DraftShell } from "../always-on-agents-shared/draft-shell";
 import { useCopyDialog } from "./hooks/use-copy-dialog";
-import { copyFailure, type CopyDialogCase } from "./mcp-page-fixtures";
+import { CopyPanelHost } from "./copy-panel-host";
+import type { CopyDialogCase } from "./mcp-page-fixtures";
 
 export interface MCPPageProps {
   compozy: readonly SettingsMCPServerEntry[];
@@ -177,19 +177,7 @@ export function MCPServersByRuntimePage({
           </SettingsPageFrame>
         </div>
       </div>
-      {copying ? (
-        <MCPCopyToCompozyDialog
-          canTurnOff={copying.snapshot.runtime_mcp.can_disable}
-          failure={copyFailure(copy, copying.server)}
-          onClose={() => setCopying(null)}
-          onSubmit={() => setCopying(null)}
-          profile={null}
-          runtimeName={copying.snapshot.display_name}
-          server={copying.server}
-          submitting={copy === "submitting"}
-          workspaceId="ws-platform"
-        />
-      ) : null}
+      <CopyPanelHost copy={copy} copying={copying} onClose={() => setCopying(null)} />
       <Toaster />
     </DraftShell>
   );

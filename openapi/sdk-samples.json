@@ -344,6 +344,20 @@
             "resource": "agents",
             "app_access": "denied"
         },
+        "checkSessionMCP": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.checkSessionMCP({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\", \"name\": \"name\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CheckSessionMCP(ctx, client.CheckSessionMCPParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\", Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
+        "checkSettingsMCPServer": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.checkSettingsMCPServer({ path: { \"name\": \"name\" }, query: { \"scope\": \"user\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CheckSettingsMCPServer(ctx, client.CheckSettingsMCPServerParams{Name: \"name\", Scope: \"user\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
         "checkSettingsUpdate": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.checkSettingsUpdate();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CheckSettingsUpdate(ctx)\nif err != nil { return err }\nfmt.Println(result)",

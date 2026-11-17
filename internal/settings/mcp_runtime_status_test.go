@@ -19,6 +19,28 @@ import (
 
 func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 	t.Parallel()
+	t.Run("Should check only one definition and retain its source preview", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile, baseSettingsConfig())
+		source := filepath.Join(home.HomeDir, "mcp.json")
+		writeFile(t, source, `{"mcpServers":{"one":{"command":"echo","args":["one"]},"two":{"command":"echo"}}}`)
+		runtime := &fakeMCPRuntimeProvider{targets: map[string]mcpauth.Target{}}
+		svc := testService(t, home, Dependencies{MCPRuntime: runtime})
+		item, err := svc.(*service).CheckMCPServer(t.Context(), MCPAuthTargetRequest{Scope: ScopeUser, Name: "one"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if item.Name != "one" || item.Command != "echo" || item.DefinitionSource != source ||
+			item.RuntimeStatus == nil ||
+			!slices.Equal(runtime.calls, []string{"one"}) {
+			t.Fatalf("item = %+v, targets = %+v", item, runtime.targets)
+		}
+		if _, ok := runtime.targets["one"]; !ok {
+			t.Fatalf("wrong target: %+v", runtime.targets)
+		}
+	})
+
 	// Invariant: definition reads return local auth state without executing remote runtime probes.
 	// Owner: settings collection service; canonical suite: mcp_runtime_status_test.go.
 	t.Run("Should read local definitions without runtime probes", func(t *testing.T) {
@@ -1133,6 +1155,8 @@ func confirmedMCPAuthRuntimeStatus(target mcpauth.Target) mcpauth.Status {
 }
 
 type fakeMCPRuntimeProvider struct {
+	mu       sync.Mutex
+	calls    []string
 	statuses map[string]MCPServerRuntimeStatus
 	targets  map[string]mcpauth.Target
 }
@@ -1227,6 +1251,9 @@ func (f *fakeMCPRuntimeProvider) MCPServerRuntimeStatus(
 	target mcpauth.Target,
 	server compozyconfig.MCPServer,
 ) (MCPServerRuntimeStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, strings.TrimSpace(server.Name))
 	if f.targets != nil {
 		f.targets[strings.TrimSpace(server.Name)] = target
 	}
@@ -1265,4 +1292,12 @@ func (f *fakeMCPExtensionManagement) UpdateMCPExtensionOverride(
 		return f.update(ctx, req, override)
 	}
 	return MCPExtensionDefinition{}, errors.New("unexpected MCP override mutation")
+}
+
+func (f *fakeMCPRuntimeProvider) CheckMCPServerRuntime(
+	ctx context.Context,
+	target mcpauth.Target,
+	server compozyconfig.MCPServer,
+) (MCPServerRuntimeStatus, error) {
+	return f.MCPServerRuntimeStatus(ctx, target, server)
 }

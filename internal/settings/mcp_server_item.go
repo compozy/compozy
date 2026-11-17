@@ -37,6 +37,7 @@ type MCPServerItem struct {
 	ProfileName            string
 	CatalogEntry           string
 	CatalogVersion         string
+	DefinitionSource       string
 	SourceMetadata         SourceMetadata
 }
 
@@ -57,6 +58,7 @@ func baseMCPServerItem(
 	auth.ClientSecretRef = ""
 	return MCPServerItem{
 		Name:                   effective.Server.Name,
+		DefinitionSource:       effective.Server.DefinitionSource,
 		readOnlyTools:          new(slices.Clone(effective.Server.ReadOnlyTools)),
 		Owner:                  vault.NormalizeMCPOwner(effective.Server.Owner),
 		RuntimeName:            effective.Server.EffectiveRuntimeName(),

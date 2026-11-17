@@ -73,8 +73,9 @@ interface MarketplaceActionController {
   retryEnable: (entry: MarketplaceCatalogListing) => void;
   turnOn: (entry: MarketplaceCatalogListing, target: MarketplaceEnableTarget) => void;
   /**
-   * Set up's sign-in. The page owns its dialog, so a confirmed sign-in that turns the row Ready,
-   * or a refresh that drops the row, cannot unmount it before the operator presses Done.
+   * Set up's sign-in, opened beside the pressed button. The page owns its panel, so a confirmed
+   * sign-in that turns the row Ready, or a refresh that drops the row, cannot unmount it before the
+   * operator presses Done.
    */
   requestAuthorize: UseMCPAuthorizeReturn["requestAuthorize"];
   /** Catalog row Update, addressed by the daemon-joined installed name. */
