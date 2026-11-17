@@ -20,7 +20,7 @@ make web-dev    # run the web UI locally
 ## Quality gates
 
 - `make gate` — runs the checks affected by your diff. Run it before every push.
-- CI runs the fast lane (preflight, lint, typecheck, unit, build) for affected areas on pull requests. With `CI_MERGE_QUEUE=true`, heavy lanes defer to the merge queue; add `ci:full` to run them before queueing (label events and re-runs both honor it). CI changes and release PRs also select heavy checks early. Without that variable, backend PRs automatically select the equivalent heavy checks; other PRs can still opt in.
+- CI runs the fast lane (preflight, lint, typecheck, unit, build) for affected areas on pull requests. With `CI_MERGE_QUEUE=true`, heavy lanes defer to the merge queue; add `ci:full` to run them before queueing (label events and re-runs both honor it). CI changes and release PRs also select heavy checks early. An absent variable preserves today's opt-in policy. Explicit `CI_MERGE_QUEUE=false` selects the fallback: backend PRs automatically run the equivalent heavy checks; other PRs can still opt in.
 - Every `merge_group` for `main` verifies the entire combined tree: fast checks, Go race unit shards, all eight full integration race shards, Windows and runtime/browser/desktop E2E. Require only `Verify (fmt, lint, unit, build)` and `E2E (combined lane)`, with identical names on PRs and merge groups. Both always report and reject failed, cancelled, missing or unexpectedly skipped dependencies. PR title/body and reviewer checks do not run on merge groups and must not become queue-required contexts.
 - Queue-ready workflows do not activate the queue. Maestro applies the W6 PR's settings only after merge and Pedro's approval. Once active, enqueue reviewed PRs and let GitHub merge them after both aggregates pass; do not merge around a red queue. Release PRs keep their Release-owned integration run before queueing; the merge group runs integration itself because Release does not run on that event. Publishing and release branches are unchanged.
 - `make gate-full` — optional local full verification when you want extra pre-push certainty.
@@ -87,10 +87,10 @@ crossovers, not evidence of an active queue throughout the no-queue period.
 Maestro records the activation timestamp in the W6 PR and compares the first
 complete seven days, then each rolling seven-day window, with this frozen
 no-queue baseline. Revisit if at least 20 merged PRs have a median above
-**151.15 minutes** (baseline +30 minutes), or if there are **more than two
-flake-only queue ejections in any UTC day**. Count ejections from merge-group
-failures correlated with the existing flake ledger; a recovered retry is not an
-ejection. Record insufficient samples or unavailable ejection evidence explicitly.
+**151.15 minutes** (baseline +30 minutes). Record insufficient samples explicitly.
+The merged-PR query does not measure never-merged/ejected PRs, and the recovered
+flake ledger does not establish flake-only queue failures. Neither is used as an
+ejection-rate trigger; the queue-duration coverage counts are not an ejection census.
 The selected fallback is no queue with heavy checks mandatory on backend PRs:
 set `CI_MERGE_QUEUE=false`, remove only the merge-queue rule, and keep both
 required aggregates. Web-only/docs PRs retain fast checks and optional `ci:full`.

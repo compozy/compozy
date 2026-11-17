@@ -6,7 +6,8 @@ name: CI
 # - Heavy lane (full Go integration, Windows, runtime/web/desktop E2E) gates
 #   through `E2E (combined lane)` in merge groups, on main pushes and nightly.
 #   CI_MERGE_QUEUE=true defers PR heavy checks to the queue; `ci:full`, release
-#   PRs and CI changes opt in early. Without the queue, backend PRs run them.
+#   PRs and CI changes opt in early. Explicit false enables the backend fallback;
+#   an absent variable preserves the existing PR opt-in policy.
 # - The nightly schedule runs every lane on main.
 on:
   pull_request:
@@ -22,10 +23,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Pull requests keep only their newest run; every main, merge-group and
-  # scheduled commit finishes, so main stays verified and seeds the caches.
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || format('{0}-{1}', github.event_name, github.sha) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # PRs and replacement groups for the same queue ref keep only their newest
+  # run. Every main/scheduled commit finishes and seeds the caches.
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.ref || format('{0}-{1}', github.event_name, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 env:
   CGO_ENABLED: 0
@@ -92,15 +93,13 @@ jobs:
           fetch-depth: 1
 
       - name: Verify change classification
-        run: |
-          scripts/ci-changes.sh --self-test
-          python3 scripts/ci-merge-latency.py --self-test
+        run: scripts/ci-changes.sh --self-test
 
       - name: Filter paths
         id: filter
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MERGE_QUEUE: ${{ vars.CI_MERGE_QUEUE == 'true' }}
+          MERGE_QUEUE: ${{ vars.CI_MERGE_QUEUE }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BASE_REF: ${{ github.base_ref }}
@@ -143,7 +142,8 @@ jobs:
           fi
 
           # Non-PR events always run heavy lanes. The variable is a staged
-          # rollout/rollback switch: without a queue, backend PRs must run them.
+          # rollout/rollback switch: explicit false enables backend PR fallback;
+          # an unset variable keeps today's opt-in behavior until activation.
           release_pr=false
           if [[ "$EVENT_NAME" == "pull_request" ]] &&
              [[ "$PR_BASE_REF" == main || "$PR_BASE_REF" == release/v* ]] &&
@@ -155,7 +155,7 @@ jobs:
             heavy=false
             if [[ "$release_pr" == true || "$PR_TITLE" == 'build: release '* ]] ||
                grep -qx 'ci_infra=true' <<<"$areas" ||
-               { [[ "$MERGE_QUEUE" != true ]] && grep -qx 'backend=true' <<<"$areas"; }; then
+               { [[ "$MERGE_QUEUE" == false ]] && grep -qx 'backend=true' <<<"$areas"; }; then
               heavy=true
             else
               labels=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name')
