@@ -833,8 +833,11 @@ test("E2E-010 and E2E-018: peers converge topology while the active tab stays cl
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
+  // A real tab each client starts on: the first window replaces the desktop's New Tab (#1799).
+  const [agentsID] = await openFixtureWindows(runtime, workspace.id, ["agents"]);
   const second = await openPeerPage(browser, runtime);
   try {
+    await expect(osShellSelectors(second).tabOfWindow(agentsID ?? "")).toBeVisible();
     const firstWindow = await openDockApp(appPage, "Tasks", "tasks");
     const tasksID = await windowID(firstWindow);
     const secondWindow = appWindow(second, "tasks");
@@ -879,6 +882,19 @@ test("E2E-010 and E2E-018: peers converge topology while the active tab stays cl
       .toMatchObject({ active_desktop_id: "desktop-default" });
     await expect(activeDesktop(appPage, targetDesktop.id)).toHaveAttribute("data-active", "true");
     await expect(activeDesktop(second, "desktop-default")).toHaveAttribute("data-active", "true");
+    // The target desktop's first real tab replaces its New Tab (#1799) and is where both clients
+    // stand there, so the moved Tasks tab arrives inactive for the peer.
+    await executeWindowManagerCommand(runtime, workspace.id, {
+      commandId: "window.open",
+      payload: {
+        window: {
+          id: "e2e-peer-target-marketplace",
+          app: "marketplace",
+          route: { pathname: "/marketplace", search: {} },
+          desktop_id: targetDesktop.id,
+        },
+      },
+    });
     // Moving the Tasks tab converges for every client; which tab each one shows stays its own.
     await executeWindowManagerCommand(runtime, workspace.id, {
       commandId: "window.move",
@@ -2080,7 +2096,8 @@ test("Tabs-split E2E-003: jump and next/previous shortcuts activate the expected
   });
   await appPage.reload({ waitUntil: "domcontentloaded" });
   const workspace = await prepareShell(appPage, runtime);
-  await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace"]);
+  // The first window replaces the desktop's New Tab (#1799), so four windows make four tabs.
+  await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace", "tasks"]);
   const shell = osShellSelectors(appPage);
   const order = desktopTabIds(
     await windowManagerSnapshot(runtime, workspace.id),
@@ -2185,14 +2202,15 @@ test("Tabs-split E2E-004: dragging a tab two positions persists its order; a pin
 }) => {
   await appPage.setViewportSize({ width: 1440, height: 900 });
   const workspace = await prepareShell(appPage, runtime);
-  await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace"]);
+  // The first window replaces the desktop's New Tab (#1799), so four windows make four tabs.
+  await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace", "tasks"]);
   const shell = osShellSelectors(appPage);
   const order = desktopTabIds(
     await windowManagerSnapshot(runtime, workspace.id),
     "desktop-default"
   );
   expect(order.length).toBeGreaterThanOrEqual(4);
-  // The boot tab leads and is active; drag an inactive fixture tab past two others.
+  // The first fixture tab leads and is active; drag an inactive fixture tab past two others.
   const moved = order[1] ?? "";
   const landing = order[3] ?? "";
   await expect(shell.tabs).toHaveCount(order.length);
@@ -2796,11 +2814,16 @@ test("Tabs-split E2E-012: a v5 layout opens as tabs and the bell's upgrade item 
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const [floatingID, snappedID, minimizedID, splitLeadID, splitMemberID] = await openFixtureWindows(
-    runtime,
-    workspace.id,
-    ["tasks", "agents", "marketplace", "agents", "tasks"]
-  );
+  // The first window replaces the desktop's New Tab (#1799) and stays on it as the snapped left.
+  const [, floatingID, snappedID, minimizedID, splitLeadID, splitMemberID] =
+    await openFixtureWindows(runtime, workspace.id, [
+      "marketplace",
+      "tasks",
+      "agents",
+      "marketplace",
+      "agents",
+      "tasks",
+    ]);
   if (!floatingID || !snappedID || !minimizedID || !splitLeadID || !splitMemberID) {
     throw new Error("v5 fixture needs five windows");
   }
@@ -2830,7 +2853,7 @@ test("Tabs-split E2E-012: a v5 layout opens as tabs and the bell's upgrade item 
     .filter(window => window.desktop_id === "desktop-default" && !fixtureIDs.includes(window.id))
     .map(window => window.id);
   const [snappedLeftID, ...floatingOthers] = others;
-  if (!snappedLeftID) throw new Error("the default desktop keeps its boot window");
+  if (!snappedLeftID) throw new Error("the default desktop keeps its first fixture window");
   const floating = [floatingID, ...floatingOthers];
 
   await appPage.goto("about:blank");
