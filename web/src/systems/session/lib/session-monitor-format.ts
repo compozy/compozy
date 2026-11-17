@@ -16,6 +16,11 @@ export function monitorWatchLabel(monitor: SessionMonitorPayload): string {
     const noun = count === 1 ? "session" : "sessions";
     return monitor.until === "any" ? `Any of ${count} ${noun}` : `All of ${count} ${noun}`;
   }
+  if (monitor.until === "stream") {
+    return monitor.pattern
+      ? `Terminal output lines match ${monitor.pattern}`
+      : "Terminal output stream";
+  }
   if (monitor.until === "match" && monitor.pattern) {
     return `Terminal output matches ${monitor.pattern}`;
   }

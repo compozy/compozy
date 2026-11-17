@@ -25,6 +25,8 @@ type Handle interface {
 	Write(ctx context.Context, actor Actor, input []byte) error
 	Screen(ctx context.Context, options ReadOptions) (*ReadResult, error)
 	Wait(ctx context.Context, condition WaitCondition) (*WaitResult, error)
+	// OpenOutputCursor starts an in-memory read position at the current end of the terminal's output.
+	OpenOutputCursor() *OutputCursor
 	RequestInput(ctx context.Context, actor Actor, request InputRequest) (*InputOutcome, error)
 	AnswerInput(ctx context.Context, actor Actor, id InputRequestID, answer InputAnswer) (*InputOutcome, error)
 	RejectInput(ctx context.Context, actor Actor, id InputRequestID, reason string) error

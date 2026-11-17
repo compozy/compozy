@@ -1,5 +1,30 @@
 # Compozy Change Impact
 
+## Terminal monitor streams (`until: "stream"`) — 2026-11-17
+
+Owner: branch `run/implement-streaming-terminal-monitor-until-stream-round-4-9df42833`, round 4.
+
+- **Native tools.** `compozy__monitor_create` with `kind: "terminal"` accepts `until: "stream"`: each settled
+  batch of new output (1.5 s window, 4 KB per wake) wakes the session; the stream stays armed, ends on exit with
+  the exit code, timeout, cancel, or the 32nd wake (`fire_cap_reached`), and holds at most 2 per session. An
+  optional `pattern` filters lines. Output is read from the ring with an in-memory cursor and never stored; a
+  cursor that falls behind the scrollback reports a gap instead of dropping output silently. A daemon restart
+  re-arms from the current tail with `OutputLost`; no command is rerun. Existing `exit` and `match` monitors are
+  unchanged.
+- **CLI/HTTP/UDS.** No verb, route, or DTO change; `until` is already a plain string.
+- **Extensibility and hooks.** No hook, SDK, or extension-definition change. `compozy__*` IDs unchanged.
+- **Config.** No key change.
+- **User state.** No schema or migration change; the monitor record gains no field, and stream fires persist
+  through the existing monitor record with `fire_count`.
+- **Workspace data isolation.** Streams resolve the terminal in the owner's workspace and profile, as before.
+- **Web.** `session-monitor-format.ts` labels stream monitors "Terminal output stream" or "Terminal output lines
+  match …" instead of "Terminal exits".
+- **Official skill.** `skills/compozy/references/native-tools.md` and `references/terminal.md` document the
+  stream contract; the runtime prompt tells agents to use streams for log-style watches and to cancel rather
+  than poll.
+- **Site.** `packages/site/content/docs/sessions/monitors.mdx` lists the stream variant and its limits.
+- **QA.** `docs/qa/scenarios/RT-session-monitor-wake.md` gains step 4a (log stream).
+
 ## MCP connection popovers, panels and dialogs redesign — 2026-11-16
 
 Owner: branch `feat/mcp-redesign` (plan `.compozy/tasks/mcp-ux-redesign/_slices.md`).

@@ -13,6 +13,10 @@ func (s *Service) run(ctx context.Context, item *entry, created Monitor, spec Sp
 		s.runPullRequest(ctx, item)
 		return
 	}
+	if item.stream != nil {
+		s.runStream(ctx, item, item.stream, false)
+		return
+	}
 	defer func() {
 		if ctx.Err() != nil {
 			s.logInterrupted(item)
@@ -67,36 +71,42 @@ func (s *Service) observe(ctx context.Context, spec Spec, watch Watch) (Outcome,
 	return outcome, true
 }
 
-// deliver admits the wake, retrying transient refusals with capped backoff
-// inside deliveryRetryWindow. The waker's message id is stable per monitor, so
-// a retry after an ambiguous failure cannot queue a second wake.
+// deliver admits the terminal wake of a monitor and settles it by the outcome.
 func (s *Service) deliver(ctx context.Context, item *entry, notification Notification) {
+	s.concludeWake(ctx, item, true, s.admitWithRetry(ctx, notification))
+}
+
+// errRetryExhausted reports that transient wake refusals outlasted deliveryRetryWindow.
+var errRetryExhausted = errors.New("monitor: wake retry window exhausted")
+
+// admitWithRetry admits one wake, retrying transient refusals with capped backoff inside deliveryRetryWindow.
+// The waker's message id is stable per monitor fire, so a retry after an ambiguous failure cannot queue a
+// second wake. It returns nil once admitted, ErrSessionGone for a permanent refusal, errRetryExhausted when
+// the window ends, or ctx's error when the monitor is stopping.
+func (s *Service) admitWithRetry(ctx context.Context, notification Notification) error {
 	mon := notification.Monitor
 	deadline := s.now().Add(deliveryRetryWindow)
 	backoff := deliveryRetryInitial
 	for {
 		err := s.waker.WakeSession(ctx, notification)
 		if err == nil {
-			s.settle(item, StatusFired, "")
-			return
+			return nil
 		}
 		if ctx.Err() != nil {
-			return
+			return ctx.Err()
 		}
 		if errors.Is(err, ErrSessionGone) {
-			s.settle(item, StatusUndelivered, causeSessionGone)
-			return
+			return err
 		}
 		if !s.now().Add(backoff).Before(deadline) {
-			s.settle(item, StatusUndelivered, causeRetryExhausted)
-			return
+			return errRetryExhausted
 		}
 		s.logLifecycle("monitor.wake_deferred", mon, "admission_retry")
 		timer := time.NewTimer(backoff)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return
+			return ctx.Err()
 		case <-timer.C:
 		}
 		backoff = min(backoff*2, deliveryRetryMax)

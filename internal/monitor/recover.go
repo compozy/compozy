@@ -338,6 +338,10 @@ func (s *Service) runRecovered(ctx context.Context, mon Monitor, item *entry) {
 		s.runPullRequest(ctx, item)
 		return
 	}
+	if mon.Kind == KindTerminal && mon.Until == UntilStream {
+		s.runRecoveredStream(ctx, item, mon)
+		return
+	}
 	if mon.Status == StatusDelivering {
 		defer func() {
 			if ctx.Err() != nil {

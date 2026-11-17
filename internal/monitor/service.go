@@ -15,9 +15,11 @@ import (
 // Watch blocks until the watched terminal condition resolves or ctx ends.
 type Watch func(ctx context.Context) (Outcome, error)
 
-// TerminalWatcher resolves a terminal at creation time and returns the blocking watch.
+// TerminalWatcher resolves a terminal at creation time: a watch for exit or match, or an output stream
+// for until=stream.
 type TerminalWatcher interface {
 	WatchTerminal(ctx context.Context, spec Spec) (Watch, error)
+	OpenStream(ctx context.Context, spec Spec) (OutputStream, error)
 }
 
 // Waker admits one fired monitor to its owning session. It returns as soon as
@@ -87,7 +89,9 @@ type entry struct {
 	profileID   string
 	binding     string
 	pullRequest *pullRequestWatch
-	version     int64
+	// stream reads a terminal's output for an until=stream monitor; nil for every other monitor.
+	stream  OutputStream
+	version int64
 	// decided is the version of the latest terminal decision (cancel, fired, undelivered) and saved is
 	// the highest version known durable; the decision is unconfirmed while saved < decided.
 	decided, saved int64
@@ -161,6 +165,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 		}
 	}
 	var watch Watch
+	var stream OutputStream
 	switch normalized.Kind {
 	case KindSession:
 		if s.targets == nil {
@@ -176,7 +181,11 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 		if s.terminals == nil {
 			return Monitor{}, errors.New("monitor: terminal service is unavailable")
 		}
-		watch, err = s.terminals.WatchTerminal(ctx, normalized)
+		if normalized.Until == UntilStream {
+			stream, err = s.terminals.OpenStream(ctx, normalized)
+		} else {
+			watch, err = s.terminals.WatchTerminal(ctx, normalized)
+		}
 		if err != nil {
 			return Monitor{}, err
 		}
@@ -206,6 +215,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 			TargetSessionIDs: normalized.Targets, States: normalized.States, TargetScopes: normalized.TargetScopes,
 		},
 		pullRequest: newPullRequestWatch(normalized, target),
+		stream:      stream,
 		terminalKey: terminalKey(normalized),
 		sessionKey:  sessionKey(normalized),
 		timeout:     normalized.Timeout,
@@ -349,7 +359,7 @@ func (s *Service) admitLocked(item *entry) error {
 	if item.terminalKey != "" && s.perTerminal[item.terminalKey] >= MaxActivePerTerminal {
 		return fmt.Errorf("%w: at most %d per terminal", ErrLimit, MaxActivePerTerminal)
 	}
-	return nil
+	return s.admitStreamLocked(item)
 }
 
 // identicalLocked finds an occupying monitor of the same session that already

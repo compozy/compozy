@@ -70,7 +70,9 @@ func monitorCreateDescriptor() toolspkg.Descriptor {
 			"session's branch, refuses a default branch, and stays armed across wakes until a pull request it saw "+
 			"open ends, timeout_seconds expires, or you cancel it; you decide when delivery is done. kind=terminal watches a "+
 			"terminal_id from compozy__terminal_exec (still_running) or compozy__terminal_open until it exits or its "+
-			"output matches a pattern; kind=timer fires once after "+
+			"output matches a pattern. until=stream instead wakes you with each batch of new output (optional pattern "+
+			"keeps matching lines), stays armed, and ends on exit; use it for log-style watches, not for polling, and "+
+			"cancel it with compozy__monitor_cancel when done. kind=timer fires once after "+
 			"delay_seconds; kind=session watches other sessions authorized by workspace access policy in "+
 			"target_session_ids until any or all of them reach states (one wake with each session's state; failed, "+
 			"stopped, or deleted sessions always count). Sessions with queued input are still working. A target is "+
@@ -116,9 +118,10 @@ const monitorCreateInputSchema = `{
 		"description":{"type":"string","minLength":1,"maxLength":200,
 			"description":"What this monitor waits for; echoed back in the wake."},
 		"terminal_id":` + terminalIDPropertySchema + `,
-		"until":{"type":"string","enum":["exit","match","any","all"],
-			"description":"Terminal: exit (default) or match. Session: all (default) or any."},
-		"pattern":{"type":"string","minLength":1,"maxLength":512,"description":"Go regular expression for until=match."},
+		"until":{"type":"string","enum":["exit","match","stream","any","all"],
+			"description":"Terminal: exit (default), match, or stream. Session: all (default) or any."},
+		"pattern":{"type":"string","minLength":1,"maxLength":512,
+			"description":"Go regular expression: required for until=match; for until=stream it filters lines."},
 		"branch":{"type":"string","minLength":1,"maxLength":255,
 			"description":"pull_request monitors only; defaults to this session's branch. Use owner:branch for a GitHub fork."},
 		"timeout_seconds":{"type":"integer","minimum":1,"maximum":86400,

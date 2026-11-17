@@ -48,10 +48,12 @@ const (
 	StatusInterrupted Status = "interrupted"
 )
 
-// Terminal wait conditions accepted by terminal monitors.
+// Terminal wait conditions accepted by terminal monitors. A stream wakes on each batch of new output
+// until the terminal exits, instead of once.
 const (
-	UntilExit  = "exit"
-	UntilMatch = "match"
+	UntilExit   = "exit"
+	UntilMatch  = "match"
+	UntilStream = "stream"
 )
 
 // Session wait conditions accepted by session monitors.
@@ -82,6 +84,8 @@ const (
 	ReasonPullRequestClosed  = "pull_request_closed"
 	ReasonForgeUnavailable   = "forge_unavailable"
 	ReasonFireCapReached     = "fire_cap_reached"
+	// ReasonStreamOutput marks a stream wake that carries new terminal output; the stream stays armed.
+	ReasonStreamOutput = "stream_output"
 )
 
 // Bounds keep monitors cheap and prevent runaway wake loops.
@@ -117,6 +121,11 @@ const (
 	CoalescedWakeKey      = "monitor"
 	MaxCoalescedWakes     = 64
 	MaxCoalescedWakeBytes = 64 << 10
+	// A stream wakes at most MaxStreamFires times, the last one final; MaxStreamsPerSession caps streams
+	// within MaxActivePerSession. StreamSettle is how long a batch collects output before it wakes.
+	MaxStreamFires       = 32
+	MaxStreamsPerSession = 2
+	StreamSettle         = 1500 * time.Millisecond
 )
 
 var (
@@ -193,6 +202,8 @@ type Outcome struct {
 	ExitCode *int
 	// Output is untrusted terminal text; empty for timers.
 	Output string
+	// OutputGap counts retained output units a stream fell behind before Output; they were dropped, not shown.
+	OutputGap uint64
 	// OutputLost marks a wake re-delivered after a restart: the terminal output it carried was not retained.
 	OutputLost bool
 	// Targets is each target's state for a session monitor.
@@ -275,7 +286,7 @@ func normalizeTerminalSpec(spec Spec) (Spec, error) {
 	switch spec.Until {
 	case UntilExit:
 		if spec.Pattern != "" {
-			return Spec{}, invalid("pattern requires until=match")
+			return Spec{}, invalid("pattern requires until=match or until=stream")
 		}
 	case UntilMatch:
 		if strings.TrimSpace(spec.Pattern) == "" || len([]rune(spec.Pattern)) > MaxPatternRunes {
@@ -284,8 +295,17 @@ func normalizeTerminalSpec(spec Spec) (Spec, error) {
 		if _, err := regexp.Compile(spec.Pattern); err != nil {
 			return Spec{}, invalid("pattern is not a valid regular expression")
 		}
+	case UntilStream:
+		// A stream's pattern is optional; when set it filters lines under the same limits as a match.
+		if spec.Pattern != "" &&
+			(strings.TrimSpace(spec.Pattern) == "" || len([]rune(spec.Pattern)) > MaxPatternRunes) {
+			return Spec{}, invalid("until=stream pattern must be 1 to 512 characters")
+		}
+		if _, err := regexp.Compile(spec.Pattern); err != nil {
+			return Spec{}, invalid("pattern is not a valid regular expression")
+		}
 	default:
-		return Spec{}, invalid("until must be exit or match")
+		return Spec{}, invalid("until must be exit, match or stream")
 	}
 	if spec.Timeout == 0 {
 		spec.Timeout = DefaultTerminalTimeout

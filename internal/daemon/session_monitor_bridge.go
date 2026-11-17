@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/core"
@@ -200,20 +201,25 @@ func (o monitorSessionOwners) Resume(ctx context.Context, sessionID, binding str
 var _ sessionLifecycleObserver = monitorLifecycleObserver{}
 
 // monitorTerminalWatcher resolves a terminal in the monitor owner's profile and
-// waits on it through the same Wait path compozy__terminal_wait uses.
+// waits on it through the same Wait path compozy__terminal_wait uses, or reads
+// its output for a stream.
 type monitorTerminalWatcher struct {
 	terminals func() terminalpkg.Manager
+}
+
+func (w *monitorTerminalWatcher) handle(ctx context.Context, spec monitorpkg.Spec) (terminalpkg.Handle, error) {
+	manager := w.terminals()
+	if manager == nil {
+		return nil, fmt.Errorf("terminal service is unavailable: %w", terminalpkg.ErrServiceUnavailable)
+	}
+	return manager.Handle(ctx, spec.WorkspaceID, spec.ProfileID, terminalpkg.ID(spec.TerminalID))
 }
 
 func (w *monitorTerminalWatcher) WatchTerminal(
 	ctx context.Context,
 	spec monitorpkg.Spec,
 ) (monitorpkg.Watch, error) {
-	manager := w.terminals()
-	if manager == nil {
-		return nil, fmt.Errorf("terminal service is unavailable: %w", terminalpkg.ErrServiceUnavailable)
-	}
-	handle, err := manager.Handle(ctx, spec.WorkspaceID, spec.ProfileID, terminalpkg.ID(spec.TerminalID))
+	handle, err := w.handle(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -230,6 +236,44 @@ func (w *monitorTerminalWatcher) WatchTerminal(
 		}
 		return monitorpkg.Outcome{Reason: result.Reason, ExitCode: result.ExitCode, Output: result.Screen}, nil
 	}, nil
+}
+
+// OpenStream starts a stream at the terminal's current tail: only output printed after the monitor is
+// created wakes it.
+func (w *monitorTerminalWatcher) OpenStream(
+	ctx context.Context,
+	spec monitorpkg.Spec,
+) (monitorpkg.OutputStream, error) {
+	handle, err := w.handle(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	return monitorOutputStream{cursor: handle.OpenOutputCursor()}, nil
+}
+
+// outputCursorReader is the terminal cursor a stream reads; the cursor lives in memory only.
+type outputCursorReader interface {
+	Next(ctx context.Context, settle time.Duration) terminalpkg.OutputBatch
+}
+
+// monitorOutputStream adapts a terminal output cursor to a stream monitor.
+type monitorOutputStream struct {
+	cursor outputCursorReader
+}
+
+func (s monitorOutputStream) Next(ctx context.Context, settle time.Duration) monitorpkg.StreamBatch {
+	batch := s.cursor.Next(ctx, settle)
+	return monitorpkg.StreamBatch{
+		Text: batch.Text, Gap: batch.Lost, Exited: batch.Exit != nil,
+		ExitCode: exitCodeOf(batch.Exit), Closed: batch.Closed,
+	}
+}
+
+func exitCodeOf(exit *terminalpkg.Exit) *int {
+	if exit == nil {
+		return nil
+	}
+	return exit.Code
 }
 
 func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpkg.Service, error) {

@@ -173,6 +173,36 @@ describe("MonitorComposerControl", () => {
     );
   });
 
+  it("Should describe a stream monitor as terminal output rather than an exit", async () => {
+    const user = userEvent.setup();
+    renderControl({
+      active: 2,
+      monitors: [
+        monitor({
+          monitor_id: "mon-3",
+          kind: "terminal",
+          description: "Tail the deploy log",
+          until: "stream",
+        }),
+        monitor({
+          monitor_id: "mon-4",
+          kind: "terminal",
+          description: "Tail the error lines",
+          until: "stream",
+          pattern: "ERROR",
+        }),
+      ],
+    });
+    await user.click(screen.getByRole("button", { name: "Monitors, 2 active" }));
+
+    expect(screen.getByTestId("composer-monitor-mon-3")).toHaveTextContent(
+      "Terminal output stream"
+    );
+    expect(screen.getByTestId("composer-monitor-mon-4")).toHaveTextContent(
+      "Terminal output lines match ERROR"
+    );
+  });
+
   it("Should keep cached monitors visible and offer a retry when a refresh fails", async () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();

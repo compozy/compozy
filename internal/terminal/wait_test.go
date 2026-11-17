@@ -271,3 +271,106 @@ func TestWaitEngineContract(t *testing.T) {
 		}
 	})
 }
+
+func TestOutputCursorContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should observe only output printed after the cursor opens", func(t *testing.T) {
+		t.Parallel()
+		s := newOutputTestSession(1 << 10)
+		appendOutputTest(s, "before\n")
+		cursor := s.OpenOutputCursor()
+		appendOutputTest(s, "after\n")
+		batch := cursor.Next(t.Context(), 0)
+		if batch.Text != "after\n" || batch.Lost != 0 || batch.Exit != nil || batch.Closed {
+			t.Fatalf("Next() = %#v, want only the output printed after open", batch)
+		}
+		canceled, cancel := context.WithCancel(t.Context())
+		cancel()
+		if again := cursor.Next(canceled, 0); again.Text != "" || again.Lost != 0 {
+			t.Fatalf("Next() after drain = %#v, want an empty batch on ctx end", again)
+		}
+	})
+
+	t.Run("Should report a lagging cursor as a gap and never replay dropped output", func(t *testing.T) {
+		t.Parallel()
+		s := newOutputTestSession(16)
+		cursor := s.OpenOutputCursor()
+		appendOutputTest(s, "0123456789abcdef-tail")
+		oldest, _ := s.ring.Bounds()
+		batch := cursor.Next(t.Context(), 0)
+		if oldest == 0 || batch.Lost != oldest {
+			t.Fatalf("Next().Lost = %d, want the %d units the scrollback dropped", batch.Lost, oldest)
+		}
+		if batch.Text != "56789abcdef-tail" {
+			t.Fatalf("Next().Text = %q, want only the retained suffix", batch.Text)
+		}
+		canceled, cancel := context.WithCancel(t.Context())
+		cancel()
+		if again := cursor.Next(canceled, 0); again.Lost != 0 || again.Text != "" {
+			t.Fatalf("second Next() = %#v, want the gap reported once", again)
+		}
+	})
+
+	t.Run("Should batch output printed inside the settle window into one read", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s := newOutputTestSession(1 << 10)
+			cursor := s.OpenOutputCursor()
+			done := make(chan OutputBatch, 1)
+			go func() { done <- cursor.Next(t.Context(), 1500*time.Millisecond) }()
+			appendOutputTest(s, "first\n")
+			time.Sleep(500 * time.Millisecond)
+			appendOutputTest(s, "second\n")
+			time.Sleep(999 * time.Millisecond)
+			synctest.Wait()
+			select {
+			case batch := <-done:
+				t.Fatalf("Next() returned before the window closed: %#v", batch)
+			default:
+			}
+			time.Sleep(time.Millisecond)
+			synctest.Wait()
+			if batch := <-done; batch.Text != "first\nsecond\n" {
+				t.Fatalf("Next() = %#v, want one batch holding both writes", batch)
+			}
+		})
+	})
+
+	t.Run("Should return the exit with the output printed before it", func(t *testing.T) {
+		t.Parallel()
+		s := newOutputTestSession(1 << 10)
+		cursor := s.OpenOutputCursor()
+		appendOutputTest(s, "last words\n")
+		code := 3
+		s.mu.Lock()
+		s.exit = &Exit{Cause: "exited", Code: &code}
+		s.mu.Unlock()
+		close(s.done)
+		batch := cursor.Next(t.Context(), time.Hour)
+		if batch.Text != "last words\n" || batch.Exit == nil || batch.Exit.Code == nil || *batch.Exit.Code != 3 {
+			t.Fatalf("Next() = %#v, want the remaining output with exit code 3", batch)
+		}
+	})
+
+	t.Run("Should report a session that closed without an exit record", func(t *testing.T) {
+		t.Parallel()
+		s := newOutputTestSession(1 << 10)
+		cursor := s.OpenOutputCursor()
+		close(s.done)
+		if batch := cursor.Next(t.Context(), time.Hour); !batch.Closed || batch.Exit != nil {
+			t.Fatalf("Next() = %#v, want Closed without an exit", batch)
+		}
+	})
+}
+
+func newOutputTestSession(capacity int) *session {
+	return &session{ring: NewRing(capacity), done: make(chan struct{}), revisionReady: make(chan struct{})}
+}
+
+func appendOutputTest(s *session, text string) {
+	s.ring.Append([]byte(text))
+	s.mu.Lock()
+	s.bumpRevisionLocked()
+	s.mu.Unlock()
+}

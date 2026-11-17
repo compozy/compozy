@@ -982,6 +982,7 @@ func (h *terminalNativeHandleStub) Screen(context.Context, terminalpkg.ReadOptio
 func (h *terminalNativeHandleStub) Wait(context.Context, terminalpkg.WaitCondition) (*terminalpkg.WaitResult, error) {
 	return h.wait, nil
 }
+func (*terminalNativeHandleStub) OpenOutputCursor() *terminalpkg.OutputCursor { return nil }
 func (h *terminalNativeHandleStub) RequestInput(
 	context.Context,
 	terminalpkg.Actor,

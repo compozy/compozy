@@ -175,9 +175,14 @@ Return pending work and any terminal ID to the parent for monitoring and resumpt
 CompozyOS child session. Parent-session monitors are unchanged.
 Provider-internal background shells, monitors, scheduled wakeups, and "I will report back" promises
 cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `terminal_exec` with
-`still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
-regular expression `pattern`; `timeout_seconds` defaults to 1,800, caps at 21,600, and the monitor
-still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400).
+`still_running`, or `terminal_open`) until `until="exit"` (default), `until="match"` with a Go
+regular expression `pattern`, or `until="stream"`. A stream wakes you with each batch of new output
+(about 1.5 s of settled output per wake, at most 4 KB shown), stays armed across wakes, and ends on exit
+with the exit code, at 32 wakes (`fire_cap_reached`), on timeout, or on cancel. An optional `pattern`
+keeps only matching lines. Use a stream for log-style watches; do not poll `terminal_read` in a loop, and
+cancel the stream when it is no longer needed. At most 2 streams per session. `timeout_seconds` defaults
+to 1,800, caps at 21,600, and the monitor still wakes you on timeout. `kind="timer"` fires once after
+`delay_seconds` (5 to 86,400).
 `kind="session"` watches 1 to 32 other sessions authorized by workspace access policy in `target_session_ids` until `until="all"`
 (default) or `until="any"` of them reach `states`, then wakes you once with each target's state. `states`
 defaults to `idle`, `waiting-for-input`, `waiting-for-auth`, `needs-attention`, `stopped`, and `failed`,

@@ -18,6 +18,7 @@ import (
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -963,3 +964,42 @@ func (m *monitorStoreStub) LoadMonitors(context.Context) ([]monitorpkg.Record, e
 }
 
 func (m *monitorStoreStub) PruneFinishedMonitors(context.Context, time.Time) error { return nil }
+
+func TestMonitorOutputStream(t *testing.T) {
+	t.Parallel()
+	t.Run("Should map a terminal output batch onto the monitor stream batch", func(t *testing.T) {
+		t.Parallel()
+		code := 4
+		cursor := &scriptedOutputCursor{batch: terminalpkg.OutputBatch{
+			Text: "boom\n", Lost: 7, Exit: &terminalpkg.Exit{Cause: "exited", Code: &code},
+		}}
+		got := monitorOutputStream{cursor: cursor}.Next(t.Context(), monitorpkg.StreamSettle)
+		if got.Text != "boom\n" || got.Gap != 7 || !got.Exited || got.ExitCode == nil || *got.ExitCode != 4 ||
+			got.Closed {
+			t.Fatalf("Next() = %+v, want the batch with its gap and exit code", got)
+		}
+		if cursor.settle != monitorpkg.StreamSettle {
+			t.Fatalf("settle = %v, want the monitor's window", cursor.settle)
+		}
+	})
+	t.Run("Should map a closed terminal without an exit code", func(t *testing.T) {
+		t.Parallel()
+		got := monitorOutputStream{cursor: &scriptedOutputCursor{batch: terminalpkg.OutputBatch{Closed: true}}}.Next(
+			t.Context(), 0,
+		)
+		if !got.Closed || got.Exited || got.ExitCode != nil {
+			t.Fatalf("Next() = %+v, want Closed without an exit", got)
+		}
+	})
+}
+
+// scriptedOutputCursor returns one fixed batch and records the settle window it was read with.
+type scriptedOutputCursor struct {
+	batch  terminalpkg.OutputBatch
+	settle time.Duration
+}
+
+func (c *scriptedOutputCursor) Next(_ context.Context, settle time.Duration) terminalpkg.OutputBatch {
+	c.settle = settle
+	return c.batch
+}

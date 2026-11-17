@@ -560,3 +560,7 @@ func terminalReadTransportFrame(t *testing.T, connection *websocket.Conn) termin
 	}
 	return frame
 }
+
+func (terminalHandleStub) OpenOutputCursor() *terminalpkg.OutputCursor { return nil }
+
+func (*terminalAgentHandleStub) OpenOutputCursor() *terminalpkg.OutputCursor { return nil }

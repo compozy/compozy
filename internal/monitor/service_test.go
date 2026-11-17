@@ -136,6 +136,10 @@ func (c *channelTerminals) WatchTerminal(context.Context, Spec) (Watch, error) {
 	}, nil
 }
 
+func (c *channelTerminals) OpenStream(context.Context, Spec) (OutputStream, error) {
+	return nil, errors.New("monitor test: channelTerminals resolves watches only")
+}
+
 func terminalSpec(session string) Spec {
 	return Spec{
 		WorkspaceID: "ws-1", ProfileID: "prof-1", SessionID: session, Kind: KindTerminal,
@@ -1275,6 +1279,10 @@ func (e *expiringTerminals) resolutions() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.count
+}
+
+func (e *expiringTerminals) OpenStream(context.Context, Spec) (OutputStream, error) {
+	return nil, errors.New("monitor test: expiringTerminals resolves watches only")
 }
 
 func (e *expiringTerminals) WatchTerminal(ctx context.Context, spec Spec) (Watch, error) {
@@ -4189,6 +4197,402 @@ func TestServiceSessionMonitorsAcrossRestart(t *testing.T) {
 				t.Fatal(err)
 			}
 			wokenTargets(t, waker, 1)
+		})
+	})
+}
+
+// scriptedStream is an OutputStream the test feeds one batch at a time. It records the settle window each
+// read asked for.
+type scriptedStream struct {
+	batches chan StreamBatch
+	mu      sync.Mutex
+	settles []time.Duration
+}
+
+func (s *scriptedStream) Next(ctx context.Context, settle time.Duration) StreamBatch {
+	s.mu.Lock()
+	s.settles = append(s.settles, settle)
+	s.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		return StreamBatch{}
+	case batch := <-s.batches:
+		return batch
+	}
+}
+
+// scriptedStreams resolves each stream monitor's terminal to a new scriptedStream.
+type scriptedStreams struct {
+	mu      sync.Mutex
+	err     error
+	streams []*scriptedStream
+}
+
+func (c *scriptedStreams) WatchTerminal(context.Context, Spec) (Watch, error) {
+	return nil, errors.New("monitor test: scriptedStreams resolves streams only")
+}
+
+func (c *scriptedStreams) OpenStream(context.Context, Spec) (OutputStream, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.err != nil {
+		return nil, c.err
+	}
+	stream := &scriptedStream{batches: make(chan StreamBatch, 64)}
+	c.streams = append(c.streams, stream)
+	return stream, nil
+}
+
+func (c *scriptedStreams) latest() *scriptedStream {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.streams[len(c.streams)-1]
+}
+
+func (c *scriptedStreams) opened() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.streams)
+}
+
+func streamSpec(session, terminalID string) Spec {
+	spec := terminalSpec(session)
+	spec.TerminalID = terminalID
+	spec.Until = UntilStream
+	spec.Description = "watch the build log " + terminalID
+	return spec
+}
+
+func TestServiceStreamsTerminalOutput(t *testing.T) {
+	t.Run("Should wake once per settled batch and stay armed", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			created, err := service.Create(t.Context(), streamSpec("sess-s", "term-0123456789ab"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			stream := terminals.latest()
+			stream.batches <- StreamBatch{Text: "one\n"}
+			synctest.Wait()
+			stream.batches <- StreamBatch{Text: "two\n"}
+			synctest.Wait()
+			items := waker.notifications()
+			if len(items) != 2 || items[0].Outcome.Output != "one\n" || items[1].Outcome.Output != "two\n" {
+				t.Fatalf("notifications = %+v, want one wake per batch", items)
+			}
+			for _, item := range items {
+				if item.Outcome.Reason != ReasonStreamOutput || item.Monitor.Until != UntilStream {
+					t.Fatalf("wake = %+v, want a stream_output wake", item)
+				}
+			}
+			if items[0].WakeMessageID() == items[1].WakeMessageID() {
+				t.Fatal("each stream fire needs its own wake message id")
+			}
+			got := onlyMonitor(t, service, "sess-s")
+			if got.ID != created.ID || got.Status != StatusActive || got.FireCount != 2 {
+				t.Fatalf("monitor = %+v, want the same armed stream after two fires", got)
+			}
+			if stream.settles[0] != StreamSettle {
+				t.Fatalf("settle window = %v, want %v", stream.settles[0], StreamSettle)
+			}
+			message := items[0].Message()
+			if !strings.Contains(message, "stays armed") || !strings.Contains(message, "compozy__monitor_cancel") {
+				t.Fatalf("stream wake does not tell the agent to stop polling:\n%s", message)
+			}
+		})
+	})
+
+	t.Run("Should wake only for matching lines and hold an unfinished line for its newline", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			spec := streamSpec("sess-p", "term-0123456789ab")
+			spec.Pattern = "ERROR"
+			if _, err := service.Create(t.Context(), spec); err != nil {
+				t.Fatal(err)
+			}
+			stream := terminals.latest()
+			stream.batches <- StreamBatch{Text: "info start\nERR"}
+			synctest.Wait()
+			if n := len(waker.notifications()); n != 0 {
+				t.Fatalf("a batch with no complete matching line woke %d times", n)
+			}
+			stream.batches <- StreamBatch{Text: "OR disk full\nwarn\n"}
+			synctest.Wait()
+			items := waker.notifications()
+			if len(items) != 1 || items[0].Outcome.Output != "ERROR disk full" {
+				t.Fatalf("notifications = %+v, want only the matching line, once", items)
+			}
+		})
+	})
+
+	t.Run("Should report a scrollback gap explicitly instead of dropping it silently", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			spec := streamSpec("sess-g", "term-0123456789ab")
+			spec.Pattern = "ERROR"
+			if _, err := service.Create(t.Context(), spec); err != nil {
+				t.Fatal(err)
+			}
+			terminals.latest().batches <- StreamBatch{Text: "noise\n", Gap: 4096}
+			synctest.Wait()
+			items := waker.notifications()
+			if len(items) != 1 || items[0].Outcome.OutputGap != 4096 || items[0].Outcome.Output != "" {
+				t.Fatalf("notifications = %+v, want a gap-only wake", items)
+			}
+			if !strings.Contains(items[0].Message(), "about 4096 output bytes") {
+				t.Fatalf("gap wake does not name the dropped output:\n%s", items[0].Message())
+			}
+		})
+	})
+
+	t.Run("Should cap each wake at the tail of its batch", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			if _, err := service.Create(t.Context(), streamSpec("sess-c4", "term-0123456789ab")); err != nil {
+				t.Fatal(err)
+			}
+			terminals.latest().batches <- StreamBatch{Text: strings.Repeat("Q", 6<<10) + "TAIL\n"}
+			synctest.Wait()
+			items := waker.notifications()
+			if len(items) != 1 {
+				t.Fatalf("notifications = %d, want 1", len(items))
+			}
+			message := items[0].Message()
+			if !strings.Contains(message, "[... earlier output truncated ...]") || !strings.Contains(message, "TAIL") {
+				t.Fatalf("wake did not keep the tail of the batch:\n%.200s", message)
+			}
+			if filler := strings.Count(message, "Q"); filler > maxOutputBytes {
+				t.Fatalf("wake carries %d filler bytes, want at most %d", filler, maxOutputBytes)
+			}
+		})
+	})
+
+	t.Run("Should stop at the fire cap with a final fire_cap_reached wake", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			created, err := service.Create(t.Context(), streamSpec("sess-cap", "term-0123456789ab"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			stream := terminals.latest()
+			for line := 1; line <= MaxStreamFires; line++ {
+				stream.batches <- StreamBatch{Text: fmt.Sprintf("line %d\n", line)}
+				synctest.Wait()
+			}
+			items := waker.notifications()
+			if len(items) != MaxStreamFires {
+				t.Fatalf("wakes = %d, want the fire cap of %d", len(items), MaxStreamFires)
+			}
+			if last := items[len(items)-1].Outcome.Reason; last != ReasonFireCapReached {
+				t.Fatalf("final reason = %q, want %q", last, ReasonFireCapReached)
+			}
+			if got := onlyMonitor(t, service, "sess-cap"); got.ID != created.ID || got.Status != StatusFired {
+				t.Fatalf("monitor = %+v, want fired at the cap", got)
+			}
+			stream.batches <- StreamBatch{Text: "after the cap\n"}
+			synctest.Wait()
+			if n := len(waker.notifications()); n != MaxStreamFires {
+				t.Fatalf("a capped stream woke again: %d wakes", n)
+			}
+		})
+	})
+
+	t.Run("Should cap streams per session at two and keep other monitors unaffected", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			for _, terminalID := range []string{"term-aaaaaaaaaaaa", "term-bbbbbbbbbbbb"} {
+				if _, err := service.Create(t.Context(), streamSpec("sess-two", terminalID)); err != nil {
+					t.Fatalf("Create(stream %s) error = %v", terminalID, err)
+				}
+			}
+			_, err := service.Create(t.Context(), streamSpec("sess-two", "term-cccccccccccc"))
+			if !errors.Is(err, ErrLimit) {
+				t.Fatalf("third stream error = %v, want ErrLimit", err)
+			}
+			if _, err := service.Create(t.Context(), timerSpec("sess-two")); err != nil {
+				t.Fatalf("timer after the stream cap error = %v", err)
+			}
+			if _, err := service.Create(t.Context(), streamSpec("sess-other", "term-cccccccccccc")); err != nil {
+				t.Fatalf("another session's stream error = %v", err)
+			}
+		})
+	})
+
+	t.Run("Should end with an exit wake carrying the remaining output and exit code", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			if _, err := service.Create(t.Context(), streamSpec("sess-x", "term-0123456789ab")); err != nil {
+				t.Fatal(err)
+			}
+			code := 3
+			terminals.latest().batches <- StreamBatch{Text: "last line\n", Exited: true, ExitCode: &code}
+			synctest.Wait()
+			items := waker.notifications()
+			if len(items) != 1 || items[0].Outcome.Reason != ReasonExit || items[0].Outcome.ExitCode == nil ||
+				*items[0].Outcome.ExitCode != 3 || items[0].Outcome.Output != "last line\n" {
+				t.Fatalf("notifications = %+v, want one exit wake with code 3", items)
+			}
+			if got := onlyMonitor(t, service, "sess-x"); got.Status != StatusFired {
+				t.Fatalf("monitor status = %s, want fired after exit", got.Status)
+			}
+		})
+	})
+
+	t.Run("Should end at its timeout with a final timeout wake", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			spec := streamSpec("sess-t", "term-0123456789ab")
+			spec.Timeout = time.Minute
+			if _, err := service.Create(t.Context(), spec); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(2 * time.Minute)
+			synctest.Wait()
+			items := waker.notifications()
+			if len(items) != 1 || items[0].Outcome.Reason != ReasonTimeout {
+				t.Fatalf("notifications = %+v, want one timeout wake", items)
+			}
+			if got := onlyMonitor(t, service, "sess-t"); got.Status != StatusFired {
+				t.Fatalf("monitor status = %s, want fired at timeout", got.Status)
+			}
+		})
+	})
+
+	t.Run("Should return the existing stream for an identical request", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			first, err := service.Create(t.Context(), streamSpec("sess-i", "term-0123456789ab"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			second, err := service.Create(t.Context(), streamSpec("sess-i", "term-0123456789ab"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !second.Reused || second.ID != first.ID || terminals.opened() != 1 {
+				t.Fatalf("second = %+v opened=%d, want the existing stream without a second open",
+					second, terminals.opened())
+			}
+		})
+	})
+
+	t.Run("Should refuse invalid patterns and terminals that cannot be opened", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			bad := streamSpec("sess-v", "term-0123456789ab")
+			bad.Pattern = "(["
+			if _, err := service.Create(t.Context(), bad); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("invalid pattern error = %v, want ErrInvalid", err)
+			}
+			terminals.err = errors.New("terminal is gone")
+			if _, err := service.Create(t.Context(), streamSpec("sess-v", "term-0123456789ab")); err == nil {
+				t.Fatal("Create() succeeded for a terminal that cannot be opened")
+			}
+			if listed := service.List("sess-v"); len(listed) != 0 {
+				t.Fatalf("List() = %+v, want no registered monitor", listed)
+			}
+		})
+	})
+
+	t.Run("Should keep terminal output out of the durable record", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, owners := newMemoryStore(), &fakeOwners{}
+			terminals, waker := &scriptedStreams{}, &recordingWaker{}
+			service := newDurableService(t, store, owners, terminals, waker)
+			if _, err := service.Create(t.Context(), streamSpec("sess-d", "term-0123456789ab")); err != nil {
+				t.Fatal(err)
+			}
+			terminals.latest().batches <- StreamBatch{Text: "CANARY-OUTPUT\n"}
+			synctest.Wait()
+			records, err := store.LoadMonitors(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := json.Marshal(records)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "CANARY-OUTPUT") {
+				t.Fatalf("durable record holds terminal output: %s", data)
+			}
+			if len(waker.notifications()) != 1 {
+				t.Fatal("the batch was not woken")
+			}
+		})
+	})
+
+	t.Run("Should re-arm from the terminal tail after a restart and flag the lost output", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, owners, waker := newMemoryStore(), &fakeOwners{}, &recordingWaker{}
+			before := &scriptedStreams{}
+			first := newDurableService(t, store, owners, before, waker)
+			created, err := first.Create(t.Context(), streamSpec("sess-rs", "term-0123456789ab"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			before.latest().batches <- StreamBatch{Text: "before\n"}
+			synctest.Wait()
+			after := &scriptedStreams{}
+			restarted := restartService(t, first, store, owners, after, waker, "sess-rs")
+			synctest.Wait()
+			after.latest().batches <- StreamBatch{Text: "after\n"}
+			synctest.Wait()
+			items := waker.notifications()
+			if len(items) != 2 || items[0].Outcome.OutputLost || items[1].Outcome.Output != "after\n" ||
+				!items[1].Outcome.OutputLost {
+				t.Fatalf("notifications = %+v, want the post-restart wake flagged OutputLost", items)
+			}
+			if got := onlyMonitor(t, restarted, "sess-rs"); got.ID != created.ID || got.Status != StatusActive {
+				t.Fatalf("recovered monitor = %+v, want the same armed stream", got)
+			}
+		})
+	})
+
+	t.Run("Should admit a delivering stream wake again under its own id with output lost", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, owners := newMemoryStore(), &fakeOwners{}
+			waker := &recordingWaker{errs: []error{errors.New("admission queue is full")}}
+			before := &scriptedStreams{}
+			first := newDurableService(t, store, owners, before, waker)
+			created, err := first.Create(t.Context(), streamSpec("sess-dl", "term-0123456789ab"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			before.latest().batches <- StreamBatch{Text: "pending\n"}
+			synctest.Wait()
+			if got := store.status(created.ID); got != StatusDelivering {
+				t.Fatalf("durable status = %s, want delivering before the restart", got)
+			}
+			after := &scriptedStreams{}
+			restarted := restartService(t, first, store, owners, after, waker, "sess-dl")
+			synctest.Wait()
+			after.latest().batches <- StreamBatch{Text: "next\n"}
+			synctest.Wait()
+			items := waker.notifications()
+			if len(items) != 3 {
+				t.Fatalf("notifications = %d, want the refused fire, its re-admission and the next wake", len(items))
+			}
+			redelivered := items[1]
+			if redelivered.WakeMessageID() != items[0].WakeMessageID() || !redelivered.Outcome.OutputLost ||
+				redelivered.Outcome.Output != "" {
+				t.Fatalf("re-admitted wake = %+v, want the same id with output lost and no rerun", redelivered)
+			}
+			if items[2].Outcome.Output != "next\n" || items[2].Outcome.OutputLost {
+				t.Fatalf("wake after recovery = %+v, want the new output only", items[2].Outcome)
+			}
+			if got := onlyMonitor(t, restarted, "sess-dl"); got.ID != created.ID || got.Status != StatusActive {
+				t.Fatalf("recovered monitor = %+v, want the same armed stream", got)
+			}
 		})
 	})
 }

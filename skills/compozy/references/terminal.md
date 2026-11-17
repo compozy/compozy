@@ -117,8 +117,9 @@ For other work, run the command with `exec`, with the executable in `command` an
 ```
 
 When the result reports `still_running`, register `compozy__monitor_create` with `kind="terminal"` on
-the returned `terminal_id` (`until="exit"`, or `until="match"` for a log line) and keep working on steps
-that do not depend on it. For a plain delay, use `kind="timer"` instead. End your turn only when every
+the returned `terminal_id` (`until="exit"`, or `until="match"` for a log line, or `until="stream"` to be
+woken with each batch of new output) and keep working on steps that do not depend on it. For a plain
+delay, use `kind="timer"` instead. End your turn only when every
 remaining step waits on a registered monitor or subagent; the daemon wakes this session when the
 monitor fires. If the exit code matters, read it from the wake's status line.
 

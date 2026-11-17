@@ -285,7 +285,7 @@ func (s *Service) resolvePullRequest(ctx context.Context, spec Spec) (PullReques
 // WakeMessageID is the stable queue identity of this wake. A repeating monitor needs one per fire, or the
 // ledger would swallow every wake after the first as already admitted.
 func (n Notification) WakeMessageID() string {
-	if n.Monitor.Kind == KindPullRequest {
+	if n.Monitor.Kind == KindPullRequest || n.Monitor.Until == UntilStream {
 		return "monitor:" + n.Monitor.ID + ":" + strconv.Itoa(n.Monitor.FireCount)
 	}
 	return "monitor:" + n.Monitor.ID

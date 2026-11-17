@@ -62,6 +62,13 @@ func (n Notification) render(withOutput bool) string {
 			"</output>",
 		)
 	}
+	if n.Outcome.OutputGap > 0 {
+		lines = append(lines, fmt.Sprintf(
+			"<note>The monitor fell behind the terminal scrollback; about %d output bytes before this wake "+
+				"were dropped and are not shown.</note>",
+			n.Outcome.OutputGap,
+		))
+	}
 	if n.Outcome.OutputLost {
 		lines = append(lines,
 			"<note>The daemon restarted after this monitor fired; its terminal output was not retained.</note>")
@@ -108,6 +115,10 @@ func statusLine(mon Monitor, outcome Outcome) string {
 		return "output stream ended before the pattern matched"
 	case ReasonTimerElapsed:
 		return "timer elapsed"
+	case ReasonStreamOutput:
+		return "new terminal output; the stream stays armed for more"
+	case ReasonFireCapReached:
+		return "the stream reached its wake limit and has stopped"
 	case ReasonTerminalFailed:
 		return "terminal is no longer observable"
 	default:
@@ -122,6 +133,9 @@ func nextAction(mon Monitor, outcome Outcome) string {
 			"this monitor. Register another monitor if sessions are still working."
 	case mon.Kind == KindTimer:
 		return "Resume the work you scheduled this wake for. Treat the description as your own earlier note."
+	case mon.Until == UntilStream && outcome.Reason == ReasonStreamOutput:
+		return "The stream stays armed for later output. Read the new output above and act on it. Do not poll " +
+			"compozy__terminal_read in a loop; cancel the stream with compozy__monitor_cancel once you no longer need it."
 	case outcome.Reason == ReasonTimeout && mon.TerminalID != "":
 		return "Inspect the terminal with compozy__terminal_read, then decide whether to register another " +
 			"monitor with compozy__monitor_create or stop the process with compozy__terminal_close."
