@@ -129,13 +129,23 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 	})
 
-	t.Run(
-		"Should discover callable encoded names with unrelated legacy tools and report skipped names",
-		func(t *testing.T) {
+	for _, version := range []string{protocolVersionModern, protocolVersionLegacy} {
+		t.Run("Should discover encoded tools and preserve callable protocol names over "+version, func(t *testing.T) {
 			t.Parallel()
 
-			server := newFakeSDKServer(nil)
-			for _, name := range []string{"_dd_gff", "dd_gff", "Search.Read", "search_read", strings.Repeat("t", 64)} {
+			server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "names", Version: "1.0.0"}, &mcpsdk.ServerOptions{
+				SupportedProtocolVersions: []string{version},
+			})
+			fixtureNames := []string{
+				"_dd_gff",
+				"dd_gff",
+				"echo",
+				" spaced_tool ",
+				"Search.Read",
+				"search_read",
+				strings.Repeat("t", 64),
+			}
+			for _, name := range fixtureNames {
 				server.AddTool(&mcpsdk.Tool{
 					Name:        name,
 					InputSchema: json.RawMessage(`{"type":"object"}`),
@@ -152,44 +162,62 @@ func TestMCPCallExecutor(t *testing.T) {
 				Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: remote.URL,
 			})
 			source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+			roundTrip := map[toolspkg.ToolID]string{"mcp__fixture__raw__xl5sgix3hmzta": "_dd_gff"}
+			want := map[string]toolspkg.ToolID{
+				"_dd_gff":     "mcp__fixture__raw__xl5sgix3hmzta",
+				"dd_gff":      "mcp__fixture__dd_gff",
+				"echo":        "mcp__fixture__echo",
+				"Search.Read": "mcp__fixture__search_read",
+				"search_read": "mcp__fixture__search_read",
+			}
+			wantCount, skipped := 3, 4
+			messages := []string{"exceeds 64 characters", "mcp__fixture__search_read"}
+			if version == protocolVersionLegacy {
+				roundTrip["mcp__fixture__spaced_tool"] = " spaced_tool "
+				want[" spaced_tool "] = "mcp__fixture__spaced_tool"
+				wantCount, skipped = 4, 3
+			} else {
+				messages = append(messages, "cannot be sent unchanged in the Mcp-Name header")
+			}
+			messages = append(messages, fmt.Sprintf("Skipped %d MCP tool entries", skipped))
 			for range 2 {
 				discovery, err := executor.DiscoverTools(t.Context(), source)
-				if err != nil {
-					t.Fatalf("DiscoverTools() error = %v", err)
+				if err != nil || discovery.ProtocolVersion != version {
+					t.Fatalf("negotiated version = %q, %v, want %q", discovery.ProtocolVersion, err, version)
 				}
 				names := make(map[string]toolspkg.ToolID, len(discovery.Descriptors))
 				for _, descriptor := range discovery.Descriptors {
 					names[descriptor.Source.RawToolName] = descriptor.ID
-					if descriptor.RawName == "_dd_gff" {
+					if wantName, ok := roundTrip[descriptor.ID]; ok {
+						if descriptor.RawName != wantName || descriptor.Source.RawToolName != wantName {
+							t.Fatalf("descriptor names = %q, %q, want %q",
+								descriptor.RawName, descriptor.Source.RawToolName, wantName)
+						}
 						result := callMCPTool(t, executor, descriptor, json.RawMessage(`{}`))
-						if got := result.Content[0].Text; got != "_dd_gff" {
-							t.Fatalf("tools/call name = %q, want original protocol name", got)
+						if got := result.Content[0].Text; got != wantName {
+							t.Fatalf("tools/call name = %q, want %q", got, wantName)
 						}
 					}
 				}
-				want := map[string]toolspkg.ToolID{
-					"_dd_gff":     "mcp__fixture__raw__xl5sgix3hmzta",
-					"dd_gff":      "mcp__fixture__dd_gff",
-					"echo":        "mcp__fixture__echo",
-					"Search.Read": "mcp__fixture__search_read",
-					"search_read": "mcp__fixture__search_read",
+				if len(discovery.Descriptors) != len(want) || !maps.Equal(names, want) ||
+					discovery.ToolCount != wantCount {
+					t.Fatalf("discovered tools = %v, count = %d, want %v and %d available",
+						names, discovery.ToolCount, want, wantCount)
 				}
-				if len(discovery.Descriptors) != len(want) || !maps.Equal(names, want) || discovery.ToolCount != 3 {
-					t.Fatalf(
-						"discovered tools = %v, count = %d, want %v and 3 available",
-						names,
-						discovery.ToolCount,
-						want,
-					)
-				}
-				for _, message := range []string{"Skipped 3 MCP tool entries", "exceeds 64 characters", "mcp__fixture__search_read"} {
+				for _, message := range messages {
 					if !strings.Contains(discovery.Diagnostic, message) {
 						t.Fatalf("diagnostic = %q, want %q", discovery.Diagnostic, message)
 					}
 				}
 			}
-		},
-	)
+			if version == protocolVersionModern {
+				_, err := executor.CallTool(t.Context(), source, toolspkg.MCPToolCallRequest{
+					ToolID: "mcp__fixture__spaced_tool", RawToolName: " spaced_tool ",
+				})
+				requireReason(t, err, toolspkg.ReasonIDInvalidFormat)
+			}
+		})
+	}
 
 	t.Run("Should negotiate legacy fallback and reject MRTR input requests", func(t *testing.T) {
 		t.Parallel()
@@ -4473,6 +4501,7 @@ func TestCheckInReadOnlyOverride(t *testing.T) {
 						CatalogEntry:  tc.catalog,
 						ReadOnlyTools: []string{"read"},
 					}},
+					protocolVersionLegacy,
 					[]*mcpsdk.Tool{&tool},
 				)
 				if err != nil {

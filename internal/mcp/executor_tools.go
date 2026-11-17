@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -25,6 +26,7 @@ type ToolDiscovery struct {
 func (e *CallExecutor) descriptorsFromTools(
 	source toolspkg.SourceRef,
 	resolved *ResolvedServer,
+	protocolVersion string,
 	tools []*mcpsdk.Tool,
 ) (ToolDiscovery, error) {
 	server := resolved.Server
@@ -38,7 +40,11 @@ func (e *CallExecutor) descriptorsFromTools(
 				"tools", toolspkg.ReasonSchemaInvalid, "mcp server returned an empty tool descriptor",
 			)
 		}
-		descriptor, err := e.descriptorFromTool(source, server, *tool)
+		var descriptor toolspkg.MCPToolDescriptor
+		err := validateMCPTransportToolName(server, protocolVersion, tool.Name)
+		if err == nil {
+			descriptor, err = e.descriptorFromTool(source, server, *tool)
+		}
 		if err != nil {
 			validation, ok := errors.AsType[*toolspkg.ValidationError](err)
 			if !ok || (validation.Field != "mcp.tool" && validation.Reason != toolspkg.ReasonIDTooLong) {
@@ -86,13 +92,29 @@ func (e *CallExecutor) descriptorsFromTools(
 			slog.Warn("mcp_read_only_override_unknown_tool", "server", server.Name, "tool", name)
 		}
 	}
-	result := ToolDiscovery{Descriptors: descriptors, ToolCount: toolCount}
+	result := ToolDiscovery{Descriptors: descriptors, ToolCount: toolCount, ProtocolVersion: protocolVersion}
 	if skipped > 0 {
 		result.Diagnostic = redactMCPDiagnosticString(fmt.Sprintf(
 			"Skipped %d MCP tool entries. %s.", skipped, strings.Join(examples, ". "),
 		))
 	}
 	return result, nil
+}
+
+func validateMCPTransportToolName(server compozyconfig.MCPServer, protocolVersion, name string) error {
+	if protocolVersion != protocolVersionModern || server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
+		return nil
+	}
+	if name == strings.Trim(name, " \t") && !strings.ContainsFunc(name, invalidMCPNameHeaderRune) {
+		return nil
+	}
+	return toolspkg.NewValidationError(
+		"mcp.tool", toolspkg.ReasonIDInvalidFormat, "tool name cannot be sent unchanged in the Mcp-Name header",
+	)
+}
+
+func invalidMCPNameHeaderRune(r rune) bool {
+	return (r < ' ' && r != '\t') || r == 0x7f
 }
 
 func mcpDiagnosticToolName(name string) string {

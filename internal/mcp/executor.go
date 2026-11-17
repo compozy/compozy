@@ -135,11 +135,10 @@ func (e *CallExecutor) listToolsFromClient(
 	if err != nil {
 		return ToolDiscovery{}, err, normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
-	discovery, err := e.descriptorsFromTools(source, resolved, tools)
+	discovery, err := e.descriptorsFromTools(source, resolved, protocolVersion, tools)
 	if err != nil {
 		return ToolDiscovery{}, err, err
 	}
-	discovery.ProtocolVersion = protocolVersion
 	if err := e.publishToolList(cacheKey, attempt, fresh, source, authorizationHeader, discovery, ttlMs); err != nil {
 		return ToolDiscovery{}, nil, err
 	}
@@ -206,14 +205,11 @@ func (e *CallExecutor) CallTool(
 	defer func() {
 		err = joinMCPClientCleanup(err, client)
 	}()
-	arguments, err := decodeArguments(req.Input)
+	params, err := mcpCallParams(resolved.Server, negotiatedProtocolVersion(client.session), req)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	mcpResult, err := client.session.CallTool(ctx, &mcpsdk.CallToolParams{
-		Name:      req.RawToolName,
-		Arguments: arguments,
-	})
+	mcpResult, err := client.session.CallTool(ctx, params)
 	if err != nil {
 		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
@@ -337,6 +333,21 @@ func (e *CallExecutor) resolveServer(
 		return ResolvedServer{}, errors.New("mcp: resolved auth target does not match server config")
 	}
 	return resolved, nil
+}
+
+func mcpCallParams(
+	server compozyconfig.MCPServer,
+	protocolVersion string,
+	req toolspkg.MCPToolCallRequest,
+) (*mcpsdk.CallToolParams, error) {
+	if err := validateMCPTransportToolName(server, protocolVersion, req.RawToolName); err != nil {
+		return nil, err
+	}
+	arguments, err := decodeArguments(req.Input)
+	if err != nil {
+		return nil, err
+	}
+	return &mcpsdk.CallToolParams{Name: req.RawToolName, Arguments: arguments}, nil
 }
 
 func decodeArguments(raw json.RawMessage) (any, error) {
