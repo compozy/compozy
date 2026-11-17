@@ -33,6 +33,7 @@ type playwrightCensus struct {
 }
 
 type playwrightCensusSuite struct {
+	Title  string                  `json:"title"`
 	Suites []playwrightCensusSuite `json:"suites"`
 	Specs  []playwrightCensusSpec  `json:"specs"`
 }
@@ -63,14 +64,21 @@ type playwrightCensusAttachment struct {
 
 func (report playwrightCensus) specs() []playwrightCensusSpec {
 	var specs []playwrightCensusSpec
-	var visit func([]playwrightCensusSuite)
-	visit = func(suites []playwrightCensusSuite) {
+	var visit func([]playwrightCensusSuite, string)
+	visit = func(suites []playwrightCensusSuite, prefix string) {
 		for _, suite := range suites {
-			specs = append(specs, suite.Specs...)
-			visit(suite.Suites)
+			title := prefix
+			if suite.Title != "" {
+				title += suite.Title + " / "
+			}
+			for _, spec := range suite.Specs {
+				spec.Title = title + spec.Title
+				specs = append(specs, spec)
+			}
+			visit(suite.Suites, title)
 		}
 	}
-	visit(report.Suites)
+	visit(report.Suites, "")
 	return specs
 }
 
@@ -96,7 +104,7 @@ func TestFlakes(receiptDir, output string) error {
 			var report playwrightCensus
 			report, err = readPlaywrightCensus(path)
 			if err == nil {
-				found = report.flakes()
+				found, err = report.flakes()
 			}
 		default:
 			return nil
@@ -205,30 +213,37 @@ func readPlaywrightCensus(path string) (playwrightCensus, error) {
 	return report, nil
 }
 
-func (report playwrightCensus) flakes() []flakeReceipt {
+func (report playwrightCensus) flakes() ([]flakeReceipt, error) {
 	flakes := []flakeReceipt{}
+	var retryErrors []error
 	for _, spec := range report.specs() {
 		for _, test := range spec.Tests {
-			// Expected failures and skipped tests are not recovered flakes.
-			if test.ExpectedStatus != "passed" || len(test.Results) < 2 {
+			// Expected failures are intentional. A dynamically skipped retry can
+			// change expectedStatus, so check its actual outcomes before excluding it.
+			if test.ExpectedStatus == "failed" || len(test.Results) == 0 {
 				continue
 			}
 			last := test.Results[len(test.Results)-1]
 			failed := false
-			for _, result := range test.Results[:len(test.Results)-1] {
+			for _, result := range test.Results {
 				failed = failed || result.Status == "failed" || result.Status == "timedOut" ||
 					result.Status == "interrupted"
 			}
-			if failed && last.Status == "passed" && last.Retry > 0 {
+			name := spec.File + "#" + spec.Title + " [" + test.ProjectName + "]"
+			if failed && last.Status != "passed" {
+				retryErrors = append(retryErrors,
+					fmt.Errorf("%s ended with %s after failure; retry must pass", name, last.Status))
+			}
+			if failed && last.Status == "passed" && last.Retry > 0 && test.ExpectedStatus == "passed" {
 				flakes = append(flakes, flakeReceipt{
 					Suite:   "playwright",
-					Test:    spec.File + "#" + spec.Title + " [" + test.ProjectName + "]",
+					Test:    name,
 					Attempt: last.Retry + 1,
 				})
 			}
 		}
 	}
-	return flakes
+	return flakes, errors.Join(retryErrors...)
 }
 
 func writeFlakeReceipts(output string, flakes []flakeReceipt) error {

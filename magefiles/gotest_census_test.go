@@ -463,9 +463,31 @@ func TestFlakeReceipts(t *testing.T) {
 		if err := json.Unmarshal([]byte(input), &report); err != nil {
 			t.Fatal(err)
 		}
-		got := report.flakes()
+		got, err := report.flakes()
+		if err == nil || !strings.Contains(err.Error(), "ended with failed after failure; retry must pass") {
+			t.Fatalf("expected persistent Playwright failure, got %v", err)
+		}
 		if len(got) != 1 || got[0].Attempt != 2 || got[0].Test != "os.spec.ts#tabs [chromium]" {
 			t.Fatalf("flakes = %+v", got)
+		}
+	})
+	t.Run("Should preserve equal Playwright leaf titles under different suites", func(t *testing.T) {
+		t.Parallel()
+		var report playwrightCensus
+		input := `{"suites":[{"title":"os.spec.ts","suites":[
+{"title":"create","specs":[{"file":"os.spec.ts","title":"Should save","tests":[{"expectedStatus":"passed","projectName":"chromium","results":[{"status":"failed","retry":0},{"status":"passed","retry":1}]}]}]},
+{"title":"edit","specs":[{"file":"os.spec.ts","title":"Should save","tests":[{"expectedStatus":"passed","projectName":"chromium","results":[{"status":"failed","retry":0},{"status":"passed","retry":1}]}]}]}
+]}]}`
+		if err := json.Unmarshal([]byte(input), &report); err != nil {
+			t.Fatal(err)
+		}
+		got, err := report.flakes()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 2 || got[0].Test != "os.spec.ts#os.spec.ts / create / Should save [chromium]" ||
+			got[1].Test != "os.spec.ts#os.spec.ts / edit / Should save [chromium]" {
+			t.Fatalf("suite identities lost: %+v", got)
 		}
 	})
 	t.Run("Should deduplicate the same receipt while retaining distinct runs and jobs", func(t *testing.T) {

@@ -122,6 +122,33 @@ func TestFlakeReport(t *testing.T) {
 			t.Fatalf("output=%s", output)
 		}
 	})
+	t.Run(
+		"Should reject a dynamically skipped Playwright retry while retaining recovered receipts",
+		func(t *testing.T) {
+			root := t.TempDir()
+			writeTestFile(t, root, "playwright.json", `{"suites":[{"specs":[
+{"file":"os.spec.ts","title":"skipped retry","tests":[{"expectedStatus":"skipped","results":[{"status":"failed","retry":0},{"status":"skipped","retry":1}]}]},
+{"file":"os.spec.ts","title":"recovered","tests":[{"expectedStatus":"passed","results":[{"status":"failed","retry":0},{"status":"passed","retry":1}]}]},
+{"file":"os.spec.ts","title":"expected failure","tests":[{"expectedStatus":"failed","results":[{"status":"failed","retry":0}]}]},
+{"file":"os.spec.ts","title":"ordinary skip","tests":[{"expectedStatus":"skipped","results":[{"status":"skipped","retry":0}]}]}
+]}]}`)
+			target := filepath.Join(root, "output", "flakes.json")
+			if err := TestFlakes(root, target); err == nil ||
+				!strings.Contains(
+					err.Error(),
+					"os.spec.ts#skipped retry [] ended with skipped after failure; retry must pass",
+				) {
+				t.Fatalf("expected skipped retry rejection, got %v", err)
+			}
+			receipts, err := loadFlakeReceipts(filepath.Dir(target))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(receipts) != 1 || receipts[0].Test != "os.spec.ts#recovered []" || receipts[0].Attempt != 2 {
+				t.Fatalf("genuine recovery lost or skipped test misclassified: %+v", receipts)
+			}
+		},
+	)
 }
 
 // Invariant: receipt paths remain rooted in the checkout even when the runner
