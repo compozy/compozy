@@ -621,6 +621,10 @@ func TestAlwaysOnChildSettleWake(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			waitForCondition(t, "the child's settlement wake delivered", func() bool {
+				_, events := notifier.calls()
+				return len(events) > 0
+			})
 			info, err := h.manager.Status(t.Context(), child.ID)
 			if err != nil {
 				t.Fatal(err)
@@ -1030,8 +1034,17 @@ func TestAlwaysOnChildSettleWake(t *testing.T) {
 		if err := h.manager.StopWithCause(t.Context(), child.ID, CauseCompleted, "actual stop"); err != nil {
 			t.Fatal(err)
 		}
-		if _, wakes := notifier.calls(); len(wakes) != 1 || !wakes[0].Automatic {
-			t.Fatalf("real stop wakes=%+v, want one automatic wake", wakes)
+		// A stop joiner can return before the process watcher's wake callback.
+		// Observe delivery before checking that the declined reset did not cover it.
+		waitForCondition(t, "the real stop's automatic wake delivered", func() bool {
+			_, wakes := notifier.calls()
+			return len(wakes) > 0
+		})
+		h.manager.retryChildSettleWake(t.Context(), child.Info())
+		parents, wakes := notifier.calls()
+		if len(wakes) != 1 || !wakes[0].Automatic || parents[0] != parent.ID ||
+			wakes[0].ChildSessionID != child.ID || wakes[0].Reason != SpawnWakeReasonStopped {
+			t.Fatalf("real stop wakes=%+v parents=%v, want one automatic stopped wake to its main", wakes, parents)
 		}
 	})
 	t.Run("Should recover a shutdown-interrupted child when continuation is refused", func(t *testing.T) {
