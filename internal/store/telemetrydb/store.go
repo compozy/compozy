@@ -14,9 +14,8 @@ import (
 	"github.com/compozy/compozy/internal/store/telemetrydb/sqlcgen"
 )
 
-// Bound indexed cleanup work inside each callback, which cannot be preempted by
-// the background writer's between-item budget.
-const retentionBatchSize = 64
+// Bound indexed cleanup while amortizing FULL-synchronous commits across deletes.
+const retentionBatchSize = 256
 
 // Reclaim burst allocation off the durable ingestion path; this is not a cap on live reader snapshots.
 const walTruncationThreshold = 16 << 20

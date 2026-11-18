@@ -137,12 +137,14 @@ budget, not a statistical confidence claim. Missing or zero baseline samples
 fail instead of silently reducing the paired sample count, including operations
 observed only on head.
 The [four-run investigation](../../docs/qa/reports/2026-11-03-sqlite-contention.md#ci-acceptance-investigation-2026-11-04)
-records the evidence and limitations. The head
-retention sweep is 7–10 times slower than baseline: bounded 64-row background
-items prioritize interactive work, which has no errors on head. This intentional
-#1241 scheduling trade-off now has its own 30-second acceptance ceiling; the
-count-1 throughput metric cannot measure sweep duration. The baseline remains fixed deliberately to
-retain the pre-change upgrade fixture and historical contention comparison.
+records the evidence and limitations. That investigation measured retention
+sweeps 7–10 times slower than baseline with bounded 64-row background items.
+Cleanup now uses 256-row items to amortize FULL-synchronous telemetry commits.
+The background writer still yields between bounded callbacks; it cannot preempt
+an individual callback. The 30-second sweep ceiling and interactive deadlines
+remain unchanged; the count-1 throughput metric cannot measure sweep duration.
+The baseline remains fixed deliberately to retain the pre-change upgrade
+fixture and historical contention comparison.
 
 COMMIT-pause acceptance also uses the four same-run pairs. Transcript writes
 provide the shared-storage control on both binaries. For each pair,
