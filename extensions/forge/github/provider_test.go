@@ -1358,18 +1358,21 @@ func TestProviderGraphQL(t *testing.T) {
 				if input.Variables["oid"] != "head-a" {
 					t.Errorf("checks oid=%v", input.Variables["oid"])
 				}
-				_, _ = w.Write(
-					[]byte(
-						`{"data":{"repository":{"object":{"oid":"head-a","statusCheckRollup":{"contexts":{"totalCount":102,"checkRunCountsByState":[{"state":"SUCCESS","count":100},{"state":"FAILURE","count":1}],"statusContextCountsByState":[{"state":"PENDING","count":1}],"nodes":[{"name":"lint","conclusion":"FAILURE"}]}}}}}}`,
-					),
+				writeGraphBody(
+					t,
+					w,
+					`{"data":{"repository":{"object":{"oid":"head-a","statusCheckRollup":{"contexts":{"totalCount":102,`+
+						`"checkRunCountsByState":[{"state":"SUCCESS","count":98},{"state":"NEUTRAL","count":1},`+
+						`{"state":"SKIPPED","count":1},{"state":"FAILURE","count":1}],`+
+						`"statusContextCountsByState":[{"state":"PENDING","count":1}],"nodes":[{"name":"lint","conclusion":"FAILURE"}]}}}}}}`,
 				)
 				return
 			}
-			_, _ = w.Write(
-				[]byte(
-					`{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}},{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"},"reviewDecision":"APPROVED","mergeable":"MERGEABLE"}],"pageInfo":{"hasNextPage":false}}}}}`,
-				),
-			)
+			writeGraphBody(t, w, `{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[`+
+				`{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}},`+
+				`{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a",`+
+				`"headRepository":{"nameWithOwner":"acme/repo"},"reviewDecision":"APPROVED","mergeable":"MERGEABLE"}],`+
+				`"pageInfo":{"hasNextPage":false}}}}}`)
 		})
 		defer closeServer()
 		got, err := provider.Status(

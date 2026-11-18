@@ -96,7 +96,11 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 					t.Fatal(err)
 				}
 				manager.SetSubagentService(nil)
-				if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+				if _, err := manager.CancelPromptWithCause(
+					ctx,
+					parent.ID,
+					session.PromptCancelSyntheticAdmission,
+				); err != nil {
 					t.Fatal(err)
 				}
 				waitForRuntimeCondition(t, "parent idle before recovery", 10*time.Second, func() bool {
@@ -127,7 +131,11 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 				t.Fatal(summary, err)
 			}
 			if deletion != "store recovery" && deletion != "wait recovery" {
-				if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+				if _, err := manager.CancelPromptWithCause(
+					ctx,
+					parent.ID,
+					session.PromptCancelSyntheticAdmission,
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -5986,9 +5994,97 @@ func assertInstanceMainGoalTransports(t *testing.T, d *Daemon, workspace string,
 	}
 }
 
+type monitorCheckRoundSource struct{ passed int }
+
+func (s monitorCheckRoundSource) ResolvePullRequest(
+	_ context.Context,
+	spec monitorpkg.Spec,
+) (monitorpkg.PullRequestTarget, error) {
+	return monitorpkg.PullRequestTarget{
+		WorkspaceID: spec.WorkspaceID,
+		RepoKey:     "example/repo",
+		Branch:      spec.Branch,
+	}, nil
+}
+
+func (s monitorCheckRoundSource) ReadPullRequest(
+	context.Context,
+	monitorpkg.PullRequestTarget,
+) (monitorpkg.PullRequestObservation, error) {
+	return monitorpkg.PullRequestObservation{
+		Lookup: monitorpkg.PullRequestFound, Number: 7, State: "open", Head: "same-head",
+		Checks: &monitorpkg.PullRequestChecks{Passed: s.passed},
+	}, nil
+}
+
 // Invariant: daemon monitors survive process release and their wake reloads the same ACP session.
 // Owner: session lifecycle through real daemon wiring (B3 IT-014).
 func TestMonitorIdleReleaseIntegration(t *testing.T) {
+	t.Run("Should deliver a later same-head completion to the same ACP session", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonConfigured(t, nil)
+		target, err := manager.Create(t.Context(), new(session.CreateOpts{
+			AgentName: "subagent-test", Workspace: workspace,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		waker := &monitorSessionWaker{sessions: func() monitorSessionManager { return manager }}
+		startMonitorService := func(t *testing.T, passed int) *monitorpkg.Service {
+			t.Helper()
+			service, err := monitorpkg.NewService(t.Context(), nil, waker,
+				monitorpkg.WithStore(d.registry.(*globaldb.GlobalDB)),
+				monitorpkg.WithOwners(monitorSessionOwners{sessions: func() any { return manager }}),
+				monitorpkg.WithPullRequests(monitorCheckRoundSource{passed: passed}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Shutdown(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			return service
+		}
+		before := startMonitorService(t, 2)
+		mon, err := before.Create(t.Context(), monitorpkg.Spec{
+			SessionID: target.ID, WorkspaceID: workspace, ProfileID: target.ProfileID,
+			Kind: monitorpkg.KindPullRequest, Branch: "topic", Description: "inspect completed checks",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		awaitCompletion := func(t *testing.T, passed, turns int) {
+			t.Helper()
+			counts := fmt.Sprintf("checks: %d passed, 0 failed, 0 pending", passed)
+			waitForRuntimeCondition(t, "completion reaches the session", 20*time.Second, func() bool {
+				rows, err := manager.Events(t.Context(), target.ID,
+					store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 10, Forward: true})
+				if err != nil || len(rows) != turns {
+					return false
+				}
+				event, err := transcript.UnmarshalAgentEvent(rows[turns-1].Content)
+				return err == nil && event.Synthetic != nil && event.Synthetic.WakeEventID == mon.ID &&
+					strings.Contains(
+						event.Text,
+						counts,
+					) && strings.Contains(event.Text, "all checks finished on this head")
+			})
+			if err := manager.WaitForPromptDrains(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		awaitCompletion(t, 2, 1)
+		before.SuspendSession(target.ID)
+		if err := before.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		after := startMonitorService(t, 3)
+		if err := after.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		awaitCompletion(t, 3, 2)
+	})
 	t.Run("Should deliver a conflict wake through the durable session queue", func(t *testing.T) {
 		_, manager, workspace := newSubagentDaemonConfigured(t, nil)
 		target, err := manager.Create(t.Context(), new(session.CreateOpts{

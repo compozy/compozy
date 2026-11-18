@@ -173,7 +173,7 @@ What wakes the agent:
 | Change                                        | When the wake arrives                                                 |
 | --------------------------------------------- | --------------------------------------------------------------------- |
 | A check fails                                 | At the next read, about a minute. Failures already there wake at once |
-| All checks finish                             | At the next read, once per head                                       |
+| All checks finish                             | At the next read, once per observed round, including the first read   |
 | A new review or unresolved thread on the head | After 2 minutes of quiet, held at most 5, so a burst is one wake      |
 | The pull request merges or closes             | At the next read. This is the last wake                               |
 
@@ -182,8 +182,10 @@ What it deliberately does not wake on:
 - Reviews and threads already there when the monitor starts. Only new ones count.
 - A push by itself. A new head resets the checks and drops pending review activity. A review or thread
   that arrives late on the old head is ignored, though open threads stay in the count each wake reports.
-- A check rerun on the same head that passes. All checks finishing wakes once per head; a rerun wakes
-  the agent only if it fails.
+- An unchanged check summary. A late check or rerun on the same head can wake on completion when the
+  monitor saw checks go pending, or the completed summary shows more checks or a changed failure
+  result at the same total. A rerun that starts and ends between reads with the same summary is
+  indistinguishable.
 - Review text. The wake says who reviewed and how, and tells the agent to read the reviews itself,
   including the review body, because follow-ups can live only there.
 

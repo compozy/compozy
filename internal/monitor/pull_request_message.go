@@ -55,9 +55,13 @@ func pullRequestLines(mon Monitor, changes *PullRequestChanges) []string {
 		}
 		add("PR #%d now conflicts with %s; rebase", changes.Number, base)
 	}
+	currentRoundFinished := changes.ChecksKnown && changes.Pending == 0 && changes.Passed+changes.Failed > 0
+	if changes.AllFinished && !currentRoundFinished {
+		add("a check round finished earlier on this head")
+	}
 	if changes.ChecksKnown {
 		add("checks: %d passed, %d failed, %d pending", changes.Passed, changes.Failed, changes.Pending)
-		if changes.AllFinished {
+		if changes.AllFinished && currentRoundFinished {
 			add("all checks finished on this head")
 		}
 		if len(changes.NewlyFailed) > 0 {

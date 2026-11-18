@@ -56,6 +56,18 @@ story: As an operator I ask an agent to run something slow and report back, and 
     `monitor_list` shows `fired` with reason `pull_request_merged`. The Web composer popover shows "Pull request on
     <branch>", and the transcript divider reads "Monitor fired · <description> · Pull request changed".
 
+    For #1807, keep the head unchanged and finish all pending checks. Verify one completion wake and repeat
+    the same forge response for two reads. Add a non-required check and complete it between reads. The
+    larger completed count triggers one more wake. Rerun a check, expose its pending state for a read,
+    and finish it successfully with the same total. Verify one more completion wake. Repeat with a failed
+    check, then let its rerun recover between reads and verify the new failure and recovery are reported.
+    Repeat registration against a head whose checks are already complete and verify one initial wake.
+    A neutral or skipped check counts as complete and a legacy status context still participates.
+    If a completion is queued and another round starts before it is delivered, the merged wake names
+    the earlier completion alongside the new round's pending counts.
+    After a completed round, return a smaller completed summary with a new failure. Verify one
+    failure wake. Repeat the smaller summary and restore the original summary with no further wakes.
+
 14. **Waiting on other sessions.** Start two top-level sessions with slow prompts and, from a third session, call
     `compozy__monitor_create` with `kind: "session"`, both ids in `target_session_ids`, and `until: "all"`, then let
     its turn end. Expect the owner to stay `waiting` (`active_monitor` signal) past the first target settling, and
