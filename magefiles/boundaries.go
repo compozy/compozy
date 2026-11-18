@@ -133,6 +133,11 @@ func directImportBoundaries() []directImportBoundary {
 		{"internal/profile", "internal/task"},
 		{"internal/profile", "internal/workspace"},
 		{"internal/profile", "internal/extension"},
+		{"internal/extension", "internal/daemon"},
+		{"internal/extension", "internal/cli"},
+		{"internal/extension", "internal/api/core"},
+		{"internal/extension", "internal/api/httpapi"},
+		{"internal/extension", "internal/api/udsapi"},
 	}
 	return append(forbidden, gatewayForbiddenDirectImports...)
 }

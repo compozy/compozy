@@ -3782,3 +3782,153 @@ func TestDerivedInputInstallPreflight(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: permanent removal is operator-only, refuses non-built-in rows and unknown names before any state
+// changes, and records a tombstone only when the removal commits. Owner: daemon extension suite (UT-003,
+// UT-012 permanent part, UT-014). Canonical suite: this file.
+func TestDaemonExtensionPermanentRemoval(t *testing.T) {
+	newService := func(t *testing.T) (*daemonExtensionService, *extensionpkg.Registry, *daemonNativeToolsDeps) {
+		t.Helper()
+		deps, registry, _, _ := newNativeExtensionToolDeps(t)
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+			Registry: registry, Profiles: deps.ProfileManager, HomePaths: deps.HomePaths,
+			Logger: discardLogger(),
+		}, withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources)).(*daemonExtensionService)
+		return service, registry, deps
+	}
+	seedRow := func(t *testing.T, registry *extensionpkg.Registry, name string, source extensionpkg.ExtensionSource) string {
+		t.Helper()
+		dir := writeNativeLocalExtensionFixture(t, name, "1.0.0")
+		manifest, err := extensionpkg.LoadManifest(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.Install(
+			manifest, dir, checksum, extensionpkg.WithInstallSource(source),
+		); err != nil {
+			t.Fatalf("fixture %s install error = %v", source, err)
+		}
+		return dir
+	}
+	operatorActor := func(t *testing.T) taskpkg.ActorContext {
+		t.Helper()
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "extension remove")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		return actor
+	}
+	requireTombstoned := func(t *testing.T, registry *extensionpkg.Registry, name string, want bool) {
+		t.Helper()
+		got, err := registry.Tombstoned(t.Context(), name)
+		if err != nil || got != want {
+			t.Fatalf("Tombstoned(%q) = %v, %v; want %v, nil", name, got, err, want)
+		}
+	}
+
+	t.Run("Should refuse permanent removal of a marketplace row without changing it", func(t *testing.T) {
+		t.Parallel()
+		service, registry, _ := newService(t)
+		dir := seedRow(t, registry, "dev-cycle", extensionpkg.SourceMarketplace)
+
+		_, err := service.RemovePermanently(t.Context(), "dev-cycle", operatorActor(t))
+		if !errors.Is(err, extensionpkg.ErrExtensionNotBuiltin) {
+			t.Fatalf("RemovePermanently(marketplace) error = %v, want ErrExtensionNotBuiltin", err)
+		}
+		info, err := registry.Get("dev-cycle")
+		if err != nil || info.Source != extensionpkg.SourceMarketplace {
+			t.Fatalf("Get(dev-cycle) = %#v, %v; want the marketplace row unchanged", info, err)
+		}
+		if _, err := os.Stat(dir); err != nil {
+			t.Fatalf("os.Stat(package dir) error = %v, want the directory untouched", err)
+		}
+		requireTombstoned(t, registry, "dev-cycle", false)
+	})
+
+	t.Run("Should report an unknown name as not found without writing a tombstone", func(t *testing.T) {
+		t.Parallel()
+		service, registry, _ := newService(t)
+
+		_, err := service.RemovePermanently(t.Context(), "missing-ext", operatorActor(t))
+		if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("RemovePermanently(unknown) error = %v, want ErrExtensionNotFound", err)
+		}
+		requireTombstoned(t, registry, "missing-ext", false)
+	})
+
+	t.Run("Should deny permanent removal to a non-operator actor", func(t *testing.T) {
+		t.Parallel()
+		service, registry, _ := newService(t)
+		seedRow(t, registry, "spec-cycle", extensionpkg.SourceBundled)
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-agent-permanent", "ws-agent")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+		}
+		// Grant write authority so the operator gate, not the write gate, is what denies the call.
+		agent.Authority.Write = true
+
+		_, err = service.RemovePermanently(t.Context(), "spec-cycle", agent)
+		if !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("RemovePermanently(agent) error = %v, want ErrPermissionDenied", err)
+		}
+		if info, err := registry.Get("spec-cycle"); err != nil || info.Source != extensionpkg.SourceBundled {
+			t.Fatalf("Get(spec-cycle) = %#v, %v; want the bundled row unchanged", info, err)
+		}
+		requireTombstoned(t, registry, "spec-cycle", false)
+	})
+
+	t.Run("Should remove a bundled built-in permanently and record its tombstone", func(t *testing.T) {
+		t.Parallel()
+		service, registry, _ := newService(t)
+		dir := seedRow(t, registry, "spec-cycle", extensionpkg.SourceBundled)
+
+		if _, err := service.RemovePermanently(t.Context(), "spec-cycle", operatorActor(t)); err != nil {
+			t.Fatalf("RemovePermanently(bundled) error = %v", err)
+		}
+		if _, err := registry.Get("spec-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("Get(after permanent removal) error = %v, want ErrExtensionNotFound", err)
+		}
+		if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(package dir) error = %v, want not exist", err)
+		}
+		requireTombstoned(t, registry, "spec-cycle", true)
+	})
+
+	t.Run("Should refuse permanent removal while the built-in has another installation", func(t *testing.T) {
+		t.Parallel()
+		service, registry, deps := newService(t)
+		dir := seedRow(t, registry, "spec-cycle", extensionpkg.SourceBundled)
+		db := deps.ExtensionEvents.(*globaldb.GlobalDB)
+		stamp := store.FormatTimestamp(time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC))
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO workspaces
+			(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			"ws-attached", t.TempDir(), "Attached", stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.AttachInstallation(t.Context(), "spec-cycle", extensionpkg.InstallationScope{
+			ProfileID: store.DefaultProfileID, WorkspaceID: "ws-attached",
+		}); err != nil {
+			t.Fatalf("AttachInstallation() error = %v", err)
+		}
+		attachments, err := registry.Installations(t.Context(), "spec-cycle")
+		if err != nil || len(attachments) < 2 {
+			t.Fatalf("Installations() = %d, %v; want at least two before the refusal", len(attachments), err)
+		}
+
+		_, err = service.RemovePermanently(t.Context(), "spec-cycle", operatorActor(t))
+		if !errors.Is(err, extensionpkg.ErrExtensionBuiltinAttached) {
+			t.Fatalf("RemovePermanently(attached) error = %v, want ErrExtensionBuiltinAttached", err)
+		}
+		if info, err := registry.Get("spec-cycle"); err != nil || info.Source != extensionpkg.SourceBundled {
+			t.Fatalf("Get(spec-cycle) = %#v, %v; want the bundled row unchanged", info, err)
+		}
+		if _, err := os.Stat(dir); err != nil {
+			t.Fatalf("os.Stat(package dir) error = %v, want the directory untouched", err)
+		}
+		requireTombstoned(t, registry, "spec-cycle", false)
+	})
+}

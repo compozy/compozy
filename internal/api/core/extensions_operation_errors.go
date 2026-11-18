@@ -77,6 +77,15 @@ func extensionOperationErrorPayload(
 	case extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported:
 		payload.Code = ExtensionAgentPluginErrorCode(err)
+	case extensionErrorNotBuiltin:
+		payload.Code = diagnosticcontract.CodeExtensionNotBuiltin
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.not_builtin",
+			payload.Code,
+			"Extension is not a built-in",
+			message,
+			"",
+		)
 	default:
 		return contract.ExtensionOperationErrorPayload{}, false
 	}

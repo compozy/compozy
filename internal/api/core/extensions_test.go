@@ -852,6 +852,8 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map an unrelated plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginNotManifest, want: http.StatusUnprocessableEntity},
 		{name: "Should map an unsupported plugin schema to unprocessable", err: agentplugin.ErrSchemaUnsupported, want: http.StatusUnprocessableEntity},
 		{name: "Should map an invalid plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginManifestInvalid, want: http.StatusUnprocessableEntity},
+		{name: "Should map permanent removal of a non-built-in to unprocessable", err: extensionpkg.ErrExtensionNotBuiltin, want: http.StatusUnprocessableEntity},
+		{name: "Should map permanent removal of an attached built-in to conflict", err: extensionpkg.ErrExtensionBuiltinAttached, want: http.StatusConflict},
 		{name: "Should map unknown failures to internal error", err: errors.New("unknown"), want: http.StatusInternalServerError},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

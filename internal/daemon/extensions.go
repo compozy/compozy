@@ -325,6 +325,18 @@ func validateExtensionWriteActor(actor taskpkg.ActorContext) error {
 	return nil
 }
 
+// validateExtensionPermanentRemovalActor keeps permanent removal with operator sessions (Q5 a).
+// Agent-session callers carry no operator scope, so they are denied here.
+func validateExtensionPermanentRemovalActor(actor taskpkg.ActorContext) error {
+	if err := validateExtensionWriteActor(actor); err != nil {
+		return err
+	}
+	if !actor.Scope.Operator {
+		return taskpkg.ErrPermissionDenied
+	}
+	return nil
+}
+
 func extensionInstalledBy(actor taskpkg.ActorContext) string {
 	actorKind := strings.TrimSpace(string(actor.Actor.Kind.Normalize()))
 	actorRef := strings.TrimSpace(actor.Actor.Ref)

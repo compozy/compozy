@@ -32,6 +32,7 @@ const (
 	extensionErrorInputsRequired
 	extensionErrorInputInvalid
 	extensionErrorNotFound
+	extensionErrorNotBuiltin
 	extensionErrorConflict
 	extensionErrorUnprocessable
 	extensionErrorBadRequest
@@ -60,7 +61,7 @@ func ExtensionStatusCode(err error) int {
 		extensionErrorAgentConflict,
 		extensionErrorSourceChanged, extensionErrorNameConflict:
 		return http.StatusConflict
-	case extensionErrorUnprocessable, extensionErrorMCPNameTaken,
+	case extensionErrorUnprocessable, extensionErrorMCPNameTaken, extensionErrorNotBuiltin,
 		extensionErrorInputsRequired, extensionErrorInputInvalid,
 		extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported,
@@ -103,7 +104,10 @@ func classifyExtensionError(err error) extensionErrorKind {
 		errors.Is(err, marketplacepkg.ErrEntryNotFound),
 		errors.Is(err, registrypkg.ErrPackageNotFound):
 		return extensionErrorNotFound
+	case errors.Is(err, extensionpkg.ErrExtensionNotBuiltin):
+		return extensionErrorNotBuiltin
 	case errors.Is(err, extensionpkg.ErrExtensionExists),
+		errors.Is(err, extensionpkg.ErrExtensionBuiltinAttached),
 		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked),
 		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing):
 		return extensionErrorConflict

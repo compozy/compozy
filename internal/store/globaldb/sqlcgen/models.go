@@ -563,6 +563,12 @@ type Extension struct {
 	GatewayConfirmedAt       sql.NullString `json:"gateway_confirmed_at"`
 }
 
+type ExtensionBuiltinTombstone struct {
+	Name      string `json:"name"`
+	RemovedAt string `json:"removed_at"`
+	RemovedBy string `json:"removed_by"`
+}
+
 type ExtensionDevLink struct {
 	ExtensionName            string         `json:"extension_name"`
 	WorkspaceID              string         `json:"workspace_id"`

@@ -2736,3 +2736,108 @@ func testCuratedPreparedReinstall(t *testing.T, scenario string) {
 		t.Fatalf("reinstall reacquired its artifact: %d requests", acquisitions.Load())
 	}
 }
+
+// Invariant: permanent removal commits the row delete with its tombstone, and any later failure restores the
+// row and directory and clears the tombstone only once the row is back (Safety Invariant 1, UT-004).
+// Owner: managed-removal rollback suite. Canonical suite: this file, next to RemoveManagedExtension tests.
+func TestRemoveBuiltinPermanentlyCompensation(t *testing.T) {
+	t.Run(
+		"Should restore the row and install directory and leave no tombstone when the commit fails",
+		func(t *testing.T) {
+			env := newRegistryTestEnv(t)
+			homePaths := seedBundledRegistryRow(t, env)
+			commitErr := errors.New("commit failed")
+
+			_, err := RemoveBuiltinPermanently(
+				t.Context(), homePaths, env.registry, builtinPermanentTestName, "operator", nil,
+				func(context.Context) error { return commitErr },
+			)
+			if !errors.Is(err, commitErr) {
+				t.Fatalf("RemoveBuiltinPermanently(commit failure) error = %v, want commit failure", err)
+			}
+			info, err := env.registry.Get(builtinPermanentTestName)
+			if err != nil || info.Source != SourceBundled {
+				t.Fatalf("Get(after compensated removal) = %#v, %v; want the bundled row restored", info, err)
+			}
+			requireBuiltinDirExists(t, homePaths)
+			tombstoned, err := env.registry.Tombstoned(t.Context(), builtinPermanentTestName)
+			if err != nil || tombstoned {
+				t.Fatalf("Tombstoned() = %v, %v; want false, nil after compensation", tombstoned, err)
+			}
+		},
+	)
+
+	t.Run("Should clear the tombstone once a reload failure restores the row", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		homePaths := seedBundledRegistryRow(t, env)
+		reloadErr := errors.New("reload failed")
+
+		_, err := RemoveBuiltinPermanently(
+			t.Context(), homePaths, env.registry, builtinPermanentTestName, "operator",
+			func(context.Context) error { return reloadErr }, nil,
+		)
+		if !errors.Is(err, reloadErr) {
+			t.Fatalf("RemoveBuiltinPermanently(reload failure) error = %v, want reload failure", err)
+		}
+		if _, err := env.registry.Get(builtinPermanentTestName); err != nil {
+			t.Fatalf("Get(after reload compensation) error = %v, want the row restored", err)
+		}
+		requireBuiltinDirExists(t, homePaths)
+		tombstoned, err := env.registry.Tombstoned(t.Context(), builtinPermanentTestName)
+		if err != nil || tombstoned {
+			t.Fatalf("Tombstoned() = %v, %v; want false, nil once the row is back", tombstoned, err)
+		}
+	})
+
+	t.Run("Should commit the row delete, the tombstone, and the directory removal together", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		homePaths := seedBundledRegistryRow(t, env)
+
+		result, err := RemoveBuiltinPermanently(
+			t.Context(), homePaths, env.registry, builtinPermanentTestName, "operator", nil, nil,
+		)
+		if err != nil {
+			t.Fatalf("RemoveBuiltinPermanently() error = %v", err)
+		}
+		if result.Status != "removed" {
+			t.Fatalf("RemoveBuiltinPermanently() status = %q, want removed", result.Status)
+		}
+		if _, err := env.registry.Get(builtinPermanentTestName); !errors.Is(err, ErrExtensionNotFound) {
+			t.Fatalf("Get(after commit) error = %v, want ErrExtensionNotFound", err)
+		}
+		if _, err := os.Stat(ManagedInstallPath(homePaths, builtinPermanentTestName)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(install dir after commit) error = %v, want not exist", err)
+		}
+		tombstones, err := env.registry.ListTombstones(t.Context())
+		if err != nil || len(tombstones) != 1 || tombstones[0].RemovedBy != "operator" {
+			t.Fatalf("ListTombstones() = %#v, %v; want one tombstone removed by operator", tombstones, err)
+		}
+	})
+
+	t.Run("Should refuse a non-bundled row before staging or touching its directory", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		dir := seedMarketplaceRegistryRow(t, env, "dev-cycle")
+
+		_, err = RemoveBuiltinPermanently(t.Context(), homePaths, env.registry, "dev-cycle", "operator", nil, nil)
+		if !errors.Is(err, ErrExtensionNotBuiltin) {
+			t.Fatalf("RemoveBuiltinPermanently(marketplace) error = %v, want ErrExtensionNotBuiltin", err)
+		}
+		if _, err := os.Stat(dir); err != nil {
+			t.Fatalf("os.Stat(marketplace dir) error = %v, want the directory untouched", err)
+		}
+		if _, err := env.registry.Get("dev-cycle"); err != nil {
+			t.Fatalf("Get(dev-cycle) error = %v, want the row untouched", err)
+		}
+	})
+}
+
+func requireBuiltinDirExists(t *testing.T, homePaths compozyconfig.HomePaths) {
+	t.Helper()
+	if _, err := os.Stat(ManagedInstallPath(homePaths, builtinPermanentTestName)); err != nil {
+		t.Fatalf("os.Stat(built-in install dir) error = %v, want the directory present", err)
+	}
+}
