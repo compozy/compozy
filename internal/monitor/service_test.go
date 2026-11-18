@@ -3409,6 +3409,23 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 func TestNotificationPullRequest(t *testing.T) {
 	t.Parallel()
 	mon := Monitor{ID: "mon-1", Kind: KindPullRequest, Branch: "feat/x", FireCount: 3, Description: "watch"}
+	t.Run("Should report a queued completion alongside later check counts", func(t *testing.T) {
+		t.Parallel()
+		finished := PullRequestChanges{
+			Wake: true, Number: 7, State: "open", Head: "abc", ChecksKnown: true, Passed: 2, AllFinished: true,
+		}
+		later := PullRequestChanges{
+			Wake: true, Number: 7, State: "open", Head: "abc", ChecksKnown: true,
+			Passed: 1, Failed: 1, Pending: 1, NewlyFailed: []string{"lint"},
+		}
+		merged := mergePullRequestChanges(finished, later)
+		message := Notification{Monitor: mon, PullRequest: &merged}.Message()
+		if !strings.Contains(message, "a check round finished earlier on this head") ||
+			!strings.Contains(message, "checks: 1 passed, 1 failed, 1 pending") ||
+			!strings.Contains(message, "newly failed: lint") || strings.Contains(message, "all checks finished") {
+			t.Fatalf("merged wake = %s", message)
+		}
+	})
 	t.Run("Should describe the base branch when the provider omits its name", func(t *testing.T) {
 		t.Parallel()
 		for _, base := range []string{"", "  \n"} {

@@ -63,6 +63,8 @@ story: As an operator I ask an agent to run something slow and report back, and 
     check, then let its rerun recover between reads and verify the new failure and recovery are reported.
     Repeat registration against a head whose checks are already complete and verify one initial wake.
     A neutral or skipped check counts as complete and a legacy status context still participates.
+    If a completion is queued and another round starts before it is delivered, the merged wake names
+    the earlier completion alongside the new round's pending counts.
 
 14. **Waiting on other sessions.** Start two top-level sessions with slow prompts and, from a third session, call
     `compozy__monitor_create` with `kind: "session"`, both ids in `target_session_ids`, and `until: "all"`, then let
