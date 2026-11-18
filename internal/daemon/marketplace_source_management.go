@@ -115,7 +115,11 @@ func (r *marketplaceRuntime) previewSource(
 	ctx context.Context,
 	source compozyconfig.MarketplacePluginSourceConfig,
 ) (marketplace.SourceState, error) {
-	defer r.resolver.Cache.Hold()()
+	release, err := r.resolver.Cache.Hold(ctx)
+	if err != nil {
+		return marketplace.SourceState{}, err
+	}
+	defer release()
 	projector, err := marketplace.NewPluginProjector(r.resolver, extensionpkg.InspectPluginPackage)
 	if err != nil {
 		return marketplace.SourceState{}, err

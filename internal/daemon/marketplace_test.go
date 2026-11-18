@@ -13,23 +13,31 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/gin-gonic/gin"
 )
 
 // TestBootMarketplaceLifecycle verifies refresh, source reconciliation, rollback, and runtime shutdown.
 func TestBootMarketplaceLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: a published package can be previewed and installed while another source
+	// is fetching and a sweep is pending. Owner: daemon Marketplace HTTP lifecycle.
+	t.Run("Should preview and install during a slow refresh and pending sweep", testMarketplaceInstallDuringRefresh)
 	for _, operation := range []string{"add", "disable", "remove"} {
 		t.Run("Should restore persisted and live sources after a rejected "+operation, func(t *testing.T) {
 			t.Parallel()
@@ -606,6 +614,163 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "replacement")
 	})
+}
+
+func testMarketplaceInstallDuringRefresh(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	ctx := testutil.Context(t)
+	root := t.TempDir()
+	if err := os.CopyFS(filepath.Join(root, "plugin"),
+		os.DirFS(filepath.Join("..", "extension", "testdata", "client-plugins", "open-design"))); err != nil {
+		t.Fatal(err)
+	}
+	writeDaemonFile(t, filepath.Join(root, "marketplace.json"), `{"plugins":[{"name":"design","source":"./plugin"}]}`)
+	started, finish := make(chan struct{}), make(chan struct{})
+	releaseSource := sync.OnceFunc(func() { close(finish) })
+	defer releaseSource()
+	feed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v3/extensions.json" && r.URL.Path != "/v3/marketplaces.json" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Path == "/v3/extensions.json" {
+			close(started)
+			select {
+			case <-finish:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if _, err := fmt.Fprint(
+			w,
+			`{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`,
+		); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(feed.Close)
+	home := testHomePaths(t)
+	cfg := testConfig(t, home)
+	cfg.Extensions.Trust.AllowUnverified = true
+	cfg.Marketplace.Catalog.BaseURL = feed.URL
+	cfg.Marketplace.Catalog.Timeout = "1m"
+	cfg.Marketplace.PluginSources = []compozyconfig.MarketplacePluginSourceConfig{
+		{Name: "team", Source: (&url.URL{Scheme: "file", Path: root}).String()},
+	}
+	db := openDaemonTestGlobalDB(t)
+	catalog, err := marketplace.NewSQLiteStore(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := newMarketplaceRuntime(ctx, catalog, nil, cfg.Marketplace, home, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := runtime.Refresh(ctx, "team"); err != nil {
+		t.Fatal(err)
+	}
+	entry, err := runtime.Detail(ctx, "team", "design")
+	if err != nil || entry == nil || !entry.Installable {
+		t.Fatalf("catalog entry = %+v, %v", entry, err)
+	}
+	profiles, err := profilepkg.NewManager(profilepkg.WithStore(db), profilepkg.WithHomePaths(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := extensionpkg.NewRegistry(db.DB())
+	service := newDaemonExtensionService(
+		&daemonExtensionServiceDeps{
+			Registry: registry, Profiles: profiles, HomePaths: home, Logger: discardLogger(),
+		},
+		withDaemonExtensionMarketplace(cfg.Extensions, nil),
+		withDaemonExtensionCatalog(runtime),
+		withDaemonMarketplacePackageAcquirer(runtime.resolver),
+		withDaemonMarketplacePackageCache(runtime.resolver.Cache),
+	)
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+		TransportName: "http", Extensions: service, MarketplaceCatalog: runtime, Logger: discardLogger(),
+	})
+	engine := gin.New()
+	engine.POST("/api/marketplace/sources/:name/refresh", handlers.RefreshMarketplaceSource)
+	engine.POST("/api/extensions/preview-install", handlers.PreviewExtensionInstall)
+	engine.POST("/api/extensions", handlers.InstallExtension)
+	refreshDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/api/marketplace/sources/"+marketplace.CompozyCatalogSource+"/refresh", nil))
+		refreshDone <- response
+	}()
+	select {
+	case <-started:
+	case response := <-refreshDone:
+		t.Fatalf("refresh returned before reaching the slow source: HTTP %d %s", response.Code, response.Body)
+	case <-ctx.Done():
+		t.Fatal("refresh did not reach the slow source")
+	}
+	waiting := make(chan struct{})
+	sweepCtx := marketplaceSweepWaitContext{Context: ctx, onWait: sync.OnceFunc(func() { close(waiting) })}
+	sweepDone := make(chan error, 1)
+	go func() {
+		_, err := runtime.resolver.Cache.SweepCurrent(sweepCtx, func(ctx context.Context) (map[string]struct{}, error) {
+			return catalog.PackageDigests(ctx, []string{"team"})
+		})
+		sweepDone <- err
+	}()
+	select {
+	case <-waiting:
+	case <-ctx.Done():
+		t.Fatal("sweep did not queue while the refresh held the cache")
+	}
+	request := fmt.Sprintf(`{"source":"marketplace","ref":"team/design","allow_unverified":true,"expected_digest":%q}`,
+		entry.DigestSHA256)
+	preview := httptest.NewRecorder()
+	engine.ServeHTTP(preview, httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/extensions/preview-install",
+		strings.NewReader(request)))
+	var plan contract.ExtensionInstallPreviewPayload
+	if err := json.Unmarshal(preview.Body.Bytes(), &plan); err != nil || preview.Code != http.StatusOK ||
+		plan.Name != "open-design" || plan.DigestSHA256 != entry.DigestSHA256 {
+		t.Fatalf("preview = HTTP %d %s, decode error = %v", preview.Code, preview.Body, err)
+	}
+	installed := httptest.NewRecorder()
+	engine.ServeHTTP(installed, httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/extensions",
+		strings.NewReader(request)))
+	var install contract.InstallExtensionResponse
+	if err := json.Unmarshal(installed.Body.Bytes(), &install); err != nil || installed.Code != http.StatusCreated ||
+		install.Extension.Name != plan.Name || !install.Extension.DigestMatched {
+		t.Fatalf("install = HTTP %d %s, decode error = %v", installed.Code, installed.Body, err)
+	}
+	releaseSource()
+	select {
+	case response := <-refreshDone:
+		var source contract.MarketplaceSourceResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &source); err != nil || response.Code != http.StatusOK ||
+			source.Source.Name != marketplace.CompozyCatalogSource || source.Source.State != "ok" {
+			t.Fatalf("refresh = HTTP %d %s, decode error = %v", response.Code, response.Body, err)
+		}
+	case <-ctx.Done():
+		t.Fatal("refresh did not finish after releasing the slow source")
+	}
+	if err := <-sweepDone; err != nil {
+		t.Fatalf("sweep did not finish after publication: %v", err)
+	}
+}
+
+type marketplaceSweepWaitContext struct {
+	context.Context
+	onWait func()
+}
+
+func (c marketplaceSweepWaitContext) Done() <-chan struct{} {
+	c.onWait()
+	return c.Context.Done()
 }
 
 type blockingMarketplaceEventWriter struct {

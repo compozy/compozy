@@ -13,7 +13,19 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/testutil"
 )
+
+type cacheWaitContext struct {
+	context.Context
+	onWait func()
+}
+
+func (c cacheWaitContext) Done() <-chan struct{} {
+	c.onWait()
+	return c.Context.Done()
+}
 
 // UT-072: the package cache owns atomic, verified bytes and reference-preserving eviction.
 func TestPackageCache(t *testing.T) {
@@ -306,19 +318,24 @@ func TestPackageCache(t *testing.T) {
 			t.Fatalf("evicted Open = %v, %v", reader, err)
 		}
 	})
-	t.Run("Should wait for publication before reading pins and sweeping", func(t *testing.T) {
+	t.Run("Should admit readers while waiting for publication before sweeping", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t)
 		cache := &PackageCache{Root: t.TempDir(), MaxBytes: 6}
 		old, candidate := []byte("oldest"), []byte("newest")
 		putCacheBlob(t, cache, old)
-		release := sync.OnceFunc(cache.Hold())
+		unlock, err := cache.Hold(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release := sync.OnceFunc(unlock)
 		t.Cleanup(release)
 		putCacheBlob(t, cache, candidate)
-		started, loaded := make(chan struct{}), make(chan struct{})
+		waiting, loaded := make(chan struct{}), make(chan struct{})
+		sweepCtx := cacheWaitContext{Context: ctx, onWait: sync.OnceFunc(func() { close(waiting) })}
 		done := make(chan error, 1)
 		go func() {
-			close(started)
-			report, err := cache.SweepCurrent(t.Context(), func(context.Context) (map[string]struct{}, error) {
+			report, err := cache.SweepCurrent(sweepCtx, func(context.Context) (map[string]struct{}, error) {
 				close(loaded)
 				return map[string]struct{}{cacheDigest(candidate): {}}, nil
 			})
@@ -327,13 +344,25 @@ func TestPackageCache(t *testing.T) {
 			}
 			done <- err
 		}()
-		<-started
+		select {
+		case <-waiting:
+		case <-ctx.Done():
+			t.Fatal("sweep did not wait for publication")
+		}
+		readHold, err := cache.Hold(ctx)
+		if err != nil {
+			t.Fatalf("new reader blocked behind pending sweep: %v", err)
+		}
+		releaseRead := sync.OnceFunc(readHold)
+		t.Cleanup(releaseRead)
+		release()
+		assertCacheBytes(t, cache, cacheDigest(candidate), candidate)
 		select {
 		case <-loaded:
-			t.Fatal("sweep read references before the held publication finished")
-		case <-time.After(20 * time.Millisecond):
+			t.Fatal("sweep read pins while the admitted reader was still using the package")
+		default:
 		}
-		release()
+		releaseRead()
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
@@ -344,6 +373,61 @@ func TestPackageCache(t *testing.T) {
 		); reader != nil ||
 			!errors.Is(err, ErrPackageUnavailable) {
 			t.Fatalf("unreferenced package = %v, %v", reader, err)
+		}
+	})
+	t.Run("Should cancel holds waiting for an active sweep", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		cache := &PackageCache{Root: t.TempDir()}
+		sweeping, finishSweep := make(chan struct{}), make(chan struct{})
+		finish := sync.OnceFunc(func() { close(finishSweep) })
+		t.Cleanup(finish)
+		sweepDone := make(chan error, 1)
+		go func() {
+			_, err := cache.SweepCurrent(ctx, func(ctx context.Context) (map[string]struct{}, error) {
+				close(sweeping)
+				select {
+				case <-finishSweep:
+					return nil, nil
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			})
+			sweepDone <- err
+		}()
+		select {
+		case <-sweeping:
+		case <-ctx.Done():
+			t.Fatal("sweep did not start")
+		}
+		holdCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		waiting := make(chan struct{})
+		holdDone := make(chan error, 1)
+		go func() {
+			release, err := cache.Hold(cacheWaitContext{Context: holdCtx, onWait: func() { close(waiting) }})
+			if err == nil {
+				release()
+			}
+			holdDone <- err
+		}()
+		select {
+		case <-waiting:
+			cancel()
+		case <-ctx.Done():
+			t.Fatal("hold did not wait for the active sweep")
+		}
+		select {
+		case err := <-holdDone:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("waiting Hold() error = %v, want context.Canceled", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("hold did not return after cancellation")
+		}
+		finish()
+		if err := <-sweepDone; err != nil {
+			t.Fatal(err)
 		}
 	})
 
