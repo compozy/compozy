@@ -111,7 +111,7 @@ func TestWindowManagerLegacyLayoutDocuments(t *testing.T) {
 		}
 		assertUpgraded(preview.Snapshot.Version, preview.Snapshot.Windows)
 		unchanged, err := fixture.manager.Snapshot(t.Context(), "workspace-a")
-		if err != nil || unchanged.Revision != 0 || len(unchanged.Windows) != 1 {
+		if err != nil || unchanged.Revision != 0 || len(unchanged.Windows) != 0 {
 			t.Fatalf("snapshot after preview = %+v, error = %v", unchanged, err)
 		}
 		applied := performWindowManagerTestRequest(t, fixture.router, http.MethodPut, path+"/layout",

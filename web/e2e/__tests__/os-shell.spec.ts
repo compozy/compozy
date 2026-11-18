@@ -2717,8 +2717,9 @@ test("Tabs-split E2E-011: a tab dragged onto a desktop indicator moves there; th
     await expect(card("Desktop 1").locator('[data-slot="desktop-overview-tab"]')).toHaveCount(
       Math.min(firstTabs.length, 4)
     );
-    await expect(card("Second").locator('[data-slot="desktop-overview-tab"]')).toHaveCount(1);
-    await expect(card("Second").getByText("1 tab", { exact: true })).toBeVisible();
+    // A new desktop starts with no tabs, and the Tasks tab moved back out of it (#1799).
+    await expect(card("Second").locator('[data-slot="desktop-overview-tab"]')).toHaveCount(0);
+    await expect(card("Second").getByText("0 tabs", { exact: true })).toBeVisible();
   });
 
   await test.step("a tab row dragged onto another card moves the tab there", async () => {
