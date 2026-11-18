@@ -98,10 +98,10 @@ func (g *MutationGeneration) Advance(target Target) (uint64, error) {
 	return generation.value, nil
 }
 
-// CommitIfCurrent runs commit atomically with respect to generation changes.
-func (g *MutationGeneration) CommitIfCurrent(
+func (g *MutationGeneration) commitIfCurrent(
 	target Target,
 	expected uint64,
+	replacesAccess bool,
 	commit func() error,
 ) (bool, error) {
 	generation, err := g.forTarget(target)
@@ -116,7 +116,9 @@ func (g *MutationGeneration) CommitIfCurrent(
 	if err := commit(); err != nil {
 		return false, err
 	}
-	generation.remoteRejected = false
+	if replacesAccess {
+		generation.remoteRejected = false
+	}
 	generation.revision++
 	g.revision.Add(1)
 	return true, nil

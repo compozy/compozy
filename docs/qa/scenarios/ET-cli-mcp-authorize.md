@@ -82,7 +82,9 @@ grants, require `compozy mcp auth status <name> -o json` to show `authenticated`
 and individual grants. Check `compozy mcp check <name> -o json` for `initialized: true` and a positive
 `tool_count`, then call a read-only tool from a session. The Slack consent step uses the operator's account.
 
-In an isolated fixture, return HTTP 401 for the stored bearer credential. Require the check to show
-`auth_required` and the auth status to show `needs_login`. A new sign-in restores authenticated status.
+In an isolated fixture, return HTTP 401 for a stored bearer credential without a refresh token.
+Require the check to show `auth_required` and the auth status to show `needs_login`. A new sign-in
+restores authenticated status. For a refreshable credential, require `expired` after rejection and
+one successful refresh on the next check, even if the stored expiry time is still in the future.
 With HTTP 503 or a JSON-RPC error, require `mcp_unreachable` with the redacted upstream cause and an
 unchanged authenticated status. Inspect the diagnostic for credential echoes using the fixture only.

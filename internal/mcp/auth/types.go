@@ -18,8 +18,14 @@ var ErrTokenNotFound = errors.New("mcp auth: token not found")
 // ErrTokenBindingInvalid reports token material that is not bound to the active server definition.
 var ErrTokenBindingInvalid = errors.New("mcp auth: token binding is invalid")
 
+// ErrTokenDefinitionChanged identifies an implicit remote without a credential for its current definition.
+var ErrTokenDefinitionChanged = fmt.Errorf(
+	"mcp auth: token belongs to a different definition: %w",
+	ErrTokenBindingInvalid,
+)
+
 // ErrTokenRejected reports a stored credential rejected by its bound resource.
-var ErrTokenRejected = errors.New("mcp auth: remote server rejected the stored token (HTTP 401); sign in again")
+var ErrTokenRejected = errors.New("mcp auth: remote server rejected the stored token (HTTP 401)")
 
 // ErrTokenResolution reports a stored token whose material or binding could not be loaded.
 var ErrTokenResolution = errors.New("mcp auth: stored token could not be resolved")

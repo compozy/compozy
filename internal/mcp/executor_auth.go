@@ -42,6 +42,9 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved *ResolvedS
 		return toolspkg.MCPAuthRequiredError("", server.Name)
 	case string(mcpauth.StatusAuthenticated):
 		return nil
+	case string(mcpauth.StatusInvalid):
+		return toolspkg.NewToolError(toolspkg.ErrorCodeUnavailable, "", status.Diagnostic,
+			toolspkg.ErrToolUnavailable, toolspkg.ReasonMCPAuthInvalid)
 	case string(mcpauth.StatusExpired):
 		refreshed, refreshErr := e.refreshAuth(ctx, resolved)
 		if refreshErr != nil {
@@ -174,6 +177,8 @@ func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved *Resolv
 	}
 	token, err := e.auth.AuthorizationToken(ctx, cfg)
 	switch {
+	case cfg.Implicit && errors.Is(err, mcpauth.ErrTokenDefinitionChanged):
+		return "", nil
 	case err != nil && cfg.Implicit && canProbeWithoutStoredCredential(err):
 		return "", nil
 	case errors.Is(err, mcpauth.ErrTokenNotFound):
@@ -232,8 +237,13 @@ func authorizationLookupError(err error) error {
 }
 
 func rejectedBearerError(id toolspkg.ToolID) error {
-	return toolspkg.NewToolError(toolspkg.ErrorCodeUnavailable, id, mcpauth.ErrTokenRejected.Error(),
-		mcpauth.ErrTokenRejected, toolspkg.ReasonMCPAuthRequired)
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeUnavailable,
+		id,
+		mcpauth.ErrTokenRejected.Error()+"; check auth status",
+		mcpauth.ErrTokenRejected,
+		toolspkg.ReasonMCPAuthRequired,
+	)
 }
 
 func (e *CallExecutor) recordBearerRejection(ctx context.Context, resolved *ResolvedServer, err error) {

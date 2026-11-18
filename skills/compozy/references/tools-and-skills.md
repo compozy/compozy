@@ -205,9 +205,9 @@ input and exchange, and the active PKCE session expiry may shorten it.
 
 Configure pre-registered OAuth scopes as individual `auth.scopes` entries. Token responses can
 return space-separated or comma-separated grants. After `compozy mcp check <name>` observes a 401
-for the stored bearer credential, auth status reports `needs_login` until sign-in replaces it in
-the running daemon. Sign in again to recover. A connection or protocol failure leaves the auth
-status alone and gives a redacted cause in the check diagnostic when available.
+for the stored bearer credential, auth status reports `expired` when the credential can refresh or
+`needs_login` when it requires sign-in. Run another check to trigger an available refresh. A
+connection or protocol failure gives a redacted cause in the check diagnostic when available.
 
 OAuth credentials belong to the scope that declares the effective server definition. Resolution
 order, narrowest first: workspace-profile, workspace, profile, user. A workspace or profile that

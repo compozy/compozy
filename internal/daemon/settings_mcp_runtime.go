@@ -112,11 +112,6 @@ func mcpAuthLookupErrorStatus(server compozyconfig.MCPServer, err error) setting
 		status.State = settingspkg.MCPServerRuntimeStateConfigError
 		status.Reason = string(status.State)
 	}
-	if errors.Is(err, mcpauth.ErrTokenResolution) {
-		status.State = settingspkg.MCPServerRuntimeStateAuthInvalid
-		status.Reason = string(toolspkg.ReasonMCPAuthInvalid)
-		status.Diagnostic = "mcp: stored token could not be resolved; check the credential store"
-	}
 	return status
 }
 

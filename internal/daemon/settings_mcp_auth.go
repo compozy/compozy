@@ -64,9 +64,6 @@ func (s *settingsRuntimeSurface) MCPAuthStatus(
 	}
 	status, err := s.mcpAuthManager.Status(ctx, cfg)
 	if err != nil {
-		if errors.Is(err, mcpauth.ErrTokenResolution) {
-			return mcpauth.Status{}, mcpauth.ErrTokenResolution
-		}
 		if cfg.Implicit {
 			return unavailableMCPAuthStatus(cfg), nil
 		}

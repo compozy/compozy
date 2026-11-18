@@ -116,11 +116,12 @@ Owner: [#1839](https://github.com/compozy/compozy/issues/1839).
 
 - **Native tools, CLI, HTTP and UDS.** Existing MCP status and check operations retain their
   response shapes. Discovery reports redacted HTTP, JSON-RPC or connection details. An observed
-  rejection of the current bearer credential makes auth status report `needs_login`.
+  rejection of the current bearer credential makes auth status report `expired` when it can
+  refresh the credential, or `needs_login` when it needs a fresh sign-in.
 - **Config and persisted state.** Keep scopes as individual `auth.scopes` entries. Token responses
   accept comma and space delimiters. The OAuth binding boundary recognizes previously persisted
   comma-joined scopes. Connections record token rejection in the running daemon without changing
-  stored rows. Completing a new sign-in clears the rejection for that credential target.
+  stored rows. A successful refresh or new sign-in clears the rejection for that credential target.
 - **Extensibility and isolation.** Outbound Streamable HTTP accepts an SDK-negotiated MCP
   `2025-06-18` session. Authorization remains scoped to the existing target and definition, and
   rejection is tied to the observed credential revision. Hook, SDK, and extension contracts retain

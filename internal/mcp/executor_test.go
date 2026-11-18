@@ -58,7 +58,9 @@ func TestMCPCallExecutor(t *testing.T) {
 		})
 		peer.AddTool(&mcpsdk.Tool{Name: "echo", InputSchema: json.RawMessage(`{"type":"object"}`)},
 			func(context.Context, *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-				return &mcpsdk.CallToolResult{}, nil
+				return &mcpsdk.CallToolResult{
+					Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: "legacy response"}},
+				}, nil
 			})
 		handler := mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server { return peer },
 			&mcpsdk.StreamableHTTPOptions{JSONResponse: true})
@@ -94,6 +96,14 @@ func TestMCPCallExecutor(t *testing.T) {
 		if discovery.ProtocolVersion != "2025-06-18" || discovery.ToolCount != 1 ||
 			len(discovery.Descriptors) != 1 || discovery.Descriptors[0].RawName != "echo" {
 			t.Fatalf("unexpected discovery: %+v", discovery)
+		}
+		if result := callMCPTool(
+			t,
+			executor,
+			discovery.Descriptors[0],
+			json.RawMessage(`{}`),
+		); result.Preview != "legacy response" {
+			t.Fatalf("unexpected call preview %q", result.Preview)
 		}
 	})
 
@@ -574,6 +584,50 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 	})
 
+	// Invariant: a resource 401 makes a still-unexpired credential refreshable before the next request.
+	// Owner: outbound OAuth and MCP execution; canonical suite: TestMCPCallExecutor.
+	t.Run("Should refresh a rejected bearer before the next discovery", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{},
+		)
+		server := authEnabledServer("fixture", compozyconfig.MCPServerTransportHTTP, fixture.Endpoints.MCPURL)
+		server.Auth.IssuerURL = fixture.Endpoints.IssuerURL
+		target := userMCPExecutorTarget(server.Name)
+		store := newMemoryTokenStore()
+		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
+			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, server),
+			Issuer: server.Auth.IssuerURL, ClientID: server.Auth.ClientID, Scopes: server.Auth.Scopes,
+			AccessToken: "rejected-fixture-access", RefreshToken: mcpfixture.RefreshToken, TokenType: "Bearer",
+			ExpiresAt: time.Date(2126, 1, 1, 0, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		executor := newTestMCPExecutor(t, server, WithTokenStore(store))
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+		_, err := executor.CallTool(t.Context(), source, toolspkg.MCPToolCallRequest{
+			ToolID: "mcp__fixture__echo", RawToolName: "echo", Input: json.RawMessage(`{"message":"rejected"}`),
+		})
+		requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
+		status, err := executor.Status(t.Context(), source, "")
+		if err != nil || status.Status != string(mcpauth.StatusExpired) || !status.Refreshable || !status.TokenPresent {
+			t.Fatalf("auth after rejection = %+v, %v", status, err)
+		}
+		if discovery, err := executor.DiscoverTools(t.Context(), source); err != nil || discovery.ToolCount == 0 {
+			t.Fatalf("discovery after rejection = %+v, %v", discovery, err)
+		}
+		refreshes := fixture.Requests().Token
+		if len(refreshes) != 1 || refreshes[0].Get("grant_type") != "refresh_token" {
+			t.Fatal("discovery did not refresh the rejected credential exactly once")
+		}
+		status, err = executor.Status(t.Context(), source, "")
+		if err != nil || status.Status != string(mcpauth.StatusAuthenticated) {
+			t.Fatalf("auth after recovery = %+v, %v", status, err)
+		}
+	})
+
 	t.Run("Should List And Call Stdio Server", func(t *testing.T) {
 		t.Parallel()
 
@@ -779,6 +833,42 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		if requests.Load() != before {
 			t.Fatal("explicit OAuth bypassed unavailable storage")
+		}
+	})
+
+	// Invariant: an implicit remote can discover anonymously after its old definition is replaced.
+	// Owner: outbound MCP authorization; canonical suite: TestMCPCallExecutor.
+	t.Run("Should discover an implicit remote without sending a credential for its old definition", func(t *testing.T) {
+		t.Parallel()
+		handler := mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler()
+		remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "" {
+				t.Error("request sent a credential for the old MCP definition")
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			handler.ServeHTTP(w, r)
+		}))
+		t.Cleanup(remote.Close)
+		server := compozyconfig.MCPServer{
+			Name:      "fixture",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       remote.URL,
+		}
+		previous := server
+		previous.URL = "https://previous.example.test/mcp"
+		target := userMCPExecutorTarget(server.Name)
+		store := newMemoryTokenStore()
+		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
+			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, previous),
+			AccessToken: "previous-fixture-access", TokenType: "Bearer",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		executor := newTestMCPExecutor(t, server, WithTokenStore(store))
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+		if found, err := executor.DiscoverTools(t.Context(), source); err != nil || found.ToolCount == 0 {
+			t.Fatalf("anonymous discovery = %+v, %v", found, err)
 		}
 	})
 

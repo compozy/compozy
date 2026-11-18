@@ -15,6 +15,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
@@ -343,7 +344,7 @@ func normalizeMCPDiscoveryError(err error, status int) error {
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeUnavailable,
 		"",
-		mcpDiscoveryDiagnostic(err, status),
+		diagnostics.RedactAndBound(redactMCPDiagnosticString(mcpDiscoveryDiagnostic(err, status)), 512),
 		fmt.Errorf("%w: %w", toolspkg.ErrToolUnavailable, normalized),
 		toolspkg.ReasonMCPUnreachable,
 	)

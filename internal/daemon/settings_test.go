@@ -848,10 +848,11 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
+			token := mcpauth.TokenRecord{
 				Target: target, DefinitionFingerprint: fingerprint, Issuer: cfg.IssuerURL, ClientID: cfg.ClientID,
 				AccessToken: access, RefreshToken: refresh, TokenType: "Bearer",
-			}); err != nil {
+			}
+			if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
 				t.Fatal(err)
 			}
 			for _, check := range []struct {
@@ -868,6 +869,12 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 				{http.StatusUnauthorized, settingspkg.MCPServerRuntimeStateAuthRequired,
 					toolspkg.ReasonMCPAuthRequired, "rejected the stored token (HTTP 401)", mcpauth.StatusNeedsLogin},
 			} {
+				if check.code == http.StatusUnauthorized {
+					token.RefreshToken = ""
+					if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+						t.Fatal(err)
+					}
+				}
 				httpStatus.Store(int32(check.code))
 				status, err := surface.CheckMCPServerRuntime(t.Context(), target, definition)
 				if err != nil || status.State != check.state || status.Reason != string(check.reason) ||
@@ -887,6 +894,83 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			}
 		},
 	)
+
+	// Invariant: an unreadable credential affects only its own Settings item; replaced definitions remain probeable.
+	// Owner: daemon Settings composition; canonical suite: TestSettingsRuntimeSurfaceMCPServerRuntimeStatus.
+	t.Run("Should list healthy remotes alongside invalid implicit credentials", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		home := testHomePaths(t)
+		if err := os.WriteFile(filepath.Join(home.HomeDir, compozyconfig.MCPJSONName), []byte(`{"mcpServers":{
+			"unreadable":{"url":"https://mcp.example.test"},
+			"stale":{"url":"https://mcp.example.test"},
+			"open":{"url":"https://mcp.example.test"}
+		}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		store := openDaemonTestGlobalDB(t)
+		manager, err := newSettingsMCPAuthManagerWithConfig(store, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey: []byte("test installation key"), mcpAuthStore: store, mcpAuthManager: manager,
+		}
+		for _, name := range []string{"unreadable", "stale"} {
+			target := globalMCPTestTarget(name)
+			cfg, err := surface.mcpAuthServerConfig(ctx, target, compozyconfig.MCPServer{
+				Name: name, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://previous.example.test",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
+				Target: target, DefinitionFingerprint: fingerprint, Issuer: "https://issuer.example.test",
+				ClientID: "fixture-client", AccessToken: "fixture-access", TokenType: "Bearer",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		prefix, err := vault.MCPSecretOwnerPrefix(globalMCPTestTarget("unreadable").VaultTarget())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.DeleteVaultSecret(ctx, prefix+"oauth/access-token"); err != nil {
+			t.Fatal(err)
+		}
+		profiles, err := profilepkg.NewManager(profilepkg.WithStore(store), profilepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		service, err := settingspkg.NewService(home, settingspkg.Dependencies{
+			ProfileResolver: profiles, AttentionWorkspaceMutes: store, MCPAuth: surface, MCPRuntime: surface,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		listing, err := service.ListCollection(ctx, settingspkg.CollectionRequest{
+			Collection: settingspkg.CollectionMCPServers, CachedRuntimeStatus: true,
+		})
+		if err != nil || len(listing.MCPServers) != 3 {
+			t.Fatalf("MCP list returned %d items, %v", len(listing.MCPServers), err)
+		}
+		for _, item := range listing.MCPServers {
+			if item.Name != "unreadable" {
+				if item.AuthStatus == nil || item.AuthStatus.Status != mcpauth.StatusUnconfigured {
+					t.Fatalf("%s remote lost its unconfigured auth status: %+v", item.Name, item.AuthStatus)
+				}
+				continue
+			}
+			if item.AuthStatus == nil || item.AuthStatus.Status != mcpauth.StatusInvalid ||
+				item.RuntimeStatus == nil || item.RuntimeStatus.State != settingspkg.MCPServerRuntimeStateAuthInvalid {
+				t.Fatalf("%s did not report per-item invalid auth", item.Name)
+			}
+		}
+	})
 
 	t.Run(
 		"Should refuse to present sign-in for a plugin header rejection without a resource challenge",
