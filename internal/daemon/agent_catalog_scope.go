@@ -16,9 +16,11 @@ type agentCatalogLens struct {
 }
 
 type agentCatalogSnapshot struct {
-	lens    agentCatalogLens
-	agents  []compozyconfig.AgentDef
-	present bool
+	lens         agentCatalogLens
+	agents       []compozyconfig.AgentDef
+	present      bool
+	liveAuthored bool
+	authored     *resources.Record[compozyconfig.AgentDef]
 }
 
 // agentCatalogWorkspaceSnapshot retains workspace visibility and agent definitions without copying the resource graph.
@@ -39,9 +41,10 @@ func agentCatalogPolicySnapshot(resolved *workspacepkg.ResolvedAgentConfig) agen
 		return agentCatalogSnapshot{lens: agentCatalogLensForIdentity("", "", "")}
 	}
 	return agentCatalogSnapshot{
-		lens:    agentCatalogLensForIdentity(resolved.ID, resolved.ProfileID, resolved.ProfileName),
-		agents:  resolved.Agents,
-		present: true,
+		lens:         agentCatalogLensForIdentity(resolved.ID, resolved.ProfileID, resolved.ProfileName),
+		agents:       resolved.Agents,
+		present:      true,
+		liveAuthored: true,
 	}
 }
 

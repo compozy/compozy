@@ -213,6 +213,30 @@ func TestStringUsesDynamicSecretsAndRemainsIdempotent(t *testing.T) {
 		}
 	})
 
+	t.Run("Should distinguish separate lifetimes of the same registered secret", func(t *testing.T) {
+		t.Parallel()
+		registry := newDynamicSecretRegistry()
+		empty := registry.snapshot.Load().fingerprint
+		registry.register("continuous-fixture")
+		first := registry.snapshot.Load().fingerprint
+		registry.register("continuous-fixture")
+		registry.unregister("continuous-fixture")
+		registry.register("temporary-fixture")
+		registry.unregister("temporary-fixture")
+		if got := registry.snapshot.Load().fingerprint; got != first {
+			t.Fatal("an uninterrupted registration lost its fingerprint")
+		}
+		registry.unregister("continuous-fixture")
+		registry.register("continuous-fixture")
+		if got := registry.snapshot.Load().fingerprint; got == first {
+			t.Fatal("a new registration reused the previous lifetime's fingerprint")
+		}
+		registry.unregister("continuous-fixture")
+		if got := registry.snapshot.Load().fingerprint; got != empty {
+			t.Fatal("the empty registry changed fingerprint")
+		}
+	})
+
 	t.Run("Should redact registered dynamic secrets until cleanup", func(t *testing.T) {
 		secret := "runtime-secret-material-123456"
 		cleanup := RegisterDynamicSecret(secret)

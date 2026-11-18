@@ -36,33 +36,28 @@ func (e *CallExecutor) openClient(
 	resolved *ResolvedServer,
 	authorizationHeader string,
 ) (*managedMCPClient, error) {
-	definition := resolved.Server
-	server := definition
-	if server.EffectiveTransport() == compozyconfig.MCPServerTransportHTTP {
-		rendered, secrets, err := server.RenderInputs(
-			func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
-		)
-		if err != nil {
-			return nil, err
-		}
-		if err := mcppolicy.ValidateRemoteURL(rendered.URL); err != nil {
-			return nil, errors.New("mcp: invalid rendered endpoint")
-		}
-		for _, secret := range secrets {
-			registerMCPRequestSecret(ctx, secret)
-		}
-		server = rendered
-		renderedResolved := *resolved
-		renderedResolved.Server = server
-		resolved = &renderedResolved
+	rendered := *resolved
+	if err := e.renderHTTPServer(ctx, &rendered); err != nil {
+		return nil, err
 	}
+	return e.openRenderedClient(ctx, &rendered, authorizationHeader)
+}
+
+func (e *CallExecutor) openRenderedClient(
+	ctx context.Context, resolved *ResolvedServer, authorizationHeader string,
+) (*managedMCPClient, error) {
+	server := resolved.Server
 	transport := server.EffectiveTransport()
 	switch transport {
 	case compozyconfig.MCPServerTransportStdio:
 		if e.stdioPool != nil {
 			return e.openPooledStdioClient(ctx, resolved)
 		}
-		launch, err := e.newMCPStdioLaunch(ctx, server, resolved.Target)
+		spec, err := e.clientStdioSpec(ctx, resolved)
+		if err != nil {
+			return nil, err
+		}
+		launch, err := newMCPStdioProcess(ctx, spec, mcpStdioLayout{}, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +67,7 @@ func (e *CallExecutor) openClient(
 		}
 		return &managedMCPClient{session: session, cleanup: launch.cleanup}, nil
 	case compozyconfig.MCPServerTransportHTTP:
-		httpClient, err := e.httpClientWithAuthorization(ctx, resolved, definition, authorizationHeader)
+		httpClient, err := e.httpClientWithAuthorization(ctx, resolved, authorizationHeader)
 		if err != nil {
 			return nil, err
 		}
@@ -93,6 +88,33 @@ func (e *CallExecutor) openClient(
 			"unsupported mcp transport",
 		)
 	}
+}
+
+func (e *CallExecutor) renderHTTPServer(ctx context.Context, resolved *ResolvedServer) error {
+	if resolved.Server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
+		return nil
+	}
+	rendered, secrets, err := resolved.Server.RenderInputs(
+		func(ref string) (string, error) { return e.resolveSecretRef(ctx, ref) },
+	)
+	if err != nil {
+		return err
+	}
+	if err := mcppolicy.ValidateRemoteURL(rendered.URL); err != nil {
+		return errors.New("mcp: invalid rendered endpoint")
+	}
+	for _, secret := range secrets {
+		registerMCPRequestSecret(ctx, secret)
+	}
+	// Rendering can omit optional Agent Plugin headers, so use the authored definition here.
+	resolved.requireResourceMetadata = resolved.Server.Auth.IsZero() && mcpauth.OAuthWithPluginHeaders(resolved.Server)
+	resolved.Server = rendered
+	headers, err := e.resolveMCPRequestHeaders(ctx, rendered)
+	if err != nil {
+		return err
+	}
+	resolved.requestHeaders = headers
+	return nil
 }
 
 func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.ClientSession, error) {
@@ -125,7 +147,7 @@ func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.
 }
 
 func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved *ResolvedServer) (*managedMCPClient, error) {
-	spec, err := e.mcpStdioSpec(ctx, resolved.Server, resolved.Target)
+	spec, err := e.clientStdioSpec(ctx, resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +156,16 @@ func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved *Reso
 		return nil, err
 	}
 	return &managedMCPClient{session: lease.session.session, release: lease.release}, nil
+}
+
+func (e *CallExecutor) clientStdioSpec(ctx context.Context, resolved *ResolvedServer) (mcpStdioSpec, error) {
+	if resolved.listingSpec == nil {
+		return e.mcpStdioSpec(ctx, resolved.Server, resolved.Target)
+	}
+	if err := e.prepareMCPDataDir(resolved.Server); err != nil {
+		return mcpStdioSpec{}, err
+	}
+	return *resolved.listingSpec, nil
 }
 
 func closeMCPClient(client *managedMCPClient) error {
@@ -169,7 +201,6 @@ func releaseMCPClient(client *managedMCPClient, callErr error) error {
 func (e *CallExecutor) httpClientWithAuthorization(
 	ctx context.Context,
 	resolved *ResolvedServer,
-	definition compozyconfig.MCPServer,
 	authorizationHeader string,
 ) (*http.Client, error) {
 	client := e.httpClientForServer(resolved)
@@ -177,9 +208,13 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
-	headers, err := e.resolveMCPRequestHeaders(ctx, resolved.Server)
-	if err != nil {
-		return nil, err
+	headers := resolved.requestHeaders
+	if headers == nil {
+		var err error
+		headers, err = e.resolveMCPRequestHeaders(ctx, resolved.Server)
+		if err != nil {
+			return nil, err
+		}
 	}
 	configureMCPRedirectPolicy(
 		client,
@@ -188,7 +223,7 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	)
 	client.Transport = authorizationRoundTripper{
 		next: transport, header: authorizationHeader, headers: headers,
-		requireMetadata: definition.Auth.IsZero() && mcpauth.OAuthWithPluginHeaders(definition),
+		requireMetadata: resolved.requireResourceMetadata,
 	}
 	return client, nil
 }

@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/url"
 	"slices"
 	"strings"
@@ -16,10 +18,7 @@ func ExactBytes(value []byte) []byte {
 	if value == nil {
 		return nil
 	}
-	redacted := string(value)
-	for _, secret := range dynamicSecrets.valuesSnapshot() {
-		redacted = replaceSecretOutsideMarkers(redacted, secret)
-	}
+	redacted := replaceRegisteredSecrets(string(value), dynamicSecrets.valuesSnapshot())
 	if redacted == string(value) {
 		return bytes.Clone(value)
 	}
@@ -28,18 +27,40 @@ func ExactBytes(value []byte) []byte {
 
 // ExactBinaryJSON removes literal secrets and whole JSON strings whose decoded bytes contain a registered secret.
 func ExactBinaryJSON(raw json.RawMessage) (json.RawMessage, error) {
-	return exactJSON(raw, exactBinaryJSONString)
+	return exactJSON(raw, RegisteredSecretSnapshot().exactBinaryString)
 }
 
 // ExactBinaryString removes literal and reversibly encoded registered secrets from text.
 func ExactBinaryString(value string) string {
-	return exactBinaryJSONString(value)
+	return RegisteredSecretSnapshot().exactBinaryString(value)
 }
 
-func exactBinaryJSONString(value string) string {
-	if exactDataURIMatches(value, exactBytesChanged) ||
-		exactURLEncodedMatches(value, exactBytesChanged) ||
-		exactEncodedBytesMatch(value, exactBytesChanged) {
+// NeedsBinaryJSONRedaction reports whether any JSON string requires redaction under this snapshot.
+func (s *SecretSnapshot) NeedsBinaryJSONRedaction(raw json.RawMessage) (bool, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if value, ok := token.(string); ok && s.exactBinaryString(value) != value {
+			return true, nil
+		}
+	}
+}
+
+func (s *SecretSnapshot) exactBinaryString(value string) string {
+	changed := func(decoded []byte) bool {
+		text := string(decoded)
+		return replaceRegisteredSecrets(text, s.values) != text
+	}
+	if exactDataURIMatches(value, changed) ||
+		exactURLEncodedMatches(value, changed) ||
+		exactEncodedBytesMatch(value, changed) {
 		return Marker
 	}
 	containsMarker := func(decoded []byte) bool {
@@ -50,15 +71,8 @@ func exactBinaryJSONString(value string) string {
 		exactEncodedBytesMatch(value, containsMarker) {
 		return value
 	}
-	redacted := value
-	for _, encodedSecret := range registeredSecretEncodings() {
-		redacted = replaceSecretOutsideMarkers(redacted, encodedSecret)
-	}
-	return exactRedactString(redacted)
-}
-
-func registeredSecretEncodings() []string {
-	return dynamicSecrets.encodingsSnapshot()
+	redacted := replaceRegisteredSecrets(value, s.encodings)
+	return exactRedactStringWithSecrets(redacted, s.values)
 }
 
 func secretEncodings(secrets []string) []string {
@@ -168,8 +182,4 @@ func exactEncodedBytesMatch(value string, match func([]byte) bool) bool {
 	}
 	decoded, err := hex.DecodeString(value)
 	return err == nil && match(decoded)
-}
-
-func exactBytesChanged(value []byte) bool {
-	return !bytes.Equal(ExactBytes(value), value)
 }

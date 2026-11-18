@@ -25,6 +25,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	opendesign "github.com/compozy/compozy/extensions/open-design"
@@ -6408,6 +6409,85 @@ args = ["-c", "printf '{}'"]
 
 func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 	t.Parallel()
+	// Invariant: observed authored policy takes effect within its bound when publication has not caught up.
+	// Owner: daemon policy observer; canonical suite: boot resource watchers.
+	t.Run("Should enforce policy before updated agent resources are published", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			home := testHomePaths(t)
+			cfg := compozyconfig.DefaultWithHome(home)
+			registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
+				"ws_policy_watch": {ID: "ws_policy_watch", Name: "repo", RootDir: t.TempDir()},
+			}}
+			observed := make(chan struct{}, 1)
+			resolver, err := workspacepkg.NewResolver(registry,
+				workspacepkg.WithHomePaths(home), workspacepkg.WithSnapshotTTL(agentConfigMaxStaleness),
+				workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+				workspacepkg.WithInvalidationHook(func() {
+					select {
+					case observed <- struct{}{}:
+					default:
+					}
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(home.AgentsDir, "observed", "AGENT.md")
+			writeDaemonFile(t, path, "---\nname: observed\nprovider: codex\n---\nOriginal.\n")
+			initial, err := resolver.ResolveAgentConfig(t.Context(), "ws_policy_watch", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-observed: // Initial registration can invalidate the resolver.
+			default:
+			}
+			index := slices.IndexFunc(initial.Agents, func(agent compozyconfig.AgentDef) bool {
+				return agent.Name == "observed"
+			})
+			if index < 0 {
+				t.Fatal("authored agent missing from the initial policy snapshot")
+			}
+			actor := agentSkillSyncActor()
+			catalog := newResourceCatalog(cloneAgentDef)
+			catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{
+				ID: agentManagedIDPrefix + "stale",
+				Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspaceProfile,
+					ID:   initial.ID + "@pf:" + daemonDefaultProfileName,
+				},
+				Source: actor.Source,
+				Owner:  managedDraftOwner(actor, nil),
+				Spec:   initial.Agents[index],
+			}})
+			policy := agentCatalogDependency(catalog)
+			ctx, cancel := context.WithCancel(t.Context())
+			var workers sync.WaitGroup
+			defer func() { cancel(); workers.Wait() }()
+
+			state := &bootState{cfg: cfg, workspaceResolver: resolver}
+			workers.Go(func() { runAgentConfigWatcher(ctx, state, agentConfigPollInterval) })
+			writeDaemonFile(
+				t,
+				path,
+				"---\nname: observed\nprovider: codex\ndeny_tools: [compozy__tool_search]\n---\nRestricted.\n",
+			)
+			select {
+			case <-observed:
+			case <-time.After(agentConfigMaxStaleness):
+				t.Fatal("policy observer exceeded the approved freshness bound")
+			}
+			current, err := resolver.ResolveAgentConfig(t.Context(), initial.ID, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			agent, err := policy.ResolvePolicyAgent(t.Context(), "observed", &current)
+			if err != nil || !slices.Contains(agent.DenyTools, "compozy__tool_search") {
+				t.Fatalf("current policy with stale published resources = %+v, %v", agent, err)
+			}
+		})
+	})
 
 	t.Run("Should reject personal profile roots inside a workspace before watching skills", func(t *testing.T) {
 		t.Parallel()

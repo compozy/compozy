@@ -2,10 +2,13 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"maps"
 	"sync"
 
 	"github.com/compozy/compozy/internal/profiling"
+	"github.com/compozy/compozy/internal/redact"
 
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -58,14 +61,15 @@ func (s *HostedService) projectionForGeneration(
 	unversioned hostedProjectionBuilder,
 ) (HostedProjectionResponse, error) {
 	if s.projectionGeneration == nil {
-		return unversioned(ctx, registry, record)
+		return projectionWithRedactionCheck(ctx, registry, record, unversioned)
 	}
 
 	scope := record.scope()
 	for range hostedProjectionGenerationRetries {
+		// The authoritative MCP provider generation already includes its redaction input.
 		generation, known := s.projectionGeneration(ctx, scope)
 		if !known {
-			return unversioned(ctx, registry, record)
+			return projectionWithRedactionCheck(ctx, registry, record, unversioned)
 		}
 		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
 		if cached, ok := s.projectionCache.load(key); ok {
@@ -96,7 +100,49 @@ func (s *HostedService) projectionForGeneration(
 			return HostedProjectionResponse{}, ErrHostedBindNotFound
 		}
 	}
-	return buildHostedProjection(ctx, registry, record)
+	return projectionWithRedactionCheck(ctx, registry, record, buildHostedProjection)
+}
+
+func projectionWithRedactionCheck(
+	ctx context.Context, registry tools.Registry, record *hostedBindRecord, build hostedProjectionBuilder,
+) (HostedProjectionResponse, error) {
+	redaction := projectionRedactionRevision(registry)
+	response, err := build(ctx, registry, record)
+	if err == nil && redaction != projectionRedactionRevision(registry) {
+		response = filterUnsafeMCPMetadata(response, record)
+	}
+	return response, err
+}
+
+// A changing redaction registry can invalidate individual tools without blocking the whole bind.
+func filterUnsafeMCPMetadata(response HostedProjectionResponse, record *hostedBindRecord) HostedProjectionResponse {
+	snapshot := redact.RegisteredSecretSnapshot()
+	views := make([]tools.ToolView, 0, len(response.Tools))
+	for i := range response.Tools {
+		view := &response.Tools[i]
+		if view.Descriptor.Source.Kind == tools.SourceMCP {
+			raw, err := json.Marshal(view)
+			if err != nil {
+				continue
+			}
+			unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
+			if err != nil || unsafe {
+				continue
+			}
+		}
+		views = append(views, *view)
+	}
+	if len(views) == len(response.Tools) {
+		return response
+	}
+	return hostedProjectionResponse(views, record.digestMemo)
+}
+
+func projectionRedactionRevision(registry tools.Registry) [sha256.Size]byte {
+	if guarded, ok := registry.(interface{ ProjectionRedactionRevision() [sha256.Size]byte }); ok {
+		return guarded.ProjectionRedactionRevision()
+	}
+	return [sha256.Size]byte{}
 }
 
 func (s *HostedService) finishProjectionGeneration(

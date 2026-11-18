@@ -16,8 +16,11 @@ import (
 	"testing/synctest"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/tools"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestHostedServiceBindNonceLifecycle(t *testing.T) {
@@ -1082,6 +1085,162 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
+	// Invariant: secret changes preserve safe hosted reads without caching a projection built across revisions.
+	// Owner: hosted projection; canonical suite: hosted projection generations.
+	for _, tc := range []struct {
+		name      string
+		eager     bool
+		versioned bool
+	}{
+		{name: "Should preserve a deferred bind during redaction changes without a known generation"},
+		{name: "Should preserve an eager bind during redaction changes without a known generation", eager: true},
+		{name: "Should preserve a deferred bind during redaction changes with a known generation", versioned: true},
+		{name: "Should preserve an eager bind during redaction changes with a known generation", eager: true, versioned: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := fmt.Sprintf("synthetic-metadata-redaction-%t-%t", tc.eager, tc.versioned)
+			release := redact.RegisterRequiredSecret(fixture)
+			t.Cleanup(func() { release() })
+			safe := hostedToolView("mcp__echo__safe")
+			safe.Descriptor.Source = tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo"}
+			unsafe := hostedToolView("mcp__echo__unsafe")
+			unsafe.Descriptor.Source = safe.Descriptor.Source
+			unsafe.Descriptor.Description = fixture
+			registry := hostedRedactionRegistry{&hostedRegistryStub{
+				views: []tools.ToolView{safe, unsafe},
+				onListed: func() {
+					release()
+					release = redact.RegisterRequiredSecret(fixture)
+				},
+			}}
+			executable := hostedTestExecutable(t, "compozy")
+			var generation HostedProjectionGeneration
+			if tc.versioned {
+				generation = func(context.Context, tools.Scope) (string, bool) {
+					return fmt.Sprintf("%x", redact.SecretFingerprint()), true
+				}
+			}
+			service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, generation)
+			epoch := NewProjectionEpoch()
+			service.projectionEpoch = epoch.Current
+			peer := hostedTestPeer(executable)
+			const id = "sess-redaction-change"
+			launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: id, EagerTools: tc.eager})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.ArmLaunch(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
+			bind, err := service.Bind(t.Context(), HostedBindRequest{
+				SessionID: id, Nonce: hostedLaunchNonce(t, launch.Args),
+			}, peer)
+			if err != nil || !slices.Equal(hostedToolIDs(bind.Tools), []string{"mcp__echo__safe"}) {
+				t.Fatalf("bind tools = %v, error = %v", hostedToolIDs(bind.Tools), err)
+			}
+			projection, err := service.StreamSnapshot(t.Context(), bind.BindID, peer)
+			if err != nil || projection.Digest != bind.Digest || projection.Catalog.Servers["echo"] != 1 {
+				t.Fatalf("stream did not retain the safe projection: %v", err)
+			}
+			if count := service.projectionCacheSize(); count != 0 {
+				t.Fatalf("cached %d projections from changing redaction inputs", count)
+			}
+		})
+	}
+
+	// Invariant: a redaction change renews hosted metadata without rediscovering an unchanged listing.
+	// Owner: hosted projection cache; canonical suite: hosted projection generations.
+	for _, tc := range []struct {
+		name      string
+		versioned bool
+	}{
+		{name: "Should refresh authoritative metadata when a value must be redacted", versioned: true},
+		{name: "Should refresh shared stream metadata when a value must be redacted"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			label := fmt.Sprintf("hosted-projection-late-redaction-%t", tc.versioned)
+			schema := json.RawMessage(`{"type":"object"}`)
+			server := newFakeSDKServerWithSchemas(nil, schema, nil, "Hosted "+label, "", nil)
+			var lists atomic.Int32
+			server.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+				return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+					if method == mcpToolsListMethod {
+						lists.Add(1)
+					}
+					return next(ctx, method, request)
+				}
+			})
+			remote := newTestMCPHTTPServer(server)
+			t.Cleanup(remote.Close)
+			executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+				Name: "echo", Transport: compozyconfig.MCPServerTransportHTTP, URL: remote.URL,
+			}, withToolListFloor(time.Minute))
+			source := tools.SourceRef{Kind: tools.SourceMCP, Owner: "echo", RawServerName: "echo", Scope: "user"}
+			provider, err := tools.NewMCPProvider(
+				tools.MCPSourceListerFunc(func(context.Context) ([]tools.SourceRef, error) {
+					return []tools.SourceRef{source}, nil
+				}),
+				executor, nil,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy := tools.DefaultPolicyInputs()
+			policy.ExternalDefault = tools.ExternalDefaultEnabled
+			policy.SystemPermissionMode = tools.PermissionModeApproveAll
+			registry, err := tools.NewRegistry(
+				tools.WithProviders(provider),
+				tools.WithPolicyInputs(policy, tools.ToolsetCatalog{}),
+				tools.WithProjectionGeneration(func(context.Context, tools.Scope) (string, bool) {
+					return "stable-policy", true
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			executable := hostedTestExecutable(t, "compozy")
+			var generation HostedProjectionGeneration
+			if tc.versioned {
+				generation = registry.ProjectionGeneration
+			}
+			service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, generation)
+			epoch := NewProjectionEpoch()
+			service.projectionEpoch = epoch.Current
+			peer := hostedTestPeer(executable)
+			bind := hostedTestBind(t, service, "sess-redaction-change", peer)
+			project := func(lastDigest string) (HostedProjectionResponse, error) {
+				if tc.versioned {
+					return service.Projection(t.Context(), bind.BindID, peer)
+				}
+				return service.StreamProjection(t.Context(), bind.BindID, peer, lastDigest)
+			}
+			initial, err := project("")
+			if err != nil || len(initial.Tools) != 1 ||
+				!strings.Contains(initial.Tools[0].Descriptor.Description, label) {
+				t.Fatalf("initial hosted projection did not expose the unclassified fixture: %v", err)
+			}
+			warm, err := project("")
+			if err != nil || warm.Digest != initial.Digest {
+				t.Fatalf("unchanged hosted projection did not retain its digest: %v", err)
+			}
+			baseline := lists.Load()
+			if baseline != 1 {
+				t.Fatalf("initial tools/list calls = %d, want 1", baseline)
+			}
+
+			t.Cleanup(redact.RegisterRequiredSecret(label))
+			current, err := project(initial.Digest)
+			if err != nil || current.Digest == initial.Digest || len(current.Tools) != 1 ||
+				strings.Contains(current.Tools[0].Descriptor.Description, label) {
+				t.Fatalf("hosted projection did not publish the redacted tool: %v", err)
+			}
+			if got := lists.Load(); got != baseline {
+				t.Fatalf("tools/list calls = %d, want cached listing count %d", got, baseline)
+			}
+		})
+	}
 	// Invariant: expiry with a refresh path retains hosted/proxy tools; sign-in required withdraws them.
 	// Owner: hosted projection and proxy reconciliation; canonical suite: projection generation cache.
 	t.Run(
@@ -1270,7 +1429,10 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 				}
 				wg.Wait()
 				probe := streams - 1
+				release := redact.RegisterRequiredSecret(fmt.Sprintf("unrelated-listing-secret-%d-%d", streams, change))
+				t.Cleanup(release)
 				cached, err := service.StreamProjection(t.Context(), binds[probe].BindID, peers[probe], "")
+				release()
 				if err != nil || len(cached.Tools) != 1 || !json.Valid(cached.Tools[0].Descriptor.InputSchema) {
 					t.Fatalf("cached peer response = %#v, error = %v", cached, err)
 				}
@@ -1487,6 +1649,50 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		if calls := f.listings(); calls != 2 {
 			t.Fatalf("wakes after the listing window listed %d times, want one rotation", calls)
 		}
+	})
+
+	// Invariant: a new listing window cannot inherit or extend a shared flight from an older window.
+	// Owner: hosted shared projections; canonical suite: hosted projection generations.
+	t.Run("Should keep a shared flight within its original listing window", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			f := newHostedListingShareFixture(t)
+			follower := f.bind(t, "sess-follower", "ws-shared")
+			started, resume := make(chan struct{}), make(chan struct{})
+			f.provider.decorate = func(views []tools.Descriptor, scope tools.Scope) {
+				views[0].Description = fmt.Sprint("revision ", f.revision.Load())
+				if scope.SessionID == "sess-full" {
+					close(started)
+					<-resume
+				}
+			}
+			type projectionResult struct {
+				response HostedProjectionResponse
+				err      error
+			}
+			read := func(bindID string, done chan<- projectionResult) {
+				response, err := f.service.StreamProjection(t.Context(), bindID, f.peer, "")
+				done <- projectionResult{response, err}
+			}
+			leaderDone := make(chan projectionResult, 1)
+			go read(f.full, leaderDone)
+			<-started
+			f.revision.Store(1)
+			f.advance(f.service.StreamRefreshInterval())
+			followerDone := make(chan projectionResult, 1)
+			go read(follower, followerDone)
+			synctest.Wait()
+			close(resume)
+			if leader := <-leaderDone; leader.err != nil {
+				t.Fatal(leader.err)
+			}
+			current := <-followerDone
+			if current.err != nil || len(current.response.Tools) != 2 ||
+				current.response.Tools[0].Descriptor.Description != "revision 1" {
+				t.Fatalf("projection in the new listing window = %#v, %v", current.response, current.err)
+			}
+			f.wake(t, follower, "revision 1")
+		})
 	})
 
 	for _, cached := range []bool{false, true} {
@@ -1782,7 +1988,12 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			projectionStates: make(map[string]mcpToolProjectionState),
 		}}
 		now := time.Now()
-		if err := executor.recordToolProjection(source, "", alpha, 60_000, now); err != nil {
+		if err := executor.recordToolProjection(
+			mcpProjectionSourceKey(source, "", ""),
+			alpha,
+			time.Minute,
+			now,
+		); err != nil {
 			t.Fatalf("recordToolProjection(alpha) error = %v", err)
 		}
 		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
@@ -1801,11 +2012,21 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
 			t.Fatalf("Projection(alpha) error = %v", err)
 		}
-		if err := executor.recordToolProjection(source, "", alpha, 1, now.Add(-time.Second)); err != nil {
+		if err := executor.recordToolProjection(
+			mcpProjectionSourceKey(source, "", ""),
+			alpha,
+			time.Millisecond,
+			now.Add(-time.Second),
+		); err != nil {
 			t.Fatalf("recordToolProjection(expire alpha) error = %v", err)
 		}
 		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
-		if err := executor.recordToolProjection(source, "", beta, 60_000, time.Now()); err != nil {
+		if err := executor.recordToolProjection(
+			mcpProjectionSourceKey(source, "", ""),
+			beta,
+			time.Minute,
+			time.Now(),
+		); err != nil {
 			t.Fatalf("recordToolProjection(beta) error = %v", err)
 		}
 
@@ -1947,6 +2168,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 				t.Fatalf("concurrent projection did not reach generation lookup: %v", ctx.Err())
 			}
 		}
+		t.Cleanup(redact.RegisterRequiredSecret("unrelated-secret-during-authoritative-projection"))
 		releaseGenerationOnce()
 		select {
 		case <-listStarted:
@@ -2847,6 +3069,12 @@ type hostedRegistryStub struct {
 	releaseList    <-chan struct{}
 	// onListed runs after List captured its views, simulating an invalidation during a build.
 	onListed func()
+}
+
+type hostedRedactionRegistry struct{ *hostedRegistryStub }
+
+func (hostedRedactionRegistry) ProjectionRedactionRevision() [sha256.Size]byte {
+	return redact.SecretFingerprint()
 }
 
 var _ tools.Registry = (*hostedRegistryStub)(nil)

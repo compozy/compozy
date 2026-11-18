@@ -14,7 +14,7 @@ type ProjectionGenerationProvider interface {
 // ProjectionGenerationResolver reports authoritative non-provider projection state.
 type ProjectionGenerationResolver func(context.Context, Scope) (generation string, known bool)
 
-// WithProjectionInvalidator invalidates cached projections after any dispatch attempt.
+// WithProjectionInvalidator invalidates cached projections after a potentially mutating backend invocation.
 func WithProjectionInvalidator(invalidate func()) RegistryOption {
 	return func(registry *RuntimeRegistry) {
 		registry.projectionInvalidator = invalidate

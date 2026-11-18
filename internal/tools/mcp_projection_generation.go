@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/redact"
 )
 
 type mcpProjectionGenerationSource interface {
@@ -38,6 +40,7 @@ func (p *MCPProvider) ProjectionGeneration(ctx context.Context, scope Scope) (st
 	})
 	var generation strings.Builder
 	appendProjectionGenerationPart(&generation, "descriptors", descriptorGeneration)
+	appendProjectionGenerationPart(&generation, "redaction", fmt.Sprintf("%x", redact.SecretFingerprint()))
 	for i := range sources {
 		availability, known := p.mcpSourceAvailabilityGeneration(ctx, sources[i], scope.ProfileID)
 		if !known {

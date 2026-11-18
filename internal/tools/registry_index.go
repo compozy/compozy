@@ -17,8 +17,6 @@ type registryEntry struct {
 	provider      Provider
 	providerIndex int
 	conflicts     []ReasonCode
-	// owned marks a descriptor cloned privately for this index; shared native descriptors are not owned.
-	owned bool
 }
 
 func (r *RuntimeRegistry) buildIndex(ctx context.Context, scope Scope) (*registryIndex, error) {
@@ -27,6 +25,30 @@ func (r *RuntimeRegistry) buildIndex(ctx context.Context, scope Scope) (*registr
 
 // buildIndexMatching reuses native descriptors, validates fresh dynamic listings, and preserves conflicts.
 func (r *RuntimeRegistry) buildIndexMatching(
+	ctx context.Context,
+	scope Scope,
+	include func(Provider) bool,
+) (*registryIndex, error) {
+	if cache, ok := ctx.Value(policyResolutionKey{}).(*policyResolutionCache); ok && include == nil {
+		key := policyResolutionScope{registry: r, scope: scope}
+		cache.indexMu.Lock()
+		defer cache.indexMu.Unlock()
+		if index := cache.indexes[key]; index != nil {
+			return index, nil
+		}
+		index, err := r.buildUncachedIndex(ctx, scope, include)
+		if err == nil {
+			if cache.indexes == nil {
+				cache.indexes = make(map[policyResolutionScope]*registryIndex)
+			}
+			cache.indexes[key] = index
+		}
+		return index, err
+	}
+	return r.buildUncachedIndex(ctx, scope, include)
+}
+
+func (r *RuntimeRegistry) buildUncachedIndex(
 	ctx context.Context,
 	scope Scope,
 	include func(Provider) bool,
@@ -46,7 +68,7 @@ func (r *RuntimeRegistry) buildIndexMatching(
 		if native, ok := provider.(*NativeProvider); ok {
 			// Native descriptors are validated and privately cloned at construction.
 			for _, id := range native.ids {
-				index.add(native.tools[id].Descriptor, provider, providerIndex, false)
+				index.add(native.tools[id].Descriptor, provider, providerIndex)
 			}
 			continue
 		}
@@ -55,9 +77,9 @@ func (r *RuntimeRegistry) buildIndexMatching(
 			return nil, err
 		}
 		for descriptorIndex := range descriptors {
-			descriptor := cloneDescriptor(descriptors[descriptorIndex])
+			descriptor := descriptors[descriptorIndex]
 			applyMCPReadAuthority(&descriptor, inputs.MCPReadOnlyTools)
-			index.add(descriptor, provider, providerIndex, true)
+			index.add(descriptor, provider, providerIndex)
 		}
 	}
 	slices.SortFunc(index.entries, func(a *registryEntry, b *registryEntry) int {
@@ -70,13 +92,13 @@ func (r *RuntimeRegistry) buildIndexMatching(
 }
 
 // add retains the first descriptor for each ID and records conflicts from subsequent providers.
-func (i *registryIndex) add(descriptor Descriptor, provider Provider, providerIndex int, owned bool) {
+func (i *registryIndex) add(descriptor Descriptor, provider Provider, providerIndex int) {
 	if existing, ok := i.byID[descriptor.ID]; ok {
 		reason := conflictReason(&existing.descriptor, &descriptor)
 		existing.conflicts = appendReason(existing.conflicts, reason)
 		return
 	}
-	entry := &registryEntry{descriptor: descriptor, provider: provider, providerIndex: providerIndex, owned: owned}
+	entry := &registryEntry{descriptor: descriptor, provider: provider, providerIndex: providerIndex}
 	i.byID[descriptor.ID] = entry
 	i.entries = append(i.entries, entry)
 }
@@ -189,19 +211,40 @@ type policyResolution struct {
 	err    error
 }
 type policyResolutionCache struct {
-	mu     sync.Mutex
-	values map[policyResolutionScope]policyResolution
+	externalMu     sync.Mutex
+	externalStamps map[projectionListingKey]string
+	mu             sync.Mutex
+	values         map[policyResolutionScope]policyResolution
+	indexMu        sync.Mutex
+	indexes        map[policyResolutionScope]*registryIndex
+	availabilityMu sync.Mutex
+	availabilities map[policyResolutionScope]map[ToolID]Availability
+	visibilityMu   sync.Mutex
+	visibilities   map[policyResolutionScope]string
 }
 
-func withPolicyResolutionCache(ctx context.Context) context.Context {
-	if ctx.Value(policyResolutionKey{}) != nil {
-		return ctx
+// ReadContext shares policy and indexes only for one logical read; mutations require a new context.
+func (r *RuntimeRegistry) ReadContext(ctx context.Context) context.Context {
+	return r.readContext(ctx, false)
+}
+
+// FreshReadContext starts a new read without inheriting any policy, index, or listing memo.
+func (r *RuntimeRegistry) FreshReadContext(ctx context.Context) context.Context {
+	return r.readContext(WithProjectionListings(ctx, NewProjectionListings()), true)
+}
+
+func (r *RuntimeRegistry) readContext(ctx context.Context, fresh bool) context.Context {
+	if fresh || ctx.Value(policyResolutionKey{}) == nil {
+		ctx = context.WithValue(ctx, policyResolutionKey{}, &policyResolutionCache{
+			values: make(map[policyResolutionScope]policyResolution),
+		})
 	}
-	return context.WithValue(
-		ctx,
-		policyResolutionKey{},
-		&policyResolutionCache{values: map[policyResolutionScope]policyResolution{}},
-	)
+	if resolver, ok := r.policyResolver.(interface {
+		PolicyReadContext(context.Context, bool) context.Context
+	}); ok {
+		ctx = resolver.PolicyReadContext(ctx, fresh)
+	}
+	return ctx
 }
 
 type policyResolutionScope struct {

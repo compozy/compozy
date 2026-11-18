@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 
 	mcppkg "github.com/compozy/compozy/internal/mcp"
@@ -49,7 +50,7 @@ func TestResourceAgentCatalogLookupReturnsDefensiveCopy(t *testing.T) {
 			t.Fatalf("ResolveAgent(second).Tools[0] = %q, want %q", got, want)
 		}
 		policyContext := &workspacepkg.ResolvedAgentConfig{Workspace: resolved.Workspace}
-		policyAgent, err := dependency.ResolvePolicyAgent("coder", policyContext)
+		policyAgent, err := dependency.ResolvePolicyAgent(t.Context(), "coder", policyContext)
 		if err != nil {
 			t.Fatalf("ResolvePolicyAgent() error = %v", err)
 		}
@@ -60,7 +61,7 @@ func TestResourceAgentCatalogLookupReturnsDefensiveCopy(t *testing.T) {
 		}
 		updated[0].Spec.Tools = []string{toolspkg.ToolIDSkillView.String()}
 		catalog.Replace(2, updated)
-		policyAgent, err = dependency.ResolvePolicyAgent("coder", policyContext)
+		policyAgent, err = dependency.ResolvePolicyAgent(t.Context(), "coder", policyContext)
 		if err != nil {
 			t.Fatalf("ResolvePolicyAgent(updated) error = %v", err)
 		}
@@ -121,7 +122,7 @@ func TestResourceAgentCatalogPolicyResolution(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ResolveAgent() error = %v", err)
 			}
-			got, err := dependency.ResolvePolicyAgent(" coder ", policy)
+			got, err := dependency.ResolvePolicyAgent(t.Context(), " coder ", policy)
 			if err != nil {
 				t.Fatalf("ResolvePolicyAgent() error = %v", err)
 			}
@@ -136,6 +137,65 @@ func TestResourceAgentCatalogPolicyResolution(t *testing.T) {
 		})
 	}
 
+	// Invariant: live authored policy preserves published scope and extension precedence without waiting for Sync.
+	// Owner: resource agent policy resolution; canonical suite: catalog policy resolution.
+	for _, tc := range []struct {
+		name             string
+		extensionScope   resources.ResourceScope
+		remove, newAgent bool
+		wantDeny         bool
+	}{
+		{"Should replace stale authored policy above a workspace extension", resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-live"}, false, false, true},
+		{"Should preserve an extension winner at the same scope", resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "ws-live@pf:custom"}, false, false, false},
+		{"Should ignore a foreign extension while applying a new authored definition", resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-foreign"}, false, true, true},
+		{"Should reveal a lower extension after authored removal", resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-live"}, true, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			actor := agentSkillSyncActor()
+			stale := compozyconfig.AgentDef{
+				Name:       "live-coder",
+				Provider:   "codex",
+				Prompt:     "Original.",
+				SourcePath: "/fixture/AGENT.md",
+			}
+			current := compozyconfig.CloneAgentDef(stale)
+			current.DenyTools = []string{toolspkg.ToolIDToolSearch.String()}
+			catalog := newResourceCatalog(cloneAgentDef)
+			records := []resources.Record[compozyconfig.AgentDef]{{
+				ID: "extension/kit/agent/live-coder", Scope: tc.extensionScope,
+				Source: actor.Source, Owner: *extensionOwner("kit"), Spec: stale,
+			}}
+			if !tc.newAgent {
+				records = append(records, resources.Record[compozyconfig.AgentDef]{
+					ID: agentManagedIDPrefix + "old",
+					Scope: resources.ResourceScope{
+						Kind: resources.ResourceScopeKindWorkspaceProfile,
+						ID:   "ws-live@pf:custom",
+					},
+					Source: actor.Source,
+					Owner:  managedDraftOwner(actor, nil),
+					Spec:   stale,
+				})
+			}
+			catalog.Replace(1, records)
+			resolved := &workspacepkg.ResolvedAgentConfig{
+				ID:          "ws-live",
+				ProfileID:   "pf-live",
+				ProfileName: "custom",
+			}
+			if !tc.remove {
+				resolved.Agents = []compozyconfig.AgentDef{current}
+			}
+			got, err := agentCatalogDependency(catalog).ResolvePolicyAgent(t.Context(), "live-coder", resolved)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if denied := slices.Contains(got.DenyTools, toolspkg.ToolIDToolSearch.String()); denied != tc.wantDeny {
+				t.Fatalf("policy deny = %t, want %t; agent=%+v", denied, tc.wantDeny, got)
+			}
+		})
+	}
 	t.Run("Should preserve snapshot and builtin fallback with exact error semantics", func(t *testing.T) {
 		t.Parallel()
 
@@ -152,7 +212,7 @@ func TestResourceAgentCatalogPolicyResolution(t *testing.T) {
 						fullContext, policyContext = full, policy
 					}
 					want, wantErr := resolver.ResolveAgent(name, fullContext)
-					got, gotErr := resolver.ResolvePolicyAgent(name, policyContext)
+					got, gotErr := resolver.ResolvePolicyAgent(t.Context(), name, policyContext)
 					if wantErr != nil {
 						if gotErr == nil || gotErr.Error() != wantErr.Error() ||
 							errors.Is(

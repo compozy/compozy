@@ -153,6 +153,16 @@ Keep this installed skill body.
 		if err := db.InsertWorkspace(testutil.Context(t), workspace); err != nil {
 			t.Fatalf("InsertWorkspace() error = %v", err)
 		}
+		// Invariant: a missing registered root cannot block healthy agent/skill publication.
+		// Owner: daemon publication; canonical suite: agent/skill publication and boot rebuild.
+		missing := workspace
+		missing.ID, missing.Name, missing.RootDir = "ws_agent_skill_missing", "unmounted", t.TempDir()
+		if err := db.InsertWorkspace(t.Context(), missing); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(missing.RootDir); err != nil {
+			t.Fatal(err)
+		}
 		workspaceResolver, err := workspacepkg.NewResolver(
 			db,
 			workspacepkg.WithHomePaths(homePaths),

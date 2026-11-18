@@ -36,16 +36,21 @@ func (s *HostedService) bootstrapProjection(
 	if !ok {
 		return s.projection(ctx, record)
 	}
+	redaction := projectionRedactionRevision(registry)
 	generation, known := s.bootstrapProjectionGeneration(ctx, record)
 	views, err := bootstrap.BootstrapSessionProjection(ctx, record.scope())
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
 	response := hostedProjectionResponse(views, record.digestMemo)
-	if !known {
-		return response, nil
+	var after string
+	var stillKnown bool
+	if known {
+		after, stillKnown = s.bootstrapProjectionGeneration(ctx, record)
 	}
-	after, stillKnown := s.bootstrapProjectionGeneration(ctx, record)
+	if redaction != projectionRedactionRevision(registry) {
+		return filterUnsafeMCPMetadata(response, record), nil
+	}
 	if !stillKnown || after != generation {
 		return response, nil
 	}

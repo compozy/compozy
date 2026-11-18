@@ -5880,6 +5880,29 @@ func (a *readModeAuthority) EffectiveMCPAuthority(
 
 func TestManagerListForWorkspaceResolvesAuthorityInReadMode(t *testing.T) {
 	t.Parallel()
+	t.Run("Should decorate a detail in read mode without weakening enforcement", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		live := createSession(t, h.harness)
+		authority := &readModeAuthority{calls: map[string]bool{}}
+		h.manager.SetMCPAuthorityResolver(authority)
+		info, err := h.manager.StoredStatus(t.Context(), live.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := PopulateEffectiveMCPAuthority(t.Context(), h.manager, info); err != nil {
+			t.Fatal(err)
+		}
+		if !authority.calls[live.ID] || !slices.Equal(info.Lineage.EffectiveMCPServers, []string{"grafana"}) {
+			t.Fatalf("detail servers=%v, read mode=%v", info.Lineage.EffectiveMCPServers, authority.calls[live.ID])
+		}
+		if _, err := h.manager.EffectiveMCPAuthority(t.Context(), live.ID); err != nil {
+			t.Fatal(err)
+		}
+		if authority.calls[live.ID] {
+			t.Fatal("display read mode escaped into authority enforcement")
+		}
+	})
 	// Invariant: a workspace listing resolves MCP authority in read mode and skips archived
 	// sessions; opening an archived session still resolves it. Owner: session queries.
 	t.Run("Should resolve live sessions in read mode and leave archived sessions empty", func(t *testing.T) {

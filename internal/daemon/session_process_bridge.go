@@ -71,7 +71,7 @@ func (b sessionProcessSource) Owners(context.Context) ([]sessionprocess.Owner, e
 	return owners, nil
 }
 func (b sessionProcessSource) Owner(ctx context.Context, id string) (sessionprocess.Owner, bool, error) {
-	info, err := b.state.sessions.Status(ctx, id)
+	info, err := storedSessionStatus(ctx, b.state.sessions, id)
 	if errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotFound) {
 		return sessionprocess.Owner{}, false, nil
 	}

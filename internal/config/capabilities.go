@@ -223,6 +223,11 @@ func AgentCapabilityCatalogDependencyPaths(agentDir string) (paths []string, err
 	jsonPath := filepath.Join(trimmedDir, capabilityCatalogJSONName)
 	dirPath := filepath.Join(trimmedDir, capabilityCatalogDirName)
 	paths = []string{tomlPath, jsonPath, dirPath}
+	// Absence needs no handle; existing entries still traverse the protected directory chain.
+	if _, statErr := os.Lstat(dirPath); errors.Is(statErr, os.ErrNotExist) {
+		slices.Sort(paths)
+		return paths, nil
+	}
 
 	directory, err := fileutil.OpenDirectory(dirPath)
 	if err != nil {

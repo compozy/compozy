@@ -8050,6 +8050,30 @@ func (s *agentMCPApprovalSettings) RecordWorkspaceMCPWrite(
 
 // Invariant: MCP summary decorates detail only and scoped reads authorize before reading inventory. Owner: session HTTP core; canonical handler suite (UT-083).
 func TestSessionMCPDetailAndScope(t *testing.T) {
+	// Invariant: current summaries decorate HTTP detail without rebuilding the full MCP read model.
+	// Owner: shared HTTP/UDS handlers; canonical suite: MCP detail and scope.
+	t.Run("Should reuse the current summary on session detail", func(t *testing.T) {
+		t.Parallel()
+		info := testutil.NewSessionInfo("sess-mcp")
+		info.WorkspaceID, info.ProfileID = "ws-mcp", store.DefaultProfileID
+		base := &testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+		}
+		fixture := newHandlerFixture(t, base, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		reader := &sessionMCPSummaryHandlerStub{sessionMCPHandlerStub: &sessionMCPHandlerStub{
+			SessionManager: fixture.Handlers.Sessions,
+		}, summary: session.MCPSummary{Usable: 7, PendingReload: true}}
+		fixture.Handlers.Sessions = reader
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp", nil)
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || payload.Session.MCPSummary == nil ||
+			*payload.Session.MCPSummary != reader.summary || reader.reads != 0 {
+			t.Fatalf("detail=%d %s, full reads=%d", response.Code, response.Body.String(), reader.reads)
+		}
+	})
 	t.Parallel()
 	t.Run("Should omit waiting previews from app-token reads without mutating operator rows", func(t *testing.T) {
 		t.Parallel()
@@ -8278,4 +8302,17 @@ func (s *sessionMCPHandlerStub) CheckSessionMCP(_ context.Context, _ string, nam
 	s.checks++
 	s.checkName, s.checkOwner = name, owner
 	return s.result, s.err
+}
+
+type sessionMCPSummaryHandlerStub struct {
+	*sessionMCPHandlerStub
+	summary session.MCPSummary
+}
+
+var _ interface {
+	SessionMCPSummary(context.Context, string) (*session.MCPSummary, error)
+} = (*sessionMCPSummaryHandlerStub)(nil)
+
+func (s *sessionMCPSummaryHandlerStub) SessionMCPSummary(context.Context, string) (*session.MCPSummary, error) {
+	return &s.summary, nil
 }

@@ -23,6 +23,11 @@ type ToolDiscovery struct {
 	Diagnostic      string
 }
 
+func (d ToolDiscovery) clone() ToolDiscovery {
+	d.Descriptors = cloneMCPToolDescriptors(d.Descriptors)
+	return d
+}
+
 func (e *CallExecutor) descriptorsFromTools(
 	source toolspkg.SourceRef,
 	resolved *ResolvedServer,

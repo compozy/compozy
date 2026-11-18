@@ -64,7 +64,7 @@ func NewAdvertisedCatalog(views []ToolView) AdvertisedCatalog {
 
 // AdvertisedSessionProjection keeps policy and auth withdrawals, while ignoring health-only failures.
 func (r *RuntimeRegistry) AdvertisedSessionProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
-	ctx = withPolicyResolutionCache(ctx)
+	ctx = r.ReadContext(ctx)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (r *RuntimeRegistry) AdvertisedSessionProjection(ctx context.Context, scope
 			candidates = append(candidates, sessionProjectionEntry{entry: entry, decision: decision})
 		}
 	}
-	batched := projectionAvailabilities(ctx, scope, candidates)
+	batched := r.projectionAvailabilities(ctx, scope, candidates)
 	views := make([]ToolView, 0, len(candidates))
 	for _, candidate := range candidates {
 		entry := candidate.entry
@@ -98,7 +98,8 @@ func (r *RuntimeRegistry) AdvertisedSessionProjection(ctx context.Context, scope
 			continue
 		}
 		views = append(views, ToolView{
-			Descriptor: cloneDescriptor(entry.descriptor), Availability: availability, Decision: candidate.decision,
+			Descriptor:   projectionDescriptor(ctx, entry.descriptor),
+			Availability: availability, Decision: candidate.decision,
 		})
 	}
 	return views, nil

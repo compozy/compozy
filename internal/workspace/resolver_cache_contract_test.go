@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -533,46 +534,351 @@ func TestWorkspaceContractAgentConfigResolution(t *testing.T) {
 func TestWorkspaceContractAgentConfigDependencies(t *testing.T) {
 	t.Parallel()
 
-	for _, profileName := range []string{"", "marketing"} {
-		t.Run("Should refresh changed config and agents before cache expiry for "+profileName, func(t *testing.T) {
+	for _, test := range []struct {
+		profile string
+		ttl     time.Duration
+	}{
+		{"", 0}, {"marketing", 0}, {"", time.Second}, {"marketing", time.Second},
+	} {
+		profileName := test.profile
+		t.Run(
+			"Should refresh changed config and agents within bound "+test.ttl.String()+" for "+profileName,
+			func(t *testing.T) {
+				t.Parallel()
+
+				now := time.Unix(1_700_045_000, 0).UTC()
+				resolver, ws, _ := newAgentConfigContractResolver(t,
+					WithSnapshotTTL(test.ttl), withNow(func() time.Time { return now }),
+				)
+				resourceDir := filepath.Join(ws.RootDir, compozyconfig.DirName)
+				if profileName != "" {
+					resourceDir = filepath.Join(resourceDir, compozyconfig.ProfilesDirName, profileName)
+				}
+				configFile := filepath.Join(resourceDir, compozyconfig.ConfigName)
+				agentFile := filepath.Join(resourceDir, compozyconfig.AgentsDirName, "coder", agentDefinitionFile)
+				writeFile(t, configFile, "[defaults]\nagent = \"coder\"\n")
+				writeAgentDef(t, agentFile, "coder", "original")
+				first, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+				if err != nil {
+					t.Fatalf("ResolveAgentConfig(first) error = %v", err)
+				}
+				if first.Config.Defaults.Agent != "coder" || agentModel(first.Agents, "coder") != "original" {
+					t.Fatalf("initial config and agent selection = %#v", first)
+				}
+
+				writeFile(t, configFile, "[defaults]\nagent = \"reviewer\"\n")
+				now = now.Add(test.ttl)
+				afterConfig, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+				if err != nil {
+					t.Fatalf("ResolveAgentConfig(after config edit) error = %v", err)
+				}
+				if afterConfig.Config.Defaults.Agent != "reviewer" {
+					t.Fatalf("default agent after config edit = %q, want reviewer", afterConfig.Config.Defaults.Agent)
+				}
+
+				writeAgentDef(t, agentFile, "coder", "changed-model")
+				now = now.Add(test.ttl)
+				afterAgent, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+				if err != nil {
+					t.Fatalf("ResolveAgentConfig(after agent edit) error = %v", err)
+				}
+				if got := agentModel(afterAgent.Agents, "coder"); got != "changed-model" {
+					t.Fatalf("agent model after edit = %q, want changed-model", got)
+				}
+			},
+		)
+	}
+}
+
+func TestWorkspaceContractAgentConfigSnapshotBound(t *testing.T) {
+	t.Parallel()
+	for _, ref := range []string{"workspace", "@user"} {
+		t.Run("Should observe agent edits within the snapshot bound for "+ref, func(t *testing.T) {
 			t.Parallel()
-
-			resolver, ws, _ := newAgentConfigContractResolver(t)
-			resourceDir := filepath.Join(ws.RootDir, compozyconfig.DirName)
-			if profileName != "" {
-				resourceDir = filepath.Join(resourceDir, compozyconfig.ProfilesDirName, profileName)
+			now := time.Unix(1_700_040_000, 0).UTC()
+			resolver, ws, home := newAgentConfigContractResolver(t,
+				WithSnapshotTTL(time.Second), withNow(func() time.Time { return now }),
+			)
+			workspaceRef := ws.ID
+			if ref == "@user" {
+				workspaceRef = ref
 			}
-			configFile := filepath.Join(resourceDir, compozyconfig.ConfigName)
-			agentFile := filepath.Join(resourceDir, compozyconfig.AgentsDirName, "coder", agentDefinitionFile)
-			writeFile(t, configFile, "[defaults]\nagent = \"coder\"\n")
+			agentFile := filepath.Join(home.AgentsDir, "coder", agentDefinitionFile)
 			writeAgentDef(t, agentFile, "coder", "original")
-			first, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+			first, err := resolver.ResolveAgentConfig(t.Context(), workspaceRef, "")
 			if err != nil {
-				t.Fatalf("ResolveAgentConfig(first) error = %v", err)
+				t.Fatal(err)
 			}
-			if first.Config.Defaults.Agent != "coder" || agentModel(first.Agents, "coder") != "original" {
-				t.Fatalf("initial config and agent selection = %#v", first)
+			if got := agentModel(first.Agents, "coder"); got != "original" {
+				t.Fatalf("initial model = %q", got)
 			}
-
-			writeFile(t, configFile, "[defaults]\nagent = \"reviewer\"\n")
-			afterConfig, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
-			if err != nil {
-				t.Fatalf("ResolveAgentConfig(after config edit) error = %v", err)
-			}
-			if afterConfig.Config.Defaults.Agent != "reviewer" {
-				t.Fatalf("default agent after config edit = %q, want reviewer", afterConfig.Config.Defaults.Agent)
-			}
-
 			writeAgentDef(t, agentFile, "coder", "changed-model")
-			afterAgent, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+			now = now.Add(time.Second - time.Nanosecond)
+			cached, err := resolver.ResolveAgentConfig(t.Context(), workspaceRef, "")
 			if err != nil {
-				t.Fatalf("ResolveAgentConfig(after agent edit) error = %v", err)
+				t.Fatal(err)
 			}
-			if got := agentModel(afterAgent.Agents, "coder"); got != "changed-model" {
-				t.Fatalf("agent model after edit = %q, want changed-model", got)
+			if got := agentModel(cached.Agents, "coder"); got != "original" {
+				t.Fatalf("model inside validation window = %q", got)
+			}
+			now = now.Add(time.Nanosecond)
+			fresh, err := resolver.ResolveAgentConfig(t.Context(), workspaceRef, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := agentModel(fresh.Agents, "coder"); got != "changed-model" {
+				t.Fatalf("model at validation bound = %q", got)
 			}
 		})
 	}
+}
+
+// Invariant: deny edits obey the TTL and dependency polls make sidecars, catalogs and agent changes immediate.
+// Owner: narrow workspace resolver; canonical suite: agent-config cache contracts.
+func TestWorkspaceContractAgentConfigDependencyPoll(t *testing.T) {
+	t.Parallel()
+	// Invariant: published scopes stay observable before policy reads and after idle cache eviction.
+	// Owner: workspace resolver; canonical suite: agent-config dependency polling.
+	t.Run(
+		"Should observe published configurations independently of policy reads and cache eviction",
+		func(t *testing.T) {
+			t.Parallel()
+			now := time.Unix(1_700_044_000, 0).UTC()
+			resolver, ws, home := newAgentConfigContractResolver(t,
+				WithSnapshotTTL(time.Second), withNow(func() time.Time { return now }),
+			)
+			path := filepath.Join(home.AgentsDir, "coder", agentDefinitionFile)
+			writeAgentDef(t, path, "coder", "before")
+			if err := resolver.WatchAgentConfigs(t.Context(), []AgentConfigScope{{WorkspaceRef: ws.ID}}); err != nil {
+				t.Fatal(err)
+			}
+			writeAgentDef(t, path, "coder", "edited-before-first-read")
+			if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+				t.Fatalf("poll before policy read = %t, %v", changed, err)
+			}
+			now = now.Add(resolver.cacheTTL + time.Second)
+			resolver.mu.Lock()
+			resolver.evictExpiredLocked(now)
+			resolver.mu.Unlock()
+			writeAgentDef(t, path, "coder", "edited-after-idle")
+			if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+				t.Fatalf("poll after idle = %t, %v", changed, err)
+			}
+			current, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+			if err != nil || agentModel(current.Agents, "coder") != "edited-after-idle" {
+				t.Fatalf("published agent after idle = %+v, %v", current.Agents, err)
+			}
+			if err := resolver.WatchAgentConfigs(t.Context(), nil); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(resolver.cacheTTL + time.Second)
+			resolver.mu.Lock()
+			resolver.evictExpiredLocked(now)
+			resolver.mu.Unlock()
+			writeAgentDef(t, path, "coder", "no-longer-published")
+			if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || changed {
+				t.Fatalf("poll after publication scope removal = %t, %v", changed, err)
+			}
+		},
+	)
+	// Invariant: creating AGENT.md inside an existing directory invalidates both resolver caches.
+	// Owner: workspace scanner; canonical suite: agent-config dependency polling.
+	t.Run("Should observe a definition created inside an existing empty agent directory", func(t *testing.T) {
+		t.Parallel()
+		resolver, ws, home := newAgentConfigContractResolver(t, WithSnapshotTTL(time.Second))
+		dir := filepath.Join(home.AgentsDir, "appearing")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, ""); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := resolver.Resolve(t.Context(), ws.ID); err != nil {
+			t.Fatal(err)
+		}
+		writeAgentDef(t, filepath.Join(dir, agentDefinitionFile), "appearing", "new-definition")
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+			t.Fatalf("definition creation poll = %t, %v", changed, err)
+		}
+		current, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+		if err != nil || agentModel(current.Agents, "appearing") != "new-definition" {
+			t.Fatalf("narrow agents = %+v, %v", current.Agents, err)
+		}
+		full, err := resolver.Resolve(t.Context(), ws.ID)
+		if err != nil || agentModel(full.Agents, "appearing") != "new-definition" {
+			t.Fatalf("full agents = %+v, %v", full.Agents, err)
+		}
+	})
+	// Invariant: unreadable dependencies invalidate once and recovery remains observable.
+	// Owner: workspace resolver; canonical suite: agent-config dependency polling.
+	t.Run("Should avoid repeated invalidation while a dependency remains unreadable", func(t *testing.T) {
+		t.Parallel()
+		invalidations := 0
+		resolver, ws, home := newAgentConfigContractResolver(t,
+			WithSnapshotTTL(time.Second), WithInvalidationHook(func() { invalidations++ }),
+		)
+		path := filepath.Join(home.AgentsDir, "coder", agentDefinitionFile)
+		writeAgentDef(t, path, "coder", "before")
+		if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, ""); err != nil {
+			t.Fatal(err)
+		}
+		initialInvalidations := invalidations
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Base(path), path); err != nil {
+			t.Fatal(err)
+		}
+		if changed, err := resolver.PollAgentConfig(t.Context()); !errors.Is(err, syscall.ELOOP) || !changed {
+			t.Fatalf("first unreadable poll = %t, %v", changed, err)
+		} else if cause, ok := errors.AsType[*os.PathError](err); !ok || cause.Path != path {
+			t.Fatalf("unreadable dependency error = %v, want path %q", err, path)
+		}
+		for range 3 {
+			if changed, err := resolver.PollAgentConfig(t.Context()); !errors.Is(err, syscall.ELOOP) || changed {
+				t.Fatalf("unchanged unreadable poll = %t, %v", changed, err)
+			} else if cause, ok := errors.AsType[*os.PathError](err); !ok || cause.Path != path {
+				t.Fatalf("unreadable dependency error = %v, want path %q", err, path)
+			}
+		}
+		if invalidations != initialInvalidations+1 {
+			t.Fatalf("unreadable invalidations = %d, want 1", invalidations-initialInvalidations)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		writeAgentDef(t, path, "coder", "recovered")
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+			t.Fatalf("recovery poll = %t, %v", changed, err)
+		}
+		current, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+		if err != nil || agentModel(current.Agents, "coder") != "recovered" || invalidations != initialInvalidations+2 {
+			t.Fatalf("recovered agent = %+v, %v; invalidations = %d", current.Agents, err, invalidations)
+		}
+	})
+	for _, beforePoll := range []string{"read", "invalidate"} {
+		t.Run("Should publish edits after an earlier "+beforePoll, func(t *testing.T) {
+			t.Parallel()
+			now := time.Unix(1_700_045_000, 0).UTC()
+			resolver, ws, home := newAgentConfigContractResolver(t,
+				WithSnapshotTTL(time.Second), withNow(func() time.Time { return now }),
+			)
+			path := filepath.Join(home.AgentsDir, "coder", agentDefinitionFile)
+			writeAgentDef(t, path, "coder", "before")
+			if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, ""); err != nil {
+				t.Fatal(err)
+			}
+			if beforePoll == "invalidate" {
+				resolver.InvalidateAll()
+			}
+			writeAgentDef(t, path, "coder", "after-edit")
+			if beforePoll == "read" {
+				now = now.Add(time.Second)
+				if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, ""); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+				t.Fatalf("poll after %s = %v, %v; want changed", beforePoll, changed, err)
+			}
+			if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || changed {
+				t.Fatalf("unchanged poll = %v, %v", changed, err)
+			}
+		})
+	}
+	t.Run("Should observe policy, sidecar, capability and agent transitions", func(t *testing.T) {
+		t.Parallel()
+		now := time.Unix(1_700_046_000, 0).UTC()
+		resolver, ws, home := newAgentConfigContractResolver(t,
+			WithSnapshotTTL(time.Second), withNow(func() time.Time { return now }),
+		)
+		agentDir := filepath.Join(home.AgentsDir, "coder")
+		agentFile := filepath.Join(agentDir, agentDefinitionFile)
+		writeAgentDef(t, agentFile, "coder", "original")
+		if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, ""); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(
+			t,
+			agentFile,
+			"---\nname: coder\nprovider: codex\npermissions: deny-all\ndeny_tools: [compozy__tool_search]\n---\nRestricted.\n",
+		)
+		now = now.Add(time.Second)
+		current, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		index := slices.IndexFunc(
+			current.Agents,
+			func(agent compozyconfig.AgentDef) bool { return agent.Name == "coder" },
+		)
+		if index < 0 {
+			t.Fatal("coder is absent at the policy bound")
+		}
+		if agent := current.Agents[index]; agent.Permissions != "deny-all" ||
+			!slices.Equal(agent.DenyTools, []string{"compozy__tool_search"}) {
+			t.Fatalf("policy at bound = %+v", agent)
+		}
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+			t.Fatalf("policy poll = %v, %v; want changed", changed, err)
+		}
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || changed {
+			t.Fatalf("unchanged policy poll = %v, %v; want unchanged", changed, err)
+		}
+		writeFile(
+			t,
+			filepath.Join(agentDir, compozyconfig.MCPJSONName),
+			`{"mcpServers":{"fixture":{"command":"fixture"}}}`,
+		)
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+			t.Fatalf("sidecar poll = %v, %v; want changed", changed, err)
+		}
+		current, err = resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		index = slices.IndexFunc(
+			current.Agents,
+			func(agent compozyconfig.AgentDef) bool { return agent.Name == "coder" },
+		)
+		if index < 0 {
+			t.Fatal("coder is absent after the sidecar edit")
+		}
+		if agent := current.Agents[index]; len(agent.MCPServers) != 1 || agent.MCPServers[0].Name != "fixture" {
+			t.Fatalf("sidecar after poll = %+v", agent.MCPServers)
+		}
+		writeFile(
+			t,
+			filepath.Join(agentDir, "capabilities.toml"),
+			"[[capabilities]]\nid = \"review\"\nsummary = \"Review copy.\"\noutcome = \"Prioritized review.\"\n",
+		)
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+			t.Fatalf("capability poll = %v, %v; want changed", changed, err)
+		}
+		current, err = resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+		if err != nil || !slices.Equal(agentCapabilityIDsForContract(current.Agents, "coder"), []string{"review"}) {
+			t.Fatalf("capabilities after poll = %+v, %v", current.Agents, err)
+		}
+		added := filepath.Join(home.AgentsDir, "added", agentDefinitionFile)
+		writeAgentDef(t, added, "added", "new-agent")
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+			t.Fatalf("added agent poll = %v, %v; want changed", changed, err)
+		}
+		current, err = resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+		if err != nil || agentModel(current.Agents, "added") != "new-agent" {
+			t.Fatalf("added agent missing: %v", err)
+		}
+		if err := os.Remove(added); err != nil {
+			t.Fatal(err)
+		}
+		if changed, err := resolver.PollAgentConfig(t.Context()); err != nil || !changed {
+			t.Fatalf("removed agent poll = %v, %v; want changed", changed, err)
+		}
+		current, err = resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+		if err != nil || agentModel(current.Agents, "added") != "" {
+			t.Fatalf("removed agent retained: %v", err)
+		}
+	})
 }
 
 func TestWorkspaceContractAgentConfigInvalidation(t *testing.T) {
@@ -608,6 +914,7 @@ func TestWorkspaceContractAgentConfigInvalidation(t *testing.T) {
 				currentTime := time.Unix(1_700_040_000, 0).UTC()
 				var loadedConfig compozyconfig.Config
 				resolver, ws, homePaths := newAgentConfigContractResolver(t,
+					WithSnapshotTTL(time.Second),
 					WithConfigLoader(func(string) (compozyconfig.Config, error) {
 						return loadedConfig, nil
 					}),
@@ -679,6 +986,7 @@ func TestWorkspaceContractAgentConfigInvalidation(t *testing.T) {
 			resolveCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			resolver, ws, _ := newAgentConfigContractResolver(t,
+				WithSnapshotTTL(time.Second),
 				WithConfigLoader(func(string) (compozyconfig.Config, error) {
 					loadMu.Lock()
 					loadCalls++

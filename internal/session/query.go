@@ -25,7 +25,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 		return nil, errors.New("session: list context is required")
 	}
 
-	ctx = m.mcpAuthorityReadContext(ctx)
+	ctx = m.MCPAuthorityReadContext(ctx)
 	active := m.List()
 	activeByID := make(map[string]*Info, len(active))
 	for _, info := range active {
@@ -133,7 +133,7 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	m.decorateMCPAuthority(m.mcpAuthorityReadContext(ctx), info)
+	m.decorateMCPAuthority(m.MCPAuthorityReadContext(ctx), info)
 	return info, nil
 }
 

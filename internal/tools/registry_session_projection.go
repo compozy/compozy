@@ -89,7 +89,7 @@ func (r *RuntimeRegistry) sessionProjection(
 	includeProvider func(Provider) bool,
 	includeEntry func(*registryEntry) bool,
 ) ([]ToolView, error) {
-	ctx = withPolicyResolutionCache(ctx)
+	ctx = r.ReadContext(ctx)
 	index, err := r.buildIndexMatching(ctx, scope, includeProvider)
 	if err != nil {
 		return nil, err
@@ -134,25 +134,26 @@ func (r *RuntimeRegistry) sessionProjection(
 			allowed = append(allowed, sessionProjectionEntry{entry: entry, decision: decision})
 			continue
 		}
-		views = appendCallableProjectionView(views, entry, decision, r.availabilityFor(ctx, scope, entry))
+		views = appendCallableProjectionView(ctx, views, entry, decision, r.availabilityFor(ctx, scope, entry))
 	}
 	if !batching {
 		return views, nil
 	}
-	batched := projectionAvailabilities(ctx, scope, allowed)
+	batched := r.projectionAvailabilities(ctx, scope, allowed)
 	views = make([]ToolView, 0, len(allowed))
 	for _, candidate := range allowed {
 		entry := candidate.entry
 		availability, found := batched[entry.descriptor.ID]
-		if !found {
+		if !found || len(entry.conflicts) > 0 {
 			availability = r.availabilityFor(ctx, scope, entry)
 		}
-		views = appendCallableProjectionView(views, entry, candidate.decision, availability)
+		views = appendCallableProjectionView(ctx, views, entry, candidate.decision, availability)
 	}
 	return views, nil
 }
 
 func appendCallableProjectionView(
+	ctx context.Context,
 	views []ToolView,
 	entry *registryEntry,
 	decision EffectiveToolDecision,
@@ -163,6 +164,6 @@ func appendCallableProjectionView(
 		return views
 	}
 	return append(views, ToolView{
-		Descriptor: cloneDescriptor(entry.descriptor), Availability: availability, Decision: decision,
+		Descriptor: projectionDescriptor(ctx, entry.descriptor), Availability: availability, Decision: decision,
 	})
 }

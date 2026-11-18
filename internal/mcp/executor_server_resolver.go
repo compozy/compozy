@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -11,6 +12,11 @@ import (
 
 // ResolvedServer binds one MCP config to its OAuth credential owner.
 type ResolvedServer struct {
+	requestHeaders          http.Header
+	listingSpec             *mcpStdioSpec
+	listingBinding          string
+	requireResourceMetadata bool
+
 	ConsentScope           mcpauth.ConsentScope
 	ReadOnlyOverrideOrigin *toolspkg.MCPReadOnlyOverrideOrigin
 	Server                 compozyconfig.MCPServer

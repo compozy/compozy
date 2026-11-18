@@ -123,3 +123,7 @@ route and the row/panel update in place; a server that still fails keeps the pan
 "Still not working after the check." Every way into Settings (the gear, a panel's "Open in
 Settings", an Allow or Sign in that cannot resolve its definition) closes the popover first: after
 Settings opens, no MCP popover remains on screen, detached at the top-left corner or anywhere else.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+Session details reuse a current MCP summary. Declarations, approvals, auth revisions, runtime identity and pending reloads invalidate or refresh it within the existing poll bound; triage/instance inputs without complete revisions remain synchronous. The targeted Settings-to-hosted-MCP probe covers approval publication without restart.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

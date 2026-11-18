@@ -11720,6 +11720,31 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: pending rows with the same ID retain their own authority in one read.
+	// Owner: daemon authority; canonical suite: native runtime policy resolver.
+	t.Run("Should isolate successive candidate ceilings for the same session ID", func(t *testing.T) {
+		t.Parallel()
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Tools.Policy.ExternalDefault = "enabled"
+		cfg.MCPServers = []compozyconfig.MCPServer{{Name: "alpha", Command: "test"}, {Name: "beta", Command: "test"}}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{Config: &cfg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := resolver.PolicyReadContext(t.Context(), false)
+		info := &session.Info{ID: "pending", Type: session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{Kind: store.LineageKindSpawn,
+				PermissionPolicy: store.SessionPermissionPolicy{MCPServersMode: store.PermissionList}}}
+		ctx = session.WithMCPAuthoritySession(ctx, info)
+		for _, name := range []string{"alpha", "beta", "alpha"} {
+			info.Lineage.PermissionPolicy.MCPServers = []string{name}
+			policy, err := resolver.EffectiveMCPAuthority(ctx, info.ID)
+			if err != nil || !slices.Equal(policy.MCPServers, []string{name}) {
+				t.Fatalf("candidate %s authority = %+v, %v", name, policy, err)
+			}
+		}
+	})
+
 	// Invariant: the production authority resolver reuses shared descriptor listings, never policy answers.
 	// Owner: daemon registry composition; canonical suite: native runtime policy resolver.
 	t.Run("Should share listings through real dynamic authority resolution", func(t *testing.T) {
@@ -13348,6 +13373,7 @@ type nativeToolPolicyAgentResolverStub struct {
 }
 
 func (r *nativeToolPolicyAgentResolverStub) ResolvePolicyAgent(
+	_ context.Context,
 	name string,
 	_ *workspacepkg.ResolvedAgentConfig,
 ) (compozyconfig.AgentDef, error) {

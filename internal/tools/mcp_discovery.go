@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"time"
 )
 
@@ -38,10 +40,40 @@ func (p *MCPProvider) cachedSourceDescriptors(source SourceRef) []Descriptor {
 	if !ok {
 		return nil
 	}
-	if descriptors, ok := value.([]Descriptor); ok {
-		return cloneDescriptors(descriptors)
+	if snapshot, ok := value.(mcpDiscoverySnapshot); ok {
+		return cloneDescriptors(snapshot.descriptors)
 	}
 	panic("invariant: discovered MCP descriptors have an unexpected type")
+}
+
+type mcpDiscoverySnapshot struct {
+	raw         []MCPToolDescriptor
+	descriptors []Descriptor
+}
+
+func (p *MCPProvider) normalizeDiscovery(source SourceRef, discovered []MCPToolDescriptor) ([]Descriptor, error) {
+	if value, ok := p.discovered.Load(source); ok {
+		if cached, ok := value.(mcpDiscoverySnapshot); ok {
+			// Exact equality reuses schema digests without dropping internal read-authority metadata.
+			if reflect.DeepEqual(cached.raw, discovered) {
+				return cloneDescriptors(cached.descriptors), nil
+			}
+		}
+	}
+	descriptors := make([]Descriptor, 0, len(discovered))
+	raw := make([]MCPToolDescriptor, len(discovered))
+	for i := range discovered {
+		descriptor, err := mcpRegistryDescriptor(source, discovered[i])
+		if err != nil {
+			return nil, wrapField(err, fmt.Sprintf("mcp_tools[%d]", i))
+		}
+		descriptors = append(descriptors, descriptor)
+		raw[i] = discovered[i]
+		raw[i].InputSchema = cloneRawMessage(raw[i].InputSchema)
+		raw[i].OutputSchema = cloneRawMessage(raw[i].OutputSchema)
+	}
+	p.discovered.Store(source, mcpDiscoverySnapshot{raw, cloneDescriptors(descriptors)})
+	return descriptors, nil
 }
 
 func cloneDescriptors(descriptors []Descriptor) []Descriptor {

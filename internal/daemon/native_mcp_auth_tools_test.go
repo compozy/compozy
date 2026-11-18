@@ -14,7 +14,9 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/runtimemcp"
@@ -24,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
@@ -557,6 +560,40 @@ func (p *nativeMCPAuthStatusProvider) Status(
 
 func TestRuntimeMCPInventory(t *testing.T) {
 	t.Parallel()
+	// Invariant: cache expiry alone does not publish an inventory change; file edits still do.
+	// Owner: daemon runtime inventory; canonical suite: runtime MCP inventory.
+	t.Run("Should retain the revision across an unchanged TTL refresh", func(t *testing.T) {
+		t.Parallel()
+		inventory := newTestRuntimeMCPInventory(t)
+		now := time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC)
+		inventory.now = func() time.Time { return now }
+		root := t.TempDir()
+		request := runtimemcp.Request{
+			Runtime: "claude", Context: runtimemcp.ReadContext{Home: root, SystemRoot: filepath.Join(root, "system")},
+		}
+		if _, err := inventory.List(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		revision := inventory.Revision()
+		now = now.Add(runtimeMCPCacheTTL + time.Second)
+		inventory.Poll()
+		if inventory.Revision() != revision {
+			t.Fatal("expiry published an inventory change")
+		}
+		if _, err := inventory.List(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		if inventory.Revision() != revision {
+			t.Fatal("unchanged refresh published an inventory change")
+		}
+		if err := os.WriteFile(filepath.Join(root, ".claude.json"), []byte(`{"mcpServers":{}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		inventory.Poll()
+		if inventory.Revision() <= revision {
+			t.Fatal("file creation did not publish an inventory change")
+		}
+	})
 
 	t.Run("Should reject construction without a digest key provider", func(t *testing.T) {
 		t.Parallel()
@@ -1512,8 +1549,8 @@ func TestSessionMCPReadModel(t *testing.T) {
 		if err := model.refresh(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if len(manager.changes) != 1 {
-			t.Fatalf("unchanged notifications=%+v", manager.changes)
+		if len(manager.changes) != 1 || manager.reads != 1 {
+			t.Fatalf("unchanged notifications=%+v, projection reads=%d", manager.changes, manager.reads)
 		}
 		manager.runtime.Pending = true
 		manager.runtime.Pending = false // Intermediate state is coalesced before the next cadence.
@@ -1536,6 +1573,275 @@ func TestSessionMCPReadModel(t *testing.T) {
 			t.Fatalf("auth notifications=%+v", manager.changes)
 		}
 	})
+	// Invariant: runtime activation and authority fences invalidate otherwise equal summaries.
+	// Owner: daemon summary read model; canonical suite: session MCP reads.
+	t.Run("Should refresh summaries after pending reload, lineage and epoch changes", func(t *testing.T) {
+		t.Parallel()
+		model, manager, _, _ := newSessionMCPReadFixture(t)
+		info, err := manager.Status(t.Context(), "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager.SessionManager = &apitest.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return info, nil
+			},
+		}
+		model.state.toolProjectionEpoch = mcppkg.NewProjectionEpoch()
+		for index, change := range []func(){
+			func() {},
+			func() { manager.runtime.Pending = true },
+			func() { info.EffectivePermissions = "deny-all" },
+			func() { info.Lineage = &store.SessionLineage{ParentSessionID: "parent"} },
+			func() { model.state.toolProjectionEpoch.Advance() },
+		} {
+			change()
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if manager.reads != index+1 {
+				t.Fatalf("projection reads after change %d = %d", index, manager.reads)
+			}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if manager.reads != index+1 {
+				t.Fatal("unchanged summary rebuilt")
+			}
+		}
+	})
+	// Invariant: later sessions never reuse discovery from before an epoch or policy-only withdrawal.
+	// Owner: daemon summary cache; canonical suite: session MCP reads.
+	for _, policyOnly := range []bool{false, true} {
+		name := "Should isolate refresh reads across an epoch change"
+		if policyOnly {
+			name = "Should invalidate summaries across a policy-only withdrawal"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			model, manager, executor, _ := newSessionMCPReadFixture(t)
+			model.state.toolProjectionEpoch = mcppkg.NewProjectionEpoch()
+			home := testHomePaths(t)
+			resolver, err := workspacepkg.NewResolver(&recordingRegistry{}, workspacepkg.WithHomePaths(home))
+			if err != nil {
+				t.Fatal(err)
+			}
+			model.state.workspaceResolver = resolver
+			withdrawn := false
+			provider, err := toolspkg.NewMCPProvider(
+				toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) {
+					if withdrawn {
+						return nil, nil
+					}
+					return []toolspkg.SourceRef{
+						{Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear", Scope: "user"},
+						{Kind: toolspkg.SourceMCP, Owner: "sentry", RawServerName: "sentry", Scope: "user"},
+					}, nil
+				}),
+				executor,
+				nil,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs := nativeApproveAllPolicyInputs()
+			inputs.ExternalDefault = toolspkg.ExternalDefaultEnabled
+			model.registry, err = toolspkg.NewRegistry(
+				toolspkg.WithProviders(provider),
+				toolspkg.WithPolicyInputs(inputs, toolspkg.ToolsetCatalog{}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			views, err := model.registry.SessionProjection(t.Context(), toolspkg.Scope{
+				SessionID: "sess-1", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-auth", AgentName: "coder",
+			})
+			if err != nil || len(views) != 2 {
+				t.Fatalf("warm replacement projection = %+v, %v", views, err)
+			}
+			info, err := manager.Status(t.Context(), "sess-1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			manager.SessionManager = &apitest.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					current := *info
+					current.ID = id
+					return &current, nil
+				},
+			}
+			manager.boundIDs = []string{"sess-1", "sess-2"}
+			manager.onRecord = func(id string) {
+				if id != "sess-1" {
+					return
+				}
+				withdrawn = true
+				if policyOnly {
+					resolver.InvalidateAll()
+				} else {
+					model.state.toolProjectionEpoch.Advance()
+				}
+			}
+			if err := model.refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(manager.changes) != 2 || manager.changes[0].Usable != 2 || manager.changes[1].Usable != 0 {
+				t.Fatalf("summaries across withdrawal = %+v", manager.changes)
+			}
+			reads := manager.reads
+			summary, err := model.SessionMCPSummary(t.Context(), "sess-2")
+			if err != nil || summary == nil || summary.Usable != 0 || manager.reads != reads {
+				t.Fatalf(
+					"post-withdrawal cached summary = %+v, %v; reads=%d, want %d",
+					summary,
+					err,
+					manager.reads,
+					reads,
+				)
+			}
+		})
+	}
+	// Invariant: status cannot seed a stale summary after an authored policy withdrawal.
+	// Owner: daemon summary read model; canonical suite: session MCP reads.
+	t.Run("Should use current agent policy after status warms the shared context", func(t *testing.T) {
+		t.Parallel()
+		model, manager, _, _ := newSessionMCPReadFixture(t)
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultEnabled
+		cfg.MCPServers = []compozyconfig.MCPServer{
+			{Name: "linear", Command: "fixture"},
+			{Name: "sentry", Command: "fixture"},
+		}
+		workspace := workspacepkg.Workspace{ID: "ws-auth", Name: "project", RootDir: t.TempDir()}
+		workspaceStore := openDaemonTestGlobalDB(t)
+		if err := workspaceStore.InsertWorkspace(t.Context(), workspace); err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := workspacepkg.NewResolver(
+			workspaceStore,
+			workspacepkg.WithHomePaths(home),
+			workspacepkg.WithProfileConfigLoader(
+				func(string, string) (compozyconfig.Config, error) { return cfg, nil },
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		agentFile := filepath.Join(home.AgentsDir, "coder", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(agentFile), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeAgent := func(policy string) {
+			t.Helper()
+			data := []byte("---\nname: coder\nprovider: codex\n" + policy + "---\n\nYou are coder.\n")
+			if err := os.WriteFile(agentFile, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		writeAgent("")
+		model.state.cfg = cfg
+		model.state.workspaceResolver = resolver
+		model.state.profiles, err = profilepkg.NewManager(
+			profilepkg.WithStore(workspaceStore),
+			profilepkg.WithHomePaths(home),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		authority, err := newNativeToolPolicyResolverForBoot(model.state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		model.authority = authority
+		provider, ok := model.state.mcpToolProvider.(*toolspkg.MCPProvider)
+		if !ok {
+			t.Fatal("fixture has no MCP provider")
+		}
+		model.registry, err = toolspkg.NewRegistry(
+			toolspkg.WithProviders(provider),
+			toolspkg.WithPolicyInputResolver(authority, toolspkg.ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		authority.scopeTools = model.registry.PolicyProjection
+		ctx := model.registry.ReadContext(
+			toolspkg.EnsureProjectionListings(toolspkg.WithCachedMCPProjection(t.Context())),
+		)
+		info, err := manager.Status(ctx, "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := session.PopulateEffectiveMCPAuthority(ctx, authority, info); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(info.Lineage.EffectiveMCPServers, []string{"linear", "sentry"}) {
+			t.Fatalf("status authority = %v", info.Lineage.EffectiveMCPServers)
+		}
+		warm, err := model.SessionMCPSummary(ctx, info.ID)
+		if err != nil || warm == nil || warm.Usable != 2 {
+			t.Fatalf("summary before policy withdrawal = %+v, %v", warm, err)
+		}
+		writeAgent("deny_tools: [mcp__linear__echo]\n")
+		resolver.Invalidate(workspace.ID)
+		current, err := model.SessionMCPSummary(ctx, info.ID)
+		if err != nil || current == nil || current.Usable != 1 {
+			t.Errorf("summary on the shared status context = %+v, %v, want one usable server", current, err)
+		}
+		reads := manager.reads
+		current, err = model.SessionMCPSummary(t.Context(), info.ID)
+		if err != nil || current == nil || current.Usable != 1 || manager.reads != reads {
+			t.Errorf("cached summary = %+v, %v, reads = %d, want one usable server and %d reads",
+				current, err, manager.reads, reads)
+		}
+	})
+	// Invariant: detail-only snapshots stay warm while read and leave the cache after inactivity or deletion.
+	// Owner: daemon summary cache; canonical suite: session MCP reads.
+	t.Run(
+		"Should evict idle and deleted detail-only sessions independently of published summaries",
+		func(t *testing.T) {
+			t.Parallel()
+			model, manager, _, _ := newSessionMCPReadFixture(t)
+			manager.boundIDs = []string{}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if err := model.refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if manager.reads != 1 {
+				t.Fatalf("active unbound session rebuilt %d times", manager.reads)
+			}
+			model.mu.Lock()
+			snapshot := model.snapshots["sess-1"]
+			snapshot.lastRead = time.Now().Add(-model.summaryIdleTTL())
+			model.snapshots["sess-1"] = snapshot
+			model.mu.Unlock()
+			if err := model.refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); err != nil {
+				t.Fatal(err)
+			}
+			if manager.reads != 2 {
+				t.Fatalf("idle snapshot survived eviction: reads=%d", manager.reads)
+			}
+			manager.SessionManager = &apitest.StubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) { return nil, session.ErrSessionNotFound },
+			}
+			if _, err := model.SessionMCPSummary(t.Context(), "sess-1"); !errors.Is(err, session.ErrSessionNotFound) {
+				t.Fatalf("deleted session error = %v", err)
+			}
+			if len(model.snapshots) != 0 {
+				t.Fatalf("deleted snapshots retained: %d", len(model.snapshots))
+			}
+		},
+	)
 	// Invariant: explicit session ids cannot cross the trusted workspace/profile; owner: native adapter.
 	for _, scope := range []toolspkg.Scope{{WorkspaceID: "foreign", ProfileID: store.DefaultProfileID}, {WorkspaceID: "ws-auth", ProfileID: "foreign-profile"}} {
 		t.Run("Should reject a foreign native session scope "+scope.WorkspaceID+scope.ProfileID, func(t *testing.T) {
@@ -1572,16 +1878,27 @@ func (s sessionMCPAuthorityStub) EffectiveMCPAuthority(context.Context, string) 
 
 type sessionMCPManagerStub struct {
 	core.SessionManager
-	runtime session.MCPRuntimeSnapshot
-	reader  session.MCPReader
-	changes []session.MCPSummary
+	runtime  session.MCPRuntimeSnapshot
+	reader   session.MCPReader
+	changes  []session.MCPSummary
+	boundIDs []string
+	onRecord func(string)
+	reads    int
 }
 
 var _ session.MCPReader = (*sessionMCPManagerStub)(nil)
 
-func (s *sessionMCPManagerStub) BoundMCPSessionIDs() []string { return []string{"sess-1"} }
-func (s *sessionMCPManagerStub) RecordMCPChanged(_ context.Context, _ string, summary session.MCPSummary) error {
+func (s *sessionMCPManagerStub) BoundMCPSessionIDs() []string {
+	if s.boundIDs != nil {
+		return s.boundIDs
+	}
+	return []string{"sess-1"}
+}
+func (s *sessionMCPManagerStub) RecordMCPChanged(_ context.Context, id string, summary session.MCPSummary) error {
 	s.changes = append(s.changes, summary)
+	if s.onRecord != nil {
+		s.onRecord(id)
+	}
 	return nil
 }
 
@@ -1590,7 +1907,12 @@ func (s *sessionMCPManagerStub) MCPReadSnapshot(
 	string,
 	toolspkg.AdvertisedCatalog,
 ) (session.MCPRuntimeSnapshot, error) {
+	s.reads++
 	return s.runtime, nil
+}
+func (s *sessionMCPManagerStub) MCPReadIdentity(string) (string, error) {
+	data, err := json.Marshal(s.runtime)
+	return string(data), err
 }
 func (s *sessionMCPManagerStub) ListSessionMCP(ctx context.Context, id string) (session.MCP, error) {
 	return s.reader.ListSessionMCP(ctx, id)

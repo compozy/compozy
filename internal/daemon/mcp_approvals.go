@@ -155,13 +155,21 @@ func mcpApprovalSourceID(ctx context.Context, state *bootState, workspaceID, pat
 	if state.workspaceResolver == nil {
 		return "", errors.New("daemon: MCP workspace resolver is unavailable")
 	}
-	workspace, err := state.workspaceResolver.Resolve(ctx, workspaceID)
+	workspace, err := state.workspaceResolver.ResolveAgentConfig(ctx, workspaceID, "")
 	if err != nil {
 		return "", err
 	}
 	relative, err := filepath.Rel(workspace.RootDir, path)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) ||
-		filepath.IsAbs(relative) {
+	if err != nil || !filepath.IsLocal(relative) {
+		// Normalize system-root aliases while retaining the declaring filename, including
+		// symlinks and literal percent escapes used by persisted approval identities.
+		parent, canonicalErr := filepath.EvalSymlinks(filepath.Dir(path))
+		if canonicalErr != nil {
+			return "", canonicalErr
+		}
+		relative, err = filepath.Rel(workspace.RootDir, filepath.Join(parent, filepath.Base(path)))
+	}
+	if err != nil || !filepath.IsLocal(relative) {
 		return "", errors.New("daemon: MCP declaring file is outside the workspace")
 	}
 	return filepath.ToSlash(relative), nil

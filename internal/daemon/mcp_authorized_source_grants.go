@@ -16,6 +16,7 @@ func operatorConsentedSourceGrants(
 	if state == nil {
 		return nil, nil
 	}
+	ctx = withMCPOwnerRead(ctx)
 	sources, err := daemonMCPSources(ctx, state)
 	if err != nil {
 		logMCPSourceGrantSkipped(ctx, state, toolspkg.SourceRef{}, err)

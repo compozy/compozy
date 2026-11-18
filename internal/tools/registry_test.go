@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -445,6 +446,181 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 }
 
 func TestRuntimeRegistryProjections(t *testing.T) {
+	t.Run("Should retain conflicts after native availability was classified in the same read", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		native, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor:   descriptor,
+			Call:         func(context.Context, Scope, CallRequest) (ToolResult, error) { return ToolResult{}, nil },
+			Availability: func(context.Context, Scope) Availability { return Available() },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := NewRegistry(WithProviders(native, providerWithDescriptors(descriptor.Source, descriptor)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := registry.ReadContext(t.Context())
+		registry.ProjectionVisibility(ctx, Scope{})
+		views, err := registry.DiagnosticProjection(ctx, Scope{})
+		if err != nil || len(views) != 1 || !views[0].Availability.Conflicted {
+			t.Fatalf("classified conflict = %+v, %v", views, err)
+		}
+		requireViewReason(t, views, descriptor.ID, ReasonConflictedID)
+		visible, err := registry.SessionProjection(ctx, Scope{})
+		if err != nil || len(visible) != 0 {
+			t.Fatalf("conflicted session projection = %+v, %v", visible, err)
+		}
+	})
+	t.Run("Should reject changed schemas after a valid catalog was cached", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		provider := providerWithDescriptors(descriptor.Source, descriptor)
+		provider.list = func() []Descriptor { return []Descriptor{descriptor} }
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, scope := range []Scope{{WorkspaceID: "first"}, {WorkspaceID: "second"}} {
+			if _, err := registry.OperatorProjection(t.Context(), scope); err != nil {
+				t.Fatal(err)
+			}
+		}
+		descriptor.InputSchema = json.RawMessage(`{"type":"not-a-schema-type"}`)
+		for _, scope := range []Scope{{WorkspaceID: "first"}, {WorkspaceID: "second"}} {
+			_, err := registry.OperatorProjection(t.Context(), scope)
+			requireReason(t, err, ReasonSchemaInvalid)
+		}
+	})
+	// Invariant: a visibility class and its view use the same native availability snapshot.
+	// Owner: registry projection reads; canonical suite: runtime projections.
+	t.Run("Should share native availability between classification and projection", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		calls := 0
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Call:       func(context.Context, Scope, CallRequest) (ToolResult, error) { return ToolResult{}, nil },
+			Availability: func(context.Context, Scope) Availability {
+				calls++
+				if calls == 1 {
+					return Available()
+				}
+				return Unavailable(ReasonDependencyMissing)
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := registry.ReadContext(t.Context())
+		class, known := registry.ProjectionVisibility(ctx, Scope{})
+		if !known {
+			t.Fatal("unknown visibility")
+		}
+		views, err := registry.SessionProjection(ctx, Scope{})
+		if err != nil || len(views) != 1 {
+			t.Fatalf("snapshot = %+v, %v", views, err)
+		}
+		again, known := registry.ProjectionVisibility(ctx, Scope{})
+		if !known || class != again || calls != 1 {
+			t.Fatalf("class changed or availability repeated: calls=%d", calls)
+		}
+		views, err = registry.SessionProjection(t.Context(), Scope{})
+		if err != nil || len(views) != 0 {
+			t.Fatalf("fresh snapshot = %+v, %v", views, err)
+		}
+	})
+
+	// Invariant: external fingerprints describe the same providers regardless of sibling read order.
+	// Owner: registry projection inputs; canonical suite: runtime projections.
+	t.Run("Should hash only each provider's own availability", func(t *testing.T) {
+		t.Parallel()
+		first, second := validDescriptor(), validDescriptor()
+		second.ID = "compozy__second"
+		firstProvider := providerWithDescriptors(first.Source, first)
+		secondProvider := providerWithDescriptors(second.Source, second)
+		registry, err := NewRegistry(WithProviders(firstProvider, secondProvider))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := registry.ReadContext(EnsureProjectionListings(t.Context()))
+		if _, err := registry.DiagnosticProjection(ctx, Scope{}); err != nil {
+			t.Fatal(err)
+		}
+		afterSibling, err := registry.ExternalProjectionFingerprint(ctx, Scope{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fresh, err := registry.ExternalProjectionFingerprint(t.Context(), Scope{})
+		if err != nil || afterSibling != fresh {
+			t.Fatalf("fingerprint after sibling = %q, fresh = %q, error=%v", afterSibling, fresh, err)
+		}
+		secondProvider.handles[second.ID].(*registryTestHandle).availability = Unavailable(ReasonDependencyMissing)
+		changed, err := registry.ExternalProjectionFingerprint(t.Context(), Scope{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		const width = 2 * sha256.Size
+		if len(fresh) != 2*width || len(changed) != len(fresh) {
+			t.Fatalf("fingerprint lengths = %d and %d; want %d", len(fresh), len(changed), 2*width)
+		}
+		if changed[:width] != fresh[:width] || changed[width:] == fresh[width:] {
+			t.Fatal("the availability change must update only the second provider's fingerprint")
+		}
+	})
+	// Invariant: sibling views share policy/index/availability, while returned schemas remain caller-owned.
+	// Owner: registry read boundary; canonical suite: runtime projections.
+	t.Run("Should share one read without leaking schema mutations", func(t *testing.T) {
+		t.Parallel()
+		descriptor := validDescriptor()
+		var lists, availabilities int
+		provider := &projectionAvailabilityTestProvider{
+			registryTestProvider: providerWithDescriptors(descriptor.Source, descriptor),
+			availability: func(_ context.Context, _ Scope, ids []ToolID) map[ToolID]Availability {
+				availabilities++
+				return map[ToolID]Availability{ids[0]: Available()}
+			},
+		}
+		provider.list = func() []Descriptor { lists++; return []Descriptor{descriptor} }
+		resolver := &mutablePolicyInputResolver{inputs: DefaultPolicyInputs()}
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputResolver(resolver, ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := registry.ReadContext(t.Context())
+		views, err := registry.SessionProjection(ctx, Scope{WorkspaceID: "ws-a", ProfileID: "pf-a"})
+		if err != nil || len(views) != 1 {
+			t.Fatalf("projection = %+v, %v", views, err)
+		}
+		views[0].Descriptor.InputSchema[0] = '['
+		views, err = registry.DiagnosticProjection(ctx, Scope{WorkspaceID: "ws-a", ProfileID: "pf-a"})
+		if err != nil || len(views) != 1 || views[0].Descriptor.InputSchema[0] != '{' {
+			t.Fatalf("sibling projection = %+v, %v", views, err)
+		}
+		if lists != 1 || resolver.resolveCalls != 1 || availabilities != 1 {
+			t.Fatalf("lists/policy/availability = %d/%d/%d, want 1/1/1", lists, resolver.resolveCalls, availabilities)
+		}
+		if _, err := registry.DiagnosticProjection(ctx, Scope{WorkspaceID: "ws-b", ProfileID: "pf-a"}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := registry.DiagnosticProjection(ctx, Scope{WorkspaceID: "ws-a", ProfileID: "pf-b"}); err != nil {
+			t.Fatal(err)
+		}
+		if lists != 3 || resolver.resolveCalls != 3 {
+			t.Fatalf("scopes shared: lists=%d policy=%d", lists, resolver.resolveCalls)
+		}
+		if _, err := registry.PolicyProjection(t.Context(), Scope{}, DefaultPolicyInputs()); err != nil {
+			t.Fatal(err)
+		}
+		if availabilities != 3 {
+			t.Fatal("authority consulted backend availability")
+		}
+	})
 	t.Parallel()
 
 	// Invariant: entitlement changes the advertised catalog, transient health never does (UT-029/UT-113).
@@ -1223,6 +1399,54 @@ func (e *countingPolicyEvaluator) Evaluate(_ context.Context, _ Scope, d Descrip
 
 func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
 	ctx := t.Context()
+	// Invariant: catalog dispatch and its nested read share admission, while mutations reread policy.
+	// Owner: registry dispatch; canonical suite: dynamic policy resolver.
+	for _, catalogRead := range []bool{true, false} {
+		name := "Should keep mutation handler policy reads fresh"
+		if catalogRead {
+			name = "Should share admission with a native catalog handler"
+		}
+		t.Run(name, func(t *testing.T) {
+			descriptor := validDescriptor()
+			descriptor.ID = ToolIDToolSearch
+			if !catalogRead {
+				descriptor.ID = ToolIDSkillView
+				descriptor.ReadOnly, descriptor.Risk = false, RiskMutating
+			}
+			resolver := &mutablePolicyInputResolver{
+				inputs: PolicyInputs{SystemPermissionMode: PermissionModeApproveAll},
+			}
+			var registry *RuntimeRegistry
+			provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+				Descriptor: descriptor,
+				Call: func(ctx context.Context, scope Scope, _ CallRequest) (ToolResult, error) {
+					_, err := registry.DiagnosticProjection(ctx, scope)
+					return ToolResult{}, err
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry, err = NewRegistry(WithProviders(provider), WithPolicyInputResolver(resolver, ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := registry.Call(
+				t.Context(),
+				Scope{},
+				CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{}`)},
+			); err != nil {
+				t.Fatal(err)
+			}
+			want := 2
+			if catalogRead {
+				want = 1
+			}
+			if resolver.resolveCalls != want {
+				t.Fatalf("policy resolutions = %d, want %d", resolver.resolveCalls, want)
+			}
+		})
+	}
 	toolList := descriptorWithID(ToolIDToolList, "Tool List", ToolsetIDBootstrap)
 	toolInfo := descriptorWithID(ToolIDToolInfo, "Tool Info", ToolsetIDBootstrap)
 	skillView := descriptorWithID(ToolIDSkillView, "Skill View", ToolsetIDCatalog)
@@ -1729,6 +1953,69 @@ func BenchmarkRegistryListToolsets(b *testing.B) {
 				if err != nil || len(views) != count {
 					b.Fatalf("ListToolsets() count=%d error=%v", len(views), err)
 				}
+			}
+		})
+	}
+}
+
+func TestRuntimeRegistryProjectionInvalidation(t *testing.T) {
+	t.Parallel()
+	// Invariant: only invoked, potentially mutating backends invalidate, including partial failures.
+	// Owner: central dispatch; canonical suite: registry.
+	for _, tc := range []struct {
+		name       string
+		read, deny bool
+		failure    error
+		want       int
+	}{
+		{name: "Should keep read-only native calls local", read: true},
+		{name: "Should keep denied calls local", deny: true},
+		{name: "Should invalidate after a mutation", want: 1},
+		{name: "Should invalidate after a partially failed mutation", failure: errors.New("partial failure"), want: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			descriptor := validDescriptor()
+			descriptor.ReadOnly, descriptor.OpenWorld, descriptor.Destructive = tc.read, false, false
+			descriptor.RequiresInteraction = false
+			descriptor.Risk = RiskMutating
+			if tc.read {
+				descriptor.Risk = RiskRead
+			}
+			handle := &registryTestHandle{descriptor: descriptor, availability: Available(), callErr: tc.failure}
+			provider := providerWithDescriptors(descriptor.Source, descriptor)
+			provider.handles[descriptor.ID] = handle
+			inputs := DefaultPolicyInputs()
+			inputs.SystemPermissionMode = PermissionModeApproveAll
+			if tc.deny {
+				pattern, err := ParseToolPattern(descriptor.ID.String())
+				if err != nil {
+					t.Fatal(err)
+				}
+				inputs.DenyTools = []ToolPattern{pattern}
+			}
+			invalidations := 0
+			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}),
+				WithProjectionInvalidator(func() { invalidations++ }))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = registry.Call(
+				t.Context(),
+				Scope{},
+				CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{}`)},
+			)
+			if tc.deny && !errors.Is(err, ErrToolDenied) {
+				t.Fatalf("denied call = %v", err)
+			}
+			if !tc.deny && tc.failure == nil && err != nil {
+				t.Fatal(err)
+			}
+			if tc.failure != nil && !errors.Is(err, tc.failure) {
+				t.Fatal("partial failure was lost")
+			}
+			if invalidations != tc.want {
+				t.Fatalf("invalidations=%d want %d", invalidations, tc.want)
 			}
 		})
 	}

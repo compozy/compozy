@@ -163,3 +163,7 @@ policy-resolver regression exercise the dynamic authority/listing interaction, 1
 peers, policy isolation, revocation, invalidation, cancellation and released binds. The focused
 suites passed; the benchmark measured 3/33 provider listings per epoch before and 1/1 after.
 The full end-to-end journey remains owned by CI.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+Known read-only native calls do not wake unrelated hosted streams. Invoked potentially mutating or external backends retain conservative invalidation, including partial failures. The targeted real hosted transport invokes `compozy__session_spawn`; focused registry suites cover admission, policy and invalidation.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

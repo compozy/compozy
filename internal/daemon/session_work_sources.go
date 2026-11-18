@@ -43,7 +43,7 @@ func (s sessionWorkSources) tools(ctx context.Context, id string) ([]session.Wor
 }
 
 func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.WorkSignal, error) {
-	parent, err := s.manager.Status(ctx, id)
+	parent, err := storedSessionStatus(ctx, s.manager, id)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		if session.IsInternalSpawnRole(row.Lineage.SpawnRole) {
 			continue
 		}
-		info, err := s.manager.Status(ctx, row.ID)
+		info, err := storedSessionStatus(ctx, s.manager, row.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -122,7 +122,7 @@ func (s sessionWorkSources) leases(ctx context.Context, id string) ([]session.Wo
 	if s.state.tasks == nil {
 		return nil, errors.New("task store is unavailable")
 	}
-	info, err := s.manager.Status(ctx, id)
+	info, err := storedSessionStatus(ctx, s.manager, id)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func (s sessionWorkSources) loopWork(ctx context.Context, id string) ([]looppkg.
 	if !ok {
 		return nil, errors.New("loop work store is unavailable")
 	}
-	info, err := s.manager.Status(ctx, id)
+	info, err := storedSessionStatus(ctx, s.manager, id)
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,18 @@ type ProjectionScopeProvider interface {
 
 // ProjectionVisibility identifies equivalent session views within one registry and refresh epoch.
 func (r *RuntimeRegistry) ProjectionVisibility(ctx context.Context, scope Scope) (string, bool) {
+	ctx = r.ReadContext(ctx)
+	cache, ok := ctx.Value(policyResolutionKey{}).(*policyResolutionCache)
+	if !ok {
+		return "", false
+	}
+	key := policyResolutionScope{r, scope}
+	cache.visibilityMu.Lock()
+	class, found := cache.visibilities[key]
+	cache.visibilityMu.Unlock()
+	if found {
+		return class, true
+	}
 	if scope.Operator || (!r.usePolicyInput && r.evaluator != nil) {
 		return "", false
 	}
@@ -46,7 +58,9 @@ func (r *RuntimeRegistry) ProjectionVisibility(ctx context.Context, scope Scope)
 		if native, ok := provider.(*NativeProvider); ok {
 			for _, id := range native.ids {
 				if resolve := native.tools[id].Availability; resolve != nil {
-					material.Native = append(material.Native, resolve(ctx, scope))
+					material.Native = append(material.Native, r.availabilityFor(ctx, scope, &registryEntry{
+						descriptor: native.tools[id].Descriptor, provider: native,
+					}))
 				}
 			}
 			continue
@@ -62,7 +76,14 @@ func (r *RuntimeRegistry) ProjectionVisibility(ctx context.Context, scope Scope)
 		return "", false
 	}
 	digest := sha256.Sum256(encoded)
-	return hex.EncodeToString(digest[:]), true
+	class = hex.EncodeToString(digest[:])
+	cache.visibilityMu.Lock()
+	if cache.visibilities == nil {
+		cache.visibilities = make(map[policyResolutionScope]string)
+	}
+	cache.visibilities[key] = class
+	cache.visibilityMu.Unlock()
+	return class, true
 }
 
 func projectionPatterns(patterns []ToolPattern) []string {

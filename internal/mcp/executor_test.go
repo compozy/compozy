@@ -15,11 +15,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1661,6 +1663,323 @@ func TestMCPClientCleanup(t *testing.T) {
 // Owning layer: internal/mcp unit cache.
 // Canonical suite: internal/mcp/executor_test.go.
 func TestMCPToolListCache(t *testing.T) {
+	// Invariant: a waiter's deadline is an MCP timeout and carries no upstream health failure.
+	// Owner: MCP executor listing coordination; canonical suite: TestMCPToolListCache.
+	t.Run("Should classify a listing wait deadline as an MCP timeout", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			server := compozyconfig.MCPServer{
+				Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://example.com/mcp",
+			}
+			executor := newTestMCPExecutor(t, server)
+			resolved := &ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
+			source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+			key, err := executor.toolCacheKey(t.Context(), resolved, protocolVersionModern, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			release, err := executor.acquireToolListing(t.Context(), key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer release()
+
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			_, healthErr, err := executor.listToolsFromClient(ctx, nil, source, resolved, protocolVersionModern, "")
+			if !errors.Is(err, toolspkg.ErrToolTimedOut) || healthErr != nil {
+				t.Fatalf("listing wait error = %v, upstream health error = %v", err, healthErr)
+			}
+			requireReason(t, err, toolspkg.ReasonCallTimedOut)
+		})
+	})
+
+	// Invariant: the configured normalization limit bounds retained raw tool listings and their descriptors.
+	// Owner: MCP executor listing cache; canonical suite: TestMCPToolListCache.
+	t.Run("Should bound retained normalizations to the configured capacity", func(t *testing.T) {
+		t.Parallel()
+		server := compozyconfig.MCPServer{
+			Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://example.com/mcp",
+		}
+		executor := newTestMCPExecutor(t, server, WithToolListNormalizationCapacity(1))
+		resolved := &ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+		raw := []*mcpsdk.Tool{{Name: "echo", InputSchema: json.RawMessage(`{"type":"object"}`)}}
+		for _, key := range []string{"first", "second"} {
+			discovery, err := executor.normalizeToolListing(key, source, resolved, protocolVersionModern, raw)
+			if err != nil || len(discovery.Descriptors) != 1 {
+				t.Fatalf("discovery for %q = %+v, err = %v", key, discovery, err)
+			}
+		}
+		if count := len(executor.toolCache.normalizations); count != 1 {
+			t.Fatalf("retained normalizations = %d, want 1", count)
+		}
+	})
+
+	t.Run("Should answer an HTTP cache hit without reconnecting", func(t *testing.T) {
+		t.Parallel()
+		sdkServer := newFakeSDKServer(nil)
+		server := newTestMCPHTTPServer(sdkServer)
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL,
+		})
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+		initial, err := executor.DiscoverTools(t.Context(), source)
+		if err != nil || len(initial.Descriptors) == 0 || initial.ProtocolVersion == "" {
+			t.Fatalf("initial discovery=%+v, err=%v", initial, err)
+		}
+		server.Close()
+		cached, err := executor.DiscoverTools(t.Context(), source)
+		if err != nil || !reflect.DeepEqual(cached, initial) {
+			t.Fatalf("cached discovery=%+v, err=%v", cached, err)
+		}
+		_, err = executor.ListTools(toolspkg.WithFreshMCPDiscovery(t.Context()), source)
+		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
+	})
+	// Invariant: short upstream TTLs keep authoritative projection state for the listing floor.
+	// Owner: MCP executor discovery; canonical suite: tool-list cache.
+	t.Run("Should retain projection generation for the effective listing lifetime", func(t *testing.T) {
+		t.Parallel()
+		server := newTestMCPHTTPServer(newFakeSDKServer(nil))
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(
+			t,
+			compozyconfig.MCPServer{Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL},
+			withToolListFloor(5*time.Second),
+		)
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+		started := time.Now()
+		if _, err := executor.ListTools(t.Context(), source); err != nil {
+			t.Fatal(err)
+		}
+		if generation, known := executor.ProjectionGeneration(
+			t.Context(),
+			[]toolspkg.SourceRef{source},
+		); !known ||
+			generation == "" {
+			t.Fatalf("listing floor has no authoritative generation: %q, %t", generation, known)
+		}
+		executor.toolCache.mu.Lock()
+		defer executor.toolCache.mu.Unlock()
+		for _, listing := range executor.toolCache.entries {
+			for _, projection := range executor.toolCache.projectionStates {
+				if !listing.expiresAt.Equal(projection.expiresAt) ||
+					projection.expiresAt.Before(started.Add(5*time.Second)) {
+					t.Fatalf("listing expiry %v differs from projection %v", listing.expiresAt, projection.expiresAt)
+				}
+			}
+		}
+	})
+	// Invariant: credential rotation invalidates raw listings and hosted projection generations immediately.
+	// Owner: MCP executor credential binding; canonical suite: tool-list cache.
+	t.Run("Should relist HTTP tools when a referenced header secret rotates", func(t *testing.T) {
+		t.Parallel()
+		var version atomic.Int32
+		var calls atomic.Int32
+		version.Store(1)
+		sdkServer := newFakeSDKServer(nil)
+		sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method != mcpToolsListMethod {
+					return next(ctx, method, request)
+				}
+				calls.Add(1)
+				return &mcpsdk.ListToolsResult{
+					Tools: []*mcpsdk.Tool{
+						{
+							Name:        fmt.Sprintf("version_%d", version.Load()),
+							InputSchema: map[string]any{"type": "object"},
+						},
+					},
+				}, nil
+			}
+		})
+		handler := newTestMCPHandler(sdkServer)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+			if request.Header.Get("X-Key") != fmt.Sprintf("credential-%d", version.Load()) {
+				http.Error(w, "wrong credential", http.StatusUnauthorized)
+				return
+			}
+			handler.ServeHTTP(w, request)
+		}))
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(
+			t,
+			compozyconfig.MCPServer{
+				Name:          "fixture",
+				Transport:     compozyconfig.MCPServerTransportHTTP,
+				URL:           server.URL,
+				SecretHeaders: map[string]string{"X-Key": "vault:fixture"},
+			},
+			WithSecretResolver(secretRefResolverFunc(func(context.Context, string) (string, error) {
+				return fmt.Sprintf("credential-%d", version.Load()), nil
+			})),
+		)
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+		if _, err := executor.ListTools(t.Context(), source); err != nil {
+			t.Fatal(err)
+		}
+		initial, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known {
+			t.Fatal("initial projection is unknown")
+		}
+		version.Store(2)
+		if generation, known := executor.ProjectionGeneration(
+			t.Context(),
+			[]toolspkg.SourceRef{source},
+		); known ||
+			generation != "" {
+			t.Fatalf("rotated credential retained generation %q", generation)
+		}
+		listed, err := executor.ListTools(t.Context(), source)
+		if err != nil || len(listed) != 1 || listed[0].RawName != "version_2" || calls.Load() != 2 {
+			t.Fatalf("rotated listing=%+v, calls=%d, error=%v", listed, calls.Load(), err)
+		}
+		updated, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || updated == initial {
+			t.Fatalf("rotated projection=%q, known=%t", updated, known)
+		}
+		if _, err := executor.ListTools(toolspkg.WithFreshMCPDiscovery(t.Context()), source); err != nil {
+			t.Fatal(err)
+		}
+		if calls.Load() != 3 {
+			t.Fatalf("fresh discovery calls=%d, want 3", calls.Load())
+		}
+	})
+	t.Run("Should rebind pooled stdio listings after a referenced secret rotates", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStdioPoolFixture(t, StdioPoolConfig{}, nil)
+		var version atomic.Int32
+		version.Store(1)
+		executor := newTestMCPExecutor(
+			t,
+			fixture.server,
+			WithStdioSessionPool(fixture.pool),
+			WithSecretLookup(func(key string) string {
+				if key == stdioPoolSecretSource {
+					return fmt.Sprintf("pool-credential-%d", version.Load())
+				}
+				return ""
+			}),
+		)
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         fixture.server.Name,
+			RawServerName: fixture.server.Name,
+		}
+		if _, err := executor.ListTools(t.Context(), source); err != nil {
+			t.Fatal(err)
+		}
+		initial, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known {
+			t.Fatal("initial stdio projection is unknown")
+		}
+		version.Store(2)
+		if generation, known := executor.ProjectionGeneration(
+			t.Context(),
+			[]toolspkg.SourceRef{source},
+		); known ||
+			generation != "" {
+			t.Fatalf("rotated stdio credential retained generation %q", generation)
+		}
+		if _, err := executor.ListTools(t.Context(), source); err != nil {
+			t.Fatal(err)
+		}
+		updated, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || updated == initial {
+			t.Fatalf("rebound stdio projection=%q, known=%t", updated, known)
+		}
+		if launches := fixture.launches(); launches != 2 {
+			t.Fatalf("stdio launches after credential rotation = %d, want 2", launches)
+		}
+	})
+	// Invariant: a successful empty listing removes all previously discovered tools, including cached reads.
+	// Owner: MCP executor discovery; canonical suite: tool-list cache.
+	t.Run("Should accept an empty fresh listing after tools are removed", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		sdkServer := newFakeSDKServer(nil)
+		sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method != mcpToolsListMethod {
+					return next(ctx, method, request)
+				}
+				if calls.Add(1) == 1 {
+					return &mcpsdk.ListToolsResult{
+						Tools: []*mcpsdk.Tool{{Name: "old", InputSchema: map[string]any{"type": "object"}}},
+					}, nil
+				}
+				return &mcpsdk.ListToolsResult{}, nil
+			}
+		})
+		server := newTestMCPHTTPServer(sdkServer)
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL,
+		})
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+		initial, err := executor.ListTools(t.Context(), source)
+		if err != nil || len(initial) != 1 {
+			t.Fatalf("initial tools=%+v, err=%v", initial, err)
+		}
+		for _, ctx := range []context.Context{toolspkg.WithFreshMCPDiscovery(t.Context()), t.Context()} {
+			listed, err := executor.ListTools(ctx, source)
+			if err != nil || len(listed) != 0 {
+				t.Fatalf("removed tools remain=%+v, err=%v", listed, err)
+			}
+		}
+	})
+	// Invariant: concurrent ordinary discovery observes one listing per floor, but explicit checks always list.
+	// Owner: MCP executor discovery; canonical suite: tool-list cache.
+	t.Run("Should bound ordinary fanout and refresh redactions without relisting", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		sdkServer := newFakeSDKServer(nil)
+		sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method != mcpToolsListMethod {
+					return next(ctx, method, request)
+				}
+				calls.Add(1)
+				return &mcpsdk.ListToolsResult{Tools: []*mcpsdk.Tool{{Name: "echo",
+					Description: "listing-private-marker-7b9ad1", InputSchema: map[string]any{"type": "object"}}}}, nil
+			}
+		})
+		server := newTestMCPHTTPServer(sdkServer)
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL,
+		})
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+		results := make(chan error, 16)
+		for range 16 {
+			go func() { _, err := executor.ListTools(t.Context(), source); results <- err }()
+		}
+		for range 16 {
+			if err := <-results; err != nil {
+				t.Fatal(err)
+			}
+		}
+		if calls.Load() != 1 {
+			t.Fatalf("tools/list calls=%d, want 1", calls.Load())
+		}
+		release := diagnostics.RegisterRequiredSecret("listing-private-marker-7b9ad1")
+		t.Cleanup(release)
+		listed, err := executor.ListTools(t.Context(), source)
+		if err != nil || len(listed) != 1 || strings.Contains(listed[0].Description, "listing-private-marker-7b9ad1") {
+			t.Fatalf("redaction did not refresh: %+v, %v", listed, err)
+		}
+		if calls.Load() != 1 {
+			t.Fatal("secret registration forced tools/list")
+		}
+		if _, err := executor.ListTools(toolspkg.WithFreshMCPDiscovery(t.Context()), source); err != nil {
+			t.Fatal(err)
+		}
+		if calls.Load() != 2 {
+			t.Fatal("explicit discovery did not bypass the floor")
+		}
+	})
 	for _, checkFirst := range []bool{false, true} {
 		t.Run(
 			fmt.Sprintf("Should preserve fresh cache and projection when checkFirst=%v", checkFirst),
@@ -1817,7 +2136,7 @@ func TestMCPToolListCache(t *testing.T) {
 			InputSchema:  json.RawMessage(`{"type":"object"}`),
 			OutputSchema: json.RawMessage(`{"type":"string"}`),
 		}}
-		executor.cacheTools("fixture", ToolDiscovery{Descriptors: descriptors}, 1_000, now)
+		executor.cacheTools("fixture", ToolDiscovery{Descriptors: descriptors}, nil, 1_000, now)
 		descriptors[0].InputSchema[0] = '['
 
 		first, ok := executor.cachedTools("fixture", now)
@@ -1842,8 +2161,8 @@ func TestMCPToolListCache(t *testing.T) {
 
 		now := time.Now()
 		executor := &CallExecutor{toolCache: mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)}}
-		executor.cacheTools("expired-binding", ToolDiscovery{}, 1, now)
-		executor.cacheTools("current-binding", ToolDiscovery{}, 1_000, now.Add(time.Millisecond))
+		executor.cacheTools("expired-binding", ToolDiscovery{}, nil, 1, now)
+		executor.cacheTools("current-binding", ToolDiscovery{}, nil, 1_000, now.Add(mcpToolListFloor))
 
 		executor.toolCache.mu.Lock()
 		_, retainedExpired := executor.toolCache.entries["expired-binding"]
@@ -1855,7 +2174,7 @@ func TestMCPToolListCache(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose only live cacheable tool projections as authoritative", func(t *testing.T) {
+	t.Run("Should change the projection generation when descriptors change", func(t *testing.T) {
 		t.Parallel()
 
 		executor := &CallExecutor{toolCache: mcpToolListCache{
@@ -1872,7 +2191,12 @@ func TestMCPToolListCache(t *testing.T) {
 			ID:          "mcp__fixture__alpha",
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		}}
-		if err := executor.recordToolProjection(source, "", first, 60_000, time.Now()); err != nil {
+		if err := executor.recordToolProjection(
+			mcpProjectionSourceKey(source, "", ""),
+			first,
+			time.Minute,
+			time.Now(),
+		); err != nil {
 			t.Fatalf("recordToolProjection(first) error = %v", err)
 		}
 		firstGeneration, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
@@ -1884,7 +2208,12 @@ func TestMCPToolListCache(t *testing.T) {
 			ID:          "mcp__fixture__beta",
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		}}
-		if err := executor.recordToolProjection(source, "", second, 60_000, time.Now()); err != nil {
+		if err := executor.recordToolProjection(
+			mcpProjectionSourceKey(source, "", ""),
+			second,
+			time.Minute,
+			time.Now(),
+		); err != nil {
 			t.Fatalf("recordToolProjection(second) error = %v", err)
 		}
 		secondGeneration, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
@@ -1895,26 +2224,6 @@ func TestMCPToolListCache(t *testing.T) {
 				known,
 				firstGeneration,
 			)
-		}
-
-		if err := executor.recordToolProjection(source, "", second, 0, time.Now()); err != nil {
-			t.Fatalf("recordToolProjection(uncacheable) error = %v", err)
-		}
-		if generation, authoritative := executor.ProjectionGeneration(
-			t.Context(),
-			[]toolspkg.SourceRef{source},
-		); authoritative || generation != "" {
-			t.Fatalf(
-				"ProjectionGeneration(uncacheable) = %q, %t, want unknown",
-				generation,
-				authoritative,
-			)
-		}
-		executor.toolCache.mu.Lock()
-		projectionStateCount := len(executor.toolCache.projectionStates)
-		executor.toolCache.mu.Unlock()
-		if projectionStateCount != 0 {
-			t.Fatalf("projection state count = %d, want 0 after uncacheable response", projectionStateCount)
 		}
 	})
 
@@ -1934,10 +2243,9 @@ func TestMCPToolListCache(t *testing.T) {
 		beta := toolspkg.MCPToolDescriptor{ID: "mcp__fixture__beta"}
 		now := time.Now()
 		if err := executor.recordToolProjection(
-			source,
-			"",
+			mcpProjectionSourceKey(source, "", ""),
 			[]toolspkg.MCPToolDescriptor{alpha, beta},
-			60_000,
+			time.Minute,
 			now,
 		); err != nil {
 			t.Fatalf("recordToolProjection(initial) error = %v", err)
@@ -1949,10 +2257,9 @@ func TestMCPToolListCache(t *testing.T) {
 
 		reorderedDescriptors := []toolspkg.MCPToolDescriptor{beta, alpha}
 		if err := executor.recordToolProjection(
-			source,
-			"",
+			mcpProjectionSourceKey(source, "", ""),
 			reorderedDescriptors,
-			60_000,
+			time.Minute,
 			now.Add(time.Millisecond),
 		); err != nil {
 			t.Fatalf("recordToolProjection(reordered) error = %v", err)
@@ -1996,10 +2303,9 @@ func TestMCPToolListCache(t *testing.T) {
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		}}
 		if err := executor.recordToolProjection(
-			source,
-			"Bearer first-token",
+			mcpProjectionSourceKey(source, "Bearer first-token", ""),
 			descriptors,
-			60_000,
+			time.Minute,
 			time.Now(),
 		); err != nil {
 			t.Fatalf("recordToolProjection(first token) error = %v", err)
@@ -2141,10 +2447,9 @@ func TestMCPToolListCache(t *testing.T) {
 			Scope:         "global",
 		}
 		if err := executor.recordToolProjection(
-			source,
-			"",
+			mcpProjectionSourceKey(source, "", ""),
 			[]toolspkg.MCPToolDescriptor{{ID: "mcp__fixture__alpha"}},
-			1,
+			time.Millisecond,
 			time.Now().Add(-time.Second),
 		); err != nil {
 			t.Fatalf("recordToolProjection(expired) error = %v", err)
@@ -4539,9 +4844,10 @@ func TestClientInputConnection(t *testing.T) {
 	t.Parallel()
 	t.Run("Should resolve derived URL and bearer input against a real MCP server", func(t *testing.T) {
 		t.Parallel()
+		const secret = "private-${HOST}-token"
 		handler := newTestMCPHandler(newFakeSDKServer(nil))
 		remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("Authorization") != "Bearer private-token" {
+			if r.Header.Get("Authorization") != "Bearer "+secret {
 				http.Error(w, "missing input", http.StatusUnauthorized)
 				return
 			}
@@ -4565,7 +4871,7 @@ func TestClientInputConnection(t *testing.T) {
 			t,
 			server,
 			WithSecretResolver(
-				secretRefResolverFunc(func(context.Context, string) (string, error) { return "private-token", nil }),
+				secretRefResolverFunc(func(context.Context, string) (string, error) { return secret, nil }),
 			),
 		)
 		if _, err := executor.ListTools(
@@ -4578,7 +4884,7 @@ func TestClientInputConnection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bytes.Contains(serialized, []byte("private-token")) {
+		if bytes.Contains(serialized, []byte(secret)) {
 			t.Fatal("published declaration leaked secret")
 		}
 	})

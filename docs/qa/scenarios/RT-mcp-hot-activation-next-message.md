@@ -49,3 +49,7 @@ and the next call renews and succeeds without reloading or signing in. A tempora
 keeps the catalog present while the call reports temporary unavailability. A definitive refresh
 rejection withdraws the tools from that same proxy; sign-in restores them. Expiry without a refresh
 token, missing credentials, revoked consent and session-budget exclusions must remain hidden.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+Unchanged MCP listings share a three-second discovery floor; explicit checks bypass it. Project approval still invalidates hosted projections immediately and next-message activation remains required. The targeted real-transport walk covers pending-to-approved tool visibility without restart.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

@@ -2,14 +2,29 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/compozy/compozy/internal/redact"
 )
 
 type projectionListingsKey struct{}
+
+const defaultProjectionValidationCacheCapacity = 128
+
+// WithProjectionValidationCacheCapacity sets the positive cache limit in place of the default of 128 entries.
+func WithProjectionValidationCacheCapacity(capacity int) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		if capacity > 0 {
+			registry.validatedListings.capacity = capacity
+		}
+	}
+}
 
 // ProjectionListings shares validated provider listings among projection passes attached to it.
 // It never expires entries: its owner bounds freshness by replacing the instance.
@@ -27,6 +42,7 @@ type projectionListingKey struct {
 // projectionListing is immutable once done closes; readers clone descriptors before mutating them.
 type projectionListing struct {
 	done        chan struct{}
+	redaction   [sha256.Size]byte
 	descriptors []Descriptor
 	err         error
 	complete    bool
@@ -54,6 +70,16 @@ func EnsureProjectionListings(ctx context.Context) context.Context {
 	return WithProjectionListings(ctx, NewProjectionListings())
 }
 
+// ProjectionRedactionRevision reports the registry's live MCP redaction dependency.
+func (r *RuntimeRegistry) ProjectionRedactionRevision() [sha256.Size]byte {
+	for _, provider := range r.providers {
+		if _, mcp := provider.(*MCPProvider); mcp {
+			return redact.SecretFingerprint()
+		}
+	}
+	return [sha256.Size]byte{}
+}
+
 // listProvider returns sorted, validated descriptors that callers must clone before mutating.
 func (r *RuntimeRegistry) listProvider(
 	ctx context.Context,
@@ -63,13 +89,22 @@ func (r *RuntimeRegistry) listProvider(
 ) ([]Descriptor, error) {
 	listings, shared := ctx.Value(projectionListingsKey{}).(*ProjectionListings)
 	scoped, declared := provider.(ProjectionScopeProvider)
+	providerScope := scope
+	if declared {
+		providerScope = scoped.ProjectionScope(scope)
+	}
+	key := projectionListingKey{registry: r, providerIndex: providerIndex, scope: providerScope}
 	if !shared || !declared {
-		descriptors, _, err := listValidatedProvider(ctx, provider, scope)
+		descriptors, _, err := r.listValidatedProvider(ctx, provider, key, scope)
 		return descriptors, err
 	}
-	key := projectionListingKey{registry: r, providerIndex: providerIndex, scope: scoped.ProjectionScope(scope)}
-	return listings.load(ctx, key, func() ([]Descriptor, bool, error) {
-		return listValidatedProvider(ctx, provider, scope)
+	var redaction [sha256.Size]byte
+	// MCP descriptor normalization uses the live secret registry.
+	if _, mcp := provider.(*MCPProvider); mcp {
+		redaction = redact.SecretFingerprint()
+	}
+	return listings.load(ctx, key, redaction, func() ([]Descriptor, bool, error) {
+		return r.listValidatedProvider(ctx, provider, key, scope)
 	})
 }
 
@@ -78,12 +113,14 @@ func (r *RuntimeRegistry) listProvider(
 func (l *ProjectionListings) load(
 	ctx context.Context,
 	key projectionListingKey,
+	redaction [sha256.Size]byte,
 	list func() ([]Descriptor, bool, error),
 ) ([]Descriptor, error) {
 	l.mu.Lock()
 	entry, joined := l.entries[key]
-	if !joined {
-		entry = &projectionListing{done: make(chan struct{})}
+	if !joined || entry.redaction != redaction {
+		joined = false
+		entry = &projectionListing{done: make(chan struct{}), redaction: redaction}
 		l.entries[key] = entry
 	}
 	l.mu.Unlock()
@@ -111,7 +148,9 @@ func (l *ProjectionListings) lead(
 	defer func() {
 		if entry.err != nil || !entry.complete {
 			l.mu.Lock()
-			delete(l.entries, key)
+			if l.entries[key] == entry {
+				delete(l.entries, key)
+			}
 			l.mu.Unlock()
 		}
 		close(entry.done)
@@ -122,7 +161,9 @@ func (l *ProjectionListings) lead(
 
 var errProjectionListingAbandoned = errors.New("tools: projection listing abandoned")
 
-func listValidatedProvider(ctx context.Context, provider Provider, scope Scope) ([]Descriptor, bool, error) {
+func (r *RuntimeRegistry) listValidatedProvider(
+	ctx context.Context, provider Provider, key projectionListingKey, scope Scope,
+) ([]Descriptor, bool, error) {
 	var descriptors []Descriptor
 	var err error
 	complete := true
@@ -139,10 +180,34 @@ func listValidatedProvider(ctx context.Context, provider Provider, scope Scope) 
 	slices.SortFunc(descriptors, func(a Descriptor, b Descriptor) int {
 		return strings.Compare(a.ID.String(), b.ID.String())
 	})
+	validated := &r.validatedListings
+	validated.mu.Lock()
+	defer validated.mu.Unlock()
+	// Exact Go-value equality avoids re-parsing schemas while retaining non-JSON policy metadata.
+	if previous, ok := validated.entries[key]; ok && reflect.DeepEqual(previous, descriptors) {
+		return previous, complete, nil
+	}
 	for i := range descriptors {
 		if err := descriptors[i].Validate(); err != nil {
 			return nil, false, indexValidationError(descriptors[i].ID, err)
 		}
 	}
+	if complete {
+		if validated.entries == nil || len(validated.entries) >= validated.capacity {
+			validated.entries = make(map[projectionListingKey][]Descriptor)
+		}
+		immutable := make([]Descriptor, len(descriptors))
+		for i := range descriptors {
+			immutable[i] = cloneDescriptor(descriptors[i])
+		}
+		validated.entries[key] = immutable
+		return immutable, true, nil
+	}
 	return descriptors, complete, nil
+}
+
+type validatedProviderListings struct {
+	mu       sync.Mutex
+	entries  map[projectionListingKey][]Descriptor
+	capacity int
 }

@@ -40,3 +40,7 @@ must return 409 with code `agent_has_instances` and preserve its authored defini
 instances, deletion succeeds. Repeat with the blocking instance beyond the first 100 list rows. Wrapped
 instance errors must retain canonical machine codes. Focused handler tests exercise real SQLite and authored
 files; a browser deletion re-walk remains pending in the enclosing integration QA.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+Daemon policy reads may retain an authored agent snapshot for at most one second. Explicit mutation invalidation remains immediate and `skills.poll_interval` retains its configured cadence. The targeted walk confirms an independent agent detail read after a hosted `deny_tools` withdrawal; it does not cover the runtime-selector browser flow.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).

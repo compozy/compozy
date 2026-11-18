@@ -42,6 +42,7 @@ type CallExecutor struct {
 	secureClient   *securehttp.Client
 	authGeneration *mcpauth.MutationGeneration
 	timeout        time.Duration
+	toolListFloor  time.Duration
 	toolCache      mcpToolListCache
 	stdioPool      *StdioSessionPool
 }
@@ -119,6 +120,24 @@ func WithTimeout(timeout time.Duration) CallExecutorOption {
 	}
 }
 
+// withToolListFloor bounds ordinary discovery frequency for test fixtures.
+func withToolListFloor(interval time.Duration) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		if interval > 0 {
+			executor.toolListFloor = interval
+		}
+	}
+}
+
+// WithToolListNormalizationCapacity sets a positive limit in place of the default of 128 entries.
+func WithToolListNormalizationCapacity(capacity int) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		if capacity > 0 {
+			executor.toolCache.normalizationCapacity = capacity
+		}
+	}
+}
+
 // WithStdioSessionPool reuses daemon-owned stdio MCP children instead of launching one per request.
 func WithStdioSessionPool(pool *StdioSessionPool) CallExecutorOption {
 	return func(executor *CallExecutor) {
@@ -148,8 +167,9 @@ func NewMCPCallExecutor(
 		servers: servers,
 		timeout: defaultCallTimeout,
 		toolCache: mcpToolListCache{
-			entries:          make(map[string]mcpToolListCacheEntry),
-			projectionStates: make(map[string]mcpToolProjectionState),
+			normalizationCapacity: defaultToolNormalizationCacheCapacity,
+			entries:               make(map[string]mcpToolListCacheEntry),
+			projectionStates:      make(map[string]mcpToolProjectionState),
 		},
 	}
 	for _, opt := range opts {

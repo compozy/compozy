@@ -73,7 +73,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Enabled:       true,
 			Sources:       []string{SkillSourceAgents},
 			CustomSources: []string{},
-			PollInterval:  3 * time.Second,
+			PollInterval:  defaultSkillsPollInterval,
 		},
 		Extensions: defaultExtensionsConfig(),
 		Tools:      DefaultToolsConfig(),

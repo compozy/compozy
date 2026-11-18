@@ -7,13 +7,12 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
 
 // GetSessionByID returns one session snapshot without requiring the caller to know its workspace.
 func (h *BaseHandlers) GetSessionByID(c *gin.Context) {
-	c.Request = c.Request.WithContext(toolspkg.WithCachedMCPProjection(c.Request.Context()))
+	c.Request = c.Request.WithContext(h.toolReadContext(c.Request.Context()))
 	readScope, err := h.resolveProfileReadScope(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)

@@ -67,3 +67,7 @@ sessions retain their own authority. Seed a stale `meta.json` with `list` marker
 catalog says `inherit`: read-only inspection must leave the file unchanged, and resume uses catalog
 intent. Sessions in the ambiguous fractional second of Goose 202 retain their restrictions; explicitly
 re-grant access when needed. CI owns upgrade verification; the manual walk is pending.
+
+QA impact 2026-11-17 (#1794, daemon CPU hot paths):
+Shared hosted projections retain profile, workspace, effective policy and lineage identity. The targeted walk spawns a child restricted to `alpha` and checks its real hosted catalog excludes the parent's `beta` and newly approved `gamma`. Upgrade and browser legs retain their existing status.
+See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
