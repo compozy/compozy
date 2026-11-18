@@ -4,7 +4,7 @@ area: ET
 title: Operate the desktop shell across workspaces and connection states
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk with one tab holding a New tab window ("This tab is empty", **Choose a destination**, "or press ⌘K"); local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision; a saved layout naming an app that is no longer registered (the retired `knowledge` window) drops that window, keeps the session window rendered with no console error, and stays stable across reload.
+expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk on an empty desktop with no tabs ("This desktop is empty", **Choose a destination**, "or press ⌘K"; #1799); local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision; a saved layout naming an app that is no longer registered (the retired `knowledge` window) drops that window, keeps the session window rendered with no console error, and stays stable across reload.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
 qa_status: untested
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
@@ -263,3 +263,5 @@ indicators. On boot and during stream loss confirm the dots render, switching is
 reconnect re-enables both without a remount of the desk.
 
 qa-impact: 2026-11-13 window-tabs-split S10. The empty-desktop card and composer were removed: a fresh workspace's desktop shows one tab with a New tab window. Earlier walks above that mention the card or the composer are history. Walk the boot step on a fresh home and confirm the New tab window instead of a card; the rest of the expectation is unchanged.
+
+qa-impact: 2026-11-17 #1799. A fresh workspace's desktop has no tabs and shows the empty-desktop prompt instead of a New tab window; walk the boot step once.

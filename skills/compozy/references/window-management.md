@@ -130,9 +130,11 @@ Closing and reopening:
 
 - Every close pushes exactly one closed entry, whatever the scope: one command, one revision, one
   entry. Closing a split member gives its space to its sibling; closing the last window of a tab
-  closes the tab; closing the last tab of a desktop leaves one New Tab window. That placeholder
-  stands in for an empty desktop only: the first real window that opens, moves, or reopens there
-  (as a tab or a split) replaces it; a New Tab opened on a desktop that already holds content stays.
+  closes the tab; closing the last tab of a desktop leaves it with zero tabs and `active_tab_id`
+  `""`. No command ever creates a New Tab window (app `new-tab`) on its own: one exists only when a
+  client or `window open --app new-tab` opens it. A fresh workspace and a new desktop start with no
+  tabs; the next window opened there becomes their first tab. Snapshots and saved layouts from
+  v0.7.4 and earlier load without the New Tab those releases seeded into each empty desktop.
 - `close --scope tab` (default) closes one window. It is refused with
   `window_manager_window_pinned` when that window is the last one of a pinned tab (unpin first);
   a member of a pinned split tab with other members closes normally. `group` closes every window of
@@ -386,7 +388,7 @@ The first daemon of v0.7.0 converts each stored version 3, 4, or 5 snapshot to v
   grouping of several tabs in one pane, the pin of a window that ends up inside a split tab, and
   undo/redo history. No window, route, navigation history, or desktop is lost.
 - The original bytes are kept under a backup key in the same transaction. If conversion fails, the
-  workspace opens on a default desktop with one New Tab window and the original stays preserved.
+  workspace opens on an empty default desktop and the original stays preserved.
 
 Read and recover through the migration status:
 
