@@ -276,14 +276,26 @@ export async function getExtensionInventory(
   return envelope;
 }
 
+/** Removal selects one instance; `permanent` selects the global built-in and refuses any scope. */
+export interface RemoveExtensionRequest extends ExtensionInstanceScope {
+  /** Permanently removes a bundled built-in. The daemon refuses workspace or profile with it. */
+  permanent?: boolean;
+}
+
 /** Remove the selected published or dev instance in its owning workspace and profile. */
 export async function removeExtension(
   name: string,
-  scope?: ExtensionInstanceScope,
+  request: RemoveExtensionRequest = {},
   signal?: AbortSignal
 ): Promise<void> {
   const { error, response } = await apiClient.DELETE("/api/extensions/{name}", {
-    params: { path: { name }, query: instanceQuery(scope) },
+    params: {
+      path: { name },
+      query: {
+        ...instanceQuery(request),
+        ...(request.permanent === true ? { permanent: true } : {}),
+      },
+    },
     signal,
   });
   if (apiRequestFailed(response, error))

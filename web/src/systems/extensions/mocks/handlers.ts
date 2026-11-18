@@ -258,16 +258,35 @@ export const handlers: HttpHandler[] = [
         extension: {
           name,
           path: extension.origin_path ?? `/var/lib/compozy/extensions/${name}`,
+          permanent: false,
           status: "removed",
+          tombstoned_at: "",
         },
       });
     }
-    if (!extensionByName(name)) {
+    const existing = extensionByName(name);
+    if (!existing) {
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+    }
+    const permanent = new URL(request.url).searchParams.get("permanent") === "true";
+    if (permanent && existing.source !== "bundled") {
+      return HttpResponse.json(
+        {
+          code: "extension_not_builtin",
+          error: `${name} has source "${existing.source}"; --permanent applies only to built-in extensions`,
+        },
+        { status: 422 }
+      );
     }
     extensionsState = extensionsState.filter(extension => extension.name !== name);
     return HttpResponse.json({
-      extension: { name, path: `/var/lib/compozy/extensions/${name}`, status: "removed" },
+      extension: {
+        name,
+        path: `/var/lib/compozy/extensions/${name}`,
+        permanent,
+        status: "removed",
+        tombstoned_at: permanent ? new Date().toISOString() : "",
+      },
     });
   }),
 ];

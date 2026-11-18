@@ -39,6 +39,8 @@ export interface UpdateExtensionVariables extends ExtensionInstanceScope {
 export interface RemoveExtensionVariables extends ExtensionInstanceScope {
   dev: boolean;
   name: string;
+  /** Permanent removal of a bundled built-in. It is global, so the scope is not sent with it. */
+  permanent?: boolean;
 }
 
 /**
@@ -147,10 +149,13 @@ export function useUpdateExtension() {
 export function useRemoveExtension() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, workspaceId, profileName }: RemoveExtensionVariables) =>
-      removeExtension(name, { workspaceId, profileName }),
-    onSuccess: (_data, { dev, name }) =>
-      toast.success(dev ? `${name} local copy unlinked` : `${name} removed`),
+    mutationFn: ({ name, workspaceId, profileName, permanent }: RemoveExtensionVariables) =>
+      removeExtension(name, permanent ? { permanent: true } : { workspaceId, profileName }),
+    onSuccess: (_data, { dev, name, permanent }) => {
+      if (dev) toast.success(`${name} local copy unlinked`);
+      else if (permanent) toast.success(`${name} removed permanently`);
+      else toast.success(`${name} removed`);
+    },
     onError: (error: Error) => toast.error(error.message),
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
   });
