@@ -14,6 +14,8 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const defaultToolNormalizationCacheCapacity = 128
+
 type mcpToolNormalization struct {
 	fingerprint [sha256.Size]byte
 	revision    [sha256.Size]byte
@@ -91,7 +93,7 @@ func (e *CallExecutor) normalizeToolListing(
 		e.toolCache.normalizations = make(map[string]mcpToolNormalization)
 	}
 	// Retain at most one bounded set of source revisions, including raw input for secret changes.
-	if !exists && len(e.toolCache.normalizations) >= 128 {
+	if !exists && len(e.toolCache.normalizations) >= e.toolCache.normalizationCapacity {
 		var oldest string
 		var usedAt time.Time
 		for candidate, entry := range e.toolCache.normalizations {
@@ -208,7 +210,7 @@ func (e *CallExecutor) listToolsFromClient(
 	if !fresh {
 		release, err := e.acquireToolListing(ctx, cacheKey)
 		if err != nil {
-			return ToolDiscovery{}, nil, err
+			return ToolDiscovery{}, nil, normalizeMCPErrorWithContext(ctx, "", err, true)
 		}
 		defer release()
 		if entry, ok := e.cachedToolListing(

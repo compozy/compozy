@@ -21,6 +21,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1644,6 +1645,59 @@ func TestMCPClientCleanup(t *testing.T) {
 // Owning layer: internal/mcp unit cache.
 // Canonical suite: internal/mcp/executor_test.go.
 func TestMCPToolListCache(t *testing.T) {
+	// Invariant: a waiter's deadline is an MCP timeout and carries no upstream health failure.
+	// Owner: MCP executor listing coordination; canonical suite: TestMCPToolListCache.
+	t.Run("Should classify a listing wait deadline as an MCP timeout", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			server := compozyconfig.MCPServer{
+				Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://example.com/mcp",
+			}
+			executor := newTestMCPExecutor(t, server)
+			resolved := &ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
+			source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+			key, err := executor.toolCacheKey(t.Context(), resolved, protocolVersionModern, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			release, err := executor.acquireToolListing(t.Context(), key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer release()
+
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			_, healthErr, err := executor.listToolsFromClient(ctx, nil, source, resolved, protocolVersionModern, "")
+			if !errors.Is(err, toolspkg.ErrToolTimedOut) || healthErr != nil {
+				t.Fatalf("listing wait error = %v, upstream health error = %v", err, healthErr)
+			}
+			requireReason(t, err, toolspkg.ReasonCallTimedOut)
+		})
+	})
+
+	// Invariant: the configured normalization limit bounds retained raw tool listings and their descriptors.
+	// Owner: MCP executor listing cache; canonical suite: TestMCPToolListCache.
+	t.Run("Should bound retained normalizations to the configured capacity", func(t *testing.T) {
+		t.Parallel()
+		server := compozyconfig.MCPServer{
+			Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://example.com/mcp",
+		}
+		executor := newTestMCPExecutor(t, server, WithToolListNormalizationCapacity(1))
+		resolved := &ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name}
+		raw := []*mcpsdk.Tool{{Name: "echo", InputSchema: json.RawMessage(`{"type":"object"}`)}}
+		for _, key := range []string{"first", "second"} {
+			discovery, err := executor.normalizeToolListing(key, source, resolved, protocolVersionModern, raw)
+			if err != nil || len(discovery.Descriptors) != 1 {
+				t.Fatalf("discovery for %q = %+v, err = %v", key, discovery, err)
+			}
+		}
+		if count := len(executor.toolCache.normalizations); count != 1 {
+			t.Fatalf("retained normalizations = %d, want 1", count)
+		}
+	})
+
 	t.Run("Should answer an HTTP cache hit without reconnecting", func(t *testing.T) {
 		t.Parallel()
 		sdkServer := newFakeSDKServer(nil)

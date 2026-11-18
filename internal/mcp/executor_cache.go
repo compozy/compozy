@@ -22,13 +22,14 @@ import (
 const mcpToolListFloor = 3 * time.Second
 
 type mcpToolListCache struct {
-	flights          map[string]chan struct{}
-	normalizations   map[string]mcpToolNormalization
-	publicationMu    sync.Mutex
-	attempts         map[string]mcpListAttempt
-	mu               sync.Mutex
-	entries          map[string]mcpToolListCacheEntry
-	projectionStates map[string]mcpToolProjectionState
+	normalizationCapacity int
+	flights               map[string]chan struct{}
+	normalizations        map[string]mcpToolNormalization
+	publicationMu         sync.Mutex
+	attempts              map[string]mcpListAttempt
+	mu                    sync.Mutex
+	entries               map[string]mcpToolListCacheEntry
+	projectionStates      map[string]mcpToolProjectionState
 }
 
 type mcpListAttempt struct {

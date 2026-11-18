@@ -129,6 +129,15 @@ func withToolListFloor(interval time.Duration) CallExecutorOption {
 	}
 }
 
+// WithToolListNormalizationCapacity sets a positive limit in place of the default of 128 entries.
+func WithToolListNormalizationCapacity(capacity int) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		if capacity > 0 {
+			executor.toolCache.normalizationCapacity = capacity
+		}
+	}
+}
+
 // WithStdioSessionPool reuses daemon-owned stdio MCP children instead of launching one per request.
 func WithStdioSessionPool(pool *StdioSessionPool) CallExecutorOption {
 	return func(executor *CallExecutor) {
@@ -158,8 +167,9 @@ func NewMCPCallExecutor(
 		servers: servers,
 		timeout: defaultCallTimeout,
 		toolCache: mcpToolListCache{
-			entries:          make(map[string]mcpToolListCacheEntry),
-			projectionStates: make(map[string]mcpToolProjectionState),
+			normalizationCapacity: defaultToolNormalizationCacheCapacity,
+			entries:               make(map[string]mcpToolListCacheEntry),
+			projectionStates:      make(map[string]mcpToolProjectionState),
 		},
 	}
 	for _, opt := range opts {
