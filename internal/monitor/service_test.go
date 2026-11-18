@@ -2131,7 +2131,7 @@ func TestDetectPullRequest(t *testing.T) {
 			t.Fatalf("woke on a fixed check with every failure named: %+v", cleared)
 		}
 	})
-	t.Run("Should wake once per head when all checks finish", func(t *testing.T) {
+	t.Run("Should wake on completion and keep unchanged completed reads quiet", func(t *testing.T) {
 		t.Parallel()
 		cur := baseline(t, openPull("head-a", pending(1, 2), noReviews()))
 		done, next := detectPullRequest(cur, openPull("head-a", pending(3, 0), noReviews()), start.Add(time.Minute))
@@ -2152,6 +2152,21 @@ func TestDetectPullRequest(t *testing.T) {
 		changes, _ := detectPullRequest(prCursor{}, openPull("head-a", pending(0, 0), noReviews()), start)
 		if changes.Wake {
 			t.Fatalf("changes = %+v", changes)
+		}
+	})
+	t.Run("Should keep an older cursor's delivered completion as the baseline", func(t *testing.T) {
+		t.Parallel()
+		watch, err := decodePullRequestWatch("repo", `{"cursor":{"number":7,"head":"head-a","finished":true}}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		changes, next := detectPullRequest(watch.cursor, openPull("head-a", pending(2, 0), noReviews()), start)
+		if changes.Wake {
+			t.Fatalf("legacy completion woke again: %+v", changes)
+		}
+		changes, _ = detectPullRequest(next, openPull("head-a", pending(3, 0), noReviews()), start.Add(time.Minute))
+		if !changes.AllFinished || !changes.Wake {
+			t.Fatalf("late completion after upgrade = %+v", changes)
 		}
 	})
 	t.Run("Should reset check tracking on a new head without waking", func(t *testing.T) {
@@ -2582,6 +2597,75 @@ func TestDetectPullRequest(t *testing.T) {
 
 func TestServicePullRequestMonitor(t *testing.T) {
 	t.Parallel()
+	t.Run("Should wake once for each observed check round on the same head", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			forge := &fakeForge{observation: openPull("head-a", pending(2, 0), noReviews())}
+			waker := &recordingWaker{}
+			service := newPullRequestService(t, forge, waker)
+			created, err := service.Create(t.Context(), pullRequestSpec("sess-1"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertWake := func(t *testing.T, count int, finished bool, newlyFailed ...string) {
+				t.Helper()
+				got := waker.notifications()
+				if len(got) != count {
+					t.Fatalf("got %d wakes, want %d", len(got), count)
+				}
+				last := got[count-1]
+				if last.WakeMessageID() != fmt.Sprintf("monitor:%s:%d", created.ID, count) ||
+					last.PullRequest.Head != "head-a" || last.PullRequest.AllFinished != finished ||
+					!slices.Equal(last.PullRequest.NewlyFailed, newlyFailed) {
+					t.Fatalf("wake %d = %s %+v", count, last.WakeMessageID(), last.PullRequest)
+				}
+			}
+			synctest.Wait()
+			assertWake(t, 1, true)
+
+			// A late check starts and finishes between polls.
+			forge.set(openPull("head-a", pending(3, 0), noReviews()))
+			poll(1)
+			assertWake(t, 2, true)
+
+			for _, checks := range []*PullRequestChecks{nil, pending(0, 0), pending(2, 0), pending(3, 0)} {
+				forge.set(openPull("head-a", checks, noReviews()))
+				poll(1)
+				assertWake(t, 2, true)
+			}
+
+			// A rerun keeps the same total and succeeds.
+			forge.set(openPull("head-a", pending(2, 1), noReviews()))
+			poll(1)
+			assertWake(t, 2, true)
+			forge.set(openPull("head-a", pending(3, 0), noReviews()))
+			poll(1)
+			assertWake(t, 3, true)
+
+			// A later failure wakes even before the rest of the round finishes.
+			forge.set(openPull("head-a", &PullRequestChecks{
+				Passed: 1, Failed: 1, Pending: 1, FailedNames: []string{"lint"},
+			}, noReviews()))
+			poll(1)
+			assertWake(t, 4, false, "lint")
+			forge.set(openPull("head-a", &PullRequestChecks{
+				Passed: 2, Failed: 1, FailedNames: []string{"lint"},
+			}, noReviews()))
+			poll(1)
+			assertWake(t, 5, true)
+
+			// The failed job recovers between polls without changing the total.
+			forge.set(openPull("head-a", pending(3, 0), noReviews()))
+			poll(1)
+			assertWake(t, 6, true)
+
+			poll(2)
+			assertWake(t, 6, true)
+			if mon := onlyMonitor(t, service, "sess-1"); mon.Status != StatusActive || mon.FireCount != 6 {
+				t.Fatalf("monitor = %+v", mon)
+			}
+		})
+	})
 	t.Run("Should stay armed across wakes with one message id per fire", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {

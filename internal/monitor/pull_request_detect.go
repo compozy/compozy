@@ -93,7 +93,7 @@ func resetForNewPullRequest(next prCursor, obs PullRequestObservation) prCursor 
 		next.Burst = nil
 	}
 	next.Number, next.Head = obs.Number, obs.Head
-	next.Failed, next.FailedNames, next.Finished = 0, nil, false
+	next.Failed, next.FailedNames, next.Finished, next.FinishedTotal = 0, nil, false, 0
 	return next
 }
 
@@ -104,6 +104,10 @@ func detectChecks(changes *PullRequestChanges, next prCursor, checks *PullReques
 	changes.ChecksKnown = true
 	changes.Passed, changes.Failed, changes.Pending = checks.Passed, checks.Failed, checks.Pending
 	changes.FailedNames = checks.FailedNames
+	total := checks.Passed + checks.Failed
+	if total == 0 && checks.Pending == 0 {
+		return next
+	}
 	for _, name := range checks.FailedNames {
 		if !slices.Contains(next.FailedNames, name) {
 			changes.NewlyFailed = append(changes.NewlyFailed, name)
@@ -116,13 +120,24 @@ func detectChecks(changes *PullRequestChanges, next prCursor, checks *PullReques
 			return !slices.Contains(checks.FailedNames, name)
 		})
 	changes.FailureRose = swapped || checks.Failed > next.Failed
-	if len(changes.NewlyFailed) > 0 || changes.FailureRose {
+	newFailure := len(changes.NewlyFailed) > 0 || changes.FailureRose
+	if newFailure {
 		changes.Wake = true
 	}
-	next.Failed, next.FailedNames = checks.Failed, checks.FailedNames
-	if checks.Pending == 0 && checks.Passed+checks.Failed > 0 && !next.Finished {
-		next.Finished, changes.AllFinished, changes.Wake = true, true, true
+	switch {
+	case checks.Pending > 0:
+		next.Finished, next.FinishedTotal = false, 0
+	default:
+		// Late checks and reruns can finish between polls and only change the completed summary.
+		grew := next.FinishedTotal > 0 && total > next.FinishedTotal
+		if !next.Finished || grew || checks.Failed != next.Failed || newFailure {
+			next.Finished, next.FinishedTotal = true, total
+			changes.AllFinished, changes.Wake = true, true
+		} else if next.FinishedTotal == 0 {
+			next.FinishedTotal = total
+		}
 	}
+	next.Failed, next.FailedNames = checks.Failed, checks.FailedNames
 	return next
 }
 

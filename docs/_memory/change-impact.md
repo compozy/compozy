@@ -1,5 +1,21 @@
 # Compozy Change Impact
 
+## Pull request monitor check rounds
+
+Owner: [#1807](https://github.com/compozy/compozy/issues/1807).
+
+- **Native tools.** A `compozy__monitor_create` pull request monitor wakes once per observed
+  completion round, including later rounds on the same head. Newly failed checks still wake.
+  Tool input, output and wake formats retain their existing shapes.
+- **Extensibility, hooks and config.** The detector uses the existing forge observations.
+  Polling cadence, query budget, extension contracts, hooks and config keys retain their behavior.
+- **State and isolation.** The existing cursor stores the completed check total alongside the
+  delivered state. Older cursors retain their delivered state and learn the total on their next
+  complete read. Workspace and profile scope continue to fence the same forge and wake paths.
+- **Web, official skill, docs and QA.** The existing transcript divider renders each new wake.
+  The monitor guide, native tool reference and RT-session-monitor-wake scenario describe the
+  revised completion rule and the limits of observing reruns between polls.
+
 ## Agent Plugin MCP credentials and sign-in
 
 Owner: [#1800](https://github.com/compozy/compozy/issues/1800).

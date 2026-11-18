@@ -125,13 +125,14 @@ type pullRequestWatch struct {
 // progress that needs no wake. Those facts cannot be lost once here, because the fire that carries them
 // is durable in the same write and stays until admission or until the monitor ends undelivered.
 type prCursor struct {
-	Number      int      `json:"number,omitempty"`
-	URL         string   `json:"url,omitempty"`
-	Head        string   `json:"head,omitempty"`
-	Failed      int      `json:"failed,omitempty"`
-	FailedNames []string `json:"failed_names,omitempty"`
-	Conflicting bool     `json:"conflicting,omitzero"`
-	Finished    bool     `json:"finished,omitempty"`
+	Number        int      `json:"number,omitempty"`
+	URL           string   `json:"url,omitempty"`
+	Head          string   `json:"head,omitempty"`
+	Failed        int      `json:"failed,omitempty"`
+	FailedNames   []string `json:"failed_names,omitempty"`
+	Conflicting   bool     `json:"conflicting,omitzero"`
+	Finished      bool     `json:"finished,omitempty"`
+	FinishedTotal int      `json:"finished_total,omitzero"` // Zero if no round finished or the cursor predates this count.
 	// EndedNumber is the last pull request first seen already merged or closed: history, not this watch.
 	EndedNumber      int            `json:"ended_number,omitempty"`
 	ReviewsBaselined bool           `json:"reviews_baselined,omitempty"`

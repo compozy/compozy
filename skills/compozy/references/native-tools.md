@@ -208,7 +208,10 @@ monitor saw open can end it. `timeout_seconds` defaults to 21,600 and caps at
 86,400. One monitor fires many times and stays armed until the pull request merges or closes, the timeout
 expires, you cancel it, or it reaches 64 wakes. It wakes at once when checks are already failing on the
 head or the PR already conflicts with its base (with rebase guidance), then within about a minute of a
-check newly failing and once per head when all checks finish. A
+check newly failing and once per observed round when all checks finish, including if they are
+already finished on the first read. A late check or rerun on the same head can trigger another
+completion wake after pending checks, an increase in completed checks, or a changed failure result.
+A rerun entirely between reads with an identical summary is indistinguishable. A
 conflict transition wakes once and can wake again after a known clearance; unknown mergeability never
 clears a conflict, including across restarts or forge outages. A new
 review or unresolved thread on the current head wakes after 2 minutes of quiet, held at most 5, and the first
@@ -216,7 +219,7 @@ read is the baseline for reviews and threads. A new head wakes nothing by itself
 check and review activity from the old head. A conflict collected while an earlier wake awaits admission
 survives a push on the same PR until a known clearance. A late review or thread on an old head wakes
 nothing, though open threads
-stay in the count each wake reports; a rerun on the same head wakes only if it fails. The wake carries the pull
+stay in the count each wake reports. The wake carries the pull
 request, head, check counts, failed names, and new reviews and threads, in an entity-encoded untrusted
 block, and says what the forge could not observe. It carries no review text: read the reviews yourself,
 including review bodies, because follow-ups can live only there. You, not the daemon, decide when delivery
