@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
@@ -62,21 +63,124 @@ func (m *Manager) resumeRestartWaitingSession(ctx context.Context, id string) er
 			return fmt.Errorf("%w: interrupted turn already settled", ErrRestartContinuationSkipped)
 		}
 	}
-	err = m.ResumeWaitingSession(ctx, id)
+	var checkpoint store.SessionRestartCheckpoint
+	if meta.RestartBoundary != nil {
+		checkpoint = *meta.RestartBoundary
+	}
+	err = m.reopenRestartWaitingSession(ctx, &meta)
 	if err == nil {
 		m.logger.InfoContext(ctx, "session: waiting session reopened after restart", "session_id", id)
 		return nil
 	}
-	if meta.RestartBoundary == nil {
-		return err
-	}
-	checkpoint := *meta.RestartBoundary
 	checkpoint.Reason = "resume_failed"
 	if refusal, ok := errors.AsType[*MonitorOwnerIneligibleError](err); ok {
 		checkpoint.Reason = refusal.Reason
+	} else if errors.Is(err, ErrMonitorOwnerStopped) {
+		checkpoint.Reason = "stop_not_shutdown"
+	}
+	if checkpoint.TurnID == "" {
+		stops, readErr := m.Events(ctx, id, store.EventQuery{Type: EventTypeSessionStopped, Limit: 1})
+		if readErr != nil {
+			return errors.Join(err, readErr)
+		}
+		if len(stops) > 0 {
+			checkpoint.TurnID = stops[0].TurnID
+		} else {
+			checkpoint.TurnID = "turn-" + restartEventID(id, meta.UpdatedAt.UTC().Format(time.RFC3339Nano))
+		}
 	}
 	return errors.Join(err, m.appendRestartEvent(ctx, &meta, restartSkippedEvent, checkpoint,
 		"Session remains stopped after daemon restart: "+strings.ReplaceAll(checkpoint.Reason, "_", " ")+"."))
+}
+
+func (m *Manager) reopenRestartWaitingSession(ctx context.Context, meta *store.SessionMeta) error {
+	var instance *InstanceCeiling
+	if normalizeSessionType(Type(meta.SessionType)) == SessionTypeUser && m.instanceCeiling != nil {
+		var err error
+		instance, err = m.instanceCeiling(ctx, meta.ID, "")
+		if err != nil {
+			return err
+		}
+		if instance != nil && instance.Main && !instance.ActiveMain {
+			return &MonitorOwnerIneligibleError{Reason: restartInstanceInactiveReason}
+		}
+	}
+	if meta.RestartBoundary != nil {
+		return m.ResumeWaitingSession(ctx, meta.ID)
+	}
+	if instance == nil || !instance.ActiveMain {
+		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
+	}
+	return m.resumeUnboundMainAfterRestart(ctx, meta)
+}
+
+// An unbound main has no accepted provider route. Reopen its logical session and let the first prompt bind it.
+func (m *Manager) resumeUnboundMainAfterRestart(ctx context.Context, meta *store.SessionMeta) (err error) {
+	if err := requireUnboundShutdownResume(meta); err != nil {
+		return err
+	}
+	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID); err != nil {
+		return &MonitorOwnerIneligibleError{Reason: "archived"}
+	}
+	workspace, err := m.resolveResumeWorkspace(ctx, meta)
+	if err != nil {
+		return &MonitorOwnerIneligibleError{Reason: "workspace_unavailable"}
+	}
+	if !workspace.Config.Session.Restart.AutoContinue {
+		return &MonitorOwnerIneligibleError{Reason: restartDisabledReason}
+	}
+	rows, err := m.Events(ctx, meta.ID, store.EventQuery{Types: []string{
+		acp.EventTypeUserMessage, acp.EventTypeSyntheticReentry,
+	}, Limit: 1})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 0 {
+		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
+	}
+	if _, held := m.restartInputsHeld.LoadOrStore(meta.ID, true); held {
+		return fmt.Errorf("%w: restart recovery already running", ErrPromptInProgress)
+	}
+	defer func() {
+		m.restartInputsHeld.Delete(meta.ID)
+		if err == nil {
+			m.afterSessionResumed(ctx, meta.ID)
+		}
+	}()
+	if _, err := m.resume(ctx, meta.ID, resumeUnboundAfterShutdown); err != nil {
+		return err
+	}
+	return m.checkReopenedInstanceMain(ctx, meta.ID)
+}
+
+func requireUnboundShutdownResume(meta *store.SessionMeta) error {
+	if State(meta.State) != StateStopped || sessionMetaStopReason(meta) != store.StopShutdown {
+		return ErrMonitorOwnerStopped
+	}
+	if !isUnboundLogicalResume(meta) || meta.AcceptedRoute != nil || meta.RestartBoundary != nil {
+		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
+	}
+	if restartFailureRequiresOperator(meta.Failure) {
+		return &MonitorOwnerIneligibleError{Reason: "agent_failure"}
+	}
+	return nil
+}
+
+// Check again before dispatch so an instance transition during activation wins over recovery.
+func (m *Manager) checkReopenedInstanceMain(ctx context.Context, id string) error {
+	instance, err := m.instanceCeiling(ctx, id, "")
+	if err == nil && instance != nil && instance.ActiveMain {
+		return nil
+	}
+	if err == nil {
+		err = &MonitorOwnerIneligibleError{Reason: restartInstanceInactiveReason}
+	}
+	cleanupCtx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	return errors.Join(
+		err,
+		m.StopWithCause(cleanupCtx, id, CauseShutdown, "Instance main is unavailable after restart."),
+	)
 }
 
 // ResumeInterruptedSession consumes a durable interruption through the existing prompt admission owner.
@@ -107,7 +211,7 @@ func (m *Manager) ResumeInterruptedSession(ctx context.Context, id string) (bool
 	if err := m.appendRestartEvent(ctx, &meta, restartAttemptEvent, checkpoint, ""); err != nil {
 		return false, err
 	}
-	active, err := m.resume(ctx, id, false)
+	active, err := m.resume(ctx, id, resumeWithoutDispatch)
 	if err != nil {
 		return false, err
 	}

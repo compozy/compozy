@@ -45,19 +45,18 @@ func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 		profiles:           state.profiles,
 		agents:             catalog,
 		sessions:           manager,
+		mainRecoveryReady:  func() bool { return d.readiness.snapshot().phase == contract.DaemonReadinessReady },
 		scriptsEnabled:     state.cfg.Agents.Heartbeat.Sources.ScriptsEnabled,
 	}
 	admission := instanceServiceAdmission(definitions, repo, manager, state)
+	mainSessions := instanceMainSessions{sessions: manager, attempts: repo, workAdmission: &d.admission}
 	service, err := agentinstance.NewService(
 		agentinstance.WithStore(repo), agentinstance.WithAdmission(admission),
 		agentinstance.WithMainSessionRotator(&instanceMainRotator{
-			sessions: manager,
-			store:    repo,
-			monitors: state.sessionMonitors,
-			starter: instanceMainSessions{
-				sessions: manager,
-				attempts: repo,
-			},
+			sessions:   manager,
+			store:      repo,
+			monitors:   state.sessionMonitors,
+			starter:    mainSessions,
 			reports:    provider.InstanceReports(),
 			now:        d.now,
 			retryDelay: state.cfg.Agents.Heartbeat.DefaultInterval,
@@ -66,7 +65,7 @@ func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 				manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 			},
 		}),
-		agentinstance.WithMainSessions(instanceMainSessions{sessions: manager, attempts: repo}),
+		agentinstance.WithMainSessions(mainSessions),
 		agentinstance.WithActiveLimit(state.cfg.Agents.AlwaysOn.MaxActiveInstances),
 		agentinstance.WithClock(d.now),
 		agentinstance.WithInstanceChanged(func(instance agentinstance.Instance) {

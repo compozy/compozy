@@ -56,6 +56,7 @@ type StartMainSession struct{ Instance Instance }
 type MainSessionStarter interface {
 	Start(context.Context, StartMainSession) (string, error)
 	Stop(context.Context, string) error
+	CheckMain(context.Context, string) error
 }
 
 type Service struct {

@@ -259,7 +259,7 @@ type protectedResourceMetadataCandidate struct {
 func protectedResourceMetadataURLs(
 	explicitURL, resourceURL string,
 ) []protectedResourceMetadataCandidate {
-	urls := make([]protectedResourceMetadataCandidate, 0, 3)
+	urls := make([]protectedResourceMetadataCandidate, 0, 4)
 	if raw := strings.TrimSpace(explicitURL); raw != "" {
 		urls = append(urls, protectedResourceMetadataCandidate{URL: raw, ResourceURL: resourceURL})
 	}
@@ -278,21 +278,20 @@ func protectedResourceMetadataURLs(
 		urls,
 		protectedResourceMetadataCandidate{URL: atEndpoint.String(), ResourceURL: resourceURL},
 	)
-	atRoot := resource.Clone()
+	rootResource := url.URL{Scheme: resource.Scheme, Host: resource.Host}
+	atRoot := rootResource
 	atRoot.Path = "/.well-known/oauth-protected-resource"
-	atRoot.RawQuery = ""
-	atRoot.Fragment = ""
-	rootResource := resource.Clone()
-	rootResource.Path = ""
-	rootResource.RawQuery = ""
-	rootResource.Fragment = ""
+	rootMetadataURL := atRoot.String()
+	// RFC 3986 §6.2.3 equates the empty and slash paths at the origin root.
 	urls = append(
 		urls,
 		protectedResourceMetadataCandidate{
-			URL:         atRoot.String(),
+			URL:         rootMetadataURL,
 			ResourceURL: rootResource.String(),
 		},
 	)
+	rootResource.Path = "/"
+	urls = append(urls, protectedResourceMetadataCandidate{URL: rootMetadataURL, ResourceURL: rootResource.String()})
 	return urls
 }
 

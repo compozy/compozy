@@ -30,6 +30,11 @@ func (s *Service) EnsureMain(ctx context.Context, id string) (Instance, error) {
 		return Instance{}, ErrNotFound
 	}
 	if instance.MainSessionID != "" {
+		if instance.State == "active" {
+			if err := s.starter.CheckMain(ctx, instance.MainSessionID); err != nil {
+				return Instance{}, err
+			}
+		}
 		return instance, nil
 	}
 	if instance.State == "starting" {

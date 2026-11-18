@@ -22,6 +22,8 @@ type InstanceCeiling struct {
 	Grant  string
 	// Main marks the instance's own session, which always runs at its configured level.
 	Main bool
+	// ActiveMain requires a published binding to a running, unarchived instance.
+	ActiveMain bool
 }
 
 // InstanceCeilingReader resolves the ceiling for a session, or nil outside an instance lineage.

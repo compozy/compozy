@@ -63,7 +63,7 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 	}
 	var checkpoint store.SessionRestartCheckpoint
 	if binding == "" || json.Unmarshal([]byte(binding), &checkpoint) != nil {
-		return &MonitorOwnerIneligibleError{Reason: "binding_unknown"}
+		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
 	}
 	if active, ok := m.Get(id); ok && active.Info().State == StateActive {
 		// A restart continuation or an operator may already have resumed the owner under a new route
@@ -100,7 +100,7 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 		return fmt.Errorf("%w: restart recovery already running", ErrPromptInProgress)
 	}
 	defer m.restartInputsHeld.Delete(id)
-	active, err := m.resume(ctx, id, false)
+	active, err := m.resume(ctx, id, resumeWithoutDispatch)
 	if err != nil {
 		return err
 	}

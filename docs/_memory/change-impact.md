@@ -26,6 +26,21 @@ Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a117
   `compozy device remove`, and RT-gateway-paired-device records the new backend receipts without
   claiming a product walk.
 
+## MCP OAuth root protected-resource discovery
+
+Owner: [#1823](https://github.com/compozy/compozy/issues/1823).
+
+- **CLI, HTTP, UDS and Web.** Sign-in and hosted refresh accept either root resource spelling
+  during well-known metadata fallback. The authorization and token requests still use the
+  configured MCP resource. Commands, routes, and response shapes are unchanged.
+- **Native tools and official skill.** MCP status and authentication status retain their tool IDs,
+  schemas, and repair instructions.
+- **Extensibility, hooks and config.** Discovery uses the existing authorized HTTP client.
+  Extension contracts, hook behavior, and config keys are unchanged.
+- **State and isolation.** Scope selection, registration and token storage are unchanged.
+- **Docs and QA.** ET-047 covers the path-specific 404, root fallback, scoped sign-in, and
+  rejection of mismatched resources. The auth adapter suite exercises a local HTTP OAuth server.
+
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).
@@ -6515,3 +6530,19 @@ workspace/profile isolation keep their existing contracts. No Web source or E2E 
 changes. `TestWindowManagerHandlers` owns admission/cancellation and persisted read-back;
 the unchanged Tabs-split E2E-004 and `ET-web-desktop-shell-lifecycle` own browser acceptance.
 Main CI is the only execution gate under the release directive.
+
+## Unprompted always-on main restart (GH-1815)
+
+- **Native tools and CLI/HTTP/UDS.** `ensure-main` reports a session conflict for an active
+  instance whose main remains stopped after shutdown. Session history uses the existing
+  `session.restart_skipped` event, correlated with the lifecycle stop when there is no prompt.
+  Heartbeat can deliver its first prompt to a new or reopened unbound main of an active instance.
+- **Extensibility, config and user state.** Recovery reuses logical session resume and the
+  existing `session.restart.auto_continue` setting. Hook, SDK, config and storage shapes stay
+  the same.
+- **Workspace and profile isolation.** Recovery requires the current main of the active
+  instance and uses existing workspace resolution and permission ceilings.
+- **Web, docs and official skill.** Existing instance attention and session events surface a
+  refused resume. The official runtime reference documents the behavior and `ensure-main` error.
+  `RT-daemon-restart-continuation` and `TestBootResumesInstancesAfterServersStart` cover the first
+  Heartbeat, a refused reopen and operator stops.

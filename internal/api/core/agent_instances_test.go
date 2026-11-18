@@ -1425,6 +1425,7 @@ func (i instanceAPIInputs) Start(ctx context.Context, req agentinstance.StartMai
 func (i instanceAPIInputs) Stop(context.Context, string) error {
 	return errors.New("unexpected session stop")
 }
+func (i instanceAPIInputs) CheckMain(context.Context, string) error { return nil }
 func (i instanceAPIInputs) InstanceCaller(context.Context, string) (agentinstance.Caller, error) {
 	return agentinstance.Caller{
 		InstanceID: i.instance.ID,

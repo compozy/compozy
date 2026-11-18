@@ -40,6 +40,8 @@ func (r instanceDefinitions) instancePayload(
 		}
 		if info != nil && info.ProfileID == instance.ProfileID {
 			projectInstanceMain(&payload, info)
+			payload.NeedsAttention = instance.State == nativeFilterActiveValue && mainStoppedByShutdown(info) &&
+				(r.mainRecoveryReady == nil || r.mainRecoveryReady())
 			if r.monitors != nil {
 				projectInstanceMonitors(&payload, r.monitors.List(instance.MainSessionID))
 			}
@@ -49,14 +51,14 @@ func (r instanceDefinitions) instancePayload(
 	if err != nil {
 		return payload, err
 	}
-	payload.NeedsAttention = needsAttention
-	if needsAttention {
+	if needsAttention && !payload.NeedsAttention {
 		live, err := attention.HasLiveInteractions(ctx, instance.ID)
 		if err != nil {
 			return payload, err
 		}
 		payload.AttentionDismissible = !live
 	}
+	payload.NeedsAttention = payload.NeedsAttention || needsAttention
 	return payload, nil
 }
 
