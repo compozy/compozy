@@ -187,6 +187,30 @@ describe("useClarificationComposerAnswer", () => {
     expect(steer).not.toHaveBeenCalled();
   });
 
+  it("Should keep routing to the last known question after its read failed", async () => {
+    vi.mocked(answerSessionClarification)
+      .mockRejectedValueOnce(new ClarificationNotAnswerableError(ID, "req-1"))
+      .mockRejectedValueOnce(new ClarificationNotAnswerableError(ID, "req-1"))
+      .mockResolvedValueOnce({ choice: null, fallback: false, text: "Europe" });
+    const steer = vi.fn();
+    const result = await renderComposerAnswer([PENDING]);
+    vi.mocked(fetchSessionClarifications).mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(result.current.answering(steer)?.(draft("Europe"))).rejects.toBeInstanceOf(
+      SessionBusyInputRefusalError
+    );
+    await waitFor(() => {
+      expect(result.current.answering(steer)).not.toBe(steer);
+    });
+    vi.mocked(fetchSessionClarifications).mockResolvedValue([NEXT]);
+
+    await result.current.answering(steer)?.(draft("Europe"));
+
+    expect(answerSessionClarification).toHaveBeenLastCalledWith(WS, ID, "req-2", {
+      text: "Europe",
+    });
+    expect(steer).not.toHaveBeenCalled();
+  });
+
   it("Should send the draft only once a read proves every chased question settled", async () => {
     vi.mocked(answerSessionClarification)
       .mockRejectedValueOnce(new ClarificationNotAnswerableError(ID, "req-1"))

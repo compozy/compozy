@@ -79,8 +79,9 @@ export function useClarificationComposerAnswer({
       else next.set(requestId, text);
       return next;
     });
-  const pending: ClarificationPending | null =
-    routable && !clarifications.error ? (clarifications.data?.[0] ?? null) : null;
+  // A failed re-read keeps the last known question: a send still takes the answer path, which
+  // re-reads before it lets anything through, so a waiting question is never bypassed.
+  const pending: ClarificationPending | null = routable ? (clarifications.data?.[0] ?? null) : null;
 
   /** The live question after a re-read; `null` when none waits any more. */
   const rereadPending = async (): Promise<ClarificationPending | null> => {
