@@ -259,8 +259,8 @@ func TestMigrateSnapshotV5(t *testing.T) {
 	t.Run("Should empty desktop (UT-047)", func(t *testing.T) {
 		t.Parallel()
 		out := convertFixture(t, legacyFixture())
-		if _, ok := out.Windows["win-newtab-d1"]; !ok {
-			t.Fatal("New Tab absent")
+		if d := out.Desktops[0]; len(d.Tabs) != 0 || d.ActiveTabID != "" || len(out.Windows) != 0 {
+			t.Fatalf("empty desktop gained a tab: %+v", out)
 		}
 	})
 	t.Run("Should pins (UT-048)", func(t *testing.T) {
@@ -517,8 +517,8 @@ func TestMigrateSnapshotV5(t *testing.T) {
 			s.Windows[id] = w
 		}
 		out := convertFixture(t, s)
-		if _, ok := out.Windows["win-newtab-d1-2"]; !ok {
-			t.Fatal("window collision not avoided")
+		if len(out.Desktops[0].Tabs) != 0 || out.Windows["win-newtab-d1"].DesktopID != "d2" {
+			t.Fatalf("windows=%+v", out.Windows)
 		}
 		if out.Windows["w"].TabID != "tab-w-2" || out.Desktops[1].Tabs[0].ID != "tab-w" ||
 			out.Desktops[1].Tabs[0].Root.ID != "merge-d1-1" {
@@ -543,7 +543,7 @@ func TestMigrateSnapshotV5(t *testing.T) {
 			ID: "win-newtab-d1", App: "Test", DesktopID: "d1", Route: testRoute("/closed"),
 		}}}}
 		out = convertFixture(t, closed)
-		if out.Windows["win-newtab-d1-2"].ID == "" || out.ClosedEntries[0].Windows[0].ID != "win-newtab-d1" {
+		if len(out.Windows) != 0 || out.ClosedEntries[0].Windows[0].ID != "win-newtab-d1" {
 			t.Fatalf("closed window collision = %+v", out)
 		}
 	})
@@ -730,6 +730,59 @@ func TestReconcileRegisteredApps(t *testing.T) {
 			t.Fatal("reconcile is not idempotent")
 		}
 	})
+}
+
+func TestRetireEmptyDesktopPlaceholders(t *testing.T) {
+	t.Run(
+		"Should drop empty desktops' New Tabs in live and history state without mutating input (#1799)",
+		func(t *testing.T) {
+			t.Parallel()
+			// A v0.7.4 layout: the seeded New Tab on an emptied desktop, and an explicit one beside a session.
+			s := DefaultSnapshot("workspace-a")
+			seeded := Window{
+				ID: "seeded", App: newTabApp, Route: testRoute(newTabPath), NavStack: []RouteIntent{},
+				DesktopID: "desktop-default", TabID: "tab-seeded",
+			}
+			s.Windows[seeded.ID] = seeded
+			s.Desktops[0].Tabs = []Tab{
+				{ID: "tab-seeded", Root: LayoutNode{ID: "leaf-seeded", Kind: NodeKindLeaf, WindowID: new(seeded.ID)}},
+			}
+			s.Desktops[0].ActiveTabID = "tab-seeded"
+			s.Desktops = append(s.Desktops, Desktop{ID: "d2", Name: "Two", Order: 1, ActiveTabID: "tab-session"})
+			for _, w := range []Window{
+				{ID: "session", App: "session", Route: testRoute("/session"), NavStack: []RouteIntent{}, DesktopID: "d2", TabID: "tab-session"},
+				{ID: "beside", App: newTabApp, Route: testRoute(newTabPath), NavStack: []RouteIntent{}, DesktopID: "d2", TabID: "tab-beside"},
+			} {
+				s.Windows[w.ID] = w
+				s.Desktops[1].Tabs = append(s.Desktops[1].Tabs, Tab{
+					ID:   w.TabID,
+					Root: LayoutNode{ID: NodeID("leaf-" + string(w.ID)), Kind: NodeKindLeaf, WindowID: new(w.ID)},
+				})
+			}
+			requireValidSnapshot(t, s)
+			state := State{Desktops: s.Desktops, Windows: s.Windows, ClosedEntries: []ClosedEntry{}}
+			s.History = History{Undo: []HistoryEntry{{Before: state, After: state}}, Redo: []HistoryEntry{}}
+			before := encodeFixture(t, s)
+
+			got, changed := RetireEmptyDesktopPlaceholders(s)
+			if !changed || !bytes.Equal(before, encodeFixture(t, s)) {
+				t.Fatalf("retire changed=%v or mutated its input", changed)
+			}
+			requireValidSnapshot(t, got)
+			for _, state := range []State{snapshotState(got), got.History.Undo[0].Before, got.History.Undo[0].After} {
+				if len(state.Desktops[0].Tabs) != 0 || state.Desktops[0].ActiveTabID != "" ||
+					len(state.Desktops[1].Tabs) != 2 || len(state.Windows) != 2 {
+					t.Fatalf("retired state=%+v", state)
+				}
+				if _, ok := state.Windows["seeded"]; ok {
+					t.Fatal("seeded New Tab kept")
+				}
+			}
+			if again, changed := RetireEmptyDesktopPlaceholders(got); changed || !reflect.DeepEqual(got, again) {
+				t.Fatal("retirement is not idempotent")
+			}
+		},
+	)
 }
 
 func TestReconcileTerminalWindows(t *testing.T) {

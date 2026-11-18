@@ -141,6 +141,22 @@ describe("parseWindowManagerStreamFrame", () => {
     expect(parsed.snapshot.migration).toBeNull();
   });
 
+  it("Should parse a desktop with no tabs as an empty desktop (#1799)", () => {
+    const base = snapshotFrame();
+    const frame = {
+      ...base,
+      snapshot: {
+        ...base.snapshot,
+        desktops: [{ id: "desktop:main", name: "Main", order: 0, tabs: [], active_tab_id: "" }],
+        windows: {},
+      },
+    };
+    const parsed = parseWindowManagerStreamFrame(frame);
+    if (parsed.type !== "snapshot") throw new Error("expected snapshot frame");
+
+    expect(parsed.snapshot.desktops[0]).toMatchObject({ tabs: [], activeTabId: "" });
+  });
+
   it("Should reject command IDs outside the semantic registry", () => {
     expect(() => parseWindowManagerStreamFrame(eventFrame("window.teleport"))).toThrow();
   });

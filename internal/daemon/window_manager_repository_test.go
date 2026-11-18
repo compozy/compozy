@@ -365,7 +365,8 @@ func daemonTestTab(id windowmanager.WindowID) windowmanager.Tab {
 	}
 }
 
-// Invariant: a load reconciles retired app state durably exactly once, with one observable log.
+// Invariant: a load reconciles retired app state, and the New Tabs older releases seeded into
+// empty desktops, durably exactly once, with one observable log.
 // Owning layer: daemon repository/clientstate SQLite; canonical suite: window_manager_repository_test.go.
 func TestWindowManagerRepositoryReconcile(t *testing.T) {
 	t.Parallel()
@@ -404,6 +405,7 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 		w := snapshot.Windows[settingsID]
 		w.TabID = tab.ID
 		snapshot.Windows[settingsID] = w
+		snapshot.Desktops[0].ActiveTabID = snapshot.Desktops[0].Tabs[0].ID
 		if err := fixture.repository.Commit(ctx, daemonWindowManagerCommit(snapshot, 0)); err != nil {
 			t.Fatalf("Commit() = %v", err)
 		}
@@ -422,8 +424,8 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() = %v", err)
 		}
-		if len(got.Windows) != 3 || got.Windows["session"].App != "session" || got.Revision != 2 ||
-			len(got.Desktops[0].Tabs) != 3 ||
+		if len(got.Windows) != 2 || got.Windows["session"].App != "session" || got.Revision != 2 ||
+			len(got.Desktops[0].Tabs) != 2 ||
 			got.Windows[settingsID].Route.Pathname != "/settings" ||
 			got.Windows[settingsID].NavStack[0].Pathname != "/settings" {
 			t.Fatalf("reconciled snapshot = %+v", got)
@@ -466,6 +468,53 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 		}
 		if last.Rev != after.Rev || strings.Count(logs.String(), "windowmanager.snapshot_reconciled") != 1 {
 			t.Fatalf("second load revision = %d, logs = %s", last.Rev, logs.String())
+		}
+	})
+	t.Run("Should retire seeded New Tabs on the first load of each daemon process (#1799)", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
+		// What v0.7.4 persisted after the last tab closed: the desktop holds only its seeded New Tab.
+		seeded := daemonWindowManagerSnapshot(workspaceID, 1, "Primary")
+		placeholder := windowmanager.WindowID("seeded")
+		tab := daemonTestTab(placeholder)
+		seeded.Desktops[0].Tabs, seeded.Desktops[0].ActiveTabID = []windowmanager.Tab{tab}, tab.ID
+		seeded.Windows[placeholder] = windowmanager.Window{
+			ID: placeholder, App: "new-tab", DesktopID: "desktop-default", TabID: tab.ID,
+			Route:    windowmanager.RouteIntent{Pathname: "/new-tab", Search: windowmanager.RouteSearch{}},
+			NavStack: []windowmanager.RouteIntent{},
+		}
+		if err := fixture.repository.Commit(ctx, daemonWindowManagerCommit(seeded, 0)); err != nil {
+			t.Fatalf("Commit(seeded) = %v", err)
+		}
+		repository, err := newWindowManagerRepository(fixture.engine, testWindowManagerProfileID)
+		if err != nil {
+			t.Fatalf("newWindowManagerRepository() = %v", err)
+		}
+		got, err := repository.Load(ctx, workspaceID)
+		if err != nil || len(got.Windows) != 0 || len(got.Desktops[0].Tabs) != 0 || got.Revision != 2 {
+			t.Fatalf("first Load() = %+v, error = %v", got, err)
+		}
+		// A New Tab opened afterwards on the empty desktop is the user's and survives later loads.
+		got.Revision = 3
+		got.Desktops[0].Tabs, got.Desktops[0].ActiveTabID = []windowmanager.Tab{tab}, tab.ID
+		got.Windows[placeholder] = seeded.Windows[placeholder]
+		if err := repository.Commit(ctx, daemonWindowManagerCommit(got, 2)); err != nil {
+			t.Fatalf("Commit(explicit New Tab) = %v", err)
+		}
+		again, err := repository.Load(ctx, workspaceID)
+		if err != nil || len(again.Windows) != 1 || again.Revision != 3 {
+			t.Fatalf("second Load() = %+v, error = %v", again, err)
+		}
+		// The next daemon process settles the empty desktop again; it renders the same prompt.
+		restarted, err := newWindowManagerRepository(fixture.engine, testWindowManagerProfileID)
+		if err != nil {
+			t.Fatalf("newWindowManagerRepository(restarted) = %v", err)
+		}
+		reloaded, err := restarted.Load(ctx, workspaceID)
+		if err != nil || len(reloaded.Windows) != 0 || len(reloaded.Desktops[0].Tabs) != 0 {
+			t.Fatalf("Load(restarted) = %+v, error = %v", reloaded, err)
 		}
 	})
 }

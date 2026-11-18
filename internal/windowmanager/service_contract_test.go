@@ -442,7 +442,7 @@ func TestLayoutDocumentContract(t *testing.T) {
 		resources[0].Document.Windows["injected"] = Window{ID: "injected"}
 		resources[0].ParticipantSlots[0] = "tampered"
 		if registry.resources[0].Document.Desktops[0].Name == "Tampered" ||
-			len(registry.resources[0].Document.Windows) != 1 ||
+			len(registry.resources[0].Document.Windows) != len(document.Windows) ||
 			registry.resources[0].ParticipantSlots[0] != "slot-1" {
 			t.Fatal("layout resources alias registry-owned data")
 		}

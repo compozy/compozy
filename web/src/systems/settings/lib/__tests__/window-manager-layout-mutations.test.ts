@@ -159,6 +159,25 @@ describe("layoutDocumentProblems", () => {
     );
   });
 
+  it("Should accept a desktop with no tabs only while it opens on no tab (#1799)", () => {
+    const seeded = seedDocument();
+    const empty = {
+      ...seeded,
+      desktops: [
+        ...seeded.desktops,
+        { id: "desktop-empty", name: "Empty", order: 1, tabs: [], activeTabId: "" },
+      ],
+    };
+    expectValid(empty);
+    const stale = {
+      ...empty,
+      desktops: [...seeded.desktops, { ...empty.desktops[1]!, activeTabId: "tab-gone" }],
+    };
+    expect(layoutDocumentProblems(stale)).toEqual([
+      "Desktop desktop-empty opens on a tab it does not have.",
+    ]);
+  });
+
   it("Should refuse weights that do not sum to 1 and nested splits on the same axis", () => {
     const document = replaceLayoutTabRoot(seedDocument(), "desktop-main", "tab-work", {
       id: "split-work",

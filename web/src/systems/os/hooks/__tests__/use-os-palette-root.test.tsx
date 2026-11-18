@@ -140,7 +140,7 @@ const paletteMocks = vi.hoisted(() => {
     openItem: vi.fn(),
     /** Destination: a project (`activeWorkspaceId`), User, or All projects (`global`). */
     scope: "workspace" as "workspace" | "global" | "user",
-    paletteIntent: null as { kind: "destination"; windowId: string } | null,
+    paletteIntent: null as { kind: "destination"; windowId: string | null } | null,
     paletteIntentCleared: vi.fn(),
     paletteIntentRequested: vi.fn(),
     sessions: [] as PaletteSessionFixture[],
@@ -945,14 +945,14 @@ describe("useOsPaletteRoot", () => {
     expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
   });
 
-  it("Should open the pick unanchored once the daemon dropped the destination tab (#1799)", async () => {
-    // Another client filled the empty desktop first, so the daemon removed its New Tab.
-    paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
-    paletteMocks.desktop = desktopFixture(
-      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
-      "window:tasks"
-    );
+  it.each([
+    { name: "an empty desktop", windowId: null },
+    { name: "a New Tab another client already closed", windowId: "window:new-tab" },
+  ])("Should open the pick unanchored for $name (#1799)", async ({ windowId }) => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId };
+    paletteMocks.desktop = desktopFixture({}, null);
     const { result } = renderRoot();
+    expect(result.current.destination).toBe(true);
     const command = PALETTE_REGISTRY.byId.get("app.open.terminal");
     if (command === undefined) throw new Error("Expected the Terminal command fixture.");
 

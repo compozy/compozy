@@ -821,13 +821,15 @@ func TestSubscription(t *testing.T) {
 	t.Run("Should order one topology event before every actually changed client view", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
-		created := executeTestCommand(
+		executeTestCommand(
 			t,
 			environment.manager,
 			"workspace-a",
 			nil,
 			CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
 		)
+		// A real tab on d2 that the deletion transfers, so every client's view changes.
+		created := openTestWindow(t, environment.manager, "workspace-a", nil, "on-d2", "d2")
 		clientA := ClientID("client-a")
 		clientB := ClientID("client-b")
 		clientC := ClientID("client-c")

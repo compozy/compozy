@@ -473,8 +473,7 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Snapshot(recreated) error = %v", err)
 		}
-		if snapshot.Revision != 0 || len(snapshot.Windows) != 1 ||
-			snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
+		if snapshot.Revision != 0 || len(snapshot.Windows) != 0 || len(snapshot.Desktops) != 1 {
 			t.Fatalf("Snapshot(recreated) = %#v, want fresh revision zero", snapshot)
 		}
 		clients, err := fixture.manager.Clients(ctx, workspaceID)
@@ -847,7 +846,7 @@ edge_band = false
 			return result
 		}
 
-		// A first window replaces each empty desktop's New Tab; the policy places the second.
+		// Each desktop starts empty, so the first window is its only tab; the policy places the second.
 		open(fixture.workspace.ID, "seed-a")
 		open(workspaceB.ID, "seed-b")
 		workspaceAResult := open(fixture.workspace.ID, "window-a")
@@ -1136,11 +1135,8 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 						t.Fatalf("retirement state %s/%s: %#v", profile, partition, snapshot)
 					}
 					if retirement == "session" {
-						placeholder := ""
-						for _, window := range snapshot.Windows {
-							placeholder = window.App
-						}
-						if exists || len(snapshot.Windows) != 1 || placeholder != "new-tab" {
+						// The retired session's desktop is left with no tabs, not a seeded New Tab (#1799).
+						if exists || len(snapshot.Windows) != 0 || len(snapshot.Desktops[0].Tabs) != 0 {
 							t.Fatalf("deleted session remains in %s/%s: %#v", profile, partition, snapshot)
 						}
 					} else if !exists || bound.InstanceKey != nil || bound.Route.Pathname != "/sessions" ||
@@ -1637,7 +1633,7 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(snapshot.Windows) != 1 || snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
+		if len(snapshot.Windows) != 0 {
 			t.Fatal("agent PTY opened a desktop window")
 		}
 		id := string(handle.Info().ID)
@@ -1692,7 +1688,7 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(persisted.Windows) != 1 || persisted.Windows["win-newtab-desktop-default"].App != "new-tab" {
+		if len(persisted.Windows) != 0 {
 			t.Fatal("exited agent PTY left a persisted window")
 		}
 	})

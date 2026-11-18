@@ -196,14 +196,14 @@ interface SettingsRestartStatus {
   status: string;
 }
 
-test("E2E-001 / E2E-014: fresh boot shows one New Tab window and a CLI move splits two tabs live", async ({
+test("E2E-001 / E2E-014: fresh boot shows an empty desktop and a CLI move splits two tabs live", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
   const shell = osShellSelectors(appPage);
 
-  await test.step("E2E-001: fresh boot renders the default desktop's single New Tab window", async () => {
+  await test.step("E2E-001: fresh boot renders the default desktop empty, with no tab (#1799)", async () => {
     await expect(appPage.getByRole("navigation", { name: "Dock" })).toBeVisible();
     await expect(appPage.getByRole("banner", { name: "System bar" })).toBeVisible();
     expect(
@@ -224,14 +224,12 @@ test("E2E-001 / E2E-014: fresh boot shows one New Tab window and a CLI move spli
     expect(snapshot.desktops.map(desktop => [desktop.id, desktop.name])).toEqual([
       ["desktop-default", "Desktop 1"],
     ]);
-    const windows = Object.values(snapshot.windows);
-    expect(windows.map(window => window.app)).toEqual(["new-tab"]);
-    const newTab = windows[0];
-    if (!newTab) throw new Error("a fresh desktop must hold one New Tab window");
-    expect(desktopTabIds(snapshot, "desktop-default")).toEqual([newTab.tab_id]);
-    await expect(shell.tabs).toHaveCount(1);
-    await expect(shell.tab(newTab.tab_id)).toHaveAttribute("aria-selected", "true");
-    await expect(shell.window(newTab.id).getByTestId("new-tab-empty")).toBeVisible();
+    expect(Object.keys(snapshot.windows)).toEqual([]);
+    expect(desktopTabIds(snapshot, "desktop-default")).toEqual([]);
+    // The strip shows only its `+`; the desk itself invites a destination.
+    await expect(shell.tabs).toHaveCount(0);
+    await expect(appPage.locator('[data-slot="os-tab-new"]')).toBeVisible();
+    await expect(appPage.getByTestId("os-desk-empty")).toBeVisible();
 
     const legacy = await fetch(
       runtime.url(`/api/workspaces/${encodeURIComponent(workspace.id)}/desktop-state`)
@@ -833,7 +831,7 @@ test("E2E-010 and E2E-018: peers converge topology while the active tab stays cl
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  // A real tab each client starts on: the first window replaces the desktop's New Tab (#1799).
+  // A real tab each client starts on: a fresh desktop has no tabs (#1799).
   const [agentsID] = await openFixtureWindows(runtime, workspace.id, ["agents"]);
   const second = await openPeerPage(browser, runtime);
   try {
@@ -882,8 +880,8 @@ test("E2E-010 and E2E-018: peers converge topology while the active tab stays cl
       .toMatchObject({ active_desktop_id: "desktop-default" });
     await expect(activeDesktop(appPage, targetDesktop.id)).toHaveAttribute("data-active", "true");
     await expect(activeDesktop(second, "desktop-default")).toHaveAttribute("data-active", "true");
-    // The target desktop's first real tab replaces its New Tab (#1799) and is where both clients
-    // stand there, so the moved Tasks tab arrives inactive for the peer.
+    // The target desktop starts with no tabs (#1799); its first tab is where both clients stand
+    // there, so the moved Tasks tab arrives inactive for the peer.
     await executeWindowManagerCommand(runtime, workspace.id, {
       commandId: "window.open",
       payload: {
@@ -1452,11 +1450,11 @@ test("E2E-009: the pager and overview keep desktop arrangements independent", as
   await pager.getByRole("button", { name: "Desktop 2 of 8: Desktop 2" }).click();
   await expect(activeDesktop(appPage, "desktop-e2e-2")).toHaveAttribute("data-active", "true");
   await expect(tasks).toBeHidden();
-  // A fresh desktop holds one New Tab window. Every desktop keeps its own New tab window
+  // A fresh desktop has no tabs and shows the empty-desktop prompt (#1799). Every desktop stays
   // mounted behind `inert`, so scope to the desktop the pager just activated.
   const desktopTwo = activeDesktop(appPage, "desktop-e2e-2");
-  await expect(desktopTwo.locator('[data-app="new-tab"]')).toHaveCount(1);
-  await expect(desktopTwo.getByTestId("new-tab-empty")).toBeVisible();
+  await expect(desktopTwo.locator('[data-app="new-tab"]')).toHaveCount(0);
+  await expect(desktopTwo.getByTestId("os-desk-empty")).toBeVisible();
   const vault = await openDockApp(appPage, "Vault", "vault");
   const vaultID = await windowID(vault);
   await expect(vault).toBeVisible();
@@ -2096,7 +2094,7 @@ test("Tabs-split E2E-003: jump and next/previous shortcuts activate the expected
   });
   await appPage.reload({ waitUntil: "domcontentloaded" });
   const workspace = await prepareShell(appPage, runtime);
-  // The first window replaces the desktop's New Tab (#1799), so four windows make four tabs.
+  // A fresh desktop has no tabs (#1799), so four windows make four tabs.
   await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace", "tasks"]);
   const shell = osShellSelectors(appPage);
   const order = desktopTabIds(
@@ -2202,7 +2200,7 @@ test("Tabs-split E2E-004: dragging a tab two positions persists its order; a pin
 }) => {
   await appPage.setViewportSize({ width: 1440, height: 900 });
   const workspace = await prepareShell(appPage, runtime);
-  // The first window replaces the desktop's New Tab (#1799), so four windows make four tabs.
+  // A fresh desktop has no tabs (#1799), so four windows make four tabs.
   await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace", "tasks"]);
   const shell = osShellSelectors(appPage);
   const order = desktopTabIds(
@@ -2814,7 +2812,7 @@ test("Tabs-split E2E-012: a v5 layout opens as tabs and the bell's upgrade item 
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  // The first window replaces the desktop's New Tab (#1799) and stays on it as the snapped left.
+  // A fresh desktop has no tabs (#1799): the first fixture window is the snapped-left one.
   const [, floatingID, snappedID, minimizedID, splitLeadID, splitMemberID] =
     await openFixtureWindows(runtime, workspace.id, [
       "marketplace",
@@ -3117,7 +3115,7 @@ test("E2E-039 (logical E2E-004/013): a crowded tab bar keeps overflow, tooltip, 
   runtime,
 }) => {
   // Tabs shrink to fit down to the 40px floor before the bar scrolls (spec "Tab width"): at
-  // 1280px the strip holds about 26 floor tabs, so 30 windows plus the New Tab overflow it.
+  // 1280px the strip holds about 26 floor tabs, so 30 windows overflow it.
   await appPage.setViewportSize({ width: 1280, height: 720 });
   const workspace = await prepareShell(appPage, runtime);
   const ids = await openFixtureWindows(
@@ -4899,6 +4897,8 @@ test("E2E-018: a cold daemon explains and refuses primary actions while exempt c
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
+  // A focused window for Close window to act on: a fresh desktop has no tabs (#1799).
+  await openDockApp(appPage, "Tasks", "tasks");
   const palette = await openCommandPalette(appPage);
   await expect(paletteRow(palette, "window.close")).toBeEnabled();
 
@@ -4952,8 +4952,8 @@ test("E2E-018: a cold daemon explains and refuses primary actions while exempt c
   );
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await prepareShell(appPage, runtime);
-  // Recovery replaces the transport failure with the live context: a desktop always holds a
-  // tab, so this fresh shell focuses its New Tab and Close window is available again.
+  // Recovery replaces the transport failure with the live context: the reloaded shell focuses
+  // its Tasks window again, so Close window is available again.
   const reopened = await openCommandPalette(appPage);
   await expect(paletteRow(reopened, "window.close")).toBeEnabled();
   await expect(paletteRowReason(reopened, "window.close")).toHaveCount(0);

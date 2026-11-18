@@ -194,7 +194,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(after.Windows) != max(testCase.remaining, 1) {
+			if len(after.Windows) != testCase.remaining {
 				t.Fatalf("stale windows: %+v", after.Windows)
 			}
 			if testCase.remaining != 0 {
@@ -202,9 +202,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			}
 			for _, entries := range [][]windowmanager.HistoryEntry{after.History.Undo, after.History.Redo} {
 				for _, entry := range entries {
-					if len(entry.Before.Windows) != 1 || len(entry.After.Windows) != 1 ||
-						entry.Before.Windows["win-newtab-desktop-default"].App != "new-tab" ||
-						entry.After.Windows["win-newtab-desktop-default"].App != "new-tab" {
+					if len(entry.Before.Windows) != 0 || len(entry.After.Windows) != 0 {
 						t.Fatal("history can resurrect terminal")
 					}
 				}

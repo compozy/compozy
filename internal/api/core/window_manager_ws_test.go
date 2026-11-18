@@ -156,9 +156,11 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 		)
 		topology, err := fixture.manager.Execute(t.Context(), windowmanager.CommandRequest{
 			WorkspaceID: "workspace-a", ExpectedRevision: created.Snapshot.Revision,
-			Payload: windowmanager.CreateDesktopCommand{
-				DesktopID: "desktop-b", Name: "Third",
-			},
+			// The first tab of client-a's empty desktop changes its view, so it is repaired.
+			Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
+				ID: "first", App: "tasks", DesktopID: "desktop-a",
+				Route: windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
+			}},
 		})
 		if err != nil {
 			t.Fatalf("Execute(topology) error = %v", err)
@@ -178,7 +180,8 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 		}
 		if repairedFrame.Type != contract.WindowManagerFrameClient ||
 			repairedFrame.Client.ClientID != clientA ||
-			len(repairedFrame.Client.ActiveTab) != 3 {
+			repairedFrame.Client.ActiveTab["desktop-a"] != string(topology.Snapshot.Desktops[1].ActiveTabID) ||
+			len(repairedFrame.Client.ActiveTab) != 1 {
 			t.Fatalf("topology repair frame = %+v", repairedFrame)
 		}
 
@@ -198,6 +201,16 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 	t.Run("Should replace client-owned palette context over the bound stream", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)
+		// A window for the client to focus: a fresh desktop has no tabs (#1799).
+		if _, err := fixture.manager.Execute(t.Context(), windowmanager.CommandRequest{
+			WorkspaceID: "workspace-a",
+			Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
+				ID: "focused", App: "tasks",
+				Route: windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
+			}},
+		}); err != nil {
+			t.Fatalf("Execute(window.open) error = %v", err)
+		}
 		registered, err := fixture.manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{
 			WorkspaceID: "workspace-a",
 			ClientID:    "client-a",
