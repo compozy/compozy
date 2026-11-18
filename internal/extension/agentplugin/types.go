@@ -152,11 +152,19 @@ type Issue struct {
 
 // ManifestError contains every deterministic fatal manifest issue.
 type ManifestError struct {
+	Cause        error
 	Issues       []Issue
 	ManifestPath string
 }
 
-func (e *ManifestError) Unwrap() error { return ErrManifestInvalid }
+func (e *ManifestError) Is(target error) bool { return target == ErrManifestInvalid }
+
+func (e *ManifestError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
 
 // Error renders all issues without discarding their field paths.
 func (e *ManifestError) Error() string {

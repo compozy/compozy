@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,15 +50,19 @@ func (p *installedPackage) CloseAll() error {
 }
 
 func loadInstalledPackageMetadata(
+	ctx context.Context,
 	rootParent *fileutil.Directory,
 	rootName string,
 	root *fileutil.Directory,
 ) (*installedPackage, installedPackageMetadata, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, installedPackageMetadata{}, err
+	}
 	_, manifestName, installed, err := locateInstallManifestRoot(rootParent, rootName, root)
 	if err != nil {
 		return nil, installedPackageMetadata{}, err
 	}
-	metadata, err := readInstalledPackageMetadata(installed.directory, manifestName)
+	metadata, err := readInstalledPackageMetadata(ctx, installed.directory, manifestName)
 	if err != nil {
 		closeErr := installed.CloseAll()
 		return nil, installedPackageMetadata{}, errors.Join(err, closeErr)
@@ -66,7 +71,14 @@ func loadInstalledPackageMetadata(
 	return installed, metadata, nil
 }
 
-func readInstalledPackageMetadata(root *fileutil.Directory, name string) (installedPackageMetadata, error) {
+func readInstalledPackageMetadata(
+	ctx context.Context,
+	root *fileutil.Directory,
+	name string,
+) (installedPackageMetadata, error) {
+	if err := ctx.Err(); err != nil {
+		return installedPackageMetadata{}, err
+	}
 	metadata, err := parseInstalledPackageMetadata(root, name)
 	if err != nil {
 		return installedPackageMetadata{}, err
@@ -291,7 +303,9 @@ func parseInstalledPackageMetadata(root *fileutil.Directory, manifestName string
 	case installerAgentPluginManifestName:
 		var meta agentPluginManifestHeader
 		if err := json.Unmarshal(content, &meta); err != nil {
-			return installedPackageMetadata{}, invalidAgentPluginManifest(manifestName, "$", err.Error())
+			manifestErr := invalidAgentPluginManifest(manifestName, "$", err.Error())
+			manifestErr.Cause = err
+			return installedPackageMetadata{}, manifestErr
 		}
 		return installedPackageMetadata{
 			name: strings.TrimSpace(

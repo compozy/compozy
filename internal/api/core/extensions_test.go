@@ -405,7 +405,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			taskpkg.ActorContext,
 		) (contract.ExtensionPayload, error) {
 			return contract.ExtensionPayload{}, &extensionpkg.AgentPluginManifestValidationError{
-				Path: "/tmp/plugin/plugin.json",
+				Path: "/tmp/plugin/.claude-plugin/plugin.json",
 				Issues: []agentplugin.Issue{
 					{Path: "name", Message: "name contains compozy_claim_secret-123"},
 					{Path: "author.email", Message: "must be a string"},
@@ -426,7 +426,10 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 		}
 		if payload.Diagnostic == nil ||
 			payload.Diagnostic.Code != diagnosticcontract.CodeExtensionAgentPluginManifestInvalid ||
-			len(payload.Issues) != 2 || payload.Issues[0].Field != "name" || payload.Issues[1].Field != "author.email" {
+			len(
+				payload.Issues,
+			) != 2 || payload.Issues[0].Field != "name" || payload.Issues[1].Field != "author.email" ||
+			payload.Issues[0].Path != ".claude-plugin/plugin.json" || payload.Issues[1].Path != ".claude-plugin/plugin.json" {
 			t.Fatalf("portable validation payload = %#v", payload)
 		}
 		if strings.Contains(response.Body.String(), "compozy_claim_secret-123") ||

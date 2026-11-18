@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,7 +18,10 @@ var installerClientPluginDirectories = []string{installerClaudePluginDirectory, 
 const claudeCodePluginSchemaID = "https://json.schemastore.org/claude-code-plugin-manifest.json"
 
 // ValidateInstallPackageRoot applies the archive installer's checks to an extracted catalog root.
-func ValidateInstallPackageRoot(path string) (err error) {
+func ValidateInstallPackageRoot(ctx context.Context, path string) (err error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	root, err := fileutil.OpenDirectory(path)
 	if err != nil {
 		return mapExtractionAccessError(err)
@@ -30,7 +34,7 @@ func ValidateInstallPackageRoot(path string) (err error) {
 	if name == "" {
 		return errInstallMissingManifest
 	}
-	metadata, err := readInstalledPackageMetadata(root, name)
+	metadata, err := readInstalledPackageMetadata(ctx, root, name)
 	if err != nil {
 		return err
 	}
@@ -66,7 +70,9 @@ func clientManifestNameAtRoot(root *fileutil.Directory) (string, error) {
 func validateInstallerClientSchema(contents []byte, name string) error {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(contents, &fields); err != nil || fields == nil {
-		return invalidAgentPluginManifest(name, "$", "must be a JSON object")
+		manifestErr := invalidAgentPluginManifest(name, "$", "must be a JSON object")
+		manifestErr.Cause = err
+		return manifestErr
 	}
 	if _, declared := fields["$schema"]; !declared {
 		return nil
@@ -87,7 +93,7 @@ func validateInstallerClientSchema(contents []byte, name string) error {
 	}
 }
 
-func invalidAgentPluginManifest(name, field, reason string) error {
+func invalidAgentPluginManifest(name, field, reason string) *agentplugin.ManifestError {
 	return &agentplugin.ManifestError{
 		ManifestPath: filepath.ToSlash(name),
 		Issues:       []agentplugin.Issue{{Path: field, Message: reason}},
