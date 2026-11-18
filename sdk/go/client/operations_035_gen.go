@@ -11,6 +11,24 @@ import (
 	"strings"
 )
 
+// StartTaskRun Start one claimed task run
+func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/start"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // SteerSessionPromptParams carries the path, query, and header parameters.
 type SteerSessionPromptParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -421,28 +439,4 @@ func (c *Client) StreamLogs(ctx context.Context, params StreamLogsParams) (*Stre
 		path += "?" + query.Encode()
 	}
 	return newStream[LogEventPayload](ctx, c, "GET", path, headers, nil, "streamLogs")
-}
-
-// StreamLoopRunEventsParams carries the path, query, and header parameters.
-type StreamLoopRunEventsParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	RunID         string  `url:"run_id"`
-	AfterSequence *string `url:"after_sequence"`
-	LastEventID   *string `url:"Last-Event-ID"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// StreamLoopRunEventsFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamLoopRunEventsFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamLoopRunEventsFrame)(nil)
-
-var _ json.Marshaler = StreamLoopRunEventsFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
 }

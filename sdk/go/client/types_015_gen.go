@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+// ProvenancePayload is a daemon API value.
+type ProvenancePayload struct {
+	Slug                   string                    `json:"slug,omitempty"`
+	Registry               string                    `json:"registry,omitempty"`
+	Version                string                    `json:"version,omitempty"`
+	InstalledAt            *time.Time                `json:"installed_at,omitempty"`
+	InstalledFromExtension string                    `json:"installed_from_extension,omitempty"`
+	PrecedenceTier         string                    `json:"precedence_tier"`
+	ShadowedBy             []SkillShadowEntryPayload `json:"shadowed_by,omitempty"`
+}
+
+// ProviderAuthProbeResponse is a daemon API value.
+type ProviderAuthProbeResponse struct {
+	Provider   string                    `json:"provider"`
+	AuthStatus ProviderAuthStatusPayload `json:"auth_status"`
+	Probe      *ProviderAuthProbeResult  `json:"probe,omitzero"`
+}
+
+// ProviderAuthProbeResult is a daemon API value.
+type ProviderAuthProbeResult struct {
+	ExitCode   int    `json:"exit_code"`
+	Stdout     string `json:"stdout,omitempty"`
+	Stderr     string `json:"stderr,omitempty"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
+// ProviderAuthStatusPayload is a daemon API value.
+type ProviderAuthStatusPayload struct {
+	Mode        string                         `json:"mode"`
+	EnvPolicy   string                         `json:"env_policy"`
+	HomePolicy  string                         `json:"home_policy"`
+	State       string                         `json:"state"`
+	Code        string                         `json:"code,omitempty"`
+	Message     string                         `json:"message,omitempty"`
+	StatusCmd   string                         `json:"status_command,omitempty"`
+	Login       ProviderLoginDescriptorPayload `json:"login"`
+	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
+}
+
 // ProviderErrorDiagnostic is a daemon API value.
 type ProviderErrorDiagnostic struct {
 	Code            string                `json:"code"`
@@ -394,52 +433,4 @@ type Ref struct {
 	Kind   string          `json:"kind,omitempty"`
 	Script string          `json:"script,omitempty"`
 	With   json.RawMessage `json:"with,omitempty"`
-}
-
-// Reference is a daemon API value.
-type Reference struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          TaskStatus `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitzero"`
-	EffectivePaused bool       `json:"effective_paused,omitzero"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
-}
-
-// RejectPolicy is a daemon API value.
-type RejectPolicy struct {
-	Route NodeID `json:"route"`
-}
-
-// ReloadExtensionRequest is a daemon API value.
-type ReloadExtensionRequest struct {
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
-}
-
-// RemoveDiscoveredWorktreeRequest is a daemon API value.
-type RemoveDiscoveredWorktreeRequest struct {
-	Path        string `json:"path"`
-	Force       bool   `json:"force,omitempty"`
-	ExpectStale bool   `json:"expect_stale,omitempty"`
-}
-
-// RemoveWorktreesRequest is a daemon API value.
-type RemoveWorktreesRequest struct {
-	Targets      []WorktreeRemovalTarget `json:"targets"`
-	Force        bool                    `json:"force,omitempty"`
-	DeleteBranch bool                    `json:"delete_branch,omitempty"`
-	DryRun       bool                    `json:"dry_run,omitempty"`
-}
-
-// RemoveWorktreesResponse is a daemon API value.
-type RemoveWorktreesResponse struct {
-	DryRun  bool                    `json:"dry_run"`
-	Results []WorktreeRemovalResult `json:"results"`
 }

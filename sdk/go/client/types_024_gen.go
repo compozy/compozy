@@ -4,6 +4,35 @@ package client
 
 import "time"
 
+// SettingsTransportParityPayload is a daemon API value.
+type SettingsTransportParityPayload struct {
+	Known          bool `json:"known"`
+	SettingsHTTP   bool `json:"settings_http"`
+	SettingsUDS    bool `json:"settings_uds"`
+	ExtensionsHTTP bool `json:"extensions_http"`
+	ExtensionsUDS  bool `json:"extensions_uds"`
+}
+
+// SettingsUpdateActor is a daemon API value.
+type SettingsUpdateActor string
+
+// SettingsUpdateAppPayload is a daemon API value.
+type SettingsUpdateAppPayload struct {
+	Status         SettingsUpdateStatusKind `json:"status"`
+	Running        bool                     `json:"running"`
+	CurrentVersion string                   `json:"current_version"`
+	LatestVersion  string                   `json:"latest_version"`
+	ReleaseURL     string                   `json:"release_url"`
+	AttemptID      string                   `json:"attempt_id"`
+	LastError      string                   `json:"last_error"`
+	Message        string                   `json:"message"`
+}
+
+// SettingsUpdateApplyRequest is a daemon API value.
+type SettingsUpdateApplyRequest struct {
+	Targets []SettingsUpdateTarget `json:"targets"`
+}
+
 // SettingsUpdateApplyResponse is a daemon API value.
 type SettingsUpdateApplyResponse struct {
 	Targets     []SettingsUpdateTarget       `json:"targets"`
@@ -417,28 +446,3 @@ type SourceHealth string
 
 // SourceKind is a daemon API value.
 type SourceKind string
-
-// SourceOutcome is a daemon API value.
-type SourceOutcome struct {
-	ID         string `json:"id"`
-	Result     string `json:"result"`
-	Items      int    `json:"items"`
-	More       bool   `json:"more"`
-	DurationMS int64  `json:"duration_ms"`
-	Error      *Error `json:"error,omitempty"`
-}
-
-// SourceStatus is a daemon API value.
-type SourceStatus struct {
-	Source string       `json:"source"`
-	Status SourceHealth `json:"status"`
-	Reason string       `json:"reason,omitempty"`
-}
-
-// SpawnBudgetPayload is a daemon API value.
-type SpawnBudgetPayload struct {
-	MaxChildren           int   `json:"max_children"`
-	MaxDepth              int   `json:"max_depth"`
-	TTLSeconds            int64 `json:"ttl_seconds"`
-	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
-}

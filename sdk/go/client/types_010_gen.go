@@ -7,6 +7,38 @@ import (
 	"time"
 )
 
+// InstallExtensionRequest is a daemon API value.
+type InstallExtensionRequest struct {
+	Enable               bool                   `json:"enable,omitzero"`
+	Scope                string                 `json:"scope,omitempty"`
+	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	Profile              string                 `json:"profile,omitempty"`
+	Inputs               map[string]Value       `json:"inputs,omitempty"`
+	ExpectedDigest       string                 `json:"expected_digest,omitempty"`
+	Source               InstallExtensionSource `json:"source"`
+	Ref                  string                 `json:"ref"`
+	Version              string                 `json:"version,omitempty"`
+	Asset                string                 `json:"asset,omitempty"`
+	AllowUnverified      bool                   `json:"allow_unverified,omitzero"`
+	Replace              bool                   `json:"replace,omitzero"`
+	ConfirmGatewayDigest string                 `json:"confirm_gateway_digest,omitempty"`
+}
+
+// InstallExtensionResponse is a daemon API value.
+type InstallExtensionResponse struct {
+	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension   ExtensionPayload      `json:"extension"`
+}
+
+// InstallExtensionSource is a daemon API value.
+type InstallExtensionSource string
+
+// Inventory is a daemon API value.
+type Inventory struct {
+	Runtimes    []Snapshot `json:"runtimes"`
+	GeneratedAt time.Time  `json:"generated_at"`
+}
+
 // InvokeStatus is a daemon API value.
 type InvokeStatus string
 
@@ -408,38 +440,4 @@ type LoopForkRef struct {
 type LoopGateBlockingIssuePayload struct {
 	ID   string `json:"id"`
 	Note string `json:"note"`
-}
-
-// LoopGateCriterion is a daemon API value.
-type LoopGateCriterion struct {
-	ID       string          `json:"id"`
-	Type     string          `json:"type"`
-	Check    string          `json:"check,omitempty"`
-	Expect   string          `json:"expect,omitempty"`
-	Contains string          `json:"contains,omitempty"`
-	Agent    string          `json:"agent,omitempty"`
-	Runtime  LoopRuntimeSpec `json:"runtime,omitempty,omitzero"`
-	Rubric   string          `json:"rubric,omitempty"`
-	Prompt   string          `json:"prompt,omitempty"`
-	Tool     string          `json:"tool,omitempty"`
-	Inputs   map[string]any  `json:"inputs,omitempty"`
-	Metric   *LoopMetricSpec `json:"metric,omitzero"`
-}
-
-// LoopGateCriterionDetailPayload is a daemon API value.
-type LoopGateCriterionDetailPayload struct {
-	ID             string                         `json:"id"`
-	Type           string                         `json:"type"`
-	Prompt         string                         `json:"prompt,omitempty"`
-	Outcome        LoopGateVerdictOutcome         `json:"outcome"`
-	Passed         bool                           `json:"passed"`
-	Broken         bool                           `json:"broken,omitzero"`
-	ExitCode       *int                           `json:"exit_code,omitzero"`
-	Stdout         string                         `json:"stdout,omitempty"`
-	Stderr         string                         `json:"stderr,omitempty"`
-	Score          *float64                       `json:"score,omitzero"`
-	Evidence       json.RawMessage                `json:"evidence,omitempty"`
-	BlockingIssues []LoopGateBlockingIssuePayload `json:"blocking_issues,omitempty"`
-	Warnings       []LoopGateDiagnosticWarning    `json:"warnings,omitempty"`
-	Payload        json.RawMessage                `json:"payload,omitempty"`
 }

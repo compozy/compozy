@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// RevokeAgentHeartbeatScriptParams carries the path, query, and header parameters.
+type RevokeAgentHeartbeatScriptParams struct {
+	Name        string  `url:"name"`
+	Script      string  `url:"script"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // RevokeAgentHeartbeatScript Revoke a source script approval (operator only)
 func (c *Client) RevokeAgentHeartbeatScript(ctx context.Context, params RevokeAgentHeartbeatScriptParams) error {
 	path := "/api/agents/{name}/heartbeat/scripts/{script}/approve"
@@ -439,11 +447,4 @@ func (c *Client) SearchSessionFiles(ctx context.Context, params SearchSessionFil
 		return nil, err
 	}
 	return &out, nil
-}
-
-// SearchSessionToolsParams carries the path, query, and header parameters.
-type SearchSessionToolsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

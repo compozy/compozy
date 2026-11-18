@@ -10,6 +10,16 @@ import (
 	"strings"
 )
 
+// StreamTerminalsAggregateParams carries the path, query, and header parameters.
+type StreamTerminalsAggregateParams struct {
+	AllWorkspaces    *bool     `url:"all_workspaces"`
+	WorkspaceIds     *[]string `url:"workspace_ids"`
+	LastEventID      *string   `url:"Last-Event-ID"`
+	LastEventIDQuery *string   `url:"last_event_id"`
+	Profile          *string   `url:"profile"`
+	AllProfiles      *bool     `url:"all_profiles"`
+}
+
 // StreamTerminalsAggregate Stream the workspace terminal catalog
 func (c *Client) StreamTerminalsAggregate(ctx context.Context, params StreamTerminalsAggregateParams) (*Stream[TerminalCatalogSnapshot], error) {
 	path := "/api/terminals/catalog-stream"
@@ -431,15 +441,4 @@ func (c *Client) UpdateAgentInstance(ctx context.Context, params UpdateAgentInst
 // UpdateAppTokenParams carries the path, query, and header parameters.
 type UpdateAppTokenParams struct {
 	AppTokenID string `url:"app_token_id"`
-}
-
-// UpdateAppToken Change an app token name or replace its origin allowlist Experimental: pin the exact SDK version.
-func (c *Client) UpdateAppToken(ctx context.Context, params UpdateAppTokenParams, body UpdateAppTokenRequest) (*AppTokenResponse, error) {
-	path := "/api/app-tokens/{app_token_id}"
-	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
-	var out AppTokenResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

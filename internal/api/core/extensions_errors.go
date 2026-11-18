@@ -33,6 +33,9 @@ const (
 	extensionErrorInputInvalid
 	extensionErrorNotFound
 	extensionErrorNotBuiltin
+	extensionErrorBuiltinNotRemoved
+	extensionErrorExists
+	extensionErrorRestoreFailed
 	extensionErrorConflict
 	extensionErrorUnprocessable
 	extensionErrorBadRequest
@@ -59,6 +62,8 @@ func ExtensionStatusCode(err error) int {
 	case extensionErrorConflict,
 		extensionErrorGatewayConfirmationRequired,
 		extensionErrorAgentConflict,
+		extensionErrorBuiltinNotRemoved,
+		extensionErrorExists,
 		extensionErrorSourceChanged, extensionErrorNameConflict:
 		return http.StatusConflict
 	case extensionErrorUnprocessable, extensionErrorMCPNameTaken, extensionErrorNotBuiltin,
@@ -84,6 +89,11 @@ func classifyExtensionError(err error) extensionErrorKind {
 		return kind
 	}
 	switch {
+	// Restore failures wrap their enrollment cause, so they are matched before any cause-typed kind.
+	case errors.Is(err, extensionpkg.ErrExtensionRestoreFailed):
+		return extensionErrorRestoreFailed
+	case errors.Is(err, extensionpkg.ErrExtensionBuiltinNotRemoved):
+		return extensionErrorBuiltinNotRemoved
 	case errors.Is(err, extensionpkg.ErrAgentPluginNotManifest):
 		return extensionErrorAgentPluginNotManifest
 	case errors.Is(err, agentplugin.ErrSchemaUnsupported):
@@ -106,8 +116,9 @@ func classifyExtensionError(err error) extensionErrorKind {
 		return extensionErrorNotFound
 	case errors.Is(err, extensionpkg.ErrExtensionNotBuiltin):
 		return extensionErrorNotBuiltin
-	case errors.Is(err, extensionpkg.ErrExtensionExists),
-		errors.Is(err, extensionpkg.ErrExtensionBuiltinAttached),
+	case errors.Is(err, extensionpkg.ErrExtensionExists):
+		return extensionErrorExists
+	case errors.Is(err, extensionpkg.ErrExtensionBuiltinAttached),
 		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked),
 		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing):
 		return extensionErrorConflict

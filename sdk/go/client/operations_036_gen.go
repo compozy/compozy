@@ -11,6 +11,30 @@ import (
 	"strings"
 )
 
+// StreamLoopRunEventsParams carries the path, query, and header parameters.
+type StreamLoopRunEventsParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	RunID         string  `url:"run_id"`
+	AfterSequence *string `url:"after_sequence"`
+	LastEventID   *string `url:"Last-Event-ID"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// StreamLoopRunEventsFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamLoopRunEventsFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamLoopRunEventsFrame)(nil)
+
+var _ json.Marshaler = StreamLoopRunEventsFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
 // MarshalJSON returns the original event payload.
 func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
 	return json.Marshal(f.Raw)
@@ -414,14 +438,4 @@ func (c *Client) StreamTerminalCatalog(ctx context.Context, params StreamTermina
 		path += "?" + query.Encode()
 	}
 	return newStream[TerminalCatalogSnapshot](ctx, c, "GET", path, headers, nil, "streamTerminalCatalog")
-}
-
-// StreamTerminalsAggregateParams carries the path, query, and header parameters.
-type StreamTerminalsAggregateParams struct {
-	AllWorkspaces    *bool     `url:"all_workspaces"`
-	WorkspaceIds     *[]string `url:"workspace_ids"`
-	LastEventID      *string   `url:"Last-Event-ID"`
-	LastEventIDQuery *string   `url:"last_event_id"`
-	Profile          *string   `url:"profile"`
-	AllProfiles      *bool     `url:"all_profiles"`
 }

@@ -122,6 +122,8 @@ type stubClient struct {
 	updateExtensionsFn         func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
 	removeExtensionFn          func(context.Context, string) (ManagedExtensionRemoveRecord, error)
 	removePermanentExtensionFn func(context.Context, string) (ManagedExtensionRemoveRecord, error)
+	restoreExtensionBuiltinFn  func(context.Context, string) (ExtensionRestoreRecord, error)
+	listRemovedBuiltinsFn      func(context.Context) ([]ExtensionRemovedBuiltinRecord, error)
 	enableExtensionFn          func(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
 	disableExtensionFn         func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusFn          func(context.Context, string) (ExtensionRecord, error)
@@ -1053,6 +1055,23 @@ func (s *stubClient) RemovePermanentExtension(
 		return s.removePermanentExtensionFn(ctx, name)
 	}
 	return ManagedExtensionRemoveRecord{}, errors.New("unexpected RemovePermanentExtension call")
+}
+
+func (s *stubClient) RestoreExtensionBuiltin(
+	ctx context.Context,
+	name string,
+) (ExtensionRestoreRecord, error) {
+	if s.restoreExtensionBuiltinFn != nil {
+		return s.restoreExtensionBuiltinFn(ctx, name)
+	}
+	return ExtensionRestoreRecord{}, errors.New("unexpected RestoreExtensionBuiltin call")
+}
+
+func (s *stubClient) ListRemovedExtensionBuiltins(ctx context.Context) ([]ExtensionRemovedBuiltinRecord, error) {
+	if s.listRemovedBuiltinsFn != nil {
+		return s.listRemovedBuiltinsFn(ctx)
+	}
+	return nil, errors.New("unexpected ListRemovedExtensionBuiltins call")
 }
 
 func (s *stubClient) EnableExtension(

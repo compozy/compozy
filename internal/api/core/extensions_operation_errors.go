@@ -87,6 +87,52 @@ func extensionOperationErrorPayload(
 			"",
 		)
 	default:
+		var ok bool
+		if payload, ok = extensionBuiltinOperationPayload(kind, message, name); !ok {
+			return contract.ExtensionOperationErrorPayload{}, false
+		}
+	}
+	payload.Error = message
+	return payload, true
+}
+
+// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not removed, existing copy,
+// failed restore) onto their stable codes. It reports false for every other kind.
+func extensionBuiltinOperationPayload(
+	kind extensionErrorKind,
+	message string,
+	name string,
+) (contract.ExtensionOperationErrorPayload, bool) {
+	payload := contract.ExtensionOperationErrorPayload{}
+	switch kind {
+	case extensionErrorBuiltinNotRemoved:
+		payload.Code = diagnosticcontract.CodeExtensionBuiltinNotRemoved
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.builtin_not_removed",
+			payload.Code,
+			"Built-in extension is not permanently removed",
+			message,
+			"",
+		)
+	case extensionErrorExists:
+		payload.Code = diagnosticcontract.CodeExtensionExists
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.exists",
+			payload.Code,
+			"Extension is already installed",
+			message,
+			extensionRemoveCommandFor(name),
+		)
+	case extensionErrorRestoreFailed:
+		payload.Code = diagnosticcontract.CodeExtensionRestoreFailed
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.restore_failed",
+			payload.Code,
+			"Built-in extension restore failed",
+			message,
+			"compozy doctor",
+		)
+	default:
 		return contract.ExtensionOperationErrorPayload{}, false
 	}
 	payload.Error = message
@@ -124,6 +170,15 @@ func extensionOperationDiagnostic(id, code, title, message, command string) *con
 		options...,
 	)
 	return &item
+}
+
+// extensionRemoveCommandFor suggests removing an installed copy so a restore can proceed. It is empty
+// when the request carries no extension name, such as an install.
+func extensionRemoveCommandFor(name string) string {
+	if name = strings.TrimSpace(name); name == "" {
+		return ""
+	}
+	return "compozy extension remove " + name
 }
 
 func extensionGatewayRetryCommand(name, digest string) string {

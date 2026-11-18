@@ -202,6 +202,16 @@ func (c *Client) ListProviders(ctx context.Context) (*ProviderListResponse, erro
 	return &out, nil
 }
 
+// ListRemovedBuiltinExtensions List permanently removed built-in extensions
+func (c *Client) ListRemovedBuiltinExtensions(ctx context.Context) (*ExtensionRemovedBuiltinsResponse, error) {
+	path := "/api/extensions/removed-builtins"
+	var out ExtensionRemovedBuiltinsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListResourcesParams carries the path, query, and header parameters.
 type ListResourcesParams struct {
 	Kind       *string `url:"kind"`

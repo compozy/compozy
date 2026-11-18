@@ -19675,3 +19675,177 @@ func (p *nativePolicyCountingProvider) List(ctx context.Context, scope toolspkg.
 func (p *nativePolicyCountingProvider) ProjectionScope(toolspkg.Scope) toolspkg.Scope {
 	return toolspkg.Scope{}
 }
+
+// UT-016: restore and removed-list are registered under their plural IDs with argument schemas and with
+// operator and agent policy assignments, and no tool ID for permanent removal exists.
+// Owner: native tool catalog. Canonical suite: TestDaemonNativeExtensionBuiltinTools.
+func TestDaemonNativeExtensionBuiltinTools(t *testing.T) {
+	t.Parallel()
+
+	descriptorsByID := make(map[toolspkg.ToolID]toolspkg.Descriptor)
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		descriptorsByID[descriptor.ID] = descriptor
+	}
+	restoreID := toolspkg.ToolID("compozy__extensions_restore")
+	removedListID := toolspkg.ToolID("compozy__extensions_removed_list")
+
+	t.Run("Should register restore and removed-list with their argument schemas", func(t *testing.T) {
+		t.Parallel()
+
+		restore, ok := descriptorsByID[restoreID]
+		if !ok {
+			t.Fatalf("%s is not registered", restoreID)
+		}
+		var restoreSchema struct {
+			Required             []string                   `json:"required"`
+			Properties           map[string]json.RawMessage `json:"properties"`
+			AdditionalProperties *bool                      `json:"additionalProperties"`
+		}
+		if err := json.Unmarshal(restore.InputSchema, &restoreSchema); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(restoreSchema.Required, []string{"name"}) || len(restoreSchema.Properties) != 1 ||
+			restoreSchema.Properties["name"] == nil ||
+			restoreSchema.AdditionalProperties == nil || *restoreSchema.AdditionalProperties {
+			t.Fatalf("restore input schema = %s, want exactly {name} required", restore.InputSchema)
+		}
+		if restore.Risk != toolspkg.RiskMutating || restore.ReadOnly {
+			t.Fatalf("restore risk = %q read_only=%v, want mutating write", restore.Risk, restore.ReadOnly)
+		}
+
+		removedList, ok := descriptorsByID[removedListID]
+		if !ok {
+			t.Fatalf("%s is not registered", removedListID)
+		}
+		var listSchema struct {
+			Properties           map[string]json.RawMessage `json:"properties"`
+			AdditionalProperties *bool                      `json:"additionalProperties"`
+		}
+		if err := json.Unmarshal(removedList.InputSchema, &listSchema); err != nil {
+			t.Fatal(err)
+		}
+		if len(listSchema.Properties) != 0 || listSchema.AdditionalProperties == nil ||
+			*listSchema.AdditionalProperties {
+			t.Fatalf("removed-list input schema = %s, want no arguments", removedList.InputSchema)
+		}
+		if removedList.Risk != toolspkg.RiskRead || !removedList.ReadOnly {
+			t.Fatalf("removed-list risk = %q read_only=%v, want read-only", removedList.Risk, removedList.ReadOnly)
+		}
+		for _, retired := range []toolspkg.ToolID{
+			"compozy__extension_restore", "compozy__extension_removed_list", "compozy__extensions_removed",
+		} {
+			if _, ok := descriptorsByID[retired]; ok {
+				t.Fatalf("retired spelling %s is registered; Q6 a registers no alias", retired)
+			}
+		}
+	})
+
+	t.Run("Should assign the same callable decision to the operator and agent scopes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, id := range []toolspkg.ToolID{restoreID, removedListID} {
+			descriptor := descriptorsByID[id]
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+				nativeApproveAllPolicyInputs(),
+				toolspkg.ToolsetCatalog{},
+				[]toolspkg.ToolID{id},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			operator, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{Operator: true}, descriptor)
+			if err != nil || !operator.Callable || !operator.VisibleToOperator {
+				t.Fatalf("%s operator decision = %+v, %v; want callable", id, operator, err)
+			}
+			agent, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{
+				SessionID: "session-agent", WorkspaceID: "ws-builtin", ProfileID: "profile-builtin",
+			}, descriptor)
+			if err != nil || !agent.Callable || !agent.VisibleToSession {
+				t.Fatalf("%s agent decision = %+v, %v; want callable", id, agent, err)
+			}
+		}
+	})
+
+	t.Run("Should return the removed listing as the CLI payload and list tombstones after removal", func(t *testing.T) {
+		t.Parallel()
+
+		deps, extRegistry, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+
+		empty, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{ToolID: removedListID, Input: json.RawMessage(`{}`)},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_removed_list) error = %v", err)
+		}
+		if string(empty.Structured) != `{"removed":[]}` {
+			t.Fatalf("empty removed-list structured = %s, want {\"removed\":[]}", empty.Structured)
+		}
+
+		if _, err := extRegistry.Tombstone(t.Context(), "spec-cycle", "operator"); err != nil {
+			t.Fatalf("Tombstone() error = %v", err)
+		}
+		listed, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{ToolID: removedListID, Input: json.RawMessage(`{}`)},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_removed_list) after removal error = %v", err)
+		}
+		var payload contract.ExtensionRemovedBuiltinsResponse
+		if err := json.Unmarshal(listed.Structured, &payload); err != nil {
+			t.Fatalf("removed-list structured = %s: %v", listed.Structured, err)
+		}
+		if len(payload.Removed) != 1 || payload.Removed[0].Name != "spec-cycle" ||
+			payload.Removed[0].RemovedBy != "operator" || payload.Removed[0].RemovedAt == "" {
+			t.Fatalf("removed-list payload = %#v, want the spec-cycle tombstone", payload)
+		}
+	})
+
+	t.Run("Should map restore refusals to their domain errors and reject a missing name", func(t *testing.T) {
+		t.Parallel()
+
+		deps, _, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		call := func(input string) error {
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: restoreID, Input: json.RawMessage(input)},
+			)
+			return err
+		}
+
+		if err := call(`{"name":"spec-cycle"}`); !errors.Is(err, extensionpkg.ErrExtensionBuiltinNotRemoved) {
+			t.Fatalf("restore of a live built-in error = %v, want ErrExtensionBuiltinNotRemoved", err)
+		}
+		if err := call(`{"name":"no-such-builtin"}`); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("restore of an unknown name error = %v, want ErrExtensionNotFound", err)
+		}
+		if err := call(`{"name":"   "}`); err == nil {
+			t.Fatal("restore with a blank name error = nil, want validation failure")
+		}
+	})
+
+	t.Run("Should publish no tool ID or argument for permanent removal", func(t *testing.T) {
+		t.Parallel()
+
+		for id, descriptor := range descriptorsByID {
+			if strings.Contains(id.String(), "permanent") ||
+				strings.Contains(descriptor.Backend.NativeName, "permanent") {
+				t.Fatalf("permanent-removal tool %s is registered; Q5 a keeps it off the agent surface", id)
+			}
+			if slices.Contains(descriptor.Toolsets, toolspkg.ToolsetIDExtensions) &&
+				strings.Contains(string(descriptor.InputSchema), `"permanent"`) {
+				t.Fatalf("%s input schema exposes a permanent flag: %s", id, descriptor.InputSchema)
+			}
+		}
+		remove := descriptorsByID["compozy__extensions_remove"]
+		if strings.Contains(string(remove.InputSchema), `"permanent"`) {
+			t.Fatalf("compozy__extensions_remove exposes permanent: %s", remove.InputSchema)
+		}
+	})
+}

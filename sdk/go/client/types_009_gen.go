@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// HeartbeatActorPayload is a daemon API value.
+type HeartbeatActorPayload struct {
+	Kind HeartbeatActorKind `json:"kind"`
+	Ref  string             `json:"ref,omitempty"`
+}
+
+// HeartbeatAuthorityPayload is a daemon API value.
+type HeartbeatAuthorityPayload struct {
+	ReadOnlyTools map[string][]string `json:"read_only_tools,omitempty"`
+	Actions       []ActionDecl        `json:"actions"`
+	Digest        string              `json:"digest"`
+	Status        string              `json:"status"`
+	CheckIns      CheckInsPolicy      `json:"check_ins"`
+}
+
+// HeartbeatConfigProvenancePayload is a daemon API value.
+type HeartbeatConfigProvenancePayload struct {
+	Digest string                       `json:"digest"`
+	Subset HeartbeatConfigSubsetPayload `json:"subset"`
+}
+
 // HeartbeatConfigSubsetPayload is a daemon API value.
 type HeartbeatConfigSubsetPayload struct {
 	Enabled                      bool   `json:"enabled"`
@@ -416,35 +437,3 @@ type InputRefKind string
 
 // InputType is a daemon API value.
 type InputType string
-
-// InstallExtensionRequest is a daemon API value.
-type InstallExtensionRequest struct {
-	Enable               bool                   `json:"enable,omitzero"`
-	Scope                string                 `json:"scope,omitempty"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	Profile              string                 `json:"profile,omitempty"`
-	Inputs               map[string]Value       `json:"inputs,omitempty"`
-	ExpectedDigest       string                 `json:"expected_digest,omitempty"`
-	Source               InstallExtensionSource `json:"source"`
-	Ref                  string                 `json:"ref"`
-	Version              string                 `json:"version,omitempty"`
-	Asset                string                 `json:"asset,omitempty"`
-	AllowUnverified      bool                   `json:"allow_unverified,omitzero"`
-	Replace              bool                   `json:"replace,omitzero"`
-	ConfirmGatewayDigest string                 `json:"confirm_gateway_digest,omitempty"`
-}
-
-// InstallExtensionResponse is a daemon API value.
-type InstallExtensionResponse struct {
-	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
-	Extension   ExtensionPayload      `json:"extension"`
-}
-
-// InstallExtensionSource is a daemon API value.
-type InstallExtensionSource string
-
-// Inventory is a daemon API value.
-type Inventory struct {
-	Runtimes    []Snapshot `json:"runtimes"`
-	GeneratedAt time.Time  `json:"generated_at"`
-}
