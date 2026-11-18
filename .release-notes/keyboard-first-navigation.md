@@ -20,7 +20,9 @@ fields keep undo, redo, select all, clipboard, formatting, and caret moves. In a
 Control chords that are not bound reach the shell, including ⌃K, ⌃V, and ⌃0. On Linux and Windows,
 a chord whose only modifier is Control stays with the shell, except the palette, paste, copy with a
 selection, and zoom. On macOS, an Option chord your keyboard layout turns into a character, such as
-⌥L for `@` on a German layout, stays typing. Holding a bound chord runs it once instead of typing the
+⌥L for `@` on a German layout, stays typing; a letter outside ASCII, such as `ł` on a Polish layout,
+still runs the bound chord. On Linux and Windows, bound Alt chords leave the terminal, so shell Alt
+bindings on those keys need a rebind. Holding a bound chord runs it once instead of typing the
 character.
 
 Shortcuts have their own Settings page, Settings › Shortcuts, with the keymap table, aliases,
