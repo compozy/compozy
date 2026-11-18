@@ -552,7 +552,8 @@ func TestMCPReloadAdmissionErrorContract(t *testing.T) {
 			}
 			if refusal, ok := errors.AsType[*session.MCPReloadError](tc.cause); ok {
 				if payload.Code != session.MCPReloadFailedCode || !payload.Retryable ||
-					payload.ClientMessageID != refusal.ClientMessageID || payload.ProviderError != refusal.Cause.Error() {
+					payload.ClientMessageID != refusal.ClientMessageID || payload.ProviderError != refusal.Cause.Error() ||
+					payload.Error != refusal.Error() {
 					t.Fatalf("hosted MCP refusal payload = %+v", payload)
 				}
 			} else if payload.Retryable || payload.ClientMessageID != "" ||

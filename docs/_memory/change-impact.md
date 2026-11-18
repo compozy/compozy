@@ -6630,5 +6630,5 @@ Owner: [#1838](https://github.com/compozy/compozy/issues/1838).
   and leaves the routing, workspace and profile boundaries intact. No extension contract,
   hook, config key, persistence schema or migration changes are needed.
 - **Docs, official skill and QA.** The MCP reference and `RT-mcp-reload-failure-recovery`
-  describe first-bind and idle-rebind recovery. Hosted projection logs record a fixed cause
-  class alongside status.
+  describe first-bind and idle-rebind recovery. Initial and subsequent hosted projections record
+  a fixed cause class in daemon logs when they fail.

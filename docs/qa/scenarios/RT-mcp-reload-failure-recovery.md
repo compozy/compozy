@@ -35,11 +35,11 @@ Steps:
 5. Repeat 4 with `compozy session prompt` and `compozy__session_prompt`: same code.
 6. Restore the fixture; send again: outcome `applied` (or `replayed`), the tool works.
 7. Create a logical session and leave it unbound. In the isolated lab, prevent the hosted MCP
-   proxy from completing bind before its deadline. Repeat with a fault that reaches the projection
-   endpoint and fails the initial projection. In both cases, verify the response from step 4 and
-   confirm the transcript has no user message or MCP reload event for the attempt. For a failed
-   projection, check the UDS log for `cause_class` alongside status. The log contains neither the
-   upstream error text nor the binding token.
+   proxy from completing bind before its deadline, including a proxy that arrives after the
+   deadline. Repeat with a fault in the initial tools projection during bind. Verify the response
+   from step 4 and confirm the transcript has no user message or MCP reload event for the attempt.
+   For failed bootstrap and stream projections, check the daemon log for `cause_class` and verify
+   it omits upstream error text and binding tokens.
 8. Clear each fault and resend with the same client message ID and idempotency key. Verify one
    persisted user message and one provider delivery. Repeat step 7 with a runtime that was bound
    successfully and then idle-released, keeping the MCP catalog unchanged.

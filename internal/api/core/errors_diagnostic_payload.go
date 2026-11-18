@@ -33,8 +33,8 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		return payload
 	}
 	if refusal, ok := errors.AsType[*session.MCPReloadError](err); ok {
-		payload.Code = session.MCPReloadFailedCode
-		payload.Retryable = true
+		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(refusal.Error()))
+		payload.Code, payload.Retryable = session.MCPReloadFailedCode, true
 		payload.ClientMessageID = refusal.ClientMessageID
 		payload.ProviderError = diagnosticspkg.RedactAndBound(refusal.Cause.Error(), 2048)
 		return payload
