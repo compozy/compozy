@@ -603,7 +603,11 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 			after, err := renewal.Refresh(t.Context(), cfg)
 			requests := fixture.Requests()
 			if !tc.wantUsable {
-				if err == nil || len(requests.Token) != codeExchanges {
+				cause := errors.Unwrap(err)
+				if cause == nil || !strings.Contains(cause.Error(), "stored registration is no longer valid") {
+					t.Fatalf("refresh error = %v, cause = %v, want registration validation failure", err, cause)
+				}
+				if len(requests.Token) != codeExchanges {
 					t.Fatal("invalid registration reached the refresh endpoint")
 				}
 				return
