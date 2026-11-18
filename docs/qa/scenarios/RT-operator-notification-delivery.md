@@ -6,13 +6,13 @@ persona: Ada
 journey: J-15
 expected: compozy notify, POST /api/agent/notify, and compozy__notify return matching delivered, no-client, rate-limited, and muted-workspace outcomes; delivered requires a live operator stream subscriber, no-client retains the sanitized notice for the sender profile's bell, and muted or rate-limited sends do neither.
 entry_points: compozy notify; POST /api/agent/notify over HTTP and UDS; compozy__notify; GET /api/sessions/catalog-stream
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json
-last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json; docs/qa/reports/2026-11-18-attention-pr1820.md
+last_report: docs/qa/reports/2026-11-18-attention-pr1820.md
 overlaps: RT-session-attention-catalog
 ---
 
@@ -37,3 +37,5 @@ QA impact 2026-11-09 (User-scope notifications): send from a User session (no wo
 with one live catalog client and carries an empty workspace id; the User scope cannot be
 workspace-muted, so `muted_workspace` never applies. Project-session mutes are unchanged.
 Focused coverage: `TestPublishOperatorNotification` with the real SQLite attention repository.
+
+QA 2026-11-18, PR #1820: targeted real-daemon CLI and Chromium journeys passed. Confirmed offline notice recovery after daemon restart, sanitized content, sender-session navigation and read receipts after refresh. The CLI runtime journey confirmed no-client, delivered and rate limiting. Coverage, fixture-provider use and limits are recorded in docs/qa/reports/2026-11-18-attention-pr1820.md.

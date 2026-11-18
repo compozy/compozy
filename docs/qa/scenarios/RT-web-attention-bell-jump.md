@@ -6,13 +6,13 @@ persona: Cora
 journey: J-respond-to-agent-attention
 expected: The bell separates Needs you from Finished, counts exact unread needs-you occurrences across all workspaces and source profiles, preserves task-approval rows and honest quiet or disconnected states, and activation opens the named task or focuses the named session after any required workspace switch.
 entry_points: web OS shell attention bell; pending task approval row; session needs-you or finished row
-qa_status: skipped
+qa_status: pass
 bug_ids: BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits:
-evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png; .compozy/tasks/herdr-parity/evidence/visual/task_03
-last_report: docs/qa/reports/2026-10-02-untested.md
+evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png; .compozy/tasks/herdr-parity/evidence/visual/task_03; docs/qa/reports/2026-11-18-attention-pr1820.md
+last_report: docs/qa/reports/2026-11-18-attention-pr1820.md
 overlaps: RT-session-attention-catalog; ET-web-session-cross-workspace-confirm
 ---
 
@@ -56,3 +56,5 @@ QA impact 2026-11-08 (#1388): a session row in the bell names an automation run 
 job and its agent shared a name. `GET /api/notifications/attention` session items now also carry the additive
 optional fields `session_type` and `instance_id`. Owners: `TestAttentionNotificationReceipts` (daemon payload)
 and `use-os-attention.test.tsx` (bell title). Not walked.
+
+QA 2026-11-18, PR #1820: targeted real-daemon CLI and Chromium journeys passed. Confirmed a failed User job in the bell, job-detail navigation, acknowledgement across refresh with retained run history, and the existing cross-project session-navigation and disconnected-source canaries. Coverage, fixture-provider use and limits are recorded in docs/qa/reports/2026-11-18-attention-pr1820.md.

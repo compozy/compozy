@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -91,6 +93,125 @@ test.use({
 test.beforeEach(async ({ appPage: page, runtime }) => {
   await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(page);
+});
+
+test("Should recover an offline notice across restart and preserve read receipts", async ({
+  appPage: page,
+  runtime,
+  browserArtifacts,
+}) => {
+  if (!runtime.paths) throw new Error("Isolated daemon required");
+  const workspace = await globalWorkspace(runtime);
+  const sender = await createSession(runtime, workspace, attentionAgent);
+  const env = {
+    ...process.env,
+    COMPOZY_HOME: runtime.paths.homeDir,
+    HOME: runtime.paths.operatorHomeDir,
+  };
+  await page.goto("about:blank");
+  const cli = promisify(execFile);
+  const result = await cli(
+    runtime.paths.cliShim,
+    ["notify", "Offline attention QA", "--body", "token=ghp_abcdefghijklmnopqrstuv"],
+    {
+      cwd: workspace.root_dir,
+      env: { ...env, COMPOZY_SESSION_ID: sender.id, COMPOZY_AGENT: sender.agent_name },
+    }
+  );
+  expect(result.stdout.trim()).toBe("OUTCOME   no-client");
+  await cli(runtime.paths.cliShim, ["daemon", "stop", "-o", "json"], { env, timeout: 90000 });
+  await cli(runtime.paths.cliShim, ["daemon", "start", "-o", "json"], { env, timeout: 90000 });
+  await page.goto(runtime.url("/"));
+  await completeOnboardingIfPrompted(page);
+  await page.locator(bell.trigger).click();
+  const popover = page.getByTestId(bell.popover);
+  const row = popover.getByText("Offline attention QA", { exact: true });
+  await expect(row).toBeVisible();
+  const recovered = await runtime.requestJSON<{ items: { title: string; detail: string }[] }>(
+    "/api/notifications/attention?profile=default"
+  );
+  expect(recovered.items.find(item => item.title === "Offline attention QA")?.detail).toBe(
+    "token=[REDACTED]"
+  );
+  await browserArtifacts.captureScreenshot("offline-notice-after-daemon-restart", page);
+  await row.click();
+  await expect(sessionWindow(page, sender.id)).toBeVisible();
+  await page.locator(bell.trigger).click();
+  await popover.getByRole("button", { name: /^Mark Offline attention QA as read$/ }).click();
+  await expect(row).toBeHidden();
+  await reloadShell(page);
+  await page.locator(bell.trigger).click();
+  await expect(page.getByTestId(bell.popover)).toBeVisible();
+  await expect(row).toBeHidden();
+  await browserArtifacts.captureScreenshot("offline-notice-acknowledged-after-reload", page);
+});
+
+test("Should show and open a failed User automation and preserve its history", async ({
+  appPage: page,
+  runtime,
+  browserArtifacts,
+}) => {
+  const { job } = await runtime.requestJSON<{ job: { id: string } }>("/api/automation/jobs", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "QA failed overnight briefing",
+      agent_name: faultAgent,
+      enabled: true,
+      scope: "global",
+      prompt: "trigger crash mid-stream",
+      schedule: { mode: "cron", expr: "0 9 * * 1-5" },
+      retry: { strategy: "none", max_retries: 0, base_delay: "" },
+      fire_limit: { max: 24, window: "1h" },
+    }),
+  });
+  await page.goto("about:blank");
+  const response = await fetch(
+    runtime.url("/api/automation/jobs/" + encodeURIComponent(job.id) + "/trigger"),
+    { method: "POST" }
+  );
+  expect(response.ok).toBe(true);
+  await expect
+    .poll(
+      async () => {
+        const { runs } = await runtime.requestJSON<{ runs: { status: string }[] }>(
+          "/api/automation/jobs/" + job.id + "/runs?limit=10"
+        );
+        return runs.some(r => r.status === "failed");
+      },
+      { timeout: 45000 }
+    )
+    .toBe(true);
+  await page.goto(runtime.url("/"));
+  await completeOnboardingIfPrompted(page);
+  await page.locator(bell.trigger).click();
+  const row = page
+    .getByTestId(bell.popover)
+    .getByTestId(/^os-attention-automation-failure-/)
+    .filter({ hasText: "QA failed overnight briefing" });
+  await expect(row).toBeVisible();
+  await browserArtifacts.captureScreenshot("failed-automation-in-bell", page);
+  await row.click();
+  await expect(page.getByTestId(bell.popover)).toBeHidden();
+  const automationWindow = page.locator(
+    '[data-slot="os-window-surface"][data-app="automations"][data-shown]'
+  );
+  await expect(automationWindow).toBeVisible();
+  await expect(
+    automationWindow.getByText("QA failed overnight briefing", { exact: true }).first()
+  ).toBeVisible();
+  await browserArtifacts.captureScreenshot("failed-automation-opened-from-bell", page);
+  await page.locator(bell.trigger).click();
+  await row
+    .locator("..")
+    .getByRole("button", { name: /^Mark QA failed overnight briefing as read$/ })
+    .click();
+  await reloadShell(page);
+  await page.locator(bell.trigger).click();
+  await expect(row).toBeHidden();
+  const { runs } = await runtime.requestJSON<{ runs: { status: string }[] }>(
+    "/api/automation/jobs/" + job.id + "/runs?limit=10"
+  );
+  expect(runs.some(r => r.status === "failed")).toBe(true);
 });
 
 test.describe("E2E-009 attention bell", () => {
