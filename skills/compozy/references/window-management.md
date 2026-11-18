@@ -133,8 +133,10 @@ Closing and reopening:
   closes the tab; closing the last tab of a desktop leaves it with zero tabs and `active_tab_id`
   `""`. No command ever creates a New Tab window (app `new-tab`) on its own: one exists only when a
   client or `window open --app new-tab` opens it. A fresh workspace and a new desktop start with no
-  tabs; the next window opened there becomes their first tab. Snapshots and saved layouts from
-  v0.7.4 and earlier load without the New Tab those releases seeded into each empty desktop.
+  tabs; the next window opened there becomes their first tab. The first load of a stored desktop
+  arrangement from v0.7.4 or earlier drops the New Tab those releases seeded into each empty desktop,
+  once; a New Tab opened after that survives restarts. Saved `window_layout` resources are not
+  rewritten: applying one that holds a New Tab opens it.
 - `close --scope tab` (default) closes one window. It is refused with
   `window_manager_window_pinned` when that window is the last one of a pinned tab (unpin first);
   a member of a pinned split tab with other members closes normally. `group` closes every window of

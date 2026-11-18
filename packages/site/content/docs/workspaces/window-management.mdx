@@ -105,10 +105,11 @@ compozy window reopen --workspace <workspace-id> --revision <revision>
 `window close --scope` accepts `tab` (default: one window), `group` (every window of the tab, pinned
 or not), `others`, `right`, `left`, and `all` (unpinned tabs only). Closing the last window of a
 pinned tab is refused until you unpin it. Closing the last tab of a desktop leaves the desktop empty,
-with no tabs: Compozy never opens a New tab by itself. An empty desktop shows **This desktop is
+with no tabs: CompozyOS never opens a New tab by itself. An empty desktop shows **This desktop is
 empty** with **Choose a destination**, and whatever you pick there becomes its first tab. A New tab
-exists only when you open one with ⌘T, the tab bar's `+`, or `window.tab.new`. Layouts saved by
-earlier releases load without the New tab those releases put on each empty desktop.
+exists only when you open one with ⌘T, the tab bar's `+`, or `window.tab.new`, and it stays, across
+restarts too, until you close it. The first time this release loads your desktops, it removes the
+New tab that v0.7.4 and earlier put on each empty desktop; that happens once.
 
 ## Splits
 

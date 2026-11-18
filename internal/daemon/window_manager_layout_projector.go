@@ -73,9 +73,7 @@ func reconcileWindowLayoutResource(resource windowmanager.LayoutResource) (windo
 		Version: document.Version, WorkspaceID: document.WorkspaceID,
 		Desktops: document.Desktops, Windows: document.Windows, Overrides: document.Overrides,
 	}, corecmds.RegisteredApp)
-	// A layout saved up to v0.7.4 kept the New Tab that release seeded into each empty desktop (#1799).
-	reconciled, retired := windowmanager.RetireEmptyDesktopPlaceholders(reconciled)
-	if !changed && !retired {
+	if !changed {
 		return resource, false
 	}
 	resource.Document.Desktops = reconciled.Desktops

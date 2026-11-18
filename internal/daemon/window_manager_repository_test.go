@@ -470,12 +470,13 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 			t.Fatalf("second load revision = %d, logs = %s", last.Rev, logs.String())
 		}
 	})
-	t.Run("Should retire seeded New Tabs on the first load of each daemon process (#1799)", func(t *testing.T) {
+	t.Run("Should retire seeded New Tabs once per stored aggregate and keep later ones (#1799)", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
 		ctx := t.Context()
 		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
-		// What v0.7.4 persisted after the last tab closed: the desktop holds only its seeded New Tab.
+		// What v0.7.4 persisted after the last tab closed: the desktop holds only its seeded New Tab,
+		// and the store has no empty-desktop marker yet.
 		seeded := daemonWindowManagerSnapshot(workspaceID, 1, "Primary")
 		placeholder := windowmanager.WindowID("seeded")
 		tab := daemonTestTab(placeholder)
@@ -485,9 +486,11 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 			Route:    windowmanager.RouteIntent{Pathname: "/new-tab", Search: windowmanager.RouteSearch{}},
 			NavStack: []windowmanager.RouteIntent{},
 		}
-		if err := fixture.repository.Commit(ctx, daemonWindowManagerCommit(seeded, 0)); err != nil {
-			t.Fatalf("Commit(seeded) = %v", err)
+		encoded, err := json.Marshal(seeded)
+		if err != nil {
+			t.Fatal(err)
 		}
+		putDaemonState(t, &fixture, windowManagerSnapshotKey(testWindowManagerProfileID), encoded)
 		repository, err := newWindowManagerRepository(fixture.engine, testWindowManagerProfileID)
 		if err != nil {
 			t.Fatalf("newWindowManagerRepository() = %v", err)
@@ -496,24 +499,50 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 		if err != nil || len(got.Windows) != 0 || len(got.Desktops[0].Tabs) != 0 || got.Revision != 2 {
 			t.Fatalf("first Load() = %+v, error = %v", got, err)
 		}
-		// A New Tab opened afterwards on the empty desktop is the user's and survives later loads.
+		// A New Tab opened afterwards on the empty desktop is the user's and survives every later
+		// load, including the first one of the next daemon process.
 		got.Revision = 3
 		got.Desktops[0].Tabs, got.Desktops[0].ActiveTabID = []windowmanager.Tab{tab}, tab.ID
 		got.Windows[placeholder] = seeded.Windows[placeholder]
 		if err := repository.Commit(ctx, daemonWindowManagerCommit(got, 2)); err != nil {
 			t.Fatalf("Commit(explicit New Tab) = %v", err)
 		}
-		again, err := repository.Load(ctx, workspaceID)
-		if err != nil || len(again.Windows) != 1 || again.Revision != 3 {
-			t.Fatalf("second Load() = %+v, error = %v", again, err)
-		}
-		// The next daemon process settles the empty desktop again; it renders the same prompt.
 		restarted, err := newWindowManagerRepository(fixture.engine, testWindowManagerProfileID)
 		if err != nil {
 			t.Fatalf("newWindowManagerRepository(restarted) = %v", err)
 		}
 		reloaded, err := restarted.Load(ctx, workspaceID)
-		if err != nil || len(reloaded.Windows) != 0 || len(reloaded.Desktops[0].Tabs) != 0 {
+		if err != nil || len(reloaded.Windows) != 1 || len(reloaded.Desktops[0].Tabs) != 1 || reloaded.Revision != 3 {
+			t.Fatalf("Load(restarted) = %+v, error = %v", reloaded, err)
+		}
+	})
+	t.Run("Should mark a first commit settled so a lone New Tab survives a restart (#1799)", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
+		repository, err := newWindowManagerRepository(fixture.engine, testWindowManagerProfileID)
+		if err != nil {
+			t.Fatalf("newWindowManagerRepository() = %v", err)
+		}
+		explicit := daemonWindowManagerSnapshot(workspaceID, 1, "Primary")
+		id := windowmanager.WindowID("opened")
+		tab := daemonTestTab(id)
+		explicit.Desktops[0].Tabs, explicit.Desktops[0].ActiveTabID = []windowmanager.Tab{tab}, tab.ID
+		explicit.Windows[id] = windowmanager.Window{
+			ID: id, App: "new-tab", DesktopID: "desktop-default", TabID: tab.ID,
+			Route:    windowmanager.RouteIntent{Pathname: "/new-tab", Search: windowmanager.RouteSearch{}},
+			NavStack: []windowmanager.RouteIntent{},
+		}
+		if err := repository.Commit(ctx, daemonWindowManagerCommit(explicit, 0)); err != nil {
+			t.Fatalf("Commit(explicit New Tab) = %v", err)
+		}
+		restarted, err := newWindowManagerRepository(fixture.engine, testWindowManagerProfileID)
+		if err != nil {
+			t.Fatalf("newWindowManagerRepository(restarted) = %v", err)
+		}
+		reloaded, err := restarted.Load(ctx, workspaceID)
+		if err != nil || len(reloaded.Windows) != 1 || reloaded.Revision != 1 {
 			t.Fatalf("Load(restarted) = %+v, error = %v", reloaded, err)
 		}
 	})

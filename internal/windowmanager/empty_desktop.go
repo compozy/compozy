@@ -1,9 +1,6 @@
 package windowmanager
 
-const (
-	newTabApp  = "new-tab"
-	newTabPath = "/new-tab"
-)
+const newTabApp = "new-tab"
 
 // DefaultSnapshot is the stable empty-workspace topology before the first commit: one desktop
 // with no tabs. A New Tab exists only when someone opens one (#1799).
@@ -21,6 +18,8 @@ func DefaultSnapshot(id WorkspaceID) Snapshot {
 // else, in the snapshot and in its undo/redo states, without mutating its input. Releases up to
 // v0.7.4 seeded such a placeholder into every empty desktop; an empty desktop now has no tabs
 // (#1799). A New Tab carries no content, so dropping it is lossless; one beside real tabs stays.
+// The daemon runs it once per stored aggregate, before its first commit on this release. Remove it
+// in v0.9.0.
 func RetireEmptyDesktopPlaceholders(snapshot Snapshot) (Snapshot, bool) {
 	retired := cloneSnapshot(snapshot)
 	changed := retirePlaceholders(retired.Desktops, retired.Windows)

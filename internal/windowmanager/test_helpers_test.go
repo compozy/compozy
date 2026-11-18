@@ -247,6 +247,9 @@ func validThreeWindowSnapshot() Snapshot {
 	}
 }
 
+// newTabPath is the route a New Tab window opens on.
+const newTabPath = "/new-tab"
+
 func testRoute(pathname string) RouteIntent {
 	return RouteIntent{Pathname: pathname, Search: RouteSearch{}}
 }

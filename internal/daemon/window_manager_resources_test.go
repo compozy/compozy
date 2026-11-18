@@ -94,14 +94,9 @@ func TestWindowManagerLayoutResources(t *testing.T) {
 		fixture.Spec.Document.Windows = map[windowmanager.WindowID]windowmanager.Window{
 			"retired": {ID: "retired", App: "knowledge"},
 			"kept":    {ID: "kept", App: "settings", Route: windowmanager.RouteIntent{Pathname: "/settings/memory"}},
-			// A layout saved by v0.7.4 keeps the New Tab seeded into its empty desktop (#1799).
-			"seeded": {ID: "seeded", App: "new-tab", Route: windowmanager.RouteIntent{Pathname: "/new-tab"}},
 		}
 		for id, window := range fixture.Spec.Document.Windows {
 			window.DesktopID = "desktop-default"
-			if id == "seeded" {
-				window.DesktopID = "desktop-empty"
-			}
 			window.TabID = windowmanager.TabID("tab-" + string(id))
 
 			window.Route.Search = windowmanager.RouteSearch{}
@@ -112,10 +107,6 @@ func TestWindowManagerLayoutResources(t *testing.T) {
 		}
 		fixture.Spec.Document.Desktops[0].Tabs = []windowmanager.Tab{daemonTestTab("retired"), daemonTestTab("kept")}
 		fixture.Spec.Document.Desktops[0].ActiveTabID = "tab-retired"
-		fixture.Spec.Document.Desktops = append(fixture.Spec.Document.Desktops, windowmanager.Desktop{
-			ID: "desktop-empty", Name: "Empty", Order: 1, Tabs: []windowmanager.Tab{daemonTestTab("seeded")},
-			ActiveTabID: "tab-seeded",
-		})
 		fixture.Spec.ParticipantSlots = []windowmanager.WindowID{"retired", "kept", "virtual"}
 		original, err := store.Put(
 			t.Context(),
@@ -135,8 +126,7 @@ func TestWindowManagerLayoutResources(t *testing.T) {
 		if got.Version != original.Version+1 || got.Source != original.Source || got.Owner != original.Owner ||
 			len(got.Spec.Document.Windows) != 1 || got.Spec.Document.Windows["kept"].Route.Pathname != "/settings" ||
 			!reflect.DeepEqual(got.Spec.ParticipantSlots, []windowmanager.WindowID{"kept", "virtual"}) ||
-			len(got.Spec.Document.Desktops[0].Tabs) != 1 || got.Spec.Document.Desktops[0].Tabs[0].ID != "tab-kept" ||
-			len(got.Spec.Document.Desktops[1].Tabs) != 0 || got.Spec.Document.Desktops[1].ActiveTabID != "" {
+			len(got.Spec.Document.Desktops[0].Tabs) != 1 || got.Spec.Document.Desktops[0].Tabs[0].ID != "tab-kept" {
 			t.Fatalf("reconciled resource = %+v", got)
 		}
 		if err := reconcileStoredWindowLayouts(t.Context(), state); err != nil {
