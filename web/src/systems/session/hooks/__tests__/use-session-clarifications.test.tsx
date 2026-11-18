@@ -229,7 +229,8 @@ describe("useClarificationComposerAnswer", () => {
     vi.mocked(answerSessionClarification).mockRejectedValueOnce(new TypeError("Failed to fetch"));
     const steer = vi.fn();
     const result = await renderComposerAnswer([PENDING]);
-    vi.mocked(fetchSessionClarifications).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    // Every re-read fails, so the composer cannot tell whether the answer landed.
+    vi.mocked(fetchSessionClarifications).mockRejectedValue(new TypeError("Failed to fetch"));
     const answering = result.current.answering(steer);
 
     await expect(answering?.(draft("Ship it"))).rejects.toBeInstanceOf(
