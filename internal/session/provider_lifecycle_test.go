@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1166,9 +1167,13 @@ func TestPromptMCPActivationLifecycle(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assertHostedMCPPromptRefusal(t, tc.path, tc.cause, tc.retryable)
+			assertHostedMCPPromptRefusal(t, tc.path, tc.cause, tc.retryable, nil)
 		})
 	}
+	t.Run("Should refuse a first bind when hosted readiness and restore persistence both fail", func(t *testing.T) {
+		t.Parallel()
+		assertHostedMCPPromptRefusal(t, "first", hostedBindTimeout, true, errors.New("catalog restore unavailable"))
+	})
 	// Invariant: prompts before the first list receipt keep a list-changed runtime alive; owner: activation lifecycle.
 	t.Run("Should keep a list-changed runtime before its first tools list receipt", func(t *testing.T) {
 		t.Parallel()
@@ -1504,9 +1509,14 @@ func countActivationEvents(events []store.SessionEvent, kind string) int {
 	return count
 }
 
-func assertHostedMCPPromptRefusal(t *testing.T, path string, cause error, retryable bool) {
+func assertHostedMCPPromptRefusal(t *testing.T, path string, cause error, retryable bool, restoreFailure error) {
 	t.Helper()
 	h, launcher := newActivationHarness(t)
+	var catalog *hostedPromptRestoreCatalog
+	if restoreFailure != nil {
+		catalog = &hostedPromptRestoreCatalog{SessionCatalog: h.manager.sessionCatalog, failure: restoreFailure}
+		h.manager.sessionCatalog = catalog
+	}
 	workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
 	if err != nil {
 		t.Fatal(err)
@@ -1557,6 +1567,9 @@ func assertHostedMCPPromptRefusal(t *testing.T, path string, cause error, retrya
 		}
 		id := firstTrimmedNonEmpty(opts.ResumeSessionID, "acp-hosted")
 		if _, _, err := opts.FinalizeStartup(ctx); err != nil {
+			if catalog != nil {
+				catalog.failNextUpdate.Store(true)
+			}
 			return nil, acp.WrapAcceptedStart(id, err)
 		}
 		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, id), nil
@@ -1566,6 +1579,9 @@ func assertHostedMCPPromptRefusal(t *testing.T, path string, cause error, retrya
 	if !errors.Is(err, cause) {
 		t.Fatalf("SendPrompt() = %v, want %v", err, cause)
 	}
+	if restoreFailure != nil && !errors.Is(err, restoreFailure) {
+		t.Fatalf("SendPrompt() = %v, want the restore failure too", err)
+	}
 	refusal, ok := errors.AsType[*MCPReloadError](err)
 	if ok != retryable || (ok && refusal.ClientMessageID != opts.MessageID) {
 		t.Errorf("SendPrompt() = %v, want retryable=%t and original message ID on refusal", err, retryable)
@@ -1574,8 +1590,12 @@ func assertHostedMCPPromptRefusal(t *testing.T, path string, cause error, retrya
 	if countActivationEvents(stored, acp.EventTypeUserMessage) != 0 || len(managerPromptCalls(h)) != 0 {
 		t.Fatal("refused prompt was persisted or delivered")
 	}
-	if got := countActivationEvents(stored, EventTypeMCPReloaded); (got == 1) != (path == "reload") {
-		t.Fatalf("recorded %d reload events for %s", got, path)
+	wantReloads := 0
+	if path == "reload" {
+		wantReloads = 1
+	}
+	if got := countActivationEvents(stored, EventTypeMCPReloaded); got != wantReloads {
+		t.Fatalf("recorded %d reload events for %s, want %d", got, path, wantReloads)
 	}
 	if info := target.Info(); info.State != StateActive || info.RuntimeStatus != RuntimeStatusUnbound {
 		t.Fatalf("runtime after refused prompt = %s/%s", info.State, info.RuntimeStatus)
@@ -1591,6 +1611,19 @@ func assertHostedMCPPromptRefusal(t *testing.T, path string, cause error, retrya
 		len(managerPromptCalls(h)) != 1 {
 		t.Fatal("retry did not persist and deliver the prompt exactly once")
 	}
+}
+
+type hostedPromptRestoreCatalog struct {
+	store.SessionCatalog
+	failure        error
+	failNextUpdate atomic.Bool
+}
+
+func (c *hostedPromptRestoreCatalog) UpdateSessionState(ctx context.Context, update store.SessionStateUpdate) error {
+	if c.failNextUpdate.Swap(false) {
+		return c.failure
+	}
+	return c.SessionCatalog.UpdateSessionState(ctx, update)
 }
 
 // Invariant: runtime changes reload once at admission using the accepted route.

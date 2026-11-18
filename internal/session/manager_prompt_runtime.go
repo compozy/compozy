@@ -268,13 +268,11 @@ func (m *Manager) replacePromptRuntime(
 	}
 	candidate, err := m.launchPromptRuntimeCandidate(ctx, session, plan, &runtime, native)
 	if err != nil {
-		if restoreErr := m.restorePromptRuntimeSnapshot(session, snapshot, err); restoreErr != nil {
-			return nil, errors.Join(err, restoreErr)
-		}
+		restoreErr := m.restorePromptRuntimeSnapshot(session, snapshot, err)
 		if _, hosted := errors.AsType[*HostedMCPReadinessError](err); snapshot.process == nil && hosted {
-			return nil, &MCPReloadError{Provider: plan.selection.Provider, Cause: err}
+			err = &MCPReloadError{Provider: plan.selection.Provider, Cause: err}
 		}
-		return nil, err
+		return nil, errors.Join(err, restoreErr)
 	}
 
 	previous := session.completeRuntimeTransition(candidate, plan.selection, strategy, m.now())
