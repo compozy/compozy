@@ -870,8 +870,9 @@ func TestAttentionNotificationTaskPopulation(t *testing.T) {
 		at := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
 		var queries []observe.OverviewQuery
 		fixture.Handlers.Observer = bellTaskObserver{
-			notificationRouteObserver: notificationRouteObserver{Store: db, AutomationFailureReader: db},
-			queries:                   &queries,
+			Store:                   db,
+			AutomationFailureReader: db,
+			queries:                 &queries,
 			items: []observe.OverviewAttentionItem{
 				{NotificationID: "n-global", TaskID: "task-global", Kind: "approval", Title: "G", OccurredAt: at},
 				{

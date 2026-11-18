@@ -6,12 +6,12 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -123,17 +123,75 @@ func TestPublishOperatorNotification(t *testing.T) {
 		t.Parallel()
 		manager, _ := newNotifyTestManager()
 		writeErr := errors.New("outbox unavailable")
-		outbox := &notifyWriteStub{err: writeErr}
-		WithOperatorNoticeOutbox(outbox)(manager)
+		outboxErr := writeErr
+		var notices []OperatorNotification
+		WithOperatorNoticeOutbox(notifyWriteStub{
+			enqueue: func(_ context.Context, notice OperatorNotification) error {
+				if outboxErr != nil {
+					return outboxErr
+				}
+				notices = append(notices, notice)
+				return nil
+			},
+		})(manager)
 		req := NotifyRequest{SessionID: "sess-retry", ProfileID: store.DefaultProfileID, Title: "Needs help"}
 		if _, err := manager.PublishOperatorNotification(t.Context(), req); !errors.Is(err, writeErr) {
 			t.Fatalf("first publish error = %v, want %v", err, writeErr)
 		}
 
-		outbox.err = nil
+		outboxErr = nil
 		result, err := manager.PublishOperatorNotification(t.Context(), req)
-		if err != nil || result.Outcome != NotifyOutcomeNoClient || len(outbox.notices) != 1 {
-			t.Fatalf("retried publish = %#v, %v; retained notices = %#v", result, err, outbox.notices)
+		if err != nil || result.Outcome != NotifyOutcomeNoClient || len(notices) != 1 {
+			t.Fatalf("retried publish = %#v, %v; retained notices = %#v", result, err, notices)
+		}
+	})
+
+	t.Run("Should preserve a newer rate slot when an older outbox write fails", func(t *testing.T) {
+		t.Parallel()
+		manager, advance := newNotifyTestManager()
+		writeErr := errors.New("delayed outbox failure")
+		firstWriteStarted := make(chan struct{})
+		firstWriteCanFinish := make(chan struct{})
+		releaseFirstWrite := sync.OnceFunc(func() { close(firstWriteCanFinish) })
+		defer releaseFirstWrite()
+		WithOperatorNoticeOutbox(notifyWriteStub{
+			enqueue: func(_ context.Context, notice OperatorNotification) error {
+				if notice.Title == "First" {
+					close(firstWriteStarted)
+					<-firstWriteCanFinish
+					return writeErr
+				}
+				return nil
+			},
+		})(manager)
+		first := NotifyRequest{SessionID: "sess-concurrent", ProfileID: store.DefaultProfileID, Title: "First"}
+		firstResult := make(chan error, 1)
+		go func() {
+			_, err := manager.PublishOperatorNotification(t.Context(), first)
+			firstResult <- err
+		}()
+		select {
+		case <-firstWriteStarted:
+		case err := <-firstResult:
+			t.Fatalf("first publish returned before reaching the outbox: %v", err)
+		}
+		advance(NotificationRateWindow)
+		second := first
+		second.Title = "Second"
+		result, err := manager.PublishOperatorNotification(t.Context(), second)
+		if err != nil || result.Outcome != NotifyOutcomeNoClient {
+			t.Fatalf("second publish = %#v, %v; want no-client", result, err)
+		}
+		releaseFirstWrite()
+		if err := <-firstResult; !errors.Is(err, writeErr) {
+			t.Fatalf("first publish error = %v, want %v", err, writeErr)
+		}
+
+		third := first
+		third.Title = "Third"
+		result, err = manager.PublishOperatorNotification(t.Context(), third)
+		if err != nil || result.Outcome != NotifyOutcomeRateLimited {
+			t.Fatalf("third publish = %#v, %v; want rate-limited", result, err)
 		}
 	})
 
@@ -293,16 +351,11 @@ func newNotifyTestManager() (*Manager, func(time.Duration)) {
 
 type notifyWriteStub struct {
 	OperatorNoticeOutbox
-	err     error
-	notices []notifications.OperatorNotice
+	enqueue func(context.Context, OperatorNotification) error
 }
 
-func (s *notifyWriteStub) EnqueueOperatorNotice(_ context.Context, notice notifications.OperatorNotice) error {
-	if s.err != nil {
-		return s.err
-	}
-	s.notices = append(s.notices, notice)
-	return nil
+func (s notifyWriteStub) EnqueueOperatorNotice(ctx context.Context, notice OperatorNotification) error {
+	return s.enqueue(ctx, notice)
 }
 
 type notifyMuteReader struct {

@@ -154,7 +154,7 @@ func (m *Manager) releaseNotificationRateSlot(sessionID string, at time.Time) {
 	m.notifyMu.Lock()
 	defer m.notifyMu.Unlock()
 	// A later send may have acquired the slot while the write was pending.
-	if m.notifyLastBySession[sessionID] == at {
+	if m.notifyLastBySession[sessionID].Equal(at) {
 		delete(m.notifyLastBySession, sessionID)
 	}
 }
