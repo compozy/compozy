@@ -1125,6 +1125,42 @@ bottom_center = 42
 		}
 	})
 
+	t.Run("Should keep a stored chord a newer default collides with and still reject a new one", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		// Stored before alt+KeyH became the window.focus.left default (#1826).
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+[window_manager.shortcuts]
+"window.close" = ["meta+KeyW", "alt+KeyH"]
+`)
+		service := testService(t, homePaths, Dependencies{})
+		edited := map[string]windowmanager.ShortcutBinding{
+			"window.close":   {"meta+KeyW", "alt+KeyH"},
+			"layout.balance": {"control+alt+KeyU"},
+		}
+		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			Section:                SectionWindowManager,
+			WindowManagerShortcuts: &edited,
+		}); err != nil {
+			t.Fatalf("UpdateSection(unrelated edit beside a legacy collision) error = %v", err)
+		}
+
+		recorded := map[string]windowmanager.ShortcutBinding{
+			"window.close":   {"meta+KeyW", "alt+KeyH"},
+			"layout.balance": {"alt+KeyJ"},
+		}
+		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			Section:                SectionWindowManager,
+			WindowManagerShortcuts: &recorded,
+		})
+		conflict, conflictOK := errors.AsType[*windowmanager.ShortcutConflictError](err)
+		if !conflictOK || conflict.Owner != "window.focus.down" || conflict.Chord != "alt+KeyJ" {
+			t.Fatalf("UpdateSection(new collision) error = %T %v, want window.focus.down owner of alt+KeyJ", err, err)
+		}
+	})
+
 	t.Run("Should transfer a desktop-global chord only through an atomic overwrite", func(t *testing.T) {
 		t.Parallel()
 

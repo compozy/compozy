@@ -71,6 +71,13 @@ export interface TerminalViewProps extends Omit<React.ComponentProps<"div">, "ch
   handleRef?: React.Ref<TerminalViewHandle>;
   onData?: (data: string) => void;
   onSelectionChange?: (selection: string) => void;
+  /**
+   * The host binds this keystroke to one of its commands from the terminal.
+   *
+   * True lets the key bubble to the host instead of reaching the shell. Asked on
+   * every key, so a rebind applies without recreating the emulator.
+   */
+  isHostShortcut?: (event: KeyboardEvent) => boolean;
   onProposeDimensions?: (dimensions: TerminalDimensions) => void;
   onRendererChange?: (renderer: TerminalRendererKind) => void;
   /**
@@ -101,6 +108,7 @@ export function TerminalView({
   handleRef,
   onData,
   onSelectionChange,
+  isHostShortcut,
   onProposeDimensions,
   onRendererChange,
   onAttached,
@@ -117,6 +125,7 @@ export function TerminalView({
     engineLoader,
     onData: data => onData?.(data),
     onSelectionChange: selection => onSelectionChange?.(selection),
+    isHostShortcut: event => isHostShortcut?.(event) ?? false,
     onProposeDimensions: dimensions => onProposeDimensions?.(dimensions),
     onRendererChange: kind => {
       setRenderer(kind);

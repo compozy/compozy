@@ -5,7 +5,7 @@ title: Open desktop apps, sessions, and actions from the keyboard
 persona: Bruno
 journey: J-operate-desktop-shell
 expected: ⌘/Ctrl+K opens one global palette over any desktop or composer and filters real apps, sessions, workspaces, and actions; Enter performs the selected action; ⌘/Ctrl+J remains scoped to the session runtime picker; ⌘/Ctrl+N, ⇧⌘/Ctrl+S, ⌘/Ctrl+W, ⌘/Ctrl+M, ⇧⌘/Ctrl+G (Global scope), and Escape perform the documented shell actions with one-layer overlay unwinding. The palette lists "Turn on Global scope" / "Turn off Global scope" and "Switch to {name}" notes that switching a project turns Global off. Workspace rows never include `$HOME`.
-entry_points: web desktop keyboard; command palette; session composer; menubar Help; Keyboard shortcuts dialog; Settings > Layouts > Shortcuts (whole-registry table, source filter, alias column); [window_manager.shortcuts] + [cmd_palette.aliases] in config.toml
+entry_points: web desktop keyboard; command palette; session composer; menubar Help; Keyboard shortcuts dialog; Settings > Shortcuts (whole-registry table, source filter, alias column); [window_manager.shortcuts] + [cmd_palette.aliases] in config.toml
 qa_status: pass
 bug_ids: BUG-20260829-command-palette-portal-remains-mounted
 fix_status: fixed
@@ -91,3 +91,7 @@ pagehide persistence and controlled burst coalescing; a real reload/offline walk
 CI-owned under the host-overload restriction for this fix.
 
 qa-impact: 2026-11-13 #1658 added four bindable, unbound window commands `window.swap.left|right|up|down` (palette Swap left/right/up/down, Tiling section, split only). Walk: in Settings › Shortcuts the four rows show no chord; record a chord for `window.swap.right`; it saves without a conflict, the Keyboard shortcuts dialog and the palette row show it, and pressing it in a split swaps the focused window with its right neighbour.
+
+qa-impact: 2026-11-18 keyboard-first navigation (#1826). Shortcuts moved from Settings › Layouts to
+their own Settings › Shortcuts page (shortcut table, aliases, conflicts and global hotkeys); walk the
+steps above there. An old `/settings/layouts?command=<id>` link opens Settings › Shortcuts on that row.

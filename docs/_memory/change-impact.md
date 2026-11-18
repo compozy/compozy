@@ -15,6 +15,36 @@ Owner: [#1823](https://github.com/compozy/compozy/issues/1823).
 - **Docs and QA.** ET-047 covers the path-specific 404, root fallback, scoped sign-in, and
   rejection of mismatched resources. The auth adapter suite exercises a local HTTP OAuth server.
 
+## Keyboard-first desktop navigation
+
+Owner: [#1826](https://github.com/compozy/compozy/issues/1826).
+
+- **Native tools.** `compozy__window_open` accepts an optional `insert_edge`
+  (`left`/`right`/`top`/`bottom`) beside `insert_tiled`; the daemon rejects it without
+  `insert_tiled`, with `stack_target_window_id` or legacy `floating`, or with another value. Tool ids
+  and the remaining schema are unchanged. The palette catalog adds `window.split.right`,
+  `window.split.down` and `settings.shortcuts`; existing command ids are kept.
+- **CLI/HTTP/UDS.** Additive `insert_edge` on the `window.open` payload (OpenAPI enum
+  `WindowManagerInsertEdge`) and `compozy window open --edge`, which requires `--tiled` and conflicts
+  with `--restore` and `--stack-target`. Nothing is removed or renamed.
+- **Extensibility, hooks and config.** `[window_manager.shortcuts]` grammar and every command id are
+  unchanged. Defaults change (Option+H/J/K/L focus, Option+; splits, Control+Option+↑/↓ sessions,
+  `window.tile.top|bottom` unbound). A stored override that collides with a new default keeps its
+  chord on every read (`TolerantEffectiveKeymap`, `EffectiveStoredKeymap`); recording a new colliding
+  chord still returns `shortcut_conflict`. Extension defaults keep their bind-if-free rule against
+  the new map. Electron global hotkeys accept the canonical `control` modifier.
+- **User state.** No schema or migration. Values a user applied from the retired Terminal preset stay
+  in `config.toml` and remain valid.
+- **Workspace isolation.** Workspace keymaps resolve from the shipped defaults plus the merged global
+  and workspace overrides, so a global override never leaks a displaced default into a project.
+- **Web.** One chord-eligibility policy for the shell listener and the terminal; Settings ›
+  Shortcuts (`/settings/shortcuts`) owns the keymap table and global hotkeys; the Terminal preset
+  card is removed; `/settings/layouts?command=` redirects (remove in v0.9.0); the session rail walk
+  visits headers and rows in screen order.
+- **Official skill, docs and QA.** Updated `skills/compozy` window-management and native-tools
+  references, the site shortcut and window-management pages, the release note, and the
+  keyboard/settings QA scenarios (Terminal preset scenario retired).
+
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).

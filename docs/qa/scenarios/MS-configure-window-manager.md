@@ -4,8 +4,8 @@ area: MS
 title: Configure window behavior and the project layout safely
 persona: Bruno
 journey: J-administer-window-manager
-expected: Settings › Layouts shows, in order, Project layout (desktops → tabs → splits editor that reviews and applies inside its own card), Saved layouts, Window behavior (New windows: New tab or Split beside focus; Not enough room: One window at a time or Refuse the layout; Taking focus: Click and keys or Keys only; Switching desktops: Slide, Crossfade or Instant; Swap two windows modifier; Wrap directional focus; Focus follows the pointer), Shortcuts (Terminal preset, the shortcut table and global hotkeys, applied live) and an Advanced fold with Spacing (the Gaps card) and History (Layout history steps); there is no snap, corner, exit-slack, repeat-width, centre-binding, raise-on-focus, drag-away or group-move control and no floating option; out-of-range gaps or history limit and duplicate shortcut chords name the exact value at fault and block the save while the active known-good configuration stays; one save bar (Save changes / Discard) covers the global behavior while the layout applies from Apply layout and shortcuts apply at once; a valid save hot-applies to the next command without restarting; workspace layout overrides stay isolated; a config.toml carrying retired `[window_manager]` keys still loads (see MS-window-manager-retired-config-keys).
-entry_points: Settings › Layouts; global config.toml; compozy config get|set|show|reload; GET/PATCH /api/settings/window-manager over HTTP and UDS; compozy layout-profile list|get|put|delete; compozy layout export|validate|apply
+expected: Settings › Layouts shows, in order, Project layout (desktops → tabs → splits editor that reviews and applies inside its own card), Saved layouts, Window behavior (New windows: New tab or Split beside focus; Not enough room: One window at a time or Refuse the layout; Taking focus: Click and keys or Keys only; Switching desktops: Slide, Crossfade or Instant; Swap two windows modifier; Wrap directional focus; Focus follows the pointer) and an Advanced fold with Spacing (the Gaps card) and History (Layout history steps); there is no snap, corner, exit-slack, repeat-width, centre-binding, raise-on-focus, drag-away or group-move control and no floating option; out-of-range gaps or history limit name the exact value at fault and block the save while the active known-good configuration stays; one save bar (Save changes / Discard) covers the global behavior while the layout applies from Apply layout; shortcuts live on Settings › Shortcuts (shortcut table, aliases and global hotkeys, applied at once, duplicate chords naming the command that holds them); a valid save hot-applies to the next command without restarting; workspace layout overrides stay isolated; a config.toml carrying retired `[window_manager]` keys still loads (see MS-window-manager-retired-config-keys).
+entry_points: Settings › Layouts; Settings › Shortcuts; global config.toml; compozy config get|set|show|reload; GET/PATCH /api/settings/window-manager over HTTP and UDS; compozy layout-profile list|get|put|delete; compozy layout export|validate|apply
 qa_status: untested
 bug_ids: BUG-20260801-window-manager-live-config-drift
 fix_status: fixed
@@ -97,3 +97,10 @@ then change `focus_policy` at user scope and confirm the project shows the new v
 that already holds copied scalars loads the same values; the next project save removes the copies
 equal to the inherited value and keeps the differing ones. Not walked yet; covered by
 `TestUpdateSectionWindowManager` until the next window-manager QA cycle.
+
+qa-impact: 2026-11-18 keyboard-first navigation (#1826). The Shortcuts group and its Terminal
+preset left Settings › Layouts: shortcuts have their own Settings › Shortcuts page and the preset is
+gone (its main chords are the shipped defaults). Walk: 1) Settings › Layouts lists Project layout, Saved
+layouts, Window behavior and the Advanced fold, with no shortcut table. 2) Settings › Shortcuts lists
+the shortcut table and global hotkeys; a rebind applies at once with no save bar. Earlier results above
+are history.

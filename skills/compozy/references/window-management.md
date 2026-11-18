@@ -311,7 +311,7 @@ workspace, revision, client, diagnostic, and risk contracts as the CLI/API. Reso
 | Operation               | Tool                                                                                                                                                     | Inputs that matter                                                                                                                                                             |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Inspect                 | `compozy__layout_get`, `compozy__window_list`, `compozy__desktop_list`, `compozy__desktop_clients`                                                       | `layout_get` includes `migration` while the upgrade notice is unacknowledged; `window_list` rows carry `tab_id`                                                                |
-| Open                    | `compozy__window_open`                                                                                                                                   | `app`, `route`, `desktop_id`, `stack_target_window_id` (tab after that window's tab), `insert_tiled` (split right of focus)                                                    |
+| Open                    | `compozy__window_open`                                                                                                                                   | `app`, `route`, `desktop_id`, `stack_target_window_id` (tab after that window's tab), `insert_tiled` (split right of focus), `insert_edge` (`left`/`right`/`top`/`bottom` side of that split; needs `insert_tiled`, excludes `stack_target_window_id`)                                                    |
 | Close                   | `compozy__window_close`                                                                                                                                  | `window_id`, `scope` `tab`/`group`/`others`/`right`/`left`/`all`                                                                                                               |
 | Activate, reorder, pin  | `compozy__window_activate`, `compozy__window_reorder` (`index`), `compozy__window_pin` (`pinned: true                                                    | false`)                                                                                                                                                                        | act on the window's tab |
 | Split, unsplit, move    | `compozy__window_move`                                                                                                                                   | `window_id`, `destination_desktop_id`, `placement` (`tab`, `left`, `right`, `top`, `bottom`, `before`, `after`, `center`), `target_window_id` or `target_tab_id`, `move_group` |
@@ -531,6 +531,14 @@ keys accept ranges: `desktop.switch = "control+Digit1..9"` and
 overrides as one map. `GET /api/settings/window-manager` returns `defaults` and `effective`; use
 `compozy config get window_manager -o json` for the same discovery through the CLI. Writes through
 `config set` accept a scalar or JSON string array and reject the complete mutation on any collision.
+A stored override wins a chord a newer default also names: reads drop that chord from the default
+instead of failing, while recording a new colliding chord still returns `shortcut_conflict`.
+Shipped defaults are keyboard-first: `alt+KeyH|J|K|L` focus left/down/up/right (Ctrl+arrows stay
+alternates), `alt+KeyO` focuses the last window, `alt+KeyW`/`alt+KeyT` close and open tabs,
+`alt+Semicolon`/`alt+shift+Semicolon` run `window.split.right|down` (a New tab pane beside or below
+focus), `control+alt+KeyH|L` and `control+alt+ArrowUp|Down`/`control+alt+KeyK|J` step tabs and
+sessions, and `window.tile.top|bottom` are unbound. Bound chords with Command, Control, or Option
+fire from text fields and terminals; Settings › Shortcuts (`/settings/shortcuts`) edits them.
 Window shortcuts: `window.tile.left|right|top|bottom` move the focused window to that root edge of
 its tab; `window.unsplit` (Move to new tab), `window.tab.move_left`, `window.tab.move_right`, and
 `window.swap.left|right|up|down` (swap the focused split window with its nearest on-screen neighbour

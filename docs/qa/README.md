@@ -107,3 +107,12 @@ deprecation window until v0.8.0 is covered by `ET-window-retired-surfaces-deprec
 (including `CH-window-manager-review-fixes` and `CH-untested-043-administer-window-manager-bruno-part-1`),
 dated reports, bug receipts, `_seeds/`, and `evidence/` that mention floating, minimized, or zoomed
 windows record historical observations only.
+
+### Product retirement — Terminal shortcut preset (2026-11-18)
+
+Keyboard-first navigation (#1826) removed the Terminal shortcut preset: its main chords became
+shipped defaults, and stored overrides keep winning. The dedicated scenario
+`MS-terminal-shortcut-preset` was deleted; its id is never reused. Shortcuts moved from Settings ›
+Layouts to Settings › Shortcuts, and mixed scenarios, `J-administer-window-manager` and
+`CH-herdr-keymap-hard-cut` were rewritten in place with dated QA impact notes. Dated reports and
+`evidence/` that mention the preset record historical observations only.

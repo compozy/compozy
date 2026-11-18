@@ -11,8 +11,6 @@ import {
   chordFromKeyboardEvent,
   coveringShortcutFamily,
   deriveShortcutCheatsheet,
-  effectiveShortcutMap,
-  findShortcutConflicts,
   parseShortcutChord,
   primaryShortcutModifier,
   resolveWindowManagerActions,
@@ -25,6 +23,9 @@ import {
   type ShortcutActionDefinition,
   type ShortcutMap,
 } from "../window-manager-shortcuts";
+import { effectiveShortcutMap, findShortcutConflicts } from "../window-manager-shortcut-overrides";
+import { effectiveWindowManagerConfig } from "../window-manager-config";
+import type { WindowManagerConfig } from "../window-manager-types";
 
 function coreAction(
   action: Omit<ShortcutActionDefinition, "source" | "alias">
@@ -200,6 +201,46 @@ describe("effective conflicts", () => {
       actionIds: ["sidebar.toggle"],
       winner: { label: "Bold", surface: "composer" },
     });
+  });
+});
+
+describe("override-wins resolution", () => {
+  it("Should let an override keep a chord a default also names, and still report the claim", () => {
+    const overrides = { "window.close": ["meta+KeyW", "control+ArrowUp"] };
+    const effective = effectiveShortcutMap(DEFAULTS, overrides);
+
+    expect(effective["window.close"]).toEqual(["meta+KeyW", "control+ArrowUp"]);
+    expect(effective["window.focus.up"]).toEqual([]);
+    expect(effective["window.focus.down"]).toEqual(["control+ArrowDown"]);
+    expect(findShortcutConflicts(overrides, DEFAULTS)).toContainEqual({
+      chord: "control+ArrowUp",
+      kind: "blocked",
+      actionIds: ["window.close", "window.focus.up"],
+    });
+  });
+
+  it("Should resolve workspace overrides from the defaults so a displaced default comes back", () => {
+    const globalOverrides = { "window.close": ["control+ArrowUp"] };
+    const global = {
+      shortcuts: globalOverrides,
+      globalShortcuts: {},
+      shortcutDefaults: DEFAULTS,
+      effectiveShortcuts: {
+        ...effectiveShortcutMap(DEFAULTS, globalOverrides),
+        "ext.notes.capture": ["alt+shift+KeyN"],
+      },
+    } as unknown as WindowManagerConfig;
+
+    const scoped = effectiveWindowManagerConfig(global, {
+      shortcuts: { "window.close": ["alt+KeyW"] },
+    }).effectiveShortcuts;
+
+    expect(scoped["window.close"]).toEqual(["alt+KeyW"]);
+    expect(scoped["window.focus.up"]).toEqual(["control+ArrowUp"]);
+    expect(scoped["ext.notes.capture"]).toEqual(["alt+shift+KeyN"]);
+    expect(effectiveWindowManagerConfig(global, {}).effectiveShortcuts).toBe(
+      global.effectiveShortcuts
+    );
   });
 });
 

@@ -26,6 +26,7 @@ type windowOpenFlagValues struct {
 	pathname    string
 	searchJSON  string
 	insertTiled bool
+	insertEdge  string
 	floating    bool
 }
 
@@ -131,6 +132,7 @@ func validateWindowRestoreFlags(cmd *cobra.Command) error {
 		cmd.Flags().Changed(windowManagerPathnameFlag) ||
 		cmd.Flags().Changed(windowManagerSearchJSONFlag) ||
 		cmd.Flags().Changed("tiled") ||
+		cmd.Flags().Changed("edge") ||
 		cmd.Flags().Changed("floating") ||
 		cmd.Flags().Changed("stack-target")
 	if newWindowFlagsChanged {
@@ -141,6 +143,38 @@ func validateWindowRestoreFlags(cmd *cobra.Command) error {
 		)
 	}
 	return nil
+}
+
+// windowOpenEdge reads --edge, which only places a --tiled open.
+func windowOpenEdge(cmd *cobra.Command, values windowOpenFlagValues) (windowmanager.DropPlacement, error) {
+	if !cmd.Flags().Changed("edge") {
+		return "", nil
+	}
+	edge := windowmanager.DropPlacement(strings.TrimSpace(values.insertEdge))
+	switch edge {
+	case windowmanager.DropLeft, windowmanager.DropRight, windowmanager.DropTop, windowmanager.DropBottom:
+	default:
+		return "", newWindowManagerCLIValidationError(
+			windowManagerCLIValidationInvalidValue,
+			"edge",
+			fmt.Errorf("cli: --edge must be left, right, top or bottom, got %q", values.insertEdge),
+		)
+	}
+	if !values.insertTiled {
+		return "", newWindowManagerCLIValidationError(
+			windowManagerCLIValidationRequired,
+			"tiled",
+			errors.New("cli: --edge requires --tiled"),
+		)
+	}
+	if strings.TrimSpace(values.stackTarget) != "" {
+		return "", newWindowManagerCLIValidationError(
+			windowManagerCLIValidationConflicting,
+			"edge",
+			errors.New("cli: --edge cannot be combined with --stack-target"),
+		)
+	}
+	return edge, nil
 }
 
 func windowOpenSpec(
@@ -175,6 +209,10 @@ func windowOpenSpec(
 	if err != nil {
 		return contract.WindowManagerWindowSpecPayload{}, err
 	}
+	edge, err := windowOpenEdge(cmd, values)
+	if err != nil {
+		return contract.WindowManagerWindowSpecPayload{}, err
+	}
 	// Public --app aliases are removed in v0.5.0; the daemon rewrites the command.
 	if replacement, retired := windowmanager.RetiredApp(app); retired {
 		cmd.PrintErrf("warning: app %q is deprecated and will be removed in v0.5.0; use %q\n", app, replacement)
@@ -187,6 +225,7 @@ func windowOpenSpec(
 		DesktopID:           windowmanager.DesktopID(strings.TrimSpace(values.desktopID)),
 		FloatingRect:        floatingRect,
 		InsertTiled:         values.insertTiled,
+		InsertEdge:          contract.WindowManagerInsertEdge(edge),
 		Floating:            values.floating,
 		StackTargetWindowID: stackTarget,
 	}, nil
@@ -215,6 +254,12 @@ func (values *windowOpenFlagValues) addFlags(cmd *cobra.Command) {
 		"Deprecated: ignored floating rect; removed in v0.8.0",
 	)
 	cmd.Flags().BoolVar(&values.insertTiled, "tiled", false, "Insert beside client focus when possible")
+	cmd.Flags().StringVar(
+		&values.insertEdge,
+		"edge",
+		"",
+		"Side of the anchor a --tiled open lands on: left, right, top or bottom (default right)",
+	)
 	cmd.Flags().BoolVar(
 		&values.floating,
 		"floating",

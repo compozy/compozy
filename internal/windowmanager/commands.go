@@ -102,6 +102,9 @@ type WindowSpec struct {
 	DesktopID    DesktopID      `json:"desktop_id"`
 	FloatingRect NormalizedRect `json:"floating_rect"`
 	InsertTiled  bool           `json:"insert_tiled,omitzero"`
+	// InsertEdge places a tiled open on this side of its anchor (default right).
+	// It requires InsertTiled and excludes a stack target.
+	InsertEdge DropPlacement `json:"insert_edge,omitzero"`
 	// Floating is retained through v0.7 and opens a tab at the compatibility boundary.
 	Floating            bool      `json:"floating,omitzero"`
 	StackTargetWindowID *WindowID `json:"stack_target_window_id,omitzero"`

@@ -866,7 +866,8 @@ window's whole tab with a required `pinned` boolean; `window_reopen` needs only 
 `target_window_id` puts the window beside that window in its tab, with `target_tab_id` at that
 root edge of the tab; `placement: "tab"` makes it its own tab; `move_group` moves the whole tab.
 `window_open` accepts `stack_target_window_id` (a new tab right after that window's tab) and
-`insert_tiled` (a split member right of the focused window); `window_navigate` accepts `mode`
+`insert_tiled` (a split member right of the focused window) with an optional `insert_edge`
+(`left`/`right`/`top`/`bottom`, default right); `window_navigate` accepts `mode`
 (`replace`/`push`/`pop`, and `pop` forbids `route`); `window_close` accepts `scope`
 (`tab`/`group`/`others`/`right`/`left`/`all`); `layout_balance` takes `tab_id` or `split_id`.
 Results carry `changes.tab_ids`, `tab_split`, `tab_unsplit` and, when a retired input was used,

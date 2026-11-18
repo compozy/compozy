@@ -143,9 +143,6 @@ export {
   chordFromKeyboardEvent,
   coveringShortcutFamily,
   deriveShortcutCheatsheet,
-  effectiveShortcutMap,
-  expandShortcutOverrides,
-  findShortcutConflicts,
   isShortcutOverrideActionId,
   parseShortcutChord,
   resolveWindowManagerActions,
@@ -164,6 +161,11 @@ export {
   type ShortcutMap,
   type ShortcutRangeFamily,
 } from "./lib/window-manager-shortcuts";
+export {
+  effectiveShortcutMap,
+  expandShortcutOverrides,
+  findShortcutConflicts,
+} from "./lib/window-manager-shortcut-overrides";
 
 // Attention: the system notification channel's truthful platform state, read by
 // Settings so the switch can never claim to be armed when the platform refused.

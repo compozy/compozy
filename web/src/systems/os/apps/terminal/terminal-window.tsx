@@ -13,6 +13,7 @@ import {
 
 import type { OsDesktopRuntimeStore } from "../../lib/os-types";
 import { useDesktop } from "../../hooks/use-desktop";
+import { useTerminalHostShortcut } from "../../hooks/use-terminal-host-shortcut";
 import { matchTerminalInstance } from "../../lib/app-catalog";
 import { useTerminalWindowControllerState } from "./hooks/use-terminal-window-controller-state";
 import { TerminalAggregateLocation } from "./terminal-aggregate-location";
@@ -175,6 +176,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     reject: request => reject.mutate(request),
   });
 
+  const isHostShortcut = useTerminalHostShortcut();
   const requestedId = matchTerminalInstance(pathname);
   const terminals = catalog.data ?? [];
   const terminalSettings = settings.data?.config.terminal;
@@ -206,6 +208,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
       exitRetentionMs={parsePositiveDurationMilliseconds(terminalSettings?.exit_retention)}
       inputRequestTitles={new Map(terminals.map(terminal => [terminal.id, terminal.title]))}
       inputRequests={inputRequests.data ?? []}
+      isHostShortcut={isHostShortcut}
       resolvedInputRequests={resolvedInputRequests}
       journal={
         <TerminalWindowJournal openTerminal={openTerminal} retargetTerminal={retargetTerminal} />

@@ -10,6 +10,7 @@ import {
   sessionListVisibleOrder,
   sessionThreadFolds,
   useWorkspaceWorkingSessions,
+  walkSessionList,
   type SessionPayload,
 } from "@/systems/session";
 import { useSwitchProfile } from "@/systems/profiles";
@@ -20,7 +21,7 @@ import { desktopShellBridge, type DesktopShellEventMap } from "../lib/desktop-sh
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
 import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
-import type { OsDesktopRuntimeStore, OsOpenTarget } from "../lib/os-types";
+import type { OsDesktopRuntimeStore, OsOpenTarget, OsSplitEdge } from "../lib/os-types";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
@@ -93,6 +94,31 @@ export async function completePaletteNewTabOpen(options: {
   const windowId = await options.userOpen({
     app: "new-tab",
     ...(options.afterWindowId ? { afterWindowId: options.afterWindowId } : {}),
+  });
+  if (windowId !== null) {
+    windowManagerStore.trigger.paletteIntentRequested({
+      intent: { kind: "destination", windowId },
+    });
+  }
+}
+
+/**
+ * Splits the focused window with a fresh New tab pane, then hands the palette its destination.
+ *
+ * Always a new instance, so an existing New tab or a pending open is never reused and two
+ * quick splits make two panes; the daemon places it on `splitEdge` of the focused window.
+ */
+export async function completePaletteSplitOpen(options: {
+  closePalette: () => void;
+  splitEdge: OsSplitEdge;
+  userOpen: (target: OsOpenTarget) => Promise<string | null>;
+}): Promise<void> {
+  options.closePalette();
+  const windowId = await options.userOpen({
+    app: "new-tab",
+    forceNewInstance: true,
+    placement: "split",
+    splitEdge: options.splitEdge,
   });
   if (windowId !== null) {
     windowManagerStore.trigger.paletteIntentRequested({
@@ -224,6 +250,19 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       const state = manager.getState();
       // A board showing a session in its drawer steps through its own cards.
       if (cycleSessionBoardDrawer(state.focusedId, direction)) return;
+      // An open session rail in the focused window walks its headers and rows.
+      const rail =
+        state.focusedId === null
+          ? null
+          : document.querySelector(
+              `[data-window-id="${CSS.escape(state.focusedId)}"] [data-session-rail][data-state="open"]`
+            );
+      if (rail !== null) {
+        if (!walkSessionList(rail, direction, focusedSessionId(state))) {
+          notifyUser({ message: "No other visible session.", tone: "info" });
+        }
+        return;
+      }
       const controls = options.sessionControls.current;
       if (controls === null) return;
       const { listView, sidebar } = controls;
@@ -267,6 +306,13 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       void completePaletteNewTabOpen({
         closePalette: () => overlays.setOverlayOpen("palette", false),
         afterWindowId,
+        userOpen: target => coordinator.userOpen(target),
+      });
+    },
+    openSplit: splitEdge => {
+      void completePaletteSplitOpen({
+        closePalette: () => overlays.setOverlayOpen("palette", false),
+        splitEdge,
         userOpen: target => coordinator.userOpen(target),
       });
     },

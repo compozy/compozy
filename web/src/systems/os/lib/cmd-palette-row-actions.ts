@@ -82,7 +82,7 @@ export interface PaletteRowActionInput {
  * when the daemon cannot serve it, the action is simply absent instead of
  * pointing at a page this client may not be able to open.
  */
-const SHORTCUT_SETTINGS_COMMAND_ID = "settings.layouts";
+const SHORTCUT_SETTINGS_COMMAND_ID = "settings.shortcuts";
 
 /** Display labels and raw chords always come from the same registry entry. */
 function keysFor(

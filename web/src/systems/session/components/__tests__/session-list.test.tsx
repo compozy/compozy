@@ -2923,6 +2923,30 @@ describe("SessionList folders and manual order", () => {
     expect(screen.getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
   });
 
+  // Invariant: a header toggle takes tree disclosure keys — ArrowLeft collapses,
+  // ArrowRight expands, each a no-op in its own state — and is a session-walk stop.
+  it("Should collapse and expand a folder from its header with the arrow keys", async () => {
+    const user = userEvent.setup();
+    renderLayout("created");
+    const toggle = screen.getByTestId("session-sidebar-folder-fa-toggle");
+    expect(toggle).toHaveAttribute("data-sidebar-stop", "folder");
+    toggle.focus();
+
+    await user.keyboard("{ArrowRight}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{ArrowLeft}");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("session-sidebar-session-f1")).not.toBeInTheDocument();
+    await user.keyboard("{ArrowLeft}");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.keyboard("{ArrowRight}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("session-sidebar-session-f1")).toHaveAttribute(
+      "data-sidebar-stop",
+      "session"
+    );
+  });
+
   // Invariant: right-click and `…` carry the row's verbs plus folder moves and Move up/down
   // under Move ▸, one tree on both entry points.
   it.each(["context", "dropdown"])(
@@ -3961,6 +3985,32 @@ describe("SessionList breadth and Group by", () => {
 
     await user.click(beta);
     expect(toggleGroup).toHaveBeenCalledWith("project:ws-beta");
+  });
+
+  // Invariant: group headers take the same disclosure keys as folder headers.
+  it("Should expand a collapsed group with ArrowRight and collapse an open one with ArrowLeft", async () => {
+    const user = userEvent.setup();
+    const toggleGroup = vi.fn();
+    renderList({
+      sessions: [],
+      view: grouped({ collapsedGroupKeys: new Set(["project:ws-beta"]), toggleGroup }),
+    });
+    const alpha = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    const beta = screen.getByTestId("session-sidebar-group-project:ws-beta");
+    expect(beta).toHaveAttribute("data-sidebar-stop", "group");
+
+    beta.focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(toggleGroup).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowRight}");
+    expect(toggleGroup).toHaveBeenCalledExactlyOnceWith("project:ws-beta");
+
+    toggleGroup.mockClear();
+    alpha.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(toggleGroup).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowLeft}");
+    expect(toggleGroup).toHaveBeenCalledExactlyOnceWith("project:ws-alpha");
   });
 
   it("W-24: Should retry one failed group in place while the other groups render", async () => {

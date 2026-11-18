@@ -294,6 +294,7 @@ export {
   RotateCcw,
   RotateCw,
   Route,
+  Rows2,
   Rows3,
   Save,
   Scale,

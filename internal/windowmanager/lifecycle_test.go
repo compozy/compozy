@@ -616,6 +616,56 @@ func TestTabsAndSplits(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should place a tiled open on the requested edge of its anchor", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			edge  DropPlacement
+			axis  Axis
+			index int
+		}{
+			{edge: "", axis: AxisHorizontal, index: 1},
+			{edge: DropRight, axis: AxisHorizontal, index: 1},
+			{edge: DropLeft, axis: AxisHorizontal, index: 0},
+			{edge: DropBottom, axis: AxisVertical, index: 1},
+			{edge: DropTop, axis: AxisVertical, index: 0},
+		} {
+			e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			openTestWindow(t, e.manager, "workspace-a", nil, "first", "desktop-default")
+			client := ClientID("caller")
+			registerTestClient(t, e.manager, "workspace-a", client)
+			r := executeTestCommand(t, e.manager, "workspace-a", &client, OpenWindowCommand{Window: WindowSpec{
+				ID: "a", App: "Test", Route: testRoute("/new"), InsertTiled: true, InsertEdge: tc.edge,
+			}})
+			root := tabFor(t, r.Snapshot, "a").Root
+			if valueOrZero(root.Axis) != tc.axis || len(root.Children) != 2 ||
+				valueOrZero(root.Children[tc.index].WindowID) != "a" {
+				t.Fatalf("edge %q open=%+v", tc.edge, root)
+			}
+		}
+	})
+	t.Run("Should reject an insert edge without a tiled insert or with an unknown side", func(t *testing.T) {
+		t.Parallel()
+		e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, e.manager, "workspace-a", nil, "first", "desktop-default")
+		for name, spec := range map[string]WindowSpec{
+			"untiled":      {InsertEdge: DropBottom},
+			"stack target": {InsertTiled: true, InsertEdge: DropBottom, StackTargetWindowID: new(WindowID("first"))},
+			"floating":     {InsertTiled: true, Floating: true, InsertEdge: DropBottom},
+			"unknown side": {InsertTiled: true, InsertEdge: DropCenter},
+		} {
+			spec.App, spec.Route = "Test", testRoute("/new")
+			snapshot := mustSnapshot(t, e.manager, "workspace-a")
+			_, err := e.manager.Execute(t.Context(), CommandRequest{
+				WorkspaceID:      "workspace-a",
+				CommandID:        CommandWindowOpen,
+				ExpectedRevision: snapshot.Revision,
+				Payload:          OpenWindowCommand{Window: spec},
+			})
+			if !errors.Is(err, ErrInvalidCommand) {
+				t.Fatalf("%s: Execute(window.open) error = %v, want %v", name, err, ErrInvalidCommand)
+			}
+		}
+	})
 	t.Run("Should activate the deprecated restore target without a commit", func(t *testing.T) {
 		t.Parallel()
 		e := threeTabs(t)

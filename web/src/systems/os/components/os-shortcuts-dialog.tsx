@@ -60,12 +60,12 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
   const sourceGroups = groupShortcutRowsBySource(rows);
   const showSourceBands = sourceGroups.length > 1;
 
-  const openLayoutSettings = () => {
+  const openShortcutSettings = () => {
     if (!canOpenApps) return;
     onOpenChange(false);
     void coordinator.userOpen({
       app: "settings",
-      route: { pathname: "/settings/layouts", search: {} },
+      route: { pathname: "/settings/shortcuts", search: {} },
     });
   };
 
@@ -169,9 +169,9 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
             disabled={!canOpenApps}
             type="button"
             variant="secondary"
-            onClick={openLayoutSettings}
+            onClick={openShortcutSettings}
           >
-            Edit shortcuts in Layouts
+            Edit shortcuts
           </Button>
         </DialogFooter>
       </DialogContent>

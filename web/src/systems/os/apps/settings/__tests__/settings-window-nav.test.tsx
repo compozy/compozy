@@ -5,7 +5,9 @@
 // owned by a field, dialog, modified chord or another handler. The section area shows the
 // section's own skeleton while its code loads, and keeps the page on screen while the next
 // section's code loads. A section that fails to render shows its own error inside the section
-// area; the nav keeps working and another section still opens. Owner: Settings window navigation.
+// area; the nav keeps working and another section still opens. A window still stored at the old
+// `/settings/layouts?command=<id>` shows Shortcuts focused on that command and replaces its route.
+// Owner: Settings window navigation.
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -46,13 +48,23 @@ vi.mock("@/routes/_app/settings/-mcp-settings-page", () => ({
   },
 }));
 
+// Records the command the section receives, so the window's routing is what is under test.
+vi.mock("@/routes/_app/settings/-shortcuts-settings-page", () => ({
+  ShortcutsSettingsPage: ({ focusCommandId }: { focusCommandId?: string }) => (
+    <span data-testid="shortcuts-focus">{focusCommandId ?? "none"}</span>
+  ),
+}));
+
 const cleanups: Array<() => void> = [];
 
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function renderSettingsWindow(path = "/settings/appearance") {
+async function renderSettingsWindow(
+  path = "/settings/appearance",
+  beforeRender?: (manager: WindowManagerRuntime) => void
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const snapshot = parseWindowManagerSnapshot(windowManagerStorySnapshot(path));
   const client = parseWindowManagerClientView(
@@ -73,6 +85,7 @@ async function renderSettingsWindow(path = "/settings/appearance") {
   });
   manager.start();
   manager.setClient(client);
+  beforeRender?.(manager);
   cleanups.push(() => {
     manager.destroy();
     queryClient.clear();
@@ -317,5 +330,34 @@ describe("Settings window section area", () => {
     await act(async () => vi.dynamicImportSettled());
     expect(screen.getByRole("radiogroup", { name: "Wallpaper" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("Should show Shortcuts for an old Layouts command link and replace the window's route", async () => {
+    const navigateWindow = vi.fn(() => ({ accepted: true, completion: Promise.resolve(true) }));
+    await renderSettingsWindow("/settings/layouts?command=palette.open", manager => {
+      manager.navigateWindow = navigateWindow;
+    });
+
+    expect(screen.getByTestId("settings-section-shortcuts")).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(await screen.findByTestId("shortcuts-focus")).toHaveTextContent("palette.open");
+    expect(navigateWindow).toHaveBeenCalledWith(
+      windowManagerStoryWindowId,
+      { pathname: "/settings/shortcuts", search: { command: "palette.open" } },
+      "replace"
+    );
+  });
+
+  it("Should keep a plain Layouts route on Layouts", async () => {
+    const navigateWindow = vi.fn(() => ({ accepted: true, completion: Promise.resolve(true) }));
+    await renderSettingsWindow("/settings/layouts", manager => {
+      manager.navigateWindow = navigateWindow;
+    });
+
+    expect(screen.getByTestId("settings-section-layouts")).toHaveAttribute("aria-current", "page");
+    await act(async () => vi.dynamicImportSettled());
+    expect(navigateWindow).not.toHaveBeenCalled();
   });
 });

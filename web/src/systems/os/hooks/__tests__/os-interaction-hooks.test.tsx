@@ -1207,36 +1207,79 @@ describe("useOsShortcuts", () => {
     expect(onEscape).toHaveBeenCalledOnce();
   });
 
-  it("Should protect editor-owned chords while keeping tab lifecycle shortcuts global", () => {
+  it("Should fire modifier chords from a textarea and a contenteditable but leave typing chords to the field", () => {
     const run = vi.fn();
-    renderHook(() => useOsShortcuts(shortcutRegistry(), run, { onEscape: vi.fn() }));
-    const input = document.createElement("input");
-    document.body.append(input);
+    const registry = shortcutRegistry({
+      "window.focus.left": ["alt+KeyH", "control+ArrowLeft"],
+      "window.tile.left": ["alt+ArrowLeft"],
+      "layout.balance": ["shift+KeyA"],
+    });
+    renderHook(() => useOsShortcuts(registry, run, { onEscape: vi.fn() }));
+    const textarea = document.createElement("textarea");
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    const nestedTarget = document.createElement("span");
+    editable.append(nestedTarget);
+    document.body.append(textarea, editable);
 
-    // Layout undo belongs to the editor while it has focus (WCAG 2.1.4).
-    fireEvent.keyDown(input, { key: "z", code: "KeyZ", metaKey: true });
-    expect(run).not.toHaveBeenCalled();
-    // Window and tab lifecycle stay global — the operator expects ⌘W mid-typing.
-    fireEvent.keyDown(input, { key: "w", code: "KeyW", metaKey: true });
-    fireEvent.keyDown(input, { key: "k", code: "KeyK", metaKey: true });
-    fireEvent.keyDown(input, { key: "n", code: "KeyN", metaKey: true });
+    for (const target of [textarea, nestedTarget]) {
+      fireEvent.keyDown(target, { key: "˙", code: "KeyH", altKey: true });
+      fireEvent.keyDown(target, { key: "w", code: "KeyW", metaKey: true });
+      fireEvent.keyDown(target, { key: "Tab", code: "Tab", ctrlKey: true });
+      fireEvent.keyDown(target, { key: "ArrowLeft", code: "ArrowLeft", ctrlKey: true });
+    }
     expect(run.mock.calls.map(([id]) => id)).toEqual([
+      "window.focus.left",
       "window.close",
-      "palette.open",
-      "session.new",
+      "window.tab.next",
+      "window.focus.left",
+      "window.focus.left",
+      "window.close",
+      "window.tab.next",
+      "window.focus.left",
     ]);
 
-    // The bare `?` cheatsheet chord yields to typing; the ⌘ one does not.
+    // Unmodified and shift-only chords are typing (WCAG 2.1.4); ⌘Z is text undo
+    // and ⌥← a word jump while a field has focus.
     run.mockClear();
-    fireEvent.keyDown(input, { key: "?", code: "Slash", shiftKey: true });
+    for (const target of [textarea, nestedTarget]) {
+      fireEvent.keyDown(target, { key: "?", code: "Slash", shiftKey: true });
+      fireEvent.keyDown(target, { key: "A", code: "KeyA", shiftKey: true });
+      fireEvent.keyDown(target, { key: "z", code: "KeyZ", metaKey: true });
+      fireEvent.keyDown(target, { key: "ArrowLeft", code: "ArrowLeft", altKey: true });
+    }
     expect(run).not.toHaveBeenCalled();
-    fireEvent.keyDown(input, { key: "/", code: "Slash", metaKey: true });
-    expect(run).toHaveBeenCalledExactlyOnceWith("shortcuts.cheatsheet");
 
-    run.mockClear();
+    fireEvent.keyDown(document, { key: "?", code: "Slash", shiftKey: true });
     fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true });
-    expect(run).toHaveBeenCalledExactlyOnceWith("layout.undo");
-    input.remove();
+    expect(run.mock.calls.map(([id]) => id)).toEqual(["shortcuts.cheatsheet", "layout.undo"]);
+    textarea.remove();
+    editable.remove();
+  });
+
+  it("Should run terminal chords by the platform's shell ownership", () => {
+    const run = vi.fn();
+    const registry = shortcutRegistry({ "window.focus.left": ["alt+KeyH"] });
+    renderHook(() => useOsShortcuts(registry, run, { onEscape: vi.fn() }));
+    const terminal = document.createElement("div");
+    terminal.dataset.slot = "terminal-view";
+    const helper = document.createElement("textarea");
+    terminal.append(helper);
+    document.body.append(terminal);
+
+    fireEvent.keyDown(helper, { key: "˙", code: "KeyH", altKey: true });
+    fireEvent.keyDown(helper, { key: "w", code: "KeyW", metaKey: true });
+    fireEvent.keyDown(helper, { key: "?", code: "Slash", shiftKey: true });
+    expect(run.mock.calls.map(([id]) => id)).toEqual(["window.focus.left", "window.close"]);
+
+    // Off Apple a Ctrl-only chord is the shell's (⌃W deletes a word), except the palette.
+    run.mockClear();
+    vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    fireEvent.keyDown(helper, { key: "w", code: "KeyW", ctrlKey: true });
+    fireEvent.keyDown(helper, { key: "k", code: "KeyK", ctrlKey: true });
+    fireEvent.keyDown(helper, { key: "Tab", code: "Tab", ctrlKey: true, shiftKey: true });
+    expect(run.mock.calls.map(([id]) => id)).toEqual(["palette.open", "window.tab.previous"]);
+    terminal.remove();
   });
 
   it("Should honor live keymap overrides and ignore the shipped chord [UT-051]", () => {
@@ -1292,20 +1335,28 @@ describe("useOsShortcuts", () => {
     expect(run.mock.calls.map(([id]) => id)).toEqual(["window.tab.new", "window.nav.back"]);
   });
 
-  it("Should leave editable descendants and repeated chords untouched [UT-099]", () => {
+  it("Should swallow a held bound chord without repeating it and leave composition alone [UT-099]", () => {
     const run = vi.fn();
-    renderHook(() => useOsShortcuts(shortcutRegistry(), run, { onEscape: vi.fn() }));
-    const editable = document.createElement("div");
-    editable.setAttribute("contenteditable", "true");
-    const nestedTarget = document.createElement("span");
-    editable.append(nestedTarget);
-    document.body.append(editable);
+    const registry = shortcutRegistry({ "window.focus.left": ["alt+KeyH"] });
+    renderHook(() => useOsShortcuts(registry, run, { onEscape: vi.fn() }));
+    const keyDown = (init: KeyboardEventInit) => {
+      const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+      document.dispatchEvent(event);
+      return event;
+    };
 
-    fireEvent.keyDown(nestedTarget, { key: "z", code: "KeyZ", metaKey: true });
-    fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true, repeat: true });
-
+    // Holding ⌥H at the edge must not type ˙˙˙ nor walk focus twice.
+    expect(keyDown({ key: "˙", code: "KeyH", altKey: true, repeat: true }).defaultPrevented).toBe(
+      true
+    );
+    // An unbound held chord, and a chord typed mid-composition, stay with the page.
+    expect(keyDown({ key: "œ", code: "KeyQ", altKey: true, repeat: true }).defaultPrevented).toBe(
+      false
+    );
+    expect(
+      keyDown({ key: "˙", code: "KeyH", altKey: true, isComposing: true }).defaultPrevented
+    ).toBe(false);
     expect(run).not.toHaveBeenCalled();
-    editable.remove();
   });
 
   it("Should dispatch nothing while disabled, so first-run setup blocks the whole set", () => {

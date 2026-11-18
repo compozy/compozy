@@ -1158,7 +1158,7 @@ partial write.
 Window-manager defaults are global desired state and may be overridden by the same typed fields in
 a workspace config overlay. Every field is live-applied as one validated candidate; an invalid
 field writes/applies nothing and leaves the previous active generation in place. Operators can use
-Settings › Layouts, while agents can use `compozy config` or the typed
+Settings › Layouts and Settings › Shortcuts, while agents can use `compozy config` or the typed
 `GET/PATCH /api/settings/window-manager` surface and inspect config apply history.
 
 | Field                   | Type    | Default             | Valid values                              | Description                                                                                                              |
@@ -1201,7 +1201,7 @@ before v0.8.0, which deletes this compatibility path.
 maps action IDs to a chord string or an array of chords. An empty string or array disables an action.
 `desktop.switch` accepts ranges through `Digit1..9`; `window.tab.jump` accepts `Digit1..8`. Range
 members expand before full-map validation, and any duplicate rejects the whole candidate. See
-[Keyboard shortcuts](/docs/configuration/shortcuts/) for defaults, examples, and the Terminal preset.
+[Keyboard shortcuts](/docs/configuration/shortcuts/) for defaults and examples.
 Named any/landscape/portrait layout profiles are declarative `window_layout` resources, not a second
 config source.
 

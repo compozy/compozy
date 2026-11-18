@@ -65,6 +65,7 @@ export function shellFixture(): PaletteShellHandlers {
     cycleSession: vi.fn(),
     focusAttention: vi.fn(),
     openNewTab: vi.fn(),
+    openSplit: vi.fn(),
     activateWindow: vi.fn(),
     focusDirection: vi.fn(),
     openPaletteExecution: vi.fn(),

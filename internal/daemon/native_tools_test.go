@@ -3157,12 +3157,17 @@ func TestDaemonNativeTools(t *testing.T) {
 			})
 		}
 
-		extendedSchemas := map[toolspkg.ToolID]string{
-			toolspkg.ToolIDWindowOpen:     "stack_target_window_id",
-			toolspkg.ToolIDWindowNavigate: "mode",
-			toolspkg.ToolIDWindowClose:    "scope",
+		extendedSchemas := []struct {
+			id       toolspkg.ToolID
+			property string
+		}{
+			{id: toolspkg.ToolIDWindowOpen, property: "stack_target_window_id"},
+			{id: toolspkg.ToolIDWindowOpen, property: "insert_edge"},
+			{id: toolspkg.ToolIDWindowNavigate, property: "mode"},
+			{id: toolspkg.ToolIDWindowClose, property: "scope"},
 		}
-		for id, property := range extendedSchemas {
+		for _, extended := range extendedSchemas {
+			id, property := extended.id, extended.property
 			t.Run(fmt.Sprintf("Should expose %s on %s", property, id), func(t *testing.T) {
 				t.Parallel()
 				matches := byID[id]

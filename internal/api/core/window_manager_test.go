@@ -1849,6 +1849,18 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 			t.Fatal("minimize closed window")
 		}
 		execute("window.close", `{"window_id":"b","minimize":false,"scope":"tab"}`)
+		r = execute(
+			"window.open",
+			`{"window":{"id":"d","app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default","insert_tiled":true,"insert_edge":"bottom"}}`,
+		)
+		if tab := r.Snapshot.Windows["d"].TabID; tab != r.Snapshot.Windows["a"].TabID ||
+			!slices.ContainsFunc(r.Snapshot.Desktops[0].Tabs, func(candidate contract.WindowManagerTab) bool {
+				axis := candidate.Root.Axis
+				return candidate.ID == tab && axis != nil && *axis == windowmanager.AxisVertical
+			}) {
+			t.Fatalf("insert_edge bottom did not split below the anchor: %+v", r.Snapshot.Desktops[0].Tabs)
+		}
+		execute("window.close", `{"window_id":"d","scope":"tab"}`)
 		execute(
 			"window.open",
 			`{"window":{"id":"c","app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default","floating":true,"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5},"insert_tiled":false}}`,

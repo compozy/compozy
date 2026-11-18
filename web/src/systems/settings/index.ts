@@ -25,6 +25,7 @@ export {
 export {
   DEFAULT_SETTINGS_SECTION_SLUG,
   retiredSettingsSectionReplacement,
+  settingsRouteWithMovedShortcutCommand,
 } from "./lib/section-paths";
 export {
   readTerminalSettings,
@@ -159,6 +160,10 @@ export {
   useLayoutsSettingsData,
   type LayoutsSettingsData,
 } from "./hooks/use-layouts-settings-data";
+export {
+  useShortcutsSettingsData,
+  type ShortcutsSettingsData,
+} from "./hooks/use-shortcuts-settings-data";
 export { settingsCmdPaletteOptions } from "./lib/query-options";
 export {
   useWindowManagerBindingMutations,
@@ -170,18 +175,9 @@ export {
   type ShortcutRecorderConflict,
   type ShortcutRecorderModel,
 } from "./hooks/use-window-manager-shortcut-recorder";
-export {
-  useGlobalShortcutRecorder,
-  type GlobalShortcutRecorderModel,
-} from "./hooks/use-global-shortcut-recorder";
+export { useGlobalShortcutRecorder } from "./hooks/use-global-shortcut-recorder";
 export { useWindowManagerKeyboardEditors } from "./hooks/use-window-manager-keyboard-editors";
-export {
-  ALIAS_RULE_HINT,
-  useWindowManagerAliasEditor,
-  type AliasCellState,
-  type AliasConflict,
-  type AliasEditorModel,
-} from "./hooks/use-window-manager-alias-editor";
+export { useWindowManagerAliasEditor } from "./hooks/use-window-manager-alias-editor";
 export {
   buildShortcutTableRows,
   isCommandOverridden,
@@ -316,6 +312,8 @@ export {
   marketplaceCatalogDraftInvalid,
   sameMarketplaceCatalogConfig,
   WindowManagerConfigEditor,
+  WindowManagerGlobalHotkeys,
+  WindowManagerShortcutTable,
 } from "./components";
 export type {
   MarketplaceSourceRowProps,

@@ -648,6 +648,12 @@ const EXECUTION_REGISTRY: PaletteRegistry = (() => {
       section: "Settings",
       action: { kind: "navigate", app: "settings", args: { pathname: "/settings/layouts" } },
     }),
+    executionCommand({
+      id: "settings.shortcuts",
+      title: "Settings → Shortcuts",
+      section: "Settings",
+      action: { kind: "navigate", app: "settings", args: { pathname: "/settings/shortcuts" } },
+    }),
     CAPTURE_COMMAND,
     PURGE_COMMAND,
     UNHEALTHY_COMMAND,
@@ -2317,7 +2323,7 @@ describe("palette execution surfaces", () => {
     // that row instead of on a list the operator has to search again.
     expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledWith({
       app: "settings",
-      route: { pathname: "/settings/layouts", search: { command: "palette.open" } },
+      route: { pathname: "/settings/shortcuts", search: { command: "palette.open" } },
     });
 
     await user.keyboard("{Meta>}k{/Meta}");
@@ -2325,7 +2331,7 @@ describe("palette execution surfaces", () => {
     await user.click(screen.getByTestId("os-palette-action-meta.shortcut"));
     expect(paletteMocks.coordinator.userOpen).toHaveBeenLastCalledWith({
       app: "settings",
-      route: { pathname: "/settings/layouts", search: { command: "palette.open" } },
+      route: { pathname: "/settings/shortcuts", search: { command: "palette.open" } },
     });
   });
 

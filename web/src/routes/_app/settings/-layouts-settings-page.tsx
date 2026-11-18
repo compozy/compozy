@@ -3,11 +3,7 @@ import { useRef, type ReactNode } from "react";
 
 import { Button } from "@compozy/ui";
 
-import {
-  windowManagerApplyMessage,
-  type WindowManagerConfig,
-  type WindowManagerSettingsSection,
-} from "@/systems/os";
+import { windowManagerApplyMessage, type WindowManagerConfig } from "@/systems/os";
 import {
   LayoutProfileGrid,
   LayoutStage,
@@ -19,7 +15,6 @@ import {
   useSettingsSaveBarState,
   useSettingsTopbar,
   useWindowManagerConfigEditor,
-  useWindowManagerKeyboardEditors,
   useWindowManagerLayoutEditor,
   useWindowManagerLayoutProfiles,
   WindowManagerConfigEditor,
@@ -132,34 +127,21 @@ function LayoutSections({
  * global config, and the layout document reviews inside its own card.
  */
 function LayoutsSettingsView({
-  clientId,
   config,
-  focusCommandId,
   layout,
   meta,
   profileName,
   profiles,
-  section,
   workspaceId,
 }: {
-  clientId: string | undefined;
   config: WindowManagerConfig;
-  focusCommandId?: string;
   layout: WindowManagerLayoutState | null;
   meta: ReadonlyArray<{ key: string; content: ReactNode }>;
   profileName: string;
   profiles: readonly WindowManagerLayoutResourceRecord[];
-  section: WindowManagerSettingsSection;
   workspaceId: string;
 }) {
   const configEditor = useWindowManagerConfigEditor(config);
-  // Keyboard state is daemon-owned and applies live, so it writes through its
-  // own path rather than joining the page's draft (US-022.AC-3).
-  const { aliases, globalRecorder, recorder, bindingApply } = useWindowManagerKeyboardEditors(
-    section,
-    workspaceId,
-    clientId
-  );
   const saveBarState = useSettingsSaveBarState({
     isDirty: configEditor.dirty || configEditor.error !== null,
     isInvalid: configEditor.problems.length > 0,
@@ -181,7 +163,7 @@ function LayoutsSettingsView({
 
   return (
     <SettingsPageFrame
-      description="The layout applies from its own Apply button, window settings wait for Save, and shortcuts apply right away."
+      description="The layout applies from its own Apply button, and window settings wait for Save."
       meta={meta}
       saveBar={
         <SettingsSaveBar
@@ -209,21 +191,13 @@ function LayoutsSettingsView({
           workspaceId={workspaceId}
         />
       )}
-      <WindowManagerConfigEditor
-        aliases={aliases}
-        bindingApply={bindingApply}
-        editor={configEditor}
-        focusCommandId={focusCommandId}
-        globalRecorder={globalRecorder}
-        recorder={recorder}
-        section={section}
-      />
+      <WindowManagerConfigEditor editor={configEditor} />
     </SettingsPageFrame>
   );
 }
 
 /** Global window-manager defaults plus the active workspace's authoritative layout. */
-export function LayoutsSettingsPage({ focusCommandId }: { focusCommandId?: string }) {
+export function LayoutsSettingsPage() {
   useSettingsTopbar();
   const data = useLayoutsSettingsData();
 
@@ -233,9 +207,7 @@ export function LayoutsSettingsPage({ focusCommandId }: { focusCommandId?: strin
       <SettingsPageState error={data.error} onRetry={data.retry} slug="layouts" state="error" />
     );
   }
-  if (data.config === null || data.keyboard === null) {
-    return <SettingsPageState slug="layouts" state="loading" />;
-  }
+  if (data.config === null) return <SettingsPageState slug="layouts" state="loading" />;
 
   const meta = [
     data.workspaceName ? { key: "workspace", content: <span>{data.workspaceName}</span> } : null,
@@ -251,14 +223,11 @@ export function LayoutsSettingsPage({ focusCommandId }: { focusCommandId?: strin
 
   return (
     <LayoutsSettingsView
-      clientId={data.clientId}
       config={data.config}
-      focusCommandId={focusCommandId}
       layout={data.layout}
       meta={meta}
       profileName={data.profileName}
       profiles={data.profiles}
-      section={data.keyboard}
       workspaceId={data.workspaceId}
     />
   );

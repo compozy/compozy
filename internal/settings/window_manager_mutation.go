@@ -56,7 +56,7 @@ func normalizeShortcutMutation(
 		return nil, unprocessableError(err)
 	}
 	for attempts := 0; attempts <= len(bindableIDs); attempts++ {
-		_, canonicalErr := windowmanager.CanonicalShortcutsV2(resolved, bindableIDs)
+		_, canonicalErr := windowmanager.CanonicalShortcutsV2Retaining(resolved, current, bindableIDs)
 		if canonicalErr == nil {
 			return resolved, nil
 		}
