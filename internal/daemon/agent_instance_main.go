@@ -86,12 +86,12 @@ func (r instanceMainSessions) Stop(ctx context.Context, id string) error {
 func (r instanceMainSessions) CheckMain(ctx context.Context, id string) error {
 	info, err := r.sessions.StoredStatus(ctx, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("agentinstance: read main session %s: %w", id, err)
 	}
 	if mainStoppedByShutdown(info) {
 		if r.workAdmission != nil {
 			if err := r.workAdmission.Check(ctx); err != nil {
-				return err
+				return fmt.Errorf("agentinstance: check recovery readiness for main session %s: %w", id, err)
 			}
 		}
 		return fmt.Errorf(

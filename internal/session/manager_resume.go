@@ -53,11 +53,7 @@ func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed
 	defer func() {
 		unlockConversation()
 		if err == nil && resumed != nil && dispatch {
-			m.clearLaterReturn(ctx, target)
-			if service := m.ReplyWatches(); service != nil {
-				service.OnSessionResumed(ctx, target)
-			}
-			m.dispatchResumedInputs(ctx, target)
+			m.afterSessionResumed(ctx, target)
 		}
 	}()
 	if m.hasPendingStopSettlement(target) {
@@ -94,6 +90,14 @@ func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed
 		return nil, err
 	}
 	return m.resumeSession(ctx, target)
+}
+
+func (m *Manager) afterSessionResumed(ctx context.Context, id string) {
+	m.clearLaterReturn(ctx, id)
+	if service := m.ReplyWatches(); service != nil {
+		service.OnSessionResumed(ctx, id)
+	}
+	m.dispatchResumedInputs(ctx, id)
 }
 
 func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, error) {

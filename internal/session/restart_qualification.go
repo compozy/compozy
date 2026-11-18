@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	restartBindingUnknownReason = "binding_unknown"
-	restartDisabledReason       = "disabled"
-	restartParentStoppedReason  = "parent_stopped"
+	restartBindingUnknownReason   = "binding_unknown"
+	restartDisabledReason         = "disabled"
+	restartInstanceInactiveReason = "instance_inactive"
+	restartParentStoppedReason    = "parent_stopped"
 )
 
 // QualifyRestartContinuation shares restart safety checks with Loop recovery, whose durable node transition owns retry.

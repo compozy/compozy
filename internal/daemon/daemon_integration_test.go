@@ -4339,18 +4339,22 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 			return err == nil && len(rows) == 1
 		})
 		for _, control := range []struct {
+			name   string
 			id     string
 			reason store.StopReason
 		}{
-			{explicit.MainSessionID, store.StopUserCanceled},
-			{archived.MainSessionID, store.StopUserCanceled},
-			{paused.MainSessionID, store.StopShutdown},
-			{refused.MainSessionID, store.StopShutdown},
+			{"Should retain the explicitly stopped main", explicit.MainSessionID, store.StopUserCanceled},
+			{"Should retain the archived instance's stopped main", archived.MainSessionID, store.StopUserCanceled},
+			{"Should leave the paused instance's main stopped", paused.MainSessionID, store.StopShutdown},
+			{"Should leave the opted-out main stopped", refused.MainSessionID, store.StopShutdown},
 		} {
-			info, err := resumed.Status(t.Context(), control.id)
-			if err != nil || info.State != session.StateStopped || info.StopReason != control.reason {
-				t.Fatalf("control main %s after restart = %+v, %v", control.id, info, err)
-			}
+			t.Run(control.name, func(t *testing.T) {
+				t.Parallel()
+				info, err := resumed.Status(t.Context(), control.id)
+				if err != nil || info.State != session.StateStopped || info.StopReason != control.reason {
+					t.Fatalf("control main %s after restart = %+v, %v", control.id, info, err)
+				}
+			})
 		}
 		status, raw = instanceIntegrationHTTP(
 			t,
