@@ -1,5 +1,31 @@
 # Compozy Change Impact
 
+## Gateway manual 6-digit pairing and device removal — 2026-11-18
+
+Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a1177`.
+
+- **Native tools.** `compozy__gateway` gains the `device_remove` action with required `device_id`
+  and a `remove` result envelope; the descriptor keeps its existing risk, permission and redaction
+  posture. Existing actions and schemas are unchanged.
+- **CLI/HTTP/UDS.** `POST /api/gateway/pairings` adds `manual_code` to the 201 body, and
+  `POST /api/gateway/pairings/redeem` accepts `manual_code` while `artifact` becomes optional.
+  `DELETE /api/gateway/devices/{id}/record` (`removeGatewayDevice`) is new on HTTP and UDS and
+  returns the removed snapshot with `revoked` and `canceled`. The frozen revoke route and payload
+  keep their shape. `compozy device remove` and `compozy pair redeem <artifact-or-code>` are added;
+  `compozy pair mint` prints the manual code beside the private artifact file.
+- **Extensibility, hooks and config.** No config key, hook, extension contract or manifest change.
+  Pairing TTL and pending limits are reused as-is.
+- **State and isolation.** Manual codes live in a hashed code-to-artifact-digest index inside the
+  process-local pairing store, swept and evicted with their entry, and are never persisted. Device
+  records still live per profile in global SQLite; removal honors the actor-scoped revoke epoch and
+  deletes only after the durable `gateway.device.removed` append succeeds. Revoked rows stay listed
+  until explicitly removed.
+- **Web, official skill, docs and QA.** The web lane consumes the additive payload fields and the new
+  route separately. The native tool reference lists `device_remove`, the gateway quickstart, manage,
+  and remote-access pages document the typed code and removal, generated CLI docs include
+  `compozy device remove`, and RT-gateway-paired-device records the new backend receipts without
+  claiming a product walk.
+
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).

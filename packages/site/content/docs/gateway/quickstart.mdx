@@ -123,18 +123,21 @@ compozy pair mint
 
 ```text
 Pairing
+  Manual Code    482913
   Artifact File  ~/.compozy/gateway/credentials/<file>
   Expires        2026-08-09T16:45:00Z
 ```
 
-The pairing code is written to that private file, never to your terminal. On your phone, open
-`https://compozy-gateway.<your-tailnet>.ts.net:8443`, enter the code at the pairing gate, and name
-the device.
+The opaque pairing code is written to that private file, never to your terminal. The six-digit
+manual code is the same pending pairing in a form you can read out and type. On your phone, open
+`https://compozy-gateway.<your-tailnet>.ts.net:8443`, enter either the typed code or the artifact at
+the pairing gate, and name the device.
 
 <OperatorNote>
-  A pairing code is single-use and expires after five minutes by default. Move it through a channel
-  you trust and delete the file after use. Pairing is only ever minted locally or over the private
-  tier — the public address cannot mint or redeem a pairing under any configuration.
+  A pairing code is single-use and expires after five minutes by default, and redeeming either
+  representation spends both. Move it through a channel you trust and delete the file after use.
+  Repeated wrong codes are rate limited per source address. Pairing is only ever minted locally or
+  over the private tier — the public address cannot mint or redeem a pairing under any configuration.
 </OperatorNote>
 
 ## Step 8: Confirm it worked

@@ -4,8 +4,8 @@ area: RT
 title: Pair, manage, and revoke a remote device
 persona: Iris
 journey: J-expose-and-pair-gateway
-expected: A one-time local pairing shown as both QR and copyable text admits exactly one named device, device state agrees across web, HTTP, UDS, and CLI, and revocation closes live work before rejecting the credential.
-entry_points: Web /settings/gateway; UDS POST /api/gateway/pairings; private POST /api/gateway/pairings/redeem; HTTP/UDS /api/gateway/devices; compozy device list -o json
+expected: A one-time local pairing shown as both QR and copyable text, with a readable 6-digit manual code, admits exactly one named device; device state agrees across web, HTTP, UDS, and CLI; revocation closes live work before rejecting the credential, and removal deletes the record only after revoking an active device and appending a durable removal event.
+entry_points: Web /settings/gateway; UDS POST /api/gateway/pairings; private POST /api/gateway/pairings/redeem; HTTP/UDS /api/gateway/devices; HTTP/UDS DELETE /api/gateway/devices/{id}/record; compozy device list -o json; compozy device remove
 qa_status: blocked-verify
 bug_ids:
 fix_status:
@@ -17,8 +17,10 @@ overlaps: RT-gateway-local-only-boot
 ---
 
 This scenario owns the device lifecycle across the operator surface and structured planes: mint,
-single-use redeem, rename, origin and activity display, immediate revoke, self/last-device revoke,
-and the empty inventory. The local daemon remains the recovery root after every device is revoked.
+manual-code and artifact redeem, single-use redeem across both representations, rename, origin and
+activity display, immediate revoke, self/last-device revoke, removal of an active device, removal of
+a revoked device, and the empty inventory. The local daemon remains the recovery root after every
+device is revoked or removed.
 
 QA walk 2026-08-07: local pairing, rename, revoke, empty inventory, and replacement pairing passed
 through product surfaces. The remote tier admission and live-stream cancellation leg remains
@@ -29,3 +31,12 @@ against real HTTP and SQLite without race instrumentation. Both device and app-t
 roll back the in-flight mutation and return HTTP 401 with `gateway_device_revoked` or
 `app_token_revoked`, even though revocation cancels the mutation context. This focused receipt
 does not complete the remote-device walk above.
+
+Backend status 2026-11-18: manual-code format, collision retry, redeem by either representation,
+single use across both, expiry, grouped-input normalization, and per-source redeem rate limiting are
+covered by `TestDeviceCredentialsAndPairing` and `TestGatewayRedeemRateLimiting`. Removal of an
+active device (revoked, streams canceled, row deleted, event appended), removal of a revoked device,
+unknown ids, and an aborted removal when the event append fails are covered by
+`TestDeviceServiceLifecycle` and `TestGatewayDeviceAuditSink`. Those receipts are not a product walk:
+mint, redeem, and removal still need to be exercised through the web UI and a live remote tier before
+this scenario leaves `blocked-verify`.

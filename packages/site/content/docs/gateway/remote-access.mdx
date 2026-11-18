@@ -26,9 +26,10 @@ Remote connections operate the same daemon state as local ones, with one deliber
 
 A remote machine redeems a pairing into a named connection profile.
 
-On the daemon machine, mint a pairing (`compozy pair mint` writes the one-time code to a private
-file and prints its path — see [the quickstart](/docs/gateway/quickstart#step-7-pair-your-device)).
-Move the code to the remote machine through a channel you trust, then:
+On the daemon machine, mint a pairing (`compozy pair mint` writes the opaque one-time code to a
+private file and prints its path, plus the six-digit manual code — see
+[the quickstart](/docs/gateway/quickstart#step-7-pair-your-device)). Move the code to the remote
+machine through a channel you trust, then pass either the artifact file or the typed code:
 
 ```bash
 compozy connect add studio \
