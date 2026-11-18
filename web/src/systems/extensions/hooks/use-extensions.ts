@@ -4,6 +4,7 @@ import {
   extensionInventoryOptions,
   extensionProvenanceOptions,
   extensionsListOptions,
+  removedBuiltinsOptions,
 } from "../lib/query-options";
 import type { InstalledExtensionView, ExtensionInstanceScope } from "../types";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -45,6 +46,11 @@ export function useExtensionInventory(enabled = true) {
 export function useExtensionDetail(name: string) {
   const inventory = useExtensionInventory();
   return { ...inventory, data: inventory.data.find(item => item.extension.name === name) ?? null };
+}
+
+/** Removed built-ins are read only while the caller can restore them; a disabled read stays idle. */
+export function useRemovedBuiltins(enabled = true) {
+  return useQuery(removedBuiltinsOptions(enabled));
 }
 
 export function useExtensionProvenance(name: string, enabled = true) {

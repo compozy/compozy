@@ -14,6 +14,8 @@ import type {
   ExtensionKitInventory,
   ExtensionLogsSnapshot,
   ExtensionProvenance,
+  ExtensionRemovedBuiltin,
+  ExtensionRestoreResult,
   ExtensionUpdateRequest,
 } from "../types";
 
@@ -274,6 +276,38 @@ export async function getExtensionInventory(
     );
   }
   return envelope;
+}
+
+/** Permanently removed built-ins, in the order the daemon lists them. The list is global. */
+export async function listRemovedBuiltinExtensions(
+  signal?: AbortSignal
+): Promise<ExtensionRemovedBuiltin[]> {
+  const { data, error, response } = await apiClient.GET("/api/extensions/removed-builtins", {
+    signal,
+  });
+  const fallback = "Failed to load removed built-ins";
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  const envelope = responseData(data, response, fallback);
+  return requiredArray(envelope.removed, response, fallback, "removed");
+}
+
+/**
+ * Restores one removed built-in at its bundled version, enabled. The daemon answers 409 with a
+ * code (`extension_builtin_not_removed`, `extension_exists`) when the restore cannot proceed.
+ */
+export async function restoreBuiltinExtension(
+  name: string,
+  signal?: AbortSignal
+): Promise<ExtensionRestoreResult> {
+  const { data, error, response } = await apiClient.POST("/api/extensions/{name}/restore", {
+    params: { path: { name } },
+    signal,
+  });
+  const fallback = `Failed to restore ${name}`;
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  const restored = responseData(data, response, fallback);
+  requiredString(restored.name, response, fallback, "name");
+  return restored;
 }
 
 /** Removal selects one instance; `permanent` selects the global built-in and refuses any scope. */

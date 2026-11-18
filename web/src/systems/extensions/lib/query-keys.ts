@@ -25,6 +25,8 @@ export const extensionKeys = {
       extensionProfileKey(profileName),
     ] as const,
   provenance: (name: string) => [...extensionKeys.all, "provenance", name] as const,
+  /** Tombstones are global: bundled rows are global, so the list carries no workspace or profile. */
+  removedBuiltins: () => [...extensionKeys.all, "removed-builtins"] as const,
   logs: (name: string, workspaceId?: string | null, profileName?: string | null) =>
     [
       ...extensionKeys.all,

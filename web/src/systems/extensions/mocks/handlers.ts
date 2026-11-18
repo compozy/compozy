@@ -12,7 +12,12 @@ import {
   extensionProvenanceFixtures,
 } from "./fixtures";
 import type { ExtensionInventoryDiagnostic } from "../lib/extension-skipped-diagnostics";
-import type { ExtensionEntry, ExtensionKitItem, ExtensionLogsSnapshot } from "../types";
+import type {
+  ExtensionEntry,
+  ExtensionKitItem,
+  ExtensionLogsSnapshot,
+  ExtensionRemovedBuiltin,
+} from "../types";
 
 function cloneExtensions(): ExtensionEntry[] {
   return structuredClone(extensionFixtures);
@@ -47,6 +52,8 @@ let inventoryDiagnosticsState = cloneInventoryDiagnostics();
 let devExtensionsState = cloneDevExtensions();
 let extensionLogsState = cloneExtensionLogs();
 let profileEnablementState: Record<string, Record<string, boolean>> = {};
+/** Tombstones from permanent removal, in the order the daemon lists them. */
+let removedBuiltinsState: ExtensionRemovedBuiltin[] = [];
 
 export function resetExtensionMockState(): void {
   extensionsState = cloneExtensions();
@@ -55,6 +62,7 @@ export function resetExtensionMockState(): void {
   devExtensionsState = cloneDevExtensions();
   extensionLogsState = cloneExtensionLogs();
   profileEnablementState = {};
+  removedBuiltinsState = [];
 }
 
 function extensionByName(name: string) {
@@ -278,6 +286,12 @@ export const handlers: HttpHandler[] = [
         { status: 422 }
       );
     }
+    if (permanent) {
+      removedBuiltinsState = [
+        ...removedBuiltinsState,
+        { name, removed_at: new Date().toISOString(), removed_by: "operator" },
+      ];
+    }
     extensionsState = extensionsState.filter(extension => extension.name !== name);
     return HttpResponse.json({
       extension: {
@@ -287,6 +301,44 @@ export const handlers: HttpHandler[] = [
         status: "removed",
         tombstoned_at: permanent ? new Date().toISOString() : "",
       },
+    });
+  }),
+  compozyApiMock.get("/api/extensions/removed-builtins", () =>
+    HttpResponse.json({ removed: removedBuiltinsState })
+  ),
+  compozyApiMock.post("/api/extensions/{name}/restore", ({ params }) => {
+    const name = String(params.name);
+    if (!removedBuiltinsState.some(item => item.name === name)) {
+      return HttpResponse.json(
+        { code: "extension_builtin_not_removed", error: `${name} is not permanently removed` },
+        { status: 409 }
+      );
+    }
+    const installed = extensionByName(name);
+    if (installed && installed.source !== "bundled") {
+      return HttpResponse.json(
+        {
+          code: "extension_exists",
+          error: `${name} is already installed from ${installed.source}; remove it first`,
+        },
+        { status: 409 }
+      );
+    }
+    removedBuiltinsState = removedBuiltinsState.filter(item => item.name !== name);
+    const restored: ExtensionEntry = {
+      ...structuredClone(extensionFixtures[0]!),
+      name,
+      enabled: true,
+      source: "bundled",
+    };
+    extensionsState = [...extensionsState.filter(item => item.name !== name), restored];
+    return HttpResponse.json({
+      name,
+      status: "restored",
+      source: "bundled",
+      version: restored.version,
+      enabled: true,
+      path: `/var/lib/compozy/extensions/${name}`,
     });
   }),
 ];
