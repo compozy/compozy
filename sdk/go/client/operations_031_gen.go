@@ -51,6 +51,22 @@ func (c *Client) RemoveExtension(ctx context.Context, params RemoveExtensionPara
 	return &out, nil
 }
 
+// RemoveGatewayDeviceParams carries the path, query, and header parameters.
+type RemoveGatewayDeviceParams struct {
+	ID string `url:"id"`
+}
+
+// RemoveGatewayDevice Remove one paired gateway device record
+func (c *Client) RemoveGatewayDevice(ctx context.Context, params RemoveGatewayDeviceParams) (*GatewayRemovedDevicePayload, error) {
+	path := "/api/gateway/devices/{id}/record"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out GatewayRemovedDevicePayload
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RemoveMarketplaceSourceParams carries the path, query, and header parameters.
 type RemoveMarketplaceSourceParams struct {
 	Name string `url:"name"`
@@ -412,33 +428,4 @@ type ReplaceAgentMemoryParams struct {
 	Name      string  `url:"name"`
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// ReplaceAgentMemory Replace matching memory text (experimental) Experimental: pin the exact SDK version.
-func (c *Client) ReplaceAgentMemory(ctx context.Context, params ReplaceAgentMemoryParams, body AgentMemoryReplaceRequest) (*AgentMemoryDocument, error) {
-	path := "/api/agents/{name}/memory/entries"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentMemoryDocument
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReplaceSessionInputParams carries the path, query, and header parameters.
-type ReplaceSessionInputParams struct {
-	WorkspaceID  string  `url:"workspace_id"`
-	SessionID    string  `url:"session_id"`
-	QueueEntryID string  `url:"queue_entry_id"`
-	Profile      *string `url:"profile"`
 }

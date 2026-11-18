@@ -868,6 +868,65 @@ func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
 			t.Fatalf("stale actor committed target name %q", unchanged.Name)
 		}
 	})
+
+	t.Run("Should delete a device record only under a live actor fence", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		database := openTestGlobalDB(t)
+		createdAt := time.Date(2026, 8, 6, 14, 0, 0, 0, time.UTC)
+		actor := gateway.StoredDeviceSession{
+			Session: gateway.DeviceSession{
+				ID: "delete-actor", Name: "Actor", ActorKind: gateway.ActorKindOperatorDevice,
+				PairingOrigin: "local", CreatedAt: createdAt,
+			},
+			TokenHash: strings.Repeat("e", 64),
+		}
+		target := gateway.StoredDeviceSession{
+			Session: gateway.DeviceSession{
+				ID: "delete-target", Name: "Target", ActorKind: gateway.ActorKindCLIProfile,
+				PairingOrigin: "private", CreatedAt: createdAt,
+			},
+			TokenHash: strings.Repeat("f", 64),
+		}
+		for _, record := range []gateway.StoredDeviceSession{actor, target} {
+			if err := database.CreateDevice(ctx, record); err != nil {
+				t.Fatalf("CreateDevice(%q) error = %v", record.Session.ID, err)
+			}
+		}
+		deleted, err := database.DeleteDeviceForActor(
+			ctx,
+			actor.Session.ID,
+			actor.Session.RevokeEpoch,
+			target.Session.ID,
+		)
+		if err != nil || deleted.ID != target.Session.ID || deleted.Name != "Target" {
+			t.Fatalf("DeleteDeviceForActor() = (%#v, %v)", deleted, err)
+		}
+		if _, err := database.GetDevice(ctx, target.Session.ID); !errors.Is(err, gateway.ErrDeviceNotFound) {
+			t.Fatalf("GetDevice(deleted) error = %v, want ErrDeviceNotFound", err)
+		}
+		if _, err := database.DeleteDevice(ctx, target.Session.ID); !errors.Is(
+			err,
+			gateway.ErrDeviceNotFound,
+		) {
+			t.Fatalf("DeleteDevice(absent) error = %v, want ErrDeviceNotFound", err)
+		}
+		if _, _, err := database.RevokeDevice(ctx, actor.Session.ID, createdAt.Add(time.Minute)); err != nil {
+			t.Fatalf("RevokeDevice(actor) error = %v", err)
+		}
+		if _, err := database.DeleteDeviceForActor(
+			ctx,
+			actor.Session.ID,
+			actor.Session.RevokeEpoch,
+			actor.Session.ID,
+		); !errors.Is(err, gateway.ErrDeviceRevoked) {
+			t.Fatalf("DeleteDeviceForActor(stale actor) error = %v, want ErrDeviceRevoked", err)
+		}
+		if _, err := database.GetDevice(ctx, actor.Session.ID); err != nil {
+			t.Fatalf("GetDevice(actor) error = %v, want retained record", err)
+		}
+	})
 }
 
 // Invariant: app credentials remain hash-only, isolated, origin-scoped and revocable; owner: gateway with SQLite.

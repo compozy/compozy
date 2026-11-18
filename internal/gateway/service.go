@@ -144,6 +144,10 @@ func (s *Service) RevokeDevice(ctx context.Context, deviceID string) (RevokeResu
 	return s.devices.RevokeDevice(ctx, deviceID)
 }
 
+func (s *Service) RemoveDevice(ctx context.Context, deviceID string) (RemoveResult, error) {
+	return s.devices.RemoveDevice(ctx, deviceID)
+}
+
 func (s *Service) RenameDevice(ctx context.Context, deviceID, name string) (DeviceSession, error) {
 	return s.devices.RenameDevice(ctx, deviceID, name)
 }

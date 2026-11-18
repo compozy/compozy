@@ -12,11 +12,14 @@ const (
 	specAPIGatewayPairingRedeemPath  = specAPIGatewayPairingsPath + "/redeem"
 	specAPIGatewayDevicesPath        = specAPIGatewayPath + "/devices"
 	specAPIGatewayDevicesIDPath      = specAPIGatewayDevicesPath + "/{id}"
+	specAPIGatewayDevicesRecordPath  = specAPIGatewayDevicesIDPath + "/record"
 	specAPIGatewayStreamTicketsPath  = specAPIGatewayPath + "/stream-tickets"
 	specAPIGatewayIngressPath        = specAPIGatewayPath + "/ingress-bindings"
 	specAPIGatewayIngressSubjectPath = specAPIGatewayIngressPath + "/{subject_kind}/{subject_id}"
 
 	specBinaryContentType = "*/*"
+
+	specGatewayDeviceNotFoundDescription = "Gateway device not found"
 )
 
 func registryGatewayOperations() []OperationSpec {
@@ -31,6 +34,7 @@ func registryGatewayOperations() []OperationSpec {
 		gatewayDeviceListOperation(),
 		gatewayDeviceRenameOperation(),
 		gatewayDeviceRevokeOperation(),
+		gatewayDeviceRemoveOperation(),
 		gatewayStreamTicketOperation(),
 		gatewayIngressBindOperation(),
 		gatewayIngressUnbindOperation(),
@@ -324,7 +328,7 @@ func gatewayDeviceRenameOperation() OperationSpec {
 				Description: "Invalid gateway device name",
 				Body:        contract.ErrorPayload{},
 			},
-			{Status: 404, Description: "Gateway device not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specGatewayDeviceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{
 				Status:      500,
 				Description: specInternalServerErrorDescription,
@@ -344,7 +348,27 @@ func gatewayDeviceRevokeOperation() OperationSpec {
 		Parameters: []ParameterSpec{pathParam("id", "Gateway device id")},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Revoked", Body: contract.GatewayRevokePayload{}},
-			{Status: 404, Description: "Gateway device not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specGatewayDeviceNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      500,
+				Description: specInternalServerErrorDescription,
+				Body:        contract.ErrorPayload{},
+			},
+		},
+	}
+}
+
+func gatewayDeviceRemoveOperation() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodDelete, Path: specAPIGatewayDevicesRecordPath,
+		AppAccess:   AppAccessDenied,
+		OperationID: "removeGatewayDevice", Summary: "Remove one paired gateway device record",
+		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Auth:       gatewayManagementAuth(),
+		Parameters: []ParameterSpec{pathParam("id", "Gateway device id")},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Removed", Body: contract.GatewayRemovedDevicePayload{}},
+			{Status: 404, Description: specGatewayDeviceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{
 				Status:      500,
 				Description: specInternalServerErrorDescription,

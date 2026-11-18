@@ -80,6 +80,24 @@ SELECT EXISTS (
     AND revoked_at IS NULL
 );
 
+-- name: DeleteGatewayDevice :one
+DELETE FROM gateway_device_sessions
+WHERE id = sqlc.arg(id) AND actor_kind <> 'app_token'
+RETURNING *;
+
+-- name: DeleteGatewayDeviceForActor :one
+DELETE FROM gateway_device_sessions
+WHERE gateway_device_sessions.id = sqlc.arg(target_id)
+  AND gateway_device_sessions.actor_kind <> 'app_token'
+  AND EXISTS (
+    SELECT 1
+    FROM gateway_device_sessions AS actor
+    WHERE actor.id = sqlc.arg(actor_id)
+      AND actor.revoke_epoch = sqlc.arg(actor_epoch)
+      AND actor.revoked_at IS NULL
+  )
+RETURNING *;
+
 -- name: CountActiveGatewayDeviceSessions :one
 SELECT count(*)
 FROM gateway_device_sessions

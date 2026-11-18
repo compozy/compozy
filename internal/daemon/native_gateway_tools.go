@@ -21,6 +21,7 @@ const (
 	gatewayActionProviderDisable = "provider_disable"
 	gatewayActionDeviceRename    = "device_rename"
 	gatewayActionDeviceRevoke    = "device_revoke"
+	gatewayActionDeviceRemove    = "device_remove"
 	gatewayActionIngressBind     = "ingress_bind"
 	gatewayActionIngressUnbind   = "ingress_unbind"
 )
@@ -50,6 +51,7 @@ type nativeGatewayResult struct {
 	Devices  *[]contract.GatewayDevicePayload        `json:"devices,omitzero"`
 	Device   *contract.GatewayDevicePayload          `json:"device,omitzero"`
 	Revoke   *contract.GatewayRevokePayload          `json:"revoke,omitzero"`
+	Remove   *contract.GatewayRemovedDevicePayload   `json:"remove,omitzero"`
 	Binding  *contract.GatewayIngressBindingResponse `json:"binding,omitzero"`
 	Unbind   *contract.GatewayIngressUnbindResponse  `json:"unbind,omitzero"`
 }
@@ -199,6 +201,13 @@ func (n *daemonNativeTools) executeGatewayMutationAction(
 		result.Revoke = &contract.GatewayRevokePayload{
 			Device: core.GatewayDevicePayload(revoked.Device), Changed: revoked.Changed, Canceled: revoked.Canceled,
 		}
+	case gatewayActionDeviceRemove:
+		removed, err := n.gatewayDeviceRemove(ctx, request.toolID, request.input)
+		if err != nil {
+			return nativeGatewayResult{}, err
+		}
+		payload := core.GatewayRemovedDevicePayload(removed)
+		result.Remove = &payload
 	default:
 		return nativeGatewayResult{}, nativeGatewayInputError(request.toolID, "action", "unsupported gateway action")
 	}

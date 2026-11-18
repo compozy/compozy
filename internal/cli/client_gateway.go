@@ -30,6 +30,7 @@ type gatewayClientAPI interface {
 	ListGatewayDevices(context.Context) ([]contract.GatewayDevicePayload, error)
 	RenameGatewayDevice(context.Context, string, string) (contract.GatewayDevicePayload, error)
 	RevokeGatewayDevice(context.Context, string) (contract.GatewayRevokePayload, error)
+	RemoveGatewayDevice(context.Context, string) (contract.GatewayRemovedDevicePayload, error)
 }
 
 type gatewayPairingRequestError struct {
@@ -181,6 +182,18 @@ func (c *daemonClient) RevokeGatewayDevice(
 	var response contract.GatewayRevokePayload
 	if err := c.doJSON(ctx, http.MethodDelete, path, nil, nil, &response); err != nil {
 		return contract.GatewayRevokePayload{}, err
+	}
+	return response, nil
+}
+
+func (c *daemonClient) RemoveGatewayDevice(
+	ctx context.Context,
+	id string,
+) (contract.GatewayRemovedDevicePayload, error) {
+	path := "/api/gateway/devices/" + url.PathEscape(strings.TrimSpace(id)) + "/record"
+	var response contract.GatewayRemovedDevicePayload
+	if err := c.doJSON(ctx, http.MethodDelete, path, nil, nil, &response); err != nil {
+		return contract.GatewayRemovedDevicePayload{}, err
 	}
 	return response, nil
 }

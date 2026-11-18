@@ -159,7 +159,13 @@ func GatewayIssuedCredentialPayload(issued gateway.IssuedCredential) contract.Ga
 
 func GatewayPairingArtifactPayload(artifact gateway.PairingArtifact) contract.GatewayPairingArtifactPayload {
 	return contract.GatewayPairingArtifactPayload{
-		Artifact: artifact.Artifact, ExpiresAt: artifact.ExpiresAt,
+		Artifact: artifact.Artifact, ManualCode: artifact.ManualCode, ExpiresAt: artifact.ExpiresAt,
+	}
+}
+
+func GatewayRemovedDevicePayload(result gateway.RemoveResult) contract.GatewayRemovedDevicePayload {
+	return contract.GatewayRemovedDevicePayload{
+		Device: GatewayDevicePayload(result.Device), Revoked: result.Revoked, Canceled: result.Canceled,
 	}
 }
 
