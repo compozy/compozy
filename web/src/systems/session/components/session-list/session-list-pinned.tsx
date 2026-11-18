@@ -3,7 +3,10 @@ import { useId } from "react";
 
 import { Icon } from "@compozy/ui";
 
-import type { SessionListViewModel } from "../../hooks/use-session-list-view";
+import type {
+  SessionListPinnedRead,
+  SessionListViewModel,
+} from "../../hooks/use-session-list-view";
 import { buildSessionListThreads } from "../../lib/session-list-threads";
 import {
   SESSION_LIST_PINNED_FOLD_KEY,
@@ -38,17 +41,8 @@ export interface SessionListPinnedProps {
  * the unpin). Its rows are not drag sources and carry no folder or order verbs. No pins, or a
  * search that matches none, shows no section.
  */
-export function SessionListPinned({
-  view,
-  filtering,
-  collapsedThreads,
-  subagentThreads,
-  currentSessionId,
-  onThreadBranchChange,
-  onSelectSession,
-  sessionActions,
-  testIdPrefix,
-}: SessionListPinnedProps) {
+export function SessionListPinned(props: SessionListPinnedProps) {
+  const { view, filtering, testIdPrefix } = props;
   const headerId = useId();
   const pinned = view.pinned;
   if (!pinned || pinned.loading) return null;
@@ -59,16 +53,7 @@ export function SessionListPinned({
   }
   // A page emptied by an unpin keeps the section while other pages hold pins, so Previous stays.
   if (pinned.sessions.length === 0 && !pinned.more) return null;
-  const threads = buildSessionListThreads(pinned.sessions, "");
   const collapsed = view.collapsedGroupKeys.has(SESSION_LIST_PINNED_FOLD_KEY);
-  const ownerOf = view.aggregate ? view.ownerOf : undefined;
-  // A search narrows the rows, so a count would name what the search hides; past the page, "100+".
-  // It counts pins, not threads: a pinned child nests under its pinned parent yet is its own pin.
-  const count = filtering
-    ? null
-    : pinned.more
-      ? `${SESSION_LIST_PINNED_LIMIT}+`
-      : pinned.sessions.length;
   return (
     <section
       role="group"
@@ -80,7 +65,7 @@ export function SessionListPinned({
       <div className="flex min-h-7 min-w-0 items-center gap-1 rounded-sm">
         <SessionListGroupToggle
           collapsed={collapsed}
-          count={count}
+          count={sessionListPinnedCount(pinned, filtering)}
           identity={
             <span id={headerId} className="flex min-w-0 items-center gap-1.5 font-medium text-fg">
               <Icon as={Pin} size="sm" className="shrink-0 text-faint" aria-hidden="true" />
@@ -91,33 +76,61 @@ export function SessionListPinned({
           testId={`${testId}-toggle`}
         />
       </div>
-      {collapsed ? null : (
-        <SessionListPinnedSectionContext value>
-          <SessionListBadgeContext value={view.badgeOf}>
-            <div className="flex flex-col gap-0.5">
-              {threads.map(thread => (
-                <SessionListThread
-                  key={thread.session.id}
-                  session={thread.session}
-                  childSessions={thread.childSessions}
-                  currentSessionId={currentSessionId}
-                  owner={ownerOf?.(thread.session)}
-                  ownerOf={ownerOf}
-                  collapsed={collapsedThreads.has(thread.session.id)}
-                  subagentThreads={subagentThreads}
-                  onThreadBranchChange={onThreadBranchChange}
-                  onSelectSession={onSelectSession}
-                  sessionActions={sessionActions}
-                  testIdPrefix={testIdPrefix}
-                />
-              ))}
-            </div>
-          </SessionListBadgeContext>
-          {pinned.catalog && (pinned.more || pinned.failed) ? (
-            <SessionListCatalogNavigation catalog={pinned.catalog} />
-          ) : null}
-        </SessionListPinnedSectionContext>
-      )}
+      {collapsed ? null : <SessionListPinnedRows {...props} pinned={pinned} />}
     </section>
+  );
+}
+
+/**
+ * The header count: a search narrows the rows, so a count would name what the search hides; past
+ * the page, "100+". It counts pins, not threads: a pinned child nests under its pinned parent yet
+ * is its own pin.
+ */
+function sessionListPinnedCount(
+  pinned: SessionListPinnedRead,
+  filtering: boolean
+): number | string | null {
+  if (filtering) return null;
+  return pinned.more ? `${SESSION_LIST_PINNED_LIMIT}+` : pinned.sessions.length;
+}
+
+function SessionListPinnedRows({
+  view,
+  pinned,
+  collapsedThreads,
+  subagentThreads,
+  currentSessionId,
+  onThreadBranchChange,
+  onSelectSession,
+  sessionActions,
+  testIdPrefix,
+}: SessionListPinnedProps & { pinned: SessionListPinnedRead }) {
+  const threads = buildSessionListThreads(pinned.sessions, "");
+  const ownerOf = view.aggregate ? view.ownerOf : undefined;
+  const paged = pinned.more || pinned.failed;
+  return (
+    <SessionListPinnedSectionContext value>
+      <SessionListBadgeContext value={view.badgeOf}>
+        <div className="flex flex-col gap-0.5">
+          {threads.map(thread => (
+            <SessionListThread
+              key={thread.session.id}
+              session={thread.session}
+              childSessions={thread.childSessions}
+              currentSessionId={currentSessionId}
+              owner={ownerOf?.(thread.session)}
+              ownerOf={ownerOf}
+              collapsed={collapsedThreads.has(thread.session.id)}
+              subagentThreads={subagentThreads}
+              onThreadBranchChange={onThreadBranchChange}
+              onSelectSession={onSelectSession}
+              sessionActions={sessionActions}
+              testIdPrefix={testIdPrefix}
+            />
+          ))}
+        </div>
+      </SessionListBadgeContext>
+      {pinned.catalog && paged ? <SessionListCatalogNavigation catalog={pinned.catalog} /> : null}
+    </SessionListPinnedSectionContext>
   );
 }
