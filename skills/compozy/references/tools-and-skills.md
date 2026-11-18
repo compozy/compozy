@@ -229,6 +229,9 @@ logout but status reports that login is required; begin a new authorization for 
 
 Tool discovery and execution renew expired OAuth tokens using that target's persisted client
 registration. Refresh does not require another login callback or register a replacement client.
+For a client ID metadata document (CIMD), renewal uses the persisted document URL as the public
+client ID and sends no client secret. CIMD registrations from earlier releases renew the same
+way when their bindings still match and a refresh token is present.
 If the registration no longer matches or its client secret has expired, authorize that target again.
 Refreshing or logging out an extension-owned MCP leaves manual MCP credentials unchanged.
 

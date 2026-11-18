@@ -24,6 +24,11 @@ func WithClientMetadataURL(raw string) ServiceOption {
 	return func(service *Service) { service.clientMetadataURL = strings.TrimSpace(raw) }
 }
 
+// WithRedirectURI supplies the configured callback URI for CIMD renewal. Empty leaves callback binding to the caller.
+func WithRedirectURI(raw string) ServiceOption {
+	return func(service *Service) { service.redirectURI = strings.TrimSpace(raw) }
+}
+
 // withHTTPClientForTest bypasses the production network policy for local test fixtures.
 func withHTTPClientForTest(client *http.Client) ServiceOption {
 	return func(service *Service) {

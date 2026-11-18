@@ -307,6 +307,72 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 			testSettingsMCPAuthRecovery(t, manual)
 		})
 	}
+	t.Run("Should discover tools by renewing an expired token from a stored CIMD registration", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{ClientIDMetadataDocumentSupported: true, OmitRefreshScope: true})
+		db := openDaemonTestGlobalDB(t)
+		const redirectURI = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+		oauthConfig := compozyconfig.MCPOAuthConfig{RedirectURI: redirectURI}
+		manager, err := newSettingsMCPAuthManagerWithAuthorization(db, nil, db, nil, oauthConfig, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		surface := &settingsRuntimeSurface{
+			digestKey: []byte("test installation key"), mcpAuthStore: db, mcpAuthManager: manager,
+			config: compozyconfig.Config{MCP: compozyconfig.MCPConfig{OAuth: oauthConfig}},
+		}
+		target := globalMCPTestTarget("cimd-fixture")
+		server := compozyconfig.MCPServer{
+			Name: target.ServerName, Transport: compozyconfig.MCPServerTransportHTTP, URL: fixture.Endpoints.MCPURL,
+		}
+		cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, server, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const clientID = "https://client.example/.well-known/mcp-client.json"
+		if _, err := db.SaveMCPAuthRegistration(ctx, mcpauth.ClientRegistration{
+			Target: target, DefinitionFingerprint: fingerprint, ResourceURL: fixture.Endpoints.MCPURL,
+			Issuer: fixture.Endpoints.IssuerURL, ClientID: clientID,
+			RedirectURL: redirectURI,
+		}, mcpauth.RegistrationSecrets{}); err != nil {
+			t.Fatal(err)
+		}
+		expiredAt := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		if err := db.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
+			Target: target, DefinitionFingerprint: fingerprint, Issuer: fixture.Endpoints.IssuerURL,
+			ClientID: clientID, AccessToken: "expired-fixture-access", RefreshToken: mcpfixture.RefreshToken,
+			Scopes: []string{"tools.read"}, ObtainedAt: expiredAt.Add(-time.Hour), ExpiresAt: expiredAt,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		before, err := surface.MCPAuthStatus(ctx, target, server)
+		if err != nil || before.Status != mcpauth.StatusExpired || !before.Refreshable || !before.TokenPresent {
+			t.Fatalf("expired auth status = %+v, err = %v", before, err)
+		}
+		runtime, err := surface.MCPServerRuntimeStatus(ctx, target, server)
+		if err != nil || runtime.State != settingspkg.MCPServerRuntimeStateReady || runtime.ToolCount == 0 {
+			t.Fatalf("discovery across CIMD expiry: %+v, err = %v", runtime, err)
+		}
+		after, err := surface.MCPAuthStatus(ctx, target, server)
+		if err != nil || after.Status != mcpauth.StatusAuthenticated || !after.Refreshable || !after.TokenPresent {
+			t.Fatalf("renewed auth status = %+v, err = %v", after, err)
+		}
+		if !slices.Equal(after.Scopes, []string{"tools.read"}) {
+			t.Fatalf("renewed auth status scopes = %v, want tools.read", after.Scopes)
+		}
+		requests := fixture.Requests()
+		if len(requests.Registration) != 0 || len(requests.Token) != 1 ||
+			requests.Token[0].Get("grant_type") != "refresh_token" || requests.Token[0].Get("client_id") != clientID ||
+			requests.Token[0].Has("client_secret") {
+			t.Fatal("discovery did not renew through the original CIMD client")
+		}
+	})
 	t.Run("Should discover and complete OAuth for optional plugin header credentials", func(t *testing.T) {
 		t.Parallel()
 		fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026),

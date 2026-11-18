@@ -58,6 +58,7 @@ func (d *Daemon) newDaemonMCPToolProvider(
 			options,
 			mcppkg.WithTokenStore(store),
 			mcppkg.WithAuthMutationGeneration(state.mcpAuthGeneration),
+			mcppkg.WithAuthRedirectURI(state.cfg.MCP.OAuth.RedirectURI),
 		)
 	}
 	executor, err := mcppkg.NewMCPCallExecutor(resolver, options...)

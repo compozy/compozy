@@ -88,3 +88,14 @@ Return a transient error: credentials and advertised tools remain; requests duri
 send no additional OAuth traffic, and a later successful attempt recovers. Capture refresh logs
 with server, cause class and attempt count, and verify access/refresh tokens, codes, verifiers and
 client secrets are absent. An expired dynamic-client secret is not a usable refresh path.
+
+QA impact 2026-11-18 (#1828): authorize through a valid HTTPS client ID metadata document
+(CIMD), expire the access token and check `compozy mcp auth status` or the auth status route.
+Expect `expired`, `token_present=true`, and `refreshable=true`. Discover tools and confirm
+the authorization server receives a refresh grant with the same document URL as `client_id`
+and no client secret. Status returns to `authenticated` and tools are available. Repeat with
+a pre-upgrade registration whose auth method is empty. Expect the same result with no callback
+or new registration. Verify that an omitted `scope` on refresh preserves the granted scopes in
+status, and that changing the configured CIMD redirect URI disables renewal until reauthorization.
+The isolated SQLite and HTTP path is covered by
+`TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback`.

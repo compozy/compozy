@@ -104,7 +104,7 @@ func (s *Service) hostedRefreshConfig(
 	if err != nil {
 		return ServerConfig{}, Metadata{}, err
 	}
-	registration, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
+	registration, err := s.loadTokenRegistration(ctx, cfg.Target)
 	if err != nil {
 		return ServerConfig{}, Metadata{}, fmt.Errorf("mcp auth: load registration for refresh: %w", err)
 	}

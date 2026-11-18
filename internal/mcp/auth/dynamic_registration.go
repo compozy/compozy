@@ -85,6 +85,24 @@ func (s *Service) dynamicClientRegistration(
 	return registration.ClientID, secret, registration.TokenEndpointAuthMethod, nil
 }
 
+func (s *Service) loadTokenRegistration(ctx context.Context, target Target) (ClientRegistration, error) {
+	registration, err := s.registrations.GetMCPAuthRegistration(ctx, target)
+	// CIMD has no server-issued auth method, while DCR persists one even for public clients.
+	if err == nil && registration.TokenEndpointAuthMethod == "" && registration.hasCIMDIdentity() &&
+		(s.redirectURI == "" || s.redirectURI == strings.TrimSpace(registration.RedirectURL)) {
+		registration.TokenEndpointAuthMethod = tokenEndpointAuthMethodNone
+	}
+	return registration, err
+}
+
+func (r ClientRegistration) hasCIMDIdentity() bool {
+	if r.ClientSecretRef != "" || r.RegistrationAccessTokenRef != "" || r.RegistrationClientURI != "" ||
+		!r.ClientIDIssuedAt.IsZero() || !r.ClientSecretExpiresAt.IsZero() {
+		return false
+	}
+	return validateClientMetadataURL(r.ClientID) == nil
+}
+
 func (s *Service) dynamicRegistrationReusable(
 	existing ClientRegistration,
 	cfg ServerConfig,

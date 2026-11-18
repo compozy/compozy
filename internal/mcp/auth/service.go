@@ -39,6 +39,7 @@ type Service struct {
 	generation        *MutationGeneration
 	secretResolver    SecretRefResolver
 	clientMetadataURL string
+	redirectURI       string
 	logger            *slog.Logger
 	refreshBackoff    time.Duration
 	refreshBackoffMax time.Duration
@@ -309,7 +310,11 @@ func (s *Service) tokenRecordFromResponse(
 	}
 	scopes := trimStrings(strings.Fields(resp.Scope))
 	if len(scopes) == 0 {
-		scopes = trimStrings(cfg.Scopes)
+		if current.AccessToken != "" {
+			scopes = trimStrings(current.Scopes)
+		} else {
+			scopes = trimStrings(cfg.Scopes)
+		}
 	}
 	expiresAt := time.Time{}
 	if resp.ExpiresIn.present {

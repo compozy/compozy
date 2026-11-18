@@ -26,6 +26,26 @@ Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a117
   `compozy device remove`, and RT-gateway-paired-device records the new backend receipts without
   claiming a product walk.
 
+## MCP OAuth refresh for CIMD clients
+
+Owner: [#1828](https://github.com/compozy/compozy/issues/1828).
+
+- **Native tools and CLI/HTTP/UDS.** MCP status reports a usable CIMD registration with a stored
+  refresh token as refreshable. Discovery and calls use the existing refresh path with the
+  persisted public client ID and keep the granted scopes when a renewal response omits `scope`.
+  The status fields, command flags and API routes keep their shapes.
+- **Extensibility, hooks and config.** Manual and extension-owned servers share the repair.
+  Registration strategy, configuration keys, hooks and SDK contracts stay the same.
+- **State and isolation.** The OAuth token registration loader resolves public-client auth for
+  new and existing CIMD rows in memory. DCR records keep their stored auth method and reuse rules.
+  SQLite rows keep their shape. The target, definition, resource, issuer and scope checks still
+  apply. CIMD renewal checks the configured callback URI, and a concurrent client replacement
+  cannot send a refresh token with the replacement client ID.
+- **Web, official skill, docs and QA.** Settings omits manual reauthorization for expiry alone
+  when the token can renew and retains it when the runtime reports a failed refresh.
+  The MCP skill reference and the ET-api-mcp-oauth-endpoints and
+  ET-web-mcp-status-matrix scenarios cover automatic renewal of new and existing CIMD clients.
+
 ## MCP OAuth root protected-resource discovery
 
 Owner: [#1823](https://github.com/compozy/compozy/issues/1823).

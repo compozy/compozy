@@ -115,7 +115,7 @@ func (s *Service) tokenBinding(
 			"mcp auth: registration store is required to validate token binding",
 		)
 	}
-	registration, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
+	registration, err := s.loadTokenRegistration(ctx, cfg.Target)
 	if err != nil {
 		if errors.Is(err, ErrRegistrationNotFound) {
 			return false, nil, nil
