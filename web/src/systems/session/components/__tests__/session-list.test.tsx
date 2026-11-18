@@ -2281,6 +2281,32 @@ describe("SessionList Pinned", () => {
     expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent(/^Pinned$/);
     update([], { ...view, pinned: pinnedRead([]) });
     expect(screen.queryByTestId("session-sidebar-pinned")).not.toBeInTheDocument();
+
+    // The count names pins, not threads: a pinned child nests under its pinned parent.
+    const pinnedChild: SessionPayload = {
+      ...pinned,
+      id: "pinned-child",
+      name: "Launch copy",
+      lineage: {
+        spawn_role: "worker",
+        parent_session_id: pinned.id,
+        root_session_id: pinned.id,
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    update([], { ...view, pinned: pinnedRead([pinned, pinnedChild]) });
+    expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent("Pinned2");
+
+    // While the pins are still being read, the list below is not declared empty yet.
+    const settled = { ...view, catalog: sessionListCatalogFixture() };
+    update([], { ...settled, pinned: pinnedRead([]) });
+    expect(screen.getByText(/^No sessions/)).toBeVisible();
+    update([], { ...settled, pinned: { ...pinnedRead([]), loading: true } });
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
   });
 
   it("Should pin a row from its button and unpin a pinned row from its menu", async () => {

@@ -60,7 +60,12 @@ export function SessionListPinned({
   const collapsed = view.collapsedGroupKeys.has(SESSION_LIST_PINNED_FOLD_KEY);
   const ownerOf = view.aggregate ? view.ownerOf : undefined;
   // A search narrows the rows, so a count would name what the search hides; past the page, "100+".
-  const count = filtering ? null : pinned.more ? `${SESSION_LIST_PINNED_LIMIT}+` : threads.length;
+  // It counts pins, not threads: a pinned child nests under its pinned parent yet is its own pin.
+  const count = filtering
+    ? null
+    : pinned.more
+      ? `${SESSION_LIST_PINNED_LIMIT}+`
+      : pinned.sessions.length;
   return (
     <section
       role="group"

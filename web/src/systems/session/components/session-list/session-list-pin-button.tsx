@@ -35,7 +35,6 @@ export function SessionListPinButton({
             variant="ghost"
             size="icon-sm"
             aria-label={`${label}: ${getSessionDisplayTitle(session)}`}
-            aria-pressed={pinned}
             data-testid={`session-row-pin-${session.id}`}
             disabled={actions.pendingAction !== null}
             onClick={() => verb(session)}

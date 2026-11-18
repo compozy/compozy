@@ -186,7 +186,9 @@ func sessionListState(flags sessionListFlags, badges []session.Badge) string {
 		len(flags.columns) == 0 &&
 		!flags.archived &&
 		!flags.includeArchived &&
-		!flags.later && !flags.includeLater && flags.pinned == "" {
+		!flags.later && !flags.includeLater &&
+		// Pins outlive stop, so --pinned only lists stopped pins too; exclude keeps the default.
+		strings.TrimSpace(flags.pinned) != string(session.PinnedOnly) {
 		return string(session.StateActive)
 	}
 	return state

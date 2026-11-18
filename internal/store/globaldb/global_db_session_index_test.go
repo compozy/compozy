@@ -1158,6 +1158,41 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err != nil || len(pins) != 2 || !pins["sess-pin-b"].Equal(baseAt.Add(3*time.Hour)) {
 			t.Fatalf("SessionPinnedAt() = %#v, %v, want b and c pinned", pins, err)
 		}
+		// Unpinning a session that is not pinned changes nothing and says so.
+		if again, changed, err := globalDB.UnpinSession(ctx, workspaceID, "sess-pin-a"); err != nil ||
+			changed || again.PinnedAt != nil {
+			t.Fatalf("UnpinSession(unpinned) = %#v, %v, %v, want a no-op", again.PinnedAt, changed, err)
+		}
+
+		// A pin outlives archive and Later, and the Later count covers pinned sessions
+		// even in a read that leaves them out.
+		if _, err := globalDB.SetSessionArchived(ctx, workspaceID, "sess-pin-b", true); err != nil {
+			t.Fatalf("SetSessionArchived(archive) error = %v", err)
+		}
+		if _, err := globalDB.SetSessionArchived(ctx, workspaceID, "sess-pin-b", false); err != nil {
+			t.Fatalf("SetSessionArchived(unarchive) error = %v", err)
+		}
+		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{
+			WorkspaceID: workspaceID, SessionID: "sess-pin-c",
+		}); err != nil {
+			t.Fatalf("ParkSession() error = %v", err)
+		}
+		pins, err = globalDB.SessionPinnedAt(ctx, ids)
+		if err != nil || !pins["sess-pin-b"].Equal(baseAt.Add(3*time.Hour)) ||
+			!pins["sess-pin-c"].Equal(baseAt.Add(time.Hour)) {
+			t.Fatalf("SessionPinnedAt(after archive and Later) = %#v, %v, want both pins kept", pins, err)
+		}
+		facets, err := globalDB.SessionCatalogFacets(ctx, store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceID,
+			Pinned:      store.SessionPinnedExclude,
+			Sort:        sessionCatalogSortRecent,
+			Limit:       10,
+		})
+		if err != nil || facets.Later != 1 {
+			t.Fatalf("SessionCatalogFacets(pinned exclude) later=%d, %v; want the pinned parked session",
+				facets.Later, err)
+		}
 	})
 
 	t.Run("Should refuse pins on subagent sessions and always-on agent mains", func(t *testing.T) {

@@ -151,10 +151,12 @@ export function SessionList({
     <SessionMenuOpenContext value={onSelectSession}>
       <SessionListSubagentActionsHost>
         <div
-          className="flex min-h-0 flex-1 flex-col"
+          className="flex min-h-0 flex-1 flex-col outline-none"
           data-testid={`${testIdPrefix}-content`}
           onKeyDown={bulk.onKeyDown}
           ref={contentRef}
+          // The focus fallback after a pin change whose row its new place does not show.
+          tabIndex={-1}
         >
           <span role="status" aria-live="polite" className="sr-only">
             {announcement}

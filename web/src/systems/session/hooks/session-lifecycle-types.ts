@@ -14,7 +14,9 @@ export type SessionLifecycleAction =
   | "unarchive"
   | "delete"
   | "later"
-  | "back-from-later";
+  | "back-from-later"
+  | "pin"
+  | "unpin";
 
 export interface SessionProcessChoice {
   action: "stop" | "archive";

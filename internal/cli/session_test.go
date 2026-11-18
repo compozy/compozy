@@ -1245,7 +1245,12 @@ func TestSessionPinCommandsReturnUpdatedSession(t *testing.T) {
 	t.Run("Should pin and unpin through the session pin route and reject an unknown pinned filter", func(t *testing.T) {
 		t.Parallel()
 		var calls []bool
+		var states []string
 		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+				states = append(states, query.State)
+				return SessionListPage{}, nil
+			},
 			setSessionPinnedFn: func(_ context.Context, id string, pinned bool) (SessionRecord, error) {
 				calls = append(calls, pinned)
 				record := SessionRecord{
@@ -1275,6 +1280,15 @@ func TestSessionPinCommandsReturnUpdatedSession(t *testing.T) {
 		_, _, err = executeRootCommand(t, deps, "session", "list", "--pinned", "first")
 		if err == nil || !strings.Contains(err.Error(), "--pinned must be only, exclude, or include") {
 			t.Fatalf("session list --pinned first error = %v, want a refusal", err)
+		}
+		// Pins outlive stop, so only --pinned only drops the default active state.
+		for _, filter := range []string{"exclude", "only"} {
+			if _, _, err := executeRootCommand(t, deps, "session", "list", "--pinned", filter, "-o", "json"); err != nil {
+				t.Fatalf("executeRootCommand(session list --pinned %s) error = %v", filter, err)
+			}
+		}
+		if want := []string{string(session.StateActive), ""}; !slices.Equal(states, want) {
+			t.Fatalf("session list --pinned states = %#v, want %#v", states, want)
 		}
 	})
 }

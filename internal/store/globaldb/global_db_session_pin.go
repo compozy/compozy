@@ -37,7 +37,8 @@ func appendSessionPinnedFilter(where []string, filter store.SessionPinnedFilter)
 // PinSession pins one listed session. A session pinned already keeps its pin
 // time, so pinning again never moves it within the pinned order.
 func (g *SessionRepo) PinSession(ctx context.Context, workspaceID string, sessionID string) (store.SessionInfo, error) {
-	return g.setSessionPinned(ctx, workspaceID, sessionID, true)
+	info, _, err := g.setSessionPinned(ctx, workspaceID, sessionID, true)
+	return info, err
 }
 
 // UnpinSession clears the pin of one session; it reports false when the session was not pinned.
@@ -46,11 +47,11 @@ func (g *SessionRepo) UnpinSession(
 	workspaceID string,
 	sessionID string,
 ) (store.SessionInfo, bool, error) {
-	info, err := g.setSessionPinned(ctx, workspaceID, sessionID, false)
+	info, changed, err := g.setSessionPinned(ctx, workspaceID, sessionID, false)
 	if err != nil {
 		return store.SessionInfo{}, false, err
 	}
-	return info, info.PinnedAt == nil, nil
+	return info, changed, nil
 }
 
 func (g *SessionRepo) setSessionPinned(
@@ -58,16 +59,17 @@ func (g *SessionRepo) setSessionPinned(
 	workspaceID string,
 	sessionID string,
 	pinned bool,
-) (store.SessionInfo, error) {
+) (store.SessionInfo, bool, error) {
 	if err := g.checkReady(ctx, "set session pin"); err != nil {
-		return store.SessionInfo{}, err
+		return store.SessionInfo{}, false, err
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
-		return store.SessionInfo{}, errors.New("store: session pin session id is required")
+		return store.SessionInfo{}, false, errors.New("store: session pin session id is required")
 	}
 	var result store.SessionInfo
+	var rows int64
 	err := g.withImmediateTransaction(ctx, "set session pin", func(exec globalSQLExecutor) error {
 		current, e := readWorkspaceSessionInfo(ctx, exec, workspaceID, sessionID)
 		if e != nil {
@@ -78,13 +80,13 @@ func (g *SessionRepo) setSessionPinned(
 			if e := guardSessionPinnable(ctx, q, &current); e != nil {
 				return e
 			}
-			_, e = q.PinSession(ctx, sqlcgen.PinSessionParams{
+			rows, e = q.PinSession(ctx, sqlcgen.PinSessionParams{
 				PinnedAt:    sql.NullString{String: store.FormatTimestamp(g.now()), Valid: true},
 				WorkspaceID: workspaceID,
 				ID:          sessionID,
 			})
 		} else {
-			_, e = q.UnpinSession(ctx, sqlcgen.UnpinSessionParams{WorkspaceID: workspaceID, ID: sessionID})
+			rows, e = q.UnpinSession(ctx, sqlcgen.UnpinSessionParams{WorkspaceID: workspaceID, ID: sessionID})
 		}
 		if e != nil {
 			return fmt.Errorf("store: set session pin %q: %w", sessionID, e)
@@ -92,7 +94,8 @@ func (g *SessionRepo) setSessionPinned(
 		result, e = readWorkspaceSessionInfo(ctx, exec, workspaceID, sessionID)
 		return e
 	})
-	return result, err
+	// Unpin matches only a pinned row, so its row count says whether a pin was cleared.
+	return result, rows > 0, err
 }
 
 // guardSessionPinnable refuses sessions the session list never shows as their
