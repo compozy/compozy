@@ -116,6 +116,24 @@ func (c *daemonClient) RemovePermanentExtension(
 	return c.deleteExtension(ctx, name, url.Values{extensionPermanentQueryKey: []string{"true"}})
 }
 
+// RestoreExtensionBuiltin restores one permanently removed built-in at its bundled version, enabled.
+func (c *daemonClient) RestoreExtensionBuiltin(ctx context.Context, name string) (ExtensionRestoreRecord, error) {
+	var response ExtensionRestoreRecord
+	if err := c.doJSON(ctx, http.MethodPost, extensionPath(name, "restore"), nil, nil, &response); err != nil {
+		return ExtensionRestoreRecord{}, err
+	}
+	return response, nil
+}
+
+// ListRemovedExtensionBuiltins lists the built-ins that are permanently removed and can be restored.
+func (c *daemonClient) ListRemovedExtensionBuiltins(ctx context.Context) ([]ExtensionRemovedBuiltinRecord, error) {
+	var response contract.ExtensionRemovedBuiltinsResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/extensions/removed-builtins", nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Removed, nil
+}
+
 func (c *daemonClient) deleteExtension(
 	ctx context.Context,
 	name string,

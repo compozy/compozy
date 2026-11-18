@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -35,6 +36,29 @@ func (s *daemonExtensionService) RestoreBuiltin(
 		return restoreErr
 	})
 	return item, err
+}
+
+// ListRemovedBuiltins returns every permanently removed built-in, in name order. The listing is read-only
+// and needs no actor: it reports tombstones that restore can act on.
+func (s *daemonExtensionService) ListRemovedBuiltins(
+	ctx context.Context,
+) ([]contract.ExtensionRemovedBuiltinPayload, error) {
+	if err := s.checkReady(); err != nil {
+		return nil, err
+	}
+	tombstones, err := s.registry.ListTombstones(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]contract.ExtensionRemovedBuiltinPayload, 0, len(tombstones))
+	for _, tombstone := range tombstones {
+		items = append(items, contract.ExtensionRemovedBuiltinPayload{
+			Name:      tombstone.Name,
+			RemovedAt: tombstone.RemovedAt.UTC().Format(time.RFC3339),
+			RemovedBy: tombstone.RemovedBy,
+		})
+	}
+	return items, nil
 }
 
 // restoreBuiltinLocked runs the restore order: tombstone check, operator-row check, tombstone clear,

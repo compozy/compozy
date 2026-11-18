@@ -1578,6 +1578,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/removed-builtins": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List permanently removed built-in extensions */
+    get: operations["listRemovedBuiltinExtensions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/update": {
     parameters: {
       query?: never;
@@ -1711,6 +1728,23 @@ export interface paths {
     put?: never;
     /** Reload a workspace extension from an immutable generation */
     post: operations["reloadDevExtension"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/extensions/{name}/restore": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Restore one permanently removed built-in extension */
+    post: operations["restoreExtension"];
     delete?: never;
     options?: never;
     head?: never;
@@ -10787,8 +10821,24 @@ export interface components {
     ExtensionRemoveResponse: {
       extension: components["schemas"]["ManagedExtensionRemovePayload"];
     };
+    ExtensionRemovedBuiltinPayload: {
+      name: string;
+      removed_at: string;
+      removed_by: string;
+    };
+    ExtensionRemovedBuiltinsResponse: {
+      removed: components["schemas"]["ExtensionRemovedBuiltinPayload"][];
+    };
     ExtensionResponse: {
       extension: components["schemas"]["ExtensionPayload"];
+    };
+    ExtensionRestorePayload: {
+      enabled: boolean;
+      name: string;
+      path: string;
+      source: string;
+      status: string;
+      version: string;
     };
     ExtensionSecretBindingInput: {
       env_name: string;
@@ -32316,6 +32366,53 @@ export interface operations {
       };
     };
   };
+  listRemovedBuiltinExtensions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionRemovedBuiltinsResponse"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Listing is not available on this extension service */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   updateExtensions: {
     parameters: {
       query?: {
@@ -33066,6 +33163,83 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  restoreExtension: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Restored at the bundled version, enabled */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionRestorePayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not permanently removed, or a non-bundled extension of the same name is installed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Enrollment failed; the removed state is restored and the tombstone is kept */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Restore is not available on this extension service */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Extension service is not configured */

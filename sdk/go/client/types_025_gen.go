@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+// SourceOutcome is a daemon API value.
+type SourceOutcome struct {
+	ID         string `json:"id"`
+	Result     string `json:"result"`
+	Items      int    `json:"items"`
+	More       bool   `json:"more"`
+	DurationMS int64  `json:"duration_ms"`
+	Error      *Error `json:"error,omitempty"`
+}
+
+// SourceStatus is a daemon API value.
+type SourceStatus struct {
+	Source string       `json:"source"`
+	Status SourceHealth `json:"status"`
+	Reason string       `json:"reason,omitempty"`
+}
+
+// SpawnBudgetPayload is a daemon API value.
+type SpawnBudgetPayload struct {
+	MaxChildren           int   `json:"max_children"`
+	MaxDepth              int   `json:"max_depth"`
+	TTLSeconds            int64 `json:"ttl_seconds"`
+	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
+}
+
 // SpawnNewWorktreeRequest is a daemon API value.
 type SpawnNewWorktreeRequest struct {
 	Name    string `json:"name,omitempty"`
@@ -393,49 +418,4 @@ type TaskBlocksResponse struct {
 type TaskCatalogFacetsPayload struct {
 	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
 	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
-}
-
-// TaskCatalogItemPayload is a daemon API value.
-type TaskCatalogItemPayload struct {
-	ID                   string                 `json:"id"`
-	ProfileID            string                 `json:"profile_id"`
-	ProfileName          string                 `json:"profile_name"`
-	ProfileColor         string                 `json:"profile_color,omitempty"`
-	ProfileIcon          string                 `json:"profile_icon,omitempty"`
-	Identifier           string                 `json:"identifier,omitempty"`
-	Scope                TaskScope              `json:"scope"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	ParentTaskID         string                 `json:"parent_task_id,omitempty"`
-	Title                string                 `json:"title"`
-	Priority             Priority               `json:"priority,omitempty"`
-	MaxAttempts          int                    `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady   bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	Status               TaskStatus             `json:"status"`
-	ApprovalPolicy       ApprovalPolicy         `json:"approval_policy,omitempty"`
-	ApprovalState        ApprovalState          `json:"approval_state,omitempty"`
-	Draft                bool                   `json:"draft,omitempty"`
-	Owner                *Ownership             `json:"owner,omitempty"`
-	CurrentRunID         string                 `json:"current_run_id,omitempty"`
-	LatestEventSeq       int64                  `json:"latest_event_seq"`
-	NeedsAttention       bool                   `json:"needs_attention,omitempty"`
-	NeedsAttentionReason string                 `json:"needs_attention_reason,omitempty"`
-	NeedsAttentionAt     *time.Time             `json:"needs_attention_at,omitempty"`
-	NeedsAttentionBy     *ActorIdentity         `json:"needs_attention_by,omitempty"`
-	WakeCreator          bool                   `json:"wake_creator"`
-	CreatedBy            ActorIdentity          `json:"created_by"`
-	Origin               Origin                 `json:"origin"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
-	ClosedAt             *time.Time             `json:"closed_at,omitempty"`
-	ChildCount           int                    `json:"child_count,omitempty"`
-	DependencyCount      int                    `json:"dependency_count,omitempty"`
-	ActiveRun            *TaskCatalogRunPayload `json:"active_run,omitempty"`
-	LastActivityAt       *time.Time             `json:"last_activity_at,omitempty"`
-	Loop                 *LoopProvenance        `json:"loop,omitempty"`
-}
-
-// TaskCatalogOwnerFacetPayload is a daemon API value.
-type TaskCatalogOwnerFacetPayload struct {
-	Owner Ownership `json:"owner"`
-	Count int       `json:"count"`
 }

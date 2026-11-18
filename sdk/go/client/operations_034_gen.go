@@ -10,6 +10,13 @@ import (
 	"strings"
 )
 
+// SearchSessionToolsParams carries the path, query, and header parameters.
+type SearchSessionToolsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
 // SearchSessionTools Search session-callable registry tools
 func (c *Client) SearchSessionTools(ctx context.Context, params SearchSessionToolsParams, body ToolSearchRequest) (*ToolsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search"
@@ -425,22 +432,4 @@ func (c *Client) StartTask(ctx context.Context, params StartTaskParams, body Tas
 type StartTaskRunParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// StartTaskRun Start one claimed task run
-func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/task-runs/{id}/start"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

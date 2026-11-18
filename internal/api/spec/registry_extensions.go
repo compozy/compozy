@@ -35,7 +35,8 @@ func registryExtensionOperations() []OperationSpec {
 			operations[index].Method == httpMethodGet,
 		)
 	}
-	return operations
+	// Built-in restore is global: its handlers read no profile selector, so none is documented.
+	return append(operations, restoreExtensionOperationSpec(), listRemovedBuiltinExtensionsOperationSpec())
 }
 
 func previewExtensionEnableOperationSpec() OperationSpec {

@@ -4,6 +4,32 @@ package client
 
 import "encoding/json"
 
+// SettingsProviderEnabledResponse is a daemon API value.
+type SettingsProviderEnabledResponse struct {
+	Provider SettingsProviderItemPayload `json:"provider"`
+	Apply    SettingsApplyResponse       `json:"apply"`
+}
+
+// SettingsProviderFallbackPayload is a daemon API value.
+type SettingsProviderFallbackPayload struct {
+	Source   SettingsSourceRefPayload        `json:"source"`
+	Settings SettingsProviderSettingsPayload `json:"settings"`
+}
+
+// SettingsProviderItemPayload is a daemon API value.
+type SettingsProviderItemPayload struct {
+	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	Name             string                                    `json:"name"`
+	Settings         SettingsProviderSettingsPayload           `json:"settings"`
+	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
+	Default          bool                                      `json:"default"`
+	CommandAvailable bool                                      `json:"command_available"`
+	Credentials      []SettingsProviderCredentialStatusPayload `json:"credentials,omitempty"`
+	AuthStatus       *SettingsProviderAuthStatusPayload        `json:"auth_status,omitzero"`
+	SourceMetadata   SettingsSourceMetadataPayload             `json:"source_metadata"`
+	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitzero"`
+}
+
 // SettingsProviderModelPayload is a daemon API value.
 type SettingsProviderModelPayload struct {
 	ID                       string   `json:"id"`
@@ -418,33 +444,4 @@ type SettingsTerminalPayload struct {
 	MaxPerWorkspace        int    `json:"max_per_workspace"`
 	MaxPerDaemon           int    `json:"max_per_daemon"`
 	MaxSubscribers         int    `json:"max_subscribers"`
-}
-
-// SettingsTransportParityPayload is a daemon API value.
-type SettingsTransportParityPayload struct {
-	Known          bool `json:"known"`
-	SettingsHTTP   bool `json:"settings_http"`
-	SettingsUDS    bool `json:"settings_uds"`
-	ExtensionsHTTP bool `json:"extensions_http"`
-	ExtensionsUDS  bool `json:"extensions_uds"`
-}
-
-// SettingsUpdateActor is a daemon API value.
-type SettingsUpdateActor string
-
-// SettingsUpdateAppPayload is a daemon API value.
-type SettingsUpdateAppPayload struct {
-	Status         SettingsUpdateStatusKind `json:"status"`
-	Running        bool                     `json:"running"`
-	CurrentVersion string                   `json:"current_version"`
-	LatestVersion  string                   `json:"latest_version"`
-	ReleaseURL     string                   `json:"release_url"`
-	AttemptID      string                   `json:"attempt_id"`
-	LastError      string                   `json:"last_error"`
-	Message        string                   `json:"message"`
-}
-
-// SettingsUpdateApplyRequest is a daemon API value.
-type SettingsUpdateApplyRequest struct {
-	Targets []SettingsUpdateTarget `json:"targets"`
 }

@@ -10,8 +10,10 @@ import (
 
 // StubExtensionService is the shared transport fake for extension route suites.
 type StubExtensionService struct {
-	ListFn   func(context.Context) ([]contract.ExtensionPayload, error)
-	SearchFn func(
+	ListFn        func(context.Context) ([]contract.ExtensionPayload, error)
+	RestoreFn     func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionRestorePayload, error)
+	ListRemovedFn func(context.Context) ([]contract.ExtensionRemovedBuiltinPayload, error)
+	SearchFn      func(
 		context.Context,
 		contract.ExtensionSearchRequest,
 	) (contract.ExtensionSearchResponse, error)
@@ -326,4 +328,26 @@ func (s StubExtensionService) ExtensionLogs(
 		return contract.ExtensionLogsResponse{}, nil
 	}
 	return s.ExtensionLogsFn(ctx, name, after, streamEpoch, actor)
+}
+
+// RestoreBuiltin restores one permanently removed built-in through RestoreFn.
+func (s StubExtensionService) RestoreBuiltin(
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionRestorePayload, error) {
+	if s.RestoreFn == nil {
+		return contract.ExtensionRestorePayload{}, nil
+	}
+	return s.RestoreFn(ctx, name, actor)
+}
+
+// ListRemovedBuiltins lists permanently removed built-ins through ListRemovedFn.
+func (s StubExtensionService) ListRemovedBuiltins(
+	ctx context.Context,
+) ([]contract.ExtensionRemovedBuiltinPayload, error) {
+	if s.ListRemovedFn == nil {
+		return nil, nil
+	}
+	return s.ListRemovedFn(ctx)
 }

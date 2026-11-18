@@ -4,6 +4,50 @@ package client
 
 import "time"
 
+// SchedulerPauseRequest is a daemon API value.
+type SchedulerPauseRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// SchedulerResumeRequest is a daemon API value.
+type SchedulerResumeRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// SchedulerSkipReason is a daemon API value.
+type SchedulerSkipReason string
+
+// SchedulerStatusPayload is a daemon API value.
+type SchedulerStatusPayload struct {
+	Counters               *SchedulerCountersPayload `json:"counters,omitzero"`
+	Paused                 bool                      `json:"paused"`
+	PausedBy               string                    `json:"paused_by,omitempty"`
+	PausedAt               *time.Time                `json:"paused_at,omitempty"`
+	PausedReason           string                    `json:"paused_reason,omitempty"`
+	ActiveClaimCount       int                       `json:"active_claim_count"`
+	QueuedRunCount         int                       `json:"queued_run_count"`
+	PausedTaskCount        int                       `json:"paused_task_count"`
+	StarvedRunCount        int                       `json:"starved_run_count"`
+	NeedsAttentionRunCount int                       `json:"needs_attention_run_count"`
+	AsOf                   time.Time                 `json:"as_of"`
+}
+
+// SchedulerStatusResponse is a daemon API value.
+type SchedulerStatusResponse struct {
+	Scheduler SchedulerStatusPayload `json:"scheduler"`
+}
+
+// SchemaStreamStatus is a daemon API value.
+type SchemaStreamStatus struct {
+	Stream       string `json:"stream"`
+	Version      int64  `json:"version"`
+	AppliedCount int    `json:"applied_count"`
+	SumDigest    string `json:"sum_digest"`
+}
+
+// Scope is a daemon API value.
+type Scope string
+
 // SearchMatch is a daemon API value.
 type SearchMatch struct {
 	Sequence  int64  `json:"sequence"`
@@ -399,52 +443,4 @@ type SessionContextPayload struct {
 	ReportedTurnID string                          `json:"reported_turn_id,omitempty"`
 	ReportedAt     *time.Time                      `json:"reported_at,omitempty"`
 	Injected       *SessionContextInjectedPayload  `json:"injected,omitzero"`
-}
-
-// SessionContextRowPayload is a daemon API value.
-type SessionContextRowPayload struct {
-	Key              string    `json:"key"`
-	Label            string    `json:"label"`
-	Kind             string    `json:"kind"`
-	OwnerKind        string    `json:"owner_kind"`
-	Bytes            int64     `json:"bytes"`
-	Tokens           *int64    `json:"tokens,omitzero"`
-	DeliveredTurnID  string    `json:"delivered_turn_id"`
-	DeliverySequence int64     `json:"delivery_sequence"`
-	SentAt           time.Time `json:"sent_at"`
-	LastSeenTurnID   string    `json:"last_seen_turn_id,omitempty"`
-	Unchanged        bool      `json:"unchanged"`
-	Stale            bool      `json:"stale"`
-	Delivery         string    `json:"delivery,omitempty"`
-	HookModified     bool      `json:"hook_modified,omitzero"`
-	Name             string    `json:"name,omitempty"`
-}
-
-// SessionContextSpanPayload is a daemon API value.
-type SessionContextSpanPayload struct {
-	Key          string `json:"key"`
-	Kind         string `json:"kind"`
-	Bytes        int64  `json:"bytes"`
-	Tokens       *int64 `json:"tokens,omitzero"`
-	Unchanged    bool   `json:"unchanged"`
-	StartupDedup bool   `json:"startup_dedup,omitzero"`
-	Delivery     string `json:"delivery,omitempty"`
-	HookModified bool   `json:"hook_modified,omitzero"`
-	Name         string `json:"name,omitempty"`
-}
-
-// SessionContextState is a daemon API value.
-type SessionContextState string
-
-// SessionConversationRewindPayload is a daemon API value.
-type SessionConversationRewindPayload struct {
-	TranscriptEpoch int64  `json:"transcript_epoch"`
-	TargetMessageID string `json:"target_message_id"`
-	ArchivedFrom    int64  `json:"archived_from_sequence"`
-	ArchivedThrough int64  `json:"archived_through_sequence"`
-	ArchivedEvents  int64  `json:"archived_event_count"`
-	Generation      int64  `json:"generation"`
-	MaxSequence     int64  `json:"max_sequence"`
-	DraftText       string `json:"draft_text"`
-	Replayed        bool   `json:"replayed"`
 }

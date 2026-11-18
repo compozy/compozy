@@ -86,6 +86,9 @@ const (
 	CodeExtensionInUse                     = "extension_in_use"
 	CodeExtensionNotFound                  = "extension_not_found"
 	CodeExtensionNotBuiltin                = "extension_not_builtin"
+	CodeExtensionBuiltinNotRemoved         = "extension_builtin_not_removed"
+	CodeExtensionExists                    = "extension_exists"
+	CodeExtensionRestoreFailed             = "extension_restore_failed"
 	CodeExtensionRuntimeUnavailable        = "extension_runtime_unavailable"
 	CodeExtensionMCPServerUnhealthy        = "extension_mcp_server_unhealthy"
 	CodeFlagNotApplicable                  = "flag_not_applicable"
@@ -245,6 +248,9 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionInUse, Category: CategoryExtension},
 	{Code: CodeExtensionNotFound, Category: CategoryExtension},
 	{Code: CodeExtensionNotBuiltin, Category: CategoryExtension},
+	{Code: CodeExtensionBuiltinNotRemoved, Category: CategoryExtension},
+	{Code: CodeExtensionExists, Category: CategoryExtension},
+	{Code: CodeExtensionRestoreFailed, Category: CategoryExtension},
 	{Code: CodeExtensionRuntimeUnavailable, Category: CategoryExtension},
 	{Code: CodeExtensionMCPServerUnhealthy, Category: CategoryExtension},
 	{Code: CodeExtensionAgentPluginComponentSkipped, Category: CategoryExtension},

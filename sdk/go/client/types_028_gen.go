@@ -7,6 +7,64 @@ import (
 	"time"
 )
 
+// TaskTreeResponse is a daemon API value.
+type TaskTreeResponse struct {
+	Tree TaskTreePayload `json:"tree"`
+}
+
+// TaskTriageStatePayload is a daemon API value.
+type TaskTriageStatePayload struct {
+	TaskID             string        `json:"task_id"`
+	Actor              ActorIdentity `json:"actor"`
+	Read               bool          `json:"read"`
+	Archived           bool          `json:"archived"`
+	Dismissed          bool          `json:"dismissed"`
+	LastSeenActivityAt *time.Time    `json:"last_seen_activity_at,omitempty"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+}
+
+// TaskTriageStateResponse is a daemon API value.
+type TaskTriageStateResponse struct {
+	Triage TaskTriageStatePayload `json:"triage"`
+}
+
+// TasksResponse is a daemon API value.
+type TasksResponse struct {
+	Tasks  []TaskCatalogItemPayload `json:"tasks"`
+	Page   CountedCursorPagePayload `json:"page"`
+	Facets TaskCatalogFacetsPayload `json:"facets"`
+}
+
+// TerminalActorKind is a daemon API value.
+type TerminalActorKind string
+
+// TerminalAnswerInputRequest is a daemon API value.
+type TerminalAnswerInputRequest struct {
+	Input string `json:"input"`
+}
+
+// TerminalApprovalCountPayload is a daemon API value.
+type TerminalApprovalCountPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+	Count       int    `json:"count"`
+}
+
+// TerminalAttachMode is a daemon API value.
+type TerminalAttachMode string
+
+// TerminalAttachTicketRequest is a daemon API value.
+type TerminalAttachTicketRequest struct {
+	Mode     TerminalAttachMode `json:"mode"`
+	ClientID string             `json:"client_id,omitempty"`
+}
+
+// TerminalAttachTicketResponse is a daemon API value.
+type TerminalAttachTicketResponse struct {
+	Ticket    string    `json:"ticket"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // TerminalCapabilitiesPayload is a daemon API value.
 type TerminalCapabilitiesPayload struct {
 	Interactive bool `json:"interactive"`
@@ -384,64 +442,4 @@ type TokenUsagePayload struct {
 	CostAmount       *float64       `json:"cost_amount,omitzero"`
 	CostCurrency     *string        `json:"cost_currency,omitzero"`
 	Timestamp        time.Time      `json:"timestamp"`
-}
-
-// ToolApprovalGrantListResponse is a daemon API value.
-type ToolApprovalGrantListResponse struct {
-	Grants []ToolApprovalGrantPayload `json:"grants"`
-	Total  int                        `json:"total"`
-}
-
-// ToolApprovalGrantPayload is a daemon API value.
-type ToolApprovalGrantPayload struct {
-	ID              string                `json:"id"`
-	ProfileID       string                `json:"profile_id"`
-	ProfileName     string                `json:"profile_name"`
-	ProfileColor    string                `json:"profile_color"`
-	ProfileIcon     string                `json:"profile_icon,omitempty"`
-	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
-	ProfileArchived bool                  `json:"profile_archived"`
-	WorkspaceID     string                `json:"workspace_id"`
-	AgentName       string                `json:"agent_name,omitempty"`
-	ToolID          ToolID                `json:"tool_id"`
-	InputDigest     string                `json:"input_digest,omitempty"`
-	AccessScope     string                `json:"access_scope,omitempty"`
-	Decision        ApprovalGrantDecision `json:"decision"`
-	CreatedAt       time.Time             `json:"created_at"`
-	LastUsedAt      time.Time             `json:"last_used_at"`
-}
-
-// ToolApprovalGrantResponse is a daemon API value.
-type ToolApprovalGrantResponse struct {
-	Grant ToolApprovalGrantPayload `json:"grant"`
-}
-
-// ToolApprovalGrantSetRequest is a daemon API value.
-type ToolApprovalGrantSetRequest struct {
-	ToolID    ToolID                       `json:"tool_id"`
-	Decision  ApprovalGrantDecision        `json:"decision"`
-	Scope     ApprovalGrantManagementScope `json:"scope"`
-	AgentName string                       `json:"agent_name,omitempty"`
-}
-
-// ToolApprovalPayload is a daemon API value.
-type ToolApprovalPayload struct {
-	ApprovalToken string    `json:"approval_token"`
-	ExpiresAt     time.Time `json:"expires_at"`
-	ToolID        ToolID    `json:"tool_id"`
-	InputDigest   string    `json:"input_digest"`
-}
-
-// ToolApprovalRequest is a daemon API value.
-type ToolApprovalRequest struct {
-	SessionID   string          `json:"session_id"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	AgentName   string          `json:"agent_name,omitempty"`
-	Input       json.RawMessage `json:"input,omitempty"`
-	InputDigest string          `json:"input_digest,omitempty"`
-}
-
-// ToolApprovalResponse is a daemon API value.
-type ToolApprovalResponse struct {
-	Approval ToolApprovalPayload `json:"approval"`
 }

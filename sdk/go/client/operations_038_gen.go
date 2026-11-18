@@ -8,6 +8,17 @@ import (
 	"strings"
 )
 
+// UpdateAppToken Change an app token name or replace its origin allowlist Experimental: pin the exact SDK version.
+func (c *Client) UpdateAppToken(ctx context.Context, params UpdateAppTokenParams, body UpdateAppTokenRequest) (*AppTokenResponse, error) {
+	path := "/api/app-tokens/{app_token_id}"
+	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
+	var out AppTokenResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UpdateAutomationJobParams carries the path, query, and header parameters.
 type UpdateAutomationJobParams struct {
 	ID      string  `url:"id"`

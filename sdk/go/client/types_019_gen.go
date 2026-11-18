@@ -7,6 +7,54 @@ import (
 	"time"
 )
 
+// SessionContextRowPayload is a daemon API value.
+type SessionContextRowPayload struct {
+	Key              string    `json:"key"`
+	Label            string    `json:"label"`
+	Kind             string    `json:"kind"`
+	OwnerKind        string    `json:"owner_kind"`
+	Bytes            int64     `json:"bytes"`
+	Tokens           *int64    `json:"tokens,omitzero"`
+	DeliveredTurnID  string    `json:"delivered_turn_id"`
+	DeliverySequence int64     `json:"delivery_sequence"`
+	SentAt           time.Time `json:"sent_at"`
+	LastSeenTurnID   string    `json:"last_seen_turn_id,omitempty"`
+	Unchanged        bool      `json:"unchanged"`
+	Stale            bool      `json:"stale"`
+	Delivery         string    `json:"delivery,omitempty"`
+	HookModified     bool      `json:"hook_modified,omitzero"`
+	Name             string    `json:"name,omitempty"`
+}
+
+// SessionContextSpanPayload is a daemon API value.
+type SessionContextSpanPayload struct {
+	Key          string `json:"key"`
+	Kind         string `json:"kind"`
+	Bytes        int64  `json:"bytes"`
+	Tokens       *int64 `json:"tokens,omitzero"`
+	Unchanged    bool   `json:"unchanged"`
+	StartupDedup bool   `json:"startup_dedup,omitzero"`
+	Delivery     string `json:"delivery,omitempty"`
+	HookModified bool   `json:"hook_modified,omitzero"`
+	Name         string `json:"name,omitempty"`
+}
+
+// SessionContextState is a daemon API value.
+type SessionContextState string
+
+// SessionConversationRewindPayload is a daemon API value.
+type SessionConversationRewindPayload struct {
+	TranscriptEpoch int64  `json:"transcript_epoch"`
+	TargetMessageID string `json:"target_message_id"`
+	ArchivedFrom    int64  `json:"archived_from_sequence"`
+	ArchivedThrough int64  `json:"archived_through_sequence"`
+	ArchivedEvents  int64  `json:"archived_event_count"`
+	Generation      int64  `json:"generation"`
+	MaxSequence     int64  `json:"max_sequence"`
+	DraftText       string `json:"draft_text"`
+	Replayed        bool   `json:"replayed"`
+}
+
 // SessionConversationRewindRequest is a daemon API value.
 type SessionConversationRewindRequest struct {
 	MessageID           string `json:"message_id"`
@@ -396,43 +444,3 @@ type SessionInputResponse struct {
 
 // SessionInputStatus is a daemon API value.
 type SessionInputStatus string
-
-// SessionInspectResponse is a daemon API value.
-type SessionInspectResponse struct {
-	SessionID    string                             `json:"session_id"`
-	Health       SessionHealthPayload               `json:"health"`
-	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	PolicyDigest string                             `json:"policy_digest,omitempty"`
-	ConfigDigest string                             `json:"config_digest,omitempty"`
-	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// SessionInteractionsResponse is a daemon API value.
-type SessionInteractionsResponse struct {
-	Interactions []PendingInteractionPayload `json:"interactions"`
-}
-
-// SessionLaterPayload is a daemon API value.
-type SessionLaterPayload struct {
-	ParkedAt        time.Time  `json:"parked_at"`
-	Reason          string     `json:"reason,omitempty"`
-	ReturnAt        *time.Time `json:"return_at,omitempty"`
-	PendingMessages int        `json:"pending_messages"`
-}
-
-// SessionLineagePayload is a daemon API value.
-type SessionLineagePayload struct {
-	ParentSessionID  string                       `json:"parent_session_id,omitempty"`
-	RootSessionID    string                       `json:"root_session_id,omitempty"`
-	SpawnDepth       int                          `json:"spawn_depth"`
-	SpawnRole        string                       `json:"spawn_role,omitempty"`
-	Kind             LineageKind                  `json:"kind,omitempty"`
-	OriginMessageID  string                       `json:"origin_message_id,omitempty"`
-	OriginAgentName  string                       `json:"origin_agent_name,omitempty"`
-	TTLExpiresAt     *time.Time                   `json:"ttl_expires_at,omitempty"`
-	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
-	NotifyCreator    bool                         `json:"notify_creator"`
-	SpawnBudget      SpawnBudgetPayload           `json:"spawn_budget"`
-	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
-}

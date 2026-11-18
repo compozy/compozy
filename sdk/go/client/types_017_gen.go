@@ -7,6 +7,54 @@ import (
 	"time"
 )
 
+// RoleStatusResponse is a daemon API value.
+type RoleStatusResponse struct {
+	Role RoleStatus `json:"role"`
+}
+
+// RolesResponse is a daemon API value.
+type RolesResponse struct {
+	Roles []RoleStatus `json:"roles"`
+}
+
+// RosterNode is a daemon API value.
+type RosterNode struct {
+	Generation     int               `json:"generation"`
+	NodeID         NodeID            `json:"node_id"`
+	ItemIndex      int               `json:"item_index"`
+	State          NodeState         `json:"state"`
+	Attempt        int               `json:"attempt"`
+	Attempts       []NodeAttemptView `json:"attempts"`
+	NextRetryAt    *time.Time        `json:"next_retry_at,omitempty"`
+	ChildLoopRunID string            `json:"child_loop_run_id,omitempty"`
+	Cancellation   *NodeCancellation `json:"cancellation,omitzero"`
+	StartedAt      *time.Time        `json:"started_at,omitempty"`
+	EndedAt        *time.Time        `json:"ended_at,omitempty"`
+	SessionID      string            `json:"session_id,omitempty"`
+	CellTaskID     string            `json:"cell_task_id,omitempty"`
+	Usage          *NodeUsage        `json:"usage,omitzero"`
+}
+
+// RosterPage is a daemon API value.
+type RosterPage struct {
+	RunID         RunID          `json:"run_id"`
+	LoopName      string         `json:"loop_name"`
+	RunStatus     Status         `json:"run_status"`
+	Nodes         []RosterNode   `json:"nodes"`
+	FanoutRollups []FanoutRollup `json:"fanout_rollups"`
+	NextCursor    string         `json:"next_cursor,omitempty"`
+}
+
+// RouteIntent is a daemon API value.
+// RouteIntent preserves its custom JSON wire representation.
+type RouteIntent = json.RawMessage
+
+// RouteSpec is a daemon API value.
+type RouteSpec struct {
+	When string `json:"when"`
+	To   NodeID `json:"to"`
+}
+
 // Row is a daemon API value.
 type Row struct {
 	ID          string            `json:"id"`
@@ -398,47 +446,3 @@ type SchedulerDrainResponse struct {
 	StartedAt       time.Time              `json:"started_at"`
 	CompletedAt     time.Time              `json:"completed_at"`
 }
-
-// SchedulerPauseRequest is a daemon API value.
-type SchedulerPauseRequest struct {
-	Reason string `json:"reason,omitempty"`
-}
-
-// SchedulerResumeRequest is a daemon API value.
-type SchedulerResumeRequest struct {
-	Reason string `json:"reason,omitempty"`
-}
-
-// SchedulerSkipReason is a daemon API value.
-type SchedulerSkipReason string
-
-// SchedulerStatusPayload is a daemon API value.
-type SchedulerStatusPayload struct {
-	Counters               *SchedulerCountersPayload `json:"counters,omitzero"`
-	Paused                 bool                      `json:"paused"`
-	PausedBy               string                    `json:"paused_by,omitempty"`
-	PausedAt               *time.Time                `json:"paused_at,omitempty"`
-	PausedReason           string                    `json:"paused_reason,omitempty"`
-	ActiveClaimCount       int                       `json:"active_claim_count"`
-	QueuedRunCount         int                       `json:"queued_run_count"`
-	PausedTaskCount        int                       `json:"paused_task_count"`
-	StarvedRunCount        int                       `json:"starved_run_count"`
-	NeedsAttentionRunCount int                       `json:"needs_attention_run_count"`
-	AsOf                   time.Time                 `json:"as_of"`
-}
-
-// SchedulerStatusResponse is a daemon API value.
-type SchedulerStatusResponse struct {
-	Scheduler SchedulerStatusPayload `json:"scheduler"`
-}
-
-// SchemaStreamStatus is a daemon API value.
-type SchemaStreamStatus struct {
-	Stream       string `json:"stream"`
-	Version      int64  `json:"version"`
-	AppliedCount int    `json:"applied_count"`
-	SumDigest    string `json:"sum_digest"`
-}
-
-// Scope is a daemon API value.
-type Scope string

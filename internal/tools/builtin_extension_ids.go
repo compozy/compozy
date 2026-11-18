@@ -35,4 +35,8 @@ const (
 	ToolIDExtensionsProvenance ToolID = "compozy__extensions_provenance"
 	// ToolIDExtensionsPublish publishes an immutable generation to GitHub Releases.
 	ToolIDExtensionsPublish ToolID = "compozy__extensions_publish"
+	// ToolIDExtensionsRestore restores one permanently removed built-in at its bundled version.
+	ToolIDExtensionsRestore ToolID = "compozy__extensions_restore"
+	// ToolIDExtensionsRemovedList lists the permanently removed built-ins that restore can act on.
+	ToolIDExtensionsRemovedList ToolID = "compozy__extensions_removed_list"
 )
