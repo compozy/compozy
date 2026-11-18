@@ -177,9 +177,10 @@ export function SessionThread({
     : undefined;
   // A pending question blocks the turn: a steer or queue send answers it instead (#1821).
   const clarificationAnswer = useClarificationComposerAnswer({
-    enabled: liveDataEnabled && !readOnly && Boolean(workspaceId),
+    enabled: liveDataEnabled,
+    readOnly,
     sessionId,
-    workspaceId: workspaceId ?? "",
+    workspaceId,
   });
   const content = (
     <ThreadPrimitive.Root
@@ -261,13 +262,7 @@ export function SessionThread({
                       onQueuePrompt={clarificationAnswer.answering(onQueuePrompt)}
                       onInterruptPrompt={onInterruptPrompt}
                       onSteerPrompt={clarificationAnswer.answering(handleSteerPrompt)}
-                      placeholder={
-                        clarificationAnswer.pending
-                          ? clarificationAnswer.pending.choices?.length
-                            ? "Pick a choice above, or type your own answer"
-                            : "Type your answer to the agent's question"
-                          : undefined
-                      }
+                      placeholder={clarificationAnswer.placeholder}
                       isBusyInputPending={isBusyInputPending}
                       isSessionRunning={thread.runtimeRunning}
                       stopPhase={stopPhase}

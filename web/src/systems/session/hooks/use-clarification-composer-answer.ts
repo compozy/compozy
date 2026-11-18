@@ -8,8 +8,18 @@ import {
 
 export interface UseClarificationComposerAnswerOptions {
   enabled?: boolean;
+  /** A read-only surface renders no composer, so it reads nothing. */
+  readOnly?: boolean;
   sessionId: string;
-  workspaceId: string;
+  /** Absent for hosts without a workspace: nothing is read and sends pass through. */
+  workspaceId?: string;
+}
+
+function composerPlaceholder(pending: ClarificationPending | null): string | undefined {
+  if (!pending) return undefined;
+  return pending.choices?.length
+    ? "Pick a choice above, or type your own answer"
+    : "Type your answer to the agent's question";
 }
 
 /**
@@ -25,10 +35,13 @@ export interface UseClarificationComposerAnswerOptions {
  */
 export function useClarificationComposerAnswer({
   enabled = true,
+  readOnly = false,
   sessionId,
-  workspaceId,
+  workspaceId = "",
 }: UseClarificationComposerAnswerOptions) {
-  const clarifications = useSessionClarifications(workspaceId, sessionId, { enabled });
+  const clarifications = useSessionClarifications(workspaceId, sessionId, {
+    enabled: enabled && !readOnly,
+  });
   const answerMutation = useAnswerSessionClarification(workspaceId, sessionId);
   const pending: ClarificationPending | null = clarifications.error
     ? null
@@ -60,5 +73,5 @@ export function useClarificationComposerAnswer({
     };
   };
 
-  return { pending, answering };
+  return { pending, answering, placeholder: composerPlaceholder(pending) };
 }
