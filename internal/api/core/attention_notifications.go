@@ -32,7 +32,7 @@ func (h *BaseHandlers) AttentionNotifications(c *gin.Context) {
 	if !ok {
 		return
 	}
-	items, err := h.bellNotificationItems(c, observer)
+	items, err := h.bellNotificationItems(c, observer, scope)
 	if err != nil {
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
@@ -73,6 +73,7 @@ func (h *BaseHandlers) AttentionNotifications(c *gin.Context) {
 		}
 	}
 	response.Items = items[:min(len(items), attentionNotificationItemCap)]
+	h.applyAutomationFailureTitles(c.Request.Context(), response.Items)
 	c.JSON(http.StatusOK, response)
 }
 

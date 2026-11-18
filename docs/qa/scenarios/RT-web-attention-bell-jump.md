@@ -19,6 +19,14 @@ overlaps: RT-session-attention-catalog; ET-web-session-cross-workspace-confirm
 Walk populated, quiet, stale, muted, 100-plus-row, same-workspace, and foreign-workspace states. Keep
 one pending task approval beside the new session rows and prove its row, count, and task landing did
 not regress.
+
+Close the UI before a scheduled job in a project and an event trigger in User fail. Reopen the
+shell in their owning profile and confirm both failures appear under Needs you with names and
+scopes. Select each row and confirm it opens the corresponding automation. Mark one read, reload,
+and verify only the other is unread. Clear all and verify both failures remain in run history.
+With all catalog clients closed, send an operator notice from a User session. Reopen the shell and
+verify its bell row opens the sender session and can be marked read independently of a run failure.
+
 Confirm a stale or already-resolved row still lands honestly. Each row offers Mark as read; Clear all acknowledges the frozen full population, including rows beyond the display cap. Finished arrivals can also be acknowledged without opening the session.
 
 QA impact 2026-08-16: Task 03 added the web bell and shared cross-workspace jump. Flag only; Task 08

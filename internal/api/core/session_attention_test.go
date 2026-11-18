@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/observe/attention"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -1134,6 +1135,86 @@ func readBellMigrationNotifications(
 	var payload contract.AttentionNotificationsResponse
 	testutil.DecodeJSONResponse(t, response, &payload)
 	return payload
+}
+
+func TestAttentionNotificationAutomationFailures(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should count persisted failures past the display cap and acknowledge the whole snapshot",
+		func(t *testing.T) {
+			t.Parallel()
+			f := newBellMigrationFixture(t, &bellMigrationSource{})
+			at := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+			runs := make([]automationpkg.Run, automationpkg.MaxListLimit)
+			for i := range runs {
+				ended := at.Add(-time.Duration(i) * time.Minute)
+				runs[i] = automationpkg.Run{
+					ID: fmt.Sprintf("run-%03d", i), JobID: "briefing", WorkspaceID: new("ws-1"),
+					ProfileID: store.DefaultProfileID, Status: automationpkg.RunFailed, EndedAt: &ended,
+				}
+			}
+			var pageReads int
+			f.Handlers.Automation = testutil.StubAutomationManager{
+				ListRunsFn: func(_ context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error) {
+					if query.Status != automationpkg.RunFailed || query.ReadScope.ProfileID != store.DefaultProfileID ||
+						query.ReadScope.AllProfiles || !query.AllWorkspaces ||
+						!reflect.DeepEqual(query.WorkspaceIDs, []string{"ws-1", workspaceaccess.UserSelector}) {
+						t.Fatalf("automation failure query = %+v", query)
+					}
+					pageReads++
+					if query.Cursor == "" {
+						return runs, nil
+					}
+					return []automationpkg.Run{
+						{
+							ID:          "run-trigger",
+							TriggerID:   "event-briefing",
+							WorkspaceID: new(""),
+							ProfileID:   store.DefaultProfileID,
+							Status:      automationpkg.RunFailed,
+							EndedAt:     new(at.Add(time.Minute)),
+						},
+					}, nil
+				},
+				GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
+					return automationpkg.Job{Name: "Morning briefing"}, nil
+				},
+				GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {
+					return automationpkg.Trigger{Name: "Event briefing"}, nil
+				},
+			}
+
+			before := readBellMigrationNotifications(t, f, "profile=default")
+			if before.Total != len(runs)+1 || before.NeedsYou != before.Total || before.Finished != 0 ||
+				len(before.Items) != min(100, before.Total) || pageReads != 2 {
+				t.Fatalf("bell population = %+v, page reads = %d", before, pageReads)
+			}
+			trigger, job := before.Items[0], before.Items[1]
+			if trigger.Kind != "automation-trigger-failure" || trigger.Title != "Event briefing" ||
+				trigger.WorkspaceLabel != "User" || trigger.SourceID != "event-briefing" || trigger.RunID != "run-trigger" {
+				t.Fatalf("trigger notice = %+v", trigger)
+			}
+			if job.Kind != "automation-job-failure" || job.Title != "Morning briefing" ||
+				job.WorkspaceLabel != "Alpha" || job.Detail != "Run failed" || job.SourceID != "briefing" ||
+				job.RunID != "run-000" || job.ID == before.Items[2].ID {
+				t.Fatalf("job notice = %+v", job)
+			}
+
+			body, err := json.Marshal(contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot})
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := performRequest(t, f.Engine, http.MethodPost,
+				"/notifications/attention/acknowledge?profile=default&surface=bell", body)
+			if response.Code != http.StatusNoContent {
+				t.Fatalf("ack status=%d body=%s", response.Code, response.Body.String())
+			}
+			after := readBellMigrationNotifications(t, f, "profile=default")
+			if after.Total != 0 || after.NeedsYou != 0 || pageReads != 4 {
+				t.Fatalf("after acknowledgements = %+v, page reads = %d", after, pageReads)
+			}
+		},
+	)
 }
 
 // Invariant: all-profile conversion occurrences obey the bell's scope, frozen membership and copy contract.

@@ -46,6 +46,7 @@ type SessionManagerDeps struct {
 	CheckInTools            bool
 	AttentionConfig         compozyconfig.AttentionConfig
 	AttentionWorkspaceMutes session.AttentionWorkspaceMuteReader
+	OperatorNoticeOutbox    session.OperatorNoticeOutbox
 	SessionCatalog          store.SessionCatalog
 	EventLedger             store.EventSummaryStore
 	ProcessRegistry         *toolruntime.Registry
@@ -66,6 +67,7 @@ type SessionManagerDeps struct {
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 	reconciler := windowManagerSessionReconcilerDependency(state.windowManagers)
 	state.sessionWindowReconciler = reconciler
+	operatorNoticeOutbox, _ := any(state.registry).(session.OperatorNoticeOutbox)
 	return SessionManagerDeps{
 		HomePaths:              d.homePaths,
 		PermissionWaitResolver: instancePermissionWaitResolver(state),
@@ -113,6 +115,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		CheckInTools:            state.cfg.Agents.AlwaysOn.CheckInTools != hookActionDisabled,
 		AttentionConfig:         state.cfg.Attention,
 		AttentionWorkspaceMutes: state.registry,
+		OperatorNoticeOutbox:    operatorNoticeOutbox,
 		SessionCatalog:          state.registry,
 		EventLedger:             sessionEventLedgerDependency(state.registry),
 		ProcessRegistry:         state.processRegistry,

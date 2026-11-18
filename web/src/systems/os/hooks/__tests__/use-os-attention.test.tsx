@@ -464,6 +464,47 @@ describe("useOsAttention", () => {
     expect(result.current.notificationCount).toBe(230);
   });
 
+  it("Should show a failed trigger as an unread automation occurrence", () => {
+    notificationResponse = {
+      snapshot: "snapshot",
+      total: 1,
+      needs_you: 1,
+      finished: 0,
+      items: [
+        {
+          id: "failure-occurrence",
+          kind: "automation-trigger-failure",
+          source_id: "event-briefing",
+          run_id: "run-42",
+          workspace_id: "ws-other",
+          workspace_label: "Other",
+          title: "Event briefing",
+          detail: "Run failed",
+          occurred_at: "2026-11-18T11:30:00Z",
+          item_index: 0,
+          generation: 0,
+          redacted: false,
+          finished: false,
+        },
+      ],
+    };
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(result.current.notificationCount).toBe(1);
+    expect(result.current.sections.needsYou).toEqual([
+      expect.objectContaining({
+        kind: "automation-failure",
+        id: "run-42",
+        automationKind: "trigger",
+        automationId: "event-briefing",
+        notificationId: "failure-occurrence",
+        workspaceId: "ws-other",
+        reason: "Run failed",
+      }),
+    ]);
+  });
+
   it("Should title a session occurrence as its window does, never by its raw id or a hidden origin", () => {
     vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ data: [] }));
     notificationResponse = {

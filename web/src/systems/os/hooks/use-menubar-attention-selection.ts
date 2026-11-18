@@ -34,6 +34,9 @@ export function useMenubarAttentionSelection(
           workspaceId: row.workspaceId,
         });
         return;
+      case "operator-notice":
+        jumpToSession({ sessionId: row.sessionId, workspaceId: row.workspaceId });
+        return;
       // Loop rows open in place under All projects, bound to their own scope.
       case "loop-node": {
         const route = row.runId
@@ -82,6 +85,21 @@ export function useMenubarAttentionSelection(
           "Couldn't open this notification. Try again."
         );
         return;
+      case "automation-failure": {
+        const collection = row.automationKind === "job" ? "jobs" : "triggers";
+        openItem(
+          {
+            app: "automations",
+            binding: ownerDataScope(row.workspaceId),
+            route: {
+              pathname: `/automations/${collection}/${encodeURIComponent(row.automationId)}`,
+              search: {},
+            },
+          },
+          NOTIFICATION_OPEN_FAILURE
+        );
+        return;
+      }
       // Nothing to open: the bell marks it read where it is activated.
       case "layout-upgrade":
         return;

@@ -4,13 +4,16 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/observe/attention"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -50,6 +53,68 @@ func TestPublishOperatorNotification(t *testing.T) {
 		if event.OperatorNotification.Title != "Dependency audit done" ||
 			event.OperatorNotification.Body != "No blockers. token=[REDACTED]" {
 			t.Fatalf("notification = %#v, want sanitized text", event.OperatorNotification)
+		}
+	})
+
+	t.Run("Should keep offline notices through database reopen until acknowledged", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), "global.db")
+		writer, err := globaldb.OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(context.Background()); err != nil {
+				t.Errorf("close writer database: %v", err)
+			}
+		})
+		sender, _ := newNotifyTestManager()
+		WithOperatorNoticeOutbox(writer)(sender)
+		result, err := sender.PublishOperatorNotification(ctx, NotifyRequest{
+			SessionID: "sess-offline", ProfileID: store.DefaultProfileID,
+			Title: "  Needs help  ", Body: "token=ghp_abcdefghijklmnopqrstuv",
+		})
+		if err != nil || result.Outcome != NotifyOutcomeNoClient {
+			t.Fatalf("offline publish = %#v, %v; want no-client", result, err)
+		}
+		if err := writer.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+
+		reader, err := globaldb.OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Close(context.Background()); err != nil {
+				t.Errorf("close reopened database: %v", err)
+			}
+		})
+		receiver, _ := newNotifyTestManager()
+		WithOperatorNoticeOutbox(reader)(receiver)
+		scope := attention.Scope{
+			ProfileID: store.DefaultProfileID, ActorKind: "operator", ActorID: "operator", Population: "bell",
+		}
+		notices, err := receiver.ListUnreadOperatorNotices(ctx, scope)
+		if err != nil || len(notices) != 1 {
+			t.Fatalf("reopened notices = %#v, %v; want one", notices, err)
+		}
+		notice := notices[0]
+		if notice.SessionID != "sess-offline" || notice.WorkspaceID != "" ||
+			notice.Title != "Needs help" || notice.Body != "token=[REDACTED]" {
+			t.Fatalf("queued notice = %#v", notice)
+		}
+		snapshot, _, err := reader.CaptureAttentionSnapshot(ctx, scope, []string{notice.NotificationID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := reader.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, notice.NotificationID); err != nil {
+			t.Fatal(err)
+		}
+		notices, err = receiver.ListUnreadOperatorNotices(ctx, scope)
+		if err != nil || len(notices) != 0 {
+			t.Fatalf("acknowledged notices = %#v, %v; want none", notices, err)
 		}
 	})
 

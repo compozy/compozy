@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/notifications"
 	redactpkg "github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -50,18 +51,7 @@ type NotifyResult struct {
 	RetryAfterMS int64
 }
 
-type OperatorNotification struct {
-	Kind           string
-	Action         string
-	Resource       string
-	NotificationID string
-	SessionID      string
-	ProfileID      string
-	WorkspaceID    string
-	Title          string
-	Body           string
-	At             time.Time
-}
+type OperatorNotification = notifications.OperatorNotice
 
 // AttentionWorkspaceMuteReader reads the typed profile/workspace mute relation.
 type AttentionWorkspaceMuteReader interface {
@@ -143,6 +133,11 @@ func (m *Manager) publishOperatorNotification(
 		OperatorNotification: &notification,
 	})
 	if delivered == 0 {
+		if m.operatorNoticeOutbox != nil {
+			if err := m.operatorNoticeOutbox.EnqueueOperatorNotice(ctx, notification); err != nil {
+				return NotifyResult{}, fmt.Errorf("session: queue operator notification: %w", err)
+			}
+		}
 		result := NotifyResult{Outcome: NotifyOutcomeNoClient}
 		m.logNotificationOutcome(ctx, notification, result, 0)
 		return result, nil
