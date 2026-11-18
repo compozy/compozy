@@ -66,6 +66,7 @@ test.use({
   runtimeOptions: {
     // Run pages open split beside the focused window, narrower than the desk, so the
     // fixed-width DAG (E2E-016) overflows its lane; the shipped `tab` default would fill it.
+    // A fresh desktop has no tabs, so there must be a focused window to split beside (#1799).
     newWindowPolicy: "beside_focus",
     seed: {
       mockAgents: [
@@ -1117,6 +1118,11 @@ test.describe("Loop run page — two registers", () => {
       FANOUT_LOOP
     );
     await waitForRun(runtime, runPath, detail => (detail.generations ?? []).length > 0);
+    // A real window to split beside: a fresh desktop has no tabs (#1799).
+    await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
+    await expect(
+      appPage.locator('[data-testid^="os-window-"][data-app="tasks"]').first()
+    ).toBeVisible();
     await openRun(appPage, runtime, runId);
     await openInspect(appPage, "graph");
 

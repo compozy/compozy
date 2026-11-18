@@ -120,10 +120,7 @@ func (v *snapshotValidator) validateMembershipCompleteness() {
 func (v *snapshotValidator) validateDesktop(index int) {
 	desktop := v.snapshot.Desktops[index]
 	path := fmt.Sprintf("desktops[%d]", index)
-	if len(desktop.Tabs) == 0 {
-		v.add("topology.tab_required", path+".tabs", "desktop requires at least one tab")
-	}
-	active := false
+	active := len(desktop.Tabs) == 0 && desktop.ActiveTabID == ""
 	regular := false
 	for i, tab := range desktop.Tabs {
 		tp := fmt.Sprintf("%s.tabs[%d]", path, i)

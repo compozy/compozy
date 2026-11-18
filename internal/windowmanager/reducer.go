@@ -50,17 +50,12 @@ func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
 	if err != nil {
 		return reduction{}, err
 	}
-	return r.finishReduction(s, beforeMembers, changed)
+	return r.finishReduction(s, beforeMembers, changed), nil
 }
 
-func (r *reducer) finishReduction(s *Snapshot, beforeMembers map[TabID]int, changed bool) (reduction, error) {
-	if changed {
-		if err := r.ensureDesktopTabs(s); err != nil {
-			return reduction{}, err
-		}
-	}
+func (r *reducer) finishReduction(s *Snapshot, beforeMembers map[TabID]int, changed bool) reduction {
 	r.recordTabTransitions(beforeMembers, tabMemberCounts(s))
-	return reduction{changed: changed, applied: changed, changes: r.changes.result()}, nil
+	return reduction{changed: changed, applied: changed, changes: r.changes.result()}
 }
 
 func (r *reducer) reduceLifecycle(s *Snapshot, command Command) (bool, error) {

@@ -11,17 +11,13 @@ import (
 )
 
 func TestInitialSnapshot(t *testing.T) {
-	t.Run("Should create one desktop with a New Tab", func(t *testing.T) {
+	t.Run("Should create one desktop with no tabs (#1799)", func(t *testing.T) {
 		t.Parallel()
 		s := initialSnapshot("workspace-a")
 		requireValidSnapshot(t, s)
-		if len(s.Desktops) != 1 || len(s.Desktops[0].Tabs) != 1 || len(s.Windows) != 1 {
+		if len(s.Desktops) != 1 || len(s.Desktops[0].Tabs) != 0 || s.Desktops[0].ActiveTabID != "" ||
+			len(s.Windows) != 0 {
 			t.Fatalf("default = %+v", s)
-		}
-		for _, w := range s.Windows {
-			if w.App != "new-tab" {
-				t.Fatalf("default window = %+v", w)
-			}
 		}
 	})
 }
@@ -55,7 +51,7 @@ func TestValidateSnapshot(t *testing.T) {
 			"topology.split_shape",
 			func(s *Snapshot) { s.Desktops[0].Tabs[0].Root.WindowID = new(WindowID("w1")) },
 		},
-		{"empty desktop", "topology.tab_required", func(s *Snapshot) { s.Desktops[0].Tabs = nil }},
+		{"active tab on an empty desktop", "topology.active_tab", func(s *Snapshot) { s.Desktops[0].Tabs = nil }},
 		{"missing active", "topology.active_tab", func(s *Snapshot) { s.Desktops[0].ActiveTabID = "missing" }},
 		{"pin prefix", "topology.tab_pinned_prefix", func(s *Snapshot) {
 			d := &s.Desktops[0]

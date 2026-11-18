@@ -43,6 +43,9 @@ type windowManagerRepository struct {
 
 	mu    sync.Mutex
 	locks map[windowmanager.WorkspaceID]*sync.Mutex
+	// emptyDesktopsSettled caches the workspaces whose durable empty-desktop marker this process
+	// has seen or written; see emptyDesktopsPending.
+	emptyDesktopsSettled sync.Map
 
 	// writeMu guards the durable-write section, not just the flag: a commit holds
 	// it shared from before its seal check until after its store write returns, so
@@ -199,16 +202,22 @@ func (r *windowManagerRepository) Commit(ctx context.Context, commit *windowmana
 	if err != nil {
 		return fmt.Errorf("daemon: encode window-manager snapshot: %w", err)
 	}
+	ops := []clientstate.Op{{
+		Kind:  clientstate.OpPut,
+		Key:   windowManagerSnapshotKey(r.profileID),
+		Value: encoded,
+		IfRev: entryRevision,
+	}}
+	// A committed aggregate never holds a seeded New Tab, so mark it settled (#1799).
+	_, settled := r.emptyDesktopsSettled.Load(commit.WorkspaceID)
+	if !settled {
+		ops = append(ops, r.emptyDesktopsMarker())
+	}
 	entries, err := r.service.Apply(
 		ctx,
 		clientstate.WorkspaceID(commit.WorkspaceID),
 		windowManagerStateDomain,
-		[]clientstate.Op{{
-			Kind:  clientstate.OpPut,
-			Key:   windowManagerSnapshotKey(r.profileID),
-			Value: encoded,
-			IfRev: entryRevision,
-		}},
+		ops,
 		clientstate.ApplyOptions{Origin: commit.Event.Origin},
 	)
 	if err != nil {
@@ -220,9 +229,10 @@ func (r *windowManagerRepository) Commit(ctx context.Context, commit *windowmana
 		}
 		return mapWindowManagerStoreError("commit snapshot", err)
 	}
-	if len(entries) != 1 || entries[0].Deleted {
+	if len(entries) != len(ops) || entries[0].Deleted {
 		return errors.New("daemon: window-manager snapshot commit returned an invalid result")
 	}
+	r.emptyDesktopsSettled.Store(commit.WorkspaceID, struct{}{})
 	return nil
 }
 
@@ -240,6 +250,7 @@ func (r *windowManagerRepository) DeleteWorkspace(
 		return nil
 	}
 
+	r.emptyDesktopsSettled.Delete(workspaceID)
 	return r.purgePartition(ctx, workspaceID)
 }
 

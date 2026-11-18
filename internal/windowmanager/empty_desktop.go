@@ -1,123 +1,55 @@
 package windowmanager
 
-const (
-	newTabApp  = "new-tab"
-	newTabPath = "/new-tab"
-)
+const newTabApp = "new-tab"
 
-func (r *reducer) ensureDesktopTabs(s *Snapshot) error {
-	for i := range s.Desktops {
-		d := &s.Desktops[i]
-		if len(d.Tabs) > 0 {
-			continue
-		}
-		window, err := r.newOpenWindow(
-			s,
-			WindowSpec{
-				App:       newTabApp,
-				DesktopID: d.ID,
-				Route:     RouteIntent{Pathname: newTabPath, Search: RouteSearch{}},
-			},
-		)
-		if err != nil {
-			return err
-		}
-		tab, err := r.newTab(window.ID)
-		if err != nil {
-			return err
-		}
-		window.TabID = tab.ID
-		s.Windows[window.ID] = window
-		d.Tabs = []Tab{tab}
-		d.ActiveTabID = tab.ID
-		r.changes.desktop(d.ID)
-		r.changes.window(window.ID)
-		r.changes.tab(tab.ID)
-		r.changes.node(tab.Root.ID)
-	}
-	return nil
-}
-
-// DefaultSnapshot is the stable empty-workspace topology before the first commit.
+// DefaultSnapshot is the stable empty-workspace topology before the first commit: one desktop
+// with no tabs. A New Tab exists only when someone opens one (#1799).
 func DefaultSnapshot(id WorkspaceID) Snapshot {
-	windowID := WindowID("win-newtab-desktop-default")
-	tabID := TabID("tab-" + string(windowID))
 	return Snapshot{
 		Version:     SnapshotVersion,
 		WorkspaceID: id,
-		Desktops: []Desktop{
-			{
-				ID:   "desktop-default",
-				Name: defaultDesktopName,
-				Tabs: []Tab{
-					{
-						ID: tabID,
-						Root: LayoutNode{
-							ID:       NodeID("leaf-" + string(windowID)),
-							Kind:     NodeKindLeaf,
-							WindowID: new(windowID),
-						},
-					},
-				},
-				ActiveTabID: tabID,
-			},
-		},
-		Windows: map[WindowID]Window{
-			windowID: {
-				ID:        windowID,
-				App:       newTabApp,
-				Route:     RouteIntent{Pathname: newTabPath, Search: RouteSearch{}},
-				NavStack:  []RouteIntent{},
-				DesktopID: "desktop-default",
-				TabID:     tabID,
-			},
-		},
-		History: History{Undo: []HistoryEntry{}, Redo: []HistoryEntry{}},
+		Desktops:    []Desktop{{ID: "desktop-default", Name: defaultDesktopName, Tabs: []Tab{}}},
+		Windows:     map[WindowID]Window{},
+		History:     History{Undo: []HistoryEntry{}, Redo: []HistoryEntry{}},
 	}
 }
 
-// Reconciliation allocates deterministic repair IDs so retries preserve the same topology.
-func repairEmptyDesktops(s *Snapshot) {
-	used := snapshotConverter{used: map[string]bool{}}
-	for id := range s.Windows {
-		used.used[string(id)] = true
-	}
-	for _, entry := range s.ClosedEntries {
-		for _, w := range entry.Windows {
-			used.used[string(w.ID)] = true
+// RetireEmptyDesktopPlaceholders drops the New Tab windows of every desktop that holds nothing
+// else, in the snapshot and in its undo/redo states, without mutating its input. Releases up to
+// v0.7.4 seeded such a placeholder into every empty desktop; an empty desktop now has no tabs
+// (#1799). A New Tab carries no content, so dropping it is lossless; one beside real tabs stays.
+// The daemon runs it once per stored aggregate, before its first commit on this release. Remove it
+// in v0.9.0.
+func RetireEmptyDesktopPlaceholders(snapshot Snapshot) (Snapshot, bool) {
+	retired := cloneSnapshot(snapshot)
+	changed := retirePlaceholders(retired.Desktops, retired.Windows)
+	for _, entries := range [][]HistoryEntry{retired.History.Undo, retired.History.Redo} {
+		for index := range entries {
+			for _, state := range []*State{&entries[index].Before, &entries[index].After} {
+				changed = retirePlaceholders(state.Desktops, state.Windows) || changed
+			}
 		}
 	}
-	var reserve func(LayoutNode)
-	reserve = func(n LayoutNode) {
-		used.used[string(n.ID)] = true
-		for _, child := range n.Children {
-			reserve(child)
-		}
+	if !changed {
+		return snapshot, false
 	}
-	for _, d := range s.Desktops {
-		for _, tab := range d.Tabs {
-			used.used[string(tab.ID)] = true
-			reserve(tab.Root)
-		}
-	}
-	for i := range s.Desktops {
-		d := &s.Desktops[i]
-		if len(d.Tabs) > 0 {
+	return NormalizeSnapshot(retired), true
+}
+
+func retirePlaceholders(desktops []Desktop, windows map[WindowID]Window) bool {
+	changed := false
+	for i := range desktops {
+		d := &desktops[i]
+		if len(d.Tabs) == 0 || !desktopEmpty(&Snapshot{Windows: windows}, *d) {
 			continue
 		}
-		id := WindowID(used.allocate("win-newtab-" + string(d.ID)))
-		tab := Tab{
-			ID:   TabID(used.allocate("tab-" + string(id))),
-			Root: LayoutNode{ID: NodeID(used.allocate("leaf-" + string(id))), Kind: NodeKindLeaf, WindowID: new(id)},
+		for _, tab := range d.Tabs {
+			for _, id := range nodeWindowIDs(tab.Root) {
+				delete(windows, id)
+			}
 		}
-		s.Windows[id] = Window{
-			ID:        id,
-			App:       newTabApp,
-			Route:     RouteIntent{Pathname: newTabPath, Search: RouteSearch{}},
-			NavStack:  []RouteIntent{},
-			DesktopID: d.ID,
-			TabID:     tab.ID,
-		}
-		d.Tabs, d.ActiveTabID = []Tab{tab}, tab.ID
+		d.Tabs, d.ActiveTabID = []Tab{}, ""
+		changed = true
 	}
+	return changed
 }

@@ -532,10 +532,10 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   }
   expect(deleteResponse.status()).toBe(204);
   // The daemon removes a deleted session's windows; its window was the only one in the only
-  // tab, so the desktop shows a New Tab window (window-tabs-split US-002.EC-5).
+  // tab, so the desktop is left empty, with no tab of its own (#1799).
   await expect(deletableWin).toHaveCount(0);
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/new-tab");
-  await expect(appPage.getByTestId("new-tab-empty")).toBeVisible();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/");
+  await expect(appPage.getByTestId("os-desk-empty")).toBeVisible();
 
   await expect(
     runtime.requestJSON<SessionEnvelope>(sessionAPIPath(workspace.id, deletableSession.id))

@@ -674,7 +674,7 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			groupedDesktop := requireWindowManagerDesktop(t, grouped.Snapshot, "desktop-default")
 			if !grouped.Applied || grouped.Snapshot.Version != windowmanager.SnapshotVersion ||
 				grouped.Snapshot.Windows["window-a"].TabID == grouped.Snapshot.Windows["window-b"].TabID ||
-				len(groupedDesktop.Tabs) != 3 || len(grouped.Deprecations) != 1 {
+				len(groupedDesktop.Tabs) != 2 || len(grouped.Deprecations) != 1 {
 				t.Fatalf("window.stack.group result = %#v", grouped)
 			}
 

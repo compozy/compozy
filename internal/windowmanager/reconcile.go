@@ -52,9 +52,7 @@ func reconcileWindows(snapshot Snapshot, keep func(Window) bool) (Snapshot, bool
 	if !changed {
 		return snapshot, false
 	}
-	reconciled = NormalizeSnapshot(reconciled)
-	repairEmptyDesktops(&reconciled)
-	return reconciled, true
+	return NormalizeSnapshot(reconciled), true
 }
 
 func reconcileAppWindows(windows map[WindowID]Window, keep func(Window) bool) bool {

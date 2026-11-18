@@ -478,7 +478,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 			if !result.Applied || result.Snapshot.Version != windowmanager.SnapshotVersion {
 				t.Fatalf("%s result = %+v", command.id, result)
 			}
-			if command.id == "window.stack.group" && len(result.Snapshot.Desktops[0].Tabs) != 3 {
+			if command.id == "window.stack.group" && len(result.Snapshot.Desktops[0].Tabs) != 2 {
 				t.Fatalf("group result = %+v, want one floating stack", result.Snapshot.Desktops[0])
 			}
 			revision = uint64(result.Snapshot.Revision)
@@ -494,7 +494,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		)
 		requireWindowManagerStatus(t, response, http.StatusOK)
 		decodeWindowManagerTestBody(t, response, &snapshot)
-		if snapshot.ClosedEntryCount != 0 || len(snapshot.Windows) != 3 {
+		if snapshot.ClosedEntryCount != 0 || len(snapshot.Windows) != 2 {
 			t.Fatalf("final v3 snapshot = %+v", snapshot)
 		}
 	})
@@ -883,8 +883,9 @@ func TestWindowManagerHandlers(t *testing.T) {
 		if len(snapshot.Desktops) != 1 {
 			t.Fatalf("snapshot desktops = %+v, want one", snapshot.Desktops)
 		}
-		if !strings.HasPrefix(string(snapshot.Desktops[0].Tabs), "[{") {
-			t.Fatalf("desktop floating JSON = %s, want []", snapshot.Desktops[0].Tabs)
+		// A desktop with no tabs encodes them as an empty array, never null (#1799).
+		if string(snapshot.Desktops[0].Tabs) != "[]" {
+			t.Fatalf("desktop tabs JSON = %s, want []", snapshot.Desktops[0].Tabs)
 		}
 		convertedSnapshot, err := contract.WindowManagerSnapshotFromDomain(windowmanager.Snapshot{
 			WorkspaceID: "workspace-a",
@@ -926,8 +927,8 @@ func TestWindowManagerHandlers(t *testing.T) {
 			FocusOrder json.RawMessage `json:"focus_order"`
 		}
 		decodeWindowManagerTestBody(t, clientResponse, &client)
-		// The desktop's New tab window is focused, so the order is a non-null array that names it.
-		if !strings.HasPrefix(string(client.FocusOrder), `["`) {
+		// A fresh desktop has no window to focus (#1799): the order is an empty array, never null.
+		if string(client.FocusOrder) != "[]" {
 			t.Fatalf("client focus_order JSON = %s, want an array", client.FocusOrder)
 		}
 	})

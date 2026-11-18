@@ -25,8 +25,11 @@ export function layoutDocumentProblems(document: WindowManagerLayoutDocument): s
     if (desktopIds.has(desktop.id)) problems.push(`Desktop id ${desktop.id} is used twice.`);
     desktopIds.add(desktop.id);
     if (desktop.order !== index) problems.push(`Desktop ${desktop.id} is out of order.`);
-    if (desktop.tabs.length === 0) problems.push(`Desktop ${desktop.id} has no tabs.`);
-    if (!desktop.tabs.some(tab => tab.id === desktop.activeTabId)) {
+    if (
+      desktop.tabs.length === 0
+        ? desktop.activeTabId !== ""
+        : !desktop.tabs.some(tab => tab.id === desktop.activeTabId)
+    ) {
       problems.push(`Desktop ${desktop.id} opens on a tab it does not have.`);
     }
     const firstRegular = desktop.tabs.findIndex(tab => !tab.pinned);

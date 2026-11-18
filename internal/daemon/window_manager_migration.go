@@ -101,6 +101,8 @@ func (r *windowManagerRepository) migrateSnapshot(
 		return windowmanager.Snapshot{}, err
 	}
 	status.SupersededBackups = len(superseded)
+	// Older aggregates come from releases that seeded New Tabs into empty desktops (#1799).
+	snapshot, _ = windowmanager.RetireEmptyDesktopPlaceholders(snapshot)
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return windowmanager.Snapshot{}, err
@@ -109,7 +111,7 @@ func (r *windowManagerRepository) migrateSnapshot(
 	if err != nil {
 		return windowmanager.Snapshot{}, err
 	}
-	ops := make([]clientstate.Op, len(backups), len(backups)+2)
+	ops := make([]clientstate.Op, len(backups), len(backups)+3)
 	copy(ops, backups)
 	ops = append(
 		ops,
@@ -120,6 +122,7 @@ func (r *windowManagerRepository) migrateSnapshot(
 			IfRev: entry.Rev,
 		},
 		clientstate.Op{Kind: clientstate.OpPut, Key: windowManagerMigrationKey(r.profileID), Value: record},
+		r.emptyDesktopsMarker(),
 	)
 	if _, err := r.service.Apply(
 		ctx,
@@ -130,6 +133,7 @@ func (r *windowManagerRepository) migrateSnapshot(
 	); err != nil {
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("migrate snapshot", err)
 	}
+	r.emptyDesktopsSettled.Store(workspace, struct{}{})
 	event := "window_manager.snapshot_migrated"
 	if conversionErr != nil {
 		event = "window_manager.snapshot_migration_failed"

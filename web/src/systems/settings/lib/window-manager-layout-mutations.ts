@@ -73,7 +73,7 @@ export function normalizeLayoutDocument(
     }
     const activeTabId = tabs.some(tab => tab.id === desktop.activeTabId)
       ? desktop.activeTabId
-      : (tabs[0]?.id ?? desktop.activeTabId);
+      : (tabs[0]?.id ?? "");
     return { ...desktop, order, tabs, activeTabId };
   });
   const windows: Record<string, WindowManagerLayoutWindow> = {};

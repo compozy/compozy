@@ -56,12 +56,13 @@ export interface WindowRouteIntent {
 }
 
 /**
- * Shell-palette request raised from inside a window (new-tab picker, tab bar `+`).
- * The palette consumes it as a destination scope for that window (US-005).
+ * Shell-palette request raised from a New Tab window (new-tab picker, tab bar `+`) or from an
+ * empty desktop. The palette consumes it as a destination scope (US-005): the pick replaces that
+ * window, or, with no window (`null`), becomes the empty desktop's first tab (#1799).
  */
 export interface WindowPaletteIntent {
   readonly kind: "destination";
-  readonly windowId: string;
+  readonly windowId: string | null;
 }
 
 export interface PendingWindowManagerCommand {

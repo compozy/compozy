@@ -21,6 +21,10 @@ func Legacy(profile string) string { return "legacy:" + profile }
 // Migration identifies the current upgrade's status for a profile.
 func Migration(profile string) string { return "migration:" + profile }
 
+// EmptyDesktops marks a profile's aggregate as already cleared of the New Tabs that releases up to
+// v0.7.4 seeded into empty desktops (#1799). Remove it with that retirement in v0.9.0.
+func EmptyDesktops(profile string) string { return "empty-desktops:" + profile }
+
 // SupersededLegacy retains an earlier backup without replacing distinct bytes.
 func SupersededLegacy(profile string, value []byte) string {
 	digest := sha256.Sum256(value)
@@ -37,7 +41,7 @@ func IsSupersededLegacy(key string) bool {
 
 // Profile identifies every key that belongs to a window-manager profile partition.
 func Profile(key string) (string, bool) {
-	for _, prefix := range []string{"snapshot:", "legacy:", "migration:", supersededPrefix} {
+	for _, prefix := range []string{"snapshot:", "legacy:", "migration:", "empty-desktops:", supersededPrefix} {
 		if profile, found := strings.CutPrefix(key, prefix); found {
 			if prefix == supersededPrefix {
 				profile, _, found = strings.Cut(profile, ":")

@@ -102,8 +102,9 @@ const desktopSchema = z
     id: identifierSchema,
     name: z.string().trim().min(1),
     order: z.number().int().nonnegative(),
-    tabs: z.array(tabSchema).min(1),
-    active_tab_id: identifierSchema,
+    // An empty desktop has no tabs and an empty active tab id (#1799).
+    tabs: z.array(tabSchema),
+    active_tab_id: z.union([identifierSchema, z.literal("")]),
   })
   .transform((desktop): LayoutDesktop => ({
     id: desktop.id,

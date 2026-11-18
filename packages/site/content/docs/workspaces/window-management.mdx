@@ -104,7 +104,12 @@ compozy window reopen --workspace <workspace-id> --revision <revision>
 
 `window close --scope` accepts `tab` (default: one window), `group` (every window of the tab, pinned
 or not), `others`, `right`, `left`, and `all` (unpinned tabs only). Closing the last window of a
-pinned tab is refused until you unpin it. Closing the last tab of a desktop leaves a New Tab window.
+pinned tab is refused until you unpin it. Closing the last tab of a desktop leaves the desktop empty,
+with no tabs: CompozyOS never opens a New tab by itself. An empty desktop shows **This desktop is
+empty** with **Choose a destination**, and whatever you pick there becomes its first tab. A New tab
+exists only when you open one with ⌘T, the tab bar's `+`, or `window.tab.new`, and it stays, across
+restarts too, until you close it. The first time this release loads your desktops, it removes the
+New tab that v0.7.4 and earlier put on each empty desktop; that happens once.
 
 ## Splits
 
@@ -223,7 +228,7 @@ layout once:
 The notification bell then holds **Your windows are now tabs** with the number of floating and
 minimized windows that became tabs, and a toast shows it once. Marking it read in one window clears it
 everywhere. If the conversion fails, the app shows **We could not move your layout to tabs**: your previous layout is kept, the desktop starts
-with one New tab window, and **Retry** runs the conversion again; **Dismiss** hides the notice and keeps
+empty, and **Retry** runs the conversion again; **Dismiss** hides the notice and keeps
 the saved layout. Once you have changed the layout since the failure, a plain retry is refused so
 your new work is never replaced silently: the notice says so and offers **Replace current layout**,
 which asks you to confirm before the tabs and windows you opened since the upgrade close and your
@@ -321,7 +326,7 @@ To move a tab to another desktop, drag it from the tab bar onto that desktop's d
 the dots grow into labelled targets, and the tab moves with all its split windows. If the desktop is
 hidden behind an overflow control, rest the tab on the control: the overview opens and takes the
 drop on a card. You can also drag a tab row from one card to another inside the overview. A desktop
-whose last tab leaves shows a New Tab window.
+whose last tab leaves is empty, with no tabs.
 
 ### Browser Back, the keyboard and reconnects
 
