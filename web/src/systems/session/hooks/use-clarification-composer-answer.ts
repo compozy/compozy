@@ -26,6 +26,9 @@ export interface UseClarificationComposerAnswerOptions {
   workspaceId?: string;
 }
 
+/** Re-reads after a settled question before the send stops chasing the agent's next one. */
+const NEXT_QUESTION_ATTEMPTS = 3;
+
 function isAbortError(error: unknown): boolean {
   return (
     typeof error === "object" && error !== null && "name" in error && error.name === "AbortError"
@@ -122,7 +125,7 @@ export function useClarificationComposerAnswer({
   const answering = (
     handler: SessionBusyInputHandler | undefined
   ): SessionBusyInputHandler | undefined => {
-    if (!handler || (!pending && unconfirmedAnswers.size === 0)) return handler;
+    if (!handler || !routable || (!pending && unconfirmedAnswers.size === 0)) return handler;
     return async draft => {
       const resent = [...unconfirmedAnswers].find(
         ([, text]) => text === draft.message.trim() && draft.attachments.length === 0
@@ -139,12 +142,18 @@ export function useClarificationComposerAnswer({
       if (text.length === 0) return handler(draft);
       if (await answer(pending.request_id, text, draft)) return;
       // The docked question settled first (answered in the dock, timed out): the next one in
-      // line still blocks the turn, so it takes this answer; with none left the send goes out.
-      const next = await rereadPending().catch(() => null);
-      if (next && next.request_id !== pending.request_id) {
-        if (await answer(next.request_id, text, draft)) return;
+      // line still blocks the turn, so it takes this answer. The send goes out as steer or queue
+      // only once a read proves no question waits.
+      let settled = pending.request_id;
+      for (let attempt = 0; attempt < NEXT_QUESTION_ATTEMPTS; attempt += 1) {
+        const next = await rereadPending().catch(() => {
+          throw refusal("couldn't check the agent's question. Try again.", draft);
+        });
+        if (!next) return handler(draft);
+        if (next.request_id !== settled && (await answer(next.request_id, text, draft))) return;
+        settled = next.request_id;
       }
-      return handler(draft);
+      throw refusal("the agent's questions kept changing. Try again.", draft);
     };
   };
 

@@ -173,6 +173,42 @@ describe("useClarificationComposerAnswer", () => {
     expect(steer).not.toHaveBeenCalled();
   });
 
+  it("Should keep the draft when the re-read after a settled question fails", async () => {
+    vi.mocked(answerSessionClarification).mockRejectedValue(
+      new ClarificationNotAnswerableError(ID, "req-1")
+    );
+    const steer = vi.fn();
+    const result = await renderComposerAnswer([PENDING]);
+    vi.mocked(fetchSessionClarifications).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(result.current.answering(steer)?.(draft("Ship it"))).rejects.toBeInstanceOf(
+      SessionBusyInputRefusalError
+    );
+    expect(steer).not.toHaveBeenCalled();
+  });
+
+  it("Should send the draft only once a read proves every chased question settled", async () => {
+    vi.mocked(answerSessionClarification)
+      .mockRejectedValueOnce(new ClarificationNotAnswerableError(ID, "req-1"))
+      .mockRejectedValueOnce(new ClarificationNotAnswerableError(ID, "req-2"));
+    const steer = vi.fn();
+    const result = await renderComposerAnswer([PENDING]);
+    // The next question waits until the composer has tried it, then settles too.
+    vi.mocked(fetchSessionClarifications).mockImplementation(async () =>
+      vi.mocked(answerSessionClarification).mock.calls.some(call => call[2] === "req-2")
+        ? []
+        : [NEXT]
+    );
+    const sent = draft("Europe");
+
+    await result.current.answering(steer)?.(sent);
+
+    expect(answerSessionClarification).toHaveBeenLastCalledWith(WS, ID, "req-2", {
+      text: "Europe",
+    });
+    expect(steer).toHaveBeenCalledExactlyOnceWith(sent);
+  });
+
   it("Should send the draft as before when no question waits any more", async () => {
     vi.mocked(answerSessionClarification).mockRejectedValue(
       new ClarificationNotAnswerableError(ID, "req-1")
@@ -246,6 +282,29 @@ describe("useClarificationComposerAnswer", () => {
       expect(steer).not.toHaveBeenCalled();
     }
   );
+
+  it("Should stop replaying unconfirmed answers once routing turns off", async () => {
+    vi.mocked(answerSessionClarification).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    vi.mocked(fetchSessionClarifications).mockResolvedValue([PENDING]);
+    const { wrapper } = setup();
+    const { result, rerender } = renderHook(
+      ({ stopPhase }: { stopPhase: string }) =>
+        useClarificationComposerAnswer({ sessionId: ID, stopPhase, workspaceId: WS }),
+      { initialProps: { stopPhase: "idle" }, wrapper }
+    );
+    await waitFor(() => {
+      expect(result.current.pending?.request_id).toBe("req-1");
+    });
+    vi.mocked(fetchSessionClarifications).mockResolvedValue([]);
+    const steer = vi.fn();
+    await expect(result.current.answering(steer)?.(draft("Ship it"))).rejects.toBeInstanceOf(
+      SessionBusyInputRefusalError
+    );
+
+    rerender({ stopPhase: "stopping" });
+
+    expect(result.current.answering(steer)).toBe(steer);
+  });
 
   it("Should leave busy sends untouched when no question is pending or the session is stopping", async () => {
     const steer = vi.fn();
