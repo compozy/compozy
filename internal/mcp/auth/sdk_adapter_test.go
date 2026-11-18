@@ -553,23 +553,38 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 				withHTTPClientForTest(document.Client()), WithRegistrationStore(store),
 				WithNow(func() time.Time { return now }),
 			}
-			service, err := NewService(store, append(options, WithClientMetadataURL(clientID))...)
-			if err != nil {
-				t.Fatal(err)
-			}
-			state, err := service.BeginLogin(t.Context(), cfg, redirect)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if state.Config.ClientID != clientID || len(fixture.Requests().Registration) != 0 {
-				t.Fatal("sign-in did not select CIMD")
-			}
-			callback := oauthCallbackURL(t, redirect, state.State, "")
-			if _, err := service.Exchange(t.Context(), &state, callback); err != nil {
-				t.Fatal(err)
-			}
+			codeExchanges := 0
 			if tc.legacy {
-				store.registration.TokenEndpointAuthMethod = ""
+				fingerprint, err := ServerDefinitionFingerprint(cfg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				store.registration = ClientRegistration{
+					Target: cfg.Target, DefinitionFingerprint: fingerprint, ResourceURL: cfg.RemoteURL,
+					Issuer: fixture.Endpoints.IssuerURL, ClientID: clientID, RedirectURL: redirect, Scopes: cfg.Scopes,
+				}
+				store.token = TokenRecord{
+					Target: cfg.Target, DefinitionFingerprint: fingerprint, Issuer: fixture.Endpoints.IssuerURL,
+					ClientID: clientID, Scopes: cfg.Scopes, AccessToken: "expired-fixture-access",
+					RefreshToken: mcpfixture.RefreshToken, ObtainedAt: now, ExpiresAt: now.Add(time.Hour),
+				}
+			} else {
+				service, err := NewService(store, append(options, WithClientMetadataURL(clientID))...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				state, err := service.BeginLogin(t.Context(), cfg, redirect)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if state.Config.ClientID != clientID || len(fixture.Requests().Registration) != 0 {
+					t.Fatal("sign-in did not select CIMD")
+				}
+				callback := oauthCallbackURL(t, redirect, state.State, "")
+				if _, err := service.Exchange(t.Context(), &state, callback); err != nil {
+					t.Fatal(err)
+				}
+				codeExchanges = 1
 			}
 			if tc.change != nil {
 				tc.change(&store.registration)
@@ -588,7 +603,7 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 			after, err := renewal.Refresh(t.Context(), cfg)
 			requests := fixture.Requests()
 			if !tc.wantUsable {
-				if err == nil || len(requests.Token) != 1 {
+				if err == nil || len(requests.Token) != codeExchanges {
 					t.Fatal("invalid registration reached the refresh endpoint")
 				}
 				return
@@ -596,10 +611,10 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 			if err != nil || after.Status != StatusAuthenticated || !after.Refreshable || !after.TokenPresent {
 				t.Fatalf("refreshed status = %+v, err = %v", after, err)
 			}
-			if len(requests.Registration) != 0 || len(requests.Token) != 2 {
+			if len(requests.Registration) != 0 || len(requests.Token) != codeExchanges+1 {
 				t.Fatal("refresh did not reuse the existing client")
 			}
-			request := requests.Token[1]
+			request := requests.Token[codeExchanges]
 			if request.Get("grant_type") != "refresh_token" || request.Get("client_id") != clientID ||
 				request.Get("refresh_token") != mcpfixture.RefreshToken || request.Has("client_secret") ||
 				request.Get("resource") != cfg.RemoteURL {
@@ -611,9 +626,6 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 			}
 			if tc.legacy {
 				return
-			}
-			if store.registration.TokenEndpointAuthMethod != tokenEndpointAuthMethodNone {
-				t.Fatal("the new CIMD registration did not persist its public-client auth method")
 			}
 			t.Run("Should use DCR when the newly configured CIMD document is unavailable", func(t *testing.T) {
 				fallback, err := NewService(store, append(options, WithClientMetadataURL(document.URL+"/missing"))...)
@@ -634,6 +646,38 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 
 func TestDynamicRegistrationReuseValidatesBindings(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reuse a public DCR client whose issued ID is an HTTPS URL", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t, mcpfixture.MustNew(mcpfixture.ProfileModern2026), mcpfixture.OAuthConfig{},
+		)
+		cfg := ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+			RemoteURL: fixture.Endpoints.MCPURL, Registration: RegistrationAuto,
+		}
+		fingerprint, err := ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const clientID = "https://issuer.example/clients/public"
+		const redirect = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+		store := &adapterTestStore{registration: ClientRegistration{
+			Target: cfg.Target, DefinitionFingerprint: fingerprint, ResourceURL: cfg.RemoteURL,
+			Issuer: fixture.Endpoints.IssuerURL, RedirectURL: redirect, ClientID: clientID,
+			TokenEndpointAuthMethod: tokenEndpointAuthMethodNone,
+		}}
+		service, err := NewService(store, withHTTPClientForTest(fixture.Server.Client()), WithRegistrationStore(store))
+		if err != nil {
+			t.Fatal(err)
+		}
+		login, err := service.BeginLogin(t.Context(), cfg, redirect)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if login.Config.ClientID != clientID || len(fixture.Requests().Registration) != 0 {
+			t.Fatal("sign-in replaced the existing public DCR client")
+		}
+	})
 	t.Run("Should re-register when redirect scopes or secret lifetime no longer cover the flow", func(t *testing.T) {
 		t.Parallel()
 		fixture := mcpfixture.StartOAuthHTTP(

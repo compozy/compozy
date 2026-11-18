@@ -33,7 +33,7 @@ func (s *Service) dynamicClientRegistration(
 		return "", "", "", err
 	}
 	existing, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
-	if err == nil && !existing.hasCIMDIdentity() && s.dynamicRegistrationReusable(
+	if err == nil && s.dynamicRegistrationReusable(
 		existing,
 		cfg,
 		fingerprint,
@@ -87,7 +87,7 @@ func (s *Service) dynamicClientRegistration(
 
 func (s *Service) loadTokenRegistration(ctx context.Context, target Target) (ClientRegistration, error) {
 	registration, err := s.registrations.GetMCPAuthRegistration(ctx, target)
-	// Older CIMD rows omitted the method even though code exchange used a public client.
+	// CIMD has no server-issued auth method, while DCR persists one even for public clients.
 	if err == nil && registration.TokenEndpointAuthMethod == "" && registration.hasCIMDIdentity() {
 		registration.TokenEndpointAuthMethod = tokenEndpointAuthMethodNone
 	}

@@ -35,9 +35,10 @@ Owner: [#1828](https://github.com/compozy/compozy/issues/1828).
   persisted public client ID. The status fields, command flags and API routes keep their shapes.
 - **Extensibility, hooks and config.** Manual and extension-owned servers share the repair.
   Registration strategy, configuration keys, hooks and SDK contracts stay the same.
-- **State and isolation.** New CIMD registrations store the public auth method. The OAuth
-  registration loader interprets older methodless CIMD rows in memory, with no SQLite shape
-  change or row rewrite. The target, definition, resource, issuer and scope checks still apply.
+- **State and isolation.** The OAuth token registration loader resolves public-client auth for
+  new and existing CIMD rows in memory. DCR records keep their stored auth method and reuse rules.
+  SQLite rows keep their shape and contents. The target, definition, resource, issuer and scope
+  checks still apply.
 - **Web, official skill, docs and QA.** Settings omits manual reauthorization for expiry alone
   when the token can renew and retains it when the runtime reports a failed refresh.
   The MCP skill reference and the ET-api-mcp-oauth-endpoints and
