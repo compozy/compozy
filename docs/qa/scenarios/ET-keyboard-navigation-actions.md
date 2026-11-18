@@ -33,4 +33,7 @@ split windows, Option+O returns to the last window, Option+; and Option+Shift+; 
 down into a New tab pane that raises the destination picker, and Control+Option+H/L step tabs.
 Picking a destination in that picker opens it in the split pane, which keeps its place; it never
 opens a separate tab. While the picker is open, Option+; and other window chords do nothing behind
-it. A header reached with Control+Option+↓ after a mouse click shows the focus ring.
+it. A header reached with Control+Option+↓ after a mouse click shows the focus ring. With a
+full-height window beside a stacked pair (Split right, then Split down on the right), Option+J
+from the top pane focuses the pane under it and Option+K comes back; neither jumps to the tall
+window, which only Option+H reaches.
