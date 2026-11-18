@@ -15,6 +15,12 @@ export type ExtensionInstallRequest = OperationRequestBody<"previewExtensionInst
 export type ExtensionInstallPreview = OperationResponse<"previewExtensionInstall", 200>;
 export type ExtensionKitInventory = OperationResponse<"getExtensionInventory", 200>;
 export type ExtensionKitItem = ExtensionKitInventory["items"][number];
+/** One permanently removed built-in: a tombstone the daemon lists in its API order. */
+export type ExtensionRemovedBuiltin = OperationResponse<
+  "listRemovedBuiltinExtensions",
+  200
+>["removed"][number];
+export type ExtensionRestoreResult = OperationResponse<"restoreExtension", 200>;
 
 /** Selects one daemon extension instance by optional workspace and profile axes. */
 export interface ExtensionInstanceScope {

@@ -48,6 +48,8 @@ export {
   VerifiedMark,
 } from "./components/extension-dialogs";
 export { ExtensionKitInventoryPanel } from "./components/extension-kit-inventory-panel";
+export { RemovedBuiltinsSection } from "./components/removed-builtins-section";
+export type { RemovedBuiltinsSectionProps } from "./components/removed-builtins-section";
 export { ExtensionDeclaredProfiles } from "./components/extension-declared-profiles";
 export { ExtensionLogPanel } from "./components/extension-log-panel";
 export { ExtensionSkippedComponents } from "./components/extension-skipped-components";

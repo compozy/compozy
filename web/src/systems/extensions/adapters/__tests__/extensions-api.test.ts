@@ -10,8 +10,10 @@ import {
   getExtensionProvenance,
   listExtensionLogs,
   listExtensions,
+  listRemovedBuiltinExtensions,
   previewExtensionInstall,
   removeExtension,
+  restoreBuiltinExtension,
   setExtensionEnablement,
   updateExtension,
 } from "../extensions-api";
@@ -271,6 +273,34 @@ describe("extensions management mutations", () => {
     });
   });
 
+  it("Should read removed built-ins and restore one through their generated routes", async () => {
+    const removed = [
+      { name: "spec-cycle", removed_at: "2026-11-17T14:02:11Z", removed_by: "operator" },
+    ];
+    mockJsonResponse({ removed });
+    await expect(listRemovedBuiltinExtensions()).resolves.toEqual(removed);
+    await expectFetchRequest({ path: "/api/extensions/removed-builtins" });
+
+    mockJsonResponse({
+      enabled: true,
+      name: "spec-cycle",
+      path: "/var/lib/compozy/extensions/spec-cycle",
+      source: "bundled",
+      status: "restored",
+      version: "0.7.3",
+    });
+    await expect(restoreBuiltinExtension("spec-cycle")).resolves.toMatchObject({
+      enabled: true,
+      name: "spec-cycle",
+      status: "restored",
+    });
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "POST",
+      path: "/api/extensions/spec-cycle/restore",
+    });
+  });
+
   it("Should address the global instance when no workspace is active", async () => {
     mockJsonResponse({ logs: [], stream_epoch: "epoch-global" });
     await expect(listExtensionLogs("otel-bridge", { workspaceId: "   " })).resolves.toEqual({
@@ -330,6 +360,31 @@ describe("extensions management failures", () => {
       currentDigest: "sha256:6f1c0a94d3b27e58",
       kind: "daemon",
       status: 409,
+    });
+  });
+
+  it("Should expose the daemon code of a refused restore and reject a list without its envelope", async () => {
+    mockJsonResponse(
+      {
+        code: "extension_exists",
+        error: "spec-cycle is already installed from marketplace; remove it first",
+      },
+      { status: 409 }
+    );
+
+    const error = await restoreBuiltinExtension("spec-cycle").catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(ExtensionsApiError);
+    expect(error).toMatchObject({
+      code: "extension_exists",
+      kind: "daemon",
+      message: "spec-cycle is already installed from marketplace; remove it first",
+      status: 409,
+    });
+
+    mockJsonResponse({});
+    await expect(listRemovedBuiltinExtensions()).rejects.toMatchObject({
+      kind: "malformed_response",
+      message: expect.stringContaining("missing removed"),
     });
   });
 

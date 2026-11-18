@@ -8,6 +8,7 @@ import {
 
 import {
   removeExtension,
+  restoreBuiltinExtension,
   setExtensionEnablement,
   updateExtension,
 } from "../adapters/extensions-api";
@@ -17,6 +18,7 @@ import type {
   ExtensionEnablement,
   ExtensionEntry,
   ExtensionInstanceScope,
+  ExtensionRestoreResult,
   ExtensionUpdateRequest,
 } from "../types";
 import { useExtensionInstanceScope } from "./use-extensions";
@@ -158,5 +160,21 @@ export function useRemoveExtension() {
     },
     onError: (error: Error) => toast.error(error.message),
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
+  });
+}
+
+/**
+ * Restores one removed built-in at its bundled version, enabled. A success reconciles the installed
+ * and removed lists through the caches a removal reconciles, so the built-in appears in the installed
+ * list without a reload. A failure is not toasted: the row that asked shows the daemon's reason.
+ */
+export function useRestoreBuiltinExtension() {
+  const queryClient = useQueryClient();
+  return useMutation<ExtensionRestoreResult, Error, string>({
+    mutationFn: name => restoreBuiltinExtension(name),
+    onSuccess: async result => {
+      await reconcileInstalledExtensionCaches(queryClient);
+      toast.success(`${result.name} restored`);
+    },
   });
 }
