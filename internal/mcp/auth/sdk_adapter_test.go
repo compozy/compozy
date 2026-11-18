@@ -685,6 +685,129 @@ func TestProtectedResourceMetadataURLs(t *testing.T) {
 	})
 }
 
+func TestHostedOAuthRootResourceDiscovery(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		resourceSuffix string
+		otherOrigin    bool
+		rootStatus     int
+		wantLogin      bool
+	}{
+		{name: "Should authorize with a slash-terminated root resource", resourceSuffix: "/", wantLogin: true},
+		{name: "Should authorize with an empty-path root resource", wantLogin: true},
+		{name: "Should reject a root resource on another origin", otherOrigin: true},
+		{name: "Should reject an unrelated resource path", resourceSuffix: "/other"},
+		{name: "Should bound discovery when root metadata returns HTTP 429", rootStatus: http.StatusTooManyRequests},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := mcpfixture.StartOAuthHTTP(
+				t, mcpfixture.MustNew(mcpfixture.ProfileModern2026), mcpfixture.OAuthConfig{},
+			)
+			var probes, endpointRequests, rootRequests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/mcp":
+					probes.Add(1)
+					w.WriteHeader(http.StatusUnauthorized)
+				case "/.well-known/oauth-protected-resource/mcp":
+					endpointRequests.Add(1)
+					http.NotFound(w, r)
+				case "/.well-known/oauth-protected-resource":
+					rootRequests.Add(1)
+					if tc.rootStatus != 0 {
+						w.WriteHeader(tc.rootStatus)
+						return
+					}
+					origin := "http://" + r.Host
+					resource := origin + tc.resourceSuffix
+					if tc.otherOrigin {
+						resource = "https://other.example/"
+					}
+					w.Header().Set("Content-Type", "application/json")
+					if err := json.NewEncoder(w).Encode(oauthex.ProtectedResourceMetadata{
+						Resource: resource, AuthorizationServers: []string{origin},
+					}); err != nil {
+						t.Errorf("encode protected resource metadata: %v", err)
+					}
+				default:
+					fixture.Server.Config.Handler.ServeHTTP(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			client := server.Client()
+			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+			store := &adapterTestStore{}
+			service, err := NewService(
+				store,
+				withHTTPClientForTest(client),
+				WithRegistrationStore(store),
+				WithSecretRefResolver(func(context.Context, string) (string, error) {
+					return store.secrets.ClientSecret, nil
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manager, err := NewManager(service)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg := ServerConfig{
+				Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
+				Type:         authTypeOAuth,
+				RemoteURL:    server.URL + "/mcp",
+				Registration: RegistrationAuto,
+			}
+			begin, err := manager.Begin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
+			if probe, endpoint, root := probes.Load(), endpointRequests.Load(), rootRequests.Load(); probe != 1 ||
+				endpoint != 1 || root < 1 || root > 2 {
+				t.Fatalf("discovery requests: probe=%d endpoint=%d root=%d", probe, endpoint, root)
+			}
+			if !tc.wantLogin {
+				const want = "mcp auth: protected resource metadata discovery failed"
+				if err == nil || err.Error() != want {
+					t.Fatalf("Begin() error = %v, want %q", err, want)
+				}
+				requests := fixture.Requests()
+				if len(requests.Registration) != 0 || len(requests.Token) != 0 {
+					t.Fatal("invalid metadata reached registration or token exchange")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Begin() error = %v", err)
+			}
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, begin.AuthorizationURL, http.NoBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := drainAndCloseResponseBody(resp.Body); err != nil {
+					t.Errorf("close authorization response: %v", err)
+				}
+			}()
+			if resp.StatusCode != http.StatusFound {
+				t.Fatalf("authorize HTTP status = %d, want %d", resp.StatusCode, http.StatusFound)
+			}
+			if _, err := manager.Exchange(
+				t.Context(), cfg, ExchangeInput{RedirectURL: resp.Header.Get("Location")},
+			); err != nil {
+				t.Fatalf("Exchange() error = %v", err)
+			}
+			status, err := manager.Status(t.Context(), cfg)
+			if err != nil || status.Status != StatusAuthenticated || !status.TokenPresent {
+				t.Fatalf("Status() = %+v, error = %v, want authenticated with a token", status, err)
+			}
+		})
+	}
+}
+
 func TestRegisterClientReportsRejectionStatus(t *testing.T) {
 	t.Parallel()
 	t.Run("Should include only the HTTP status for a rejected registration", func(t *testing.T) {
