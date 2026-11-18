@@ -252,8 +252,16 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("issueTestDevice() error = %v", err)
 		}
-		if _, err := service.RemoveDevice(t.Context(), issued.Device.ID); err == nil {
-			t.Fatal("RemoveDevice() succeeded without an event sink")
+		removalErr := func() error {
+			_, err := service.RemoveDevice(t.Context(), issued.Device.ID)
+			return err
+		}()
+		if removalErr == nil ||
+			!strings.Contains(removalErr.Error(), "device removal requires a configured event sink") {
+			t.Fatalf(
+				"RemoveDevice() error = %v, want the missing event sink error",
+				removalErr,
+			)
 		}
 		if _, exists := store.byID[issued.Device.ID]; !exists {
 			t.Fatal("removal without an event sink deleted the device record")

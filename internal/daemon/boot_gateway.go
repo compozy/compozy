@@ -81,6 +81,13 @@ func (d *Daemon) bootDeviceGateway(
 		state.cfg.Gateway.Auth.RateLimit.Window,
 		d.now,
 	)
+	// Pairing keeps its own budget: a successful device-authenticated request
+	// resets device-auth failures, and that must not forgive pairing attempts.
+	state.deps.GatewayPairingLimiter = gateway.NewAuthFailureLimiter(
+		state.cfg.Gateway.Auth.RateLimit.MaxFails,
+		state.cfg.Gateway.Auth.RateLimit.Window,
+		d.now,
+	)
 	challenges := gateway.NewChallengeRegistry()
 	state.deps.GatewayChallenges = challenges
 	providerEffects, err := d.resolveGatewayProviderEffects(state, gatewayStore, challenges)
