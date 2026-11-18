@@ -128,7 +128,10 @@ describe("useMenubarAttentionSelection", () => {
 
     expect(userOpen).toHaveBeenCalledExactlyOnceWith({
       app: "automations",
-      route: { pathname: "/automations/jobs/morning%2Fbriefing", search: { workspace: "ws-beta" } },
+      route: {
+        pathname: "/automations/jobs/morning%2Fbriefing",
+        search: { workspace: "ws-beta", from_bell: true },
+      },
     });
     expect(focusDestination).not.toHaveBeenCalled();
   });

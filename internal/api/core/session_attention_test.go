@@ -1148,7 +1148,7 @@ func readBellMigrationNotifications(
 func TestAttentionNotificationAutomationFailures(t *testing.T) {
 	t.Parallel()
 	t.Run(
-		"Should keep the whole unread population while filtering failed runs by source and receipts",
+		"Should keep failures from all profiles while isolating acknowledgement receipts",
 		func(t *testing.T) {
 			t.Parallel()
 			f, db := newBellNotificationFixture(t, &bellMigrationSource{})
@@ -1164,29 +1164,29 @@ func TestAttentionNotificationAutomationFailures(t *testing.T) {
 			}
 
 			before := readBellMigrationNotifications(t, f, "profile=default")
-			if before.Total != 205 || before.NeedsYou != before.Total || before.Finished != 0 ||
+			if before.Total != 206 || before.NeedsYou != before.Total || before.Finished != 0 ||
 				len(before.Items) != 100 {
 				t.Fatalf("bell population: total=%d needs_you=%d finished=%d rows=%d",
 					before.Total, before.NeedsYou, before.Finished, len(before.Items))
 			}
-			trigger, job := before.Items[0], before.Items[1]
+			trigger, foreign, job := before.Items[0], before.Items[1], before.Items[2]
+			if foreign.RunID != "run-marketing" {
+				t.Fatalf("foreign profile failure = %+v", foreign)
+			}
 			if trigger.Kind != "automation-trigger-failure" || trigger.Title != "Event briefing" ||
 				trigger.WorkspaceLabel != "User" || trigger.SourceID != "event-briefing" || trigger.RunID != "run-trigger" {
 				t.Fatalf("trigger notice = %+v", trigger)
 			}
 			if job.Kind != "automation-job-failure" || job.Title != "Morning briefing" ||
 				job.WorkspaceLabel != "Alpha" || job.Detail != "Run failed" || job.SourceID != "briefing" ||
-				job.RunID != "run-000" || job.ID == before.Items[2].ID {
+				job.RunID != "run-000" || job.ID == before.Items[3].ID {
 				t.Fatalf("job notice = %+v", job)
 			}
 
 			marketing := readBellMigrationNotifications(t, f, "profile=marketing&receipt_profile=default")
-			if marketing.Total != 1 || len(marketing.Items) != 1 || marketing.Items[0].RunID != "run-marketing" {
-				t.Fatalf("selected source profile: total=%d items=%v", marketing.Total, marketing.Items)
-			}
-			all := readBellMigrationNotifications(t, f, "all_profiles=true&receipt_profile=default")
-			if all.Total != before.Total+1 {
-				t.Fatalf("aggregate total = %d, want %d", all.Total, before.Total+1)
+			if marketing.Total != before.Total || marketing.Snapshot != before.Snapshot {
+				t.Fatalf("changing the source profile changed the bell population: total=%d snapshot=%q",
+					marketing.Total, marketing.Snapshot)
 			}
 
 			body, err := json.Marshal(contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot})
@@ -1202,13 +1202,9 @@ func TestAttentionNotificationAutomationFailures(t *testing.T) {
 			if after.Total != 0 || after.NeedsYou != 0 {
 				t.Fatalf("after acknowledgements: total=%d needs_you=%d", after.Total, after.NeedsYou)
 			}
-			all = readBellMigrationNotifications(t, f, "all_profiles=true&receipt_profile=default")
-			if all.Total != 1 || len(all.Items) != 1 || all.Items[0].RunID != "run-marketing" {
-				t.Fatalf("default receipts in aggregate: total=%d rows=%d", all.Total, len(all.Items))
-			}
 			otherReceipts := readBellMigrationNotifications(t, f, "all_profiles=true&receipt_profile=marketing")
-			if otherReceipts.Total != before.Total+1 {
-				t.Fatalf("marketing receipts in aggregate: total=%d, want %d", otherReceipts.Total, before.Total+1)
+			if otherReceipts.Total != before.Total {
+				t.Fatalf("marketing receipts in aggregate: total=%d, want %d", otherReceipts.Total, before.Total)
 			}
 		},
 	)
@@ -1238,7 +1234,8 @@ func seedBellAutomationFailures(t *testing.T, db *globaldb.GlobalDB, at time.Tim
 		('run-owner-unknown', ?, 'owner-missing', NULL, 'failed', NULL, ?),
 		('run-completed', ?, 'briefing', NULL, 'completed', 'ws-1', ?)`,
 		store.DefaultProfileID, store.FormatTimestamp(at.Add(time.Minute)),
-		bellMarketingProfileID, stamp, store.DefaultProfileID, stamp, store.DefaultProfileID, stamp,
+		bellMarketingProfileID, store.FormatTimestamp(at.Add(30*time.Second)), store.DefaultProfileID, stamp,
+		store.DefaultProfileID, stamp,
 		store.DefaultProfileID, stamp); err != nil {
 		t.Fatal(err)
 	}

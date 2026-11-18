@@ -10,10 +10,12 @@ export const Route = createFileRoute("/_app/automations/jobs/$jobId")({
     // Parent `/automations` crumb already supplies the Automations link.
     topbar: { crumb: { label: params.jobId } },
   }),
-  loader: async ({ context, params }) =>
+  loaderDeps: ({ search }) => ({ fromBell: search.from_bell }),
+  loader: async ({ context, params, deps }) =>
     (await import("./-automation-preload")).preloadAutomationJobDetailRoute(
       context.queryClient,
-      params.jobId
+      params.jobId,
+      deps.fromBell
     ),
   component: createOsRouteSync("automations"),
 });

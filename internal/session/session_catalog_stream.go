@@ -22,11 +22,12 @@ var ErrCatalogScopeInvalid = errors.New("session: catalog scope is invalid")
 
 // CatalogScope selects one explicit workspace or the labeled aggregate stream.
 type CatalogScope struct {
-	ReadScope     store.ReadScope
-	WorkspaceID   string
-	AllWorkspaces bool
-	Replay        bool
-	ReplayAfter   int64
+	ReadScope                    store.ReadScope
+	WorkspaceID                  string
+	AllWorkspaces                bool
+	Replay                       bool
+	ReplayAfter                  int64
+	ExcludeOperatorNotifications bool
 }
 
 func (s CatalogScope) Validate() error {
@@ -44,6 +45,9 @@ func (s CatalogScope) Validate() error {
 }
 
 func (s CatalogScope) matches(event CatalogEvent) bool {
+	if s.ExcludeOperatorNotifications && event.Name == CatalogEventNameOperatorNotification {
+		return false
+	}
 	if event.Kind == CatalogEventWorkspaceLayout {
 		// The workspace layout spans every workspace, so only aggregate
 		// subscribers of the owning profile reconcile it.

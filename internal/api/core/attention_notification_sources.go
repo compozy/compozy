@@ -19,7 +19,7 @@ import (
 )
 
 func (h *BaseHandlers) bellNotificationItems(
-	c *gin.Context, observer attentionNotificationObserver, scope attention.Scope, readScope store.ReadScope,
+	c *gin.Context, observer attentionNotificationObserver, scope attention.Scope,
 ) ([]contract.AttentionNotificationPayload, error) {
 	if h.Workspaces == nil || h.Loops == nil || h.Terminal == nil {
 		return nil, errors.New("api: notification sources are unavailable")
@@ -79,7 +79,7 @@ func (h *BaseHandlers) bellNotificationItems(
 		return nil, err
 	}
 	items = append(items, notices...)
-	failures, err := h.automationFailureNotificationItems(ctx, observer, scope, readScope, labels)
+	failures, err := h.automationFailureNotificationItems(ctx, observer, scope, labels)
 	if err != nil {
 		return nil, err
 	}

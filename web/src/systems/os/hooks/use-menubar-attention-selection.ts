@@ -93,7 +93,7 @@ export function useMenubarAttentionSelection(
             binding: ownerDataScope(row.workspaceId),
             route: {
               pathname: `/automations/${collection}/${encodeURIComponent(row.automationId)}`,
-              search: {},
+              search: { from_bell: true },
             },
           },
           NOTIFICATION_OPEN_FAILURE

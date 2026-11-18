@@ -21,8 +21,8 @@ one pending task approval beside the new session rows and prove its row, count, 
 not regress.
 
 Close the UI before a scheduled job in a project and an event trigger in User fail. Reopen the
-shell in their owning profile and confirm both failures appear under Needs you with names and
-scopes. Select each row and confirm it opens the corresponding automation. Mark one read, reload,
+shell in a different profile and confirm both failures appear under Needs you with names and
+scopes. Repeat in All profiles. Select each row and confirm it opens the corresponding automation. Mark one read, reload,
 and verify only the other is unread. Clear all and verify both failures remain in run history.
 With all catalog clients closed, send an operator notice from a User session. Reopen the shell and
 verify its bell row opens the sender session and can be marked read independently of a run failure.

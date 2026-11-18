@@ -58,14 +58,21 @@ export function useAutomationDetailPage(
   const readableWorkspaceId = readableProjectWorkspaceId(windowScope);
   const [queuedRun, setQueuedRun] = useState<AutomationRun | null>(null);
 
+  const bellScope = search.from_bell ? ({ all_profiles: true } as const) : undefined;
   const { accessError, detailQuery, entity } = useAutomationDetailEntity(
     kind,
     id,
     liveDataEnabled,
     readableWorkspaceId,
-    workspaceLoading || windowScope === null
+    workspaceLoading || windowScope === null,
+    bellScope
   );
-  const runsQuery = useAutomationDetailRuns(kind, id, liveDataEnabled && Boolean(entity));
+  const runsQuery = useAutomationDetailRuns(
+    kind,
+    id,
+    liveDataEnabled && Boolean(entity),
+    bellScope
+  );
 
   const { runtimeUnavailable, workspaceNameById, sentenceContext, view } =
     useAutomationDetailPresentation(entity, workspaces, detailQuery.error);

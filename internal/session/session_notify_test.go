@@ -57,7 +57,7 @@ func TestPublishOperatorNotification(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep offline notices through database reopen until acknowledged", func(t *testing.T) {
+	t.Run("Should keep offline notices across restart with an internal watcher", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		path := filepath.Join(t.TempDir(), "global.db")
@@ -72,12 +72,25 @@ func TestPublishOperatorNotification(t *testing.T) {
 		})
 		sender, _ := newNotifyTestManager()
 		WithOperatorNoticeOutbox(writer)(sender)
+		watcher, cancel, err := sender.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, ExcludeOperatorNotifications: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
 		result, err := sender.PublishOperatorNotification(ctx, NotifyRequest{
 			SessionID: "sess-offline", ProfileID: store.DefaultProfileID,
 			Title: "  Needs help  ", Body: "token=ghp_abcdefghijklmnopqrstuv",
 		})
 		if err != nil || result.Outcome != NotifyOutcomeNoClient {
 			t.Fatalf("offline publish = %#v, %v; want no-client", result, err)
+		}
+		sender.publishSessionCatalogEvent(CatalogEvent{
+			Name: CatalogEventNameChanged, ProfileID: store.DefaultProfileID, SessionID: "sess-offline",
+		})
+		if event := <-watcher; event.Name != CatalogEventNameChanged {
+			t.Fatalf("internal watcher received %q, want catalog wake", event.Name)
 		}
 		if err := writer.Close(ctx); err != nil {
 			t.Fatal(err)

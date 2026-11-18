@@ -20,12 +20,15 @@ const (
 
 func (h *BaseHandlers) automationFailureNotificationItems(
 	ctx context.Context, reader attention.AutomationFailureReader, scope attention.Scope,
-	readScope store.ReadScope, labels map[string]string,
+	labels map[string]string,
 ) ([]contract.AttentionNotificationPayload, error) {
 	if h.Automation == nil {
 		return nil, nil
 	}
-	failures, err := reader.ListUnreadAutomationFailures(ctx, scope, readScope, slices.Sorted(maps.Keys(labels)))
+	// The bell reads all source profiles. The active profile owns the receipts.
+	failures, err := reader.ListUnreadAutomationFailures(
+		ctx, scope, store.ReadScope{AllProfiles: true}, slices.Sorted(maps.Keys(labels)),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("api: list automation failures for notifications: %w", err)
 	}

@@ -29,11 +29,11 @@ func (h *BaseHandlers) AttentionNotifications(c *gin.Context) {
 	if !h.requireOperatorSurface(c, "notification inbox") {
 		return
 	}
-	observer, scope, readScope, ok := h.attentionNotificationScope(c, attentionBellPopulation)
+	observer, scope, ok := h.attentionNotificationScope(c, attentionBellPopulation)
 	if !ok {
 		return
 	}
-	items, err := h.bellNotificationItems(c, observer, scope, readScope)
+	items, err := h.bellNotificationItems(c, observer, scope)
 	if err != nil {
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
@@ -91,7 +91,7 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, errors.New("api: notification surface must be bell or home"))
 		return
 	}
-	observer, scope, _, ok := h.attentionNotificationScope(c, population)
+	observer, scope, ok := h.attentionNotificationScope(c, population)
 	if !ok {
 		return
 	}
@@ -130,21 +130,21 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 
 func (h *BaseHandlers) attentionNotificationScope(
 	c *gin.Context, population string,
-) (attentionNotificationObserver, attention.Scope, store.ReadScope, bool) {
+) (attentionNotificationObserver, attention.Scope, bool) {
 	observer, ok := h.Observer.(attentionNotificationObserver)
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: notification inbox is unavailable"))
-		return nil, attention.Scope{}, store.ReadScope{}, false
+		return nil, attention.Scope{}, false
 	}
 	query, ok := h.attentionOverviewQuery(c)
 	if !ok {
-		return nil, attention.Scope{}, store.ReadScope{}, false
+		return nil, attention.Scope{}, false
 	}
 	scope := observe.OverviewAttentionScope(query)
 	if population == attentionBellPopulation {
 		scope.Population = attentionBellPopulation
 	}
-	return observer, scope, query.ReadScope, true
+	return observer, scope, true
 }
 
 func (h *BaseHandlers) attentionOverviewQuery(c *gin.Context) (observe.OverviewQuery, bool) {
