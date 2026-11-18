@@ -3,7 +3,7 @@
 - **Scope:** operator journey for `compozy extension remove --permanent`, `restore`, and `removed` on the bundled `spec-cycle` built-in across CLI, UDS/HTTP, the agent native-tool surface, and the web UI, plus the restart leg of `ET-bundled-extension-trust`.
 - **Cadence tier:** targeted (E2E-001 to E2E-004 from the task graph; no charter file, a single lab pass).
 - **Build:** branch `feat/builtin-ext-docs-qa` on base `a03609681`, with uncommitted task_11 and task_12 changes. The lab binary was built from this worktree. **Environment:** isolated lab `compozy-builtin-permanent-removal-20261118-190753-611849-lab`, `COMPOZY_HOME` under `/tmp/compozyqa-6d838056c456/runtime`, HTTP `127.0.0.1:59939`, UDS under the same runtime. The lab HOME is `/tmp/compozyqa-6d838056c456/home`. The operator daemon and `~/.compozy` were not touched.
-- **Started:** 2026-11-18T19:08Z · **Status:** closed (E2E-003 blocked by an external provider login boundary; see Decisions for a Human).
+- **Started:** 2026-11-18T19:08Z · **Status:** open. E2E-003 is still blocked on a manual provider login inside the lab HOME (D1). The second lab is kept running for that login; see Session 2.
 
 ## Personas
 
@@ -65,6 +65,15 @@ Status legend: `Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked 
 - **Ran:** as part of E2E-001 (daemon stop and start, with spec-cycle tombstoned).
 - **Result:** after the restart, `spec-cycle` stayed absent from the list, and `removed` still listed it. The tombstone gates boot enrollment. The trust scenario's other legs (provenance, checksum evidence, policy) were not walked in this run and keep their current status.
 
+### Session 2 — lab re-run for E2E-003 and the D2 examples (2026-11-18, 21:00Z)
+
+- **Lab:** `/tmp/compozy-qa-labs/compozy-builtin-permanent-removal-e2e003-20261118-210036-216767-lab`. Manifest: `qa-artifacts/qa/bootstrap-manifest.json`. Binary built from this worktree at `e8afa77ce`. `COMPOZY_HOME=/tmp/compozyqa-3d96cbf2fc47/runtime`; isolated HOME `/tmp/compozyqa-3d96cbf2fc47/provider`; HTTP `127.0.0.1:55935`. Every command goes through `bin/qa-compozy`, which clears inherited `COMPOZY_*` markers. The daemon PID is registered in `qa-artifacts/qa/pids/daemon.pid`. The operator daemon and `~/.compozy` were not touched.
+- **Provider check (manifest step 2):** no provider authenticates under the lab HOME without a manual login. No provider key or token is in the environment, and the wrapper filters the environment anyway. `claude` and `agy` are `needs_login`. `codex`, `copilot`, `cursor`, `gemini`, and `kimi-cli` have no CLI. `moonshot`, `openrouter`, `vercel-ai-gateway`, `xai`, and `zai` are bound-secret with a missing credential. `opencode`, `pi`, and `qwen-code` are `unknown`, and the lab HOME holds no credential files. Only `claude` fits the agent journey, and it needs the login. Full list: `qa-artifacts/qa/logs/provider-list.json`.
+- **E2E-003:** not walked. No agent session was created, so no live tool call was observed. Catalog evidence from the lab CLI (operator view, not a session): `compozy__extensions_remove` is destructive with input `{name, owner}` and `additionalProperties: false`, and has no `permanent` input. `compozy__extensions_restore` is mutating with `{name}`. `compozy__extensions_removed_list` is read-only with `{}`. `tool search permanent` returns no permanent-removal tool. Files: `qa-artifacts/qa/logs/catalog-*.json`.
+- **Golden path re-captured (input to D2):** `qa-artifacts/qa/logs/dx-*.out`. UDS `DELETE ?permanent=true` returned 200 with the `{"extension": …}` envelope. A second DELETE returned 404 with `{"error":"extension: extension not found: spec-cycle"}`. HTTP `removed-builtins` showed `removed_by: human:local-user`. UDS restore POST returned 200 with the flat payload. The lab was left with `spec-cycle` tombstoned, which is the E2E-003 baseline.
+- **Side effect:** a probe with `opencode auth list` tried to start an opencode managed service on port 49374. A process that was already running, PID 3207894 (`opencode serve --service`, not started by this lane), holds that port. The probe failed, and nothing was stopped. Do not run opencode CLI commands that may start services.
+- **Teardown:** not run, on purpose. E2E-003 waits on the manual login, and the lab stays up for it.
+
 ## Paper Cuts
 
 | Persona | Where (journey/step) | Felt | Sharpness | Outcome |
@@ -85,10 +94,12 @@ Status legend: `Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked 
   - a) Run the lab daemon with the operator HOME for the native login lane (`home_policy=operator`). This reads the operator's `~/.claude` and the user-tier `~/.compozy` extensions, and it breaks the isolation the lab was built for. *Recommended only if you accept that boundary.*
   - b) Log in to Claude inside a lab-scoped HOME from a local terminal, then rerun E2E-003. This keeps isolation and needs one manual step from you.
   - c) Accept E2E-003 as blocked for this cycle and rely on the native tool catalog and policy tests (`UT-016`) for the tool surface, with no live agent walk.
+  - **Status (D1):** option b is the operator's choice for this pass. The login is still pending. Command: `qa-compozy provider auth login claude` with the wrapper from Session 2.
 - **D2 - a:** how to settle F1 to F4. *Why it matters:* the spec's golden path is the contract reviewers read first, and it currently disagrees with the daemon. Options:
   - a) Update `_dx.md` examples to the verified shapes (envelope, `human:local-user`, error text, list columns). *Recommended: the behavior already follows the public contract.*
   - b) Change the daemon to match the flat DX example. This breaks the existing `{"extension": …}` envelope that SD-013 regime 2 protects.
   - c) Change the stored `removed_by` to `operator` for operator-scoped callers. This changes stored data for a value nothing filters on today.
+  - **Status (D2):** option a applied in `_dx.md` (see its Contract Notes), on the operator's approval. F1–F4 are settled in the spec. The daemon was not changed.
 
 ## Evidence
 
