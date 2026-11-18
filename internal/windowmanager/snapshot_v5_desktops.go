@@ -100,17 +100,6 @@ func (c *snapshotConverter) appendFloatingTabs(d DesktopV5, converted *Desktop) 
 			c.summary.FloatingToTabs++
 		}
 	}
-	if len(converted.Tabs) == 0 {
-		id := WindowID(c.allocate("win-newtab-" + string(d.ID)))
-		c.windows[id] = WindowV5{
-			ID:        id,
-			App:       newTabApp,
-			DesktopID: d.ID,
-			Route:     RouteIntent{Pathname: newTabPath, Search: RouteSearch{}},
-			NavStack:  []RouteIntent{},
-		}
-		converted.Tabs = append(converted.Tabs, c.solo(id))
-	}
 }
 
 func (c *snapshotConverter) finishDesktop(converted *Desktop, out *Snapshot) error {
@@ -146,7 +135,10 @@ func (c *snapshotConverter) finishDesktop(converted *Desktop, out *Snapshot) err
 		}
 		return 1
 	})
-	if converted.ActiveTabID == "" {
+	if converted.Tabs == nil {
+		converted.Tabs = []Tab{}
+	}
+	if converted.ActiveTabID == "" && len(converted.Tabs) > 0 {
 		converted.ActiveTabID = converted.Tabs[0].ID
 	}
 	return nil

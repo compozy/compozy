@@ -36,7 +36,7 @@ export function serializeWindowManagerClientContext(
 
 export function selectPaletteDestinationRoute(
   state: OsDesktopRuntimeStore,
-  paletteWindowId: string | undefined
+  paletteWindowId: string | null | undefined
 ): OsWindowRoute | null {
   const windowId = paletteWindowId ?? state.focusedId;
   if (windowId === null) return null;

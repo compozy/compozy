@@ -8,7 +8,7 @@ export interface BackgroundStreamBudgetState {
 
 /**
  * Leaves browser connection capacity to authoritative and visible-window streams. A New tab
- * window holds no stream: it is what an empty desktop shows, so it reserves nothing.
+ * window holds no stream, so it reserves nothing, and neither does an empty desktop.
  */
 export function backgroundStreamsWithinConnectionBudget(
   state: BackgroundStreamBudgetState

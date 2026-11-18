@@ -86,7 +86,7 @@ func reduceCommandSurfaces(s *Snapshot, command Command, r *reducer) (reduction,
 		if err != nil {
 			return reduction{}, err
 		}
-		return r.finishReduction(s, beforeMembers, changed)
+		return r.finishReduction(s, beforeMembers, changed), nil
 	default:
 		return r.reduce(s, command)
 	}

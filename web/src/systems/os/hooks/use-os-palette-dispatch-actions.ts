@@ -38,7 +38,7 @@ export function useOsPaletteDispatchActions({
   const worktreeDialogs = use(WorktreeDialogActionsContext);
   const runCommand = (command: ResolvedPaletteCommand) => {
     const navigate =
-      landing.destinationWindowId !== null && command.action.kind === "navigate"
+      landing.destination && command.action.kind === "navigate"
         ? (app: OsAppId, route: OsWindowRoute | null) =>
             landing.pickDestination({ app, ...(route === null ? {} : { route }) })
         : undefined;

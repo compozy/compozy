@@ -143,9 +143,8 @@ export function useOsPaletteRoot({
   const { activeWorkspaceId, dataScope, registeredWorkspaces, runtimeWorkspaceId } = workspace;
   const [query, setQuery] = useState("");
   const paletteIntent = useWindowPaletteIntent();
-  const destinationWindowId =
-    open && paletteIntent?.kind === "destination" ? paletteIntent.windowId : null;
-  const destination = destinationWindowId !== null;
+  const destination = open && paletteIntent?.kind === "destination";
+  const destinationWindowId = destination ? paletteIntent.windowId : null;
   const rankSignals = useCmdPaletteRankSignals(runtimeWorkspaceId, open);
   const entities = useOsPaletteEntities({
     open,
@@ -198,6 +197,7 @@ export function useOsPaletteRoot({
   );
   const landing = useOsPaletteLandingActions({
     close,
+    destination,
     destinationWindowId,
     entities,
     registeredWorkspaces,

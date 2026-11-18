@@ -179,7 +179,9 @@ func repairClientView(view ClientView, snapshot Snapshot) ClientView {
 		if tabHoldingID(d.Tabs, active) < 0 && len(d.Tabs) > 0 {
 			active = d.Tabs[0].ID
 		}
-		repaired[d.ID] = active
+		if active != "" {
+			repaired[d.ID] = active
+		}
 	}
 	view.ActiveTab = repaired
 	view.StackActive = map[NodeID]WindowID{}

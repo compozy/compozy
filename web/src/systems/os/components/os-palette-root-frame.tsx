@@ -51,7 +51,11 @@ function rootFrameView(model: OsPaletteRootModel, selected: string, values: read
     empty,
     actionsChord,
     emptyCopy: rootEmptyCopy(model),
-    placeholder: model.destination ? "Open in this tab…" : "Search apps, sessions, and actions…",
+    placeholder: !model.destination
+      ? "Search apps, sessions, and actions…"
+      : model.destinationWindowId === null
+        ? "Open on this desktop…"
+        : "Open in this tab…",
     enterHint: model.destination ? "open here" : "open",
   };
 }

@@ -20,7 +20,16 @@ func (r *windowManagerRepository) reconcileLoadedSnapshot(
 	// Decoding already applied any snapshot-version migration, so reconciliation
 	// sees retired app ids only after they were rewritten to their replacements.
 	reconciled, changed := windowmanager.ReconcileRegisteredApps(snapshot, corecmds.RegisteredApp)
-	if !changed {
+	// Releases up to v0.7.4 seeded a New Tab into every empty desktop (#1799). The first load in
+	// this process retires them; later loads skip it, so a New Tab someone opens on an empty
+	// desktop stays until the daemon restarts, and an empty desktop then shows the same content.
+	_, settled := r.placeholdersSettled.Load(workspaceID)
+	retired := false
+	if !settled {
+		reconciled, retired = windowmanager.RetireEmptyDesktopPlaceholders(reconciled)
+	}
+	if !changed && !retired {
+		r.placeholdersSettled.Store(workspaceID, struct{}{})
 		return snapshot, nil
 	}
 	revision, err := windowmanager.NextTopologyRevision(snapshot.Revision)
@@ -42,10 +51,11 @@ func (r *windowManagerRepository) reconcileLoadedSnapshot(
 	if err != nil {
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("persist reconciled snapshot", err)
 	}
+	r.placeholdersSettled.Store(workspaceID, struct{}{})
 	droppedApps, rewrittenRoutes := windowManagerReconciliationAudit(snapshot)
 	r.logger.Info("windowmanager.snapshot_reconciled", "workspace_id", workspaceID,
 		"profile_id", r.profileID, "dropped_apps", droppedApps, "rewritten_routes", rewrittenRoutes,
-		"revision", reconciled.Revision)
+		"retired_placeholders", retired, "revision", reconciled.Revision)
 	return reconciled, nil
 }
 

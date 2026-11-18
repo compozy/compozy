@@ -28,7 +28,10 @@ func NormalizeSnapshot(snapshot Snapshot) Snapshot {
 			}
 		}
 		d.Tabs = tabs
-		if len(d.Tabs) > 0 && tabHoldingID(d.Tabs, d.ActiveTabID) < 0 {
+		switch {
+		case len(d.Tabs) == 0:
+			d.ActiveTabID = ""
+		case tabHoldingID(d.Tabs, d.ActiveTabID) < 0:
 			d.ActiveTabID = d.Tabs[0].ID
 		}
 	}

@@ -43,6 +43,9 @@ type windowManagerRepository struct {
 
 	mu    sync.Mutex
 	locks map[windowmanager.WorkspaceID]*sync.Mutex
+	// placeholdersSettled names the workspaces whose stored New Tab placeholders were already
+	// retired by this process; see reconcileLoadedSnapshot.
+	placeholdersSettled sync.Map
 
 	// writeMu guards the durable-write section, not just the flag: a commit holds
 	// it shared from before its seal check until after its store write returns, so

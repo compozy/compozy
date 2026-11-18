@@ -22,6 +22,7 @@ import type { OsWindow } from "../lib/os-types";
 import type { WindowPaneHosts } from "../lib/window-pane-hosts";
 import type { LayoutTab, TabProjection } from "../lib/window-manager-types";
 import type { TabDragState } from "../stores/os-tab-drag-store";
+import { OsDestinationPrompt } from "./os-destination-prompt";
 import { OsDropZone, OsRootDropZone } from "./os-drop-zone";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
 import type { OsSplitSeamSlot } from "../hooks/use-split-view";
@@ -253,6 +254,16 @@ function DeskLayer({
       }}
       style={style}
     >
+      {/* A desktop with no tabs shows the destination prompt on the desk itself (#1799). */}
+      {tabs.length === 0 ? (
+        <div className="absolute inset-0 flex">
+          <OsDestinationPrompt
+            label="This desktop is empty"
+            windowId={null}
+            testId="os-desk-empty"
+          />
+        </div>
+      ) : null}
       {visited.map(tabId => {
         const tab = tabs.find(entry => entry.id === tabId);
         if (tab === undefined) return null;
