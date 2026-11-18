@@ -7,6 +7,7 @@ import type {
   GatewayProviderEnableRequest,
   GatewayRedeemRequest,
   GatewayRedeemResult,
+  GatewayRemoveResult,
   GatewayRevokeResult,
   GatewayStatus,
   GatewaySurfaceRequest,
@@ -70,6 +71,22 @@ async function revokeGatewayDevice(id: string, signal?: AbortSignal): Promise<Ga
     throw gatewayApiError(`Failed to revoke device "${id}"`, response, error);
   }
   return requireGatewayData(data, response, `Failed to revoke device "${id}"`);
+}
+
+/**
+ * Deletes a device's record. The daemon revokes an active device first, so the
+ * caller must not assume the record is gone until this call succeeds. A 404
+ * means the record was already removed elsewhere; callers treat it as settled.
+ */
+async function removeGatewayDevice(id: string, signal?: AbortSignal): Promise<GatewayRemoveResult> {
+  const { data, error, response } = await apiClient.DELETE("/api/gateway/devices/{id}/record", {
+    params: { path: { id } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw gatewayApiError(`Failed to remove device "${id}"`, response, error);
+  }
+  return requireGatewayData(data, response, `Failed to remove device "${id}"`);
 }
 
 /**
@@ -155,6 +172,7 @@ export const gatewayApi = {
   listDevices: listGatewayDevices,
   renameDevice: renameGatewayDevice,
   revokeDevice: revokeGatewayDevice,
+  removeDevice: removeGatewayDevice,
   mintPairing: mintGatewayPairing,
   redeemPairing: redeemGatewayPairing,
   setSurface: setGatewaySurface,

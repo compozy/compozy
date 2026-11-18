@@ -1,10 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "@compozy/ui";
 
 import { gatewayApi } from "../adapters/gateway-api";
+import { GatewayApiError } from "../adapters/gateway-api-error";
 import { gatewayKeys } from "../lib/query-keys";
 import type {
   GatewayDevice,
   GatewayPairingArtifact,
+  GatewayRemoveResult,
   GatewayRevokeResult,
   GatewayStatus,
   GatewaySurfaceRequest,
@@ -103,6 +106,40 @@ export function useRevokeGatewayDevice() {
   return useMutation<GatewayRevokeResult, Error, string>({
     mutationFn: id => gatewayApi.revokeDevice(id),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: gatewayKeys.devices() });
+      void queryClient.invalidateQueries({ queryKey: gatewayKeys.status() });
+      void queryClient.invalidateQueries({ queryKey: gatewayKeys.audit() });
+    },
+  });
+}
+
+export interface RemoveGatewayDeviceInput {
+  id: string;
+  name: string;
+}
+
+/**
+ * Deletes a device's record. The row leaves the cached inventory as soon as the
+ * daemon confirms, then the inventory, posture and audit are reread because a
+ * removal of an active device also revoked it. A 404 means another surface
+ * already removed the record, so the list is refreshed and no failure is shown.
+ */
+export function useRemoveGatewayDevice() {
+  const queryClient = useQueryClient();
+  return useMutation<GatewayRemoveResult | null, Error, RemoveGatewayDeviceInput>({
+    mutationFn: async ({ id }) => {
+      try {
+        return await gatewayApi.removeDevice(id);
+      } catch (error) {
+        if (error instanceof GatewayApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    onSuccess: (result, { id, name }) => {
+      queryClient.setQueryData<GatewayDevice[]>(gatewayKeys.devices(), devices =>
+        devices?.filter(device => device.id !== id)
+      );
+      if (result) toast.success(`${name} removed`);
       void queryClient.invalidateQueries({ queryKey: gatewayKeys.devices() });
       void queryClient.invalidateQueries({ queryKey: gatewayKeys.status() });
       void queryClient.invalidateQueries({ queryKey: gatewayKeys.audit() });

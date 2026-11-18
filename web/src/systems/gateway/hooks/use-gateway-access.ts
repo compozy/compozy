@@ -3,13 +3,14 @@ import { useMutation } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
 
 import { gatewayApi } from "../adapters/gateway-api";
+import type { PairingCredential } from "../lib/pairing-input";
 import {
   gatewayAccessStore,
   startGatewayAccessObserver,
   type GatewayAccessState,
 } from "../stores/gateway-access-store";
 import type { GatewayListenerTier } from "@/lib/gateway-access-signal";
-import type { GatewayRedeemResult } from "../types";
+import type { GatewayRedeemRequest, GatewayRedeemResult } from "../types";
 
 /**
  * The page's device standing. Subscribing here also binds the store to the
@@ -26,13 +27,10 @@ export function useGatewayAccessTier(): GatewayListenerTier | undefined {
   return useSelector(gatewayAccessStore, snapshot => snapshot.context.tier);
 }
 
-export interface RedeemPairingInput {
-  artifact: string;
-  name: string;
-}
+export type RedeemPairingInput = PairingCredential & { name: string };
 
 /**
- * Redeems a pairing artifact from an unpaired browser. The daemon answers with
+ * Redeems a pairing credential from an unpaired browser. The daemon answers with
  * a session cookie and nothing the page needs to hold, so the app is reloaded
  * rather than patched: every query, stream and window-manager socket has to be
  * re-established under the new device session, and a reload is the only way to
@@ -40,13 +38,20 @@ export interface RedeemPairingInput {
  */
 export function useRedeemGatewayPairing(reload: () => void = defaultReload) {
   return useMutation<GatewayRedeemResult, Error, RedeemPairingInput>({
-    mutationFn: ({ artifact, name }) =>
-      gatewayApi.redeemPairing({ actor_kind: "operator_device", artifact, name }),
+    mutationFn: input => gatewayApi.redeemPairing(redeemRequest(input)),
     onSuccess: () => {
       gatewayAccessStore.trigger.accessRestored();
       reload();
     },
   });
+}
+
+function redeemRequest(input: RedeemPairingInput): GatewayRedeemRequest {
+  const credential =
+    input.manualCode !== undefined
+      ? { manual_code: input.manualCode }
+      : { artifact: input.artifact };
+  return { actor_kind: "operator_device", name: input.name, ...credential };
 }
 
 function defaultReload(): void {

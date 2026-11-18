@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
   Empty,
-  MonoId,
   QrCode,
   Spinner,
   Time,
@@ -17,6 +16,8 @@ import {
 
 import { buildPairingLink } from "../lib/pairing-fragment";
 import type { GatewayPairingArtifact } from "../types";
+import { GatewayManualCode } from "./gateway-manual-code";
+import { GatewayPairingCopyRow } from "./gateway-pairing-copy-row";
 
 export interface GatewayPairingDialogProps {
   open: boolean;
@@ -33,9 +34,9 @@ export interface GatewayPairingDialogProps {
  * One-time issuance view for a pairing artifact.
  *
  * The artifact is single-use, TTL-bounded, and returned exactly once, so this
- * dialog is the only place it may ever appear. Every scannable code has an
- * equally usable text path beside it: a phone camera is one way in, a screen
- * reader, a remote terminal, and a machine without a camera are the others.
+ * dialog is the only place it may ever appear. The six-digit manual code is the
+ * primary path because it needs no camera and no long copy; the QR code and the
+ * long link or artifact remain as secondary paths for the devices that use them.
  */
 export function GatewayPairingDialog({
   open,
@@ -53,7 +54,11 @@ export function GatewayPairingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="gateway-pairing-dialog">
+      <DialogContent
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto"
+        data-testid="gateway-pairing-dialog"
+        showCloseButton={false}
+      >
         <DialogHeader>
           <DialogTitle>Pair a device</DialogTitle>
           <DialogDescription>
@@ -85,37 +90,28 @@ export function GatewayPairingDialog({
         ) : null}
 
         {!isMinting && artifact ? (
-          <div className="flex flex-col gap-4" data-testid="gateway-pairing-artifact">
-            {pairingUrl ? (
-              <div className="flex flex-col items-center gap-2">
-                <QrCode
-                  data-testid="gateway-pairing-qr"
-                  label="Scan to open the pairing gate on another device"
-                  value={pairingUrl}
-                />
-                <MonoId
-                  copy
-                  copyLabel="Copy pairing link"
-                  data-testid="gateway-pairing-link"
-                  preserveCase
-                  value={pairingUrl}
-                />
-              </div>
-            ) : null}
-            <div className="flex flex-col gap-1">
-              <span className="eyebrow text-muted-foreground">Pairing code</span>
-              <MonoId
-                copy
-                copyLabel="Copy pairing code"
-                data-testid="gateway-pairing-code"
-                preserveCase
-                value={artifact.artifact}
-              />
-            </div>
+          <div className="flex min-w-0 flex-col gap-4" data-testid="gateway-pairing-artifact">
+            <GatewayManualCode code={artifact.manual_code} />
             <p className="text-form-label text-muted-foreground">
               Expires <Time iso={artifact.expires_at} mode="relative" />.
             </p>
-            {pairingUrl ? null : (
+            {pairingUrl ? (
+              <>
+                <div className="flex justify-center">
+                  <QrCode
+                    data-testid="gateway-pairing-qr"
+                    label="Scan to open the pairing gate on another device"
+                    value={pairingUrl}
+                  />
+                </div>
+                <GatewayPairingCopyRow
+                  copyLabel="Copy link"
+                  label="Pairing link"
+                  testId="gateway-pairing-link"
+                  value={pairingUrl}
+                />
+              </>
+            ) : (
               <p
                 className="text-form-label text-muted-foreground"
                 data-testid="gateway-pairing-no-address"
@@ -125,17 +121,31 @@ export function GatewayPairingDialog({
                 code — the current one may expire while you wait.
               </p>
             )}
+            <GatewayPairingCopyRow
+              copyLabel="Copy long code"
+              label="Long pairing code"
+              testId="gateway-pairing-artifact-value"
+              value={artifact.artifact}
+            />
           </div>
         ) : null}
 
         <DialogFooter>
-          <Button onClick={() => onOpenChange(false)} type="button" variant="ghost">
+          <Button
+            className="w-full sm:w-auto"
+            onClick={() => onOpenChange(false)}
+            size="cta-lg"
+            type="button"
+            variant="ghost"
+          >
             Close
           </Button>
           <Button
+            className="w-full sm:w-auto"
             data-testid="gateway-pairing-mint"
             disabled={isMinting}
             onClick={onMint}
+            size="cta-lg"
             type="button"
           >
             <RefreshCw aria-hidden="true" />

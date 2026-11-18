@@ -11,12 +11,14 @@ export interface GatewayDeviceListProps {
   onPair?: () => void;
   onRename: (id: string, name: string) => void;
   onRevoke: (device: GatewayDevice) => void;
+  onRemove: (device: GatewayDevice) => void;
 }
 
 /**
  * The living device inventory. Revocation is immediate and terminal — it also
  * cancels that device's live streams before returning — so it is offered as a
- * direct action with no soft "disable" in between.
+ * direct action with no soft "disable" in between. Removal is a separate, later
+ * step that deletes the record and is only offered as an explicit action.
  */
 export function GatewayDeviceList({
   devices,
@@ -25,6 +27,7 @@ export function GatewayDeviceList({
   onPair,
   onRename,
   onRevoke,
+  onRemove,
 }: GatewayDeviceListProps) {
   return (
     <SettingsGroup
@@ -44,6 +47,9 @@ export function GatewayDeviceList({
       data-testid="gateway-device-list"
       title="Devices"
     >
+      <span className="sr-only" role="status">
+        {isBusy ? "Updating devices" : ""}
+      </span>
       {error ? (
         <div className="px-4 py-3">
           <Alert variant="destructive">
@@ -68,6 +74,7 @@ export function GatewayDeviceList({
             device={device}
             isBusy={isBusy}
             key={device.id}
+            onRemove={onRemove}
             onRename={onRename}
             onRevoke={onRevoke}
           />

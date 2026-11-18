@@ -5,6 +5,7 @@ import type { GatewayDevice, GatewayPairingArtifact } from "../types";
 import { useGatewayAudit, type GatewayAuditViewModel } from "./use-gateway-audit";
 import {
   useMintGatewayPairing,
+  useRemoveGatewayDevice,
   useRenameGatewayDevice,
   useRevokeGatewayDevice,
   useSetGatewaySurface,
@@ -38,6 +39,7 @@ export interface GatewaySettingsViewModel {
     error: string | null;
     rename: (id: string, name: string) => void;
     revoke: (device: GatewayDevice) => void;
+    remove: (device: GatewayDevice) => void;
   };
   pairing: GatewayPairingViewModel;
 }
@@ -56,6 +58,7 @@ export function useGatewaySettingsPage(): GatewaySettingsViewModel {
   const mintPairing = useMintGatewayPairing();
   const renameDevice = useRenameGatewayDevice();
   const revokeDevice = useRevokeGatewayDevice();
+  const removeDevice = useRemoveGatewayDevice();
   const [pairingOpen, setPairingOpen] = useState(false);
 
   // A new device is admitted through the private overlay or on this machine —
@@ -81,10 +84,11 @@ export function useGatewaySettingsPage(): GatewaySettingsViewModel {
         }),
     },
     devices: {
-      isBusy: renameDevice.isPending || revokeDevice.isPending,
-      error: errorMessage(renameDevice.error ?? revokeDevice.error),
+      isBusy: renameDevice.isPending || revokeDevice.isPending || removeDevice.isPending,
+      error: errorMessage(renameDevice.error ?? revokeDevice.error ?? removeDevice.error),
       rename: (id, name) => renameDevice.mutate({ id, name }),
       revoke: device => revokeDevice.mutate(device.id),
+      remove: device => removeDevice.mutate({ id: device.id, name: device.name }),
     },
     pairing: {
       open: pairingOpen,
