@@ -128,6 +128,11 @@ export { buildWindowManagerMinimums } from "./lib/window-manager-view";
 export { CmdPaletteRegistryProvider } from "./contexts/cmd-palette-registry-context";
 export { usePaletteCommand, usePaletteRegistry } from "./hooks/use-palette-registry";
 export { useTerminalHostShortcut } from "./hooks/use-terminal-host-shortcut";
+export {
+  isRetiredShortcutId,
+  retiredShortcutTitle,
+  withoutRetiredShortcuts,
+} from "./lib/window-manager-retired-shortcuts";
 export { registryShortcutActions } from "./lib/cmd-palette-shortcut-actions";
 export { cmdPaletteKeys } from "./lib/cmd-palette-query-keys";
 export { resetCmdPalettePersonalization } from "./adapters/cmd-palette-api";

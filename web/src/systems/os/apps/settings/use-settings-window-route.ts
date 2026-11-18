@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { shallowEqual } from "@xstate/store";
 
 import { useDesktop } from "../../hooks/use-desktop";
@@ -38,9 +38,16 @@ export function useSettingsWindowRoute(windowId: string): {
     if (moved !== null) manager.navigateWindow(windowId, moved, "replace");
   });
   const movedCommand = moved === null ? null : String(moved.search.command);
+  // One replacement per legacy route: a replacement the daemon refuses leaves the old route
+  // stored, and retrying it on every render would loop. The window still shows Shortcuts.
+  const attempted = useRef<string | null>(null);
 
   useEffect(() => {
-    if (movedCommand !== null) replace();
+    if (movedCommand === null) return;
+    const key = `${windowId}\u0000${movedCommand}`;
+    if (attempted.current === key) return;
+    attempted.current = key;
+    replace();
   }, [movedCommand, windowId]);
 
   return { route: moved ?? stored, searchEnabled };

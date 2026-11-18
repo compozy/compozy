@@ -31,3 +31,6 @@ headers and session rows in screen order and wrap at both ends; a header takes v
 → / ← expand and collapse it; a session row opens its session. Option+H/J/K/L move focus between
 split windows, Option+O returns to the last window, Option+; and Option+Shift+; split right and
 down into a New tab pane that raises the destination picker, and Control+Option+H/L step tabs.
+Picking a destination in that picker opens it in the split pane, which keeps its place; it never
+opens a separate tab. While the picker is open, Option+; and other window chords do nothing behind
+it. A header reached with Control+Option+↓ after a mouse click shows the focus ring.

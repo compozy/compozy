@@ -6,12 +6,12 @@ import {
   findShortcutConflicts,
   shortcutLabel,
   WindowManagerSettingsError,
+  withoutRetiredShortcuts,
   type ShortcutConflict,
   type WindowManagerSettingsSection,
   type WindowManagerShortcutMap,
 } from "@/systems/os";
 
-import { withoutRetiredShortcuts } from "../lib/window-manager-retired-shortcuts";
 import { withCommandReset } from "../lib/window-manager-shortcut-rows";
 import {
   shortcutRecorderLogic,

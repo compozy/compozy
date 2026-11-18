@@ -1205,6 +1205,10 @@ describe("useOsShortcuts", () => {
     event.preventDefault();
     document.dispatchEvent(event);
     expect(onEscape).toHaveBeenCalledOnce();
+
+    // Escape during an IME composition cancels the composition, not the shell.
+    fireEvent.keyDown(document, { key: "Escape", code: "Escape", isComposing: true });
+    expect(onEscape).toHaveBeenCalledOnce();
   });
 
   it("Should fire modifier chords from a textarea and a contenteditable but leave typing chords to the field", () => {
@@ -1255,6 +1259,28 @@ describe("useOsShortcuts", () => {
     expect(run.mock.calls.map(([id]) => id)).toEqual(["shortcuts.cheatsheet", "layout.undo"]);
     textarea.remove();
     editable.remove();
+  });
+
+  it("Should run only the palette chord while focus is inside the open palette", () => {
+    const run = vi.fn();
+    const registry = shortcutRegistry({ "window.split.right": ["alt+Semicolon"] });
+    renderHook(() => useOsShortcuts(registry, run, { onEscape: vi.fn() }));
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    const command = document.createElement("div");
+    command.dataset.slot = "command";
+    const search = document.createElement("input");
+    command.append(search);
+    dialog.append(command);
+    document.body.append(dialog);
+
+    fireEvent.keyDown(search, { key: "…", code: "Semicolon", altKey: true });
+    fireEvent.keyDown(search, { key: "w", code: "KeyW", metaKey: true });
+    expect(run).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(search, { key: "k", code: "KeyK", metaKey: true });
+    expect(run).toHaveBeenCalledExactlyOnceWith("palette.open");
+    dialog.remove();
   });
 
   it("Should run terminal chords by the platform's shell ownership", () => {

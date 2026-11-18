@@ -129,6 +129,16 @@ describe("walkSessionList", () => {
     expect(clicked).toEqual([]);
   });
 
+  it("asks for the focus ring when it lands focus, since a chord does not show one", () => {
+    const { rail } = mountRail();
+    const focus = vi.spyOn(byId("folder"), "focus");
+    byId("group").focus();
+
+    walkSessionList(rail, "next", null);
+
+    expect(focus).toHaveBeenCalledExactlyOnceWith({ focusVisible: true });
+  });
+
   it("reports nowhere to go with fewer than two stops", () => {
     const { rail, clicked } = mountRail(`
       <aside data-session-rail data-state="open">
@@ -138,5 +148,19 @@ describe("walkSessionList", () => {
 
     expect(walkSessionList(rail, "next", "s1")).toBe(false);
     expect(clicked).toEqual([]);
+  });
+
+  it("enters a rail whose only stop is a collapsed group, so it can be expanded", () => {
+    const { rail } = mountRail(`
+      <aside data-session-rail data-state="open">
+        <button data-sidebar-stop="group" id="only-group">compozy</button>
+      </aside>
+      <textarea id="composer"></textarea>
+    `);
+    byId("composer").focus();
+
+    expect(walkSessionList(rail, "next", null)).toBe(true);
+    expect(document.activeElement).toBe(byId("only-group"));
+    expect(walkSessionList(rail, "next", null)).toBe(false);
   });
 });

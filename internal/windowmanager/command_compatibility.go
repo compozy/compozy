@@ -1,6 +1,13 @@
 package windowmanager
 
-type reuseWindowCommand struct{ id WindowID }
+import "fmt"
+
+// reuseWindowCommand activates the restore target. edge is the request's insert_edge, kept only
+// to reject it: activating an existing window has no side to land on.
+type reuseWindowCommand struct {
+	id   WindowID
+	edge DropPlacement
+}
 
 func (reuseWindowCommand) CommandID() CommandID { return CommandWindowOpen }
 
@@ -74,6 +81,11 @@ func canonicalProjectionSurfaces(request CommandRequest) CommandRequest {
 func reduceCommandSurfaces(s *Snapshot, command Command, r *reducer) (reduction, error) {
 	switch c := command.(type) {
 	case reuseWindowCommand:
+		if c.edge != "" {
+			return reduction{}, fmt.Errorf(
+				"insert_edge cannot be combined with restore_window_id: %w", ErrInvalidCommand,
+			)
+		}
 		if _, ok := s.Windows[c.id]; !ok {
 			return reduction{}, ErrWindowNotFound
 		}
@@ -166,7 +178,7 @@ func canonicalOpenCommand(c OpenWindowCommand, report func(string)) Command {
 	c.Window.FloatingRect = NormalizedRect{}
 	payload = c
 	if c.RestoreWindowID != nil {
-		payload = reuseWindowCommand{id: *c.RestoreWindowID}
+		payload = reuseWindowCommand{id: *c.RestoreWindowID, edge: c.Window.InsertEdge}
 	}
 	return payload
 }

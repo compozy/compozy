@@ -116,6 +116,9 @@ describe("shortcut eligibility", () => {
     expect(
       eligible("terminal", true, { key: ":", code: "Semicolon", alt: true, shift: true })
     ).toBe(true);
+    // A dead key starts an accent (⌥E → ´ then e → é), so it stays with the field.
+    expect(eligible("text", true, { key: "Dead", code: "KeyE", alt: true })).toBe(false);
+    expect(eligible("terminal", true, { key: "Dead", code: "KeyU", alt: true })).toBe(false);
     // With Control or Command held the chord is never a typed character.
     expect(eligible("text", true, { key: "@", code: "KeyL", alt: true, ctrl: true })).toBe(true);
   });
@@ -139,6 +142,8 @@ describe("shortcut eligibility", () => {
     // Elsewhere: Ctrl is primary and Ctrl + arrows move by word.
     expect(eligible("text", false, { code: "KeyZ", ctrl: true })).toBe(false);
     expect(eligible("text", false, { code: "KeyB", ctrl: true })).toBe(false);
+    expect(eligible("text", false, { code: "KeyY", ctrl: true })).toBe(false);
+    expect(eligible("text", true, { code: "KeyY", ctrl: true })).toBe(true);
     expect(eligible("text", false, { code: "ArrowLeft", ctrl: true })).toBe(false);
     expect(eligible("text", false, { code: "ArrowLeft", ctrl: true, shift: true })).toBe(false);
     expect(eligible("text", false, { code: "ArrowLeft", alt: true })).toBe(true);

@@ -120,6 +120,7 @@ const paletteMocks = vi.hoisted(() => {
     setActiveWorkspaceId: vi.fn(),
     coordinator: {
       userActivateWindow: vi.fn(async () => true),
+      userFocus: vi.fn(async () => true),
       userOpen: vi.fn(async () => "window:new-tab" as string | null),
     },
     desktop: null as OsDesktopRuntimeStore | null,
@@ -736,6 +737,7 @@ function resetPaletteHarness() {
   paletteMocks.closeWindow.mockClear();
   paletteMocks.setActiveWorkspaceId.mockClear();
   paletteMocks.coordinator.userActivateWindow.mockClear();
+  paletteMocks.coordinator.userFocus.mockClear();
   paletteMocks.coordinator.userOpen.mockClear();
   paletteMocks.coordinator.userOpen.mockResolvedValue("window:new-tab");
   paletteMocks.isWaiting.mockReset();
@@ -995,6 +997,35 @@ describe("useOsPaletteRoot", () => {
       afterWindowId: "window:new-tab",
     });
     await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
+  });
+
+  it("Should hand a split pane's place to the pick instead of opening a separate tab", async () => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
+    paletteMocks.desktop = desktopFixture(
+      {
+        "window:tasks": windowFixture({ id: "window:tasks", app: "tasks", inSplit: true }),
+        "window:new-tab": { ...newTabWindowFixture(), inSplit: true, tabId: "tab:tasks" },
+      },
+      "window:new-tab"
+    );
+    const { result } = renderRoot();
+    const command = PALETTE_REGISTRY.byId.get("app.open.terminal");
+    if (command === undefined) throw new Error("Expected the Terminal command fixture.");
+
+    await act(async () => {
+      result.current.runCommand(command);
+    });
+
+    await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
+    expect(paletteMocks.coordinator.userFocus).toHaveBeenCalledWith("window:new-tab");
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "terminal",
+      forceNewInstance: true,
+      placement: "split",
+    });
+    expect(paletteMocks.coordinator.userFocus.mock.invocationCallOrder[0]).toBeLessThan(
+      paletteMocks.coordinator.userOpen.mock.invocationCallOrder[0] ?? 0
+    );
   });
 
   it("Should open Terminal through userOpen and not land a session", async () => {

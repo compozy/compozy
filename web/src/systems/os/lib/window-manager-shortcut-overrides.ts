@@ -12,10 +12,17 @@ import {
   type ShortcutConflict,
   type ShortcutMap,
 } from "./window-manager-shortcuts";
+import { withoutRetiredShortcuts } from "./window-manager-retired-shortcuts";
 
+/**
+ * Each override as member bindings. Entries run in id order, so a family range
+ * (`desktop.switch`) expands before its members (`desktop.switch.1`) and an
+ * explicit member binding wins its slot whatever order the config stored.
+ */
 export function expandShortcutOverrides(overrides: ShortcutMap): Record<string, ShortcutBinding> {
   const expanded: Record<string, ShortcutBinding> = {};
-  for (const [actionId, binding] of Object.entries(overrides)) {
+  const entries = Object.entries(overrides).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const [actionId, binding] of entries) {
     const family = SHORTCUT_RANGE_FAMILIES.find(candidate => candidate.action === actionId);
     if (!family) {
       expanded[actionId] = binding.flatMap(member => {
@@ -53,6 +60,8 @@ function mergeShortcutOverrides(
   overrides: ShortcutMap,
   displaceClaimedDefaults: boolean
 ): ShortcutMap {
+  // The daemon skips a retired binding, so its chord claims nothing.
+  overrides = withoutRetiredShortcuts(overrides);
   const effective: Record<string, ShortcutBinding> = Object.fromEntries(
     Object.entries(base).map(([actionId, binding]) => [actionId, [...binding]])
   );

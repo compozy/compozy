@@ -350,6 +350,37 @@ describe("Settings window section area", () => {
     );
   });
 
+  it("Should not retry a refused replacement when the old Layouts link comes back", async () => {
+    const navigateWindow = vi.fn(() => ({ accepted: true, completion: Promise.resolve(false) }));
+    const { queryClient, snapshotKey } = await renderSettingsWindow(
+      "/settings/layouts?command=palette.open",
+      manager => {
+        manager.navigateWindow = navigateWindow;
+      }
+    );
+    expect(navigateWindow).toHaveBeenCalledOnce();
+
+    // The accepted replacement shows Shortcuts until the daemon refuses it and the old route returns.
+    for (const route of [
+      "/settings/shortcuts?command=palette.open",
+      "/settings/layouts?command=palette.open",
+    ]) {
+      act(() => {
+        queryClient.setQueryData(
+          snapshotKey,
+          parseWindowManagerSnapshot(windowManagerStorySnapshot(route))
+        );
+      });
+    }
+    await act(async () => vi.dynamicImportSettled());
+
+    expect(navigateWindow).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("settings-section-shortcuts")).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+  });
+
   it("Should keep a plain Layouts route on Layouts", async () => {
     const navigateWindow = vi.fn(() => ({ accepted: true, completion: Promise.resolve(true) }));
     await renderSettingsWindow("/settings/layouts", manager => {

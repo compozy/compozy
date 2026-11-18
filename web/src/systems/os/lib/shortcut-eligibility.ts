@@ -65,6 +65,8 @@ function isNativeTextChord(event: ShortcutKeyEvent, apple: boolean): boolean {
   const secondary = apple ? event.ctrlKey : event.metaKey;
   if (primary && !secondary && !event.altKey) {
     if (event.code === "KeyZ") return true;
+    // Ctrl+Y is redo on Windows and Linux.
+    if (!apple && !event.shiftKey && event.code === "KeyY") return true;
     if (!event.shiftKey && TEXT_EDITING_CODES.has(event.code)) return true;
   }
   if (!CARET_CODES.has(event.code)) return false;
@@ -99,9 +101,12 @@ function isOwnCharacter(code: string, key: string): boolean {
  * `@` on Italian. An Option chord the layout turns into another ASCII character
  * is typing, so a bound ⌥L never eats the `@`. The US glyphs (⌥H → ˙) are not
  * ASCII and still fire, and so does an Option that sends the key's own character.
+ * A dead key is typing too: it starts the accent the next key completes.
  */
 function isOptionTyping(event: ShortcutKeyEvent): boolean {
   if (!event.altKey || event.ctrlKey || event.metaKey) return false;
+  // A dead key (⌥E, ⌥U…) starts an accent before composition reports it.
+  if (event.key === "Dead") return true;
   if (!/^[\x21-\x7e]$/.test(event.key)) return false;
   return !isOwnCharacter(event.code, event.key);
 }

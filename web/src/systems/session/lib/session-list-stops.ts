@@ -43,16 +43,18 @@ export function currentSessionListStop(
 
 /**
  * The stop before or after the current one, wrapping around. With no current
- * stop the walk enters at the first (next) or last (previous) stop; with fewer
- * than two stops there is nowhere to go.
+ * stop the walk enters at the first (next) or last (previous) stop, even when
+ * it is the only one (a lone collapsed group to expand); a walk already on the
+ * only stop has nowhere to go.
  */
 export function adjacentSessionListStop(
   stops: readonly HTMLElement[],
   current: number,
   direction: SessionListWalkDirection
 ): HTMLElement | null {
-  if (stops.length < 2) return null;
+  if (stops.length === 0) return null;
   if (current < 0) return (direction === "next" ? stops[0] : stops.at(-1)) ?? null;
+  if (stops.length < 2) return null;
   const offset = direction === "next" ? 1 : -1;
   return stops[(current + offset + stops.length) % stops.length] ?? null;
 }
@@ -70,13 +72,16 @@ export function landSessionListStop(
   stop: HTMLElement,
   activeElement: Element | null
 ) {
+  // A chord is keyboard use, but Chromium does not count modifier chords toward
+  // :focus-visible, so the landing asks for the focus ring explicitly.
+  const focus = { focusVisible: true };
   // While a bulk selection is open a click toggles the row's membership, so
   // the walk only focuses the row there instead of changing the selection.
   if (sessionListStopKind(stop) === "session" && !stop.hasAttribute("aria-pressed")) {
-    if (activeElement !== null && root.contains(activeElement)) stop.focus();
+    if (activeElement !== null && root.contains(activeElement)) stop.focus(focus);
     stop.click();
   } else {
-    stop.focus();
+    stop.focus(focus);
   }
   stop.scrollIntoView({ block: "nearest" });
 }

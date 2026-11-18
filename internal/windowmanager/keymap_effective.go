@@ -66,8 +66,9 @@ func overridesDisplaceDefaults(string, string) bool { return true }
 
 // CanonicalShortcutsV2Retaining validates a keymap mutation like
 // CanonicalShortcutsV2, except that a chord the retained (stored) overrides
-// already gave the same action may displace a colliding daemon default. A chord
-// newly recorded onto another action's default still conflicts.
+// already took from a daemon default may keep displacing it, whichever action
+// claims it now, so moving such a chord between commands never revives the
+// default. A chord newly recorded onto another action's default still conflicts.
 func CanonicalShortcutsV2Retaining(
 	overrides map[string]ShortcutBinding,
 	retained map[string]ShortcutBinding,
@@ -84,12 +85,19 @@ func CanonicalShortcutsV2Retaining(
 	if err != nil {
 		return nil, err
 	}
-	held := make(map[string]ShortcutBinding, len(retainedCanonical))
+	held := make(map[string]struct{})
 	for action, binding := range retainedCanonical {
-		resolved, _ := CommandAlias(action)
-		held[resolved] = append(held[resolved], binding...)
+		if RetiredShortcut(action) {
+			continue
+		}
+		for _, chord := range binding {
+			held[chord] = struct{}{}
+		}
 	}
-	displace := func(action, chord string) bool { return slices.Contains(held[action], chord) }
+	displace := func(_, chord string) bool {
+		_, ok := held[chord]
+		return ok
+	}
 	if _, err := effectiveKeymap(canonical, touchedFamilies, displace); err != nil {
 		return nil, err
 	}

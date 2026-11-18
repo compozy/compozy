@@ -4,6 +4,14 @@ import { eligiblePaletteKeyBinding, paletteKeyBindings } from "../lib/cmd-palett
 import type { PaletteRegistry } from "../lib/cmd-palette-types";
 import { primaryShortcutModifier } from "../lib/window-manager-shortcuts";
 
+const PALETTE_OPEN_COMMAND_ID = "palette.open";
+
+function isInsidePalette(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element && target.closest('[role="dialog"] [data-slot="command"]') !== null
+  );
+}
+
 export interface OsShortcutOptions {
   /** Off while a blocking surface owns the shell (first-run setup). */
   enabled?: boolean;
@@ -27,7 +35,8 @@ export function useOsShortcuts(
   { enabled = true, onEscape }: OsShortcutOptions
 ): void {
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.defaultPrevented) return;
+    // An IME composition owns every key, Escape included (it cancels the composition).
+    if (event.defaultPrevented || event.isComposing) return;
     if (event.key === "Escape") {
       if (!event.repeat) onEscape();
       return;
@@ -38,6 +47,10 @@ export function useOsShortcuts(
       primaryShortcutModifier(navigator.platform)
     );
     if (!binding) return;
+    // The palette, and the destination picker it becomes, owns the keyboard while
+    // it is open: only its own chord (to close it) runs, so a window chord cannot
+    // change the layout behind it.
+    if (binding.commandId !== PALETTE_OPEN_COMMAND_ID && isInsidePalette(event.target)) return;
     // A chord whose command is unavailable is still *bound* — swallowing the
     // keystroke is what keeps it from falling through to the browser, and the
     // seam reports the runtime's reason rather than acting. A held chord is
