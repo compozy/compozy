@@ -27,7 +27,10 @@ func (s *daemonExtensionService) Install(
 	if s.marketplaceCache != nil && normalizedInstallSource(req.Source) == contract.InstallExtensionSourceMarketplace {
 		release, err := s.marketplaceCache.Hold(ctx)
 		if err != nil {
-			return contract.ExtensionPayload{}, err
+			return contract.ExtensionPayload{}, fmt.Errorf(
+				"daemon: acquire marketplace cache hold for install: %w",
+				err,
+			)
 		}
 		defer release()
 	}
@@ -191,7 +194,9 @@ func (s *daemonExtensionService) Update(
 	if s.marketplaceCache != nil {
 		release, err := s.marketplaceCache.Hold(ctx)
 		if err != nil {
-			return contract.ManagedExtensionUpdatePayload{}, err
+			return contract.ManagedExtensionUpdatePayload{}, fmt.Errorf(
+				"daemon: acquire marketplace cache hold for update: %w", err,
+			)
 		}
 		defer release()
 	}
@@ -235,7 +240,7 @@ func (s *daemonExtensionService) UpdateBatch(
 	if s.marketplaceCache != nil {
 		release, err := s.marketplaceCache.Hold(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("daemon: acquire marketplace cache hold for batch update: %w", err)
 		}
 		defer release()
 	}

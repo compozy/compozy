@@ -117,7 +117,10 @@ func (r *marketplaceRuntime) previewSource(
 ) (marketplace.SourceState, error) {
 	release, err := r.resolver.Cache.Hold(ctx)
 	if err != nil {
-		return marketplace.SourceState{}, err
+		return marketplace.SourceState{}, fmt.Errorf(
+			"daemon: acquire marketplace cache hold for source preview: %w",
+			err,
+		)
 	}
 	defer release()
 	projector, err := marketplace.NewPluginProjector(r.resolver, extensionpkg.InspectPluginPackage)
