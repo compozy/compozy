@@ -214,35 +214,38 @@ describe("useClarificationComposerAnswer", () => {
     expect(steer).not.toHaveBeenCalled();
   });
 
-  it("Should treat an answer whose acknowledgment was lost as landed when the question settled", async () => {
-    vi.mocked(answerSessionClarification).mockRejectedValue(new TypeError("Failed to fetch"));
-    const steer = vi.fn();
-    const result = await renderComposerAnswer([PENDING]);
-    vi.mocked(fetchSessionClarifications).mockResolvedValue([]);
+  it.each([
+    ["the question is gone", () => vi.mocked(fetchSessionClarifications).mockResolvedValue([])],
+    [
+      "the re-read fails",
+      () =>
+        vi.mocked(fetchSessionClarifications).mockRejectedValue(new TypeError("Failed to fetch")),
+    ],
+  ])(
+    "Should keep a lost-acknowledgment draft and replay it as the answer, never a prompt, when %s",
+    async (_case, settleReread) => {
+      vi.mocked(answerSessionClarification).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const steer = vi.fn();
+      const result = await renderComposerAnswer([PENDING]);
+      settleReread();
 
-    await result.current.answering(steer)?.(draft("Ship it"));
+      await expect(result.current.answering(steer)?.(draft("Ship it"))).rejects.toBeInstanceOf(
+        SessionBusyInputRefusalError
+      );
+      vi.mocked(answerSessionClarification).mockRejectedValueOnce(
+        new ClarificationNotAnswerableError(ID, "req-1")
+      );
+      await waitFor(() => {
+        expect(result.current.answering(steer)).not.toBe(steer);
+      });
+      await result.current.answering(steer)?.(draft("Ship it"));
 
-    expect(steer).not.toHaveBeenCalled();
-  });
-
-  it("Should never resend an unconfirmed answer as a prompt once its question settled", async () => {
-    vi.mocked(answerSessionClarification).mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    const steer = vi.fn();
-    const result = await renderComposerAnswer([PENDING]);
-    // Every re-read fails, so the composer cannot tell whether the answer landed.
-    vi.mocked(fetchSessionClarifications).mockRejectedValue(new TypeError("Failed to fetch"));
-    const answering = result.current.answering(steer);
-
-    await expect(answering?.(draft("Ship it"))).rejects.toBeInstanceOf(
-      SessionBusyInputRefusalError
-    );
-    vi.mocked(answerSessionClarification).mockRejectedValueOnce(
-      new ClarificationNotAnswerableError(ID, "req-1")
-    );
-    await answering?.(draft("Ship it"));
-
-    expect(steer).not.toHaveBeenCalled();
-  });
+      expect(answerSessionClarification).toHaveBeenLastCalledWith(WS, ID, "req-1", {
+        text: "Ship it",
+      });
+      expect(steer).not.toHaveBeenCalled();
+    }
+  );
 
   it("Should leave busy sends untouched when no question is pending or the session is stopping", async () => {
     const steer = vi.fn();

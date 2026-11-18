@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useState } from "react";
 
 import { SessionApiError } from "../adapters/session-api";
 import { SessionBusyInputRefusalError } from "../lib/session-busy-input-refusal";
@@ -64,9 +64,18 @@ export function useClarificationComposerAnswer({
   });
   const answerMutation = useAnswerSessionClarification(workspaceId, sessionId);
   const routable = enabled && !readOnly && allowBusyInput && stopPhase !== "stopping";
-  // Answers whose acknowledgment was lost, by request id. A later send of the same text that
-  // finds the question settled is that answer landing, never a second prompt.
-  const unconfirmedAnswers = useRef(new Map<string, string>());
+  // Answers whose acknowledgment was lost, by request id. A later send of the same text replays
+  // that answer: when the question settled meanwhile, it was that answer landing, never a prompt.
+  const [unconfirmedAnswers, setUnconfirmedAnswers] = useState<ReadonlyMap<string, string>>(
+    () => new Map()
+  );
+  const recordUnconfirmed = (requestId: string, text: string | null) =>
+    setUnconfirmedAnswers(previous => {
+      const next = new Map(previous);
+      if (text === null) next.delete(requestId);
+      else next.set(requestId, text);
+      return next;
+    });
   const pending: ClarificationPending | null =
     routable && !clarifications.error ? (clarifications.data?.[0] ?? null) : null;
 
@@ -84,37 +93,42 @@ export function useClarificationComposerAnswer({
   ): Promise<boolean> => {
     try {
       await answerMutation.mutateAsync({ requestId, body: { text } });
-      unconfirmedAnswers.current.delete(requestId);
+      recordUnconfirmed(requestId, null);
       return true;
     } catch (error) {
       if (isClarificationTerminalGone(error)) {
-        const landed = unconfirmedAnswers.current.get(requestId) === text;
-        unconfirmedAnswers.current.delete(requestId);
-        return landed;
+        recordUnconfirmed(requestId, null);
+        return unconfirmedAnswers.get(requestId) === text;
       }
       if (isAbortError(error)) throw error;
       if (error instanceof SessionApiError && error.status === 400) {
         throw refusal("the agent's question only accepts a listed choice. Pick one above.", draft);
       }
       // Admission is unknown (transport, 5xx): the live projection says whether it landed.
+      // A question still waiting proves the answer missed it; a gone one may have taken it or
+      // settled another way, so the draft stays and a resend replays this answer.
       const live = await rereadPending().catch(() => undefined);
-      if (live === undefined) {
-        unconfirmedAnswers.current.set(requestId, text);
-        throw refusal(
-          "couldn't confirm your answer reached the agent's question. Send it again; it never answers twice.",
-          draft
-        );
+      if (live?.request_id === requestId) {
+        throw refusal("couldn't send your answer to the agent's question. Try again.", draft);
       }
-      if (live?.request_id !== requestId) return true;
-      throw refusal("couldn't send your answer to the agent's question. Try again.", draft);
+      recordUnconfirmed(requestId, text);
+      throw refusal(
+        "couldn't confirm your answer reached the agent's question. Send it again; it never answers twice.",
+        draft
+      );
     }
   };
 
   const answering = (
     handler: SessionBusyInputHandler | undefined
   ): SessionBusyInputHandler | undefined => {
-    if (!handler || !pending) return handler;
+    if (!handler || (!pending && unconfirmedAnswers.size === 0)) return handler;
     return async draft => {
+      const resent = [...unconfirmedAnswers].find(
+        ([, text]) => text === draft.message.trim() && draft.attachments.length === 0
+      );
+      if (resent && (await answer(resent[0], resent[1], draft))) return;
+      if (!pending) return handler(draft);
       if (draft.attachments.length > 0) {
         throw refusal(
           "an answer to the agent's question can't carry files. Remove them to answer.",
