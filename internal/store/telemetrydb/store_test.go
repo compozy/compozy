@@ -12,14 +12,15 @@ import (
 
 func TestTelemetryCleanupOptions(t *testing.T) {
 	for _, testCase := range []struct {
-		name    string
-		options []OpenOption
+		name          string
+		options       []OpenOption
+		wantBatchSize int64
 	}{
-		{name: "Should complete cleanup with the default batch"},
-		{name: "Should complete every configured cleanup batch", options: []OpenOption{WithCleanupBatchSize(2)}},
-		{name: "Should use the default for a zero batch", options: []OpenOption{WithCleanupBatchSize(0)}},
-		{name: "Should use the default for a negative batch", options: []OpenOption{WithCleanupBatchSize(-1)}},
-		{name: "Should ignore a nil option", options: []OpenOption{nil}},
+		{name: "Should complete cleanup with the default batch", wantBatchSize: 256},
+		{name: "Should complete every configured cleanup batch", options: []OpenOption{WithCleanupBatchSize(2)}, wantBatchSize: 2},
+		{name: "Should use the default for a zero batch", options: []OpenOption{WithCleanupBatchSize(0)}, wantBatchSize: 256},
+		{name: "Should use the default for a negative batch", options: []OpenOption{WithCleanupBatchSize(-1)}, wantBatchSize: 256},
+		{name: "Should ignore a nil option", options: []OpenOption{nil}, wantBatchSize: 256},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
@@ -33,6 +34,9 @@ func TestTelemetryCleanupOptions(t *testing.T) {
 					t.Error(err)
 				}
 			})
+			if db.cleanupBatchSize != testCase.wantBatchSize {
+				t.Fatalf("cleanup batch size = %d, want %d", db.cleanupBatchSize, testCase.wantBatchSize)
+			}
 			cutoff := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
 			summaries := make([]store.EventSummary, 0, 11)
 			for i := range 7 {
