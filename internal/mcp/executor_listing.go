@@ -255,9 +255,10 @@ func (e *CallExecutor) prepareToolListing(ctx context.Context, resolved *Resolve
 			return nil
 		}
 		data, err := json.Marshal(struct {
-			Server  compozyconfig.MCPServer
-			Headers map[string][]string
-		}{resolved.Server, resolved.requestHeaders})
+			Server                  compozyconfig.MCPServer
+			Headers                 map[string][]string
+			RequireResourceMetadata bool
+		}{resolved.Server, resolved.requestHeaders, resolved.requireResourceMetadata})
 		if err != nil {
 			return fmt.Errorf("mcp: encode resolved listing identity: %w", err)
 		}

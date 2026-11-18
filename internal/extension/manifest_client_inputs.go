@@ -2,6 +2,27 @@ package extensionpkg
 
 import "github.com/compozy/compozy/internal/mcppolicy"
 
+// AgentPluginHeaderSecretInputs maps optional header credential names to their typed input IDs.
+func (m *Manifest) AgentPluginHeaderSecretInputs() map[string]string {
+	if m == nil || m.Format != FormatAgentPlugin {
+		return nil
+	}
+	names := make(map[string]struct{})
+	for _, server := range m.Resources.MCPServers {
+		for name := range mcppolicy.OptionalHeaderSecretNames(server.Headers) {
+			names[name] = struct{}{}
+		}
+	}
+	inputs := make(map[string]string)
+	for _, input := range m.Inputs {
+		if _, found := names[input.Binding.Name]; found && input.Binding.Type == manifestInputBindingTemplate &&
+			input.Type == manifestInputTypeSecret && !input.Required {
+			inputs[input.Binding.Name] = input.ID
+		}
+	}
+	return inputs
+}
+
 func manifestServerReferencesInput(server MCPServerConfig, name string) bool {
 	found := false
 	scan := func(value string) {

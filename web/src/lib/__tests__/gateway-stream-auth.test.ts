@@ -9,7 +9,9 @@ import {
   GatewayStreamAuthError,
   resetGatewayStreamAuth,
 } from "@/lib/gateway-stream-auth";
+import { apiClient } from "@/lib/api-client";
 import { observeGatewayAccess } from "@/lib/gateway-access-signal";
+import { createDeferred } from "@/test/event-recorder";
 
 function ticketResponse(ticket: string): Response {
   return new Response(JSON.stringify({ ticket, expires_at: "2026-08-07T00:00:00Z" }), {
@@ -91,52 +93,56 @@ describe("gateway stream auth", () => {
   });
 
   it("Should abort one discovery waiter without canceling the other connection", async () => {
-    let complete!: (response: Response) => void;
-    const fetchMock = vi.fn().mockImplementation(
-      () =>
-        new Promise<Response>(resolve => {
-          complete = resolve;
-        })
-    );
+    const started = createDeferred<Request>();
+    const response = createDeferred<Response>();
+    const fetchMock = vi.fn((request: Request) => {
+      started.resolve(request);
+      return response.promise;
+    });
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
     const canceled = acquireStreamTicket(controller.signal);
     const surviving = acquireStreamTicket();
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    const request = await started.promise;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const rejected = expect(canceled).rejects.toMatchObject({ name: "AbortError" });
 
     controller.abort();
     await rejected;
     expect(request.signal.aborted).toBe(false);
-    complete(listenerResponse("local"));
+    response.resolve(listenerResponse("local"));
     await expect(surviving).resolves.toBeNull();
   });
 
   it("Should cancel abandoned discovery and ignore its late result before retrying", async () => {
-    let complete!: (response: Response) => void;
+    const getStatus = vi.spyOn(apiClient, "GET");
+    const started = createDeferred<Request>();
+    const response = createDeferred<Response>();
     const fetchMock = vi
       .fn()
-      .mockImplementationOnce(
-        () =>
-          new Promise<Response>(resolve => {
-            complete = resolve;
-          })
-      )
+      .mockImplementationOnce((request: Request) => {
+        started.resolve(request);
+        return response.promise;
+      })
       .mockImplementation(() => Promise.resolve(listenerResponse("local")));
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
     const canceled = acquireStreamTicket(controller.signal);
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    const request = await started.promise;
+    const abandonedRead = getStatus.mock.results[0];
+    if (abandonedRead?.type !== "return") throw new Error("Expected a pending status read");
+    const settled = createDeferred<void>();
+    // This reaction follows discovery's await of the same HTTP operation.
+    void abandonedRead.value.then(() => settled.resolve(), settled.reject);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const rejected = expect(canceled).rejects.toMatchObject({ name: "AbortError" });
 
     controller.abort();
     await rejected;
     expect(request.signal.aborted).toBe(true);
     await expect(acquireStreamTicket()).resolves.toBeNull();
-    complete(listenerResponse("private"));
-    await new Promise(resolve => setTimeout(resolve, 0));
+    response.resolve(listenerResponse("private"));
+    await settled.promise;
     expect(gatewayStreamAuthMode()).toBe("local");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

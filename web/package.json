@@ -30,7 +30,7 @@
         "format": "bunx oxfmt",
         "format:check": "bunx oxfmt --check",
         "typecheck": "bun run typecheck:raw",
-        "typecheck:raw": "node ../node_modules/@typescript/native/bin/tsc --noEmit"
+        "typecheck:raw": "tsrs --noEmit"
     },
     "dependencies": {
         "@assistant-ui/react": "0.15.31",

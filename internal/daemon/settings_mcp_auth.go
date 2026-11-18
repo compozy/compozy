@@ -207,6 +207,7 @@ func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 	if err != nil {
 		return mcpauth.ServerConfig{}, fmt.Errorf("daemon: resolve MCP auth inputs: %w", err)
 	}
+	rendered.Headers = server.Headers
 	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, rendered, s.secretResolver)
 	cfg.ConsentScope = mcpauth.ConsentScopeFromContext(ctx)
 	if err != nil {

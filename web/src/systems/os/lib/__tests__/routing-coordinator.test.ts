@@ -19,6 +19,7 @@ import { RoutingCoordinator, type OsRouterPort } from "../routing-coordinator";
 import { RoutingEntryLedger } from "../routing-entry-ledger";
 import { routeReplacesWindowContent } from "../window-navigation-guard";
 import type { WindowManagerClientView } from "../window-manager-types";
+import { createDeferred } from "@/test/event-recorder";
 
 function route(pathname: string, search: Record<string, unknown> = {}): OsWindowRoute {
   return { pathname, search };
@@ -574,7 +575,8 @@ describe("RoutingCoordinator", () => {
 
     coordinator.reportRouteMatch(deepLink);
     store.settleLifecycle(false);
-    await vi.waitFor(() => expect(store.openOrFocus).toHaveBeenCalledOnce());
+    await store.openOrFocus.mock.results[0]?.value.completion;
+    expect(store.openOrFocus).toHaveBeenCalledOnce();
 
     expect(router.replace).not.toHaveBeenCalled();
 
@@ -724,6 +726,7 @@ describe("RoutingCoordinator", () => {
     const agents = windowFixture("agents", "/agents");
     const { coordinator, store, history } = createCoordinator([tasks, settings, agents]);
     coordinator.completeHydration();
+    const originalRequest = coordinator.keyboardFocus.request;
     const request = vi.spyOn(coordinator.keyboardFocus, "request");
 
     // A pane's pointer or focus activation keeps the focus the click gave.
@@ -746,10 +749,17 @@ describe("RoutingCoordinator", () => {
 
     // Back to an earlier window's entry.
     request.mockClear();
+    const requested = createDeferred<void>();
+    request.mockImplementationOnce((...args) => {
+      const outcome = originalRequest.apply(coordinator.keyboardFocus, args);
+      requested.resolve();
+      return outcome;
+    });
     history.back();
     const backEntry = history.current();
     coordinator.reportRouteMatch(route("/settings/general"), backEntry);
-    await vi.waitFor(() => expect(request).toHaveBeenCalledWith(settings.id, expect.any(Number)));
+    await requested.promise;
+    expect(request).toHaveBeenCalledWith(settings.id, expect.any(Number));
   });
 
   it("Should hand the keyboard to the window an open recovered onto [#1655]", async () => {
@@ -807,7 +817,14 @@ describe("RoutingCoordinator", () => {
     coordinator.completeHydration();
     await coordinator.userFocus(tasks.id);
     coordinator.reportRouteMatch(tasks.route, history.current());
+    const originalRequest = coordinator.keyboardFocus.request;
     const request = vi.spyOn(coordinator.keyboardFocus, "request");
+    const requested = createDeferred<void>();
+    request.mockImplementationOnce((...args) => {
+      const outcome = originalRequest.apply(coordinator.keyboardFocus, args);
+      requested.resolve();
+      return outcome;
+    });
     store.deferLifecycle();
 
     // Back to Settings: the router reports the entry as loading starts and again when it mounts,
@@ -820,7 +837,8 @@ describe("RoutingCoordinator", () => {
     store.settleLifecycle(true);
 
     await vi.waitFor(() => expect(store.getState().focusedId).toBe(settings.id));
-    await vi.waitFor(() => expect(request).toHaveBeenCalled());
+    await requested.promise;
+    expect(request).toHaveBeenCalled();
     const [, since] = request.mock.lastCall!;
     expect(since).not.toBe(coordinator.keyboardFocus.begin());
   });

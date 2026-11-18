@@ -1,3 +1,4 @@
+import { createEventRecorder } from "@/test/event-recorder";
 import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -1236,7 +1237,7 @@ describe("SessionChatRuntimeProvider", () => {
         expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
       });
     });
-  }, 10_000);
+  });
 
   it("renders transcript rows when the runtime thread is transiently empty", async () => {
     transcriptMessages = sessionTranscriptFixture.slice(0, 3);
@@ -1252,7 +1253,7 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("Should show the skeleton on cold provider mount until the transcript resolves", async () => {
     const transcriptResponse = createDeferred<Response>();
@@ -1275,7 +1276,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
     expect(countTranscriptFetches(fetchMock)).toBe(1);
-  }, 10_000);
+  });
 
   it("Should keep the live EventSource closed when liveTailEnabled is false", async () => {
     const eventSourceFactory = vi.fn((url: string) => new FakeSessionEventSource(url));
@@ -1382,7 +1383,7 @@ describe("SessionChatRuntimeProvider", () => {
       expect(viewport.scrollTop).toBeGreaterThanOrEqual(320);
     });
     expect(screen.queryByRole("button", { name: "Load older messages" })).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("Should fail loudly when workspaceId is empty", () => {
     const queryClient = createQueryClient();
@@ -2747,7 +2748,7 @@ describe("SessionChatRuntimeProvider", () => {
         );
       })
     ).toBe(true);
-  }, 10_000);
+  });
 
   it("Should project a newly completed runtime message in its first committed frame", async () => {
     transcriptMessages = [];
@@ -3015,7 +3016,7 @@ describe("SessionChatRuntimeProvider", () => {
       expect(screen.getByRole("button", { name: "Clear test conversation" })).toBeEnabled();
     });
     expect(screen.queryByText(prompt)).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("keeps distinct runtime and durable message ids visible even when metadata matches", () => {
     const runtimeMessages = toReadonlyThreadMessages([
@@ -3203,7 +3204,7 @@ describe("SessionChatRuntimeProvider", () => {
 
     expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
     expect(screen.queryByText("Still working")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("renders persisted session error events as failure notices", async () => {
     transcriptMessages = [
@@ -3244,7 +3245,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
       "peer disconnected before response"
     );
-  }, 10_000);
+  });
 
   it("does not render empty error chrome for incomplete message status without a detail", async () => {
     transcriptMessages = [
@@ -3278,7 +3279,7 @@ describe("SessionChatRuntimeProvider", () => {
 
     expect(screen.queryByTestId("session-message-error")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-error-notice")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("keeps pending permissions out of the transcript and renders receipts for resolved ones", async () => {
     transcriptMessages = [
@@ -3327,7 +3328,7 @@ describe("SessionChatRuntimeProvider", () => {
     // composer instead (owned by session-decision-dock.test.tsx).
     expect(screen.queryByText(/pending\.txt/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   function pendingPermissionTranscript(requestId: string): TranscriptMessage[] {
     return [
@@ -3412,7 +3413,7 @@ describe("SessionChatRuntimeProvider", () => {
       "?status=timed_out",
     ]);
     expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
-  }, 10_000);
+  });
 
   it("stops re-reading once every open ask has a settled row, keeps the receipt, and releases rewind", async () => {
     vi.useFakeTimers();
@@ -3448,7 +3449,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=timed_out"]);
     expect(screen.getByTestId("permission-expired-receipt")).toBeInTheDocument();
     expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
-  }, 10_000);
+  });
 
   // Invariant: selection/cancellation are local; submission rewinds once before sending,
   // even when the selected row disappears before the rewind response arrives.
@@ -3592,7 +3593,7 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
-  }, 10_000);
+  });
 
   it("keeps a decided ask neutral when the daemon has no resolved row for it", async () => {
     vi.useFakeTimers();
@@ -3615,7 +3616,7 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
-  }, 10_000);
+  });
 
   it("routes a clarify data event to the clarification receipt, not the activity notice", async () => {
     transcriptMessages = [
@@ -3659,7 +3660,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("clarification-receipt")).toHaveAttribute("data-status", "resolved");
     expect(screen.getByTestId("clarification-receipt-answer")).toHaveTextContent("production");
     expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
-  }, 10_000);
+  });
 
   it("renders mixed text, reasoning, and unregistered tool parts in order after disclosure", async () => {
     const user = userEvent.setup();
@@ -3735,7 +3736,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(within(chat).getByTestId("tool-call-row")).toHaveTextContent(
       "Searched the weblaunch note"
     );
-  }, 10_000);
+  });
 
   it("keeps unregistered data parts inside the settled turn fold instead of dropping them", async () => {
     const user = userEvent.setup();
@@ -3791,7 +3792,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(afterIndex).toBeGreaterThan(dataIndex);
     // The marker line names the raw event as mono meta — no payload preview card.
     expect(within(chat).getByTestId("session-data-part")).toHaveTextContent("data-provider-note");
-  }, 10_000);
+  });
 
   it("reconciles durable transcript after a live session stream event", async () => {
     transcriptMessages = sessionTranscriptFixture.slice(0, 1);
@@ -3842,7 +3843,7 @@ describe("SessionChatRuntimeProvider", () => {
     await waitFor(() => {
       expect(screen.getByText("Live reattached answer.")).toBeInTheDocument();
     });
-  }, 10_000);
+  });
 
   it("merges a same-fence durable snapshot without an extra transcript request", async () => {
     transcriptMessages = sessionTranscriptFixture.slice(0, 1);
@@ -3895,12 +3896,12 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(countTranscriptFetches(fetchMock)).toBe(1);
-  }, 10_000);
+  });
 
   it("Should close the provider stream on terminal frames and reopen only after the session becomes live", async () => {
-    vi.useFakeTimers();
     transcriptMessages = sessionTranscriptFixture.slice(0, 1);
-    const sources: FakeSessionEventSource[] = [];
+    const opened = createEventRecorder<FakeSessionEventSource>();
+    const sources = opened.events;
     const queryClient = createQueryClient();
     const workspaceId = fixtureWorkspaceId();
     const sessionId = primarySessionFixture.id;
@@ -3910,16 +3911,14 @@ describe("SessionChatRuntimeProvider", () => {
       queryClient,
       eventSourceFactory: url => {
         const source = new FakeSessionEventSource(url);
-        sources.push(source);
+        opened.record(source);
         return source;
       },
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(sources).toHaveLength(1);
-      });
-    });
+    await opened.waitForCount(1);
+    expect(sources).toHaveLength(1);
+    vi.useFakeTimers();
 
     sessionDetailResponse = { ...primarySessionFixture, state: "stopped" };
     act(() => {
@@ -3946,20 +3945,18 @@ describe("SessionChatRuntimeProvider", () => {
 
     expect(sources[0]?.closed).toBe(true);
     expect(sources).toHaveLength(1);
+    vi.useRealTimers();
 
     act(() => {
       queryClient.setQueryData(sessionKeys.detail(workspaceId, sessionId), primarySessionFixture);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(sources).toHaveLength(2);
-      });
-    });
+    await opened.waitForCount(2);
+    expect(sources).toHaveLength(2);
     expect(sources[1]?.url).toBe(
       `/api/workspaces/${workspaceId}/sessions/${sessionId}/stream?${SESSION_STREAM_QUERY}&after_sequence=1&epoch=1&generation=1`
     );
-  }, 10_000);
+  });
 
   it("Should expose transcript fetch failure through provider context while attempting the stream", async () => {
     transcriptFetchShouldFail = true;
@@ -3988,7 +3985,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(state).toHaveAttribute("data-is-error", "true");
     expect(state).toHaveTextContent("0");
     expect(state.getAttribute("data-error-message")).toContain("recorder temporarily unavailable");
-  }, 10_000);
+  });
 
   it("Should expose large transcript histories in order through a bounded DOM window", async () => {
     transcriptMessages = Array.from({ length: 80 }, (_, index) => ({
@@ -4014,5 +4011,5 @@ describe("SessionChatRuntimeProvider", () => {
         within(row).getByText(`Large transcript message ${rowIndexes[position]}`)
       ).toBeVisible();
     }
-  }, 10_000);
+  });
 });

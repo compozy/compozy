@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/mcp/securehttp"
 	"github.com/compozy/compozy/internal/mcppolicy"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -105,6 +106,8 @@ func (e *CallExecutor) renderHTTPServer(ctx context.Context, resolved *ResolvedS
 	for _, secret := range secrets {
 		registerMCPRequestSecret(ctx, secret)
 	}
+	// Rendering can omit optional Agent Plugin headers, so use the authored definition here.
+	resolved.requireResourceMetadata = resolved.Server.Auth.IsZero() && mcpauth.OAuthWithPluginHeaders(resolved.Server)
 	resolved.Server = rendered
 	headers, err := e.resolveMCPRequestHeaders(ctx, rendered)
 	if err != nil {
@@ -220,6 +223,7 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	)
 	client.Transport = authorizationRoundTripper{
 		next: transport, header: authorizationHeader, headers: headers,
+		requireMetadata: resolved.requireResourceMetadata,
 	}
 	return client, nil
 }
@@ -282,9 +286,10 @@ func (e *CallExecutor) httpClientForServer(resolved *ResolvedServer) *http.Clien
 }
 
 type authorizationRoundTripper struct {
-	next    http.RoundTripper
-	header  string
-	headers http.Header
+	next            http.RoundTripper
+	header          string
+	headers         http.Header
+	requireMetadata bool
 }
 
 func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -303,6 +308,10 @@ func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Respo
 		return nil, err
 	}
 	if authErr := authorizationChallengeError(response); authErr != nil {
+		if errors.Is(authErr, ErrAuthorizationRequired) && t.requireMetadata && t.header == "" &&
+			mcpauth.AdvertisedProtectedResourceMetadataURL(response.Header, request.URL.String()) == "" {
+			authErr = errRemoteAuthenticationRejected
+		}
 		return nil, errors.Join(authErr, drainAndCloseAuthorizationChallenge(response.Body))
 	}
 	return response, nil

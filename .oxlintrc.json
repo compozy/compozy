@@ -8,10 +8,15 @@
         "./lint-plugins/compozy-design-system.mjs",
         "./lint-plugins/ui-primitive-reuse.mjs",
         "./lint-plugins/data-boundaries.mjs",
-        { "name": "react-doctor", "specifier": "oxlint-plugin-react-doctor" }
+        { "name": "react-doctor", "specifier": "oxlint-plugin-react-doctor" },
+        { "name": "landmines-testing", "specifier": "@interfere/landmines/testing" }
     ],
     "categories": {},
     "rules": {
+        "landmines-testing/no-fixed-sleep": "error",
+        "landmines-testing/no-flake-masking": "error",
+        "landmines-testing/no-unsignaled-poll": "error",
+        "landmines-testing/strict-msw": "error",
         "compozy-testing/deterministic-tests": "error",
         "no-unassigned-vars": "warn",
         "for-direction": "warn",

@@ -6,7 +6,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { TooltipProvider, UIProvider } from "@compozy/ui";
 
-import { storybookSystemHandlers, type StorybookHandlerOverrides } from "@/storybook/msw";
+import {
+  flattenStorybookHandlerGroups,
+  storybookSystemHandlerGroups,
+  type StorybookHandlerOverrides,
+} from "@/storybook/msw";
 
 import * as stories from "../session-thread-queue.stories";
 
@@ -56,7 +60,10 @@ setProjectAnnotations([
 ]);
 
 const composed = composeStories(stories);
-const server = setupServer(...storybookSystemHandlers);
+// Node MSW owns unhandled requests here, including diagnostics with the actual request URL.
+const server = setupServer(
+  ...flattenStorybookHandlerGroups({ ...storybookSystemHandlerGroups, guard: [] })
+);
 
 function storyHandlers(story: { parameters: Record<string, unknown> }) {
   const msw = story.parameters.msw as { handlers?: StorybookHandlerOverrides } | undefined;
@@ -88,7 +95,7 @@ class ClipboardEventShim extends Event {
 }
 
 describe("SessionThread queue stories", () => {
-  beforeAll(() => server.listen({ onUnhandledFrame: "bypass" }));
+  beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
   // Stubs are dropped after every case (`unstubAllGlobals`), so both go in per case.
   beforeEach(() => {
     vi.stubGlobal("scrollTo", vi.fn());

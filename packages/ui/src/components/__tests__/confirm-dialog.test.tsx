@@ -1,3 +1,4 @@
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
@@ -272,7 +273,7 @@ describe("ConfirmDialog", () => {
 
       await waitFor(() => expect(consoleError).toHaveBeenCalledTimes(2));
       expect(consoleError).toHaveBeenCalledWith("Confirm dialog action failed", failure);
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await nextTurn();
       expect(unhandled).not.toHaveBeenCalled();
     } finally {
       process.off("unhandledRejection", unhandled);

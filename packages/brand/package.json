@@ -8,7 +8,7 @@
         "dev": "vite dev --port 4620 --strictPort",
         "build": "vite build && bun scripts/assert-build-output.ts",
         "preview": "vite preview --port 4620 --strictPort",
-        "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit",
+        "typecheck": "tsrs --noEmit",
         "lint": "bunx oxfmt --check . && bunx oxlint --deny-warnings src scripts vite.config.ts vitest.config.ts",
         "test": "vitest run",
         "logos": "bun scripts/build-logos.ts",

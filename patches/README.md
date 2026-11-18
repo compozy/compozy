@@ -41,3 +41,10 @@ Suspense render, StrictMode remounts, and real backend-tool stream processing. R
 the browser navigation/heap comparison documented in
 `docs/qa/reports/2026-10-26-session-responsiveness.md` before removing it. No upstream
 issue was created as part of this change.
+
+`@interfere/landmines@0.0.0` checks the MSW 2 `onUnhandledRequest` option.
+CompozyOS uses MSW 3, which reads `onUnhandledFrame`. The patch recognizes the
+current option and resolves named callbacks such as Storybook's policy, which
+fails unhandled local API requests and lets Storybook assets load. Remove the
+patch and its `patchedDependencies` entry when the pinned plugin supports MSW 3
+and named callbacks.

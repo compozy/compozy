@@ -32,6 +32,11 @@ not recorded. An upgrade preserves those markers without inferring authorship or
 
 Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets bind <name> --env <key> --vault-ref <ref> --profile <profile>`, or set a value through stdin or a hidden prompt. Set, bind, list, and unset resolve and transport the selected profile; without `--profile`, they use the normal profile-resolution chain. Add `--remote-header <server>:<header>` to bind that value to one declared remote MCP header. Reads expose bound key, server, and header names only, never values or Vault references.
 
+For client Agent Plugins, the same list and set commands accept optional secret inputs already
+referenced by MCP header templates. Use the listed key name and omit `--remote-header`. These
+credentials belong to the exact profile and extension instance. An unset input with an empty
+default leaves its credential header out of the request.
+
 If a candidate extension changes its normalized gateway permission requirement, install or update returns `extension_gateway_confirmation_required` with the exact digest before changing package state. Inspect that digest and retry with `--confirm-gateway-requirement <digest>` or the equivalent `confirm_gateway_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to those exact gateway permissions.
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.

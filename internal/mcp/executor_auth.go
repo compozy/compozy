@@ -232,6 +232,7 @@ func (e *CallExecutor) serverAuthConfig(
 	for _, secret := range secrets {
 		registerMCPRequestSecret(ctx, secret)
 	}
+	server.Headers = resolved.Server.Headers
 	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, server, resolve)
 	cfg.ConsentScope = resolved.ConsentScope
 	if cfg.ConsentScope == (mcpauth.ConsentScope{}) {

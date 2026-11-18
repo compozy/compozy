@@ -1,0 +1,40 @@
+diff --git a/dist/testing.mjs b/dist/testing.mjs
+index f073c3e64276fb571dbfccba85c8959e53c2be31..a8879da425bd32e6de392d4260bb785fadc19a62 100644
+--- a/dist/testing.mjs
++++ b/dist/testing.mjs
+@@ -1438,8 +1438,15 @@ function serverFactory(source, node) {
+ 	const [factory] = factories;
+ 	return factories.size === 1 && factory !== void 0 ? factory : null;
+ }
+-function strict(node) {
+-	return node?.type === "ObjectExpression" && node.properties.some((property) => property.type === "Property" && !property.computed && property.key.type === "Identifier" && property.key.name === "onUnhandledRequest" && (property.value.type === "Literal" && property.value.value === "error" || property.value.type === "ArrowFunctionExpression" || property.value.type === "FunctionExpression"));
++function strict(source, node) {
++	if (node?.type !== "ObjectExpression") return false;
++	for (const key of ["onUnhandledFrame", "onUnhandledRequest"]) {
++		const option = [...node.properties].reverse().find((property) => keyName(property) === key);
++		if (!option) continue;
++		const value = resolvedConstant(source, option.value);
++		return value.type === "Literal" && value.value === "error" || value.type === "ArrowFunctionExpression" || value.type === "FunctionExpression" || value.type === "FunctionDeclaration";
++	}
++	return false;
+ }
+ const strictMsw = defineRule({
+ 	meta: {
+@@ -1447,7 +1454,7 @@ const strictMsw = defineRule({
+ 		schema: allowlistSchema,
+ 		docs: { description: "Fail tests on requests that no MSW handler covers instead of letting them reach the network." },
+ 		messages: {
+-			lenient: "Start MSW with { onUnhandledRequest: \"error\" }. Add a handler for every request the test makes, with passthrough() for local origins the test owns.",
++			lenient: "Start MSW with { onUnhandledFrame: \"error\" } (MSW 3) or { onUnhandledRequest: \"error\" } (MSW 2). Add a handler for every request the test makes, with passthrough() for local origins the test owns.",
+ 			stale: "This file now has {{count}} lenient MSW starts; lower its strict-msw allowlist entry for {{path}} in .oxlintrc.jsonc to {{count}}, or remove the entry at 0."
+ 		}
+ 	},
+@@ -1459,7 +1466,7 @@ const strictMsw = defineRule({
+ 				const { callee } = node;
+ 				if (callee.type !== "MemberExpression" || callee.computed || callee.property.type !== "Identifier") return;
+ 				const factory = serverFactory(source, callee.object);
+-				if (factory !== null && starters.get(factory) === callee.property.name && !strict(node.arguments[0])) lenientStarts.push(node);
++				if (factory !== null && starters.get(factory) === callee.property.name && !strict(source, node.arguments[0])) lenientStarts.push(node);
+ 			},
+ 			"Program:exit"(program) {
+ 				reportAllowed(context, program, lenientStarts, "lenient");

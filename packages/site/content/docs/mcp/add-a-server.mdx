@@ -98,6 +98,16 @@ compozy mcp auth login linear
 The command waits until the sign-in completes. On your next message the agent can call Linear's
 tools. Signing in again after a token expires works the same way.
 
+An Agent Plugin can declare headers and still offer OAuth. When the remote responds with a Bearer
+challenge that points to same-origin OAuth protected-resource metadata, select **Sign in** in
+Settings or use the owner-qualified CLI command:
+
+```bash
+compozy mcp auth login mcp --owner extension:datadog
+```
+
+If you use API keys, enter them through the [extension's secret bindings](/docs/extensions/secrets).
+
 ## Step 6: Take a server away
 
 Delete `everything` in Settings, or remove it from `~/.compozy/mcp.json`. Its tools stop working on

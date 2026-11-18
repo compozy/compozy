@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { metadata, viewport } from "@/app/layout";
 import { siteConfig } from "../site-config";
 
 vi.mock("next/font/google", () => ({
@@ -52,41 +53,34 @@ describe("static public route metadata", () => {
     });
   });
 
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- The first dynamic import compiles the real Next layout and dependency tree; preserve its cold-import deadline.
-  it(
-    "keeps root metadata aligned with site identity and design tokens",
-    { timeout: 60_000 },
-    async () => {
-      const { metadata, viewport } = await import("@/app/layout");
-
-      expect(siteConfig.description).toBe(
-        "The autonomous control plane for your agents. See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you."
-      );
-      expect(metadata.metadataBase?.toString()).toBe("https://compozy.com/");
-      expect(metadata.applicationName).toBe(siteConfig.name);
-      expect(metadata.title).toEqual({
-        default: siteConfig.name,
-        template: "%s | CompozyOS",
-      });
-      expect(metadata.description).toBe(siteConfig.description);
-      expect(metadata.alternates?.canonical).toBe("/");
-      expect(metadata.openGraph).toMatchObject({
-        type: "website",
-        locale: "en_US",
-        url: siteConfig.url,
-        siteName: siteConfig.name,
-        title: siteConfig.name,
-        description: siteConfig.description,
-      });
-      expect(metadata.twitter).toMatchObject({
-        card: "summary_large_image",
-        title: siteConfig.name,
-        description: siteConfig.description,
-        images: ["/opengraph-image"],
-      });
-      expect(metadata.robots).toEqual({ index: true, follow: true });
-      expect(metadata.manifest).toBe("/site.webmanifest");
-      expect(viewport.themeColor).toBe("#0a0a0a");
-    }
-  );
+  it("keeps root metadata aligned with site identity and design tokens", () => {
+    expect(siteConfig.description).toBe(
+      "The autonomous control plane for your agents. See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you."
+    );
+    expect(metadata.metadataBase?.toString()).toBe("https://compozy.com/");
+    expect(metadata.applicationName).toBe(siteConfig.name);
+    expect(metadata.title).toEqual({
+      default: siteConfig.name,
+      template: "%s | CompozyOS",
+    });
+    expect(metadata.description).toBe(siteConfig.description);
+    expect(metadata.alternates?.canonical).toBe("/");
+    expect(metadata.openGraph).toMatchObject({
+      type: "website",
+      locale: "en_US",
+      url: siteConfig.url,
+      siteName: siteConfig.name,
+      title: siteConfig.name,
+      description: siteConfig.description,
+    });
+    expect(metadata.twitter).toMatchObject({
+      card: "summary_large_image",
+      title: siteConfig.name,
+      description: siteConfig.description,
+      images: ["/opengraph-image"],
+    });
+    expect(metadata.robots).toEqual({ index: true, follow: true });
+    expect(metadata.manifest).toBe("/site.webmanifest");
+    expect(viewport.themeColor).toBe("#0a0a0a");
+  });
 });

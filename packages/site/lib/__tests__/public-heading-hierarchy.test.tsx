@@ -42,6 +42,10 @@ vi.mock("@/lib/changelog/github-client", () => ({
   loadChangelogReleases: async () => ({ status: "ready", releases: [] }),
 }));
 
+vi.mock("@/lib/release/release-count", () => ({
+  countPublishedReleases: async () => 78,
+}));
+
 afterEach(() => cleanup());
 
 function expectSingleH1(name: string | RegExp): void {
@@ -60,7 +64,6 @@ function expectNoSkippedHeadingLevels(): void {
 }
 
 describe("public heading hierarchy", () => {
-  // eslint-disable-next-line compozy-testing/deterministic-tests -- The full asynchronous page and accessible heading tree render together; this bounds real DOM traversal.
   it("keeps the landing page to one primary heading", async () => {
     render(await HomePage());
 
@@ -70,7 +73,7 @@ describe("public heading hierarchy", () => {
     expectSingleH1("The autonomous control plane for your agents.");
     expect(screen.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(0);
     expectNoSkippedHeadingLevels();
-  }, 15_000);
+  });
 
   it("keeps blog index and category archive pages to one primary heading", async () => {
     render(await BlogIndexPage());

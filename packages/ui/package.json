@@ -17,9 +17,9 @@
         "./icons": "./src/icons.ts"
     },
     "scripts": {
-        "build": "tsc --noEmit",
+        "build": "bun run typecheck",
         "lint": "bunx oxfmt --check && bunx oxlint --deny-warnings",
-        "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit",
+        "typecheck": "tsrs --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
         "storybook": "storybook dev -p 6007",

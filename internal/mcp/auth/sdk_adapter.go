@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -141,7 +142,15 @@ func (s *Service) protectedResourceMetadata(
 	resourceURL string,
 ) (*oauthex.ProtectedResourceMetadata, error) {
 	candidates := protectedResourceMetadataURLs(cfg.PRMURL, resourceURL)
-	if advertisedURL := s.protectedResourceMetadataURLFromProbe(ctx, cfg, resourceURL); advertisedURL != "" {
+	probeURL := resourceURL
+	if cfg.pluginHeaderOAuth {
+		probeURL = cfg.RemoteURL
+	}
+	advertisedURL := s.protectedResourceMetadataURLFromProbe(ctx, cfg, probeURL, http.MethodGet)
+	if advertisedURL == "" && cfg.pluginHeaderOAuth {
+		advertisedURL = s.protectedResourceMetadataURLFromProbe(ctx, cfg, probeURL, http.MethodPost)
+	}
+	if advertisedURL != "" {
 		candidates = append([]protectedResourceMetadataCandidate{{
 			URL: advertisedURL, ResourceURL: resourceURL,
 		}}, candidates...)
@@ -164,10 +173,22 @@ func (s *Service) protectedResourceMetadataURLFromProbe(
 	ctx context.Context,
 	cfg ServerConfig,
 	resourceURL string,
-) (metadataURL string) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resourceURL, http.NoBody)
+	method string,
+) string {
+	var body io.Reader = http.NoBody
+	if method == http.MethodPost {
+		body = strings.NewReader(
+			`{"jsonrpc":"2.0","id":1,"method":"initialize",` +
+				`"params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"compozy","version":"1"}}}`,
+		)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, resourceURL, body)
 	if err != nil {
 		return ""
+	}
+	if method == http.MethodPost {
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
 	}
 	resp, err := s.clientFor(cfg).Do(req)
 	if err != nil {
@@ -183,24 +204,32 @@ func (s *Service) protectedResourceMetadataURLFromProbe(
 			)
 		}
 	}()
-	challenges, err := oauthex.ParseWWWAuthenticate(resp.Header.Values("WWW-Authenticate"))
-	if err == nil {
-		for _, challenge := range challenges {
-			raw := strings.TrimSpace(challenge.Params["resource_metadata"])
-			if raw == "" {
-				continue
-			}
-			if err := validateAdvertisedMetadataURL(raw, resourceURL); err != nil {
-				continue
-			}
-			metadataURL = raw
-			break
-		}
-	}
-	return metadataURL
+	return advertisedProtectedResourceMetadataURL(resp.Header, resourceURL, cfg.pluginHeaderOAuth)
 }
 
-func validateAdvertisedMetadataURL(metadataURL, resourceURL string) error {
+// AdvertisedProtectedResourceMetadataURL reads an origin-bound RFC 9728 Bearer challenge.
+func AdvertisedProtectedResourceMetadataURL(headers http.Header, resourceURL string) string {
+	return advertisedProtectedResourceMetadataURL(headers, resourceURL, true)
+}
+
+func advertisedProtectedResourceMetadataURL(headers http.Header, resourceURL string, requireOrigin bool) string {
+	challenges, err := oauthex.ParseWWWAuthenticate(headers.Values("WWW-Authenticate"))
+	if err != nil {
+		return ""
+	}
+	for _, challenge := range challenges {
+		raw := strings.TrimSpace(challenge.Params["resource_metadata"])
+		if requireOrigin && challenge.Scheme != "bearer" {
+			continue
+		}
+		if raw != "" && validateAdvertisedMetadataURL(raw, resourceURL, requireOrigin) == nil {
+			return raw
+		}
+	}
+	return ""
+}
+
+func validateAdvertisedMetadataURL(metadataURL, resourceURL string, requireOrigin bool) error {
 	if err := validateAbsoluteHTTPURL("advertised protected resource metadata URL", metadataURL); err != nil {
 		return err
 	}
@@ -215,8 +244,9 @@ func validateAdvertisedMetadataURL(metadataURL, resourceURL string) error {
 	if err != nil {
 		return fmt.Errorf("mcp auth: parse resource URL: %w", err)
 	}
-	if !strings.EqualFold(metadata.Host, resource.Host) {
-		return errors.New("mcp auth: advertised protected resource metadata host does not match resource URL")
+	if !strings.EqualFold(metadata.Host, resource.Host) ||
+		(requireOrigin && !strings.EqualFold(metadata.Scheme, resource.Scheme)) {
+		return errors.New("mcp auth: advertised protected resource metadata URL does not match the resource")
 	}
 	return nil
 }

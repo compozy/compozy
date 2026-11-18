@@ -28,7 +28,7 @@
     },
     "scripts": {
         "build": "rm -rf dist && tsc -p tsconfig.types.json && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node ./scripts/postbuild.mjs",
-        "typecheck": "node ../../node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
+        "typecheck": "tsrs -p tsconfig.json --noEmit",
         "test": "vitest run --config vitest.config.mjs",
         "coverage": "vitest run --config vitest.config.mjs --coverage"
     },
