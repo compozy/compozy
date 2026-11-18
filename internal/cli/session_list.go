@@ -459,5 +459,5 @@ func sessionPRReview(item *SessionRecord) string {
 func sessionListHasVisibilityFilters(flags sessionListFlags) bool {
 	return flags.subagents != "" && flags.subagents != sessionSubagentsInclude ||
 		len(flags.columns) > 0 || flags.hideChildren || flags.includeAll || flags.archived || flags.includeArchived ||
-		flags.later || flags.includeLater || flags.pinned != ""
+		flags.later || flags.includeLater || strings.TrimSpace(flags.pinned) != ""
 }

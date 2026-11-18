@@ -143,9 +143,11 @@ export interface SessionListPinnedRead {
   sessions: readonly SessionPayload[];
   loading: boolean;
   failed: boolean;
-  /** More pins than the read's page holds. */
+  /** More pins than one page of the read holds. */
   more: boolean;
   retry: () => void;
+  /** The read's own paging (oldest pin first), independent of the list's pages. */
+  catalog?: ReturnType<typeof useSessionCatalog>;
 }
 
 /**
@@ -228,7 +230,12 @@ export function useSessionListView(
     pinned: groupFilters.pinned,
     enabled,
   });
-  const pinned = useSessionListPinnedRead(scope, groupFilters, enabled && shelf === "active");
+  const pinned = useSessionListPinnedRead(
+    scope,
+    groupFilters,
+    enabled && shelf === "active",
+    options.pending === true
+  );
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
     groupBy,
@@ -342,16 +349,19 @@ export function useSessionListView(
 function useSessionListPinnedRead(
   scope: DataScope | null,
   groupFilters: SessionListFilters,
-  shown: boolean
+  shown: boolean,
+  pending: boolean
 ): SessionListPinnedRead | undefined {
   const read = useSessionCatalog(scope, sessionListPinnedFilters(groupFilters), shown);
   if (!shown) return undefined;
+  // While what the list reads under is unresolved, its pins read as loading, never as rows.
   return {
-    sessions: read.sessions,
-    loading: read.loading,
+    sessions: pending ? [] : read.sessions,
+    loading: read.loading || pending,
     failed: read.failed,
-    more: read.next,
+    more: read.next || read.previous,
     retry: read.retry,
+    catalog: read,
   };
 }
 

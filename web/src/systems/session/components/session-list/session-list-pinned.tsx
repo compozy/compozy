@@ -15,6 +15,7 @@ import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sid
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import type { SessionListTarget } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
+import { SessionListCatalogNavigation } from "./session-list-controls";
 import { GroupLoadFailure } from "./session-list-group-body";
 import { SessionListGroupToggle } from "./session-list-group-toggle";
 import { SessionListThread } from "./session-list-thread";
@@ -52,7 +53,8 @@ export function SessionListPinned({
   const pinned = view.pinned;
   if (!pinned || pinned.loading) return null;
   const testId = `${testIdPrefix}-pinned`;
-  if (pinned.failed) {
+  // A failed refresh keeps the pins it already shows; the paging row below offers Retry.
+  if (pinned.failed && pinned.sessions.length === 0) {
     return <GroupLoadFailure retryTestId={`${testId}-retry`} onRetry={pinned.retry} />;
   }
   if (pinned.sessions.length === 0) return null;
@@ -110,6 +112,9 @@ export function SessionListPinned({
               ))}
             </div>
           </SessionListBadgeContext>
+          {pinned.catalog && (pinned.more || pinned.failed) ? (
+            <SessionListCatalogNavigation catalog={pinned.catalog} />
+          ) : null}
         </SessionListPinnedSectionContext>
       )}
     </section>

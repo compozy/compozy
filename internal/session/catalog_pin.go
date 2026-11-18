@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -122,22 +121,17 @@ func (m *Manager) setPinned(ctx context.Context, workspaceID string, sessionID s
 		return nil, err
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	var before *time.Time
 	if pinned {
-		stored, err := pinStore.PinSession(ctx, workspaceID, sessionID)
-		if err != nil {
+		if _, err := pinStore.PinSession(ctx, workspaceID, sessionID); err != nil {
 			return nil, err
 		}
-		before = stored.PinnedAt
 	} else if _, _, err := pinStore.UnpinSession(ctx, workspaceID, sessionID); err != nil {
 		return nil, err
 	}
+	// Status reads the pin from the store, so a later change wins over this one's result.
 	info, err := m.Status(ctx, sessionID)
 	if err != nil {
 		return nil, err
-	}
-	if pinned && info.PinnedAt == nil {
-		info.PinnedAt = cloneTimePointer(before)
 	}
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 	return info, nil

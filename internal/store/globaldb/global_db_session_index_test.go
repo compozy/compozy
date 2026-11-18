@@ -1136,8 +1136,9 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 		pinnedQuery.Pinned = store.SessionPinnedInclude
 		pinnedQuery.After = nil
-		if _, err := globalDB.PageSessions(ctx, pinnedQuery); err == nil {
-			t.Fatal("PageSessions(sort pinned without only) error = nil, want a refusal")
+		if _, err := globalDB.PageSessions(ctx, pinnedQuery); err == nil ||
+			!strings.Contains(err.Error(), "pinned sort requires the pinned=only filter") {
+			t.Fatalf("PageSessions(sort pinned without only) error = %v, want the pinned=only refusal", err)
 		}
 
 		if _, err := globalDB.PinSession(

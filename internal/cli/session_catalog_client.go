@@ -110,27 +110,20 @@ func sessionListValues(query SessionListQuery) url.Values {
 	} else {
 		values.Set("all_workspaces", "true")
 	}
-	if trimmed := strings.TrimSpace(query.Worktree); trimmed != "" {
-		values.Set("worktree", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.State); trimmed != "" {
-		values.Set("state", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Type); trimmed != "" {
-		values.Set("type", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Agent); trimmed != "" {
-		values.Set("agent", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Parent); trimmed != "" {
-		values.Set("parent", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Root); trimmed != "" {
-		values.Set("root", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Query); trimmed != "" {
-		values.Set("q", trimmed)
-	}
+	setTrimmedValues(values, [][2]string{
+		{"worktree", query.Worktree},
+		{"state", query.State},
+		{"type", query.Type},
+		{"agent", query.Agent},
+		{"parent", query.Parent},
+		{"root", query.Root},
+		{"q", query.Query},
+		{"archive", query.Archive},
+		{"later", query.Later},
+		{"pinned", query.Pinned},
+		{"sort", query.Sort},
+		{"cursor", query.Cursor},
+	})
 	if query.Resumable {
 		values.Set("resumable", "true")
 	}
@@ -144,28 +137,22 @@ func sessionListValues(query SessionListQuery) url.Values {
 		}
 		values.Set("badge", strings.Join(badges, ","))
 	}
-	if archive := strings.TrimSpace(query.Archive); archive != "" {
-		values.Set("archive", archive)
-	}
-	if later := strings.TrimSpace(query.Later); later != "" {
-		values.Set("later", later)
-	}
-	if pinned := strings.TrimSpace(query.Pinned); pinned != "" {
-		values.Set("pinned", pinned)
-	}
 	if query.IncludeHealth {
 		values.Set("include_health", "true")
 	}
 	if query.Limit != 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
 	}
-	if sortKey := strings.TrimSpace(query.Sort); sortKey != "" {
-		values.Set("sort", sortKey)
-	}
-	if cursor := strings.TrimSpace(query.Cursor); cursor != "" {
-		values.Set("cursor", cursor)
-	}
 	return values
+}
+
+// setTrimmedValues sets each non-blank value under its key, trimmed.
+func setTrimmedValues(values url.Values, pairs [][2]string) {
+	for _, pair := range pairs {
+		if trimmed := strings.TrimSpace(pair[1]); trimmed != "" {
+			values.Set(pair[0], trimmed)
+		}
+	}
 }
 
 func appendSessionBoardValues(values url.Values, query SessionListQuery) {
