@@ -181,6 +181,46 @@ func TestResumeInterruptedSession(t *testing.T) {
 			t.Fatalf("restart refusal reason = %q, %v", checkpoint.Reason, err)
 		}
 	})
+	t.Run("Should preserve an explicit stop newer than the restart snapshot", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		main, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID,
+		}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, main.ID) })
+		h.manager.SetInstanceCeilingReader(func(context.Context, string, string) (*InstanceCeiling, error) {
+			return &InstanceCeiling{Main: true, ActiveMain: true}, nil
+		})
+		if err := h.manager.StopWithCause(t.Context(), main.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		shutdown, err := h.manager.readMetaWithContext(t.Context(), main.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Resume(t.Context(), main.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), main.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.resumeUnboundMainAfterRestart(
+			t.Context(),
+			&shutdown,
+		); !errors.Is(
+			err,
+			ErrMonitorOwnerStopped,
+		) {
+			t.Fatalf("restart with stale shutdown metadata = %v, want explicit-stop refusal", err)
+		}
+		info, err := h.manager.Status(t.Context(), main.ID)
+		if err != nil || info.State != StateStopped || info.StopReason != store.StopUserCanceled {
+			t.Fatalf("main after explicit stop = %+v, %v", info, err)
+		}
+	})
 	t.Run("Should leave an idle parent stopped when its idle worker has no continuation", func(t *testing.T) {
 		db := openManagerInputQueueStore(t)
 		opts := []Option{WithSessionCatalog(db), WithSessionInputQueueStore(db),

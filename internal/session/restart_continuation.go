@@ -75,6 +75,8 @@ func (m *Manager) resumeRestartWaitingSession(ctx context.Context, id string) er
 	checkpoint.Reason = "resume_failed"
 	if refusal, ok := errors.AsType[*MonitorOwnerIneligibleError](err); ok {
 		checkpoint.Reason = refusal.Reason
+	} else if errors.Is(err, ErrMonitorOwnerStopped) {
+		checkpoint.Reason = "stop_not_shutdown"
 	}
 	if checkpoint.TurnID == "" {
 		stops, readErr := m.Events(ctx, id, store.EventQuery{Type: EventTypeSessionStopped, Limit: 1})
@@ -106,7 +108,7 @@ func (m *Manager) reopenRestartWaitingSession(ctx context.Context, meta *store.S
 	if meta.RestartBoundary != nil {
 		return m.ResumeWaitingSession(ctx, meta.ID)
 	}
-	if instance == nil || !instance.ActiveMain || !isUnboundLogicalResume(meta) || meta.AcceptedRoute != nil {
+	if instance == nil || !instance.ActiveMain {
 		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
 	}
 	return m.resumeUnboundMainAfterRestart(ctx, meta)
@@ -114,11 +116,8 @@ func (m *Manager) reopenRestartWaitingSession(ctx context.Context, meta *store.S
 
 // An unbound main has no accepted provider route. Reopen its logical session and let the first prompt bind it.
 func (m *Manager) resumeUnboundMainAfterRestart(ctx context.Context, meta *store.SessionMeta) (err error) {
-	if State(meta.State) != StateStopped || sessionMetaStopReason(meta) != store.StopShutdown {
-		return ErrMonitorOwnerStopped
-	}
-	if restartFailureRequiresOperator(meta.Failure) {
-		return &MonitorOwnerIneligibleError{Reason: "agent_failure"}
+	if err := requireUnboundShutdownResume(meta); err != nil {
+		return err
 	}
 	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID); err != nil {
 		return &MonitorOwnerIneligibleError{Reason: "archived"}
@@ -148,10 +147,23 @@ func (m *Manager) resumeUnboundMainAfterRestart(ctx context.Context, meta *store
 			m.afterSessionResumed(ctx, meta.ID)
 		}
 	}()
-	if _, err := m.resume(ctx, meta.ID, false); err != nil {
+	if _, err := m.resume(ctx, meta.ID, resumeUnboundAfterShutdown); err != nil {
 		return err
 	}
 	return m.checkReopenedInstanceMain(ctx, meta.ID)
+}
+
+func requireUnboundShutdownResume(meta *store.SessionMeta) error {
+	if State(meta.State) != StateStopped || sessionMetaStopReason(meta) != store.StopShutdown {
+		return ErrMonitorOwnerStopped
+	}
+	if !isUnboundLogicalResume(meta) || meta.AcceptedRoute != nil || meta.RestartBoundary != nil {
+		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
+	}
+	if restartFailureRequiresOperator(meta.Failure) {
+		return &MonitorOwnerIneligibleError{Reason: "agent_failure"}
+	}
+	return nil
 }
 
 // Check again before dispatch so an instance transition during activation wins over recovery.
@@ -199,7 +211,7 @@ func (m *Manager) ResumeInterruptedSession(ctx context.Context, id string) (bool
 	if err := m.appendRestartEvent(ctx, &meta, restartAttemptEvent, checkpoint, ""); err != nil {
 		return false, err
 	}
-	active, err := m.resume(ctx, id, false)
+	active, err := m.resume(ctx, id, resumeWithoutDispatch)
 	if err != nil {
 		return false, err
 	}

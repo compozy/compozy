@@ -13,6 +13,14 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+type resumeMode uint8
+
+const (
+	resumeAndDispatch resumeMode = iota
+	resumeWithoutDispatch
+	resumeUnboundAfterShutdown
+)
+
 // ResumeWaitingSession reuses the settled prompt's durable binding without replaying that prompt.
 func (m *Manager) ResumeWaitingSession(ctx context.Context, id string) error {
 	meta, err := m.readMetaWithContext(ctx, id)
@@ -34,10 +42,10 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	if _, held := m.restartInputsHeld.Load(id); held {
 		return nil, fmt.Errorf("%w: restart recovery in progress", ErrPromptInProgress)
 	}
-	return m.resume(ctx, id, true)
+	return m.resume(ctx, id, resumeAndDispatch)
 }
 
-func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed *Session, err error) {
+func (m *Manager) resume(ctx context.Context, id string, mode resumeMode) (resumed *Session, err error) {
 	if ctx == nil {
 		return nil, errors.New("session: resume context is required")
 	}
@@ -52,7 +60,7 @@ func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed
 	}
 	defer func() {
 		unlockConversation()
-		if err == nil && resumed != nil && dispatch {
+		if err == nil && resumed != nil && mode == resumeAndDispatch {
 			m.afterSessionResumed(ctx, target)
 		}
 	}()
@@ -89,7 +97,7 @@ func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed
 	if err := m.rejectDeadSessionAttachment(ctx, target, &meta); err != nil {
 		return nil, err
 	}
-	return m.resumeSession(ctx, target)
+	return m.resumeSession(ctx, target, mode)
 }
 
 func (m *Manager) afterSessionResumed(ctx context.Context, id string) {
@@ -100,7 +108,7 @@ func (m *Manager) afterSessionResumed(ctx context.Context, id string) {
 	m.dispatchResumedInputs(ctx, id)
 }
 
-func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, error) {
+func (m *Manager) resumeSession(ctx context.Context, target string, mode resumeMode) (*Session, error) {
 	if session, ok := m.Get(target); ok {
 		return m.waitForResumedSession(ctx, target, session)
 	}
@@ -111,6 +119,11 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 	meta, err := m.reconcileInactiveSession(ctx, target)
 	if err != nil {
 		return nil, err
+	}
+	if mode == resumeUnboundAfterShutdown {
+		if err := requireUnboundShutdownResume(&meta); err != nil {
+			return nil, err
+		}
 	}
 	if err := requirePersistedProvider(&meta); err != nil {
 		return nil, err

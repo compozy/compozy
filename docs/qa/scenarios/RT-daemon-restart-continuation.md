@@ -71,7 +71,8 @@ fix, the same main reopened and an HTTP Heartbeat wake completed a real fixture 
 The test also observed the refusal event, instance attention and `ensure-main` conflict, with the
 explicitly stopped, archived and manually paused controls still stopped after boot.
 The session manager regression also commits a pause during activation and checks that recovery
-leaves the main stopped with an `instance_inactive` refusal.
+leaves the main stopped with an `instance_inactive` refusal. A newer explicit stop takes priority
+over an earlier shutdown snapshot after the resume path reloads the current session state.
 
 Targeted automated verification 2026-11-16 (#1778):
 `GOMAXPROCS=2 go test -p 2 -tags integration ./internal/daemon -run '^(TestDaemonRestartContinuesSessions|TestSubagentCleanRestartDaemonIntegration)$' -count=1 -timeout=180s -v`

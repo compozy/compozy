@@ -100,7 +100,7 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 		return fmt.Errorf("%w: restart recovery already running", ErrPromptInProgress)
 	}
 	defer m.restartInputsHeld.Delete(id)
-	active, err := m.resume(ctx, id, false)
+	active, err := m.resume(ctx, id, resumeWithoutDispatch)
 	if err != nil {
 		return err
 	}
