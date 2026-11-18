@@ -61,6 +61,8 @@ type daemonExtensionService struct {
 	mcpRuntimeHealth    *mcppkg.RuntimeHealthRegistry
 	paletteNotifier     *extensionPaletteNotifier
 	profiles            *profilepkg.Manager
+	// builtinEnrollments overrides the shared bundledEnrollments table for restore; nil uses the table.
+	builtinEnrollments []bundledEnrollment
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)

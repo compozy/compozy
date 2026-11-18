@@ -268,6 +268,9 @@ func extensionRemoveBundle(item extensionRemoveItem) outputBundle {
 			return writeJSONLine(cmd, item)
 		},
 		human: func() (string, error) {
+			if item.Permanent {
+				return extensionPermanentRemoveHuman(item), nil
+			}
 			blocks := []string{
 				fmt.Sprintf("✓ remove %s", strings.TrimSpace(item.Name)),
 				"removed: " + strings.TrimSpace(item.Path),

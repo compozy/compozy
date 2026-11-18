@@ -5264,8 +5264,10 @@ export type ManagedExtensionRemovePayload = {
   data_path?: string;
   name: string;
   path: string;
+  permanent: boolean;
   quarantine_path?: string;
   status: string;
+  tombstoned_at: string;
   warnings?: Array<DiagnosticItem>;
 };
 
@@ -20935,6 +20937,10 @@ export type RemoveExtensionData = {
      */
     workspace?: string;
     /**
+     * Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only.
+     */
+    permanent?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -20943,6 +20949,10 @@ export type RemoveExtensionData = {
 };
 
 export type RemoveExtensionErrors = {
+  /**
+   * Invalid request, including permanent with a workspace or profile
+   */
+  400: ErrorPayload;
   /**
    * Forbidden
    */
@@ -20956,9 +20966,17 @@ export type RemoveExtensionErrors = {
    */
   409: ErrorPayload;
   /**
+   * Extension is not a built-in
+   */
+  422: ExtensionOperationErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
+  /**
+   * Permanent removal is not available on this extension service
+   */
+  501: ErrorPayload;
   /**
    * Extension service is not configured
    */

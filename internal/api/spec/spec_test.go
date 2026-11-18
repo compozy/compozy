@@ -3318,6 +3318,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
 		addAlwaysOnHardeningSchemas(t, baseline)
+		addPermanentExtensionRemoveParameter(t, baseline)
 		// #1195: instance payloads label their owner profile.
 		if addAgentInstanceProfileName(baseline) == 0 {
 			t.Fatal("approved instance profile_name addition: no historical instance schemas found")
@@ -6866,6 +6867,34 @@ func addNativeResultViewSchemas(value any) int {
 		}
 	}
 	return count
+}
+
+// addPermanentExtensionRemoveParameter inserts the optional boolean `permanent` query flag into the
+// historical DELETE /api/extensions/{name} operation, directly after `workspace` as the spec declares
+// it. The flag is additive; the path and existing query parameters keep their relative order.
+func addPermanentExtensionRemoveParameter(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	operation := paths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
+	parameters := operation["parameters"].([]any)
+	workspaceIndex := -1
+	for index, raw := range parameters {
+		parameter := raw.(map[string]any)
+		if parameter["name"] == "permanent" {
+			t.Fatal("historical removeExtension already defines the permanent parameter")
+		}
+		if parameter["in"] == "query" && parameter["name"] == "workspace" {
+			workspaceIndex = index
+		}
+	}
+	if workspaceIndex < 0 {
+		t.Fatal("historical removeExtension has no workspace query parameter")
+	}
+	operation["parameters"] = slices.Insert(parameters, workspaceIndex+1, any(map[string]any{
+		"in":     "query",
+		"name":   "permanent",
+		"schema": map[string]any{"type": "boolean"},
+	}))
 }
 
 func addManualJobWaitParameters(t *testing.T, baseline map[string]any) {
