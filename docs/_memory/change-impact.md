@@ -1,5 +1,20 @@
 # Compozy Change Impact
 
+## Marketplace install during concurrent refresh
+
+Owner: [#1836](https://github.com/compozy/compozy/issues/1836).
+
+- **Native tools, CLI, HTTP and UDS.** Marketplace installs, previews, inspection and updates
+  can enter the package cache while cleanup waits for another operation to publish. A caller
+  waiting on the cache can cancel its request. Tool IDs, routes, flags and payloads stay the same.
+- **Extensibility, hooks, config and workspace isolation.** Cache cleanup still reads the current
+  catalog and installed references after active publications finish. It uses the same home cache,
+  workspace and profile selection, and cache budget. Extension, hook, config and storage contracts
+  stay the same.
+- **Web, docs and official skill.** The existing Marketplace install dialog can load while a
+  different source is still refreshing. Existing instructions and controls apply. The concurrent
+  refresh scenario is recorded in `ET-agent-plugin-marketplace-install`.
+
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).
