@@ -644,6 +644,37 @@ func TestTabsAndSplits(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should move focus within a stacked column instead of to a full-height neighbour", func(t *testing.T) {
+		t.Parallel()
+		// Split right, then split down on the right: "first" spans the height beside "top" over "bottom".
+		e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, e.manager, "workspace-a", nil, "first", "desktop-default")
+		client := ClientID("caller")
+		registerTestClient(t, e.manager, "workspace-a", client)
+		executeTestCommand(t, e.manager, "workspace-a", &client, OpenWindowCommand{Window: WindowSpec{
+			ID: "top", App: "Test", Route: testRoute("/top"), InsertTiled: true,
+		}})
+		r := executeTestCommand(t, e.manager, "workspace-a", &client, OpenWindowCommand{Window: WindowSpec{
+			ID: "bottom", App: "Test", Route: testRoute("/bottom"), InsertTiled: true, InsertEdge: DropBottom,
+		}})
+		for _, tc := range []struct {
+			from      WindowID
+			direction FocusDirection
+			want      WindowID
+		}{
+			{from: "top", direction: FocusDown, want: "bottom"},
+			{from: "bottom", direction: FocusUp, want: "top"},
+			{from: "bottom", direction: FocusLeft, want: "first"},
+			{from: "top", direction: FocusUp, want: ""},
+			{from: "bottom", direction: FocusDown, want: ""},
+		} {
+			view := ClientView{ActiveDesktopID: "desktop-default", FocusedWindowID: new(tc.from)}
+			got, err := resolveFocusTarget(view, r.Snapshot, FocusWindowCommand{Direction: tc.direction})
+			if err != nil || got != tc.want {
+				t.Fatalf("focus %s from %s = %q, %v; want %q", tc.direction, tc.from, got, err, tc.want)
+			}
+		}
+	})
 	for _, tc := range []struct {
 		name    string
 		command OpenWindowCommand
@@ -670,7 +701,7 @@ func TestTabsAndSplits(t *testing.T) {
 			name: "Should reject an insert edge on a restore",
 			command: OpenWindowCommand{
 				RestoreWindowID: new(WindowID("first")),
-				Window:          WindowSpec{InsertTiled: true, InsertEdge: "center"},
+				Window:          WindowSpec{InsertTiled: true, InsertEdge: DropRight},
 			},
 		},
 	} {

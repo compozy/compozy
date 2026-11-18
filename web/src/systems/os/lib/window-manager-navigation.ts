@@ -24,25 +24,57 @@ function center(rect: PixelRect): Point {
   return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
 }
 
-function directionalDistance(
-  source: Point,
-  candidate: Point,
+/** Sub-pixel slack for edges that meet: a gutter-less split puts both panes on one line. */
+const EDGE_TOLERANCE = 0.5;
+
+/** How far `candidate` lies from `source` in `direction`; null when it is not past that edge. */
+interface DirectionalFit {
+  /** Shares part of the source's span on the other axis, rather than sitting diagonal to it. */
+  overlaps: boolean;
+  gap: number;
+  centreDistance: number;
+}
+
+function spanOverlap(start: number, length: number, otherStart: number, otherLength: number) {
+  return Math.min(start + length, otherStart + otherLength) - Math.max(start, otherStart);
+}
+
+/**
+ * Measures `candidate` from `source` the way a tiling window manager moves focus: only a window past
+ * the source's edge counts. Centres alone let a full-height window beside a stacked pair count as
+ * "below" the top pane and steal focus from the pane under it.
+ */
+function directionalFit(
+  source: PixelRect,
+  candidate: PixelRect,
   direction: FocusDirection
-): number | null {
-  const horizontal = candidate.x - source.x;
-  const vertical = candidate.y - source.y;
-  const primary =
+): DirectionalFit | null {
+  const horizontal = direction === "left" || direction === "right";
+  const gap =
     direction === "left"
-      ? -horizontal
+      ? source.x - (candidate.x + candidate.w)
       : direction === "right"
-        ? horizontal
+        ? candidate.x - (source.x + source.w)
         : direction === "up"
-          ? -vertical
-          : vertical;
-  if (primary <= 0) return null;
-  const secondary =
-    direction === "left" || direction === "right" ? Math.abs(vertical) : Math.abs(horizontal);
-  return primary * 1_000 + secondary;
+          ? source.y - (candidate.y + candidate.h)
+          : candidate.y - (source.y + source.h);
+  if (gap < -EDGE_TOLERANCE) return null;
+  const overlap = horizontal
+    ? spanOverlap(source.y, source.h, candidate.y, candidate.h)
+    : spanOverlap(source.x, source.w, candidate.x, candidate.w);
+  const from = center(source);
+  const to = center(candidate);
+  return {
+    overlaps: overlap > EDGE_TOLERANCE,
+    gap: Math.max(gap, 0),
+    centreDistance: horizontal ? Math.abs(to.y - from.y) : Math.abs(to.x - from.x),
+  };
+}
+
+/** Overlapping neighbours first, then the nearest edge, then the closest centre. */
+function compareFit(left: DirectionalFit, right: DirectionalFit): number {
+  if (left.overlaps !== right.overlaps) return left.overlaps ? -1 : 1;
+  return left.gap - right.gap || left.centreDistance - right.centreDistance;
 }
 
 function wrappedDistance(candidate: Point, direction: FocusDirection): number {
@@ -92,15 +124,14 @@ export function directionalFocusTarget(input: {
   if (visible.length === 0) return null;
   const source = visible.find(candidate => candidate.id === input.focusedId);
   if (!source) return visible[0]?.id ?? null;
-  const sourceCenter = center(source.rect);
-  const directional: Array<{ id: string; distance: number }> = [];
+  const directional: Array<{ id: string; fit: DirectionalFit }> = [];
   for (const candidate of visible) {
     if (candidate.id === source.id) continue;
-    const distance = directionalDistance(sourceCenter, center(candidate.rect), input.direction);
-    if (distance !== null) directional.push({ id: candidate.id, distance });
+    const fit = directionalFit(source.rect, candidate.rect, input.direction);
+    if (fit !== null) directional.push({ id: candidate.id, fit });
   }
   directional.sort(
-    (left, right) => left.distance - right.distance || left.id.localeCompare(right.id)
+    (left, right) => compareFit(left.fit, right.fit) || left.id.localeCompare(right.id)
   );
   const nearest = directional[0];
   if (nearest) return nearest.id;

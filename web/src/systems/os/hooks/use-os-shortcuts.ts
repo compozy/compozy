@@ -50,7 +50,11 @@ export function useOsShortcuts(
     // The palette, and the destination picker it becomes, owns the keyboard while
     // it is open: only its own chord (to close it) runs, so a window chord cannot
     // change the layout behind it.
-    if (binding.commandId !== PALETTE_OPEN_COMMAND_ID && isInsidePalette(event.target)) return;
+    // The chord is still swallowed there, so ⌘W cannot reach the browser either.
+    if (binding.commandId !== PALETTE_OPEN_COMMAND_ID && isInsidePalette(event.target)) {
+      event.preventDefault();
+      return;
+    }
     // A chord whose command is unavailable is still *bound* — swallowing the
     // keystroke is what keeps it from falling through to the browser, and the
     // seam reports the runtime's reason rather than acting. A held chord is

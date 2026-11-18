@@ -89,6 +89,23 @@ describe("directionalFocusTarget", () => {
       directionalFocusTarget({ candidates, focusedId: "right", direction: "right", wrap: true })
     ).toBe("left");
   });
+
+  it("Should move within a stacked column instead of jumping to a full-height neighbour", () => {
+    // A full-height window beside a stacked pair: Split right, then Split down on the right.
+    const stacked = [
+      { id: "tall", rect: { x: 0, y: 0, w: 100, h: 200 } },
+      { id: "top", rect: { x: 100, y: 0, w: 100, h: 100 } },
+      { id: "bottom", rect: { x: 100, y: 100, w: 100, h: 100 } },
+    ];
+    const move = (focusedId: string, direction: "left" | "right" | "up" | "down") =>
+      directionalFocusTarget({ candidates: stacked, focusedId, direction, wrap: false });
+    expect(move("top", "down")).toBe("bottom");
+    expect(move("bottom", "up")).toBe("top");
+    expect(move("bottom", "left")).toBe("tall");
+    expect(move("top", "up")).toBeNull();
+    expect(move("bottom", "down")).toBeNull();
+    expect(directionalSwapTarget(stacked, "top", "down")).toBe("bottom");
+  });
 });
 
 describe("directionalSwapTarget", () => {

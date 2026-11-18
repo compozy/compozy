@@ -1274,8 +1274,9 @@ describe("useOsShortcuts", () => {
     dialog.append(command);
     document.body.append(dialog);
 
-    fireEvent.keyDown(search, { key: "…", code: "Semicolon", altKey: true });
-    fireEvent.keyDown(search, { key: "w", code: "KeyW", metaKey: true });
+    // Swallowed without running: neither the layout nor the browser acts on them.
+    expect(fireEvent.keyDown(search, { key: "…", code: "Semicolon", altKey: true })).toBe(false);
+    expect(fireEvent.keyDown(search, { key: "w", code: "KeyW", metaKey: true })).toBe(false);
     expect(run).not.toHaveBeenCalled();
 
     fireEvent.keyDown(search, { key: "k", code: "KeyK", metaKey: true });
