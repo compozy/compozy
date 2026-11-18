@@ -147,7 +147,7 @@ type sessionResumeRun struct {
 type Manager struct {
 	childWakePending           sync.Map
 	checkInToolsDisabled       bool
-	mcpAuthority               MCPAuthorityResolver
+	mcpAuthority               atomic.Pointer[MCPAuthorityResolver]
 	instanceCeiling            InstanceCeilingReader
 	instancePaused             func(context.Context, store.InstancePauseTrip) error
 	metadataCacheMu            sync.Mutex

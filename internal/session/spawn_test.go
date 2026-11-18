@@ -1938,7 +1938,7 @@ func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
 					Tools: []string{testToolRead},
 				}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
 				cleanupSessionStop(t, h, parent.ID)
-				authority := h.manager.mcpAuthority
+				authority := h.manager.mcpAuthorityResolver()
 				h.manager.SetMCPAuthorityResolver(lineageAuthorityFunc(func(
 					ctx context.Context, id string,
 				) (store.SessionPermissionPolicy, error) {

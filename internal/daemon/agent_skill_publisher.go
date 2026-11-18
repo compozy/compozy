@@ -152,12 +152,11 @@ func daemonAgentSkillDeclarationProvider(
 	profileCatalog extensionProfileCatalog,
 	logger *slog.Logger,
 ) agentSkillDeclarationProvider {
+	if resolver, ok := workspaceResolver.(*workspacepkg.Resolver); ok && resolver == nil {
+		workspaceResolver = nil
+	}
 	return func(ctx context.Context) (agentSkillDeclarations, error) {
-		// Explicit publication follows filesystem mutations and must bypass warm read snapshots.
-		if invalidator, ok := workspaceResolver.(interface{ InvalidateAll() }); ok {
-			invalidator.InvalidateAll()
-		}
-		if err := watchPublishedAgentConfigs(ctx, workspaceResolver, registry, profileCatalog); err != nil {
+		if err := refreshPublishedAgentConfigWatches(ctx, workspaceResolver, registry, profileCatalog); err != nil {
 			return agentSkillDeclarations{}, err
 		}
 		desired := agentSkillDeclarations{}
@@ -228,12 +227,16 @@ func daemonAgentSkillDeclarationProvider(
 	}
 }
 
-func watchPublishedAgentConfigs(
+func refreshPublishedAgentConfigWatches(
 	ctx context.Context,
 	resolver workspacepkg.RuntimeResolver,
 	registry workspaceRegistryReader,
 	profiles extensionProfileCatalog,
 ) error {
+	// Explicit publication follows filesystem mutations and must bypass warm read snapshots.
+	if invalidator, ok := resolver.(interface{ InvalidateAll() }); ok {
+		invalidator.InvalidateAll()
+	}
 	watcher, ok := resolver.(interface {
 		WatchAgentConfigs(context.Context, []workspacepkg.AgentConfigScope) error
 	})

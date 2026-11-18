@@ -39,6 +39,32 @@ import (
 var specCycleIntegrationSkillNames = []string{"cy-create-spec", "git-rebase"}
 
 func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
+	t.Run("Should publish global agents without a workspace resolver", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := agentSkillIntegrationHome(t)
+		writeAgentSkillIntegrationFile(t, filepath.Join(homePaths.AgentsDir, "global-coder", "AGENT.md"), `---
+name: global-coder
+provider: claude
+---
+
+Global coding assistant.
+`)
+		var resolver *workspacepkg.Resolver
+		provider := daemonAgentSkillDeclarationProvider(
+			homePaths, openDaemonTestGlobalDB(t), resolver, nil, nil, discardLogger(),
+		)
+		decls, err := provider(t.Context())
+		if err != nil {
+			t.Fatalf("discover agent declarations: %v", err)
+		}
+		if !slices.ContainsFunc(decls.agents, func(agent agentPublicationInput) bool {
+			return agent.scope.Kind == resources.ResourceScopeKindUser && agent.spec.Name == "global-coder"
+		}) {
+			t.Fatal("global-coder missing from user-scope agent declarations")
+		}
+	})
+
 	t.Run("Should publish agent and skill resources and rebuild them on boot", func(t *testing.T) {
 		db := openDaemonTestGlobalDB(t)
 		kernel, err := resources.NewKernel(db.DB())

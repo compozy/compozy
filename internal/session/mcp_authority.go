@@ -27,11 +27,20 @@ func MCPAuthoritySession(ctx context.Context, id string) *Info {
 	return nil
 }
 
-func (m *Manager) SetMCPAuthorityResolver(resolver MCPAuthorityResolver) { m.mcpAuthority = resolver }
+func (m *Manager) SetMCPAuthorityResolver(resolver MCPAuthorityResolver) {
+	m.mcpAuthority.Store(new(resolver))
+}
+
+func (m *Manager) mcpAuthorityResolver() MCPAuthorityResolver {
+	if resolver := m.mcpAuthority.Load(); resolver != nil {
+		return *resolver
+	}
+	return nil
+}
 
 func (m *Manager) EffectiveMCPAuthority(ctx context.Context, id string) (store.SessionPermissionPolicy, error) {
-	if m.mcpAuthority != nil {
-		return m.mcpAuthority.EffectiveMCPAuthority(ctx, id)
+	if resolver := m.mcpAuthorityResolver(); resolver != nil {
+		return resolver.EffectiveMCPAuthority(ctx, id)
 	}
 	return store.SessionPermissionPolicy{}, errors.New("session: MCP authority resolver is unavailable")
 }
@@ -46,7 +55,7 @@ func (m *Manager) effectiveStartAuthority(
 }
 
 func (m *Manager) populateEffectiveMCPAuthority(ctx context.Context, info *Info) error {
-	return PopulateEffectiveMCPAuthority(ctx, m.mcpAuthority, info)
+	return PopulateEffectiveMCPAuthority(ctx, m.mcpAuthorityResolver(), info)
 }
 
 // PopulateEffectiveMCPAuthority decorates a read snapshot without changing persisted intent.
@@ -70,7 +79,7 @@ func PopulateEffectiveMCPAuthority(ctx context.Context, resolver MCPAuthorityRes
 
 // MCPAuthorityReadContext omits concrete tool enumeration from display-only authority reads.
 func (m *Manager) MCPAuthorityReadContext(ctx context.Context) context.Context {
-	if resolver, ok := m.mcpAuthority.(interface {
+	if resolver, ok := m.mcpAuthorityResolver().(interface {
 		MCPAuthorityReadContext(context.Context) context.Context
 	}); ok {
 		return resolver.MCPAuthorityReadContext(ctx)
