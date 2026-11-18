@@ -765,6 +765,9 @@ func TestHostedOAuthRootResourceDiscovery(t *testing.T) {
 				endpoint != 1 || root < 1 || root > 2 {
 				t.Fatalf("discovery requests: probe=%d endpoint=%d root=%d", probe, endpoint, root)
 			}
+			if tc.wantLogin && tc.resourceSuffix == "" && rootRequests.Load() != 1 {
+				t.Fatal("discovery fetched root metadata again after accepting the empty-path resource")
+			}
 			if !tc.wantLogin {
 				const want = "mcp auth: protected resource metadata discovery failed"
 				if err == nil || err.Error() != want {
@@ -794,6 +797,10 @@ func TestHostedOAuthRootResourceDiscovery(t *testing.T) {
 			}()
 			if resp.StatusCode != http.StatusFound {
 				t.Fatalf("authorize HTTP status = %d, want %d", resp.StatusCode, http.StatusFound)
+			}
+			authorizations := fixture.Requests().Authorization
+			if len(authorizations) != 1 || authorizations[0].Get("code_challenge_method") != "S256" {
+				t.Fatal("authorization did not use S256 PKCE")
 			}
 			if _, err := manager.Exchange(
 				t.Context(), cfg, ExchangeInput{RedirectURL: resp.Header.Get("Location")},
