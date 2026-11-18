@@ -441,6 +441,23 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if err != nil || len(page.Sessions) != 2 {
 			t.Fatalf("ListPage(exclude after unpin) = %#v, %v, want the live session back", page.Sessions, err)
 		}
+		catalogEvents, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+			ctx,
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+		}
+		defer cancel()
+		again, err := h.manager.Unpin(ctx, h.workspaceID, live.ID)
+		if err != nil || again.PinnedAt != nil {
+			t.Fatalf("Unpin(live again) = %#v, %v, want unpinned", again, err)
+		}
+		select {
+		case event := <-catalogEvents:
+			t.Fatalf("unpin of an unpinned session published catalog event %+v", event)
+		case <-time.After(200 * time.Millisecond):
+		}
 	})
 
 	t.Run("Should drop instance main sessions from the page and its total", func(t *testing.T) {

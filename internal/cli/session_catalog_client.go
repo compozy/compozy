@@ -110,20 +110,18 @@ func sessionListValues(query SessionListQuery) url.Values {
 	} else {
 		values.Set("all_workspaces", "true")
 	}
-	setTrimmedValues(values, [][2]string{
-		{"worktree", query.Worktree},
-		{"state", query.State},
-		{"type", query.Type},
-		{"agent", query.Agent},
-		{"parent", query.Parent},
-		{"root", query.Root},
-		{"q", query.Query},
-		{"archive", query.Archive},
-		{"later", query.Later},
-		{"pinned", query.Pinned},
-		{"sort", query.Sort},
-		{"cursor", query.Cursor},
-	})
+	setTrimmedValue(values, "worktree", query.Worktree)
+	setTrimmedValue(values, "state", query.State)
+	setTrimmedValue(values, "type", query.Type)
+	setTrimmedValue(values, "agent", query.Agent)
+	setTrimmedValue(values, "parent", query.Parent)
+	setTrimmedValue(values, "root", query.Root)
+	setTrimmedValue(values, "q", query.Query)
+	setTrimmedValue(values, "archive", query.Archive)
+	setTrimmedValue(values, "later", query.Later)
+	setTrimmedValue(values, "pinned", query.Pinned)
+	setTrimmedValue(values, "sort", query.Sort)
+	setTrimmedValue(values, "cursor", query.Cursor)
 	if query.Resumable {
 		values.Set("resumable", "true")
 	}
@@ -146,12 +144,10 @@ func sessionListValues(query SessionListQuery) url.Values {
 	return values
 }
 
-// setTrimmedValues sets each non-blank value under its key, trimmed.
-func setTrimmedValues(values url.Values, pairs [][2]string) {
-	for _, pair := range pairs {
-		if trimmed := strings.TrimSpace(pair[1]); trimmed != "" {
-			values.Set(pair[0], trimmed)
-		}
+// setTrimmedValue sets a non-blank value under its key, trimmed.
+func setTrimmedValue(values url.Values, key string, value string) {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		values.Set(key, trimmed)
 	}
 }
 

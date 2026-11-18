@@ -57,7 +57,8 @@ export function SessionListPinned({
   if (pinned.failed && pinned.sessions.length === 0) {
     return <GroupLoadFailure retryTestId={`${testId}-retry`} onRetry={pinned.retry} />;
   }
-  if (pinned.sessions.length === 0) return null;
+  // A page emptied by an unpin keeps the section while other pages hold pins, so Previous stays.
+  if (pinned.sessions.length === 0 && !pinned.more) return null;
   const threads = buildSessionListThreads(pinned.sessions, "");
   const collapsed = view.collapsedGroupKeys.has(SESSION_LIST_PINNED_FOLD_KEY);
   const ownerOf = view.aggregate ? view.ownerOf : undefined;

@@ -26,13 +26,14 @@ export function sessionListPinnedExclusion(
 }
 
 /**
- * The Pinned section has rows, or is still reading them, so an empty list below it is not (yet)
- * an empty list: "No sessions" never flashes before the pins arrive.
+ * The Pinned section has rows, is still reading them, or has other pages, so an empty list below
+ * it is not (yet) an empty list: "No sessions" never flashes before the pins arrive.
  */
 export function sessionListHasPinnedRows(view: {
-  pinned?: { sessions: readonly unknown[]; loading?: boolean };
+  pinned?: { sessions: readonly unknown[]; loading?: boolean; more?: boolean };
 }): boolean {
-  return Boolean(view.pinned?.loading) || (view.pinned?.sessions.length ?? 0) > 0;
+  const pinned = view.pinned;
+  return Boolean(pinned?.loading || pinned?.more) || (pinned?.sessions.length ?? 0) > 0;
 }
 
 /** The Pinned read: the list's own filters over pinned sessions only, oldest pin first. */

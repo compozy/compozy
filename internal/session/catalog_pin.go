@@ -122,16 +122,21 @@ func (m *Manager) setPinned(ctx context.Context, workspaceID string, sessionID s
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	var stored store.SessionInfo
+	changed := true
 	if pinned {
 		stored, err = pinStore.PinSession(ctx, workspaceID, sessionID)
 	} else {
-		stored, _, err = pinStore.UnpinSession(ctx, workspaceID, sessionID)
+		stored, changed, err = pinStore.UnpinSession(ctx, workspaceID, sessionID)
 	}
 	if err != nil {
 		return nil, err
 	}
 	// Status reads the pin from the store, so a later change wins over this one's result.
 	info, statusErr := m.Status(ctx, sessionID)
+	if !changed {
+		// Unpinning a session that is not pinned changes nothing, so nothing is published.
+		return info, statusErr
+	}
 	// The change is committed: other windows hear of it even when this response's read fails.
 	published := info
 	if statusErr != nil {

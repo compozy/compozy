@@ -1283,7 +1283,8 @@ func TestSessionPinCommandsReturnUpdatedSession(t *testing.T) {
 		}
 		// Pins outlive stop, so only --pinned only drops the default active state.
 		for _, filter := range []string{"exclude", "only"} {
-			if _, _, err := executeRootCommand(t, deps, "session", "list", "--pinned", filter, "-o", "json"); err != nil {
+			_, _, err = executeRootCommand(t, deps, "session", "list", "--pinned", filter, "-o", "json")
+			if err != nil {
 				t.Fatalf("executeRootCommand(session list --pinned %s) error = %v", filter, err)
 			}
 		}

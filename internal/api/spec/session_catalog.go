@@ -135,7 +135,7 @@ func sessionCatalogListParameters() []ParameterSpec {
 		),
 		boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
 		boolQueryParam("attention", "Only list sessions in the needs-you attention class"),
-		ParameterSpec{
+		{
 			Name:        "board_column",
 			In:          specParameterInQuery,
 			Kind:        specArrayKind,

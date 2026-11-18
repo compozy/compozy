@@ -2281,6 +2281,18 @@ describe("SessionList Pinned", () => {
     expect(screen.getByTestId("session-sidebar-pinned-toggle")).toHaveTextContent(/^Pinned$/);
     update([], { ...view, pinned: pinnedRead([]) });
     expect(screen.queryByTestId("session-sidebar-pinned")).not.toBeInTheDocument();
+    // A later page an unpin emptied keeps the section and its Previous; the list is not empty.
+    update([], {
+      ...view,
+      catalog: sessionListCatalogFixture(),
+      pinned: { ...pinnedRead([], true), catalog: sessionListCatalogFixture({ previous: true }) },
+    });
+    expect(
+      within(screen.getByTestId("session-sidebar-pinned")).getByRole("button", {
+        name: "Previous sessions",
+      })
+    ).toBeVisible();
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
 
     // The count names pins, not threads: a pinned child nests under its pinned parent.
     const pinnedChild: SessionPayload = {
