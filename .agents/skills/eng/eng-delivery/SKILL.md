@@ -70,17 +70,19 @@ curl -sI https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/<key>
 
 The latest `PR body` check must be `completed/success` on the current head before `ready:` or merge; body edits rerun this lightweight workflow. It enforces nonempty template sections, no HTML comments, an issue link or `No issue: <reason>`, no host paths or GitHub-hosted images, and CompozyOS title naming. Release branches `release/v*` and dependency bots pass explicitly. pr-watcher also reviews concrete verification, the cross-surface impact audit and R2 screenshot responses for UI changes.
 
-There is no merge queue. Merge-train merges directly once its CodeRabbit rounds or fallback criterion and zero unresolved threads hold, with the target, title, head and mergeability verified. Other CI may be pending or red; `main` may go red briefly and is fixed right after. List every non-green check on the merged head for immediate repair. Report any remaining branch rule that blocks a direct merge; never bypass it with `--admin`.
+Merge-gate reads the live `CI_MERGE_QUEUE` variable and effective `main` rules before merging. An absent variable preserves the current direct-merge policy: the review criterion and successful `PR body` check hold; other CI may be pending or red and must be reported after landing. With `true`, both `Verify (fmt, lint, unit, build)` and `E2E (combined lane)` must succeed on the exact PR head before enqueueing; GitHub requires the same checks on the combined merge-group head. Explicit `false` is the approved no-queue fallback: both aggregates remain required and backend PRs automatically run heavy checks. Report a variable/rules mismatch instead of bypassing it. Maestro changes settings only with Pedro's go; the W6 PR records activation and rollback commands.
+
+Queue entry is not a completed merge. Merge-gate uses its head-bound queue command, registers a pull-request monitor, and confirms `MERGED` before root sync and the next merge. On dequeue, inspect the matching merge-group run, report the failed condition, and require a fresh handoff; never requeue blindly or use `--admin`. The merge-gate instructions own queue and release serialization; CONTRIBUTING owns latency measurement and its revisit trigger.
 
 Inspect these checks on the current head:
 
 - `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title`, `PR body`, `React Doctor`
 - Every other reported check, recording any result that is not successful or legitimately skipped; [Reviewers](#reviewers) owns the CodeRabbit criterion
 
-Both gates always run and fail when `Detect changes` fails. The fast lane selects affected areas. Heavy lanes (integration, Windows and E2E) run on main pushes and nightly, plus manual runs; pull requests opt in with the `ci:full` label and a CI re-run, or by changing the CI pipeline itself. `E2E (combined lane)` succeeds when heavy lanes are not selected. Pending, cancelled or missing is not green, and success on an earlier head does not count. Other check results inform repair; `PR body` blocks the merge-gate criterion until successful.
+Both gates always run and fail when `Detect changes` fails. The fast PR lane selects affected areas. Heavy lanes (integration, Windows and E2E) run on main pushes, nightly, manual and merge-group events. Every merge group verifies all areas, including Go race unit and full integration shards; replacement runs for the same queue ref cancel obsolete runs while main runs finish. PRs opt in early with `ci:full` (label events and re-runs honor it), CI changes or release PRs. An absent variable keeps this opt-in behavior; explicit `CI_MERGE_QUEUE=false` additionally selects backend PR heavy checks. `E2E (combined lane)` succeeds when heavy lanes defer. Pending, cancelled or missing is not green, and success on an earlier head does not count. `PR body` remains a PR-only gate; never require it, reviewer contexts or the informational performance census on merge groups.
 
 The full Go integration lane uses `go-integration.yml`: CI calls it for main,
-nightly, manual and `ci:full` runs; Release makes the sole call for release PRs and
+merge groups, nightly, manual and selected heavy PR runs; Release makes the sole call for release PRs and
 requires its success before the release dry-run. Its eight shards reserve three
 runners for daemon, two for globaldb and three for other packages. Go's selected
 source files with and without `integration` determine exact test run lists; unit
@@ -111,7 +113,7 @@ Diagnose finished failures while other jobs run. Wait through a monitor, never a
 
 ## Reviewers
 
-CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commits, a third after a heavy second round, or the fallback below. Every review thread must be resolved. Inspect Greptile and React Doctor results and address actionable findings as they arrive; other pending or red checks do not block merging. Elapsed time or silence proves no CodeRabbit coverage. Do not install or configure a reviewer.
+CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commits, a third after a heavy second round, or the fallback below. Every review thread must be resolved. Inspect Greptile and React Doctor results and address actionable findings as they arrive. Other pending or red checks do not block merging in absent mode; queue/fallback mode also requires both successful aggregates. Elapsed time or silence proves no CodeRabbit coverage. Do not install or configure a reviewer.
 
 - Every push restarts CI and the reviewers, so remediation works in rounds: one push per round, never one per finding.
 - CodeRabbit allows 8 reviews per hour across the repository, so parallel PRs stall on it. Do not request a re-review of an unchanged head.
@@ -122,7 +124,7 @@ CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commi
   3. Fix or answer every finding like any other reviewer's.
   4. Dismiss a stale CodeRabbit `CHANGES_REQUESTED` review with a message linking that comment.
 
-  Inspect Greptile, React Doctor and CI results and report non-green checks; only `PR body` blocks the merge-gate criterion.
+  Inspect Greptile, React Doctor and CI results and report non-green checks. In absent mode only `PR body` blocks the CI criterion; queue/fallback mode also requires both successful aggregates.
 
 A round starts as soon as a reviewer posts findings or a check fails on the current head; do not wait for the rest of CI to finish first, because the fix push restarts CI anyway. Fold in every finding already posted, push once, then inspect CI and satisfy the review criterion on that new head. Collect every page of reviews, inline threads and PR comments, including collapsed sections and the CodeRabbit "Follow-up" and "outside diff" notes that exist only in review bodies, and address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines. Green CI on a head without the required CodeRabbit rounds or fallback is not delivered.
 
