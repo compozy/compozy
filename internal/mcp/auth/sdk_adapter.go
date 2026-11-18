@@ -104,7 +104,7 @@ func (s *Service) hostedRefreshConfig(
 	if err != nil {
 		return ServerConfig{}, Metadata{}, err
 	}
-	registration, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
+	registration, err := s.loadTokenRegistration(ctx, cfg.Target)
 	if err != nil {
 		return ServerConfig{}, Metadata{}, fmt.Errorf("mcp auth: load registration for refresh: %w", err)
 	}
@@ -327,10 +327,7 @@ func (s *Service) resolveHostedRegistration(
 		return strings.TrimSpace(cfg.ClientID), strings.TrimSpace(cfg.ClientSecret), method, nil
 	}
 	if asm.ClientIDMetadataDocumentSupported {
-		clientMetadataURL := strings.TrimSpace(s.clientMetadataURL)
-		if clientMetadataURL == "" {
-			clientMetadataURL = compozyconfig.DefaultMCPClientMetadataURL
-		}
+		clientMetadataURL := s.clientMetadataDocumentURL()
 		if err := validateClientMetadataURL(clientMetadataURL); err == nil {
 			if validateErr := s.validateCIMD(ctx, cfg, clientMetadataURL, redirectURL); validateErr == nil {
 				if persistErr := s.persistCIMDRegistration(
@@ -348,6 +345,10 @@ func (s *Service) resolveHostedRegistration(
 		}
 	}
 	return s.dynamicClientRegistration(ctx, cfg, resourceURL, redirectURL, asm)
+}
+
+func (s *Service) clientMetadataDocumentURL() string {
+	return firstNonEmpty(s.clientMetadataURL, compozyconfig.DefaultMCPClientMetadataURL)
 }
 
 func (s *Service) validateCIMD(
@@ -409,14 +410,15 @@ func (s *Service) persistCIMDRegistration(
 		return err
 	}
 	_, err = s.registrations.SaveMCPAuthRegistration(ctx, ClientRegistration{
-		Target:                cfg.Target.Normalize(),
-		DefinitionFingerprint: fingerprint,
-		ResourceURL:           resourceURL,
-		Issuer:                strings.TrimSpace(issuer),
-		ClientID:              clientID,
-		RedirectURL:           redirectURL,
-		Scopes:                trimStrings(cfg.Scopes),
-		UpdatedAt:             s.now().UTC(),
+		Target:                  cfg.Target.Normalize(),
+		DefinitionFingerprint:   fingerprint,
+		ResourceURL:             resourceURL,
+		Issuer:                  strings.TrimSpace(issuer),
+		ClientID:                clientID,
+		TokenEndpointAuthMethod: tokenEndpointAuthMethodNone,
+		RedirectURL:             redirectURL,
+		Scopes:                  trimStrings(cfg.Scopes),
+		UpdatedAt:               s.now().UTC(),
 	}, RegistrationSecrets{})
 	if err != nil {
 		return fmt.Errorf("mcp auth: persist CIMD registration: %w", err)

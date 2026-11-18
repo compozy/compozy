@@ -112,3 +112,8 @@ fails keeps the panel open with "Still not working after the check."
 QA impact 2026-11-17 (#1794, daemon CPU hot paths):
 HTTP detail summaries reuse the daemon read model with the same payload. Auth and runtime revisions fence reuse; unsignaled external health is revalidated at the configured poll cadence. The targeted run exercises HTTP payloads and hosted transport; it does not claim this complete browser matrix.
 See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
+
+QA impact 2026-11-18 (#1828): for a remote OAuth server with an expired access token and a usable
+CIMD registration, Settings receives `refreshable=true` even for registrations saved without
+the auth method. The server keeps its tools and does not offer **Sign in** solely because of
+expiry. Follow the refresh steps in [ET-api-mcp-oauth-endpoints](ET-api-mcp-oauth-endpoints.md).

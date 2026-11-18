@@ -500,6 +500,118 @@ func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 	})
 }
 
+func TestCIMDRegistrationRefresh(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		legacy     bool
+		change     func(*ClientRegistration)
+		wantUsable bool
+	}{
+		{name: "Should refresh a newly authorized CIMD client", wantUsable: true},
+		{name: "Should refresh a stored CIMD client with an empty auth method", legacy: true, wantUsable: true},
+		{
+			name:   "Should reject an empty auth method on a registration with a client secret",
+			legacy: true,
+			change: func(registration *ClientRegistration) {
+				registration.ClientSecretRef = "vault:mcp/test/client-secret"
+			},
+		},
+		{
+			name:   "Should reject an empty auth method on a DCR client with a URL client ID",
+			legacy: true,
+			change: func(registration *ClientRegistration) {
+				registration.RegistrationClientURI = "https://issuer.example/registration/client"
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+				mcpfixture.OAuthConfig{ClientIDMetadataDocumentSupported: true})
+			const redirect = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+			document := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if _, err := fmt.Fprintf(w, `{"client_id":%q,"redirect_uris":[%q],"token_endpoint_auth_method":"none"}`,
+					"https://"+r.Host+r.URL.Path, redirect); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(document.Close)
+			clientID := document.URL + "/.well-known/mcp-client.json"
+			now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+			store := &adapterTestStore{}
+			cfg := ServerConfig{
+				Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+				RemoteURL: fixture.Endpoints.MCPURL, Registration: RegistrationAuto, Scopes: []string{"tools.read"},
+			}
+			options := []ServiceOption{
+				withHTTPClientForTest(document.Client()), WithRegistrationStore(store),
+				WithNow(func() time.Time { return now }),
+			}
+			service, err := NewService(store, append(options, WithClientMetadataURL(clientID))...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state, err := service.BeginLogin(t.Context(), cfg, redirect)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.Config.ClientID != clientID || len(fixture.Requests().Registration) != 0 {
+				t.Fatal("sign-in did not select CIMD")
+			}
+			callback := oauthCallbackURL(t, redirect, state.State, "")
+			if _, err := service.Exchange(t.Context(), &state, callback); err != nil {
+				t.Fatal(err)
+			}
+			if tc.legacy {
+				store.registration.TokenEndpointAuthMethod = ""
+			}
+			if tc.change != nil {
+				tc.change(&store.registration)
+			}
+			// The executor uses the registration that was saved at sign-in, including for a custom CIMD URL.
+			renewal, err := NewService(store, options...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Hour)
+			before, err := renewal.Status(t.Context(), cfg)
+			if err != nil || before.Status != StatusExpired || !before.TokenPresent ||
+				before.Refreshable != tc.wantUsable {
+				t.Fatalf("expired status = %+v, err = %v, want refreshable = %t", before, err, tc.wantUsable)
+			}
+			after, err := renewal.Refresh(t.Context(), cfg)
+			requests := fixture.Requests()
+			if !tc.wantUsable {
+				if err == nil || len(requests.Token) != 1 {
+					t.Fatal("invalid registration reached the refresh endpoint")
+				}
+				return
+			}
+			if err != nil || after.Status != StatusAuthenticated || !after.Refreshable || !after.TokenPresent {
+				t.Fatalf("refreshed status = %+v, err = %v", after, err)
+			}
+			if len(requests.Registration) != 0 || len(requests.Token) != 2 {
+				t.Fatal("refresh did not reuse the existing client")
+			}
+			request := requests.Token[1]
+			if request.Get("grant_type") != "refresh_token" || request.Get("client_id") != clientID ||
+				request.Get("refresh_token") != mcpfixture.RefreshToken || request.Has("client_secret") ||
+				request.Get("resource") != cfg.RemoteURL {
+				t.Fatal("refresh did not use a resource-bound public client grant")
+			}
+			token, err := renewal.AuthorizationToken(t.Context(), cfg)
+			if err != nil || !token.ExpiresAt.Equal(now.Add(time.Hour)) {
+				t.Fatal("the refreshed token was not persisted and usable")
+			}
+			if !tc.legacy && store.registration.TokenEndpointAuthMethod != tokenEndpointAuthMethodNone {
+				t.Fatal("the new CIMD registration did not persist its public-client auth method")
+			}
+		})
+	}
+}
+
 func TestDynamicRegistrationReuseValidatesBindings(t *testing.T) {
 	t.Parallel()
 	t.Run("Should re-register when redirect scopes or secret lifetime no longer cover the flow", func(t *testing.T) {

@@ -33,7 +33,7 @@ func (s *Service) dynamicClientRegistration(
 		return "", "", "", err
 	}
 	existing, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
-	if err == nil && s.dynamicRegistrationReusable(
+	if err == nil && !s.isConfiguredCIMDRegistration(existing) && s.dynamicRegistrationReusable(
 		existing,
 		cfg,
 		fingerprint,
@@ -83,6 +83,27 @@ func (s *Service) dynamicClientRegistration(
 		return "", "", "", err
 	}
 	return registration.ClientID, secret, registration.TokenEndpointAuthMethod, nil
+}
+
+func (s *Service) loadTokenRegistration(ctx context.Context, target Target) (ClientRegistration, error) {
+	registration, err := s.registrations.GetMCPAuthRegistration(ctx, target)
+	// Older CIMD rows omitted the method even though code exchange used a public client.
+	if err == nil && registration.TokenEndpointAuthMethod == "" && registration.hasCIMDIdentity() {
+		registration.TokenEndpointAuthMethod = tokenEndpointAuthMethodNone
+	}
+	return registration, err
+}
+
+func (s *Service) isConfiguredCIMDRegistration(registration ClientRegistration) bool {
+	return registration.ClientID == s.clientMetadataDocumentURL() && registration.hasCIMDIdentity()
+}
+
+func (r ClientRegistration) hasCIMDIdentity() bool {
+	if r.ClientSecretRef != "" || r.RegistrationAccessTokenRef != "" || r.RegistrationClientURI != "" ||
+		!r.ClientIDIssuedAt.IsZero() || !r.ClientSecretExpiresAt.IsZero() {
+		return false
+	}
+	return validateClientMetadataURL(r.ClientID) == nil
 }
 
 func (s *Service) dynamicRegistrationReusable(
