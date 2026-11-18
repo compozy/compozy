@@ -246,7 +246,8 @@ function SessionRowTarget({
   preloadHandlers: ReturnType<typeof useSessionEntryPreload>;
 }) {
   // Outside the Pinned section (the archive, Later) a pin waiting to return is marked.
-  const pinnedMark = Boolean(session.pinned_at) && !useContext(SessionListPinnedSectionContext);
+  const inPinnedSection = useContext(SessionListPinnedSectionContext);
+  const pinnedMark = Boolean(session.pinned_at) && !inPinnedSection;
   return (
     <button
       type="button"

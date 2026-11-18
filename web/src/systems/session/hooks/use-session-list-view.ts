@@ -228,11 +228,7 @@ export function useSessionListView(
     pinned: groupFilters.pinned,
     enabled,
   });
-  const pinnedRead = useSessionCatalog(
-    scope,
-    sessionListPinnedFilters(groupFilters),
-    enabled && shelf === "active"
-  );
+  const pinned = useSessionListPinnedRead(scope, groupFilters, enabled && shelf === "active");
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
     groupBy,
@@ -335,16 +331,27 @@ export function useSessionListView(
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
     selectionKey,
     totals,
-    pinned:
-      shelf === "active"
-        ? {
-            sessions: pinnedRead.sessions,
-            loading: pinnedRead.loading,
-            failed: pinnedRead.failed,
-            more: pinnedRead.next,
-            retry: pinnedRead.retry,
-          }
-        : undefined,
+    pinned,
+  };
+}
+
+/**
+ * The Pinned section's read: the list's own filters over pinned sessions, oldest pin first.
+ * Absent where the list has no Pinned section (the archive and Later shelves).
+ */
+function useSessionListPinnedRead(
+  scope: DataScope | null,
+  groupFilters: SessionListFilters,
+  shown: boolean
+): SessionListPinnedRead | undefined {
+  const read = useSessionCatalog(scope, sessionListPinnedFilters(groupFilters), shown);
+  if (!shown) return undefined;
+  return {
+    sessions: read.sessions,
+    loading: read.loading,
+    failed: read.failed,
+    more: read.next,
+    retry: read.retry,
   };
 }
 
