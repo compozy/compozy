@@ -1,5 +1,30 @@
 # Compozy Change Impact
 
+## Pinned sessions above the session list
+
+Owner: [#1827](https://github.com/compozy/compozy/issues/1827).
+
+- **Native tools.** `compozy__session_list` accepts `pinned: "exclude" | "only" | "include"`
+  (default `include`) and the `pinned` sort, which requires `pinned: "only"`; session rows report
+  `pinned_at`. No new tool: agents pin through the CLI or HTTP surfaces.
+- **CLI/HTTP/UDS.** `POST` and `DELETE /api/workspaces/{workspace_id}/sessions/{session_id}/pin`
+  with the Later route's workspace and owner-profile authority; the catalog and facets reads gain
+  the `pinned` query parameter and `sort=pinned`. `compozy session pin|unpin <id>` and
+  `compozy session list --pinned`. Subagents are refused with `subagent_pin_follows_parent` and
+  always-on mains with `session_pin_instance_main`. Additive only; the default filter keeps every
+  existing caller and cursor unchanged.
+- **Extensibility, hooks and config.** None.
+- **State and isolation.** New nullable `sessions.pinned_at` column and partial index (migration
+  00206); existing rows read as unpinned. The pin belongs to the session's workspace and profile;
+  the filter runs inside the scoped catalog query and over active sessions. Pin and unpin never
+  touch `updated_at`, folder placement, or manual order, and a manual reorder keeps hidden pinned
+  members at their index.
+- **Web, official skill, docs and QA.** The Active session list shows a Pinned section above
+  project groups and folders, with Pin to top / Unpin on rows and menus; Archived and Later show a
+  pin mark; the Kanban board is unchanged. The native tool reference, the sessions guide, and the
+  generated CLI docs describe pins; QA adds ET-web-session-list-pinned and notes the folder slot
+  rule in ET-web-session-folders-manual-order.
+
 ## Gateway manual 6-digit pairing and device removal — 2026-11-18
 
 Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a1177`.
@@ -26,6 +51,8 @@ Owner: branch `run/gateway-manual-6-digit-pairing-device-removal-backend-a87a117
   `compozy device remove`, and RT-gateway-paired-device records the new backend receipts without
   claiming a product walk.
 
+||||||| parent of 9b114ea59 (feat: pin sessions above the session list)
+
 ## MCP OAuth refresh for CIMD clients
 
 Owner: [#1828](https://github.com/compozy/compozy/issues/1828).
@@ -46,6 +73,7 @@ Owner: [#1828](https://github.com/compozy/compozy/issues/1828).
   The MCP skill reference and the ET-api-mcp-oauth-endpoints and
   ET-web-mcp-status-matrix scenarios cover automatic renewal of new and existing CIMD clients.
 
+||||||| parent of 3303a1254 (feat: pin sessions above the session list)
 ## MCP OAuth root protected-resource discovery
 
 Owner: [#1823](https://github.com/compozy/compozy/issues/1823).
@@ -61,6 +89,7 @@ Owner: [#1823](https://github.com/compozy/compozy/issues/1823).
 - **Docs and QA.** ET-047 covers the path-specific 404, root fallback, scoped sign-in, and
   rejection of mismatched resources. The auth adapter suite exercises a local HTTP OAuth server.
 
+||||||| parent of 107366fab (feat: pin sessions above the session list)
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).

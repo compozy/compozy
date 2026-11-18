@@ -32,6 +32,7 @@ type SessionListQuery struct {
 	Badges        []session.Badge
 	Archive       string
 	Later         string
+	Pinned        string
 	IncludeHealth bool
 	Limit         int
 	Sort          string
@@ -148,6 +149,9 @@ func sessionListValues(query SessionListQuery) url.Values {
 	}
 	if later := strings.TrimSpace(query.Later); later != "" {
 		values.Set("later", later)
+	}
+	if pinned := strings.TrimSpace(query.Pinned); pinned != "" {
+		values.Set("pinned", pinned)
 	}
 	if query.IncludeHealth {
 		values.Set("include_health", "true")

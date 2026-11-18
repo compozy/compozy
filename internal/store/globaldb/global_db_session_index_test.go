@@ -1035,6 +1035,155 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should split pinned sessions into their own ordered read without touching activity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-session-pinned",
+			filepath.Join(t.TempDir(), "workspace-session-pinned"),
+		)
+		otherWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-session-pinned-other",
+			filepath.Join(t.TempDir(), "workspace-session-pinned-other"),
+		)
+		baseAt := time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC)
+		ids := []string{"sess-pin-a", "sess-pin-b", "sess-pin-c", "sess-pin-d"}
+		for _, id := range ids {
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspaceID, globalDBSessionStateStopped, baseAt)
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", id, err)
+			}
+		}
+		// Pin c, then a, then b: pin order, not activity order, leads the read.
+		for index, id := range []string{"sess-pin-c", "sess-pin-a", "sess-pin-b"} {
+			globalDB.now = func() time.Time { return baseAt.Add(time.Duration(index+1) * time.Hour) }
+			pinned, err := globalDB.PinSession(ctx, workspaceID, id)
+			if err != nil || pinned.PinnedAt == nil {
+				t.Fatalf("PinSession(%q) = %#v, %v, want a pin", id, pinned.PinnedAt, err)
+			}
+			if !pinned.UpdatedAt.Equal(baseAt.Add(time.Duration(len(id)) * time.Second)) {
+				t.Fatalf("PinSession(%q) updated_at = %v, want activity untouched", id, pinned.UpdatedAt)
+			}
+		}
+		globalDB.now = func() time.Time { return baseAt.Add(10 * time.Hour) }
+		again, err := globalDB.PinSession(ctx, workspaceID, "sess-pin-c")
+		if err != nil || again.PinnedAt == nil || !again.PinnedAt.Equal(baseAt.Add(time.Hour)) {
+			t.Fatalf("PinSession(again) = %#v, %v, want the first pin time kept", again.PinnedAt, err)
+		}
+
+		for _, testCase := range []struct {
+			name   string
+			pinned store.SessionPinnedFilter
+			want   int
+		}{
+			{name: "exclude", pinned: store.SessionPinnedExclude, want: 1},
+			{name: "only", pinned: store.SessionPinnedOnly, want: 3},
+			{name: "include", pinned: store.SessionPinnedInclude, want: 4},
+		} {
+			query := store.SessionCatalogPageQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: workspaceID,
+				Pinned:      testCase.pinned,
+				Sort:        sessionCatalogSortRecent,
+				Limit:       10,
+			}
+			page, pageErr := globalDB.PageSessions(ctx, query)
+			if pageErr != nil || len(page.Sessions) != testCase.want || page.Total != testCase.want {
+				t.Fatalf("PageSessions(%s) = %d rows total=%d, %v; want %d",
+					testCase.name, len(page.Sessions), page.Total, pageErr, testCase.want)
+			}
+			facets, facetsErr := globalDB.SessionCatalogFacets(ctx, query)
+			if facetsErr != nil || facets.Facets.All != testCase.want {
+				t.Fatalf("SessionCatalogFacets(%s) all=%d, %v; want %d",
+					testCase.name, facets.Facets.All, facetsErr, testCase.want)
+			}
+		}
+
+		pinnedQuery := store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceID,
+			Pinned:      store.SessionPinnedOnly,
+			Sort:        sessionCatalogSortPinned,
+			Limit:       2,
+		}
+		first, err := globalDB.PageSessions(ctx, pinnedQuery)
+		if err != nil || len(first.Sessions) != 2 {
+			t.Fatalf("PageSessions(pinned first) = %#v, %v, want two rows", first.Sessions, err)
+		}
+		anchor := first.Sessions[1]
+		pinnedQuery.After = &store.SessionCatalogPosition{
+			PinnedAt:      anchor.PinnedAt,
+			AttentionRank: store.SessionCatalogAttentionRankNone,
+			PrimaryAt:     anchor.UpdatedAt,
+			SecondaryAt:   anchor.UpdatedAt,
+			CreatedAt:     anchor.CreatedAt,
+			ID:            anchor.ID,
+		}
+		second, err := globalDB.PageSessions(ctx, pinnedQuery)
+		if err != nil {
+			t.Fatalf("PageSessions(pinned second) error = %v", err)
+		}
+		got := append(sessionIDsForWorkspaceStateIndexTest(first.Sessions),
+			sessionIDsForWorkspaceStateIndexTest(second.Sessions)...)
+		if want := []string{"sess-pin-c", "sess-pin-a", "sess-pin-b"}; !slices.Equal(got, want) {
+			t.Fatalf("pinned order = %#v, want %#v", got, want)
+		}
+		pinnedQuery.Pinned = store.SessionPinnedInclude
+		pinnedQuery.After = nil
+		if _, err := globalDB.PageSessions(ctx, pinnedQuery); err == nil {
+			t.Fatal("PageSessions(sort pinned without only) error = nil, want a refusal")
+		}
+
+		if _, err := globalDB.PinSession(
+			ctx,
+			otherWorkspaceID,
+			"sess-pin-d",
+		); !errors.Is(
+			err,
+			store.ErrSessionNotFound,
+		) {
+			t.Fatalf("PinSession(other workspace) error = %v, want ErrSessionNotFound", err)
+		}
+		unpinned, changed, err := globalDB.UnpinSession(ctx, workspaceID, "sess-pin-a")
+		if err != nil || !changed || unpinned.PinnedAt != nil {
+			t.Fatalf("UnpinSession() = %#v, %v, %v, want unpinned", unpinned.PinnedAt, changed, err)
+		}
+		pins, err := globalDB.SessionPinnedAt(ctx, ids)
+		if err != nil || len(pins) != 2 || !pins["sess-pin-b"].Equal(baseAt.Add(3*time.Hour)) {
+			t.Fatalf("SessionPinnedAt() = %#v, %v, want b and c pinned", pins, err)
+		}
+	})
+
+	t.Run("Should refuse pins on subagent sessions and always-on agent mains", func(t *testing.T) {
+		t.Parallel()
+
+		db, workspace, parent, now := subagentFixture(t)
+		registerSubagentSession(t, db, workspace, "child", parent, store.SubagentSpawnRole, now)
+		if _, err := db.PinSession(
+			t.Context(),
+			workspace,
+			"child",
+		); !errors.Is(
+			err,
+			store.ErrSubagentPinFollowsParent,
+		) {
+			t.Fatalf("PinSession(subagent) error = %v, want ErrSubagentPinFollowsParent", err)
+		}
+		makeInstanceMainForCleanupTest(t, db, workspace, parent, now)
+		if _, err := db.PinSession(t.Context(), workspace, parent); !errors.Is(err, store.ErrSessionPinInstanceMain) {
+			t.Fatalf("PinSession(instance main) error = %v, want ErrSessionPinInstanceMain", err)
+		}
+		if pins, err := db.SessionPinnedAt(t.Context(), []string{"child", parent}); err != nil || len(pins) != 0 {
+			t.Fatalf("SessionPinnedAt() = %#v, %v, want no pins", pins, err)
+		}
+	})
+
 	t.Run("Should preserve normal sessions with null spawn roles", func(t *testing.T) {
 		t.Parallel()
 

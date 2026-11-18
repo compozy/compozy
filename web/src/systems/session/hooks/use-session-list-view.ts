@@ -12,6 +12,7 @@ import {
 import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import { sessionListPair } from "../lib/session-list-groups";
 import { sessionListShelfFilters, type SessionListShelf } from "../lib/session-list-shelf";
+import { sessionListPinnedExclusion, sessionListPinnedFilters } from "../lib/session-list-pinned";
 import type { ProjectGroupTree } from "../lib/workspace-folders";
 import {
   availableSessionListGroupBys,
@@ -133,6 +134,18 @@ export interface SessionListViewModel {
   selectionKey: string;
   /** Exact live-state totals of the list's whole scope, from facets; absent in the archive. */
   totals?: SessionListTotals;
+  /** The Pinned section's read, above every group and folder; absent off the active shelf. */
+  pinned?: SessionListPinnedRead;
+}
+
+/** The pinned sessions of the list's scope and filters, oldest pin first. */
+export interface SessionListPinnedRead {
+  sessions: readonly SessionPayload[];
+  loading: boolean;
+  failed: boolean;
+  /** More pins than the read's page holds. */
+  more: boolean;
+  retry: () => void;
 }
 
 /**
@@ -212,8 +225,14 @@ export function useSessionListView(
     showAutomation,
     search: remoteSearch,
     worktreeId: options.worktreeId,
+    pinned: groupFilters.pinned,
     enabled,
   });
+  const pinnedRead = useSessionCatalog(
+    scope,
+    sessionListPinnedFilters(groupFilters),
+    enabled && shelf === "active"
+  );
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
     groupBy,
@@ -316,6 +335,16 @@ export function useSessionListView(
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
     selectionKey,
     totals,
+    pinned:
+      shelf === "active"
+        ? {
+            sessions: pinnedRead.sessions,
+            loading: pinnedRead.loading,
+            failed: pinnedRead.failed,
+            more: pinnedRead.next,
+            retry: pinnedRead.retry,
+          }
+        : undefined,
   };
 }
 
@@ -351,6 +380,7 @@ function sessionListGroupFiltersFor(
     subagents: sessionListSubagentsParam(search),
     worktree: worktreeId,
     ...sessionListShelfFilters(shelf, showAutomation),
+    ...sessionListPinnedExclusion(shelf),
   };
 }
 

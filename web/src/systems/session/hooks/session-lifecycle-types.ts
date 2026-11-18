@@ -58,6 +58,9 @@ export interface SessionLifecycleActionHandlers {
   onAdopt?: (session: SessionPayload, parent: SessionPayload) => void;
   /** Returns a nested child to the top level; the row menu's Make top-level. */
   onMakeTopLevel?: (session: SessionPayload) => void;
+  /** Pin to top and Unpin; a session list adds them, a board card has none. */
+  onPin?: (session: SessionPayload) => void;
+  onUnpin?: (session: SessionPayload) => void;
 }
 
 export interface SessionDeleteConfirmation {

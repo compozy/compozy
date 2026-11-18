@@ -1,11 +1,13 @@
 import { useContext } from "react";
 
-import { Checkbox, Time, formatAbsoluteTime } from "@compozy/ui";
+import { Pin } from "@compozy/ui/icons";
+import { Checkbox, Icon, Time, formatAbsoluteTime } from "@compozy/ui";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
 import { cn } from "@/lib/utils";
 
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
+import { SessionListPinnedSectionContext } from "../../lib/session-list-pinned";
 import { sessionBadgeSignal } from "../../lib/session-badge";
 import { sessionWaitingOn } from "../../lib/session-pull-request";
 import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
@@ -243,6 +245,8 @@ function SessionRowTarget({
   focusHandlers: ReturnType<typeof useKeyboardFocusToken>["focusHandlers"];
   preloadHandlers: ReturnType<typeof useSessionEntryPreload>;
 }) {
+  // Outside the Pinned section (the archive, Later) a pin waiting to return is marked.
+  const pinnedMark = Boolean(session.pinned_at) && !useContext(SessionListPinnedSectionContext);
   return (
     <button
       type="button"
@@ -280,7 +284,15 @@ function SessionRowTarget({
         waitingOn={sessionWaitingOn(session)}
         className={badgeMarkClass(selection)}
       />
-      <span className="min-w-0 truncate">{title}</span>
+      {pinnedMark ? (
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="min-w-0 truncate">{title}</span>
+          <Icon as={Pin} size="xs" className="shrink-0 text-faint" aria-hidden="true" />
+          <span className="sr-only">, pinned</span>
+        </span>
+      ) : (
+        <span className="min-w-0 truncate">{title}</span>
+      )}
       {/* The meta line is drawn outside the target; its words still name the row. */}
       <span className="sr-only">{meta.spoken}</span>
     </button>

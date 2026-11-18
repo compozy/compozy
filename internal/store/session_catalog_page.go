@@ -32,13 +32,15 @@ type SessionCatalogPosition struct {
 	NavigatorBand *int    `json:"navigator_band,omitzero"`
 	// ManualFolderRank and ManualPosition anchor the manual sort; see
 	// SessionManualRootRank for sessions outside any folder.
-	ManualFolderRank *int                        `json:"manual_folder_rank,omitzero"`
-	ManualPosition   *int                        `json:"manual_position,omitzero"`
-	AttentionRank    SessionCatalogAttentionRank `json:"attention_rank"`
-	PrimaryAt        time.Time                   `json:"primary_at"`
-	SecondaryAt      time.Time                   `json:"secondary_at"`
-	CreatedAt        time.Time                   `json:"created_at"`
-	ID               string                      `json:"id"`
+	ManualFolderRank *int `json:"manual_folder_rank,omitzero"`
+	ManualPosition   *int `json:"manual_position,omitzero"`
+	// PinnedAt anchors the pinned sort, oldest pin first.
+	PinnedAt      *time.Time                  `json:"pinned_at,omitzero"`
+	AttentionRank SessionCatalogAttentionRank `json:"attention_rank"`
+	PrimaryAt     time.Time                   `json:"primary_at"`
+	SecondaryAt   time.Time                   `json:"secondary_at"`
+	CreatedAt     time.Time                   `json:"created_at"`
+	ID            string                      `json:"id"`
 }
 
 // Validate ensures the keyset anchor is complete.
@@ -92,6 +94,7 @@ type SessionCatalogPageQuery struct {
 	Resumable            bool
 	Archive              SessionArchiveFilter
 	Later                SessionLaterFilter
+	Pinned               SessionPinnedFilter
 	Sort                 string
 	Limit                int
 	After                *SessionCatalogPosition
@@ -129,6 +132,12 @@ func (q SessionCatalogPageQuery) Validate() error {
 	if err := q.Later.Validate(); err != nil {
 		return err
 	}
+	if err := q.Pinned.Validate(); err != nil {
+		return err
+	}
+	if q.Sort == "pinned" && q.Pinned != SessionPinnedOnly {
+		return fmt.Errorf("store: session catalog pinned sort requires the pinned=only filter")
+	}
 	if !q.LineageKind.Valid() {
 		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
 	}
@@ -136,6 +145,9 @@ func (q SessionCatalogPageQuery) Validate() error {
 }
 
 func (q SessionCatalogPageQuery) validateCursor() error {
+	if q.After != nil && q.Sort == "pinned" && q.After.PinnedAt == nil {
+		return fmt.Errorf("store: session catalog pinned cursor key is required")
+	}
 	if q.After != nil && q.Sort == "name" && q.After.Name == nil {
 		return fmt.Errorf("store: name cursor key is required")
 	}

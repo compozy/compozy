@@ -145,9 +145,14 @@ func sessionCatalogListOperation() OperationSpec {
 				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
 			),
 			enumQueryParam(
+				"pinned",
+				"Visibility of pinned sessions; included by default",
+				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
+			),
+			enumQueryParam(
 				"sort",
-				"Stable session ordering",
-				[]string{"recent", "created", "name", "last_activity", "attention", "navigator", "manual"},
+				"Stable session ordering; pinned (pin order, oldest first) requires pinned=only",
+				[]string{"recent", "created", "name", "last_activity", "attention", "navigator", "manual", "pinned"},
 			),
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			intQueryParam("limit", "Sessions per page (1-100)"),
@@ -327,6 +332,11 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			enumQueryParam(
 				"later",
 				"Visibility of sessions parked in Later; excluded by default",
+				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
+			),
+			enumQueryParam(
+				"pinned",
+				"Visibility of pinned sessions; included by default",
 				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
 			),
 		),

@@ -70,6 +70,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if code := sessionLaterErrorCode(err); code != "" {
 		payload.Code = code
 	}
+	if code := sessionPinErrorCode(err); code != "" {
+		payload.Code = code
+	}
 	if code := attentionSeenErrorCode(err); code != "" {
 		payload.Code = code
 	}

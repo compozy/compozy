@@ -562,7 +562,11 @@ filters participate in the cursor fingerprint. PR facts are display-cache reads,
 `compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact
 session `type`, exact agent, exact `parent` (direct children) or `root` (whole tree, root included),
 search, resumability, health, archive visibility, sort, cursor, and limit inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
-archived rows. Use `type: "user"` when a workflow needs operator-created sessions without
+archived rows. Pin visibility (`pinned`) defaults to `include`; `exclude` drops sessions pinned
+above the session list, `only` returns just them, and `sort: "pinned"` (oldest pin first) requires
+`only`. Rows report `pinned_at`. Pinning has no native tool: use `compozy session pin <id>` and
+`compozy session unpin <id>`; subagent sessions and always-on mains are refused.
+Use `type: "user"` when a workflow needs operator-created sessions without
 daemon-managed system, coordinator, or spawned sessions. `compozy__session_archive` archives a
 stopped session; a live session is refused unless the input sets `stop: true`, which stops it
 through the normal stop path (canceling any active turn and cascading to subagents) and then
