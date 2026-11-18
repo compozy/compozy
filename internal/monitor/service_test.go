@@ -2701,6 +2701,21 @@ func TestServicePullRequestMonitor(t *testing.T) {
 				got[2].PullRequest.AllFinished || !slices.Equal(got[2].PullRequest.NewlyFailed, []string{"test"}) {
 				t.Fatalf("wakes = %+v", got)
 			}
+
+			pendingRound := openPull("head-a", &PullRequestChecks{
+				Passed: 3, Failed: 1, Pending: 1, FailedNames: []string{"lint"},
+			}, noReviews())
+			forge.set(pendingRound)
+			poll(1)
+			got = waker.notifications()
+			if len(got) != 4 || got[3].PullRequest.AllFinished ||
+				!slices.Equal(got[3].PullRequest.NewlyFailed, []string{"lint"}) {
+				t.Fatalf("pending round wakes = %+v", got)
+			}
+			poll(1)
+			if got := waker.notifications(); len(got) != 4 {
+				t.Fatalf("repeated pending read woke: %+v", got)
+			}
 		})
 	})
 	t.Run("Should stay armed across wakes with one message id per fire", func(t *testing.T) {

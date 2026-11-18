@@ -109,6 +109,10 @@ func detectChecks(changes *PullRequestChanges, next prCursor, checks *PullReques
 	if checks.Pending == 0 && total == 0 {
 		return next
 	}
+	if checks.Pending > 0 {
+		// A pending read starts a new round for failures seen only in smaller snapshots.
+		next.SmallerFailed, next.SmallerFailedNames = 0, nil
+	}
 	var newFailureName bool
 	for _, name := range checks.FailedNames {
 		if slices.Contains(next.FailedNames, name) {
@@ -139,7 +143,6 @@ func detectChecks(changes *PullRequestChanges, next prCursor, checks *PullReques
 func trackCheckRound(changes *PullRequestChanges, next prCursor, total int, newFailure bool) prCursor {
 	if changes.Pending > 0 {
 		next.Finished, next.FinishedTotal = false, 0
-		next.SmallerFailed, next.SmallerFailedNames = 0, nil
 		return next
 	}
 	// Late checks and reruns can finish between polls and only change the completed summary.
