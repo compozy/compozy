@@ -1,5 +1,20 @@
 # Compozy Change Impact
 
+## MCP OAuth root protected-resource discovery
+
+Owner: [#1823](https://github.com/compozy/compozy/issues/1823).
+
+- **CLI, HTTP, UDS and Web.** Sign-in and hosted refresh accept either root resource spelling
+  during well-known metadata fallback. The authorization and token requests still use the
+  configured MCP resource. Commands, routes, and response shapes are unchanged.
+- **Native tools and official skill.** MCP status and authentication status retain their tool IDs,
+  schemas, and repair instructions.
+- **Extensibility, hooks and config.** Discovery uses the existing authorized HTTP client.
+  Extension contracts, hook behavior, and config keys are unchanged.
+- **State and isolation.** Scope selection, registration and token storage are unchanged.
+- **Docs and QA.** ET-047 covers the path-specific 404, root fallback, scoped sign-in, and
+  rejection of mismatched resources. The auth adapter suite exercises a local HTTP OAuth server.
+
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).
