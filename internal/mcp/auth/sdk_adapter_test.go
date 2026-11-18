@@ -1333,6 +1333,8 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 		}
 	})
 
+	// Invariant: a configured client with missing grants still reports needs_login and cannot send the bearer.
+	// Owner: OAuth token binding and status; canonical suite: TestAuthorizationTokenRequiresBaselineScopes.
 	t.Run("Should accept step-up scopes and reject a missing baseline scope", func(t *testing.T) {
 		t.Parallel()
 		store := &adapterTestStore{}
@@ -1369,6 +1371,10 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 			ErrTokenBindingInvalid,
 		) {
 			t.Fatalf("AuthorizationToken(missing baseline) error = %v, want invalid binding", err)
+		}
+		status, err := service.Status(t.Context(), cfg)
+		if err != nil || status.Status != StatusNeedsLogin || status.TokenPresent {
+			t.Fatalf("Status(missing baseline) = %#v, %v", status, err)
 		}
 	})
 }

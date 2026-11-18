@@ -198,11 +198,15 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 		return s.invalidTokenStatus(cfg, ErrTokenResolution.Error()+"; check the credential store"), nil
 	}
 	if !matches {
-		if cfg.Implicit && !tokenMatchesFingerprint(token, cfg) {
+		const diagnostic = "stored token belongs to a different server definition; run login again"
+		if !cfg.Implicit {
+			return statusFromTokenWithDiagnostic(cfg, nil, s.now(), diagnostic), nil
+		}
+		if !tokenMatchesFingerprint(token, cfg) {
 			cfg.Type = ""
 			return statusFromToken(cfg, nil, s.now()), nil
 		}
-		return s.invalidTokenStatus(cfg, "stored token belongs to a different server definition; sign in again"), nil
+		return s.invalidTokenStatus(cfg, diagnostic), nil
 	}
 	rejected, err := s.generation.remotelyRejected(cfg.Target)
 	if err != nil {
