@@ -630,6 +630,8 @@ func (s *instanceServiceStarter) Stop(ctx context.Context, id string) error {
 	return nil
 }
 
+func (s *instanceServiceStarter) CheckMain(context.Context, string) error { return nil }
+
 func (s *instanceServiceStarter) StartOutcome(
 	context.Context,
 	agentinstance.Instance,

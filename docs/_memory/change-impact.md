@@ -6489,3 +6489,19 @@ workspace/profile isolation keep their existing contracts. No Web source or E2E 
 changes. `TestWindowManagerHandlers` owns admission/cancellation and persisted read-back;
 the unchanged Tabs-split E2E-004 and `ET-web-desktop-shell-lifecycle` own browser acceptance.
 Main CI is the only execution gate under the release directive.
+
+## Unprompted always-on main restart (GH-1815)
+
+- **Native tools and CLI/HTTP/UDS.** `ensure-main` reports a session conflict for an active
+  instance whose main remains stopped after shutdown. Session history uses the existing
+  `session.restart_skipped` event, correlated with the lifecycle stop when there is no prompt.
+  Heartbeat can deliver its first prompt to a new or reopened unbound main of an active instance.
+- **Extensibility, config and user state.** Recovery reuses logical session resume and the
+  existing `session.restart.auto_continue` setting. Hook, SDK, config and storage shapes stay
+  the same.
+- **Workspace and profile isolation.** Recovery requires the current main of the active
+  instance and uses existing workspace resolution and permission ceilings.
+- **Web, docs and official skill.** Existing instance attention and session events surface a
+  refused resume. The official runtime reference documents the behavior and `ensure-main` error.
+  `RT-daemon-restart-continuation` and `TestBootResumesInstancesAfterServersStart` cover the first
+  Heartbeat, a refused reopen and operator stops.

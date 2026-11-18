@@ -3,7 +3,9 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -21,8 +23,9 @@ type instanceMainAttempts interface {
 }
 
 type instanceMainSessions struct {
-	sessions *session.Manager
-	attempts instanceMainAttempts
+	sessions      *session.Manager
+	attempts      instanceMainAttempts
+	workAdmission admission.Checker
 }
 
 var _ agentinstance.MainSessionStarter = instanceMainSessions{}
@@ -78,6 +81,29 @@ func (r instanceMainSessions) Stop(ctx context.Context, id string) error {
 		return nil
 	}
 	return r.sessions.Stop(ctx, id)
+}
+
+func (r instanceMainSessions) CheckMain(ctx context.Context, id string) error {
+	info, err := r.sessions.StoredStatus(ctx, id)
+	if err != nil {
+		return err
+	}
+	if mainStoppedByShutdown(info) {
+		if r.workAdmission != nil {
+			if err := r.workAdmission.Check(ctx); err != nil {
+				return err
+			}
+		}
+		return fmt.Errorf(
+			"%w: main session %s remains stopped after daemon shutdown; inspect its restart history",
+			session.ErrSessionNotActive, id,
+		)
+	}
+	return nil
+}
+
+func mainStoppedByShutdown(info *session.Info) bool {
+	return info.State == session.StateStopped && info.StopReason == store.StopShutdown
 }
 
 func (r instanceMainSessions) StartOutcome(

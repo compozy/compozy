@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -22,6 +23,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	shellquote "github.com/kballard/go-shellquote"
 
@@ -29,6 +31,7 @@ import (
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -4243,6 +4246,182 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 			}
 		},
 	)
+	t.Run("Should reopen an unprompted main for Heartbeat and preserve stop decisions", func(t *testing.T) {
+		t.Parallel()
+		executable := e2etest.BuildCompozyBinary(t)
+		d, manager, workspace := newSubagentDaemonWithSetup(t, nil, executable, func(d *Daemon) {
+			configureInstancePermissionFixture(t, d, "approve-all", "", func(*acpmock.AgentFixture) {})
+			path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "HEARTBEAT.md")
+			writeDaemonFile(
+				t,
+				path,
+				"---\nversion: 1\nenabled: true\ncontext:\n  include: []\n---\nCheck for pending work.\n",
+			)
+		})
+		main := createUnpromptedRestartMain(t, d, manager, workspace)
+		explicit := createUnpromptedRestartMain(
+			t,
+			d,
+			manager,
+			resolveDaemonWorkspace(t, d.workspaceResolver, t.TempDir()).ID,
+		)
+		if err := manager.Stop(t.Context(), explicit.MainSessionID); err != nil {
+			t.Fatal(err)
+		}
+		paused := createUnpromptedRestartMain(
+			t,
+			d,
+			manager,
+			resolveDaemonWorkspace(t, d.workspaceResolver, t.TempDir()).ID,
+		)
+		status, raw := instanceIntegrationHTTP(
+			t,
+			d,
+			http.MethodPost,
+			"/api/agent-instances/"+paused.ID+"/pause",
+			nil,
+			nil,
+		)
+		if status != http.StatusOK || !bytes.Contains(raw, []byte(`"state":"paused"`)) {
+			t.Fatalf("pause response = %d %s", status, raw)
+		}
+		archived := createUnpromptedRestartMain(
+			t,
+			d,
+			manager,
+			resolveDaemonWorkspace(t, d.workspaceResolver, t.TempDir()).ID,
+		)
+		status, raw = instanceIntegrationHTTP(t, d, http.MethodDelete, "/api/agent-instances/"+archived.ID, nil, nil)
+		if status != http.StatusNoContent || len(raw) != 0 {
+			t.Fatalf("archive response = %d %s", status, raw)
+		}
+		refusedWorkspace := resolveDaemonWorkspace(t, d.workspaceResolver, t.TempDir())
+		refused := createUnpromptedRestartMain(t, d, manager, refusedWorkspace.ID)
+		writeDaemonFile(t, filepath.Join(refusedWorkspace.RootDir, ".compozy", "config.toml"),
+			"[session.restart]\nauto_continue = false\n")
+		if !d.claimRestart() {
+			t.Fatal("could not enter restart shutdown")
+		}
+		if err := d.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		restarted := newTestDaemon(t, d.homePaths, &d.config)
+		restarted.executable = func() (string, error) { return executable, nil }
+		var logs bytes.Buffer
+		restarted.logger = slog.New(slog.NewTextHandler(&logs, nil))
+		t.Cleanup(func() {
+			if err := restarted.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+			if t.Failed() {
+				t.Log(logs.String())
+			}
+		})
+		if err := restarted.boot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		info, err := restarted.sessions.Status(t.Context(), main.MainSessionID)
+		if err != nil || info.State != session.StateActive || info.RuntimeStatus != store.SessionRuntimeUnbound {
+			t.Fatalf("unprompted main after restart = %+v, %v", info, err)
+		}
+		status, raw = instanceIntegrationHTTP(t, restarted, http.MethodPost, "/api/agents/subagent-test/heartbeat/wake",
+			fmt.Appendf(nil, `{"workspace_id":%q,"session_id":%q}`, workspace, main.MainSessionID), nil)
+		var wake contract.HeartbeatWakeResponse
+		if err := json.Unmarshal(raw, &wake); err != nil || status != http.StatusOK ||
+			wake.Decision.Result != contract.HeartbeatWakeResult(heartbeat.WakeResultSent) {
+			t.Fatalf("Heartbeat wake = %d %s, %v", status, raw, err)
+		}
+		resumed := restarted.sessions.(*session.Manager)
+		testutil.Eventually(t, "first Heartbeat turn completed", 15*time.Second, func() bool {
+			rows, err := resumed.Events(t.Context(), main.MainSessionID, store.EventQuery{
+				Type: acp.EventTypeDone, TurnID: wake.Decision.SyntheticPromptID, Limit: 1,
+			})
+			return err == nil && len(rows) == 1
+		})
+		for _, control := range []struct {
+			id     string
+			reason store.StopReason
+		}{
+			{explicit.MainSessionID, store.StopUserCanceled},
+			{archived.MainSessionID, store.StopUserCanceled},
+			{paused.MainSessionID, store.StopShutdown},
+			{refused.MainSessionID, store.StopShutdown},
+		} {
+			info, err := resumed.Status(t.Context(), control.id)
+			if err != nil || info.State != session.StateStopped || info.StopReason != control.reason {
+				t.Fatalf("control main %s after restart = %+v, %v", control.id, info, err)
+			}
+		}
+		status, raw = instanceIntegrationHTTP(
+			t,
+			restarted,
+			http.MethodPost,
+			"/api/agent-instances/"+paused.ID+"/ensure-main",
+			nil,
+			nil,
+		)
+		var pausedRead contract.AgentInstanceResponse
+		if err := json.Unmarshal(raw, &pausedRead); err != nil || status != http.StatusOK ||
+			pausedRead.Instance.State != "paused" || pausedRead.Instance.MainSessionID != paused.MainSessionID {
+			t.Fatalf("ensure-main on paused instance = %d %s, %v", status, raw, err)
+		}
+		rows, err := resumed.Events(
+			t.Context(),
+			refused.MainSessionID,
+			store.EventQuery{Type: "session.restart_skipped"},
+		)
+		if err != nil || len(rows) != 1 ||
+			!strings.Contains(rows[0].Content, `"reason":"disabled"`) {
+			t.Fatalf("refusal events = %+v, %v", rows, err)
+		}
+		status, raw = instanceIntegrationHTTP(
+			t,
+			restarted,
+			http.MethodPost,
+			"/api/agent-instances/"+refused.ID+"/ensure-main",
+			nil,
+			nil,
+		)
+		var refusal contract.ErrorPayload
+		if err := json.Unmarshal(raw, &refusal); err != nil || status != http.StatusConflict ||
+			refusal.Code != "session_not_promptable" || !strings.Contains(refusal.Error, "remains stopped after daemon shutdown") {
+			t.Fatalf("ensure-main on refused session = %d %s, %v", status, raw, err)
+		}
+		status, raw = instanceIntegrationHTTP(
+			t,
+			restarted,
+			http.MethodGet,
+			"/api/agent-instances/"+refused.ID,
+			nil,
+			nil,
+		)
+		var read contract.AgentInstanceResponse
+		if err := json.Unmarshal(raw, &read); err != nil || status != http.StatusOK || !read.Instance.NeedsAttention ||
+			read.Instance.MainSessionID != refused.MainSessionID {
+			t.Fatalf("refused instance = %d %s, %v", status, raw, err)
+		}
+	})
+}
+
+func createUnpromptedRestartMain(
+	t *testing.T, d *Daemon, manager *session.Manager, workspace string,
+) contract.AgentInstancePayload {
+	t.Helper()
+	status, raw := instanceIntegrationHTTP(t, d, http.MethodPost, "/api/agent-instances",
+		fmt.Appendf(nil, `{"agent":"subagent-test","workspace":%q}`, workspace), nil)
+	var response contract.AgentInstanceResponse
+	if err := json.Unmarshal(
+		raw,
+		&response,
+	); err != nil || status != http.StatusCreated ||
+		response.Instance.MainSessionID == "" {
+		t.Fatalf("instance create = %d %s, %v", status, raw, err)
+	}
+	info, err := manager.Status(t.Context(), response.Instance.MainSessionID)
+	if err != nil || info.State != session.StateActive || info.RuntimeStatus != store.SessionRuntimeUnbound {
+		t.Fatalf("unprompted main at creation = %+v, %v", info, err)
+	}
+	return response.Instance
 }
 
 func TestBootRecoversInstanceReports(t *testing.T) {

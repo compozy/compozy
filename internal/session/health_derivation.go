@@ -50,6 +50,11 @@ func (m *Manager) sessionHealthFromInfo(
 	health.State = sessionHealthStateForInfo(info, input)
 	health.Health = sessionHealthStatusForInfo(info)
 	applySessionHealthEligibility(&health)
+	if input.bindOnWake && health.IneligibilityReason == string(heartbeat.SessionHealthReasonNotAttachable) {
+		health.State = heartbeat.SessionHealthStateIdle
+		health.EligibleForWake = true
+		health.IneligibilityReason = ""
+	}
 	return health.Normalize()
 }
 

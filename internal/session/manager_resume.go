@@ -20,7 +20,7 @@ func (m *Manager) ResumeWaitingSession(ctx context.Context, id string) error {
 		return err
 	}
 	if meta.RestartBoundary == nil {
-		return &MonitorOwnerIneligibleError{Reason: "binding_unknown"}
+		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
 	}
 	data, err := json.Marshal(meta.RestartBoundary, json.Deterministic(true))
 	if err != nil {

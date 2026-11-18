@@ -11,7 +11,11 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-const restartParentStoppedReason = "parent_stopped"
+const (
+	restartBindingUnknownReason = "binding_unknown"
+	restartDisabledReason       = "disabled"
+	restartParentStoppedReason  = "parent_stopped"
+)
 
 // QualifyRestartContinuation shares restart safety checks with Loop recovery, whose durable node transition owns retry.
 func (m *Manager) QualifyRestartContinuation(ctx context.Context, id string) (bool, error) {
@@ -54,7 +58,7 @@ func (m *Manager) restartSkipReason(
 	}
 	cfg := workspace.Config.Session.Restart
 	if !cfg.AutoContinue {
-		return "disabled", nil
+		return restartDisabledReason, nil
 	}
 	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID); err != nil {
 		return "archived", nil

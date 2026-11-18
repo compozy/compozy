@@ -7,7 +7,7 @@ journey: J-daemon-restart-continuation
 expected: Eligible interrupted sessions preserve partial work, resume once, and finish without falsely reporting an agent failure; unsafe or explicitly stopped work waits for review.
 entry_points: compozy daemon restart; compozy session events; session permalink; HTTP/UDS session reads
 qa_status: untested
-bug_ids: GH-1580
+bug_ids: GH-1580; GH-1815
 fix_status:
 retest_status:
 fix_commits:
@@ -53,13 +53,23 @@ overlaps: RT-daemon-drain-admission; RT-subagent-restart
     existing `new_work_admission_unavailable` code while adding the retryable boot guidance.
 11. Restart with an always-on instance main whose last turn finished and whose input queue is empty.
     Its saved binding reopens after HTTP/UDS starts, without replaying the completed prompt.
-    Disable automatic continuation and repeat: the main remains stopped with a refusal cause in
-    the daemon log and a `session.restart_skipped` event. Explicit stops remain stopped.
+    Repeat before the main's first prompt. The same session is active and unbound after boot; a
+    manual Heartbeat wake binds the provider and completes its first turn.
+    Disable automatic continuation and repeat with both mains. Each remains stopped, with the cause
+    in the daemon log and a `session.restart_skipped` event. The active instance shows attention,
+    and `ensure-main` reports a recovery error. Explicitly stopped, archived and paused controls
+    stay stopped. `ensure-main` on a paused instance retains its existing main.
 
 The canonical composition-root test is `TestDaemonRestartContinuesSessions` in
 `internal/daemon/restart_integration_test.go`; qualification, durable attempt limits and admission
 identities belong to the session manager resume suite. Focused integration evidence does not by
 itself certify all Web/CLI interaction branches above.
+
+Targeted automated verification 2026-11-18 (#1815): `TestBootResumesInstancesAfterServersStart`
+reproduced `binding_unknown` and the shutdown-stopped state against the base revision. With the
+fix, the same main reopened and an HTTP Heartbeat wake completed a real fixture provider turn.
+The test also observed the refusal event, instance attention and `ensure-main` conflict, with the
+explicitly stopped, archived and manually paused controls still stopped after boot.
 
 Targeted automated verification 2026-11-16 (#1778):
 `GOMAXPROCS=2 go test -p 2 -tags integration ./internal/daemon -run '^(TestDaemonRestartContinuesSessions|TestSubagentCleanRestartDaemonIntegration)$' -count=1 -timeout=180s -v`
