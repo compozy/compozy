@@ -28,3 +28,10 @@ authorized response without seeing the credential.
 QA impact 2026-10-17 (issue #761, long-tail provider removal): `hermes` is no longer a built-in
 provider. The next walk proves remote-header delivery through a real Claude Code session; the
 2026-08-16 Hermes observation stays as historical evidence.
+
+QA impact 2026-11-17 (#1800). Install a Claude Code plugin that links a local fixture MCP
+definition with `${DD_API_KEY:-}` and `${DD_APPLICATION_KEY:-}`. List both in `declared_env`.
+Confirm an unset key's header is absent. Set both through CLI stdin on the isolated daemon and
+confirm the endpoint accepts initialization with both headers. Unset one and confirm only its
+header is absent. Check a second profile and workspace for isolation. Scan CLI responses, status,
+and logs for both test values and their Vault refs.

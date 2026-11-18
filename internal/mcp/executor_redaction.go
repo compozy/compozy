@@ -223,6 +223,8 @@ func redactMCPKnownCause(err error) error {
 		return context.DeadlineExceeded
 	case errors.Is(err, ErrAuthorizationRequired):
 		return ErrAuthorizationRequired
+	case errors.Is(err, errRemoteAuthenticationRejected):
+		return errRemoteAuthenticationRejected
 	case errors.Is(err, toolspkg.ErrToolNotFound):
 		return toolspkg.ErrToolNotFound
 	case errors.Is(err, toolspkg.ErrToolConflict):

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
@@ -64,9 +65,18 @@ func (s *service) populateMCPServerStatuses(
 		if statusErr != nil {
 			return fmt.Errorf("settings: load MCP runtime status for %q: %w", name, statusErr)
 		}
-		item.RuntimeStatus = &status
+		setMCPRuntimeObservation(item, entry.Server, status)
 	}
 	return nil
+}
+
+func setMCPRuntimeObservation(item *MCPServerItem, server compozyconfig.MCPServer, status MCPServerRuntimeStatus) {
+	item.RuntimeStatus = &status
+	if item.AuthStatus != nil && item.AuthStatus.Status == mcpauth.StatusUnconfigured &&
+		status.State == MCPServerRuntimeStateAuthRequired && mcpauth.OAuthWithPluginHeaders(server) {
+		item.AuthStatus.Status = mcpauth.StatusNeedsLogin
+		item.AuthStatus.AuthType = "oauth"
+	}
 }
 
 // markInheritedMCPAuthStatuses applies GetMCPAuthStatus's rule to a listing: a status

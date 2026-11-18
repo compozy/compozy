@@ -84,6 +84,7 @@ func cloneMCPServersWithCapacity(src []MCPServer, capacity int) []MCPServer {
 
 func cloneMCPServer(src MCPServer) MCPServer {
 	return MCPServer{
+		AgentPlugin:      src.AgentPlugin,
 		DefinitionSource: src.DefinitionSource,
 		InputValues:      maps.Clone(src.InputValues),
 		Name:             src.Name,

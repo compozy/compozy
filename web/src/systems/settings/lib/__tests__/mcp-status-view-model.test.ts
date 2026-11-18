@@ -147,6 +147,23 @@ describe("formatStatusLabel", () => {
 });
 
 describe("authorize gating", () => {
+  it("offers sign-in for a challenged header template only when the daemon supports it", () => {
+    const challenged = makeEntry({
+      transport: "http",
+      headersConfigured: true,
+      authStatus: { status: "needs_login", auth_type: "oauth" },
+      runtimeStatus: { state: "auth_required" },
+    });
+    expect(composeMCPRowStatus(challenged)).toMatchObject({
+      summary: { label: "Needs sign-in" },
+      authorizeLabel: "Sign in",
+    });
+    expect(composeMCPRowStatus({ ...challenged, auth_status: null })).toMatchObject({
+      summary: { label: "Access denied" },
+      authorizeLabel: null,
+    });
+  });
+
   it("offers Sign in to a bare challenged remote but leaves an open remote alone", () => {
     const challenged = makeEntry({
       transport: "http",
@@ -518,6 +535,8 @@ describe("summarizeMCPStatus", () => {
     [
       "a server that needs sign-in",
       {
+        transport: "http",
+        auth: oauthConfig(),
         authStatus: { status: "needs_login" },
         runtimeStatus: { state: "auth_required", probe: "skipped" },
       },

@@ -18,6 +18,10 @@ overlaps: ET-web-mcp-authorize; ET-web-mcp-authorize-manual; ET-web-mcp-status-m
 
 QA 2026-09-13: the current hard-cut contract passed the scoped live/API/browser walks and applicable unchanged owning integration checks. See the dated report for exact evidence and boundaries; historical notes below do not redefine the current catalog.
 
+QA impact 2026-11-17 (#1800). In Settings → MCP servers, check a client Agent Plugin with optional
+credential headers and a fake OAuth authority. A Bearer challenge that advertises protected-resource
+metadata offers **Sign in** for that extension owner. Complete the fake sign-in and verify the
+MCP tools are available. A plain 401 from the same shape of plugin shows **Access denied**.
 
 ## Current walk — Marketplace catalog hardcut
 

@@ -245,6 +245,12 @@ func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err e
 			toolspkg.ReasonMCPAuthRequired,
 		)
 	}
+	if errors.Is(err, errRemoteAuthenticationRejected) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable, id, errRemoteAuthenticationRejected.Error(),
+			errRemoteAuthenticationRejected, toolspkg.ReasonMCPAuthUnconfigured,
+		)
+	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		err = ctxErr
 	} else if deadline, hasDeadline := ctx.Deadline(); hasDeadline && !time.Now().Before(deadline) {

@@ -2,11 +2,52 @@ package config
 
 import (
 	"encoding/hex"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestMCPRenderHeaderInputs(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should omit unset optional credentials and render bound headers only in the launch copy",
+		func(t *testing.T) {
+			t.Parallel()
+			const configured = "fixture-key"
+			const reference = "vault:extensions/global/fixture/env/DD_API_KEY"
+			server := MCPServer{
+				AgentPlugin: true,
+				Headers: map[string]string{
+					"DD_API_KEY": "${DD_API_KEY:-}", "DD_APPLICATION_KEY": "Prefix ${DD_APPLICATION_KEY:-}",
+					"X-Fallback": "${FALLBACK_TOKEN:-package-default}", "X-Empty": "",
+				},
+				InputValues: map[string]MCPInputValue{
+					"DD_API_KEY": {SecretRef: reference}, "DD_APPLICATION_KEY": {}, "FALLBACK_TOKEN": {},
+				},
+			}
+			rendered, secrets, err := server.RenderInputs(func(ref string) (string, error) {
+				if ref != reference {
+					t.Fatal("unexpected credential reference")
+				}
+				return configured, nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]string{"DD_API_KEY": configured, "X-Fallback": "package-default", "X-Empty": ""}
+			slices.Sort(secrets)
+			if !maps.Equal(rendered.Headers, want) || !slices.Equal(secrets, []string{configured, "package-default"}) {
+				t.Fatal("unexpected credentials in rendered headers or redactions")
+			}
+			if server.Headers["DD_API_KEY"] != "${DD_API_KEY:-}" || len(server.Headers) != 4 {
+				t.Fatal("launch rendering changed the published definition")
+			}
+		},
+	)
+}
 
 func TestMCPStdioConfig(t *testing.T) {
 	t.Parallel()

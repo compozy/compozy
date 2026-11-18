@@ -71,8 +71,12 @@ func (r extensionInputReader) addRequiresEnvInputs(
 	if err != nil {
 		return err
 	}
+	headerInputs := manifest.AgentPluginHeaderSecretInputs()
 	for _, input := range manifest.Inputs {
 		if input.Type != extensionInputTypeSecret {
+			continue
+		}
+		if _, exact := headerInputs[input.Binding.Name]; exact {
 			continue
 		}
 		if _, found := state.Values[input.ID]; found {

@@ -635,6 +635,7 @@ func TestProtectedResourceMetadataURLValidation(t *testing.T) {
 		if err := validateAdvertisedMetadataURL(
 			"https://mcp.example.test/metadata",
 			"https://mcp.example.test/connect",
+			false,
 		); err != nil {
 			t.Fatalf("validateAdvertisedMetadataURL() error = %v", err)
 		}
@@ -645,8 +646,23 @@ func TestProtectedResourceMetadataURLValidation(t *testing.T) {
 		if err := validateAdvertisedMetadataURL(
 			"https://attacker.example.test/metadata",
 			"https://mcp.example.test/connect",
+			false,
 		); err == nil {
 			t.Fatal("validateAdvertisedMetadataURL() error = nil, want host rejection")
+		}
+	})
+
+	t.Run("Should require the plugin Bearer metadata origin without changing legacy discovery", func(t *testing.T) {
+		t.Parallel()
+		const resource = "http://127.0.0.1:4001/mcp"
+		const metadata = "https://127.0.0.1:4001/metadata"
+		header := http.Header{}
+		header.Set("WWW-Authenticate", fmt.Sprintf("Bearer resource_metadata=%q", metadata))
+		if got := AdvertisedProtectedResourceMetadataURL(header, resource); got != "" {
+			t.Fatalf("plugin discovery accepted an advertised URL from another origin: %s", got)
+		}
+		if got := advertisedProtectedResourceMetadataURL(header, resource, false); got != metadata {
+			t.Fatalf("legacy discovery rejected the metadata URL on the same host: %s", got)
 		}
 	})
 }

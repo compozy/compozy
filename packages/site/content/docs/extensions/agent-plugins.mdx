@@ -75,6 +75,19 @@ every portable component was skipped.
 
 ## Credentials for remote MCP servers
 
+For a client plugin with optional secret placeholders in its HTTP headers, such as
+`${DD_API_KEY:-}`, use **Sign in** in Settings → MCP servers when the endpoint advertises OAuth.
+The optional keys can also be set through the extension's Vault bindings:
+
+```bash
+compozy extension secrets list datadog -o json
+compozy extension secrets set datadog --env DD_API_KEY
+compozy extension secrets set datadog --env DD_APPLICATION_KEY
+```
+
+The daemon sends an optional credential header only when it has a value. Each binding belongs to
+the selected profile and extension instance.
+
 Map a declared environment name to a remote request header without placing the credential in
 `plugin.json`, `mcp.json`, argv, logs, or API responses:
 

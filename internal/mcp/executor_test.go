@@ -396,24 +396,42 @@ func TestMCPCallExecutor(t *testing.T) {
 			writer.WriteHeader(http.StatusForbidden)
 		}))
 		t.Cleanup(server.Close)
-		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
-			Name:      "scope-challenge",
-			Transport: compozyconfig.MCPServerTransportHTTP,
-			URL:       server.URL,
-		})
-		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
-			Kind:          toolspkg.SourceMCP,
-			Owner:         "scope-challenge",
-			RawServerName: "scope-challenge",
-		})
-
-		scopeErr, scopeErrMatched := errors.AsType[*InsufficientScopeError](err)
-		if !scopeErrMatched {
-			t.Fatalf("ListTools() error = %v, want insufficient scope challenge", err)
+		testCases := []struct {
+			name        string
+			agentPlugin bool
+			headers     map[string]string
+		}{
+			{name: "Should retain requested scopes for a plain remote"},
+			{
+				name:        "Should retain requested scopes for an Agent Plugin without advertised metadata",
+				agentPlugin: true,
+				headers:     map[string]string{"X-Fixture": "plugin"},
+			},
 		}
-		requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
-		if got, want := scopeErr.Scopes, []string{"issues.read", "issues.write"}; !slices.Equal(got, want) {
-			t.Fatalf("challenge scopes = %#v, want %#v", got, want)
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+					Name:        "scope-challenge",
+					Transport:   compozyconfig.MCPServerTransportHTTP,
+					URL:         server.URL,
+					AgentPlugin: testCase.agentPlugin,
+					Headers:     testCase.headers,
+				})
+				_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
+					Kind:          toolspkg.SourceMCP,
+					Owner:         "scope-challenge",
+					RawServerName: "scope-challenge",
+				})
+				scopeErr, ok := errors.AsType[*InsufficientScopeError](err)
+				if !ok {
+					t.Fatalf("ListTools() error = %v, want insufficient scope challenge", err)
+				}
+				requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
+				if got, want := scopeErr.Scopes, []string{"issues.read", "issues.write"}; !slices.Equal(got, want) {
+					t.Fatalf("challenge scopes = %#v, want %#v", got, want)
+				}
+			})
 		}
 	})
 

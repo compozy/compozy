@@ -597,6 +597,35 @@ func TestClientMCPCompatibility(t *testing.T) {
 
 func TestClientDerivedInputs(t *testing.T) {
 	t.Parallel()
+	t.Run("Should derive optional Datadog-shaped header inputs from a linked MCP file", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeJSONFile(t, filepath.Join(root, ".claude-plugin", "plugin.json"), map[string]any{
+			"name": "fixture", "version": "0.7.17", "mcpServers": "./.dd_claude-code_mcp.json",
+		})
+		writeJSONFile(t, filepath.Join(root, ".dd_claude-code_mcp.json"), map[string]any{
+			"mcpServers": map[string]any{"mcp": map[string]any{
+				"type": "http",
+				"url":  "https://${DD_MCP_DOMAIN:-not-setup}/v1/mcp?referrer_ide=claude-code-plugin&plugin_version=0.7.17",
+				"headers": map[string]string{
+					"DD_API_KEY":             "${DD_API_KEY:-}",
+					"DD_APPLICATION_KEY":     "${DD_APPLICATION_KEY:-}",
+					"X-Datadog-MCP-Toolsets": "${DD_MCP_TOOLSETS:-}",
+				},
+			}},
+		})
+		pkg := loadForTest(t, root)
+		want := []DerivedInput{
+			{ID: "DD_API_KEY", Secret: true, Servers: []string{"mcp"}},
+			{ID: "DD_APPLICATION_KEY", Secret: true, Servers: []string{"mcp"}},
+			{ID: "DD_MCP_DOMAIN", Default: "not-setup", Servers: []string{"mcp"}},
+			{ID: "DD_MCP_TOOLSETS", Servers: []string{"mcp"}},
+		}
+		if !reflect.DeepEqual(pkg.Inputs, want) || len(pkg.Servers) != 1 || pkg.Servers[0].Auth != nil {
+			t.Fatalf("package inputs = %#v, want optional inputs and no explicit OAuth", pkg.Inputs)
+		}
+	})
+
 	t.Run("Should discard an unusable client secret when the client id cannot map", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()

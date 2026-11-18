@@ -190,8 +190,10 @@ Reads expose configured names and secret presence, never secret values or refs.
 
 A bare HTTP remote without `auth`, `headers`, or `secret_headers` can sign in through
 OAuth discovery with automatic client registration. A successful begin must discover protected-resource
-metadata; a 401 alone does not make metadata or a provider grant valid. Header-auth servers without an explicit OAuth policy never
-use this OAuth flow. Explicit OAuth definitions may retain auxiliary headers. Settings offers **Sign in** when a bare remote reports `auth_required`.
+metadata; a 401 alone does not make metadata or a provider grant valid. A client Agent Plugin with
+declared headers also offers **Sign in** in Settings after an origin-bound
+Bearer challenge advertises protected-resource metadata. Use the extension-qualified owner for
+these sign-ins. Manual header-auth servers require an explicit OAuth policy to use OAuth.
 
 For a server that requires OAuth, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
 Use `--manual` to paste the complete redirect URL, especially for a remote operator or non-loopback

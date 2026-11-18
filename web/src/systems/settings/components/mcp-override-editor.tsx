@@ -27,6 +27,7 @@ import type { SettingsMCPServerEntry } from "../types";
 
 import { MCPOverridePairsEditor } from "./mcp-override-pairs-editor";
 import { formatCommandLine } from "../lib/mcp-editor-paste";
+import { isOAuthCapable } from "../lib/mcp-status-view-model";
 import { mcpAddedByWords, mcpEntryScopeWords, mcpOwnerExtensionName } from "./mcp-server-labels";
 
 export interface MCPOverrideEditorProps {
@@ -261,7 +262,11 @@ function MCPTechnicalDetails({ entry }: { entry: SettingsMCPServerEntry }) {
         <MetadataListRow label="Added by">{mcpAddedByWords(entry.owner)}</MetadataListRow>
         <MetadataListRow label="Used in">{mcpEntryScopeWords(entry)}</MetadataListRow>
         <MetadataListRow label="Sign-in">
-          {entry.auth ? "OAuth, from the extension" : "None"}
+          {entry.auth
+            ? "OAuth, from the extension"
+            : isOAuthCapable(entry)
+              ? "OAuth, discovered from the server"
+              : "None"}
         </MetadataListRow>
         {version ? (
           <MetadataListRow label="Version" valueProps={CODE_VALUE}>

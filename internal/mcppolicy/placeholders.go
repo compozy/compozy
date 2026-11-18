@@ -20,6 +20,20 @@ func ReplaceInputs(value string, replace func(name, fallback string, optional bo
 func ValidInputName(name string) bool  { return inputNamePattern.MatchString(name) }
 func SecretInputName(name string) bool { return secretInputPattern.MatchString(name) }
 
+// OptionalHeaderSecretNames collects the optional credential inputs referenced by HTTP headers.
+func OptionalHeaderSecretNames(headers map[string]string) map[string]struct{} {
+	names := make(map[string]struct{})
+	for _, value := range headers {
+		ReplaceInputs(value, func(name, _ string, optional bool) string {
+			if optional && ValidInputName(name) && SecretInputName(name) {
+				names[name] = struct{}{}
+			}
+			return ""
+		})
+	}
+	return names
+}
+
 // PlaceholderURL validates the fixed URL structure before user input is available.
 func PlaceholderURL(value string) string {
 	if placeholderPattern.MatchString(value) && placeholderPattern.FindString(value) == value {
