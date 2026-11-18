@@ -2674,6 +2674,35 @@ func TestServicePullRequestMonitor(t *testing.T) {
 			}
 		})
 	})
+	t.Run("Should wake once for a new failure in a smaller completed snapshot", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			complete := openPull("head-a", pending(5, 0), noReviews())
+			forge := &fakeForge{observation: complete}
+			waker := &recordingWaker{}
+			service := newPullRequestService(t, forge, waker)
+			if _, err := service.Create(t.Context(), pullRequestSpec("sess-1")); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			smaller := openPull("head-a", &PullRequestChecks{
+				Passed: 3, Failed: 1, FailedNames: []string{"lint"},
+			}, noReviews())
+			otherFailure := openPull("head-a", &PullRequestChecks{
+				Passed: 3, Failed: 1, FailedNames: []string{"test"},
+			}, noReviews())
+			for _, obs := range []PullRequestObservation{smaller, smaller, complete, otherFailure, smaller, complete} {
+				forge.set(obs)
+				poll(1)
+			}
+			got := waker.notifications()
+			if len(got) != 3 || !got[0].PullRequest.AllFinished ||
+				got[1].PullRequest.AllFinished || !slices.Equal(got[1].PullRequest.NewlyFailed, []string{"lint"}) ||
+				got[2].PullRequest.AllFinished || !slices.Equal(got[2].PullRequest.NewlyFailed, []string{"test"}) {
+				t.Fatalf("wakes = %+v", got)
+			}
+		})
+	})
 	t.Run("Should stay armed across wakes with one message id per fire", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {

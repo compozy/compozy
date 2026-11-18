@@ -133,6 +133,9 @@ type prCursor struct {
 	Conflicting   bool     `json:"conflicting,omitzero"`
 	Finished      bool     `json:"finished,omitempty"`
 	FinishedTotal int      `json:"finished_total,omitzero"` // Zero if no round finished or the cursor predates this count.
+	// Smaller snapshots can reveal failures without replacing the finished baseline.
+	SmallerFailed      int      `json:"smaller_failed,omitzero"`
+	SmallerFailedNames []string `json:"smaller_failed_names,omitempty"`
 	// EndedNumber is the last pull request first seen already merged or closed: history, not this watch.
 	EndedNumber      int            `json:"ended_number,omitempty"`
 	ReviewsBaselined bool           `json:"reviews_baselined,omitempty"`

@@ -65,6 +65,8 @@ story: As an operator I ask an agent to run something slow and report back, and 
     A neutral or skipped check counts as complete and a legacy status context still participates.
     If a completion is queued and another round starts before it is delivered, the merged wake names
     the earlier completion alongside the new round's pending counts.
+    After a completed round, return a smaller completed summary with a new failure. Verify one
+    failure wake. Repeat the smaller summary and restore the original summary with no further wakes.
 
 14. **Waiting on other sessions.** Start two top-level sessions with slow prompts and, from a third session, call
     `compozy__monitor_create` with `kind: "session"`, both ids in `target_session_ids`, and `until: "all"`, then let
