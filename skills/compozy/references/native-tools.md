@@ -975,10 +975,12 @@ Cursors bind the query, scope, workspace, and source revision. Paging and instal
 identity rules live in `references/tools-and-skills.md`. Installed state is scoped to the caller's
 exact workspace; never reuse it across workspace scopes.
 Extension tools are
-`compozy__extensions_{init,build,validate,dev,reload,logs,list,info,inventory,preview,search,provenance,publish,install,update,remove,enable,disable}`.
-`validate`, `logs`, `list`, `info`, `search`, and `provenance` are read-only; `init`, `build`, `dev`,
+`compozy__extensions_{init,build,validate,dev,reload,logs,list,info,inventory,preview,search,provenance,publish,install,update,remove,enable,disable,restore,removed_list}`.
+`validate`, `logs`, `list`, `info`, `search`, `provenance`, and `removed_list` are read-only; `init`, `build`, `dev`,
 and `reload` are mutating, with `build`, `dev`, and `reload` requiring interaction; `remove` is
-destructive; `publish` is open-world, interaction-gated, and takes no credential field because the
+destructive; `restore` is mutating: it re-enrolls a permanently removed built-in at its bundled version,
+enabled, with no restart, and needs write authority. No tool removes a built-in permanently. `remove`
+takes no `permanent` input, and that flag is operator-only on CLI, HTTP, and UDS; `publish` is open-world, interaction-gated, and takes no credential field because the
 daemon resolves and redacts that token server-side. `compozy__extensions_search` spans the `curated`
 and `github` sources only and is not `compozy__marketplace_search`. Resolve live schemas first;
 install sources, consent, authoring, workspace binding, generation handles, commit boundaries,

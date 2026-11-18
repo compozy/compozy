@@ -4,7 +4,7 @@ area: ET
 title: Keep bundled extensions verified
 persona: Vera
 journey: J-extension-policy-admin
-expected: A bundled extension such as spec-cycle reports installed_from=bundled, official registry tier, verified checksum evidence, and a verified trust decision without depending on unverified side-load policy; restart reconciliation preserves enabled state and install time.
+expected: A bundled extension such as spec-cycle reports installed_from=bundled, official registry tier, verified checksum evidence, and a verified trust decision without depending on unverified side-load policy; restart reconciliation preserves enabled state and install time for an installed bundled row, and skips a built-in with a permanent-removal tombstone until restore clears it (see ET-builtin-extension-permanent-removal).
 entry_points: /marketplace/extension/$entryId?installed_name=spec-cycle; compozy extension provenance spec-cycle -o json; GET /api/extensions/spec-cycle
 qa_status: untested
 bug_ids:
@@ -17,6 +17,14 @@ overlaps: ET-022; ET-052; ET-web-extension-detail
 ---
 
 Bundled provenance is first-party runtime evidence, separate from the policy that governs external side-loads.
+
+Restart reconciliation and tombstones (QA 2026-11-18, isolated lab): after
+`compozy extension remove spec-cycle --permanent --global`, a daemon stop and start leaves `spec-cycle`
+absent from `compozy extension list`, and `compozy extension removed -o json` still lists it. Boot
+enrollment skips a name with a `extension_builtin_tombstones` row, so the removal survives restart. Only
+`compozy extension restore spec-cycle --global` or `POST /api/extensions/spec-cycle/restore` brings it
+back. This verifies the tombstone leg of restart reconciliation only; the provenance, checksum, and
+trust-decision legs above were not walked in this pass. See ET-builtin-extension-permanent-removal.
 
 QA 2026-09-10: The existing daemon boot integration verifies that one corrupt installed manifest remains diagnosable while healthy extensions keep working; declared-profile reconciliation no longer aborts startup. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
 
