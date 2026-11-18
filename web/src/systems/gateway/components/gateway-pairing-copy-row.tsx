@@ -52,6 +52,11 @@ export function GatewayPairingCopyRow({
       <span className="sr-only" role="status">
         {COPY_STATUS[state]}
       </span>
+      {state === "failed" ? (
+        <p className="text-form-label text-destructive" data-testid={`${testId}-error`}>
+          Couldn&apos;t copy. Select the value and copy it by hand.
+        </p>
+      ) : null}
     </div>
   );
 }

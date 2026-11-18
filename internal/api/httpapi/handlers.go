@@ -99,6 +99,7 @@ type handlerConfig struct {
 	gatewayAdmission      gateway.AdmissionController
 	deviceAuth            gateway.DeviceAuthenticator
 	authLimiter           *gateway.AuthFailureLimiter
+	pairingLimiter        *gateway.AuthFailureLimiter
 	ingressLimiter        *gateway.IngressRateLimiter
 	surfaceSet            SurfaceSet
 	staticFS              fs.FS
@@ -128,6 +129,7 @@ type Handlers struct {
 	deviceAuth       gateway.DeviceAuthenticator
 	gatewayAdmission gateway.AdmissionController
 	authLimiter      *gateway.AuthFailureLimiter
+	pairingLimiter   *gateway.AuthFailureLimiter
 	ingressLimiter   *gateway.IngressRateLimiter
 }
 
@@ -160,6 +162,13 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 	if authLimiter == nil {
 		authLimiter = newDefaultGatewayAuthFailureLimiter()
 	}
+	// Pairing redemption keeps its own budget: a successful device-authenticated
+	// request resets the device-auth failures for its source, and sharing the
+	// limiter would let that reset also forgive failed pairing attempts.
+	pairingLimiter := cfg.pairingLimiter
+	if pairingLimiter == nil {
+		pairingLimiter = newDefaultGatewayAuthFailureLimiter()
+	}
 	ingressLimiter := cfg.ingressLimiter
 	if ingressLimiter == nil {
 		ingressLimiter = gateway.NewIngressRateLimiter(
@@ -184,6 +193,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		deviceAuth:       cfg.deviceAuth,
 		gatewayAdmission: gatewayAdmission,
 		authLimiter:      authLimiter,
+		pairingLimiter:   pairingLimiter,
 		ingressLimiter:   ingressLimiter,
 	}
 }

@@ -79,7 +79,21 @@ describe("GatewayPairingDialog", () => {
     expect(
       await screen.findByText("Couldn't copy the pairing code. Select it and copy it by hand.")
     ).toBeInTheDocument();
+    expect(screen.getByTestId("gateway-pairing-manual-code-error")).toHaveTextContent(
+      /copy it by hand/i
+    );
     expect(screen.queryByText("Pairing code copied")).not.toBeInTheDocument();
+  });
+
+  it("Should show a failed link copy beside the control, not only in the live region", async () => {
+    stubClipboard(() => Promise.reject(new Error("denied")));
+    renderDialog();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy link/i }));
+
+    expect(await screen.findByTestId("gateway-pairing-link-error")).toHaveTextContent(
+      /copy it by hand/i
+    );
   });
 
   it("Should offer the QR code, the link, and the long code as copyable secondary paths", () => {

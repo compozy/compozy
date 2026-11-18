@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -89,8 +90,11 @@ func (s *DeviceService) deleteDeviceRecord(
 }
 
 func (s *DeviceService) recordDeviceRemoved(ctx context.Context, device DeviceSession) error {
+	// Removal is only offered when its audit record is guaranteed: without a
+	// sink the device would disappear with no durable trace, so fail before the
+	// destructive step instead of silently skipping the event.
 	if s.events == nil {
-		return nil
+		return errors.New("gateway: device removal requires a configured event sink")
 	}
 	if err := s.events.RecordDeviceRemoved(
 		ctx,

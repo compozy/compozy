@@ -16,7 +16,29 @@ export type PairingCredential =
 export function classifyPairingInput(raw: string): PairingCredential | null {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
-  const digits = trimmed.replace(/[\s-]/g, "");
+  const value = pairingArtifactFromLink(trimmed) ?? trimmed;
+  const digits = value.replace(/[\s-]/g, "");
   if (/^\d{6}$/.test(digits)) return { manualCode: digits };
-  return { artifact: trimmed };
+  return { artifact: value };
+}
+
+/**
+ * A pasted pairing link carries the artifact in the `pair` fragment, exactly as
+ * the scanned link does. Redeeming the whole URL would send something the
+ * daemon cannot decode, so the fragment value is extracted first. Only http(s)
+ * URLs are treated as links; a bare artifact is never parsed as a URL.
+ */
+function pairingArtifactFromLink(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  const hash = url.hash.replace(/^#/, "");
+  const fromFragment = hash === "" ? "" : (new URLSearchParams(hash).get("pair") ?? "").trim();
+  if (fromFragment !== "") return fromFragment;
+  const fromQuery = (url.searchParams.get("pair") ?? "").trim();
+  return fromQuery === "" ? null : fromQuery;
 }

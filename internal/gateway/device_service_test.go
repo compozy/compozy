@@ -244,10 +244,26 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse removal when no event sink is configured", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service, store := newDeviceServiceFixture(t, &now)
+		issued, err := issueTestDevice(t.Context(), service, "No audit", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice() error = %v", err)
+		}
+		if _, err := service.RemoveDevice(t.Context(), issued.Device.ID); err == nil {
+			t.Fatal("RemoveDevice() succeeded without an event sink")
+		}
+		if _, exists := store.byID[issued.Device.ID]; !exists {
+			t.Fatal("removal without an event sink deleted the device record")
+		}
+	})
+
 	t.Run("Should remove the device serving the current request", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		service := newDeviceServiceOnly(t, &now)
+		service := newDeviceServiceOnly(t, &now, WithDeviceEvents(&recordingDeviceEventSink{}))
 		issued, err := issueTestDevice(t.Context(), service, "Self", ActorKindOperatorDevice)
 		if err != nil {
 			t.Fatalf("issueTestDevice() error = %v", err)

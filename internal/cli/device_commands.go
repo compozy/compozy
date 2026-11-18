@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -94,11 +95,11 @@ func newDeviceRemoveCommand(deps commandDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := gatewayClientFromDeps(deps)
 			if err != nil {
-				return err
+				return fmt.Errorf("device remove: resolve gateway client: %w", err)
 			}
 			result, err := client.RemoveGatewayDevice(cmd.Context(), strings.TrimSpace(args[0]))
 			if err != nil {
-				return err
+				return fmt.Errorf("device remove: %w", err)
 			}
 			return writeCommandOutput(
 				cmd,

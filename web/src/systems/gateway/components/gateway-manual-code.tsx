@@ -51,6 +51,14 @@ export function GatewayManualCode({ code }: GatewayManualCodeProps) {
       <span className="sr-only" role="status">
         {COPY_STATUS[state]}
       </span>
+      {state === "failed" ? (
+        <p
+          className="text-form-label text-destructive"
+          data-testid="gateway-pairing-manual-code-error"
+        >
+          Couldn&apos;t copy. Select the code and copy it by hand.
+        </p>
+      ) : null}
     </div>
   );
 }

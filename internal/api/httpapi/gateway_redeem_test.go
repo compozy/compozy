@@ -15,9 +15,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Invariant: hand-typed pairing codes share the remote auth failure budget, while the local
-// operator surface stays exempt.
-// Owning layer: HTTP pairing redeem handler and gateway authentication limiter.
+// Invariant: hand-typed pairing codes have their own remote failure budget, which a
+// device-authenticated success cannot reset, while the local operator surface stays exempt.
+// Owning layer: HTTP pairing redeem handler and gateway pairing limiter.
 // Canonical suite: this pairing redeem transport suite.
 func TestGatewayRedeemRateLimiting(t *testing.T) {
 	t.Parallel()
@@ -52,6 +52,63 @@ func TestGatewayRedeemRateLimiting(t *testing.T) {
 		}
 		if submissions.Load() != 2 {
 			t.Fatalf("redeem submissions = %d, want 2 before the limiter refused", submissions.Load())
+		}
+	})
+
+	t.Run("Should keep pairing failures when device authentication succeeds for the same source", func(t *testing.T) {
+		t.Parallel()
+		clock := func() time.Time {
+			return time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC)
+		}
+		handlers := newHandlers(&handlerConfig{
+			gateway: gatewayHTTPServiceStub{redeem: func(
+				context.Context,
+				gateway.RedeemRequest,
+			) (gateway.IssuedCredential, error) {
+				return gateway.IssuedCredential{}, gateway.ErrPairingInvalid
+			}},
+			deviceAuth:       gatewayHTTPAuthenticatorStub{},
+			surfaceSet:       SurfaceSetPrivate,
+			gatewayAdmission: gatewayHTTPServiceStub{},
+			boundHost:        "127.0.0.1",
+			authLimiter:      gateway.NewAuthFailureLimiter(1, time.Minute, clock),
+			pairingLimiter:   gateway.NewAuthFailureLimiter(1, time.Minute, clock),
+		})
+		router := gin.New()
+		RegisterSurfaceRoutes(router, handlers, SurfaceSetPrivate)
+		probe := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"/api/gateway/pairings/redeem",
+			strings.NewReader("{}"),
+		)
+		source := gatewayAuthSource(probe)
+
+		// One wrong code exhausts the pairing budget.
+		first := postGatewayRedeem(
+			t,
+			router,
+			`{"manual_code":"000000","name":"Laptop","actor_kind":"operator_device"}`,
+		)
+		if first.Code != http.StatusUnauthorized {
+			t.Fatalf("first redeem status = %d, want %d", first.Code, http.StatusUnauthorized)
+		}
+
+		// The device-authentication middleware clears its own budget on success;
+		// that reset must not reach the pairing budget.
+		handlers.authLimiter.Success(source)
+
+		second := postGatewayRedeem(
+			t,
+			router,
+			`{"manual_code":"000000","name":"Laptop","actor_kind":"operator_device"}`,
+		)
+		if second.Code != http.StatusTooManyRequests {
+			t.Fatalf(
+				"status after device-auth success = %d, want %d",
+				second.Code,
+				http.StatusTooManyRequests,
+			)
 		}
 	})
 
@@ -137,6 +194,11 @@ func newGatewayRedeemTestRouter(
 		gatewayAdmission: gatewayHTTPServiceStub{},
 		boundHost:        "127.0.0.1",
 		authLimiter: gateway.NewAuthFailureLimiter(
+			failureLimit,
+			time.Minute,
+			func() time.Time { return time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC) },
+		),
+		pairingLimiter: gateway.NewAuthFailureLimiter(
 			failureLimit,
 			time.Minute,
 			func() time.Time { return time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC) },

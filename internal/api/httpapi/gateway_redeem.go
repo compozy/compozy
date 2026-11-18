@@ -23,7 +23,7 @@ func (h *Handlers) redeemGatewayPairing(c *gin.Context) {
 	}
 	source := gatewayAuthSource(c.Request)
 	localOperator := h.GatewayPairingSource == string(gateway.PairingSourceLocal)
-	if h.authLimiter != nil && !h.authLimiter.Allow(source, localOperator) {
+	if h.pairingLimiter != nil && !h.pairingLimiter.Allow(source, localOperator) {
 		abortGatewayError(c, gateway.ErrAuthRateLimited)
 		return
 	}
@@ -33,8 +33,8 @@ func (h *Handlers) redeemGatewayPairing(c *gin.Context) {
 		abortGatewayError(c, err)
 		return
 	}
-	if h.authLimiter != nil {
-		h.authLimiter.Success(source)
+	if h.pairingLimiter != nil {
+		h.pairingLimiter.Success(source)
 	}
 	c.Header("Cache-Control", "no-store")
 	c.Header("Referrer-Policy", "no-referrer")
@@ -48,16 +48,16 @@ func (h *Handlers) redeemGatewayPairing(c *gin.Context) {
 	c.JSON(http.StatusOK, payload)
 }
 
-// completeGatewayRedeemAttempt charges the shared auth budget only for a wrong or unknown code.
+// completeGatewayRedeemAttempt charges the pairing budget only for a wrong or unknown code.
 func (h *Handlers) completeGatewayRedeemAttempt(source string, localOperator bool, err error) {
-	if h.authLimiter == nil {
+	if h.pairingLimiter == nil {
 		return
 	}
 	if errors.Is(err, gateway.ErrPairingInvalid) {
-		h.authLimiter.Failure(source, localOperator)
+		h.pairingLimiter.Failure(source, localOperator)
 		return
 	}
-	h.authLimiter.Complete(source)
+	h.pairingLimiter.Complete(source)
 }
 
 func abortGatewayRequest(c *gin.Context) {

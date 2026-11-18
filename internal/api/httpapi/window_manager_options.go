@@ -21,6 +21,7 @@ type httpExtendedServices struct {
 	appAccess         AppAccessPolicy
 	deviceAuth        gateway.DeviceAuthenticator
 	authLimiter       *gateway.AuthFailureLimiter
+	pairingLimiter    *gateway.AuthFailureLimiter
 	ingressLimiter    *gateway.IngressRateLimiter
 	surfaceSet        SurfaceSet
 }

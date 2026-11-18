@@ -40,6 +40,11 @@ func defaultGatewayTierServerFactory(
 		httpapi.WithSurfaceSet(surfaceSet),
 		httpapi.WithGatewayChallenge(tier, deps.GatewayChallenges),
 		httpapi.WithGatewayAuthLimiter(authLimiter),
+		httpapi.WithGatewayPairingLimiter(gateway.NewAuthFailureLimiter(
+			deps.Config.Gateway.Auth.RateLimit.MaxFails,
+			deps.Config.Gateway.Auth.RateLimit.Window,
+			func() time.Time { return time.Now().UTC() },
+		)),
 	)
 	return httpapi.New(options...)
 }

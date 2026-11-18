@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
@@ -193,7 +194,7 @@ func (c *daemonClient) RemoveGatewayDevice(
 	path := "/api/gateway/devices/" + url.PathEscape(strings.TrimSpace(id)) + "/record"
 	var response contract.GatewayRemovedDevicePayload
 	if err := c.doJSON(ctx, http.MethodDelete, path, nil, nil, &response); err != nil {
-		return contract.GatewayRemovedDevicePayload{}, err
+		return contract.GatewayRemovedDevicePayload{}, fmt.Errorf("remove gateway device %q: %w", id, err)
 	}
 	return response, nil
 }

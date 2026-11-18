@@ -16,13 +16,25 @@ describe("classifyPairingInput", () => {
 
   it.each([
     "cpz_gwp_2f8c1d5a9b4e7c0d",
-    "https://private.gateway.test/#pair=cpz_gwp_2f8c1d5a9b4e7c0d",
     "1234567",
     "12345",
     "123 4567",
+    "https://example.test/not-a-pairing-link",
   ])("Should keep %j as an artifact with no manual code", input => {
     const credential = classifyPairingInput(input);
     expect(credential).toStrictEqual({ artifact: input.trim() });
+  });
+
+  it("Should extract the artifact from a pasted pairing link fragment", () => {
+    expect(
+      classifyPairingInput("https://private.gateway.test/#pair=cpz_gwp_2f8c1d5a9b4e7c0d")
+    ).toStrictEqual({ artifact: "cpz_gwp_2f8c1d5a9b4e7c0d" });
+  });
+
+  it("Should extract the artifact from a pasted pairing link query", () => {
+    expect(
+      classifyPairingInput("https://private.gateway.test/?pair=cpz_gwp_2f8c1d5a9b4e7c0d")
+    ).toStrictEqual({ artifact: "cpz_gwp_2f8c1d5a9b4e7c0d" });
   });
 
   it("Should treat blank input as nothing to redeem", () => {

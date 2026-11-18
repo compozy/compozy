@@ -140,6 +140,8 @@ export function useRemoveGatewayDevice() {
         devices?.filter(device => device.id !== id)
       );
       if (result) toast.success(`${name} removed`);
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: gatewayKeys.devices() });
       void queryClient.invalidateQueries({ queryKey: gatewayKeys.status() });
       void queryClient.invalidateQueries({ queryKey: gatewayKeys.audit() });

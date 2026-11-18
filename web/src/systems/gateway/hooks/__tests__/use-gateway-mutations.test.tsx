@@ -1,7 +1,8 @@
 // Suite: gateway device record removal
 // Invariant: removal deletes the record through the record route and drops that row from the
 // inventory on success. A 404 means the record is already gone, so the inventory is refreshed and no
-// failure is reported. Any other failure surfaces and leaves the row in place.
+// failure is reported. Any other failure surfaces and still refreshes the inventory, because the
+// daemon may have revoked the device before the delete failed.
 // Owning layer: the gateway device mutation hooks.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -80,7 +81,7 @@ describe("useRemoveGatewayDevice", () => {
     expect(success).not.toHaveBeenCalled();
   });
 
-  it("Should surface an unexpected failure and keep the row in place", async () => {
+  it("Should surface an unexpected failure, keep the row, and still refresh the inventory", async () => {
     const success = vi.spyOn(toast, "success").mockReturnValue("toast");
     mockJsonResponse({ error: "database locked" }, { status: 500 });
     const { queryClient, result } = setup();
@@ -89,6 +90,8 @@ describe("useRemoveGatewayDevice", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(queryClient.getQueryData(gatewayKeys.devices())).toEqual([phone, laptop]);
+    expect(queryClient.getQueryState(gatewayKeys.devices())?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(gatewayKeys.status())?.isInvalidated).toBe(true);
     expect(success).not.toHaveBeenCalled();
   });
 });
