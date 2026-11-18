@@ -521,6 +521,46 @@ func TestErrorPayloadForError(t *testing.T) {
 // Owner: core error mapping; canonical suite: core errors (UT-024b).
 func TestMCPReloadAdmissionErrorContract(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		cause  error
+		status int
+	}{
+		{"Should return a retryable conflict for hosted MCP bind timeout", &session.MCPReloadError{
+			Provider: "claude", ClientMessageID: "hosted-message",
+			Cause: &session.HostedMCPReadinessError{Cause: errors.New("hosted MCP bind timed out")},
+		}, http.StatusConflict},
+		{"Should return a retryable conflict for hosted MCP projection failure", &session.MCPReloadError{
+			Provider: "claude", ClientMessageID: "hosted-message",
+			Cause: &session.HostedMCPReadinessError{Cause: errors.New("hosted tool projection failed")},
+		}, http.StatusConflict},
+		{"Should keep unrelated prompt runtime failures internal", errors.New("persist runtime state"),
+			http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := fmt.Errorf("prepare prompt runtime: %w", tc.cause)
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			RespondError(ctx, StatusForSessionError(err), err, true)
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if recorder.Code != tc.status {
+				t.Fatalf("HTTP status = %d, want %d; payload = %+v", recorder.Code, tc.status, payload)
+			}
+			if refusal, ok := errors.AsType[*session.MCPReloadError](tc.cause); ok {
+				if payload.Code != session.MCPReloadFailedCode || !payload.Retryable ||
+					payload.ClientMessageID != refusal.ClientMessageID || payload.ProviderError != refusal.Cause.Error() {
+					t.Fatalf("hosted MCP refusal payload = %+v", payload)
+				}
+			} else if payload.Retryable || payload.ClientMessageID != "" ||
+				payload.Error != http.StatusText(http.StatusInternalServerError) {
+				t.Fatalf("internal error payload = %+v", payload)
+			}
+		})
+	}
 	t.Run("Should preserve the derive admission code during boot", func(t *testing.T) {
 		t.Parallel()
 		failure := deriveFailure(admission.ErrStarting, "")

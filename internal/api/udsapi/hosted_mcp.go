@@ -1,7 +1,10 @@
 package udsapi
 
 import (
+	"context"
 	"errors"
+	"io/fs"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -68,6 +71,7 @@ func (h *Handlers) hostedMCPProjection(c *gin.Context) {
 		response, err = h.HostedMCP.Projection(c.Request.Context(), c.Query("bind_id"), peer)
 	}
 	if err != nil {
+		h.logHostedMCPProjectionFailure(err)
 		respondHostedMCPError(c, err)
 		return
 	}
@@ -92,6 +96,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	changes := h.HostedMCP.ProjectionChanges()
 	response, err := h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer, lastDigest)
 	if err != nil {
+		h.logHostedMCPProjectionFailure(err)
 		respondHostedMCPError(c, err)
 		return
 	}
@@ -130,10 +135,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 		changes = h.HostedMCP.ProjectionChanges()
 		response, err = h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer, lastDigest)
 		if err != nil {
-			status := hostedMCPStatus(err)
-			if h.Logger != nil {
-				h.Logger.Warn("udsapi: hosted MCP projection failed", "status", status)
-			}
+			h.logHostedMCPProjectionFailure(err)
 			if writeErr := core.WriteSSE(writer, core.SSEMessage{
 				Name: "error",
 				Data: hostedMCPStreamErrorData(err),
@@ -142,6 +144,37 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 			}
 			return
 		}
+	}
+}
+
+func (h *Handlers) logHostedMCPProjectionFailure(err error) {
+	if h.Logger != nil {
+		h.Logger.Warn("udsapi: hosted MCP projection failed",
+			"status", hostedMCPStatus(err), "cause_class", hostedMCPProjectionCauseClass(err))
+	}
+}
+
+func hostedMCPProjectionCauseClass(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, toolspkg.ErrToolCanceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, toolspkg.ErrToolTimedOut):
+		return "deadline_exceeded"
+	case errors.Is(err, mcppkg.ErrHostedBindNotFound):
+		return "bind_not_found"
+	case errors.Is(err, mcppkg.ErrHostedRegistryRequired):
+		return "registry_unavailable"
+	case errors.Is(err, fs.ErrNotExist):
+		return "resource_not_found"
+	case errors.Is(err, fs.ErrPermission):
+		return "permission_denied"
+	case isHostedMCPToolError(err):
+		return "tool_registry_error"
+	default:
+		if _, ok := errors.AsType[net.Error](err); ok {
+			return "network_error"
+		}
+		return "backend_error"
 	}
 }
 

@@ -140,7 +140,8 @@ func hostedMCPLauncher(service *mcppkg.HostedService) session.HostedMCPLauncher 
 }
 
 func (l hostedMCPLauncherAdapter) WaitForBind(ctx context.Context, sessionID string) error {
-	return l.service.WaitForBind(ctx, sessionID)
+	_, err := l.WaitForBindToolDigest(ctx, sessionID)
+	return err
 }
 
 func (l hostedMCPLauncherAdapter) ToolDigest(ctx context.Context, sessionID string) (string, error) {
@@ -152,7 +153,11 @@ func (l hostedMCPLauncherAdapter) ToolDigest(ctx context.Context, sessionID stri
 }
 
 func (l hostedMCPLauncherAdapter) WaitForBindToolDigest(ctx context.Context, sessionID string) (string, error) {
-	return l.service.WaitForBindToolDigest(ctx, sessionID)
+	digest, err := l.service.WaitForBindToolDigest(ctx, sessionID)
+	if errors.Is(err, mcppkg.ErrHostedBindTimeout) || errors.Is(err, mcppkg.ErrHostedProjectionFailed) {
+		return "", &session.HostedMCPReadinessError{Cause: err}
+	}
+	return digest, err
 }
 
 func (l hostedMCPLauncherAdapter) InitialToolDigest(sessionID string) (string, bool) {

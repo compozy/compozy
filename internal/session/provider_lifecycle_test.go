@@ -1149,6 +1149,26 @@ func TestMCPReadSnapshotCatalogChanges(t *testing.T) {
 // Owner: session lifecycle; canonical suite: provider lifecycle (UT-021/UT-022/UT-023/UT-024/UT-024b/UT-025).
 func TestPromptMCPActivationLifecycle(t *testing.T) {
 	t.Parallel()
+	hostedBindTimeout := &HostedMCPReadinessError{Cause: errors.New("hosted MCP bind timed out")}
+	hostedProjectionFailure := &HostedMCPReadinessError{Cause: errors.New("hosted tool projection failed")}
+	for _, tc := range []struct {
+		name, path string
+		cause      error
+		retryable  bool
+	}{
+		{"Should refuse a first bind on hosted MCP timeout", "first", hostedBindTimeout, true},
+		{"Should refuse a first bind on hosted MCP projection failure", "first", hostedProjectionFailure, true},
+		{"Should refuse a released bind on hosted MCP timeout", "released", hostedBindTimeout, true},
+		{"Should refuse a released bind on hosted MCP projection failure", "released", hostedProjectionFailure, true},
+		{"Should refuse a reload on hosted MCP timeout", "reload", hostedBindTimeout, true},
+		{"Should refuse a reload on hosted MCP projection failure", "reload", hostedProjectionFailure, true},
+		{"Should keep unrelated first-bind errors internal", "first", errors.New("internal startup failure"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assertHostedMCPPromptRefusal(t, tc.path, tc.cause, tc.retryable)
+		})
+	}
 	// Invariant: prompts before the first list receipt keep a list-changed runtime alive; owner: activation lifecycle.
 	t.Run("Should keep a list-changed runtime before its first tools list receipt", func(t *testing.T) {
 		t.Parallel()
@@ -1482,6 +1502,95 @@ func countActivationEvents(events []store.SessionEvent, kind string) int {
 		}
 	}
 	return count
+}
+
+func assertHostedMCPPromptRefusal(t *testing.T, path string, cause error, retryable bool) {
+	t.Helper()
+	h, launcher := newActivationHarness(t)
+	workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := workspace.Config.Providers["claude"]
+	provider.Command = "claude-agent-acp"
+	workspace.Config.Providers["claude"] = provider
+	h.resolver.upsert(&workspace)
+
+	var target *Session
+	if path == "first" {
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "claude"},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ok bool
+		target, ok = h.manager.Get(created.ID)
+		if !ok {
+			t.Fatal("logical session was not created")
+		}
+	} else {
+		target = createSession(t, h)
+	}
+	t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+	switch path {
+	case "released":
+		target.mu.RLock()
+		progress := target.supervisionProgressAt
+		target.mu.RUnlock()
+		if err := h.manager.releaseIdleRuntime(t.Context(), target, progress); err != nil {
+			t.Fatal(err)
+		}
+		if snapshot := target.runtimeBindingSnapshot(); snapshot.runtimeRelease == nil || snapshot.process != nil {
+			t.Fatal("runtime was not idle-released")
+		}
+	case "reload":
+		launcher.served = launcher.catalog.Digest
+		launcher.setCatalog("added")
+	}
+
+	launcher.bindErr = cause
+	h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+		if opts.FinalizeStartup == nil {
+			t.Error("runtime did not install the hosted MCP readiness check")
+			return nil, errors.New("missing hosted MCP readiness check")
+		}
+		id := firstTrimmedNonEmpty(opts.ResumeSessionID, "acp-hosted")
+		if _, _, err := opts.FinalizeStartup(ctx); err != nil {
+			return nil, acp.WrapAcceptedStart(id, err)
+		}
+		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, id), nil
+	}
+	opts := SendPromptOpts{Message: "use hosted tools", MessageID: "message-hosted", IdempotencyKey: "send-hosted"}
+	_, err = h.manager.SendPrompt(t.Context(), target.ID, opts)
+	if !errors.Is(err, cause) {
+		t.Fatalf("SendPrompt() = %v, want %v", err, cause)
+	}
+	refusal, ok := errors.AsType[*MCPReloadError](err)
+	if ok != retryable || (ok && refusal.ClientMessageID != opts.MessageID) {
+		t.Errorf("SendPrompt() = %v, want retryable=%t and original message ID on refusal", err, retryable)
+	}
+	stored := readStoredEvents(t, target)
+	if countActivationEvents(stored, acp.EventTypeUserMessage) != 0 || len(managerPromptCalls(h)) != 0 {
+		t.Fatal("refused prompt was persisted or delivered")
+	}
+	if got := countActivationEvents(stored, EventTypeMCPReloaded); (got == 1) != (path == "reload") {
+		t.Fatalf("recorded %d reload events for %s", got, path)
+	}
+	if info := target.Info(); info.State != StateActive || info.RuntimeStatus != RuntimeStatusUnbound {
+		t.Fatalf("runtime after refused prompt = %s/%s", info.State, info.RuntimeStatus)
+	}
+
+	launcher.bindErr = nil
+	sent, err := h.manager.SendPrompt(t.Context(), target.ID, opts)
+	if err != nil {
+		t.Fatalf("retry SendPrompt() = %v", err)
+	}
+	collectEvents(t, sent.Events)
+	if countActivationEvents(readStoredEvents(t, target), acp.EventTypeUserMessage) != 1 ||
+		len(managerPromptCalls(h)) != 1 {
+		t.Fatal("retry did not persist and deliver the prompt exactly once")
+	}
 }
 
 // Invariant: runtime changes reload once at admission using the accepted route.

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,6 +27,39 @@ import (
 
 func TestHostedMCPStreamErrorData(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should log the projection cause class without upstream text", func(t *testing.T) {
+		t.Parallel()
+		base, err := toolspkg.NewRegistry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry := &countingHostedMCPRegistry{Registry: base}
+		var logs bytes.Buffer
+		router, service, peer := newHostedMCPRouteTestHarnessWithConfig(t, &mcppkg.HostedConfig{
+			Registry: func() toolspkg.Registry { return registry },
+		}, &core.BaseHandlerConfig{Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		bind := launchAndBindHostedMCP(t, service, peer, "sess-projection-cause")
+		const privateText = "private-upstream-credential"
+		registry.listErr = fmt.Errorf("upstream sent %s: %w", privateText, context.DeadlineExceeded)
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+			"/api/internal/hosted-mcp/projection/stream?bind_id="+bind.BindID, http.NoBody)
+		request = request.WithContext(mcppkg.ContextWithPeerInfo(request.Context(), peer, nil))
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusInternalServerError ||
+			!strings.Contains(recorder.Body.String(), "backend error") {
+			t.Fatalf("projection error = %d %s", recorder.Code, recorder.Body)
+		}
+		if !strings.Contains(logs.String(), `"cause_class":"deadline_exceeded"`) {
+			t.Fatalf("missing projection cause class in logs: %s", &logs)
+		}
+		for _, output := range []string{logs.String(), recorder.Body.String()} {
+			if strings.Contains(output, privateText) || strings.Contains(output, bind.BindID) {
+				t.Fatal("projection error exposed private upstream text or the binding token")
+			}
+		}
+	})
 
 	t.Run("Should emit stable stream error without raw backend details", func(t *testing.T) {
 		t.Parallel()
@@ -599,6 +633,7 @@ func newHostedMCPRouteTestHarnessWithConfig(
 type countingHostedMCPRegistry struct {
 	toolspkg.Registry
 	listCalls atomic.Int32
+	listErr   error
 }
 
 func (r *countingHostedMCPRegistry) List(
@@ -606,6 +641,9 @@ func (r *countingHostedMCPRegistry) List(
 	scope toolspkg.Scope,
 ) ([]toolspkg.ToolView, error) {
 	r.listCalls.Add(1)
+	if r.listErr != nil {
+		return nil, r.listErr
+	}
 	return r.Registry.List(ctx, scope)
 }
 

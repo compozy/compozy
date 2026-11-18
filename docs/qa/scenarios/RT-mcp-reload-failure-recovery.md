@@ -4,7 +4,7 @@ area: RT
 title: A failed native load continues from history and a failed launch returns the message to the composer
 persona: Théo
 journey:
-expected: When the native session/load fails the next message is still delivered and the transcript shows "conversation continued from history" (outcome replayed); when the launch fails the prompt is refused with 409 session_mcp_reload_failed (retryable, client message id), the Web composer gets the message back (not an unconfirmed send) and the transcript shows "Couldn't start … with the new MCP servers"; after removing the fault, sending again applies.
+expected: When the native session/load fails, the next message is delivered and the transcript shows "conversation continued from history" (outcome replayed). When an MCP reload launch fails or hosted MCP cannot establish a first or released runtime bind, the prompt is refused with 409 session_mcp_reload_failed (retryable, client message id) and the Web composer restores the draft with "Message not sent". Sending again succeeds after the fault clears.
 entry_points: session prompt (Web composer, compozy session prompt, compozy__session_prompt); session.mcp_reloaded; POST prompt 409 session_mcp_reload_failed
 qa_status: untested
 bug_ids:
@@ -34,7 +34,17 @@ Steps:
    message wasn't sent"; event outcome `failed`; no user message persisted.
 5. Repeat 4 with `compozy session prompt` and `compozy__session_prompt`: same code.
 6. Restore the fixture; send again: outcome `applied` (or `replayed`), the tool works.
+7. Create a logical session and leave it unbound. In the isolated lab, prevent the hosted MCP
+   proxy from completing bind before its deadline. Repeat with a fault that reaches the projection
+   endpoint and fails the initial projection. In both cases, verify the response from step 4 and
+   confirm the transcript has no user message or MCP reload event for the attempt. For a failed
+   projection, check the UDS log for `cause_class` alongside status. The log contains neither the
+   upstream error text nor the binding token.
+8. Clear each fault and resend with the same client message ID and idempotency key. Verify one
+   persisted user message and one provider delivery. Repeat step 7 with a runtime that was bound
+   successfully and then idle-released, keeping the MCP catalog unchanged.
 
-Pass: steps 2, 4, 6 as described; the stored fingerprint advances only in 2 and 6.
+Pass: steps 2, 4, 6, 7 and 8 as described. Failed binds leave the previous activation fingerprint
+and user message count intact.
 
 src: .compozy/tasks/mcp-extension-hot-activation/_tests.md

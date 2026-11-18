@@ -16,6 +16,14 @@ import (
 // ErrHostedMCPBindMissing identifies a lost proxy binding that requires native-session recovery.
 var ErrHostedMCPBindMissing = errors.New("session: hosted MCP bind is missing")
 
+// HostedMCPReadinessError identifies a bind timeout or projection failure reported by the launcher.
+type HostedMCPReadinessError struct{ Cause error }
+
+var _ error = (*HostedMCPReadinessError)(nil)
+
+func (e *HostedMCPReadinessError) Error() string { return e.Cause.Error() }
+func (e *HostedMCPReadinessError) Unwrap() error { return e.Cause }
+
 // Hosts that cache tools reload the existing native session at a turn boundary.
 type hostedMCPToolState interface {
 	WaitForBindToolDigest(context.Context, string) (string, error)
