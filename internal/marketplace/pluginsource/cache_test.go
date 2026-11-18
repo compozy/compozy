@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/testutil"
@@ -320,60 +321,63 @@ func TestPackageCache(t *testing.T) {
 	})
 	t.Run("Should admit readers while waiting for publication before sweeping", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t)
-		cache := &PackageCache{Root: t.TempDir(), MaxBytes: 6}
-		old, candidate := []byte("oldest"), []byte("newest")
-		putCacheBlob(t, cache, old)
-		unlock, err := cache.Hold(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		release := sync.OnceFunc(unlock)
-		t.Cleanup(release)
-		putCacheBlob(t, cache, candidate)
-		waiting, loaded := make(chan struct{}), make(chan struct{})
-		sweepCtx := cacheWaitContext{Context: ctx, onWait: sync.OnceFunc(func() { close(waiting) })}
-		done := make(chan error, 1)
-		go func() {
-			report, err := cache.SweepCurrent(sweepCtx, func(context.Context) (map[string]struct{}, error) {
-				close(loaded)
-				return map[string]struct{}{cacheDigest(candidate): {}}, nil
-			})
-			if err == nil && (report.EvictedCount != 1 || report.EvictedBytes != 6) {
-				err = errors.New("sweep did not report the unreferenced package eviction")
+		synctest.Test(t, func(t *testing.T) {
+			ctx := testutil.Context(t)
+			cache := &PackageCache{Root: t.TempDir(), MaxBytes: 6}
+			old, candidate := []byte("oldest"), []byte("newest")
+			putCacheBlob(t, cache, old)
+			unlock, err := cache.Hold(ctx)
+			if err != nil {
+				t.Fatal(err)
 			}
-			done <- err
-		}()
-		select {
-		case <-waiting:
-		case <-ctx.Done():
-			t.Fatal("sweep did not wait for publication")
-		}
-		readHold, err := cache.Hold(ctx)
-		if err != nil {
-			t.Fatalf("new reader blocked behind pending sweep: %v", err)
-		}
-		releaseRead := sync.OnceFunc(readHold)
-		t.Cleanup(releaseRead)
-		release()
-		assertCacheBytes(t, cache, cacheDigest(candidate), candidate)
-		select {
-		case <-loaded:
-			t.Fatal("sweep read pins while the admitted reader was still using the package")
-		default:
-		}
-		releaseRead()
-		if err := <-done; err != nil {
-			t.Fatal(err)
-		}
-		assertCacheBytes(t, cache, cacheDigest(candidate), candidate)
-		if reader, err := cache.Open(
-			t.Context(),
-			cacheDigest(old),
-		); reader != nil ||
-			!errors.Is(err, ErrPackageUnavailable) {
-			t.Fatalf("unreferenced package = %v, %v", reader, err)
-		}
+			release := sync.OnceFunc(unlock)
+			defer release()
+			putCacheBlob(t, cache, candidate)
+			loaded := make(chan struct{})
+			done := make(chan error, 1)
+			go func() {
+				report, err := cache.SweepCurrent(ctx, func(context.Context) (map[string]struct{}, error) {
+					close(loaded)
+					return map[string]struct{}{cacheDigest(candidate): {}}, nil
+				})
+				if err == nil && (report.EvictedCount != 1 || report.EvictedBytes != 6) {
+					err = errors.New("sweep did not report the unreferenced package eviction")
+				}
+				done <- err
+			}()
+			synctest.Wait()
+			select {
+			case <-loaded:
+				t.Fatal("sweep read pins before publication finished")
+			default:
+			}
+			readHold, err := cache.Hold(ctx)
+			if err != nil {
+				t.Fatalf("new reader blocked behind pending sweep: %v", err)
+			}
+			releaseRead := sync.OnceFunc(readHold)
+			defer releaseRead()
+			release()
+			synctest.Wait()
+			select {
+			case <-loaded:
+				t.Fatal("sweep read pins while the admitted reader was still using the package")
+			default:
+			}
+			assertCacheBytes(t, cache, cacheDigest(candidate), candidate)
+			releaseRead()
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			assertCacheBytes(t, cache, cacheDigest(candidate), candidate)
+			if reader, err := cache.Open(
+				ctx,
+				cacheDigest(old),
+			); reader != nil ||
+				!errors.Is(err, ErrPackageUnavailable) {
+				t.Fatalf("unreferenced package = %v, %v", reader, err)
+			}
+		})
 	})
 	t.Run("Should cancel holds waiting for an active sweep", func(t *testing.T) {
 		t.Parallel()
