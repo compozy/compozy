@@ -106,6 +106,53 @@ describe("directionalFocusTarget", () => {
     expect(move("bottom", "down")).toBeNull();
     expect(directionalSwapTarget(stacked, "top", "down")).toBe("bottom");
   });
+
+  it.each([
+    {
+      name: "a window sharing the source span over a diagonal one, despite its larger gap",
+      candidates: [
+        { id: "aligned", rect: { x: 200, y: 0, w: 100, h: 100 } },
+        { id: "diagonal", rect: { x: 100, y: 100, w: 100, h: 100 } },
+      ],
+      want: "aligned",
+    },
+    {
+      name: "the nearest edge among aligned windows",
+      candidates: [
+        { id: "far", rect: { x: 300, y: 0, w: 100, h: 100 } },
+        { id: "near", rect: { x: 100, y: 0, w: 100, h: 100 } },
+      ],
+      want: "near",
+    },
+    {
+      name: "the closest center when edges tie",
+      candidates: [
+        { id: "offset", rect: { x: 100, y: 60, w: 100, h: 100 } },
+        { id: "level", rect: { x: 100, y: 10, w: 100, h: 100 } },
+      ],
+      want: "level",
+    },
+    {
+      name: "the lower id when everything else ties",
+      candidates: [
+        { id: "b-right", rect: { x: 100, y: -50, w: 100, h: 100 } },
+        { id: "a-right", rect: { x: 100, y: 50, w: 100, h: 100 } },
+      ],
+      want: "a-right",
+    },
+  ])("Should prefer $name", ({ candidates, want }) => {
+    const source = { id: "source", rect: { x: 0, y: 0, w: 100, h: 100 } };
+    const all = [source, ...candidates];
+    expect(
+      directionalFocusTarget({
+        candidates: all,
+        focusedId: "source",
+        direction: "right",
+        wrap: false,
+      })
+    ).toBe(want);
+    expect(directionalSwapTarget(all, "source", "right")).toBe(want);
+  });
 });
 
 describe("directionalSwapTarget", () => {

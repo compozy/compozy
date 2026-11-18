@@ -658,21 +658,24 @@ func TestTabsAndSplits(t *testing.T) {
 			ID: "bottom", App: "Test", Route: testRoute("/bottom"), InsertTiled: true, InsertEdge: DropBottom,
 		}})
 		for _, tc := range []struct {
+			name      string
 			from      WindowID
 			direction FocusDirection
 			want      WindowID
 		}{
-			{from: "top", direction: FocusDown, want: "bottom"},
-			{from: "bottom", direction: FocusUp, want: "top"},
-			{from: "bottom", direction: FocusLeft, want: "first"},
-			{from: "top", direction: FocusUp, want: ""},
-			{from: "bottom", direction: FocusDown, want: ""},
+			{name: "Should move down to the lower pane", from: "top", direction: FocusDown, want: "bottom"},
+			{name: "Should move up to the upper pane", from: "bottom", direction: FocusUp, want: "top"},
+			{name: "Should move left to the full-height window", from: "bottom", direction: FocusLeft, want: "first"},
+			{name: "Should find nothing above the top pane", from: "top", direction: FocusUp, want: ""},
+			{name: "Should find nothing below the bottom pane", from: "bottom", direction: FocusDown, want: ""},
 		} {
-			view := ClientView{ActiveDesktopID: "desktop-default", FocusedWindowID: new(tc.from)}
-			got, err := resolveFocusTarget(view, r.Snapshot, FocusWindowCommand{Direction: tc.direction})
-			if err != nil || got != tc.want {
-				t.Fatalf("focus %s from %s = %q, %v; want %q", tc.direction, tc.from, got, err, tc.want)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				view := ClientView{ActiveDesktopID: "desktop-default", FocusedWindowID: new(tc.from)}
+				got, err := resolveFocusTarget(view, r.Snapshot, FocusWindowCommand{Direction: tc.direction})
+				if err != nil || got != tc.want {
+					t.Fatalf("focus %s from %s = %q, %v; want %q", tc.direction, tc.from, got, err, tc.want)
+				}
+			})
 		}
 	})
 	for _, tc := range []struct {
