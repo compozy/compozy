@@ -140,6 +140,8 @@ The [four-run investigation](../../docs/qa/reports/2026-11-03-sqlite-contention.
 records the evidence and limitations. That investigation measured retention
 sweeps 7–10 times slower than baseline with bounded 64-row background items.
 Cleanup now uses 256-row items to amortize FULL-synchronous telemetry commits.
+Internal store constructors can override this default with
+`telemetrydb.WithCleanupBatchSize`; nonpositive options are ignored.
 The background writer still yields between bounded callbacks; it cannot preempt
 an individual callback. The 30-second sweep ceiling and interactive deadlines
 remain unchanged; the count-1 throughput metric cannot measure sweep duration.

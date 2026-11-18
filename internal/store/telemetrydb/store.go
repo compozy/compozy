@@ -15,24 +15,31 @@ import (
 )
 
 // Bound indexed cleanup while amortizing FULL-synchronous commits across deletes.
-const retentionBatchSize = 256
+const defaultCleanupBatchSize = 256
 
 // Reclaim burst allocation off the durable ingestion path; this is not a cap on live reader snapshots.
 const walTruncationThreshold = 16 << 20
 
 // Store acknowledges telemetry only after its own WAL commits.
 type Store struct {
-	db         *sql.DB
-	readDB     *sql.DB
-	background *store.BackgroundWriter
-	checkpoint *store.PassiveCheckpointer
-	closed     atomic.Bool
+	db               *sql.DB
+	readDB           *sql.DB
+	background       *store.BackgroundWriter
+	checkpoint       *store.PassiveCheckpointer
+	cleanupBatchSize int64
+	closed           atomic.Bool
 }
 
 func Path(globalPath string) string { return globalPath + ".telemetry.db" }
 
 // Open separates FULL-synchronous ingestion from observation and WAL-maintenance connections.
-func Open(ctx context.Context, path string) (*Store, error) {
+func Open(ctx context.Context, path string, options ...OpenOption) (*Store, error) {
+	config := openConfig{cleanupBatchSize: defaultCleanupBatchSize}
+	for _, option := range options {
+		if option != nil {
+			option(&config)
+		}
+	}
 	db, err := store.OpenSQLiteDatabaseWithPragmas(
 		ctx,
 		path,
@@ -67,6 +74,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	}
 	return &Store{
 		db: db, readDB: readDB, background: store.NewBackgroundWriter(db), checkpoint: checkpoint,
+		cleanupBatchSize: config.cleanupBatchSize,
 	}, nil
 }
 
@@ -101,7 +109,7 @@ func (s *Store) Sweep(ctx context.Context, cutoff time.Time) (int64, error) {
 	value := store.FormatTimestamp(cutoff)
 	return s.deleteBatches(ctx, "sweep event summaries", func(ctx context.Context, q *sqlcgen.Queries) (int64, error) {
 		return q.DeleteEventSummariesBefore(ctx, sqlcgen.DeleteEventSummariesBeforeParams{
-			Cutoff: value, BatchSize: retentionBatchSize,
+			Cutoff: value, BatchSize: s.cleanupBatchSize,
 		})
 	})
 }
@@ -114,11 +122,11 @@ func (s *Store) DeleteScope(ctx context.Context, kind, id string) (int64, error)
 			switch kind {
 			case "workspace":
 				return q.DeleteWorkspaceEventSummaries(ctx, sqlcgen.DeleteWorkspaceEventSummariesParams{
-					WorkspaceID: id, BatchSize: retentionBatchSize,
+					WorkspaceID: id, BatchSize: s.cleanupBatchSize,
 				})
 			case "profile":
 				return q.DeleteProfileEventSummaries(ctx, sqlcgen.DeleteProfileEventSummariesParams{
-					ProfileID: id, BatchSize: retentionBatchSize,
+					ProfileID: id, BatchSize: s.cleanupBatchSize,
 				})
 			default:
 				return 0, fmt.Errorf("store: unsupported telemetry cleanup scope %q", kind)
@@ -142,7 +150,7 @@ func (s *Store) deleteBatches(
 			return total, err
 		}
 		total += deleted
-		if deleted < retentionBatchSize {
+		if deleted < s.cleanupBatchSize {
 			return total, nil
 		}
 	}
