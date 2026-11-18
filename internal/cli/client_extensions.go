@@ -105,6 +105,22 @@ func (c *daemonClient) UpdateExtensions(
 }
 
 func (c *daemonClient) RemoveExtension(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error) {
+	return c.deleteExtension(ctx, name, nil)
+}
+
+// RemovePermanentExtension removes one bundled built-in permanently through the global route.
+func (c *daemonClient) RemovePermanentExtension(
+	ctx context.Context,
+	name string,
+) (ManagedExtensionRemoveRecord, error) {
+	return c.deleteExtension(ctx, name, url.Values{extensionPermanentQueryKey: []string{"true"}})
+}
+
+func (c *daemonClient) deleteExtension(
+	ctx context.Context,
+	name string,
+	query url.Values,
+) (ManagedExtensionRemoveRecord, error) {
 	var response struct {
 		Extension ManagedExtensionRemoveRecord `json:"extension"`
 	}
@@ -112,7 +128,7 @@ func (c *daemonClient) RemoveExtension(ctx context.Context, name string) (Manage
 		ctx,
 		http.MethodDelete,
 		extensionPath(name, ""),
-		nil,
+		query,
 		nil,
 		&response,
 	); err != nil {

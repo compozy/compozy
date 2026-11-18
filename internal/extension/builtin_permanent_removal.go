@@ -94,6 +94,13 @@ func RemoveBuiltinPermanently(
 	if err != nil {
 		return ManagedRemoveResult{}, err
 	}
+	if routed.tombstone == nil {
+		return ManagedRemoveResult{}, fmt.Errorf(
+			"extension: permanent removal of %q committed no tombstone",
+			trimmedName,
+		)
+	}
+	result.Tombstone = routed.tombstone
 	slog.Info("extension.builtin.tombstoned", "name", trimmedName, "removed_by", actor)
 	return result, nil
 }
@@ -105,6 +112,8 @@ type builtinPermanentRegistry struct {
 	registry  *Registry
 	name      string
 	removedBy string
+	// tombstone is the record the row-delete transaction committed; it is nil until Uninstall succeeds.
+	tombstone *BuiltinTombstone
 }
 
 // Uninstall deletes the bundled row and inserts its tombstone in one transaction.
@@ -112,8 +121,12 @@ func (p *builtinPermanentRegistry) Uninstall(name string) error {
 	if name != p.name {
 		return fmt.Errorf("extension: permanent removal uninstall %q does not match %q", name, p.name)
 	}
-	_, err := p.registry.uninstallBuiltinTombstoned(p.name, p.removedBy)
-	return err
+	tombstone, err := p.registry.uninstallBuiltinTombstoned(p.name, p.removedBy)
+	if err != nil {
+		return err
+	}
+	p.tombstone = &tombstone
+	return nil
 }
 
 // Install is the compensation path that restores the row. The tombstone clears only after the row is back.

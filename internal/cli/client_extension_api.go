@@ -12,6 +12,7 @@ type extensionClientAPI interface {
 	UpdateExtension(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
 	UpdateExtensions(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
 	RemoveExtension(context.Context, string) (ManagedExtensionRemoveRecord, error)
+	RemovePermanentExtension(context.Context, string) (ManagedExtensionRemoveRecord, error)
 	EnableExtension(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
 	DisableExtension(context.Context, string) (ExtensionRecord, error)
 	ExtensionStatus(context.Context, string) (ExtensionRecord, error)

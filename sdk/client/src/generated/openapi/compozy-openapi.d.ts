@@ -13600,8 +13600,10 @@ export interface components {
       data_path?: string;
       name: string;
       path: string;
+      permanent: boolean;
       quarantine_path?: string;
       status: string;
+      tombstoned_at: string;
       warnings?: components["schemas"]["DiagnosticItem"][];
     };
     ManagedExtensionUpdatePayload: {
@@ -32563,6 +32565,8 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
+        /** @description Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only. */
+        permanent?: boolean;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -32582,6 +32586,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ExtensionRemoveResponse"];
+        };
+      };
+      /** @description Invalid request, including permanent with a workspace or profile */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Forbidden */
@@ -32611,8 +32624,26 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description Extension is not a built-in */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Permanent removal is not available on this extension service */
+      501: {
         headers: {
           [name: string]: unknown;
         };

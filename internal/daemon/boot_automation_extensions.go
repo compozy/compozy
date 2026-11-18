@@ -5,10 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/compozy/extensions/connectivity/tailscale"
-	forgegithub "github.com/compozy/compozy/extensions/forge/github"
-	opendesign "github.com/compozy/compozy/extensions/open-design"
-	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -30,17 +26,10 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	if err := extensionpkg.ReconcileManagedExtensionArtifacts(d.homePaths, extRegistry); err != nil {
 		return fmt.Errorf("daemon: reconcile managed extension artifacts: %w", err)
 	}
-	if err := opendesign.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
-		return fmt.Errorf("daemon: enroll open-design extension: %w", err)
-	}
-	if err := speccycle.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
-		return fmt.Errorf("daemon: enroll spec-cycle extension: %w", err)
-	}
-	if err := tailscale.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
-		return fmt.Errorf("daemon: enroll Tailscale connectivity extension: %w", err)
-	}
-	if err := forgegithub.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
-		return fmt.Errorf("daemon: enroll GitHub forge extension: %w", err)
+	for _, builtin := range bundledEnrollments {
+		if err := builtin.Enroll(d.homePaths, extRegistry); err != nil {
+			return fmt.Errorf("daemon: enroll %s extension: %w", builtin.Name, err)
+		}
 	}
 	if err := reconcileDeclaredExtensionProfiles(ctx, state.profiles, extRegistry, state.logger); err != nil {
 		return err

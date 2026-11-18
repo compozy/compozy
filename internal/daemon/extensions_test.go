@@ -3886,8 +3886,15 @@ func TestDaemonExtensionPermanentRemoval(t *testing.T) {
 		service, registry, _ := newService(t)
 		dir := seedRow(t, registry, "spec-cycle", extensionpkg.SourceBundled)
 
-		if _, err := service.RemovePermanently(t.Context(), "spec-cycle", operatorActor(t)); err != nil {
+		item, err := service.RemovePermanently(t.Context(), "spec-cycle", operatorActor(t))
+		if err != nil {
 			t.Fatalf("RemovePermanently(bundled) error = %v", err)
+		}
+		if !item.Permanent || item.TombstonedAt == "" {
+			t.Fatalf("RemovePermanently payload = %#v, want permanent with a tombstone time", item)
+		}
+		if _, err := time.Parse(time.RFC3339, item.TombstonedAt); err != nil {
+			t.Fatalf("tombstoned_at %q is not RFC3339: %v", item.TombstonedAt, err)
 		}
 		if _, err := registry.Get("spec-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 			t.Fatalf("Get(after permanent removal) error = %v, want ErrExtensionNotFound", err)
@@ -3897,6 +3904,42 @@ func TestDaemonExtensionPermanentRemoval(t *testing.T) {
 		}
 		requireTombstoned(t, registry, "spec-cycle", true)
 	})
+
+	t.Run(
+		"Should report permanent false and no tombstone for a non-permanent removal of a built-in",
+		func(t *testing.T) {
+			t.Parallel()
+			service, registry, _ := newService(t)
+			seedRow(t, registry, "spec-cycle", extensionpkg.SourceBundled)
+
+			item, err := service.Remove(t.Context(), "spec-cycle", operatorActor(t))
+			if err != nil {
+				t.Fatalf("Remove(bundled) error = %v", err)
+			}
+			if item.Permanent || item.TombstonedAt != "" {
+				t.Fatalf("Remove payload = %#v, want permanent false and an empty tombstone time", item)
+			}
+			requireTombstoned(t, registry, "spec-cycle", false)
+		},
+	)
+
+	t.Run(
+		"Should report a non-permanent remove of a tombstoned name as not found and keep the tombstone",
+		func(t *testing.T) {
+			t.Parallel()
+			service, registry, _ := newService(t)
+			seedRow(t, registry, "spec-cycle", extensionpkg.SourceBundled)
+			if _, err := service.RemovePermanently(t.Context(), "spec-cycle", operatorActor(t)); err != nil {
+				t.Fatalf("RemovePermanently(bundled) error = %v", err)
+			}
+
+			_, err := service.Remove(t.Context(), "spec-cycle", operatorActor(t))
+			if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				t.Fatalf("Remove(tombstoned) error = %v, want ErrExtensionNotFound", err)
+			}
+			requireTombstoned(t, registry, "spec-cycle", true)
+		},
+	)
 
 	t.Run("Should refuse permanent removal while the built-in has another installation", func(t *testing.T) {
 		t.Parallel()

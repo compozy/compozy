@@ -289,6 +289,8 @@ type ManagedExtensionRemovePayload struct {
 	QuarantinePath string           `json:"quarantine_path,omitempty"`
 	Status         string           `json:"status"`
 	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
+	Permanent      bool             `json:"permanent"`
+	TombstonedAt   string           `json:"tombstoned_at"`
 }
 
 // ManagedExtensionUpdatePayload is a daemon API value.

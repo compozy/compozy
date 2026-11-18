@@ -18631,10 +18631,16 @@
           "path": {
             "type": "string"
           },
+          "permanent": {
+            "type": "boolean"
+          },
           "quarantine_path": {
             "type": "string"
           },
           "status": {
+            "type": "string"
+          },
+          "tombstoned_at": {
             "type": "string"
           },
           "warnings": {
@@ -18647,7 +18653,9 @@
         "required": [
           "name",
           "path",
-          "status"
+          "permanent",
+          "status",
+          "tombstoned_at"
         ],
         "type": "object"
       },
@@ -64651,6 +64659,14 @@
             }
           },
           {
+            "description": "Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only.",
+            "in": "query",
+            "name": "permanent",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -64669,6 +64685,16 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request, including permanent with a workspace or profile"
           },
           "403": {
             "content": {
@@ -64700,6 +64726,16 @@
             },
             "description": "Extension is in use"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Extension is not a built-in"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -64709,6 +64745,16 @@
               }
             },
             "description": "Internal server error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Permanent removal is not available on this extension service"
           },
           "503": {
             "content": {

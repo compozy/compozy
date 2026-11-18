@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -384,6 +385,10 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 		QuarantinePath: removed.QuarantinePath,
 		Status:         removed.Status,
 		Warnings:       append([]contract.DiagnosticItem(nil), removed.Warnings...),
+	}
+	if removed.Tombstone != nil {
+		item.Permanent = true
+		item.TombstonedAt = removed.Tombstone.RemovedAt.UTC().Format(time.RFC3339)
 	}
 	return item, s.recordExtensionRemoveEvent(ctx, actor, item)
 }
