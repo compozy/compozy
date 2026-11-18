@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/procutil"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -122,6 +123,104 @@ func TestResumeInterruptedSession(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should preserve a pause committed while the unbound main reopens", func(t *testing.T) {
+		t.Parallel()
+		db := openManagerInputQueueStore(t)
+		var instanceID string
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPreResumeFn: func(
+				ctx context.Context, payload hookspkg.SessionPreResumePayload,
+			) (hookspkg.SessionPreResumePayload, error) {
+				_, err := db.Instances().Pause(ctx, instanceID, "manual")
+				return payload, err
+			},
+		}
+		h := newHarness(t, WithSessionCatalog(db), WithEventLedger(db), WithHookSet(fullHookSet(dispatcher)))
+		registerManagerInputQueueWorkspace(t, db, h)
+		main, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID,
+		}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, main.ID) })
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: main.AgentName,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		instanceID = instance.ID
+		h.manager.SetInstanceCeilingReader(func(ctx context.Context, id, _ string) (*InstanceCeiling, error) {
+			if id != main.ID {
+				return nil, nil
+			}
+			current, err := db.Instances().Get(ctx, instanceID)
+			if err != nil {
+				return nil, err
+			}
+			return &InstanceCeiling{Main: true, ActiveMain: current.State == "active"}, nil
+		})
+		if err := h.manager.StopWithCause(t.Context(), main.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.ResumeInterruptedSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		info, err := h.manager.Status(t.Context(), main.ID)
+		if err != nil || info.State != StateStopped || info.StopReason != store.StopShutdown {
+			t.Fatalf("main after a pause during recovery = %+v, %v", info, err)
+		}
+		rows, err := h.manager.Events(t.Context(), main.ID, store.EventQuery{Type: restartSkippedEvent})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("restart refusal = %+v, %v", rows, err)
+		}
+		checkpoint, err := decodeRestartCheckpoint(rows[0])
+		if err != nil || checkpoint.Reason != restartInstanceInactiveReason {
+			t.Fatalf("restart refusal reason = %q, %v", checkpoint.Reason, err)
+		}
+	})
+	t.Run("Should preserve an explicit stop newer than the restart snapshot", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		main, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID,
+		}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, main.ID) })
+		h.manager.SetInstanceCeilingReader(func(context.Context, string, string) (*InstanceCeiling, error) {
+			return &InstanceCeiling{Main: true, ActiveMain: true}, nil
+		})
+		if err := h.manager.StopWithCause(t.Context(), main.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		shutdown, err := h.manager.readMetaWithContext(t.Context(), main.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Resume(t.Context(), main.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), main.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.resumeUnboundMainAfterRestart(
+			t.Context(),
+			&shutdown,
+		); !errors.Is(
+			err,
+			ErrMonitorOwnerStopped,
+		) {
+			t.Fatalf("restart with stale shutdown metadata = %v, want explicit-stop refusal", err)
+		}
+		info, err := h.manager.Status(t.Context(), main.ID)
+		if err != nil || info.State != StateStopped || info.StopReason != store.StopUserCanceled {
+			t.Fatalf("main after explicit stop = %+v, %v", info, err)
+		}
+	})
 	t.Run("Should leave an idle parent stopped when its idle worker has no continuation", func(t *testing.T) {
 		db := openManagerInputQueueStore(t)
 		opts := []Option{WithSessionCatalog(db), WithSessionInputQueueStore(db),

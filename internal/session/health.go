@@ -20,6 +20,7 @@ type HealthRecoveryResult struct {
 type sessionHealthInput struct {
 	activePrompt  bool
 	attachable    bool
+	bindOnWake    bool
 	touchPresence bool
 	activityAt    time.Time
 	lastError     string
@@ -237,6 +238,15 @@ func (m *Manager) persistSessionHealthForSession(
 	if err != nil {
 		return heartbeat.SessionHealth{}, err
 	}
-	health := m.sessionHealthFromInfo(session.Info(), existing, at, input)
+	info := session.Info()
+	if m.instanceCeiling != nil && info.Type == SessionTypeUser && info.RuntimeStatus == RuntimeStatusUnbound &&
+		info.RuntimeTransition == RuntimeTransitionNone && info.RuntimeGeneration == 0 && AttachableForInfo(info, at) {
+		instance, err := m.instanceCeiling(ctx, info.ID, "")
+		if err != nil {
+			return heartbeat.SessionHealth{}, err
+		}
+		input.bindOnWake = instance != nil && instance.ActiveMain
+	}
+	health := m.sessionHealthFromInfo(info, existing, at, input)
 	return m.storeSessionHealth(ctx, existing, health)
 }
