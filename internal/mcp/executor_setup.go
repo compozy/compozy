@@ -41,6 +41,7 @@ type CallExecutor struct {
 	httpClient     *http.Client
 	secureClient   *securehttp.Client
 	authGeneration *mcpauth.MutationGeneration
+	redirectURI    string
 	timeout        time.Duration
 	toolListFloor  time.Duration
 	toolCache      mcpToolListCache
@@ -73,6 +74,11 @@ func WithAuthMutationGeneration(generation *mcpauth.MutationGeneration) CallExec
 	return func(executor *CallExecutor) {
 		executor.authGeneration = generation
 	}
+}
+
+// WithAuthRedirectURI supplies the configured OAuth callback URI for CIMD renewal.
+func WithAuthRedirectURI(redirectURI string) CallExecutorOption {
+	return func(executor *CallExecutor) { executor.redirectURI = redirectURI }
 }
 
 // WithSecretLookup resolves auth client secret environment-variable names.
@@ -205,10 +211,6 @@ func NewMCPCallExecutor(
 		executor.httpClient = &cloned
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
-		options := []mcpauth.ServiceOption{
-			mcpauth.WithMutationGeneration(executor.authGeneration),
-			mcpauth.WithNetworkAuthorization(executor.authNetwork),
-		}
 		authClient := executor.secureClient
 		if authClient == nil {
 			authClient = securehttp.NewClient(
@@ -216,17 +218,19 @@ func NewMCPCallExecutor(
 				securehttp.WithTimeout(executor.timeout),
 			)
 		}
-		options = append(options, mcpauth.WithSecureHTTPClient(authClient))
+		options := []mcpauth.ServiceOption{
+			mcpauth.WithMutationGeneration(executor.authGeneration),
+			mcpauth.WithNetworkAuthorization(executor.authNetwork),
+			mcpauth.WithRedirectURI(executor.redirectURI),
+			mcpauth.WithSecureHTTPClient(authClient),
+		}
 		if executor.secretResolver != nil {
 			options = append(options, mcpauth.WithSecretRefResolver(executor.secretResolver.ResolveRef))
 		}
 		if registrations, ok := executor.tokenStore.(mcpauth.RegistrationStore); ok {
 			options = append(options, mcpauth.WithRegistrationStore(registrations))
 		}
-		service, err := mcpauth.NewService(
-			executor.tokenStore,
-			options...,
-		)
+		service, err := mcpauth.NewService(executor.tokenStore, options...)
 		if err != nil {
 			return nil, fmt.Errorf("mcp: create auth service: %w", err)
 		}

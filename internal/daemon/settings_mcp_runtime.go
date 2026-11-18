@@ -153,6 +153,7 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 		}),
 		mcppkg.WithTokenStore(s.mcpAuthStore),
 		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
+		mcppkg.WithAuthRedirectURI(s.config.MCP.OAuth.RedirectURI),
 		mcppkg.WithAuthRecovery(func(ctx context.Context, resolved *mcppkg.ResolvedServer) error {
 			return s.recoverMCPAuthentication(ctx, resolved.Target, resolved.Server)
 		}),

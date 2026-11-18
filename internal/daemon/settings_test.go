@@ -311,14 +311,17 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		fixture := mcpfixture.StartOAuthHTTP(t, mcpfixture.MustNew(mcpfixture.ProfileModern2026),
-			mcpfixture.OAuthConfig{ClientIDMetadataDocumentSupported: true})
+			mcpfixture.OAuthConfig{ClientIDMetadataDocumentSupported: true, OmitRefreshScope: true})
 		db := openDaemonTestGlobalDB(t)
-		manager, err := newSettingsMCPAuthManagerWithConfig(db, db)
+		const redirectURI = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+		oauthConfig := compozyconfig.MCPOAuthConfig{RedirectURI: redirectURI}
+		manager, err := newSettingsMCPAuthManagerWithAuthorization(db, nil, db, nil, oauthConfig, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		surface := &settingsRuntimeSurface{
 			digestKey: []byte("test installation key"), mcpAuthStore: db, mcpAuthManager: manager,
+			config: compozyconfig.Config{MCP: compozyconfig.MCPConfig{OAuth: oauthConfig}},
 		}
 		target := globalMCPTestTarget("cimd-fixture")
 		server := compozyconfig.MCPServer{
@@ -336,7 +339,7 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 		if _, err := db.SaveMCPAuthRegistration(ctx, mcpauth.ClientRegistration{
 			Target: target, DefinitionFingerprint: fingerprint, ResourceURL: fixture.Endpoints.MCPURL,
 			Issuer: fixture.Endpoints.IssuerURL, ClientID: clientID,
-			RedirectURL: "http://127.0.0.1:2123/api/mcp/oauth/callback",
+			RedirectURL: redirectURI,
 		}, mcpauth.RegistrationSecrets{}); err != nil {
 			t.Fatal(err)
 		}
@@ -359,6 +362,9 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 		after, err := surface.MCPAuthStatus(ctx, target, server)
 		if err != nil || after.Status != mcpauth.StatusAuthenticated || !after.Refreshable || !after.TokenPresent {
 			t.Fatalf("renewed auth status = %+v, err = %v", after, err)
+		}
+		if !slices.Equal(after.Scopes, []string{"tools.read"}) {
+			t.Fatalf("renewed auth status scopes = %v, want tools.read", after.Scopes)
 		}
 		requests := fixture.Requests()
 		if len(requests.Registration) != 0 || len(requests.Token) != 1 ||

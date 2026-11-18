@@ -95,5 +95,7 @@ Expect `expired`, `token_present=true`, and `refreshable=true`. Discover tools a
 the authorization server receives a refresh grant with the same document URL as `client_id`
 and no client secret. Status returns to `authenticated` and tools are available. Repeat with
 a pre-upgrade registration whose auth method is empty. Expect the same result with no callback
-or new registration. The isolated SQLite and HTTP path is covered by
+or new registration. Verify that an omitted `scope` on refresh preserves the granted scopes in
+status, and that changing the configured CIMD redirect URI disables renewal until reauthorization.
+The isolated SQLite and HTTP path is covered by
 `TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback`.

@@ -130,6 +130,9 @@ func (s *Service) refresh(ctx context.Context, cfg ServerConfig, observed TokenR
 		}
 		return Status{}, ErrTokenBindingInvalid
 	}
+	if strings.TrimSpace(refreshConfig.ClientID) != strings.TrimSpace(current.ClientID) {
+		return Status{}, ErrTokenBindingInvalid
+	}
 	refreshed, err := s.refreshToken(ctx, refreshConfig, metadata, current)
 	if err != nil {
 		if definitiveRefreshFailure(err) {

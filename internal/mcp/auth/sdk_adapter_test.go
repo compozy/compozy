@@ -503,13 +503,20 @@ func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 func TestCIMDRegistrationRefresh(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name       string
-		legacy     bool
-		change     func(*ClientRegistration)
-		wantUsable bool
+		name                string
+		legacy              bool
+		change              func(*ClientRegistration)
+		redirectChanged     bool
+		replaceRegistration bool
+		wantUsable          bool
 	}{
 		{name: "Should refresh a newly authorized CIMD client", wantUsable: true},
 		{name: "Should refresh a stored CIMD client with an empty auth method", legacy: true, wantUsable: true},
+		{name: "Should require reauthorization after changing the CIMD redirect URI", legacy: true, redirectChanged: true},
+		{
+			name: "Should reject a different CIMD client selected during refresh discovery", legacy: true,
+			replaceRegistration: true,
+		},
 		{
 			name:   "Should reject an empty auth method on a registration with a client secret",
 			legacy: true,
@@ -551,7 +558,7 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 			}
 			options := []ServiceOption{
 				withHTTPClientForTest(document.Client()), WithRegistrationStore(store),
-				WithNow(func() time.Time { return now }),
+				WithNow(func() time.Time { return now }), WithRedirectURI(redirect),
 			}
 			codeExchanges := 0
 			if tc.legacy {
@@ -589,6 +596,21 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 			if tc.change != nil {
 				tc.change(&store.registration)
 			}
+			if tc.redirectChanged {
+				options = append(options, WithRedirectURI(redirect+"-changed"))
+			}
+			if tc.replaceRegistration {
+				replacement := store.registration
+				replacement.ClientID = "https://replacement.example/.well-known/mcp-client.json"
+				var once sync.Once
+				var saveErr error
+				options = append(options, WithNetworkAuthorization(func(ctx context.Context, _ ServerConfig) error {
+					once.Do(func() {
+						_, saveErr = store.SaveMCPAuthRegistration(ctx, replacement, RegistrationSecrets{})
+					})
+					return saveErr
+				}))
+			}
 			// The executor uses the registration that was saved at sign-in, including for a custom CIMD URL.
 			renewal, err := NewService(store, options...)
 			if err != nil {
@@ -597,11 +619,18 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 			now = now.Add(time.Hour)
 			before, err := renewal.Status(t.Context(), cfg)
 			if err != nil || before.Status != StatusExpired || !before.TokenPresent ||
-				before.Refreshable != tc.wantUsable {
-				t.Fatalf("expired status = %+v, err = %v, want refreshable = %t", before, err, tc.wantUsable)
+				before.Refreshable != (tc.wantUsable || tc.replaceRegistration) {
+				t.Fatalf("expired status = %+v, err = %v, want refreshable = %t", before, err,
+					tc.wantUsable || tc.replaceRegistration)
 			}
 			after, err := renewal.Refresh(t.Context(), cfg)
 			requests := fixture.Requests()
+			if tc.replaceRegistration {
+				if !errors.Is(err, ErrTokenBindingInvalid) || len(requests.Token) != codeExchanges {
+					t.Fatalf("refresh error = %v, want binding rejection before contacting the token endpoint", err)
+				}
+				return
+			}
 			if !tc.wantUsable {
 				cause := errors.Unwrap(err)
 				if cause == nil || !strings.Contains(cause.Error(), "stored registration is no longer valid") {
