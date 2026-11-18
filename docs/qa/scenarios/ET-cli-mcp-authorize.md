@@ -73,3 +73,16 @@ and OAuth-toggle branches passed in the isolated daemon lab. See
 vendor-consent blockers for unrelated branches in this scenario.
 
 QA impact 2026-11-14 (MCP hot activation spec): `compozy mcp auth login` on a project-file server waiting for approval now refuses with `409 mcp_server_waiting_approval` before any network call. With `--digest <definition_digest>` it records the digest-bound approval first, then begins sign-in; a stale digest fails `mcp_approval_definition_changed` and makes no network request. Re-walk the workspace-scope branch with a committed `.compozy/mcp.json` server (see ET-mcp-project-server-approval).
+
+### Pre-registered remote OAuth (#1839)
+
+Configure the provider's required scopes as individual `auth.scopes` entries, then run
+`compozy mcp auth login <name>` and finish consent. With a provider that returns comma-separated
+grants, require `compozy mcp auth status <name> -o json` to show `authenticated`, `token_present: true`
+and individual grants. Check `compozy mcp check <name> -o json` for `initialized: true` and a positive
+`tool_count`, then call a read-only tool from a session. The Slack consent step uses the operator's account.
+
+In an isolated fixture, return HTTP 401 for the stored bearer credential. Require the check to show
+`auth_required` and the auth status to show `needs_login`. A new sign-in restores authenticated status.
+With HTTP 503 or a JSON-RPC error, require `mcp_unreachable` with the redacted upstream cause and an
+unchanged authenticated status. Inspect the diagnostic for credential echoes using the fixture only.

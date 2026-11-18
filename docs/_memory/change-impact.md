@@ -110,6 +110,24 @@ Owner: [#1826](https://github.com/compozy/compozy/issues/1826).
   references, the site shortcut and window-management pages, the release note, and the
   keyboard/settings QA scenarios (Terminal preset scenario retired).
 
+## Pre-registered remote MCP OAuth and discovery
+
+Owner: [#1839](https://github.com/compozy/compozy/issues/1839).
+
+- **Native tools, CLI, HTTP and UDS.** Existing MCP status and check operations retain their
+  response shapes. Discovery reports redacted HTTP, JSON-RPC or connection details. An observed
+  rejection of the current bearer credential makes auth status report `needs_login`.
+- **Config and persisted state.** Keep scopes as individual `auth.scopes` entries. Token responses
+  accept comma and space delimiters. The OAuth binding boundary recognizes previously persisted
+  comma-joined scopes. Connections record token rejection in the running daemon without changing
+  stored rows. Completing a new sign-in clears the rejection for that credential target.
+- **Extensibility and isolation.** Outbound Streamable HTTP accepts an SDK-negotiated MCP
+  `2025-06-18` session. Authorization remains scoped to the existing target and definition, and
+  rejection is tied to the observed credential revision. Hook, SDK, and extension contracts retain
+  their existing shapes.
+- **Web, docs and QA.** Existing Web status renders the new diagnostic and sign-in state. Updated
+  the official MCP reference, MCP setup guide, `ET-cli-mcp-authorize`, and `ET-mcp-protocol-interop`.
+
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).

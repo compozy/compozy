@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -363,6 +364,58 @@ func TestManagerExchangeSupportsRFC9207Issuer(t *testing.T) {
 
 func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 	t.Parallel()
+	// Invariant: a callback persists individual grants and older comma-joined grants still bind.
+	// Owner: OAuth token exchange and binding; canonical suite: TestPreRegisteredAuthorizationBindsResource.
+	t.Run("Should bind comma and space delimited grants to the configured scope list", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{
+				TokenResponseScope: "tools.read,tools.write extra.read",
+			},
+		)
+		store := &adapterTestStore{}
+		service, err := NewService(store, withHTTPClientForTest(fixture.Server.Client()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := ServerConfig{
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"}, Type: authTypeOAuth,
+			RemoteURL: fixture.Endpoints.MCPURL, ClientID: "registered-client", Registration: RegistrationPreRegistered,
+			Scopes: []string{"tools.read", "tools.write"},
+		}
+		state, err := service.BeginLogin(t.Context(), cfg, "http://127.0.0.1:2123/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Exchange(
+			t.Context(),
+			&state,
+			oauthCallbackURL(t, state.RedirectURL, state.State, ""),
+		); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"tools.read", "tools.write", "extra.read"}
+		token, err := store.GetMCPAuthToken(t.Context(), cfg.Target)
+		if err != nil || !slices.Equal(token.Scopes, want) {
+			t.Fatalf("stored scopes = %v, err = %v, want %v", token.Scopes, err, want)
+		}
+		if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
+			t.Fatalf("new token binding: %v", err)
+		}
+		token.Scopes = []string{"tools.read,tools.write,extra.read"}
+		if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+			t.Fatal(err)
+		}
+		for _, required := range [][]string{cfg.Scopes, {"tools.read,tools.write"}} {
+			cfg.Scopes = required
+			if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
+				t.Fatalf("stored comma-joined token binding: %v", err)
+			}
+		}
+	})
+
 	t.Run("Should discover a separate issuer for pre-registered credentials", func(t *testing.T) {
 		t.Parallel()
 

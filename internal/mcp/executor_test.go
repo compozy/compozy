@@ -49,6 +49,54 @@ func (e *testMCPSecretError) Error() string {
 }
 
 func TestMCPCallExecutor(t *testing.T) {
+	// Invariant: a bound pre-registered token reaches a Streamable HTTP peer that negotiates 2025-06-18.
+	// Owner: outbound MCP discovery; canonical suite: TestMCPCallExecutor.
+	t.Run("Should discover tools from a pre-registered OAuth peer negotiating June 2025", func(t *testing.T) {
+		t.Parallel()
+		peer := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "fixture", Version: "1.0.0"}, &mcpsdk.ServerOptions{
+			SupportedProtocolVersions: []string{"2025-06-18"},
+		})
+		peer.AddTool(&mcpsdk.Tool{Name: "echo", InputSchema: json.RawMessage(`{"type":"object"}`)},
+			func(context.Context, *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+				return &mcpsdk.CallToolResult{}, nil
+			})
+		handler := mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server { return peer },
+			&mcpsdk.StreamableHTTPOptions{JSONResponse: true})
+		const access = "fixture-opaque-access"
+		remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer "+access {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			handler.ServeHTTP(w, r)
+		}))
+		t.Cleanup(remote.Close)
+		server := authEnabledServer("fixture", compozyconfig.MCPServerTransportHTTP, remote.URL)
+		target := userMCPExecutorTarget("fixture")
+		store := newMemoryTokenStore()
+		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
+			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, server),
+			Issuer: server.Auth.IssuerURL, ClientID: server.Auth.ClientID, Scopes: server.Auth.Scopes,
+			AccessToken: access, TokenType: "Bearer",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		executor := newTestMCPExecutor(t, server, WithTokenStore(store))
+		discovery, err := executor.DiscoverTools(t.Context(), toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture",
+		})
+		if err != nil {
+			if versionErr, ok := errors.AsType[*UnsupportedProtocolVersionError](err); ok {
+				t.Fatalf("DiscoverTools() error = %v, cause = %v", err, versionErr)
+			}
+			t.Fatal(err)
+		}
+		if discovery.ProtocolVersion != "2025-06-18" || discovery.ToolCount != 1 ||
+			len(discovery.Descriptors) != 1 || discovery.Descriptors[0].RawName != "echo" {
+			t.Fatalf("unexpected discovery: %+v", discovery)
+		}
+	})
+
 	// Invariant: consent and transport use one immutable definition; owner: executor I/O boundary.
 	for _, operation := range []string{"list", "call"} {
 		t.Run(
@@ -852,9 +900,11 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		executor := newTestMCPExecutor(t, replacement, WithTokenStore(store))
 		resolved := ResolvedServer{Server: replacement, Target: target}
-		if got := executor.authorizationHeader(t.Context(), &resolved); got != "" {
-			t.Fatalf("authorizationHeader(replacement) = %q, want empty", got)
+		header, headerErr := executor.authorizationHeader(t.Context(), &resolved)
+		if header != "" {
+			t.Fatal("authorizationHeader(replacement) sent a credential")
 		}
+		requireReason(t, headerErr, toolspkg.ReasonMCPAuthInvalid)
 		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
 			Kind: toolspkg.SourceMCP, Owner: "secure", RawServerName: "secure",
 		})
@@ -2475,7 +2525,7 @@ func TestProtocolVersionMiddleware(t *testing.T) {
 
 		versions := []string{
 			protocolVersionModern,
-			protocolVersionProviderLegacy,
+			protocolVersionJune2025,
 			protocolVersionLegacy,
 		}
 		handler := protocolVersionMiddleware()(
@@ -2505,7 +2555,7 @@ func TestProtocolVersionMiddleware(t *testing.T) {
 		}
 		if got, want := versions, []string{
 			protocolVersionModern,
-			protocolVersionProviderLegacy,
+			protocolVersionJune2025,
 			protocolVersionLegacy,
 		}; !slices.Equal(got, want) {
 			t.Fatalf("handler versions = %#v, want %#v", got, want)
@@ -3754,32 +3804,29 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
-			Target:      userMCPExecutorTarget("github"),
-			AccessToken: "token",
-			TokenType:   "mac",
+			Target: userMCPExecutorTarget("github"),
+			DefinitionFingerprint: definitionFingerprint(t, userMCPExecutorTarget("github"),
+				authEnabledServer("github", compozyconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")),
+			Issuer: "https://issuer.example.test", ClientID: "client-id", Scopes: []string{"tools.read"},
+			AccessToken: "token", TokenType: "mac",
 		}); err != nil {
 			t.Fatalf("SaveMCPAuthToken(non-bearer) error = %v", err)
 		}
-		executor := newTestMCPExecutor(
-			t,
-			compozyconfig.MCPServer{
-				Name:      "github",
-				Transport: compozyconfig.MCPServerTransportHTTP,
-				URL:       "https://mcp.example.test/mcp",
-			},
-			WithTokenStore(store),
-		)
+		server := authEnabledServer("github", compozyconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
+		executor := newTestMCPExecutor(t, server, WithTokenStore(store))
 		resolved := ResolvedServer{
-			Server: compozyconfig.MCPServer{Name: "github"},
+			Server: server,
 			Target: userMCPExecutorTarget("github"),
 		}
-		if got := executor.authorizationHeader(testContext(t), &resolved); got != "" {
-			t.Fatalf("authorizationHeader(non-bearer) = %q, want empty", got)
+		got, err := executor.authorizationHeader(testContext(t), &resolved)
+		if got != "" {
+			t.Fatal("authorizationHeader(non-bearer) sent a credential")
 		}
-		if got := (&CallExecutor{}).authorizationHeader(
+		requireReason(t, err, toolspkg.ReasonMCPAuthInvalid)
+		if got, err := (&CallExecutor{}).authorizationHeader(
 			testContext(t),
 			&resolved,
-		); got != "" {
+		); got != "" || err != nil {
 			t.Fatalf("authorizationHeader(nil store) = %q, want empty", got)
 		}
 		if !mcpServerMatches(compozyconfig.MCPServer{Name: "GitHub"}, "github") {
@@ -3802,26 +3849,26 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			reason toolspkg.ReasonCode
 		}{
 			{
-				name: "mismatched issuer",
+				name: "Should reject a mismatched issuer",
 				mutate: func(token *mcpauth.TokenRecord) {
 					token.Issuer = "https://other-issuer.example.test"
 				},
 			},
 			{
-				name: "mismatched client",
+				name: "Should reject a mismatched client",
 				mutate: func(token *mcpauth.TokenRecord) {
 					token.ClientID = "other-client"
 				},
 			},
 			{
-				name: "missing baseline scope",
+				name: "Should reject missing baseline scope",
 				mutate: func(token *mcpauth.TokenRecord) {
 					token.Scopes = []string{"other.scope"}
 				},
 				reason: toolspkg.ReasonMCPAuthInvalid,
 			},
 			{
-				name: "step-up scope superset",
+				name: "Should accept a step-up scope superset",
 				mutate: func(token *mcpauth.TokenRecord) {
 					token.Scopes = []string{"tools.read", "issues.write"}
 				},
@@ -3848,8 +3895,14 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 				}
 				executor := newTestMCPExecutor(t, server, WithTokenStore(store))
 				resolved := ResolvedServer{Server: server, Target: target}
-				if got := executor.authorizationHeader(t.Context(), &resolved); got != fixture.want {
-					t.Fatalf("authorizationHeader() = %q, want %q", got, fixture.want)
+				got, err := executor.authorizationHeader(t.Context(), &resolved)
+				if got != fixture.want {
+					t.Fatal("authorizationHeader() sent unexpected bearer material")
+				}
+				if fixture.want == "" {
+					requireReason(t, err, toolspkg.ReasonMCPAuthInvalid)
+				} else if err != nil {
+					t.Fatal(err)
 				}
 				if fixture.reason != "" {
 					requireReason(t, executor.ensureAuthorized(t.Context(), &resolved), fixture.reason)

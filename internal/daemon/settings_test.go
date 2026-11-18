@@ -777,6 +777,117 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 }
 
 func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
+	// Invariant: settings keeps a safe upstream diagnostic and reflects an observed bearer rejection.
+	// Owner: daemon Settings runtime; canonical suite: TestSettingsRuntimeSurfaceMCPServerRuntimeStatus.
+	t.Run(
+		"Should redact upstream diagnostics and require sign-in after a bound token gets HTTP 401",
+		func(t *testing.T) {
+			t.Parallel()
+			const access, refresh = "opaque-fixture-access", "opaque-fixture-refresh"
+			var httpStatus atomic.Int32
+			httpStatus.Store(http.StatusBadRequest)
+			endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodDelete {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				if r.Header.Get("Authorization") != "Bearer "+access {
+					t.Error("MCP request missing the bound bearer credential")
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				if code := int(httpStatus.Load()); code != http.StatusBadRequest {
+					w.WriteHeader(code)
+					return
+				}
+				var request struct{ ID json.RawMessage }
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Error(err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				if err := json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      request.ID,
+					"error": map[string]any{
+						"code":    -32047,
+						"message": "upstream fixture refused discovery " + access + " " + refresh,
+					},
+				}); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(endpoint.Close)
+			definition := compozyconfig.MCPServer{
+				Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: endpoint.URL,
+				Auth: compozyconfig.MCPAuthConfig{
+					Registration: compozyconfig.MCPAuthRegistrationPreRegistered, ClientID: "fixture-client",
+					IssuerURL: "https://issuer.example.test",
+				},
+			}
+			target := globalMCPTestTarget(definition.Name)
+			store := openDaemonTestGlobalDB(t)
+			generation := mcpauth.NewMutationGeneration()
+			manager, err := newSettingsMCPAuthManagerWithAuthorization(
+				store, nil, store, nil, compozyconfig.MCPOAuthConfig{}, nil, generation,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			surface := &settingsRuntimeSurface{
+				digestKey: []byte("test installation key"), mcpAuthStore: store,
+				mcpAuthManager: manager, mcpAuthGeneration: generation,
+			}
+			cfg, err := surface.mcpAuthServerConfig(t.Context(), target, definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
+				Target: target, DefinitionFingerprint: fingerprint, Issuer: cfg.IssuerURL, ClientID: cfg.ClientID,
+				AccessToken: access, RefreshToken: refresh, TokenType: "Bearer",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			for _, check := range []struct {
+				code       int
+				state      settingspkg.MCPServerRuntimeState
+				reason     toolspkg.ReasonCode
+				diagnostic string
+				auth       mcpauth.StatusValue
+			}{
+				{http.StatusBadRequest, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
+					toolspkg.ReasonMCPUnreachable, "JSON-RPC error -32047: upstream fixture refused discovery", mcpauth.StatusAuthenticated},
+				{http.StatusServiceUnavailable, settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
+					toolspkg.ReasonMCPUnreachable, "upstream HTTP 503", mcpauth.StatusAuthenticated},
+				{http.StatusUnauthorized, settingspkg.MCPServerRuntimeStateAuthRequired,
+					toolspkg.ReasonMCPAuthRequired, "rejected the stored token (HTTP 401)", mcpauth.StatusNeedsLogin},
+			} {
+				httpStatus.Store(int32(check.code))
+				status, err := surface.CheckMCPServerRuntime(t.Context(), target, definition)
+				if err != nil || status.State != check.state || status.Reason != string(check.reason) ||
+					!strings.Contains(status.Diagnostic, check.diagnostic) {
+					t.Fatalf("HTTP %d, status=%+v, err=%v", check.code, status, err)
+				}
+				if strings.Contains(status.Diagnostic, access) || strings.Contains(status.Diagnostic, refresh) {
+					t.Fatal("runtime diagnostic exposed a fixture token")
+				}
+				authStatus, err := surface.MCPAuthStatus(t.Context(), target, definition)
+				if err != nil || authStatus.Status != check.auth {
+					t.Fatalf("HTTP %d, auth status=%+v, err=%v", check.code, authStatus, err)
+				}
+			}
+			if _, err := store.GetMCPAuthToken(t.Context(), target); err != nil {
+				t.Fatalf("rejection discarded stored credentials: %v", err)
+			}
+		},
+	)
+
 	t.Run(
 		"Should refuse to present sign-in for a plugin header rejection without a resource challenge",
 		func(t *testing.T) {

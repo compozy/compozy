@@ -19,6 +19,39 @@ import (
 
 func TestManagerSessionMutationRaces(t *testing.T) {
 	t.Parallel()
+	// Invariant: a late remote rejection cannot invalidate a new login reissuing the same token.
+	// Owner: OAuth credential mutation; canonical suite: TestManagerSessionMutationRaces.
+	t.Run("Should ignore a stale remote rejection after replacing the credential", func(t *testing.T) {
+		t.Parallel()
+		manager, cfg, store, _ := newManagerRaceHarness(t, false)
+		if err := store.SaveMCPAuthToken(t.Context(), managerBoundToken(t, cfg, "exchanged-access")); err != nil {
+			t.Fatal(err)
+		}
+		revision, err := manager.generation.Revision(cfg.Target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.generation.RejectIfCurrent(cfg.Target, revision); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.service.AuthorizationToken(t.Context(), cfg); !errors.Is(err, ErrTokenRejected) {
+			t.Fatalf("credential rejection = %v, want ErrTokenRejected", err)
+		}
+		begin, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.ExchangeCallback(t.Context(), cfg, managerCallbackURL(begin)); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.generation.RejectIfCurrent(cfg.Target, revision); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.service.AuthorizationToken(t.Context(), cfg); err != nil {
+			t.Fatalf("late rejection affected the replacement credential: %v", err)
+		}
+	})
+
 	// Invariant: renewal of the old credential never supersedes an operator's pending login.
 	for _, rejected := range []bool{false, true} {
 		t.Run(fmt.Sprintf("Should finish an open login after refresh rejection is %t", rejected), func(t *testing.T) {

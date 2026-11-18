@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
@@ -308,12 +307,12 @@ func (s *Service) tokenRecordFromResponse(
 	if refreshToken == "" {
 		refreshToken = strings.TrimSpace(current.RefreshToken)
 	}
-	scopes := trimStrings(strings.Fields(resp.Scope))
+	scopes := parseScopes(resp.Scope)
 	if len(scopes) == 0 {
 		if current.AccessToken != "" {
-			scopes = trimStrings(current.Scopes)
+			scopes = normalizeScopes(current.Scopes)
 		} else {
-			scopes = trimStrings(cfg.Scopes)
+			scopes = normalizeScopes(cfg.Scopes)
 		}
 	}
 	expiresAt := time.Time{}
@@ -434,7 +433,7 @@ func statusFromTokenWithDiagnostic(
 	status.Refreshable = strings.TrimSpace(token.RefreshToken) != ""
 	status.Issuer = strings.TrimSpace(token.Issuer)
 	if len(token.Scopes) > 0 {
-		status.Scopes = slices.Clone(token.Scopes)
+		status.Scopes = normalizeScopes(token.Scopes)
 	}
 	if !token.ExpiresAt.IsZero() {
 		status.ExpiresAt = new(token.ExpiresAt.UTC())

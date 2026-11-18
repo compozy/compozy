@@ -28,6 +28,7 @@ type targetMutationGeneration struct {
 	refreshGeneration uint64
 	refreshAttempts   int
 	refreshRetryAt    time.Time
+	remoteRejected    bool
 }
 
 // NewMutationGeneration constructs a process-wide token mutation coordinator.
@@ -55,6 +56,32 @@ func (g *MutationGeneration) Revision(target Target) (uint64, error) {
 	generation.mu.Lock()
 	defer generation.mu.Unlock()
 	return generation.revision, nil
+}
+
+// RejectIfCurrent records a 401 for the observed credential without affecting a replacement login.
+func (g *MutationGeneration) RejectIfCurrent(target Target, revision uint64) error {
+	generation, err := g.forTarget(target)
+	if err != nil {
+		return err
+	}
+	generation.mu.Lock()
+	defer generation.mu.Unlock()
+	if generation.revision == revision && !generation.remoteRejected {
+		generation.remoteRejected = true
+		generation.revision++
+		g.revision.Add(1)
+	}
+	return nil
+}
+
+func (g *MutationGeneration) remotelyRejected(target Target) (bool, error) {
+	generation, err := g.forTarget(target)
+	if err != nil {
+		return false, err
+	}
+	generation.mu.Lock()
+	defer generation.mu.Unlock()
+	return generation.remoteRejected, nil
 }
 
 // Advance supersedes every mutation that started in an earlier generation.
@@ -89,6 +116,7 @@ func (g *MutationGeneration) CommitIfCurrent(
 	if err := commit(); err != nil {
 		return false, err
 	}
+	generation.remoteRejected = false
 	generation.revision++
 	g.revision.Add(1)
 	return true, nil
@@ -113,6 +141,7 @@ func (g *MutationGeneration) CommitAndAdvanceIfCurrent(
 	if err := commit(); err != nil {
 		return false, err
 	}
+	generation.remoteRejected = false
 	generation.value++
 	generation.revision++
 	g.revision.Add(1)

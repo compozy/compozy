@@ -115,10 +115,10 @@ func (g *VaultRepo) GetMCPAuthToken(ctx context.Context, target mcpauth.Target) 
 	}
 	token, err := mcpAuthTokenFromGenerated(row)
 	if err != nil {
-		return mcpauth.TokenRecord{}, err
+		return mcpauth.TokenRecord{}, errors.Join(mcpauth.ErrTokenResolution, err)
 	}
 	if err := g.resolveMCPAuthTokenSecrets(ctx, &token); err != nil {
-		return mcpauth.TokenRecord{}, err
+		return mcpauth.TokenRecord{}, errors.Join(mcpauth.ErrTokenResolution, err)
 	}
 	return token, nil
 }

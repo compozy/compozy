@@ -187,7 +187,7 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	}
 	matches, registration, err := s.tokenBinding(ctx, token, cfg)
 	if err != nil {
-		return Status{}, err
+		return Status{}, errors.Join(ErrTokenResolution, err)
 	}
 	if !matches {
 		if cfg.Implicit {
@@ -199,6 +199,13 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 			s.now(),
 			"stored token belongs to a different server definition; run login again",
 		), nil
+	}
+	rejected, err := s.generation.remotelyRejected(cfg.Target)
+	if err != nil {
+		return Status{}, err
+	}
+	if rejected {
+		return statusFromTokenWithDiagnostic(cfg, nil, s.now(), ErrTokenRejected.Error()), nil
 	}
 	return s.storedTokenStatus(cfg, token, registration), nil
 }
@@ -214,10 +221,17 @@ func (s *Service) AuthorizationToken(ctx context.Context, cfg ServerConfig) (Tok
 	}
 	matches, err := s.tokenMatchesServerDefinition(ctx, token, cfg)
 	if err != nil {
-		return TokenRecord{}, err
+		return TokenRecord{}, errors.Join(ErrTokenResolution, err)
 	}
 	if !matches || strings.TrimSpace(token.AccessToken) == "" {
 		return TokenRecord{}, ErrTokenBindingInvalid
+	}
+	rejected, err := s.generation.remotelyRejected(cfg.Target)
+	if err != nil {
+		return TokenRecord{}, err
+	}
+	if rejected {
+		return TokenRecord{}, ErrTokenRejected
 	}
 	if !token.ExpiresAt.IsZero() && !token.ExpiresAt.After(s.now().UTC()) {
 		return TokenRecord{}, ErrTokenExpired
