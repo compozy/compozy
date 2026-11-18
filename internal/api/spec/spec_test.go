@@ -3381,6 +3381,9 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
 		addMCPHotActivationSchemas(t, baseline, current)
+		// Gateway pairing exposes a hand-typed 6-digit alias beside the opaque artifact; the redeem
+		// request accepts either representation, so artifact becomes optional.
+		addGatewayManualPairingSchemas(t, baseline, current)
 		addMarketplacePluginCatalogSchemas(baseline)
 		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
 			"type": "array",
@@ -6955,6 +6958,47 @@ func addMCPReloadErrorFields(value any) int {
 }
 
 // These additions expose MCP status without changing any historical field.
+// addGatewayManualPairingSchemas approves the hand-typed 6-digit pairing alias.
+func addGatewayManualPairingSchemas(t *testing.T, baseline, current map[string]any) {
+	t.Helper()
+	newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+	oldPaths := baseline["paths"].(map[string]any)
+	manualCodeProperty := map[string]any{"type": "string"}
+	pairingComponent := newComponents["GatewayPairingArtifactPayload"].(map[string]any)
+	if pairingComponent["properties"].(map[string]any)["manual_code"] == nil {
+		t.Fatal("missing approved gateway pairing field manual_code")
+	}
+	// The mint response gains the required alias beside the opaque artifact.
+	mint := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings", "post", "responses", "201")
+	mint["properties"].(map[string]any)["manual_code"] = manualCodeProperty
+	mint["required"] = append(mint["required"].([]any), "manual_code")
+	// The redeem request accepts the artifact or the alias, so artifact is no longer required.
+	redeem := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings/redeem", "post", "requestBody")
+	redeem["properties"].(map[string]any)["manual_code"] = manualCodeProperty
+	required := make([]any, 0, len(redeem["required"].([]any)))
+	for _, name := range redeem["required"].([]any) {
+		if name != "artifact" {
+			required = append(required, name)
+		}
+	}
+	redeem["required"] = required
+}
+
+func gatewayBaselineSchema(
+	t *testing.T,
+	paths map[string]any,
+	path string,
+	method string,
+	keys ...string,
+) map[string]any {
+	t.Helper()
+	node := paths[path].(map[string]any)[method]
+	for _, key := range keys {
+		node = node.(map[string]any)[key]
+	}
+	return node.(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+}
+
 func addMCPHotActivationSchemas(t *testing.T, baseline, current map[string]any) {
 	t.Helper()
 	components := current["components"].(map[string]any)["schemas"].(map[string]any)

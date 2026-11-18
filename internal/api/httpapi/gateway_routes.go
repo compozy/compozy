@@ -41,6 +41,7 @@ func registerGatewayRemoteManagementRoutes(gatewayRoutes gin.IRouter, handlers *
 	gatewayRoutes.GET("/devices", handlers.ListGatewayDevices)
 	gatewayRoutes.PATCH("/devices/:id", handlers.RenameGatewayDevice)
 	gatewayRoutes.DELETE("/devices/:id", handlers.RevokeGatewayDevice)
+	gatewayRoutes.DELETE("/devices/:id/record", handlers.RemoveGatewayDevice)
 }
 
 func interopGatewayStreamTicketRoute(gatewayRoutes gin.IRouter, handlers *Handlers) {

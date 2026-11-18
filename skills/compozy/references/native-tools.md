@@ -706,7 +706,8 @@ Gateway tool: `compozy__gateway`, in toolset `compozy__gateway`. Resolve its liv
 calling it. `status`, `audit`, and `device_list` are read actions and remain callable in every
 session permission mode while the Gateway service is available. Management actions are
 `surface_set`, `provider_enable`, `provider_disable`, `device_rename`, `device_revoke`,
-`ingress_bind`, and `ingress_unbind`. A local operator may call them directly; an agent session must
+`device_remove`, `ingress_bind`, and `ingress_unbind`. A local operator may call them directly; an
+agent session must
 have effective permission mode `approve-all`. Lower modes return `tool_denied` with
 `policy_denied`. The tool returns only redacted projections and intentionally has no pairing,
 credential, or stream-ticket issuance action. Use the local CLI or private management API when a

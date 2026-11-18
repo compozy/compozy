@@ -34,12 +34,21 @@ func defaultGatewayTierServerFactory(
 			func() time.Time { return time.Now().UTC() },
 		)
 	}
+	pairingLimiter := deps.GatewayPairingLimiter
+	if pairingLimiter == nil {
+		pairingLimiter = gateway.NewAuthFailureLimiter(
+			deps.Config.Gateway.Auth.RateLimit.MaxFails,
+			deps.Config.Gateway.Auth.RateLimit.Window,
+			func() time.Time { return time.Now().UTC() },
+		)
+	}
 	options = append(options,
 		httpapi.WithHost("127.0.0.1"),
 		httpapi.WithPort(port),
 		httpapi.WithSurfaceSet(surfaceSet),
 		httpapi.WithGatewayChallenge(tier, deps.GatewayChallenges),
 		httpapi.WithGatewayAuthLimiter(authLimiter),
+		httpapi.WithGatewayPairingLimiter(pairingLimiter),
 	)
 	return httpapi.New(options...)
 }

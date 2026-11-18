@@ -3,8 +3,8 @@ title: Devices, audit, and teardown
 description: See what is reachable right now, manage and revoke paired devices, audit the exposure posture, and turn the gateway off — one surface or all of it.
 ---
 
-Day-two gateway operation is four verbs: look, revoke, audit, disable. All of them are also in the
-web UI under **Settings → Gateway**.
+Day-two gateway operation is four verbs: look, revoke or remove, audit, disable. All of them are
+also in the web UI under **Settings → Gateway**.
 
 ## See what is reachable right now
 
@@ -31,6 +31,7 @@ local bind, not reachability. The same projection is folded into `compozy status
 compozy device list
 compozy device rename <device-id> --name "Work phone"
 compozy device revoke <device-id>
+compozy device remove <device-id>
 ```
 
 The list shows every device that holds a session, where it was paired from, and when it was last
@@ -39,8 +40,14 @@ command returns (the output includes `Canceled Streams`), an in-flight request f
 committing, and the device lands on an explicit "access ended" screen. A returning device needs a
 new pairing and gets a new identity.
 
+A revoked device stays in the list on purpose — it is the audit trail of access you ended. Remove it
+when you no longer want the record: `compozy device remove <device-id>` deletes it. Removing an
+active device revokes it first, in one operation, and reports `Revoked true` plus the canceled
+stream count. Each removal appends a durable `gateway.device.removed` event before the record
+disappears, so the audit history outlives the row.
+
 Losing every remote device is recoverable. Local access on the daemon machine is the root of trust:
-it can always mint a new pairing and revoke any device. There is no password to forget.
+it can always mint a new pairing and revoke or remove any device. There is no password to forget.
 
 ## Audit the posture
 

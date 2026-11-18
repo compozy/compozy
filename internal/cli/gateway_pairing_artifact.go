@@ -22,6 +22,7 @@ const (
 
 type gatewayPairingArtifactReference struct {
 	ArtifactRef string    `json:"artifact_ref"`
+	ManualCode  string    `json:"manual_code,omitempty"`
 	ExpiresAt   time.Time `json:"expires_at"`
 }
 
@@ -33,6 +34,7 @@ func persistGatewayPairingArtifact(
 	if artifact == "" {
 		return gatewayPairingArtifactReference{}, errors.New("cli: gateway returned an empty pairing artifact")
 	}
+	manualCode := strings.TrimSpace(payload.ManualCode)
 	directory, err := fileutil.OpenOrCreateDirectory(homePaths.GatewayCredentialsDir, 0o700)
 	if err != nil {
 		return gatewayPairingArtifactReference{}, fmt.Errorf("cli: open pairing artifact directory: %w", err)
@@ -56,5 +58,7 @@ func persistGatewayPairingArtifact(
 	if err != nil {
 		return gatewayPairingArtifactReference{}, fmt.Errorf("cli: resolve pairing artifact reference: %w", err)
 	}
-	return gatewayPairingArtifactReference{ArtifactRef: path, ExpiresAt: payload.ExpiresAt}, nil
+	return gatewayPairingArtifactReference{
+		ArtifactRef: path, ManualCode: manualCode, ExpiresAt: payload.ExpiresAt,
+	}, nil
 }

@@ -233,6 +233,11 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			previous.Gateway.Auth.RateLimit.Window,
 			nil,
 		)
+		pairingLimiter := gateway.NewAuthFailureLimiter(
+			previous.Gateway.Auth.RateLimit.MaxFails,
+			previous.Gateway.Auth.RateLimit.Window,
+			nil,
+		)
 		verifier, err := gateway.NewEndpointVerifier(
 			previous.Gateway.Verify.Timeout,
 			previous.Gateway.Verify.PublicDNSResolver,
@@ -243,6 +248,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		state := &bootState{cfg: previous, gatewayVerifier: verifier}
 		state.deps.Config = previous
 		state.deps.GatewayAuthLimiter = limiter
+		state.deps.GatewayPairingLimiter = pairingLimiter
 		failures := daemonSettingsRuntimeApplier{
 			daemon: &Daemon{config: previous},
 			state:  state,
@@ -258,6 +264,12 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		if limiter.Allow("198.51.100.12", false) {
 			t.Fatal("gateway limiter second attempt = true, want live limit")
+		}
+		if !pairingLimiter.Allow("198.51.100.13", false) {
+			t.Fatal("gateway pairing limiter first attempt = false")
+		}
+		if pairingLimiter.Allow("198.51.100.13", false) {
+			t.Fatal("gateway pairing limiter second attempt = true, want live limit")
 		}
 		if got := state.deps.Config.Gateway.Verify.Timeout; got != next.Gateway.Verify.Timeout {
 			t.Fatalf("runtime dependency config timeout = %s, want %s", got, next.Gateway.Verify.Timeout)

@@ -192,7 +192,8 @@ func (h *BaseHandlers) GatewayRedeem(
 		return contract.GatewayIssuedCredentialPayload{}, errGatewayInvalidRequest
 	}
 	issued, err := h.Gateway.RedeemPairing(ctx, gateway.RedeemRequest{
-		Artifact: request.Artifact, Name: request.Name, Kind: gateway.ActorKind(request.ActorKind),
+		Artifact: request.Artifact, ManualCode: request.ManualCode, Name: request.Name,
+		Kind:   gateway.ActorKind(request.ActorKind),
 		Source: gateway.PairingSource(h.GatewayPairingSource), Credential: request.Credential,
 	})
 	if err != nil {
@@ -255,6 +256,17 @@ func (h *BaseHandlers) RevokeGatewayDevice(c *gin.Context) {
 	})
 }
 
+func (h *BaseHandlers) RemoveGatewayDevice(c *gin.Context) {
+	result, err := h.Gateway.RemoveDevice(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		h.respondGatewayError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.GatewayRemovedDevicePayload{
+		Device: GatewayDevicePayload(result.Device), Revoked: result.Revoked, Canceled: result.Canceled,
+	})
+}
+
 func (h *BaseHandlers) MintGatewayStreamTicket(c *gin.Context) {
 	device, ok := gateway.DeviceFromContext(c.Request.Context())
 	if !ok {
@@ -297,7 +309,8 @@ func validGatewayProviderEnableRequest(name string, request contract.GatewayProv
 
 func validGatewayPairingRedeemRequest(request contract.GatewayPairingRedeemRequest) bool {
 	kind := gateway.ActorKind(request.ActorKind)
-	return strings.TrimSpace(request.Artifact) != "" && strings.TrimSpace(request.Name) != "" &&
+	identifier := strings.TrimSpace(request.Artifact) != "" || strings.TrimSpace(request.ManualCode) != ""
+	return identifier && strings.TrimSpace(request.Name) != "" &&
 		(kind == gateway.ActorKindOperatorDevice || kind == gateway.ActorKindCLIProfile) &&
 		(strings.TrimSpace(request.Credential) == "" || gateway.IsDeviceCredential(request.Credential))
 }

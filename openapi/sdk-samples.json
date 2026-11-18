@@ -3151,6 +3151,13 @@
             "resource": "extensions",
             "app_access": "denied"
         },
+        "removeGatewayDevice": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.gateway.removeGatewayDevice({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RemoveGatewayDevice(ctx, client.RemoveGatewayDeviceParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "gateway",
+            "app_access": "denied"
+        },
         "removeMarketplaceSource": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.marketplace.removeMarketplaceSource({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RemoveMarketplaceSource(ctx, client.RemoveMarketplaceSourceParams{Name: \"name\"})\nif err != nil { return err }",

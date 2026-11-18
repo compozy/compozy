@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"bytes"
 	"encoding/base64"
 	"errors"
 	"strings"
@@ -213,6 +214,200 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 			PairingRequest{Source: PairingSourcePublic},
 		); !errors.Is(err, ErrPairingForbidden) {
 			t.Fatalf("MintPairing(public) error = %v", err)
+		}
+	})
+
+	// Invariant: the manual code is a uniformly random 6-digit alias of one pending artifact.
+	// Owning layer: gateway pairing store mint.
+	// Canonical suite: this device credential and pairing contract suite.
+	t.Run("Should mint a 6-digit manual code beside the opaque artifact", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service := newDeviceServiceOnly(t, &now)
+		artifact, err := service.MintPairing(t.Context(), PairingRequest{Source: PairingSourceLocal})
+		if err != nil {
+			t.Fatalf("MintPairing() error = %v", err)
+		}
+		if !validPairingManualCode(artifact.ManualCode) {
+			t.Fatalf("manual code = %q, want exactly 6 digits", artifact.ManualCode)
+		}
+		if artifact.ManualCode == artifact.Artifact {
+			t.Fatal("manual code reused the opaque artifact")
+		}
+	})
+
+	t.Run("Should keep manual code draws uniform by rejecting the biased tail", func(t *testing.T) {
+		t.Parallel()
+		reader := bytes.NewReader([]byte{
+			0xff, 0xff, 0xff, 0xff,
+			0xff, 0xff, 0xff, 0xff,
+			0x00, 0x0f, 0x42, 0x3f,
+		})
+		code, err := generatePairingManualCode(reader)
+		if err != nil || code != "999999" {
+			t.Fatalf("generatePairingManualCode() = %q, %v, want rejected draws skipped", code, err)
+		}
+		zero, err := generatePairingManualCode(bytes.NewReader([]byte{0, 0, 0, 0}))
+		if err != nil || zero != "000000" {
+			t.Fatalf("generatePairingManualCode(zero) = %q, %v, want zero-padded code", zero, err)
+		}
+		seen := make(map[string]struct{}, 200)
+		for range 200 {
+			code, err := generatePairingManualCode(defaultEntropy())
+			if err != nil || !validPairingManualCode(code) {
+				t.Fatalf("generatePairingManualCode(random) = %q, %v", code, err)
+			}
+			seen[code] = struct{}{}
+		}
+		if len(seen) < 100 {
+			t.Fatalf("distinct codes = %d of 200, want a non-degenerate distribution", len(seen))
+		}
+	})
+
+	t.Run("Should retry a colliding manual code instead of reusing it", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		stream := append(bytes.Repeat([]byte{0x02}, secretEntropyBytes), []byte{
+			0x00, 0x01, 0xe2, 0x40, // 123456 collides with the seeded code
+			0x00, 0x09, 0xfb, 0xf1, // 654321 is the retry
+		}...)
+		store, err := newPairingStore(4, time.Minute, func() time.Time { return now }, bytes.NewReader(stream))
+		if err != nil {
+			t.Fatalf("newPairingStore() error = %v", err)
+		}
+		store.manual[hashCredential("123456")] = "seeded-digest"
+		artifact, err := store.Mint(PairingSourceLocal)
+		if err != nil {
+			t.Fatalf("Mint() error = %v", err)
+		}
+		if artifact.ManualCode != "654321" {
+			t.Fatalf("manual code = %q, want the collision-free retry", artifact.ManualCode)
+		}
+		if got := store.manual[hashCredential("654321")]; got != hashCredential(artifact.Artifact) {
+			t.Fatalf("manual index = %q, want the artifact digest", got)
+		}
+	})
+
+	t.Run("Should fail closed when every manual code draw collides", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		stream := bytes.Repeat([]byte{0x02}, secretEntropyBytes)
+		for range pairingManualCodeAttempts {
+			stream = append(stream, 0x00, 0x01, 0xe2, 0x40)
+		}
+		store, err := newPairingStore(4, time.Minute, func() time.Time { return now }, bytes.NewReader(stream))
+		if err != nil {
+			t.Fatalf("newPairingStore() error = %v", err)
+		}
+		store.manual[hashCredential("123456")] = "seeded-digest"
+		if _, err := store.Mint(PairingSourceLocal); err == nil ||
+			!strings.Contains(err.Error(), "collided") {
+			t.Fatalf("Mint() error = %v, want a wrapped collision failure", err)
+		}
+		if len(store.entries) != 0 || len(store.manual) != 1 {
+			t.Fatalf(
+				"pairing state = %d entries / %d codes, want no partial mint",
+				len(store.entries),
+				len(store.manual),
+			)
+		}
+	})
+
+	// Invariant: either representation redeems the same pending entry exactly once.
+	// Owning layer: gateway pairing store redeem.
+	// Canonical suite: this device credential and pairing contract suite.
+	t.Run("Should redeem by manual code and spend the artifact too", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service := newDeviceServiceOnly(t, &now)
+		artifact, err := service.MintPairing(t.Context(), PairingRequest{Source: PairingSourceLocal})
+		if err != nil {
+			t.Fatalf("MintPairing() error = %v", err)
+		}
+		issued, err := service.RedeemPairing(t.Context(), RedeemRequest{
+			ManualCode: artifact.ManualCode, Name: "Typed", Kind: ActorKindOperatorDevice,
+			Source: PairingSourcePrivate,
+		})
+		if err != nil {
+			t.Fatalf("RedeemPairing(manual code) error = %v", err)
+		}
+		if issued.Device.Name != "Typed" {
+			t.Fatalf("issued device = %#v", issued.Device)
+		}
+		if _, err := service.RedeemPairing(t.Context(), RedeemRequest{
+			Artifact: artifact.Artifact, Name: "Replay", Kind: ActorKindOperatorDevice,
+			Source: PairingSourcePrivate,
+		}); !errors.Is(err, ErrPairingSpent) {
+			t.Fatalf("RedeemPairing(artifact after code) error = %v, want ErrPairingSpent", err)
+		}
+	})
+
+	t.Run("Should spend the manual code when the artifact redeems first", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service := newDeviceServiceOnly(t, &now)
+		artifact, err := service.MintPairing(t.Context(), PairingRequest{Source: PairingSourceLocal})
+		if err != nil {
+			t.Fatalf("MintPairing() error = %v", err)
+		}
+		if _, err := service.RedeemPairing(t.Context(), RedeemRequest{
+			Artifact: artifact.Artifact, Name: "Artifact", Kind: ActorKindOperatorDevice,
+			Source: PairingSourcePrivate,
+		}); err != nil {
+			t.Fatalf("RedeemPairing(artifact) error = %v", err)
+		}
+		if _, err := service.RedeemPairing(t.Context(), RedeemRequest{
+			ManualCode: artifact.ManualCode, Name: "Replay", Kind: ActorKindOperatorDevice,
+			Source: PairingSourcePrivate,
+		}); !errors.Is(err, ErrPairingSpent) {
+			t.Fatalf("RedeemPairing(code after artifact) error = %v, want ErrPairingSpent", err)
+		}
+	})
+
+	t.Run("Should normalize a grouped manual code before redemption", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service := newDeviceServiceOnly(t, &now)
+		artifact, err := service.MintPairing(t.Context(), PairingRequest{Source: PairingSourceLocal})
+		if err != nil {
+			t.Fatalf("MintPairing() error = %v", err)
+		}
+		grouped := artifact.ManualCode[:3] + " " + artifact.ManualCode[3:]
+		if _, err := service.RedeemPairing(t.Context(), RedeemRequest{
+			ManualCode: grouped, Name: "Grouped", Kind: ActorKindOperatorDevice,
+			Source: PairingSourcePrivate,
+		}); err != nil {
+			t.Fatalf("RedeemPairing(grouped code) error = %v", err)
+		}
+	})
+
+	t.Run("Should report expiry and mask unknown manual codes", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service := newDeviceServiceOnly(t, &now)
+		artifact, err := service.MintPairing(t.Context(), PairingRequest{Source: PairingSourceLocal})
+		if err != nil {
+			t.Fatalf("MintPairing() error = %v", err)
+		}
+		unknown := artifact.ManualCode[:5] + string((artifact.ManualCode[5]-'0'+1)%10+'0')
+		if _, err := service.RedeemPairing(t.Context(), RedeemRequest{
+			ManualCode: unknown, Name: "Unknown", Kind: ActorKindOperatorDevice,
+			Source: PairingSourcePrivate,
+		}); !errors.Is(err, ErrPairingInvalid) {
+			t.Fatalf("RedeemPairing(unknown code) error = %v, want ErrPairingInvalid", err)
+		}
+		now = now.Add(6 * time.Minute)
+		if _, err := service.RedeemPairing(t.Context(), RedeemRequest{
+			ManualCode: artifact.ManualCode, Name: "Expired", Kind: ActorKindOperatorDevice,
+			Source: PairingSourcePrivate,
+		}); !errors.Is(err, ErrPairingExpired) {
+			t.Fatalf("RedeemPairing(expired code) error = %v, want ErrPairingExpired", err)
+		}
+		if len(service.pairings.manual) != 0 {
+			t.Fatalf(
+				"manual index = %d, want expired entries evicted with their artifact",
+				len(service.pairings.manual),
+			)
 		}
 	})
 }

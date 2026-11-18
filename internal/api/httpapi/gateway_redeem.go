@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -20,10 +21,20 @@ func (h *Handlers) redeemGatewayPairing(c *gin.Context) {
 		abortGatewayRequest(c)
 		return
 	}
+	source := gatewayAuthSource(c.Request)
+	localOperator := h.GatewayPairingSource == string(gateway.PairingSourceLocal)
+	if h.pairingLimiter != nil && !h.pairingLimiter.Allow(source, localOperator) {
+		abortGatewayError(c, gateway.ErrAuthRateLimited)
+		return
+	}
 	payload, err := h.GatewayRedeem(c.Request.Context(), request)
 	if err != nil {
+		h.completeGatewayRedeemAttempt(source, localOperator, err)
 		abortGatewayError(c, err)
 		return
+	}
+	if h.pairingLimiter != nil {
+		h.pairingLimiter.Success(source)
 	}
 	c.Header("Cache-Control", "no-store")
 	c.Header("Referrer-Policy", "no-referrer")
@@ -35,6 +46,18 @@ func (h *Handlers) redeemGatewayPairing(c *gin.Context) {
 		payload.Credential = ""
 	}
 	c.JSON(http.StatusOK, payload)
+}
+
+// completeGatewayRedeemAttempt charges the pairing budget only for a wrong or unknown code.
+func (h *Handlers) completeGatewayRedeemAttempt(source string, localOperator bool, err error) {
+	if h.pairingLimiter == nil {
+		return
+	}
+	if errors.Is(err, gateway.ErrPairingInvalid) {
+		h.pairingLimiter.Failure(source, localOperator)
+		return
+	}
+	h.pairingLimiter.Complete(source)
 }
 
 func abortGatewayRequest(c *gin.Context) {

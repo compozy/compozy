@@ -2946,12 +2946,14 @@ export type GatewayIssuedCredentialPayload = {
 export type GatewayPairingArtifactPayload = {
   artifact: string;
   expires_at: string;
+  manual_code: string;
 };
 
 export type GatewayPairingRedeemRequest = {
   actor_kind: string;
-  artifact: string;
+  artifact?: string;
   credential?: string;
+  manual_code?: string;
   name: string;
 };
 
@@ -2975,6 +2977,12 @@ export type GatewayProviderPayload = {
 export type GatewayRefusalPayload = {
   cause: string;
   fix: string;
+};
+
+export type GatewayRemovedDevicePayload = {
+  canceled: number;
+  device: GatewayDevicePayload;
+  revoked: boolean;
 };
 
 export type GatewayRevokePayload = {
@@ -21777,6 +21785,41 @@ export type RenameGatewayDeviceResponses = {
 
 export type RenameGatewayDeviceResponse =
   RenameGatewayDeviceResponses[keyof RenameGatewayDeviceResponses];
+
+export type RemoveGatewayDeviceData = {
+  body?: never;
+  path: {
+    /**
+     * Gateway device id
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/gateway/devices/{id}/record";
+};
+
+export type RemoveGatewayDeviceErrors = {
+  /**
+   * Gateway device not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type RemoveGatewayDeviceError = RemoveGatewayDeviceErrors[keyof RemoveGatewayDeviceErrors];
+
+export type RemoveGatewayDeviceResponses = {
+  /**
+   * Removed
+   */
+  200: GatewayRemovedDevicePayload;
+};
+
+export type RemoveGatewayDeviceResponse =
+  RemoveGatewayDeviceResponses[keyof RemoveGatewayDeviceResponses];
 
 export type BindGatewayIngressData = {
   /**

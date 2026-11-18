@@ -5,6 +5,7 @@ import type { GatewayDevice, GatewayPairingArtifact } from "../types";
 import { useGatewayAudit, type GatewayAuditViewModel } from "./use-gateway-audit";
 import {
   useMintGatewayPairing,
+  useRemoveGatewayDevice,
   useRenameGatewayDevice,
   useRevokeGatewayDevice,
   useSetGatewaySurface,
@@ -38,9 +39,12 @@ export interface GatewaySettingsViewModel {
     error: string | null;
     rename: (id: string, name: string) => void;
     revoke: (device: GatewayDevice) => void;
+    remove: (device: GatewayDevice) => void;
   };
   pairing: GatewayPairingViewModel;
 }
+
+type DeviceAction = "rename" | "revoke" | "remove";
 
 /**
  * Everything the gateway settings page needs, as one flat view model.
@@ -56,7 +60,20 @@ export function useGatewaySettingsPage(): GatewaySettingsViewModel {
   const mintPairing = useMintGatewayPairing();
   const renameDevice = useRenameGatewayDevice();
   const revokeDevice = useRevokeGatewayDevice();
+  const removeDevice = useRemoveGatewayDevice();
   const [pairingOpen, setPairingOpen] = useState(false);
+  // Only the action the operator just ran owns the device error; a superseded
+  // mutation keeps its error object until it is reset below, and showing it
+  // after a later success would report a failure that no longer applies.
+  const [deviceAction, setDeviceAction] = useState<DeviceAction | null>(null);
+  const deviceError =
+    deviceAction === "rename"
+      ? renameDevice.error
+      : deviceAction === "revoke"
+        ? revokeDevice.error
+        : deviceAction === "remove"
+          ? removeDevice.error
+          : null;
 
   // A new device is admitted through the private overlay or on this machine —
   // never through the public address — so the pairing link points there.
@@ -81,10 +98,26 @@ export function useGatewaySettingsPage(): GatewaySettingsViewModel {
         }),
     },
     devices: {
-      isBusy: renameDevice.isPending || revokeDevice.isPending,
-      error: errorMessage(renameDevice.error ?? revokeDevice.error),
-      rename: (id, name) => renameDevice.mutate({ id, name }),
-      revoke: device => revokeDevice.mutate(device.id),
+      isBusy: renameDevice.isPending || revokeDevice.isPending || removeDevice.isPending,
+      error: errorMessage(deviceError),
+      rename: (id, name) => {
+        setDeviceAction("rename");
+        revokeDevice.reset();
+        removeDevice.reset();
+        renameDevice.mutate({ id, name });
+      },
+      revoke: device => {
+        setDeviceAction("revoke");
+        renameDevice.reset();
+        removeDevice.reset();
+        revokeDevice.mutate(device.id);
+      },
+      remove: device => {
+        setDeviceAction("remove");
+        renameDevice.reset();
+        revokeDevice.reset();
+        removeDevice.mutate({ id: device.id, name: device.name });
+      },
     },
     pairing: {
       open: pairingOpen,

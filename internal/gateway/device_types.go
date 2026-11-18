@@ -29,16 +29,19 @@ type PairingRequest struct {
 
 // PairingArtifact is returned only to the already-trusted minting caller.
 type PairingArtifact struct {
-	Artifact  string
-	ExpiresAt time.Time
+	Artifact   string
+	ManualCode string
+	ExpiresAt  time.Time
 }
 
-// RedeemRequest exchanges one artifact for one named device session.
+// RedeemRequest exchanges one artifact or manual code for one named device session.
 type RedeemRequest struct {
 	Artifact string
-	Name     string
-	Kind     ActorKind
-	Source   PairingSource
+	// ManualCode is the hand-typed 6-digit alias of Artifact; either one spends the same entry.
+	ManualCode string
+	Name       string
+	Kind       ActorKind
+	Source     PairingSource
 	// Credential is optional for browser redemption. CLI callers provision it locally first.
 	Credential string
 }
@@ -56,6 +59,13 @@ type RevokeResult struct {
 	Canceled int
 }
 
+// RemoveResult reports the deleted device record and the lifecycle work it required.
+type RemoveResult struct {
+	Device   DeviceSession
+	Revoked  bool
+	Canceled int
+}
+
 // StreamTicket is a short-lived, single-use stream credential.
 type StreamTicket struct {
 	Ticket    string
@@ -68,6 +78,19 @@ type StoredDeviceSession struct {
 	TokenHash string
 }
 
+// DeviceMutationEvent identifies one durable device lifecycle transition.
+type DeviceMutationEvent struct {
+	Device    DeviceSession
+	ActorKind string
+	ActorID   string
+	RemovedAt time.Time
+}
+
+// DeviceEventSink records durable device lifecycle events before the record changes.
+type DeviceEventSink interface {
+	RecordDeviceRemoved(context.Context, DeviceMutationEvent) error
+}
+
 // DeviceStore owns durable device-session transitions.
 type DeviceStore interface {
 	CreateDevice(context.Context, StoredDeviceSession) error
@@ -78,6 +101,8 @@ type DeviceStore interface {
 	RenameDeviceForActor(context.Context, string, uint64, string, string) (DeviceSession, error)
 	RevokeDevice(context.Context, string, time.Time) (DeviceSession, bool, error)
 	RevokeDeviceForActor(context.Context, string, uint64, string, time.Time) (DeviceSession, bool, error)
+	DeleteDevice(context.Context, string) (DeviceSession, error)
+	DeleteDeviceForActor(context.Context, string, uint64, string) (DeviceSession, error)
 	RevalidateDeviceEpoch(context.Context, string, uint64) error
 }
 

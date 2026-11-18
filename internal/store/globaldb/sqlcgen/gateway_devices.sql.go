@@ -61,6 +61,66 @@ func (q *Queries) CreateGatewayDevice(ctx context.Context, arg CreateGatewayDevi
 	return err
 }
 
+const deleteGatewayDevice = `-- name: DeleteGatewayDevice :one
+DELETE FROM gateway_device_sessions
+WHERE id = ?1 AND actor_kind <> 'app_token'
+RETURNING id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at
+`
+
+func (q *Queries) DeleteGatewayDevice(ctx context.Context, id string) (GatewayDeviceSession, error) {
+	row := q.db.QueryRowContext(ctx, deleteGatewayDevice, id)
+	var i GatewayDeviceSession
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.TokenHash,
+		&i.ActorKind,
+		&i.PairingOrigin,
+		&i.RevokeEpoch,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const deleteGatewayDeviceForActor = `-- name: DeleteGatewayDeviceForActor :one
+DELETE FROM gateway_device_sessions
+WHERE gateway_device_sessions.id = ?1
+  AND gateway_device_sessions.actor_kind <> 'app_token'
+  AND EXISTS (
+    SELECT 1
+    FROM gateway_device_sessions AS actor
+    WHERE actor.id = ?2
+      AND actor.revoke_epoch = ?3
+      AND actor.revoked_at IS NULL
+  )
+RETURNING id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at
+`
+
+type DeleteGatewayDeviceForActorParams struct {
+	TargetID   string `json:"target_id"`
+	ActorID    string `json:"actor_id"`
+	ActorEpoch int64  `json:"actor_epoch"`
+}
+
+func (q *Queries) DeleteGatewayDeviceForActor(ctx context.Context, arg DeleteGatewayDeviceForActorParams) (GatewayDeviceSession, error) {
+	row := q.db.QueryRowContext(ctx, deleteGatewayDeviceForActor, arg.TargetID, arg.ActorID, arg.ActorEpoch)
+	var i GatewayDeviceSession
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.TokenHash,
+		&i.ActorKind,
+		&i.PairingOrigin,
+		&i.RevokeEpoch,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const findActiveGatewayDeviceByTokenHash = `-- name: FindActiveGatewayDeviceByTokenHash :one
 UPDATE gateway_device_sessions
 SET last_seen_at = ?1

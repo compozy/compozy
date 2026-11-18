@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -11,6 +12,7 @@ func newDeviceCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newDeviceListCommand(deps))
 	cmd.AddCommand(newDeviceRenameCommand(deps))
 	cmd.AddCommand(newDeviceRevokeCommand(deps))
+	cmd.AddCommand(newDeviceRemoveCommand(deps))
 	return cmd
 }
 
@@ -80,6 +82,33 @@ func newDeviceRevokeCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(
 				cmd,
 				gatewayDeviceMutationOutput(result, result.Device.ID, result.Device.Name, status),
+			)
+		},
+	}
+}
+
+func newDeviceRemoveCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove <id>",
+		Short: "Remove a paired device record, revoking it first when it is active",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := gatewayClientFromDeps(deps)
+			if err != nil {
+				return fmt.Errorf("device remove: resolve gateway client: %w", err)
+			}
+			result, err := client.RemoveGatewayDevice(cmd.Context(), strings.TrimSpace(args[0]))
+			if err != nil {
+				return fmt.Errorf("device remove: %w", err)
+			}
+			return writeCommandOutput(
+				cmd,
+				gatewayDeviceMutationOutput(
+					result,
+					result.Device.ID,
+					result.Device.Name,
+					gatewayRemovedState,
+				),
 			)
 		},
 	}

@@ -270,6 +270,7 @@ func TestRegistryMetadata(t *testing.T) {
 			{name: GatewayConsentRecorded, family: "gateway.consent", outcome: OutcomeSuccess},
 			{name: GatewayDevicePaired, family: "gateway.device", outcome: OutcomeSuccess},
 			{name: GatewayDeviceRevoked, family: "gateway.device", outcome: OutcomeWarning},
+			{name: GatewayDeviceRemoved, family: "gateway.device", outcome: OutcomeWarning},
 			{name: GatewayProviderStateChanged, family: "gateway.provider", outcome: OutcomeInfo},
 			{name: GatewayEndpointVerified, family: "gateway.endpoint", outcome: OutcomeSuccess},
 			{name: GatewayEndpointRejected, family: "gateway.endpoint", outcome: OutcomeFailure},

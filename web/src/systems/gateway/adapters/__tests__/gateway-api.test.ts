@@ -20,8 +20,10 @@ const audit = gatewayAuditFixture({ status });
 const artifact = {
   artifact: "cpz_gwp_2f8c1d5a9b4e7c0d",
   expires_at: "2099-01-01T00:00:00Z",
+  manual_code: "482913",
 };
 const revoke = { canceled: 1, changed: true, device };
+const removed = { canceled: 1, device, revoked: true };
 const redeem = { device, credential: "credential" };
 const surfaceBody = {
   consent: false,
@@ -88,6 +90,13 @@ describe("gatewayApi", () => {
       request: { method: "DELETE", path: "/api/gateway/devices/dev_phone" },
     },
     {
+      name: "device record removal",
+      response: removed,
+      run: () => gatewayApi.removeDevice("dev_phone"),
+      expected: removed,
+      request: { method: "DELETE", path: "/api/gateway/devices/dev_phone/record" },
+    },
+    {
       name: "pairing mint",
       response: artifact,
       status: 201,
@@ -109,6 +118,26 @@ describe("gatewayApi", () => {
         body: {
           actor_kind: "operator_device",
           artifact: artifact.artifact,
+          name: "Work phone",
+        },
+        method: "POST",
+        path: "/api/gateway/pairings/redeem",
+      },
+    },
+    {
+      name: "pairing redeem by manual code",
+      response: redeem,
+      run: () =>
+        gatewayApi.redeemPairing({
+          actor_kind: "operator_device",
+          manual_code: artifact.manual_code,
+          name: "Work phone",
+        }),
+      expected: redeem,
+      request: {
+        body: {
+          actor_kind: "operator_device",
+          manual_code: artifact.manual_code,
           name: "Work phone",
         },
         method: "POST",

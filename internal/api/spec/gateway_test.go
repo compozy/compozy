@@ -71,6 +71,11 @@ func TestGatewayOperationRegistry(t *testing.T) {
 				auth:     managementAuth,
 				statuses: []int{200, 404, 500},
 			},
+			"DELETE /api/gateway/devices/{id}/record": {
+				operationID: "removeGatewayDevice", transports: []Transport{TransportHTTP, TransportUDS},
+				auth:     managementAuth,
+				statuses: []int{200, 404, 500},
+			},
 			"POST /api/gateway/stream-tickets": {
 				operationID: "mintGatewayStreamTicket", transports: []Transport{TransportHTTP},
 				auth:     map[Transport]OperationAuth{TransportHTTP: OperationAuthDevice},

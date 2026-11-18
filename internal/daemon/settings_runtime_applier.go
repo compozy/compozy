@@ -142,6 +142,18 @@ func (a daemonSettingsRuntimeApplier) applyGatewayTuningChange(
 			))
 		}
 	}
+	if limiter := a.state.deps.GatewayPairingLimiter; limiter != nil {
+		if err := limiter.Reconfigure(
+			next.Gateway.Auth.RateLimit.MaxFails,
+			next.Gateway.Auth.RateLimit.Window,
+		); err != nil {
+			failures = append(failures, configApplyFailure(
+				"gateway_pairing_limits",
+				"Gateway pairing limit sync failed",
+				err,
+			))
+		}
+	}
 	if verifier := a.state.gatewayVerifier; verifier != nil && previous.Gateway.Verify != next.Gateway.Verify {
 		if err := verifier.Reconfigure(
 			next.Gateway.Verify.Timeout,
@@ -204,6 +216,18 @@ func (a daemonSettingsRuntimeApplier) rollbackGatewayTuning(
 			failures = append(failures, configApplyFailure(
 				"gateway_auth_limits_rollback",
 				"Gateway authentication limit rollback failed",
+				err,
+			))
+		}
+	}
+	if limiter := a.state.deps.GatewayPairingLimiter; limiter != nil {
+		if err := limiter.Reconfigure(
+			previous.Gateway.Auth.RateLimit.MaxFails,
+			previous.Gateway.Auth.RateLimit.Window,
+		); err != nil {
+			failures = append(failures, configApplyFailure(
+				"gateway_pairing_limits_rollback",
+				"Gateway pairing limit rollback failed",
 				err,
 			))
 		}

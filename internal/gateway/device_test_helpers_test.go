@@ -34,6 +34,32 @@ type memoryDeviceStore struct {
 	byHash map[string]string
 }
 
+// recordingDeviceEventSink captures durable device lifecycle events for ownership tests.
+type recordingDeviceEventSink struct {
+	mu     sync.Mutex
+	events []DeviceMutationEvent
+	err    error
+}
+
+func (s *recordingDeviceEventSink) RecordDeviceRemoved(
+	_ context.Context,
+	event DeviceMutationEvent,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.err != nil {
+		return s.err
+	}
+	s.events = append(s.events, event)
+	return nil
+}
+
+func (s *recordingDeviceEventSink) recorded() []DeviceMutationEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]DeviceMutationEvent(nil), s.events...)
+}
+
 func newMemoryDeviceStore() *memoryDeviceStore {
 	return &memoryDeviceStore{
 		byID: make(map[string]StoredDeviceSession), byHash: make(map[string]string),
@@ -162,6 +188,26 @@ func (s *memoryDeviceStore) RevalidateDeviceEpoch(_ context.Context, id string, 
 	return s.revalidateLocked(id, epoch)
 }
 
+func (s *memoryDeviceStore) DeleteDevice(_ context.Context, id string) (DeviceSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.deleteLocked(id)
+}
+
+func (s *memoryDeviceStore) DeleteDeviceForActor(
+	_ context.Context,
+	actorID string,
+	epoch uint64,
+	id string,
+) (DeviceSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.revalidateLocked(actorID, epoch); err != nil {
+		return DeviceSession{}, err
+	}
+	return s.deleteLocked(id)
+}
+
 func (s *memoryDeviceStore) renameLocked(id, name string) (DeviceSession, error) {
 	record, ok := s.byID[id]
 	if !ok {
@@ -192,6 +238,16 @@ func (s *memoryDeviceStore) revalidateLocked(id string, epoch uint64) error {
 		return ErrDeviceRevoked
 	}
 	return nil
+}
+
+func (s *memoryDeviceStore) deleteLocked(id string) (DeviceSession, error) {
+	record, ok := s.byID[id]
+	if !ok {
+		return DeviceSession{}, ErrDeviceNotFound
+	}
+	delete(s.byID, id)
+	delete(s.byHash, record.TokenHash)
+	return record.Session, nil
 }
 
 func newDeviceServiceFixture(

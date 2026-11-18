@@ -194,12 +194,18 @@ func bindGatewayTierFlag(cmd *cobra.Command, tier *string) {
 
 func pairingArtifactOutput(record gatewayPairingArtifactReference) outputBundle {
 	return simpleGatewayOutput(record, func() string {
-		return renderHumanSection("Pairing", []keyValue{
-			{Label: "Artifact File", Value: record.ArtifactRef},
-			{Label: "Expires", Value: record.ExpiresAt.Format(time.RFC3339)},
-		})
+		rows := make([]keyValue, 0, 3)
+		if record.ManualCode != "" {
+			rows = append(rows, keyValue{Label: "Manual Code", Value: record.ManualCode})
+		}
+		rows = append(rows,
+			keyValue{Label: "Artifact File", Value: record.ArtifactRef},
+			keyValue{Label: "Expires", Value: record.ExpiresAt.Format(time.RFC3339)},
+		)
+		return renderHumanSection("Pairing", rows)
 	}, func() string {
-		return renderToonObject("pairing", []string{"artifact_ref", mcpAuthExpiresAtKey}, []string{
+		return renderToonObject("pairing", []string{"manual_code", "artifact_ref", mcpAuthExpiresAtKey}, []string{
+			record.ManualCode,
 			record.ArtifactRef,
 			record.ExpiresAt.Format(time.RFC3339),
 		})
@@ -208,8 +214,11 @@ func pairingArtifactOutput(record gatewayPairingArtifactReference) outputBundle 
 
 func gatewayDeviceMutationOutput(value any, id string, name string, status string) outputBundle {
 	canceled := ""
-	if revoke, ok := value.(contract.GatewayRevokePayload); ok {
-		canceled = strconv.Itoa(revoke.Canceled)
+	switch record := value.(type) {
+	case contract.GatewayRevokePayload:
+		canceled = strconv.Itoa(record.Canceled)
+	case contract.GatewayRemovedDevicePayload:
+		canceled = strconv.Itoa(record.Canceled)
 	}
 	return simpleGatewayOutput(value, func() string {
 		rows := []keyValue{
