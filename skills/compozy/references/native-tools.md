@@ -210,8 +210,8 @@ expires, you cancel it, or it reaches 64 wakes. It wakes at once when checks are
 head or the PR already conflicts with its base (with rebase guidance), then within about a minute of a
 check newly failing and once per observed round when all checks finish, including if they are
 already finished on the first read. A late check or rerun on the same head can trigger another
-completion wake after pending checks, an increase in completed checks, or a changed failure result.
-A rerun entirely between reads with an identical summary is indistinguishable. A
+completion wake after pending checks, an increase in completed checks, or a changed failure result
+at the same total. A rerun entirely between reads with an identical summary is indistinguishable. A
 conflict transition wakes once and can wake again after a known clearance; unknown mergeability never
 clears a conflict, including across restarts or forge outages. A new
 review or unresolved thread on the current head wakes after 2 minutes of quiet, held at most 5, and the first

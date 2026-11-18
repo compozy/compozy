@@ -105,7 +105,8 @@ func detectChecks(changes *PullRequestChanges, next prCursor, checks *PullReques
 	changes.Passed, changes.Failed, changes.Pending = checks.Passed, checks.Failed, checks.Pending
 	changes.FailedNames = checks.FailedNames
 	total := checks.Passed + checks.Failed
-	if total == 0 && checks.Pending == 0 {
+	// Keep the finished baseline if a smaller snapshot drops checks from the same round.
+	if checks.Pending == 0 && (total == 0 || total < next.FinishedTotal) {
 		return next
 	}
 	for _, name := range checks.FailedNames {

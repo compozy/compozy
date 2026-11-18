@@ -6040,7 +6040,7 @@ func TestMonitorIdleReleaseIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := service.Shutdown(context.Background()); err != nil {
+				if err := service.Shutdown(testutil.Context(t)); err != nil {
 					t.Error(err)
 				}
 			})

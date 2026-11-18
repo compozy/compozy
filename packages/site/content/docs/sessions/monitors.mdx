@@ -184,7 +184,8 @@ What it deliberately does not wake on:
   that arrives late on the old head is ignored, though open threads stay in the count each wake reports.
 - An unchanged check summary. A late check or rerun on the same head can wake on completion when the
   monitor saw checks go pending, or the completed summary shows more checks or a changed failure
-  result. A rerun that starts and ends between reads with the same summary is indistinguishable.
+  result at the same total. A rerun that starts and ends between reads with the same summary is
+  indistinguishable.
 - Review text. The wake says who reviewed and how, and tells the agent to read the reviews itself,
   including the review body, because follow-ups can live only there.
 

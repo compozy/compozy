@@ -2648,9 +2648,17 @@ func TestServicePullRequestMonitor(t *testing.T) {
 			}, noReviews()))
 			poll(1)
 			assertWake(t, 4, false, "lint")
-			forge.set(openPull("head-a", &PullRequestChecks{
+			failedRound := openPull("head-a", &PullRequestChecks{
 				Passed: 2, Failed: 1, FailedNames: []string{"lint"},
-			}, noReviews()))
+			}, noReviews())
+			forge.set(failedRound)
+			poll(1)
+			assertWake(t, 5, true)
+
+			forge.set(openPull("head-a", pending(2, 0), noReviews()))
+			poll(1)
+			assertWake(t, 5, true)
+			forge.set(failedRound)
 			poll(1)
 			assertWake(t, 5, true)
 
@@ -3145,6 +3153,31 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 		}
 		return after
 	}
+	t.Run("Should retain the completed round across recovery without a second wake", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			forge := &fakeForge{observation: openPull("head-a", pending(2, 0), noReviews())}
+			store, waker := newMemoryStore(), &recordingWaker{}
+			before := durableWatch(t, forge, store, waker)
+			if _, err := before.Create(t.Context(), pullRequestSpec("sess-1")); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 1 || !got[0].PullRequest.AllFinished {
+				t.Fatalf("first wake = %+v", got)
+			}
+			restart(t, before, forge, store, waker)
+			poll(1)
+			if got := waker.notifications(); len(got) != 1 {
+				t.Fatalf("unchanged round after recovery woke again: %+v", got)
+			}
+			forge.set(openPull("head-a", pending(3, 0), noReviews()))
+			poll(1)
+			if got := waker.notifications(); len(got) != 2 || !got[1].PullRequest.AllFinished {
+				t.Fatalf("later completion wakes = %+v", got)
+			}
+		})
+	})
 	for _, scenario := range []string{"push", "push without base", "retarget", "clear", "headless clear", "clear with other changes"} {
 		t.Run("Should reconcile a queued conflict after "+scenario, func(t *testing.T) {
 			t.Parallel()
