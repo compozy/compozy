@@ -531,6 +531,10 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 				mcpfixture.OAuthConfig{ClientIDMetadataDocumentSupported: true})
 			const redirect = "http://127.0.0.1:2123/api/mcp/oauth/callback"
 			document := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/.well-known/mcp-client.json" {
+					http.NotFound(w, r)
+					return
+				}
 				w.Header().Set("Content-Type", "application/json")
 				if _, err := fmt.Fprintf(w, `{"client_id":%q,"redirect_uris":[%q],"token_endpoint_auth_method":"none"}`,
 					"https://"+r.Host+r.URL.Path, redirect); err != nil {
@@ -605,9 +609,25 @@ func TestCIMDRegistrationRefresh(t *testing.T) {
 			if err != nil || !token.ExpiresAt.Equal(now.Add(time.Hour)) {
 				t.Fatal("the refreshed token was not persisted and usable")
 			}
-			if !tc.legacy && store.registration.TokenEndpointAuthMethod != tokenEndpointAuthMethodNone {
+			if tc.legacy {
+				return
+			}
+			if store.registration.TokenEndpointAuthMethod != tokenEndpointAuthMethodNone {
 				t.Fatal("the new CIMD registration did not persist its public-client auth method")
 			}
+			t.Run("Should use DCR when the newly configured CIMD document is unavailable", func(t *testing.T) {
+				fallback, err := NewService(store, append(options, WithClientMetadataURL(document.URL+"/missing"))...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				login, err := fallback.BeginLogin(t.Context(), cfg, redirect)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if login.Config.ClientID == clientID || len(fixture.Requests().Registration) != 1 {
+					t.Fatal("fallback reused a CIMD client instead of registering dynamically")
+				}
+			})
 		})
 	}
 }

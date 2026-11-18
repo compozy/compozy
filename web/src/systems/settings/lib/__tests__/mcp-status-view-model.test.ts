@@ -203,9 +203,12 @@ describe("authorize gating", () => {
     expect(authorizeLabel(refreshFailed)).toBe("Reauthorize");
   });
 
-  it.each(["ready", "auth_refresh_failed"])(
-    "keeps manual sign-in out of the %s row while an expired token can renew",
-    state => {
+  it.each([
+    { state: "ready", repair: null },
+    { state: "auth_refresh_failed", repair: "Reauthorize" },
+  ])(
+    "uses the $state runtime outcome to offer repair for an expired renewable token",
+    ({ state, repair }) => {
       const row = {
         transport: "http",
         auth: oauthConfig(),
@@ -217,7 +220,7 @@ describe("authorize gating", () => {
         authStatus: { ...authStatus, refreshable: true },
       });
 
-      expect(authorizeLabel(refreshable)).toBeNull();
+      expect(authorizeLabel(refreshable)).toBe(repair);
       expect(authorizeLabel(makeEntry({ ...row, authStatus }))).toBe("Reauthorize");
       if (state === "ready") expect(summarizeMCPStatus(refreshable).label).toBe("Ready");
     }

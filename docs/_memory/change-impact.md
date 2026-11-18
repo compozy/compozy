@@ -38,8 +38,9 @@ Owner: [#1828](https://github.com/compozy/compozy/issues/1828).
 - **State and isolation.** New CIMD registrations store the public auth method. The OAuth
   registration loader interprets older methodless CIMD rows in memory, with no SQLite shape
   change or row rewrite. The target, definition, resource, issuer and scope checks still apply.
-- **Web, official skill, docs and QA.** Settings leaves manual reauthorization out of rows
-  whose expired token can still renew. The MCP skill reference and the ET-api-mcp-oauth-endpoints and
+- **Web, official skill, docs and QA.** Settings omits manual reauthorization for expiry alone
+  when the token can renew and retains it when the runtime reports a failed refresh.
+  The MCP skill reference and the ET-api-mcp-oauth-endpoints and
   ET-web-mcp-status-matrix scenarios cover automatic renewal of new and existing CIMD clients.
 
 ## MCP OAuth root protected-resource discovery

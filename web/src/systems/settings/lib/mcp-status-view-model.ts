@@ -117,9 +117,15 @@ function canRenewExpiredOAuth(server: SettingsMCPServerEntry): boolean {
 export function isOAuthRepairable(server: SettingsMCPServerEntry): boolean {
   if (!isOAuthCapable(server)) return false;
   const state = server.runtime_status?.state;
-  if (state === "auth_required" || mcpScopeEscalationScopes(server).length > 0) return true;
+  if (
+    state === "auth_required" ||
+    state === "auth_refresh_failed" ||
+    mcpScopeEscalationScopes(server).length > 0
+  ) {
+    return true;
+  }
   if (canRenewExpiredOAuth(server)) return false;
-  return server.auth_status?.status !== "authenticated" || state === "auth_refresh_failed";
+  return server.auth_status?.status !== "authenticated";
 }
 
 export function authorizeLabel(server: SettingsMCPServerEntry): MCPAuthorizeLabel | null {

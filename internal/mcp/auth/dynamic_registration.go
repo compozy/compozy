@@ -33,7 +33,7 @@ func (s *Service) dynamicClientRegistration(
 		return "", "", "", err
 	}
 	existing, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
-	if err == nil && !s.isConfiguredCIMDRegistration(existing) && s.dynamicRegistrationReusable(
+	if err == nil && !existing.hasCIMDIdentity() && s.dynamicRegistrationReusable(
 		existing,
 		cfg,
 		fingerprint,
@@ -92,10 +92,6 @@ func (s *Service) loadTokenRegistration(ctx context.Context, target Target) (Cli
 		registration.TokenEndpointAuthMethod = tokenEndpointAuthMethodNone
 	}
 	return registration, err
-}
-
-func (s *Service) isConfiguredCIMDRegistration(registration ClientRegistration) bool {
-	return registration.ClientID == s.clientMetadataDocumentURL() && registration.hasCIMDIdentity()
 }
 
 func (r ClientRegistration) hasCIMDIdentity() bool {

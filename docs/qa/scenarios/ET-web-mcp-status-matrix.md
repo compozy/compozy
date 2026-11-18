@@ -116,4 +116,5 @@ See [targeted runtime evidence](../reports/2026-11-17-daemon-cpu-hot-paths.md).
 QA impact 2026-11-18 (#1828): for a remote OAuth server with an expired access token and a usable
 CIMD registration, Settings receives `refreshable=true` even for registrations saved without
 the auth method. The server keeps its tools and does not offer **Sign in** solely because of
-expiry. Follow the refresh steps in [ET-api-mcp-oauth-endpoints](ET-api-mcp-oauth-endpoints.md).
+expiry. A runtime `auth_refresh_failed` result continues to offer **Reauthorize**.
+Follow the refresh steps in [ET-api-mcp-oauth-endpoints](ET-api-mcp-oauth-endpoints.md).
