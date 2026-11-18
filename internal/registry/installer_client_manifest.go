@@ -79,14 +79,18 @@ func validateInstallerClientSchema(contents []byte, name string) error {
 	case status == agentplugin.SchemaUnsupportedVersion:
 		return &agentplugin.SchemaUnsupportedError{Path: name, Declared: declared}
 	default:
-		return fmt.Errorf("%w: %w", errInstallMissingManifest,
-			invalidAgentPluginManifest(name, "$schema", "unrelated client manifest"))
+		err := invalidAgentPluginManifest(name, "$schema", "unrelated client manifest")
+		if name == installerAgentPluginManifestName {
+			return fmt.Errorf("%w: %w", errInstallMissingManifest, err)
+		}
+		return err
 	}
 }
 
 func invalidAgentPluginManifest(name, field, reason string) error {
 	return &agentplugin.ManifestError{
-		Issues: []agentplugin.Issue{{Path: field, Message: fmt.Sprintf("%s in %q", reason, filepath.ToSlash(name))}},
+		ManifestPath: filepath.ToSlash(name),
+		Issues:       []agentplugin.Issue{{Path: field, Message: reason}},
 	}
 }
 

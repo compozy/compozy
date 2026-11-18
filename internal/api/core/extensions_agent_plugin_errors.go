@@ -17,6 +17,12 @@ func agentPluginManifestErrorPayload(
 	err error,
 	maskInternal bool,
 ) contract.ExtensionValidationErrorPayload {
+	path := "plugin.json"
+	archiveErr, _ := errors.AsType[*agentplugin.ManifestError](err)
+	if archiveErr != nil && archiveErr.ManifestPath != "" {
+		path = archiveErr.ManifestPath
+		err = archiveErr
+	}
 	message := redactAgentPluginIssueText(ErrorPayloadForStatus(status, err, maskInternal).Error)
 	diagnostic := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
 		ID:            "extension.agent_plugin.manifest_invalid",
@@ -28,7 +34,7 @@ func agentPluginManifestErrorPayload(
 		DataFreshness: diagnosticcontract.FreshnessLive,
 	})
 	issues := []contract.ValidationIssue{{
-		Path: "plugin.json", Message: message, Severity: contract.IssueSeverityError,
+		Path: path, Message: message, Severity: contract.IssueSeverityError,
 	}}
 	var manifestIssues []agentplugin.Issue
 	if validationErr, ok := errors.AsType[*extensionpkg.AgentPluginManifestValidationError](
@@ -36,17 +42,14 @@ func agentPluginManifestErrorPayload(
 	); ok &&
 		validationErr != nil {
 		manifestIssues = validationErr.Issues
-	} else if validationErr, ok := errors.AsType[*agentplugin.ManifestError](
-		err,
-	); ok &&
-		validationErr != nil {
-		manifestIssues = validationErr.Issues
+	} else if archiveErr != nil {
+		manifestIssues = archiveErr.Issues
 	}
 	if len(manifestIssues) > 0 {
 		issues = make([]contract.ValidationIssue, 0, len(manifestIssues))
 		for _, item := range manifestIssues {
 			issues = append(issues, contract.ValidationIssue{
-				Path:     "plugin.json",
+				Path:     path,
 				Field:    redactAgentPluginIssueText(item.Path),
 				Message:  redactAgentPluginIssueText(item.Message),
 				Severity: contract.IssueSeverityError,

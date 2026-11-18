@@ -152,19 +152,27 @@ type Issue struct {
 
 // ManifestError contains every deterministic fatal manifest issue.
 type ManifestError struct {
-	Issues []Issue
+	Issues       []Issue
+	ManifestPath string
 }
 
 func (e *ManifestError) Unwrap() error { return ErrManifestInvalid }
 
 // Error renders all issues without discarding their field paths.
 func (e *ManifestError) Error() string {
-	if e == nil || len(e.Issues) == 0 {
-		return "invalid Agent Plugins manifest"
+	message := "invalid Agent Plugins manifest"
+	if e == nil {
+		return message
+	}
+	if e.ManifestPath != "" {
+		message += fmt.Sprintf(" %q", e.ManifestPath)
+	}
+	if len(e.Issues) == 0 {
+		return message
 	}
 	parts := make([]string, 0, len(e.Issues))
 	for _, issue := range e.Issues {
 		parts = append(parts, fmt.Sprintf("%s: %s", issue.Path, issue.Message))
 	}
-	return "invalid Agent Plugins manifest: " + strings.Join(parts, "; ")
+	return message + ": " + strings.Join(parts, "; ")
 }

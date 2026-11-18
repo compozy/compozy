@@ -443,9 +443,8 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			taskpkg.ActorContext,
 		) (contract.ExtensionInstallPreviewPayload, error) {
 			return contract.ExtensionInstallPreviewPayload{}, &agentplugin.ManifestError{
-				Issues: []agentplugin.Issue{
-					{Path: "$schema", Message: "unrelated client manifest in .claude-plugin/plugin.json"},
-				},
+				ManifestPath: ".claude-plugin/plugin.json",
+				Issues:       []agentplugin.Issue{{Path: "$schema", Message: "unrelated client manifest"}},
 			}
 		}}
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
@@ -460,7 +459,9 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 		if response.Code != http.StatusUnprocessableEntity || payload.Diagnostic == nil ||
 			payload.Diagnostic.Code != diagnosticcontract.CodeExtensionAgentPluginManifestInvalid ||
 			len(payload.Issues) != 1 || payload.Issues[0].Field != "$schema" ||
-			!strings.Contains(payload.Issues[0].Message, ".claude-plugin/plugin.json") {
+			payload.Issues[0].Path != ".claude-plugin/plugin.json" ||
+			!strings.Contains(payload.Error, "unrelated client manifest") ||
+			strings.Contains(payload.Error, "archive missing") {
 			t.Fatalf("preview = %d %s", response.Code, response.Body.String())
 		}
 	})

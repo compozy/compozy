@@ -982,10 +982,9 @@ func TestMarketplaceCatalog(t *testing.T) {
 		}
 		handlers.Extensions = marketplaceInspectionService{
 			inspectFn: func(context.Context, marketplacepkg.Entry, string) (contract.MarketplaceExtensionDetailPayload, error) {
-				return contract.MarketplaceExtensionDetailPayload{}, &extensionpkg.AgentPluginManifestValidationError{
-					Issues: []agentplugin.Issue{
-						{Path: "$schema", Message: "unrelated client manifest in .claude-plugin/plugin.json"},
-					},
+				return contract.MarketplaceExtensionDetailPayload{}, &agentplugin.ManifestError{
+					ManifestPath: ".claude-plugin/plugin.json",
+					Issues:       []agentplugin.Issue{{Path: "$schema", Message: "unrelated client manifest"}},
 				}
 			},
 		}
@@ -997,7 +996,8 @@ func TestMarketplaceCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 		if response.Code != http.StatusUnprocessableEntity || len(payload.Issues) != 1 ||
-			payload.Issues[0].Field != "$schema" || !strings.Contains(payload.Error, ".claude-plugin/plugin.json") {
+			payload.Issues[0].Field != "$schema" || payload.Issues[0].Path != ".claude-plugin/plugin.json" ||
+			!strings.Contains(payload.Error, ".claude-plugin/plugin.json") {
 			t.Fatalf("detail = %d %s", response.Code, response.Body.String())
 		}
 	})

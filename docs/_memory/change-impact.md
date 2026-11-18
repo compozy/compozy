@@ -65,9 +65,9 @@ Owner: [#1837](https://github.com/compozy/compozy/issues/1837).
   source refresh. Extension install and update use the existing archive path and the existing
   manifest validation diagnostic when a selected plugin manifest is invalid.
 - **HTTP, UDS, Web and docs.** Entry detail and install preview report an invalid plugin manifest
-  as 422. The catalog marks invalid packages blocked, and Web uses the existing installable
-  field and diagnostic affordances. The API reference and `ET-agent-plugin-marketplace-install`
-  cover the change.
+  as 422. Web disables installation for blocked listings and shows the 422 cause in the existing
+  detail error view. Source refresh reclassifies previously cached rows. The API reference and
+  `ET-agent-plugin-marketplace-install` cover the change.
 - **Extensibility, config and isolation.** The archive accepts the official schema in the Claude
   Code layout and the existing adapter normalizes it in memory. Package digest, authored bytes,
   consent, workspace and profile boundaries, hook and SDK contracts, config, and storage formats
