@@ -254,6 +254,23 @@ describe("extensions management mutations", () => {
     });
   });
 
+  it("Should send permanent as the only removal query for a built-in and leave plain removal unchanged", async () => {
+    mockEmptyResponse({ status: 204 });
+    await removeExtension("spec-cycle", { permanent: true });
+    await expectFetchRequest({
+      method: "DELETE",
+      path: "/api/extensions/spec-cycle?permanent=true",
+    });
+
+    mockEmptyResponse({ status: 204 });
+    await removeExtension("spec-cycle", { profileName: "default" });
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "DELETE",
+      path: "/api/extensions/spec-cycle?profile=default",
+    });
+  });
+
   it("Should address the global instance when no workspace is active", async () => {
     mockJsonResponse({ logs: [], stream_epoch: "epoch-global" });
     await expect(listExtensionLogs("otel-bridge", { workspaceId: "   " })).resolves.toEqual({

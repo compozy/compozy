@@ -156,6 +156,7 @@ function MarketplaceDetailExtensionInstalled({
         open={state.activeDialog === "provenance"}
       />
       <RemoveExtensionDialog
+        canRemovePermanently
         extension={extension}
         onOpenChange={open => (open ? state.requestRemoval() : state.dismissDialog())}
         onRemoved={() => void state.navigate({ search: {}, to: "/marketplace/installed" })}
