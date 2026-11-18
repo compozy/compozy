@@ -11,6 +11,7 @@ import {
 // whether a keystroke matching a bound chord may run its command from the focused surface.
 
 interface Press {
+  key?: string;
   code: string;
   meta?: boolean;
   ctrl?: boolean;
@@ -20,8 +21,9 @@ interface Press {
   altGraph?: boolean;
 }
 
-function press({ code, meta, ctrl, alt, shift, composing, altGraph }: Press): ShortcutKeyEvent {
+function press({ key, code, meta, ctrl, alt, shift, composing, altGraph }: Press): ShortcutKeyEvent {
   return {
+    key: key ?? "Unidentified",
     code,
     metaKey: meta ?? false,
     ctrlKey: ctrl ?? false,
@@ -80,6 +82,31 @@ describe("shortcut eligibility", () => {
     expect(eligible("none", false, altGr)).toBe(false);
     expect(eligible("text", false, { code: "KeyQ", ctrl: true, alt: true })).toBe(true);
     expect(eligible("text", true, altGr)).toBe(true);
+  });
+
+  it("Should leave characters a Mac layout types with Option to a field and the terminal", () => {
+    // German ⌥L and Italian ⌥ò (the Semicolon key) type "@"; German ⌥5 types "[".
+    const typed = [
+      { key: "@", code: "KeyL", alt: true },
+      { key: "@", code: "Semicolon", alt: true },
+      { key: "[", code: "Digit5", alt: true },
+      { key: "|", code: "Digit7", alt: true, shift: true },
+    ];
+    for (const event of typed) {
+      expect(eligible("text", true, event)).toBe(false);
+      expect(eligible("terminal", true, event)).toBe(false);
+      expect(eligible("none", true, event)).toBe(true);
+    }
+    // US glyphs are not ASCII, and an Option that sends the key's own character acts as Alt.
+    expect(eligible("text", true, { key: "˙", code: "KeyH", alt: true })).toBe(true);
+    expect(eligible("text", true, { key: "…", code: "Semicolon", alt: true })).toBe(true);
+    expect(eligible("text", true, { key: "Ú", code: "Semicolon", alt: true, shift: true })).toBe(true);
+    expect(eligible("terminal", true, { key: "l", code: "KeyL", alt: true })).toBe(true);
+    expect(eligible("terminal", true, { key: ":", code: "Semicolon", alt: true, shift: true })).toBe(
+      true
+    );
+    // With Control or Command held the chord is never a typed character.
+    expect(eligible("text", true, { key: "@", code: "KeyL", alt: true, ctrl: true })).toBe(true);
   });
 
   it("Should leave native editing chords and caret moves to a text field by platform", () => {

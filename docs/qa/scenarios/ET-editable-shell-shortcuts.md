@@ -45,3 +45,5 @@ fields and the terminal. Walk on macOS (and Linux where available):
 4. Hold Option+H at the leftmost window: focus stays put and no ˙ characters appear.
 5. With a non-Latin IME composing, Option chords do not fire.
 
+6. With the macOS German input source, press Option+L in the composer and in the Terminal app: `@`
+   is typed and focus does not move. Option+L in an empty shell area still focuses right.

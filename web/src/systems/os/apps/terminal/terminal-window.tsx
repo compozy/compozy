@@ -304,6 +304,7 @@ function TerminalWindowJournal({
 
 function TerminalWindowReplay({ retentionDays }: { retentionDays?: number }) {
   const { recording, replay, setReplay } = useTerminalWindowControllerContext();
+  const isHostShortcut = useTerminalHostShortcut();
   if (replay === null) return null;
   if (recording.isPending) {
     return <TerminalRecordingSkeleton />;
@@ -319,6 +320,7 @@ function TerminalWindowReplay({ retentionDays }: { retentionDays?: number }) {
   }
   return (
     <TerminalRecordingPlayer
+      isHostShortcut={isHostShortcut}
       onOpenJournal={() => setReplay(null)}
       recordingId={replay.id}
       retentionNote={retentionDays === undefined ? undefined : `Kept for ${retentionDays} days`}

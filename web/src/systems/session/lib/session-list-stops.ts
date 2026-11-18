@@ -58,8 +58,9 @@ export function adjacentSessionListStop(
 }
 
 /**
- * Lands the walk on a stop. A header takes keyboard focus. A session row is
- * activated the way a click activates it; it also takes focus when the walk is
+ * Lands the walk on a stop. A header, and a session row while a bulk selection
+ * is open, takes keyboard focus. Otherwise a session row is activated the way a
+ * click activates it; it also takes focus when the walk is
  * already inside the rail, so the next step starts from it, while focus held
  * elsewhere (the composer) stays put and the next step resolves the row from
  * the session the window now shows.
@@ -69,7 +70,9 @@ export function landSessionListStop(
   stop: HTMLElement,
   activeElement: Element | null
 ) {
-  if (sessionListStopKind(stop) === "session") {
+  // While a bulk selection is open a click toggles the row's membership, so
+  // the walk only focuses the row there instead of changing the selection.
+  if (sessionListStopKind(stop) === "session" && !stop.hasAttribute("aria-pressed")) {
     if (activeElement !== null && root.contains(activeElement)) stop.focus();
     stop.click();
   } else {

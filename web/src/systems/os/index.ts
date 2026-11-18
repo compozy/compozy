@@ -127,6 +127,7 @@ export { buildWindowManagerMinimums } from "./lib/window-manager-view";
 // which is what makes their ids, labels and chords identical by construction.
 export { CmdPaletteRegistryProvider } from "./contexts/cmd-palette-registry-context";
 export { usePaletteCommand, usePaletteRegistry } from "./hooks/use-palette-registry";
+export { useTerminalHostShortcut } from "./hooks/use-terminal-host-shortcut";
 export { registryShortcutActions } from "./lib/cmd-palette-shortcut-actions";
 export { cmdPaletteKeys } from "./lib/cmd-palette-query-keys";
 export { resetCmdPalettePersonalization } from "./adapters/cmd-palette-api";

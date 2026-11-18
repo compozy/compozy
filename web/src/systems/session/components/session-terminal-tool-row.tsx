@@ -2,7 +2,7 @@ import { Button, ToolCallRow, formatDuration } from "@compozy/ui";
 import { ArrowUpRight } from "@compozy/ui/icons";
 import { Suspense, lazy, use, useState } from "react";
 
-import { OsShellContext, type OsShellHandle } from "@/systems/os";
+import { OsShellContext, type OsShellHandle, useTerminalHostShortcut } from "@/systems/os";
 import type { TerminalInfo } from "@/systems/terminal/parts";
 import { itemBindingSearch } from "@/systems/workspace";
 import { useSessionTerminalCatalogEntry } from "../hooks/use-session-terminal-catalog";
@@ -142,6 +142,7 @@ function TerminalToolRowView({
   onRail = false,
 }: TerminalToolRowViewProps) {
   const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
+  const isHostShortcut = useTerminalHostShortcut();
   const { run, outcome, title, registryTool, verb, statText, live } = terminalRowPresentation(
     message,
     facts,
@@ -195,6 +196,7 @@ function TerminalToolRowView({
             <SessionTerminalBlock
               blockId={message.id}
               exit={run.exit}
+              isHostShortcut={isHostShortcut}
               preview={facts.preview}
               terminalId={facts.terminalId}
               title={title ?? "Terminal"}

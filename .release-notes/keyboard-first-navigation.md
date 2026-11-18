@@ -19,7 +19,9 @@ field, the composer, or a terminal. Plain keys and Shift-only chords such as `?`
 fields keep undo, redo, select all, clipboard, formatting, and caret moves. In a macOS terminal,
 Control chords that are not bound reach the shell, including ⌃K, ⌃V, and ⌃0. On Linux and Windows,
 a chord whose only modifier is Control stays with the shell, except the palette, paste, copy with a
-selection, and zoom. Holding a bound chord runs it once instead of typing the character.
+selection, and zoom. On macOS, an Option chord your keyboard layout turns into a character, such as
+⌥L for `@` on a German layout, stays typing. Holding a bound chord runs it once instead of typing the
+character.
 
 Shortcuts have their own Settings page, Settings › Shortcuts, with the keymap table, aliases,
 conflicts, and global hotkeys. The Layouts page keeps window behavior and saved layouts.
@@ -35,9 +37,14 @@ is optional and defaults to the right.
   them again in Settings › Shortcuts or under `[window_manager.shortcuts]`.
 - **Your bindings are kept.** `[window_manager.shortcuts]`, every command id, and your overrides are
   unchanged. A stored binding that uses a chord the new defaults also use keeps it; the default
-  gives that chord up.
-- **Terminal preset removed.** Its chords are now the defaults, so Settings no longer offers the
-  preset. Values you applied earlier stay in your config and keep working.
+  gives that chord up. An extension's default chord that a new default now uses stops working until
+  you bind it.
+- **Terminal preset removed.** Its window, tab, and session chords are now the defaults, so Settings
+  no longer offers the preset. Its attention (⌥I), tab-jump (⌃⌥1–9), workspace, and desktop chords did not
+  become defaults. Values you applied earlier stay in your config and keep working. If you applied
+  it, your stored Previous and Next session bindings replace the new defaults, so ⌃⌥↑/↓ do not walk
+  sessions; reset those two rows in Settings › Shortcuts to get them.
+- **Zoom on macOS.** Zoom in, out, and reset use ⌘ only; ⌃=, ⌃-, and ⌃0 no longer zoom.
 - **Moved page.** Shortcuts moved from Settings › Layouts to Settings › Shortcuts
   (`/settings/shortcuts`). An old `/settings/layouts?command=<id>` link opens the Shortcuts page
   focused on that command until v0.9.0.

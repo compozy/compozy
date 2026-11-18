@@ -181,10 +181,14 @@ Shortcuts keep working while focus is in a text field, the composer, or a termin
 - In a terminal on macOS, every bound chord runs its command and every unbound chord reaches the
   shell, including ⌃K, ⌃V, and ⌃0. On Linux and Windows, a chord whose only modifier is Control
   stays with the shell (⌃W, ⌃E, ⌃1…), except the palette (⌃K), paste, copy with a selection, and zoom.
+- On macOS, an Option chord that your keyboard layout turns into a character, such as ⌥L for `@` on
+  a German layout, stays typing in a text field or a terminal. Bind that command to another chord if
+  you need it there.
 - Holding a bound chord runs it once; the key repeat is swallowed instead of typed.
 
-Edit any binding in Settings → Shortcuts. The old Terminal preset is gone because its chords are
-now the defaults.
+Edit any binding in Settings → Shortcuts. The old Terminal preset is gone: its window, tab, and
+session chords are now defaults. Its attention (⌥I), tab-jump (⌃⌥1–9), workspace, and desktop chords did not
+become defaults; bind them yourself if you want them.
 
 ## Platform notes
 

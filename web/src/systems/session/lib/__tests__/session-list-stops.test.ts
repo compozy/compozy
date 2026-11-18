@@ -3,7 +3,8 @@
 // project-folder, group and folder header and every session row in on-screen
 // order, skipping everything else, wrapping both ways and entering at the edge
 // when nothing is current. A header lands with keyboard focus; a row lands the
-// way a click lands, keeping focus that sits outside the rail where it is.
+// way a click lands, keeping focus that sits outside the rail where it is,
+// and only takes focus while a bulk selection is open.
 // Owning layer: unit (systems/session/lib)
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -110,6 +111,22 @@ describe("walkSessionList", () => {
     walkSessionList(rail, "next", null);
 
     expect(scroll).toHaveBeenCalledExactlyOnceWith({ block: "nearest" });
+  });
+
+  it("focuses a row without toggling it while a bulk selection is open", () => {
+    const { rail, clicked } = mountRail(
+      RAIL.replace('id="s1"', 'id="s1" aria-pressed="false"').replace(
+        'id="s2"',
+        'id="s2" aria-pressed="true"'
+      )
+    );
+    byId("folder").focus();
+
+    walkSessionList(rail, "next", null);
+    expect(document.activeElement).toBe(byId("s1"));
+    walkSessionList(rail, "next", "s1");
+    expect(document.activeElement).toBe(byId("s2"));
+    expect(clicked).toEqual([]);
   });
 
   it("reports nowhere to go with fewer than two stops", () => {
