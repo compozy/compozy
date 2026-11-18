@@ -34,7 +34,7 @@ Verdicts: `small`, `spec`, `needs-info`, `invalid`, `duplicate #M`, `fixed-by <r
 
 ## Run
 
-1. **List candidates cheaply:** `gh issue list -R compozy/compozy --state open --limit 100 --json number,title,author,updatedAt,comments`. Ignore pull requests and long-lived meta issues such as #32 "Feedbacks & Suggestions".
+1. **List candidates cheaply:** `gh issue list -R compozy/compozy --state open --limit 100 --json number,title,author,updatedAt,comments`. Ignore pull requests and long-lived meta issues: #32 "Feedbacks & Suggestions" and bot-maintained tracking issues (author `app/github-actions` whose body starts with a `<!-- compozy-` marker, such as the CI flake census #1813). They get no ledger line. Name every issue you ignore in your final output, and never end with `nothing new` while an unvetted, non-ignored issue remains.
 2. **Deduplicate before reading anything else.** Skip an issue when the ledger already has a line for it. Exception: when its last verdict is `needs-info` and the issue has a comment by its author newer than that verdict, vet it again. When a `needs-info` issue has had no author reply for 14 days, close it as not planned with a short comment inviting the author to reopen with the requested details. Record that as `invalid`.
 3. **Skip covered issues** without vetting, and record no line for them:
    - an open pull request that will close the issue: `closingIssuesReferences` contains it, its branch contains `issue-N`, or its title or body says it fixes, closes or resolves `#N`. A bare `#N` mention (follow-up, related, out of scope, depends on) is not coverage;
