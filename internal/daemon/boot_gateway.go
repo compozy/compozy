@@ -19,7 +19,11 @@ func (d *Daemon) bootGateway(ctx context.Context, state *bootState, cleanup *boo
 	if !deviceStoreAvailable {
 		return d.bootFailClosedGateway(ctx, state, cleanup, gatewayStore)
 	}
-	return d.bootDeviceGateway(ctx, state, cleanup, gatewayStore, deviceStore)
+	eventWriter, ok := state.registry.(store.EventSummaryStore)
+	if !ok {
+		return errors.New("daemon: registry does not implement the gateway event store")
+	}
+	return d.bootDeviceGateway(ctx, state, cleanup, gatewayStore, deviceStore, eventWriter)
 }
 
 func (d *Daemon) bootFailClosedGateway(
@@ -47,9 +51,11 @@ func (d *Daemon) bootDeviceGateway(
 	cleanup *bootCleanup,
 	gatewayStore gateway.Store,
 	deviceStore gateway.DeviceStore,
+	eventWriter store.EventSummaryStore,
 ) error {
 	deviceOptions := []gateway.DeviceServiceOption{
 		gateway.WithDeviceClock(d.now),
+		gateway.WithDeviceEvents(gatewayDeviceAuditSink{writer: eventWriter, now: d.now}),
 		gateway.WithPairingLimits(
 			state.cfg.Gateway.Pairing.MaxPending,
 			state.cfg.Gateway.Pairing.TTL,
@@ -75,6 +81,13 @@ func (d *Daemon) bootDeviceGateway(
 		state.cfg.Gateway.Auth.RateLimit.Window,
 		d.now,
 	)
+	// Pairing keeps its own budget: a successful device-authenticated request
+	// resets device-auth failures, and that must not forgive pairing attempts.
+	state.deps.GatewayPairingLimiter = gateway.NewAuthFailureLimiter(
+		state.cfg.Gateway.Auth.RateLimit.MaxFails,
+		state.cfg.Gateway.Auth.RateLimit.Window,
+		d.now,
+	)
 	challenges := gateway.NewChallengeRegistry()
 	state.deps.GatewayChallenges = challenges
 	providerEffects, err := d.resolveGatewayProviderEffects(state, gatewayStore, challenges)
@@ -95,10 +108,6 @@ func (d *Daemon) bootDeviceGateway(
 	ingressStore, ok := state.registry.(gateway.IngressStore)
 	if !ok {
 		return errors.New("daemon: registry does not implement the gateway ingress store")
-	}
-	eventWriter, ok := state.registry.(store.EventSummaryStore)
-	if !ok {
-		return errors.New("daemon: registry does not implement the gateway ingress event store")
 	}
 	service, err := gateway.NewService(
 		policy,

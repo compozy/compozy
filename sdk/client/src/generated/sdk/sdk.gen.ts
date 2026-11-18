@@ -1359,6 +1359,9 @@ import type {
   RemoveExtensionData,
   RemoveExtensionErrors,
   RemoveExtensionResponses,
+  RemoveGatewayDeviceData,
+  RemoveGatewayDeviceErrors,
+  RemoveGatewayDeviceResponses,
   RemoveMarketplaceSourceData,
   RemoveMarketplaceSourceErrors,
   RemoveMarketplaceSourceResponses,
@@ -4954,6 +4957,24 @@ export class gateway extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Remove one paired gateway device record
+   */
+  public removeGatewayDevice<ThrowOnError extends boolean = true>(
+    options: Options<RemoveGatewayDeviceData, ThrowOnError>
+  ): RequestResult<RemoveGatewayDeviceResponses, RemoveGatewayDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RemoveGatewayDeviceResponses,
+      RemoveGatewayDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/gateway/devices/{id}/record",
+      ...options,
     });
   }
 

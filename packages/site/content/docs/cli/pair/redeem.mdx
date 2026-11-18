@@ -1,14 +1,14 @@
 ---
 title: "compozy pair redeem"
-description: "Redeem a pairing artifact into a named remote profile"
+description: "Redeem a pairing artifact or 6-digit code into a named remote profile"
 ---
 
 ## compozy pair redeem
 
-Redeem a pairing artifact into a named remote profile
+Redeem a pairing artifact or 6-digit code into a named remote profile
 
 ```
-compozy pair redeem <artifact> [flags]
+compozy pair redeem <artifact-or-code> [flags]
 ```
 
 ### Options
@@ -44,5 +44,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy pair redeem <artifact> -o json
+compozy pair redeem <artifact-or-code> -o json
 ```

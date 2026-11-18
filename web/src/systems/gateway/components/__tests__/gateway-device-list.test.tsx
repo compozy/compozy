@@ -1,7 +1,7 @@
 // Suite: gateway device inventory
 // Invariant: every paired device shows its name, where it was paired from, and when it was last
-// active, and an active device can be renamed and revoked immediately. A revoked device stays in
-// the inventory for audit but offers no actions.
+// active. An active device can be renamed, revoked, or removed. A revoked device stays in the
+// inventory for audit and offers only Remove, which deletes its record after explicit confirmation.
 // Owning layer: the gateway device inventory components.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -14,6 +14,7 @@ function renderList(overrides: Partial<React.ComponentProps<typeof GatewayDevice
     devices: [gatewayDeviceFixture()],
     isBusy: false,
     onPair: vi.fn(),
+    onRemove: vi.fn(),
     onRename: vi.fn(),
     onRevoke: vi.fn(),
     ...overrides,
@@ -21,6 +22,8 @@ function renderList(overrides: Partial<React.ComponentProps<typeof GatewayDevice
   render(<GatewayDeviceList {...props} />);
   return props;
 }
+
+const REVOKED = { revoked_at: "2026-08-07T09:00:00Z", revoke_epoch: 1 };
 
 describe("GatewayDeviceList", () => {
   it("Should show name, origin, and last activity for each device", () => {
@@ -94,15 +97,91 @@ describe("GatewayDeviceList", () => {
     expect(onRevoke).not.toHaveBeenCalled();
   });
 
-  it("Should keep a revoked device visible for audit but offer no actions", () => {
-    renderList({
-      devices: [gatewayDeviceFixture({ revoked_at: "2026-08-07T09:00:00Z", revoke_epoch: 1 })],
-    });
+  it("Should keep a revoked device visible for audit, withdrawing rename and revoke but keeping Remove", () => {
+    renderList({ devices: [gatewayDeviceFixture(REVOKED)] });
     const row = screen.getByTestId("gateway-device-dev_phone");
 
     expect(row).toHaveTextContent("Revoked");
     expect(screen.queryByTestId("gateway-device-dev_phone-revoke")).not.toBeInTheDocument();
     expect(screen.queryByTestId("gateway-device-dev_phone-rename")).not.toBeInTheDocument();
+    expect(screen.getByTestId("gateway-device-dev_phone-remove")).toBeInTheDocument();
+  });
+
+  it("Should explain that removing an active device revokes it first and deletes its record", async () => {
+    renderList();
+    fireEvent.click(screen.getByTestId("gateway-device-dev_phone-remove"));
+
+    const dialog = await screen.findByTestId("gateway-device-dev_phone-remove-dialog");
+    expect(dialog).toHaveTextContent("Remove Work phone?");
+    expect(dialog).toHaveTextContent("loses its session");
+    expect(dialog).toHaveTextContent("live streams close");
+    expect(dialog).toHaveTextContent("its record is deleted");
+    expect(dialog).toHaveTextContent("This cannot be undone");
+    expect(dialog).toHaveTextContent("revokes it first");
+  });
+
+  it("Should describe removing an already revoked device as deleting only its record", async () => {
+    renderList({ devices: [gatewayDeviceFixture(REVOKED)] });
+    fireEvent.click(screen.getByTestId("gateway-device-dev_phone-remove"));
+
+    const dialog = await screen.findByTestId("gateway-device-dev_phone-remove-dialog");
+    expect(dialog).toHaveTextContent("is already revoked");
+    expect(dialog).toHaveTextContent("deletes its record from this list");
+    expect(dialog).not.toHaveTextContent("live streams");
+    expect(dialog).not.toHaveTextContent("revokes it first");
+  });
+
+  it("Should not remove until the removal is confirmed, then remove exactly that device", async () => {
+    const onRemove = vi.fn();
+    renderList({ onRemove });
+    fireEvent.click(screen.getByTestId("gateway-device-dev_phone-remove"));
+
+    expect(onRemove).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByTestId("gateway-device-dev_phone-remove-confirm"));
+
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    expect(onRemove).toHaveBeenCalledWith(expect.objectContaining({ id: "dev_phone" }));
+  });
+
+  it("Should keep the record when the operator keeps the device", async () => {
+    const onRemove = vi.fn();
+    renderList({ devices: [gatewayDeviceFixture(REVOKED)], onRemove });
+    fireEvent.click(screen.getByTestId("gateway-device-dev_phone-remove"));
+    fireEvent.click(await screen.findByRole("button", { name: "Keep this record" }));
+
+    expect(onRemove).not.toHaveBeenCalled();
+  });
+
+  it("Should disable every device action while another device change is in flight", () => {
+    renderList({ isBusy: true });
+
+    expect(screen.getByTestId("gateway-device-dev_phone-rename")).toBeDisabled();
+    expect(screen.getByTestId("gateway-device-dev_phone-revoke")).toBeDisabled();
+    expect(screen.getByTestId("gateway-device-dev_phone-remove")).toBeDisabled();
+  });
+
+  it("Should announce a device change while it is in flight and clear the announcement after", () => {
+    const { rerender } = render(
+      <GatewayDeviceList
+        devices={[gatewayDeviceFixture()]}
+        isBusy
+        onRemove={vi.fn()}
+        onRename={vi.fn()}
+        onRevoke={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Updating devices");
+
+    rerender(
+      <GatewayDeviceList
+        devices={[gatewayDeviceFixture()]}
+        isBusy={false}
+        onRemove={vi.fn()}
+        onRename={vi.fn()}
+        onRevoke={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   it("Should explain the empty inventory and point at pairing", () => {

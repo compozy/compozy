@@ -18,6 +18,7 @@ export type GatewayPairingArtifact = OperationResponse<"mintGatewayPairing", 201
 export type GatewayRedeemRequest = OperationRequestBody<"redeemGatewayPairing">;
 export type GatewayRedeemResult = OperationResponse<"redeemGatewayPairing", 200>;
 export type GatewayRevokeResult = OperationResponse<"revokeGatewayDevice", 200>;
+export type GatewayRemoveResult = OperationResponse<"removeGatewayDevice", 200>;
 export type GatewaySurfaceRequest = OperationRequestBody<"setGatewaySurface">;
 export type GatewayProviderEnableRequest = OperationRequestBody<"enableGatewayProvider">;
 

@@ -28,7 +28,11 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.post("/api/gateway/stream-tickets", () => new HttpResponse(null, { status: 404 })),
   compozyApiMock.post("/api/gateway/pairings", () =>
     HttpResponse.json(
-      { artifact: "cpz_gwp_2f8c1d5a9b4e7c0d", expires_at: "2099-01-01T00:00:00Z" },
+      {
+        artifact: "cpz_gwp_2f8c1d5a9b4e7c0d",
+        expires_at: "2099-01-01T00:00:00Z",
+        manual_code: "482913",
+      },
       { status: 201 }
     )
   ),
@@ -49,6 +53,13 @@ export const handlers: HttpHandler[] = [
         revoked_at: "2026-08-07T12:00:00Z",
         revoke_epoch: 1,
       }),
+    })
+  ),
+  compozyApiMock.delete("/api/gateway/devices/{id}/record", ({ params }) =>
+    HttpResponse.json({
+      canceled: 0,
+      device: gatewayDeviceFixture({ id: params.id }),
+      revoked: true,
     })
   ),
   compozyApiMock.post("/api/gateway/surfaces", () =>

@@ -1821,6 +1821,23 @@ export interface paths {
     patch: operations["renameGatewayDevice"];
     trace?: never;
   };
+  "/api/gateway/devices/{id}/record": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove one paired gateway device record */
+    delete: operations["removeGatewayDevice"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/gateway/ingress-bindings": {
     parameters: {
       query?: never;
@@ -11161,11 +11178,13 @@ export interface components {
       artifact: string;
       /** Format: date-time */
       expires_at: string;
+      manual_code: string;
     };
     GatewayPairingRedeemRequest: {
       actor_kind: string;
-      artifact: string;
+      artifact?: string;
       credential?: string;
+      manual_code?: string;
       name: string;
     };
     GatewayProviderEnableRequest: {
@@ -11188,6 +11207,11 @@ export interface components {
     GatewayRefusalPayload: {
       cause: string;
       fix: string;
+    };
+    GatewayRemovedDevicePayload: {
+      canceled: number;
+      device: components["schemas"]["GatewayDevicePayload"];
+      revoked: boolean;
     };
     GatewayRevokePayload: {
       canceled: number;
@@ -33406,6 +33430,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Gateway device not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  removeGatewayDevice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Gateway device id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Removed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GatewayRemovedDevicePayload"];
         };
       };
       /** @description Gateway device not found */

@@ -10901,11 +10901,15 @@
           "expires_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "manual_code": {
+            "type": "string"
           }
         },
         "required": [
           "artifact",
-          "expires_at"
+          "expires_at",
+          "manual_code"
         ],
         "type": "object"
       },
@@ -10920,13 +10924,15 @@
           "credential": {
             "type": "string"
           },
+          "manual_code": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           }
         },
         "required": [
           "actor_kind",
-          "artifact",
           "name"
         ],
         "type": "object"
@@ -11003,6 +11009,25 @@
         "required": [
           "cause",
           "fix"
+        ],
+        "type": "object"
+      },
+      "GatewayRemovedDevicePayload": {
+        "properties": {
+          "canceled": {
+            "type": "integer"
+          },
+          "device": {
+            "$ref": "#/components/schemas/GatewayDevicePayload"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "canceled",
+          "device",
+          "revoked"
         ],
         "type": "object"
       },
@@ -66141,6 +66166,67 @@
           }
         },
         "summary": "Rename one paired gateway device",
+        "tags": [
+          "gateway"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-auth": {
+          "http": "device",
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/gateway/devices/{id}/record": {
+      "delete": {
+        "operationId": "removeGatewayDevice",
+        "parameters": [
+          {
+            "description": "Gateway device id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayRemovedDevicePayload"
+                }
+              }
+            },
+            "description": "Removed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Gateway device not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Remove one paired gateway device record",
         "tags": [
           "gateway"
         ],

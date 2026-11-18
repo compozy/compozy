@@ -101,13 +101,15 @@ type GatewayIssuedCredentialPayload struct {
 
 // GatewayPairingArtifactPayload is a daemon API value.
 type GatewayPairingArtifactPayload struct {
-	Artifact  string    `json:"artifact"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Artifact   string    `json:"artifact"`
+	ManualCode string    `json:"manual_code"`
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 // GatewayPairingRedeemRequest is a daemon API value.
 type GatewayPairingRedeemRequest struct {
-	Artifact   string `json:"artifact"`
+	Artifact   string `json:"artifact,omitempty"`
+	ManualCode string `json:"manual_code,omitempty"`
 	Name       string `json:"name"`
 	ActorKind  string `json:"actor_kind"`
 	Credential string `json:"credential,omitempty"`
@@ -136,6 +138,13 @@ type GatewayProviderPayload struct {
 type GatewayRefusalPayload struct {
 	Cause string `json:"cause"`
 	Fix   string `json:"fix"`
+}
+
+// GatewayRemovedDevicePayload is a daemon API value.
+type GatewayRemovedDevicePayload struct {
+	Device   GatewayDevicePayload `json:"device"`
+	Revoked  bool                 `json:"revoked"`
+	Canceled int                  `json:"canceled"`
 }
 
 // GatewayRevokePayload is a daemon API value.

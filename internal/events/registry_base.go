@@ -198,6 +198,7 @@ var baseRegistryEntries = []Metadata{
 	global(success(GatewayConsentRecorded, "gateway.consent", ComponentGateway)),
 	global(success(GatewayDevicePaired, "gateway.device", ComponentGateway)),
 	global(warning(GatewayDeviceRevoked, "gateway.device", ComponentGateway)),
+	global(warning(GatewayDeviceRemoved, "gateway.device", ComponentGateway)),
 	global(info(GatewayProviderStateChanged, "gateway.provider", ComponentGateway)),
 	global(success(GatewayEndpointVerified, "gateway.endpoint", ComponentGateway)),
 	global(failure(GatewayEndpointRejected, "gateway.endpoint", ComponentGateway)),

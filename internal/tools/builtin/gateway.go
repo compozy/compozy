@@ -28,7 +28,7 @@ const gatewayInputSchema = `{
 	"properties":{
 		"action":{"type":"string","enum":[
 			"status","audit","device_list","surface_set","provider_enable","provider_disable",
-			"device_rename","device_revoke","ingress_bind","ingress_unbind"
+			"device_rename","device_revoke","device_remove","ingress_bind","ingress_unbind"
 		]},
 		"surface":{"type":"string","enum":["operator_ui","webhook_ingress"]},
 		"tier":{"type":"string","enum":["private","public"]},
@@ -53,7 +53,7 @@ const gatewayOutputSchema = `{
 	"properties":{
 		"action":{"type":"string","enum":[
 			"status","audit","device_list","surface_set","provider_enable","provider_disable",
-			"device_rename","device_revoke","ingress_bind","ingress_unbind"
+			"device_rename","device_revoke","device_remove","ingress_bind","ingress_unbind"
 		]},
 		"redacted":{"type":"boolean"},
 		"status":{"type":"object"},
@@ -61,6 +61,7 @@ const gatewayOutputSchema = `{
 		"devices":{"type":"array","items":{"type":"object"}},
 		"device":{"type":"object"},
 		"revoke":{"type":"object"},
+		"remove":{"type":"object"},
 		"binding":{"type":"object"},
 		"unbind":{"type":"object"}
 	},

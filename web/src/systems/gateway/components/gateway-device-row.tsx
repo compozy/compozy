@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Check, Pencil, Smartphone, Terminal, X } from "@compozy/ui/icons";
+import { Check, Pencil, Smartphone, Terminal, Trash2, X } from "@compozy/ui/icons";
 
 import { Button, ConfirmDialog, Input, ListingRow, Pill, Time } from "@compozy/ui";
 
-import { deviceActorLabel, deviceOriginLabel } from "../lib/gateway-copy";
+import { deviceActorLabel, deviceOriginLabel, deviceRemovalCopy } from "../lib/gateway-copy";
 import type { GatewayDevice } from "../types";
 
 export interface GatewayDeviceRowProps {
@@ -11,18 +11,28 @@ export interface GatewayDeviceRowProps {
   isBusy: boolean;
   onRename: (id: string, name: string) => void;
   onRevoke: (device: GatewayDevice) => void;
+  onRemove: (device: GatewayDevice) => void;
 }
 
 /**
  * One paired device: what it is called, where it was paired from, and when it
  * was last active. Revoked rows stay in the inventory because revocation is
- * terminal and auditable — they simply lose their actions.
+ * terminal and auditable — they lose rename and revoke, and keep only Remove,
+ * which deletes the record once the operator has finished with it.
  */
-export function GatewayDeviceRow({ device, isBusy, onRename, onRevoke }: GatewayDeviceRowProps) {
+export function GatewayDeviceRow({
+  device,
+  isBusy,
+  onRename,
+  onRevoke,
+  onRemove,
+}: GatewayDeviceRowProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const isRevoked = Boolean(device.revoked_at);
   const lastActivity = device.last_seen_at ?? device.created_at;
+  const removal = deviceRemovalCopy(device.name, isRevoked);
 
   const commit = () => {
     const next = draft?.trim() ?? "";
@@ -143,6 +153,40 @@ export function GatewayDeviceRow({ device, isBusy, onRename, onRevoke }: Gateway
             </Button>
           </>
         )}
+        {draft === null ? (
+          <Button
+            aria-label={`Remove ${device.name}`}
+            data-testid={`gateway-device-${device.id}-remove`}
+            disabled={isBusy}
+            onClick={() => setConfirmingRemove(true)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Trash2 aria-hidden="true" />
+            Remove
+          </Button>
+        ) : null}
+        <ConfirmDialog
+          cancelLabel={removal.cancelLabel}
+          confirmButtonProps={{
+            "data-testid": `gateway-device-${device.id}-remove-confirm`,
+          }}
+          confirmLabel="Remove device"
+          contentProps={{ "data-testid": `gateway-device-${device.id}-remove-dialog` }}
+          description={removal.description}
+          isPending={isBusy}
+          note={removal.note}
+          noteTone="warning"
+          onConfirm={() => {
+            setConfirmingRemove(false);
+            onRemove(device);
+          }}
+          onOpenChange={setConfirmingRemove}
+          open={confirmingRemove}
+          title={`Remove ${device.name}?`}
+          tone="destructive"
+        />
       </ListingRow.Trail>
     </ListingRow>
   );

@@ -135,6 +135,7 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"GET /api/gateway/audit",
 				"GET /api/gateway/status",
 				"POST /api/gateway/pairings",
+				"DELETE /api/gateway/devices/:id/record",
 				"GET /api/status",
 				"GET /api/tasks/:id",
 				"GET /api/resources/:kind/:id",
@@ -177,6 +178,7 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"GET /api/gateway/devices",
 				"PATCH /api/gateway/devices/:id",
 				"DELETE /api/gateway/devices/:id",
+				"DELETE /api/gateway/devices/:id/record",
 				"POST /api/gateway/stream-tickets",
 			},
 			absent: []string{
@@ -204,6 +206,7 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"GET /api/gateway/devices",
 				"PATCH /api/gateway/devices/:id",
 				"DELETE /api/gateway/devices/:id",
+				"DELETE /api/gateway/devices/:id/record",
 				"POST /api/gateway/stream-tickets",
 			},
 			absent: []string{

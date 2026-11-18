@@ -1279,7 +1279,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		wantActions := []string{
 			"status", "audit", "device_list", "surface_set", "provider_enable", "provider_disable",
-			"device_rename", "device_revoke", "ingress_bind", "ingress_unbind",
+			"device_rename", "device_revoke", "device_remove", "ingress_bind", "ingress_unbind",
 		}
 		if got := input.Properties["action"].Enum; !slices.Equal(got, wantActions) {
 			t.Fatalf("gateway action enum = %#v, want %#v", got, wantActions)

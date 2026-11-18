@@ -28,6 +28,7 @@ type DeviceService struct {
 	tickets     *streamTicketStore
 	connections ConnectionRegistry
 	mutations   *mutationGate
+	events      DeviceEventSink
 	now         func() time.Time
 	entropy     io.Reader
 }
@@ -43,6 +44,7 @@ type deviceServiceConfig struct {
 	streamTicketTTL   time.Duration
 	streamTicketLimit int
 	connections       ConnectionRegistry
+	events            DeviceEventSink
 }
 
 func NewDeviceService(store DeviceStore, opts ...DeviceServiceOption) (*DeviceService, error) {
@@ -76,7 +78,8 @@ func NewDeviceService(store DeviceStore, opts ...DeviceServiceOption) (*DeviceSe
 	return &DeviceService{
 		store: store, pairings: pairings, tickets: tickets,
 		appTokens:   appTokenService{store: config.appTokens},
-		connections: config.connections, mutations: newMutationGate(), now: config.now, entropy: config.entropy,
+		connections: config.connections, mutations: newMutationGate(),
+		events: config.events, now: config.now, entropy: config.entropy,
 	}, nil
 }
 
@@ -126,6 +129,17 @@ func WithConnectionRegistry(registry ConnectionRegistry) DeviceServiceOption {
 	}
 }
 
+// WithDeviceEvents configures the durable sink for device lifecycle events.
+func WithDeviceEvents(events DeviceEventSink) DeviceServiceOption {
+	return func(config *deviceServiceConfig) error {
+		if events == nil {
+			return errors.New("gateway: device event sink is required")
+		}
+		config.events = events
+		return nil
+	}
+}
+
 // ReconfigureLimits applies live pairing and stream-ticket limits to new artifacts.
 func (s *DeviceService) ReconfigureLimits(
 	pairingMaxPending int,
@@ -169,7 +183,7 @@ func (s *DeviceService) RedeemPairing(ctx context.Context, req RedeemRequest) (I
 	}
 
 	var issued IssuedCredential
-	err := s.pairings.Redeem(req.Artifact, func(pairingSource PairingSource) error {
+	err := s.pairings.Redeem(req.Artifact, req.ManualCode, func(pairingSource PairingSource) error {
 		credential := strings.TrimSpace(req.Credential)
 		if credential == "" {
 			var generateErr error

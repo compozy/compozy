@@ -82,6 +82,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		gatewayAdmission:      s.gatewayAdmission,
 		deviceAuth:            s.deviceAuth,
 		authLimiter:           s.authLimiter,
+		pairingLimiter:        s.pairingLimiter,
 		ingressLimiter:        s.ingressLimiter,
 		surfaceSet:            s.surfaceSet,
 		homePaths:             s.homePaths,

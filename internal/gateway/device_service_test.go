@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type recordingConnectionRegistry struct {
@@ -117,6 +119,216 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		}
 		if !first.Changed || second.Changed || first.Device.RevokeEpoch != 1 || second.Device.RevokeEpoch != 1 {
 			t.Fatalf("revoke results = %#v / %#v", first, second)
+		}
+	})
+
+	// Invariant: removing an active device revokes it, closes its streams, appends the audit
+	// event, and deletes the record; a failed append leaves the record in place.
+	// Owning layer: gateway device service removal and its audit sink boundary.
+	// Canonical suite: TestDeviceServiceLifecycle.
+	t.Run("Should revoke close streams and delete an active device", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		store := newMemoryDeviceStore()
+		registry := &recordingConnectionRegistry{store: store}
+		events := &recordingDeviceEventSink{}
+		service, err := NewDeviceService(
+			store,
+			WithDeviceClock(func() time.Time { return now }),
+			WithDeviceEntropy(&incrementingReader{}),
+			WithConnectionRegistry(registry),
+			WithDeviceEvents(events),
+		)
+		if err != nil {
+			t.Fatalf("NewDeviceService() error = %v", err)
+		}
+		issued, err := issueTestDevice(t.Context(), service, "Laptop", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice() error = %v", err)
+		}
+		removed, err := service.RemoveDevice(t.Context(), issued.Device.ID)
+		if err != nil {
+			t.Fatalf("RemoveDevice() error = %v", err)
+		}
+		if !removed.Revoked || removed.Canceled != 2 || removed.Device.RevokeEpoch != 1 ||
+			removed.Device.RevokedAt.IsZero() {
+			t.Fatalf("RemoveDevice() result = %#v", removed)
+		}
+		if !registry.revokedBeforeCall {
+			t.Fatal("live streams were canceled before the revoke was durable")
+		}
+		if _, exists := store.byID[issued.Device.ID]; exists {
+			t.Fatal("device record survived removal")
+		}
+		recorded := events.recorded()
+		if len(recorded) != 1 || recorded[0].Device.ID != issued.Device.ID ||
+			recorded[0].Device.PairingOrigin != string(PairingSourceLocal) ||
+			recorded[0].ActorKind != string(workspaceaccess.ActorHuman) ||
+			recorded[0].RemovedAt.IsZero() {
+			t.Fatalf("recorded removal event = %#v", recorded)
+		}
+	})
+
+	t.Run("Should delete an already revoked device without a second revocation", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		store := newMemoryDeviceStore()
+		registry := &recordingConnectionRegistry{store: store}
+		events := &recordingDeviceEventSink{}
+		service, err := NewDeviceService(
+			store,
+			WithDeviceClock(func() time.Time { return now }),
+			WithDeviceEntropy(&incrementingReader{}),
+			WithConnectionRegistry(registry),
+			WithDeviceEvents(events),
+		)
+		if err != nil {
+			t.Fatalf("NewDeviceService() error = %v", err)
+		}
+		issued, err := issueTestDevice(t.Context(), service, "Laptop", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice() error = %v", err)
+		}
+		if _, err := service.RevokeDevice(t.Context(), issued.Device.ID); err != nil {
+			t.Fatalf("RevokeDevice() error = %v", err)
+		}
+		removed, err := service.RemoveDevice(t.Context(), issued.Device.ID)
+		if err != nil {
+			t.Fatalf("RemoveDevice() error = %v", err)
+		}
+		if removed.Revoked || removed.Canceled != 0 || removed.Device.RevokeEpoch != 1 {
+			t.Fatalf("RemoveDevice(revoked) result = %#v", removed)
+		}
+		if len(registry.canceled) != 1 {
+			t.Fatalf("stream cancellations = %d, want only the earlier revoke", len(registry.canceled))
+		}
+	})
+
+	t.Run("Should report not found when removing an unknown device", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		events := &recordingDeviceEventSink{}
+		service := newDeviceServiceOnly(t, &now, WithDeviceEvents(events))
+		if _, err := service.RemoveDevice(t.Context(), "dev_missing"); !errors.Is(err, ErrDeviceNotFound) {
+			t.Fatalf("RemoveDevice(missing) error = %v, want ErrDeviceNotFound", err)
+		}
+		if len(events.recorded()) != 0 {
+			t.Fatal("a missing device still recorded a removal event")
+		}
+	})
+
+	t.Run("Should keep the record when the removal event cannot be appended", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		appendErr := errors.New("event ledger unavailable")
+		events := &recordingDeviceEventSink{err: appendErr}
+		store := newMemoryDeviceStore()
+		service, err := NewDeviceService(
+			store,
+			WithDeviceClock(func() time.Time { return now }),
+			WithDeviceEntropy(&incrementingReader{}),
+			WithDeviceEvents(events),
+		)
+		if err != nil {
+			t.Fatalf("NewDeviceService() error = %v", err)
+		}
+		issued, err := issueTestDevice(t.Context(), service, "Laptop", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice() error = %v", err)
+		}
+		if _, err := service.RemoveDevice(t.Context(), issued.Device.ID); !errors.Is(err, appendErr) {
+			t.Fatalf("RemoveDevice() error = %v, want the append failure", err)
+		}
+		if _, exists := store.byID[issued.Device.ID]; !exists {
+			t.Fatal("failed removal deleted the device record")
+		}
+	})
+
+	t.Run("Should refuse removal when no event sink is configured", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service, store := newDeviceServiceFixture(t, &now)
+		issued, err := issueTestDevice(t.Context(), service, "No audit", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice() error = %v", err)
+		}
+		removalErr := func() error {
+			_, err := service.RemoveDevice(t.Context(), issued.Device.ID)
+			return err
+		}()
+		if removalErr == nil ||
+			!strings.Contains(removalErr.Error(), "device removal requires a configured event sink") {
+			t.Fatalf(
+				"RemoveDevice() error = %v, want the missing event sink error",
+				removalErr,
+			)
+		}
+		if _, exists := store.byID[issued.Device.ID]; !exists {
+			t.Fatal("removal without an event sink deleted the device record")
+		}
+	})
+
+	t.Run("Should remove the device serving the current request", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		service := newDeviceServiceOnly(t, &now, WithDeviceEvents(&recordingDeviceEventSink{}))
+		issued, err := issueTestDevice(t.Context(), service, "Self", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice() error = %v", err)
+		}
+		mutationCtx, err := service.AcquireMutation(
+			ContextWithDevice(t.Context(), issued.Device),
+			issued.Device.ID,
+			issued.Device.RevokeEpoch,
+		)
+		if err != nil {
+			t.Fatalf("AcquireMutation() error = %v", err)
+		}
+		t.Cleanup(func() { ReleaseMutation(mutationCtx) })
+		removed, err := service.RemoveDevice(mutationCtx, issued.Device.ID)
+		if err != nil {
+			t.Fatalf("RemoveDevice(self) error = %v", err)
+		}
+		if removed.Device.ID != issued.Device.ID {
+			t.Fatalf("removed self snapshot = %#v", removed.Device)
+		}
+		if _, err := service.Authenticate(t.Context(), issued.Credential); !errors.Is(
+			err,
+			ErrDeviceUnauthenticated,
+		) {
+			t.Fatalf("Authenticate(after self removal) error = %v", err)
+		}
+	})
+
+	t.Run("Should fence removal by the acting device epoch", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		store := newMemoryDeviceStore()
+		service, err := NewDeviceService(
+			store,
+			WithDeviceClock(func() time.Time { return now }),
+			WithDeviceEntropy(&incrementingReader{}),
+		)
+		if err != nil {
+			t.Fatalf("NewDeviceService() error = %v", err)
+		}
+		actor, err := issueTestDevice(t.Context(), service, "Actor", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice(actor) error = %v", err)
+		}
+		target, err := issueTestDevice(t.Context(), service, "Target", ActorKindOperatorDevice)
+		if err != nil {
+			t.Fatalf("issueTestDevice(target) error = %v", err)
+		}
+		if _, err := service.RevokeDevice(t.Context(), actor.Device.ID); err != nil {
+			t.Fatalf("RevokeDevice(actor) error = %v", err)
+		}
+		staleCtx := ContextWithDevice(t.Context(), actor.Device)
+		if _, err := service.RemoveDevice(staleCtx, target.Device.ID); !errors.Is(err, ErrDeviceRevoked) {
+			t.Fatalf("RemoveDevice(stale actor) error = %v, want ErrDeviceRevoked", err)
+		}
+		if _, exists := store.byID[target.Device.ID]; !exists {
+			t.Fatal("a revoked actor deleted another device record")
 		}
 	})
 

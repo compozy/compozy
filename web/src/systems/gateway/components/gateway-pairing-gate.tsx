@@ -1,10 +1,12 @@
 import { useLayoutEffect, useState, type FormEvent } from "react";
 import { KeyRound } from "@compozy/ui/icons";
 
-import { Button, Empty, Field, FieldLabel, Input, Logo } from "@compozy/ui";
+import { Button, Empty, Field, FieldDescription, FieldLabel, Input, Logo } from "@compozy/ui";
 
 import { useRedeemGatewayPairing } from "../hooks/use-gateway-access";
-import type { GatewayListenerTier } from "@/lib/gateway-access-signal";
+import { gatewayErrorCode, type GatewayListenerTier } from "@/lib/gateway-access-signal";
+import { classifyPairingInput } from "../lib/pairing-input";
+import { pairingRedeemFailureMessage } from "../lib/pairing-redeem-copy";
 import { clearPairingFragment, readPairingFragment } from "../lib/pairing-fragment";
 
 export interface GatewayPairingGateProps {
@@ -17,13 +19,14 @@ export interface GatewayPairingGateProps {
  * What an unpaired browser sees, and the only thing it sees.
  *
  * Pairing codes are minted from the private overlay or the daemon machine and
- * never from here, so this gate can redeem a code but never issue one.
+ * never from here, so this gate can redeem a code but never issue one. One
+ * field takes either the six-digit code or a pasted pairing link.
  */
 export function GatewayPairingGate({ reload, tier }: GatewayPairingGateProps) {
   // A scanned link delivers the artifact in the fragment. Read it once, then
   // strip it from the address bar before paint and long before the redeem
   // request, so it never reaches history, a referrer, or a server log.
-  const [artifact, setArtifact] = useState(readPairingFragment);
+  const [codeInput, setCodeInput] = useState(readPairingFragment);
   const [name, setName] = useState("");
   const redeem = useRedeemGatewayPairing(reload);
   useLayoutEffect(() => clearPairingFragment(), []);
@@ -47,14 +50,17 @@ export function GatewayPairingGate({ reload, tier }: GatewayPairingGateProps) {
     );
   }
 
-  const canSubmit = artifact.trim() !== "" && name.trim() !== "";
+  const canSubmit = classifyPairingInput(codeInput) !== null && name.trim() !== "";
+  const redeemFailure = redeem.error
+    ? pairingRedeemFailureMessage(gatewayErrorCode(redeem.error))
+    : null;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const code = artifact.trim();
+    const credential = classifyPairingInput(codeInput);
     const deviceName = name.trim();
-    if (code === "" || deviceName === "") return;
-    redeem.mutate({ artifact: code, name: deviceName });
+    if (!credential || deviceName === "") return;
+    redeem.mutate({ ...credential, name: deviceName });
   };
 
   return (
@@ -73,17 +79,21 @@ export function GatewayPairingGate({ reload, tier }: GatewayPairingGateProps) {
         action={
           <form className="flex w-full flex-col gap-3" onSubmit={handleSubmit}>
             <Field>
-              <FieldLabel htmlFor="gateway-pairing-code-input">Pairing code</FieldLabel>
+              <FieldLabel htmlFor="gateway-pairing-code-input">Pairing code or link</FieldLabel>
               <Input
+                aria-describedby="gateway-pairing-code-hint"
                 autoComplete="off"
                 autoFocus
                 data-testid="gateway-pairing-gate-code"
                 id="gateway-pairing-code-input"
-                onChange={event => setArtifact(event.target.value)}
+                onChange={event => setCodeInput(event.target.value)}
                 spellCheck={false}
                 required
-                value={artifact}
+                value={codeInput}
               />
+              <FieldDescription id="gateway-pairing-code-hint">
+                Enter the six-digit code, or paste the pairing link.
+              </FieldDescription>
             </Field>
             <Field>
               <FieldLabel htmlFor="gateway-pairing-name-input">Name this device</FieldLabel>
@@ -97,13 +107,13 @@ export function GatewayPairingGate({ reload, tier }: GatewayPairingGateProps) {
                 value={name}
               />
             </Field>
-            {redeem.error ? (
+            {redeemFailure ? (
               <p
                 className="text-form-label text-destructive"
                 data-testid="gateway-pairing-gate-error"
                 role="alert"
               >
-                {redeem.error.message}
+                {redeemFailure}
               </p>
             ) : null}
             <Button

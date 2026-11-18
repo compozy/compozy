@@ -126,6 +126,18 @@ func (n *daemonNativeTools) gatewayDeviceRevoke(
 	return n.deps.gatewayService().RevokeDevice(ctx, deviceID)
 }
 
+func (n *daemonNativeTools) gatewayDeviceRemove(
+	ctx context.Context,
+	toolID toolspkg.ToolID,
+	input nativeGatewayInput,
+) (gateway.RemoveResult, error) {
+	deviceID, err := requiredNativeString(toolID, "device_id", input.DeviceID)
+	if err != nil {
+		return gateway.RemoveResult{}, err
+	}
+	return n.deps.gatewayService().RemoveDevice(ctx, deviceID)
+}
+
 func (n *daemonNativeTools) gatewayIngressBind(
 	ctx context.Context,
 	scope toolspkg.Scope,

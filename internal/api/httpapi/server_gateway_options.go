@@ -78,6 +78,15 @@ func WithGatewayAuthLimiter(limiter *gateway.AuthFailureLimiter) Option {
 	}
 }
 
+// WithGatewayPairingLimiter overrides pairing-redemption throttling. The budget
+// is separate from device authentication so an authenticated request cannot
+// forgive pairing failures for the same source.
+func WithGatewayPairingLimiter(limiter *gateway.AuthFailureLimiter) Option {
+	return func(server *Server) {
+		server.pairingLimiter = limiter
+	}
+}
+
 // WithGatewayIngressLimiter overrides public ingress throttling, primarily for deterministic tests.
 func WithGatewayIngressLimiter(limiter *gateway.IngressRateLimiter) Option {
 	return func(server *Server) {
