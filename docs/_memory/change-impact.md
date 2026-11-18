@@ -1,5 +1,20 @@
 # Compozy Change Impact
 
+## Composer reply answers a pending clarification (GH-1821)
+
+- **Native tools and CLI/HTTP/UDS.** `compozy__clarify`, `compozy__session_clarify_answer`, the
+  clarification routes and their DTOs keep their shapes. The Web composer reuses the existing
+  answer endpoint with a free-text body.
+- **Extensibility, hooks and config.** No hook, SDK, extension or config key changes;
+  `tools.clarify.timeout` keeps its meaning for unanswered questions.
+- **Workspace and profile isolation.** The answer is scoped by the same workspace and session as
+  the dock's answer.
+- **Web, docs and official skill.** While a clarification is pending, a steer or queue send from
+  the main composer answers it as free text; a settled question falls back to the original send,
+  a send with files is refused with its draft kept, and interrupt still cancels the turn. The
+  composer placeholder and a dock line state this. The official skill documents tool behavior,
+  which is unchanged. `RT-session-clarification-roundtrip` records the walk.
+
 ## Pull request monitor check rounds
 
 Owner: [#1807](https://github.com/compozy/compozy/issues/1807).

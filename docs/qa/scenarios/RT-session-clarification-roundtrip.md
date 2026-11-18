@@ -110,3 +110,14 @@ than four choices, or URL mode is declined. Automated evidence: `internal/acp/el
 `internal/session/elicitation_test.go` (headless refusal, scope, canceled turn).
 Outstanding walk: answer a real opencode `question` from the dock, and confirm a system session
 declines without a pending interaction.
+
+QA impact 2026-11-18 (#1821, web only): while a clarification is pending, a steer or queue send
+from the main session composer answers that question as free text through the existing answer
+endpoint, so the turn resumes at once instead of waiting for the timeout. The composer placeholder
+and a quiet dock line under bounded choices say so. A send that races a settled question (answered
+elsewhere, timed out, canceled) goes out as the original steer or queue. A send with files is
+refused with its draft kept, and an answer failure keeps the draft with a stated reason. Interrupt
+keeps its meaning: it cancels the turn and with it the question. Automated evidence:
+`web/src/systems/session/hooks/__tests__/use-session-clarifications.test.tsx`. Outstanding walk:
+with a bounded and a free-text question pending, type a reply in the main composer in steer and in
+queue mode; confirm the dock clears, the receipt records the typed answer and the turn continues.

@@ -149,21 +149,26 @@ export function ClarificationDock({
         </Dock.Head>
         <CollapsibleContent className="min-h-0 overflow-y-auto">
           {dock.hasChoices ? (
-            <ChoiceList aria-label="Answer choices" data-testid="clarification-dock-choices">
-              {indexedChoices(dock.choices).map(({ choice, index, key }) => (
-                <ChoiceRow
-                  key={key}
-                  data-testid="clarification-dock-choice"
-                  data-choice-index={index}
-                  aria-pressed={dock.submittedChoice === index}
-                  disabled={dock.isSubmitting}
-                  onClick={() => dock.submitChoice(index)}
-                >
-                  {index < dock.choiceKeyLimit ? <ChoiceKey>{index + 1}</ChoiceKey> : null}
-                  {choice}
-                </ChoiceRow>
-              ))}
-            </ChoiceList>
+            <>
+              <ChoiceList aria-label="Answer choices" data-testid="clarification-dock-choices">
+                {indexedChoices(dock.choices).map(({ choice, index, key }) => (
+                  <ChoiceRow
+                    key={key}
+                    data-testid="clarification-dock-choice"
+                    data-choice-index={index}
+                    aria-pressed={dock.submittedChoice === index}
+                    disabled={dock.isSubmitting}
+                    onClick={() => dock.submitChoice(index)}
+                  >
+                    {index < dock.choiceKeyLimit ? <ChoiceKey>{index + 1}</ChoiceKey> : null}
+                    {choice}
+                  </ChoiceRow>
+                ))}
+              </ChoiceList>
+              <Dock.Status data-testid="clarification-dock-composer-hint">
+                Or type your own answer in the message box below.
+              </Dock.Status>
+            </>
           ) : (
             <ChoiceFree data-testid="clarification-dock-free">
               <ChoiceFreeTextarea
