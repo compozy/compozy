@@ -435,6 +435,36 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return 422 when preview rejects an unrelated plugin schema", func(t *testing.T) {
+		t.Parallel()
+		service := extensionServiceStub{previewInstallFn: func(
+			context.Context,
+			contract.InstallExtensionRequest,
+			taskpkg.ActorContext,
+		) (contract.ExtensionInstallPreviewPayload, error) {
+			return contract.ExtensionInstallPreviewPayload{}, &agentplugin.ManifestError{
+				Issues: []agentplugin.Issue{
+					{Path: "$schema", Message: "unrelated client manifest in .claude-plugin/plugin.json"},
+				},
+			}
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions/preview-install", handlers.PreviewExtensionInstall)
+		response := performRequest(t, engine, http.MethodPost, "/extensions/preview-install",
+			[]byte(`{"source":"marketplace","ref":"team/tool","allow_unverified":true}`))
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusUnprocessableEntity || payload.Diagnostic == nil ||
+			payload.Diagnostic.Code != diagnosticcontract.CodeExtensionAgentPluginManifestInvalid ||
+			len(payload.Issues) != 1 || payload.Issues[0].Field != "$schema" ||
+			!strings.Contains(payload.Issues[0].Message, ".claude-plugin/plugin.json") {
+			t.Fatalf("preview = %d %s", response.Code, response.Body.String())
+		}
+	})
+
 	// Install request decoding owns rejection before lifecycle or preview dispatch.
 	for _, operation := range []string{"install", "preview"} {
 		t.Run("Should reject retired runtime_name before "+operation, func(t *testing.T) {
@@ -852,6 +882,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map an unrelated plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginNotManifest, want: http.StatusUnprocessableEntity},
 		{name: "Should map an unsupported plugin schema to unprocessable", err: agentplugin.ErrSchemaUnsupported, want: http.StatusUnprocessableEntity},
 		{name: "Should map an invalid plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginManifestInvalid, want: http.StatusUnprocessableEntity},
+		{name: "Should map acquisition manifest issues to unprocessable", err: &agentplugin.ManifestError{}, want: http.StatusUnprocessableEntity},
 		{name: "Should map unknown failures to internal error", err: errors.New("unknown"), want: http.StatusInternalServerError},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

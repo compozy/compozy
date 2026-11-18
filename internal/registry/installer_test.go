@@ -140,6 +140,7 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 		}{
 			{"Should accept an omitted client schema", "", false},
 			{"Should accept the supported client schema", fmt.Sprintf(`"$schema":%q,`, agentplugin.PluginSchemaID), false},
+			{"Should recognize the official Claude Code schema only in its layout", `"$schema":"https://json.schemastore.org/claude-code-plugin-manifest.json",`, layout != installerClaudePluginDirectory},
 			{"Should reject an unsupported client schema", `"$schema":"https://agent-plugins.org/schemas/2.0.0/plugin.schema.json",`, true},
 			{"Should reject an unrelated client schema", `"$schema":"https://example.invalid/other.json",`, true},
 			{"Should reject a null client schema", `"$schema":null,`, true},

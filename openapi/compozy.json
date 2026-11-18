@@ -68355,6 +68355,23 @@
             },
             "description": "Package bytes differ from the listed digest"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ExtensionValidationErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Invalid plugin manifest"
+          },
           "500": {
             "content": {
               "application/json": {

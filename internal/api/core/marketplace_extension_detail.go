@@ -37,7 +37,7 @@ func (h *BaseHandlers) populateMarketplaceExtensionDetail(
 		}
 		return nil
 	}
-	if entry.InstallBlocker != "" {
+	if entry.InstallBlocker != "" && entry.InstallBlocker != marketplacepkg.PluginManifestInvalidBlocker {
 		return nil
 	}
 	if inspector, ok := h.Extensions.(marketplaceExtensionInspector); ok {

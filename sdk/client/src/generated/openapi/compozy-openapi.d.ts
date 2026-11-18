@@ -34760,6 +34760,17 @@ export interface operations {
           "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
+      /** @description Invalid plugin manifest */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ExtensionValidationErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {

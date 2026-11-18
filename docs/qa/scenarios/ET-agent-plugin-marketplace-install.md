@@ -150,3 +150,14 @@ in Browse and category views deterministically; `marketplace-plugin-catalog E2E-
 browser/daemon callback and captures the confirmed dialog beside the Ready row in CI. This entry
 defines the replay; a pending CI run is not a passing QA result. No credential, permission or
 installation-policy behavior changes.
+
+## QA impact 2026-11-18 — Claude Code schema in Marketplace archives
+
+Refresh a plugin source containing a valid `.claude-plugin/plugin.json` that declares the official
+Claude Code schema alongside a valid Codex manifest with a different name. Confirm that the entry
+is installable, its detail and preview succeed, and the installed instance uses the Claude Code
+name and layout. Repeat with an unrelated schema in the Claude Code manifest. The entry must be
+blocked, and HTTP and UDS detail and preview must return 422 with the manifest diagnostic.
+The registry and managed Marketplace lifecycle suites cover package selection and installation,
+the catalog integration suite covers blocked projections, and the shared handler suite covers
+status and diagnostic mapping.

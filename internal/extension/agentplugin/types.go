@@ -51,6 +51,9 @@ const (
 
 var ErrSchemaUnsupported = errors.New("extension: Agent Plugins schema is unsupported")
 
+// ErrManifestInvalid identifies invalid plugin manifests at acquisition and load time.
+var ErrManifestInvalid = errors.New("extension: agent plugin manifest invalid")
+
 // SchemaUnsupportedError retains manifest identity across acquisition and loading boundaries.
 type SchemaUnsupportedError struct {
 	Path     string
@@ -151,6 +154,8 @@ type Issue struct {
 type ManifestError struct {
 	Issues []Issue
 }
+
+func (e *ManifestError) Unwrap() error { return ErrManifestInvalid }
 
 // Error renders all issues without discarding their field paths.
 func (e *ManifestError) Error() string {

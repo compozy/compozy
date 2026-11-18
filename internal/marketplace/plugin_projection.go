@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/githubauth"
 	"github.com/compozy/compozy/internal/marketplace/pluginsource"
 )
@@ -18,6 +19,9 @@ const (
 	pluginRefreshBudget = 10 * time.Minute
 	budgetExhausted     = "refresh_budget_exhausted"
 )
+
+// PluginManifestInvalidBlocker marks packages that can be inspected for a specific manifest diagnostic.
+const PluginManifestInvalidBlocker = "plugin_manifest_invalid"
 
 var ErrRefreshBudgetExhausted = errors.New(budgetExhausted)
 
@@ -288,6 +292,8 @@ func (p *PluginProjector) projectError(
 		code = "package_unavailable"
 	case errors.Is(err, pluginsource.ErrSourceUnreachable):
 		code = "source_unreachable"
+	case errors.Is(err, agentplugin.ErrManifestInvalid), errors.Is(err, agentplugin.ErrSchemaUnsupported):
+		code = PluginManifestInvalidBlocker
 	}
 	return p.projectBlocked(plugin, name, sourceRef, code, err.Error(), curated)
 }

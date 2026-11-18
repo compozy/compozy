@@ -210,7 +210,8 @@ func (s *daemonExtensionService) marketplacePluginFromEntry(
 		details.Extension.Acquisition == nil {
 		return nil, marketplacepkg.ErrEntryNotFound
 	}
-	if !entry.Installable && entry.InstallBlocker != "package_unavailable" {
+	if !entry.Installable && entry.InstallBlocker != "package_unavailable" &&
+		entry.InstallBlocker != marketplacepkg.PluginManifestInvalidBlocker {
 		return nil, fmt.Errorf("daemon: marketplace plugin cannot be installed: %s", entry.InstallBlocker)
 	}
 	return &extensionpkg.MarketplacePluginAcquisition{

@@ -34,5 +34,8 @@ func (r *Resolver) Inspect(
 	); err != nil {
 		return err
 	}
+	if err := registry.ValidateInstallPackageRoot(root); err != nil {
+		return err
+	}
 	return inspect(ctx, root)
 }
