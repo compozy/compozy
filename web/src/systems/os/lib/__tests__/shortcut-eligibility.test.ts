@@ -21,7 +21,16 @@ interface Press {
   altGraph?: boolean;
 }
 
-function press({ key, code, meta, ctrl, alt, shift, composing, altGraph }: Press): ShortcutKeyEvent {
+function press({
+  key,
+  code,
+  meta,
+  ctrl,
+  alt,
+  shift,
+  composing,
+  altGraph,
+}: Press): ShortcutKeyEvent {
   return {
     key: key ?? "Unidentified",
     code,
@@ -100,11 +109,13 @@ describe("shortcut eligibility", () => {
     // US glyphs are not ASCII, and an Option that sends the key's own character acts as Alt.
     expect(eligible("text", true, { key: "˙", code: "KeyH", alt: true })).toBe(true);
     expect(eligible("text", true, { key: "…", code: "Semicolon", alt: true })).toBe(true);
-    expect(eligible("text", true, { key: "Ú", code: "Semicolon", alt: true, shift: true })).toBe(true);
-    expect(eligible("terminal", true, { key: "l", code: "KeyL", alt: true })).toBe(true);
-    expect(eligible("terminal", true, { key: ":", code: "Semicolon", alt: true, shift: true })).toBe(
+    expect(eligible("text", true, { key: "Ú", code: "Semicolon", alt: true, shift: true })).toBe(
       true
     );
+    expect(eligible("terminal", true, { key: "l", code: "KeyL", alt: true })).toBe(true);
+    expect(
+      eligible("terminal", true, { key: ":", code: "Semicolon", alt: true, shift: true })
+    ).toBe(true);
     // With Control or Command held the chord is never a typed character.
     expect(eligible("text", true, { key: "@", code: "KeyL", alt: true, ctrl: true })).toBe(true);
   });
